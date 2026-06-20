@@ -1,10 +1,16 @@
 {
   "name": "lawfirm",
   "private": true,
+  "packageManager": "pnpm@9.15.4",
   "scripts": {
     "dev": "pnpm --filter shared build && pnpm --filter web clean && pnpm --parallel --filter api --filter web dev",
     "build": "pnpm -r build",
+    "build:api": "pnpm --filter @lawfirm/shared build && pnpm --filter api build:prod",
+    "build:web": "pnpm --filter @lawfirm/shared build && pnpm --filter web build",
+    "start:api": "pnpm --filter api start:prod",
+    "start:web": "pnpm --filter web start",
     "db:migrate": "pnpm --filter api prisma migrate dev",
+    "db:migrate:deploy": "pnpm --filter api prisma migrate deploy",
     "db:seed": "pnpm --filter api prisma db seed",
     "db:generate": "pnpm --filter api prisma generate"
   },

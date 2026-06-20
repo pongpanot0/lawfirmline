@@ -105,4 +105,55 @@ PORT=3001
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
-# lawfirmline
+
+## Deploy on Railway
+
+Monorepo deploys as **3 services**: PostgreSQL + API + Web.
+
+### 1. Create Railway project
+
+1. Push this repo to GitHub and create a new [Railway](https://railway.app) project from the repo.
+2. Add a **PostgreSQL** plugin to the project.
+
+### 2. API service
+
+1. Add a service from the same repo (or duplicate).
+2. **Settings → Config file path:** `railway.api.toml`
+3. **Variables** (see `railway.env.example`):
+
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `JWT_SECRET` | long random string |
+| `JWT_REFRESH_SECRET` | long random string |
+| `CORS_ORIGIN` | `https://<web-service>.up.railway.app` |
+| `UPLOAD_DIR` | `./uploads` |
+
+4. Deploy — runs `prisma migrate deploy` on start, health check at `/health`.
+
+### 3. Web service
+
+1. Add another service from the repo.
+2. **Settings → Config file path:** `railway.web.toml`
+3. **Variables** (set **before** first build):
+
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_API_URL` | `https://<api-service>.up.railway.app` |
+
+4. Redeploy web after API URL is known.
+
+### 4. Seed demo data (optional, once)
+
+Railway shell on the **API** service:
+
+```bash
+pnpm db:seed
+```
+
+Demo login: `admin@lawfirm.com` / `password123`
+
+### Notes
+
+- Uploads use ephemeral disk on Railway — use a volume or S3 for production file storage.
+- LINE webhook URL: `https://<api-service>.up.railway.app/line/webhook`

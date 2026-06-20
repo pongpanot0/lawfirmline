@@ -1,0 +1,16 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @lawfirm/shared build && pnpm --filter api build:prod"
+watchPatterns = [
+  "/apps/api/**",
+  "/packages/shared/**",
+  "/pnpm-lock.yaml",
+  "/package.json",
+]
+
+[deploy]
+startCommand = "pnpm --filter api start:prod"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

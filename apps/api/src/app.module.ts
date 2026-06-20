@@ -16,6 +16,7 @@ import { CaseTypesModule } from './case-types/case-types.module';
 import { TravelModule } from './travel/travel.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { TemplatesModule } from './templates/templates.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { TemplatesModule } from './templates/templates.module';
     ScheduleModule.forRoot(),
     PrismaModule,
     CommonModule,
+    HealthModule,
     AuthModule,
     UsersModule,
     CasesModule,
