@@ -1,0 +1,336 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  LAWYER
+  CLERK
+}
+
+enum CaseStatus {
+  OPEN
+  DRAFTING
+  COURT_DATE
+  IN_PROGRESS
+  PENDING
+  CLOSED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum AssignmentType {
+  LEAD
+  CO_COUNSEL
+  CLERK
+}
+
+enum EventType {
+  COURT_DATE
+  CLIENT_MEETING
+  DEADLINE
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+}
+
+enum KnowledgeCategory {
+  SUMMARY
+  CONTRACT
+  COURT_ORDER
+  CORRESPONDENCE
+  OTHER
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role
+  aiCredits    Int      @default(100)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  leadCases       Case[]           @relation("LeadLawyer")
+  assignments     CaseAssignment[]
+  assignedTasks   Task[]           @relation("TaskAssignee")
+  createdTasks    Task[]           @relation("TaskCreator")
+  documents       Document[]
+  timeEntries     TimeEntry[]
+  createdInvoices Invoice[]        @relation("InvoiceCreator")
+  expenses        Expense[]
+  paidExpenses    Expense[]        @relation("ExpensePaidBy")
+  knowledge       CaseKnowledge[]
+}
+
+model CaseType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  fieldSchema Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cases     Case[]
+  templates DocumentTemplate[]
+}
+
+model Case {
+  id           String     @id @default(uuid())
+  caseNumber   String     @unique
+  folderId     String     @unique
+  title        String
+  description  String?
+  status       CaseStatus @default(OPEN)
+  clientName   String?
+  courtName    String?
+  customFields Json?
+  caseTypeId   String?
+  leadLawyerId String
+  openedAt     DateTime   @default(now())
+  closedAt     DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  leadLawyer     User             @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
+  caseType       CaseType?        @relation(fields: [caseTypeId], references: [id])
+  assignments    CaseAssignment[]
+  tasks          Task[]
+  documents      Document[]
+  calendarEvents CalendarEvent[]
+  timeEntries    TimeEntry[]
+  expenses       Expense[]
+  invoices       Invoice[]
+  knowledge      CaseKnowledge[]
+}
+
+model CaseAssignment {
+  id             String         @id @default(uuid())
+  caseId         String
+  userId         String
+  assignmentType AssignmentType
+  createdAt      DateTime       @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId, assignmentType])
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  caseId      String
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  assigneeId  String?
+  createdById String
+  dueDate     DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  case      Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  assignee  User? @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy User  @relation("TaskCreator", fields: [createdById], references: [id])
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  caseId       String
+  filename     String
+  storagePath  String
+  mimeType     String
+  version      Int      @default(1)
+  uploadedById String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  case       Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  uploadedBy User              @relation(fields: [uploadedById], references: [id])
+  versions   DocumentVersion[]
+  knowledge  CaseKnowledge[]
+}
+
+model DocumentVersion {
+  id          String   @id @default(uuid())
+  documentId  String
+  version     Int
+  storagePath String
+  filename    String
+  mimeType    String
+  createdAt   DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+}
+
+model CalendarEvent {
+  id              String    @id @default(uuid())
+  caseId          String
+  title           String
+  description     String?
+  courtName       String?
+  startAt         DateTime
+  endAt           DateTime?
+  type            EventType @default(OTHER)
+  reminderMinutes Int[]     @default([1440, 60])
+  travelLogId     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  case         Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  travelLog    TravelLog?    @relation(fields: [travelLogId], references: [id])
+  reminderLogs ReminderLog[]
+}
+
+model ReminderLog {
+  id        String   @id @default(uuid())
+  eventId   String
+  sentAt    DateTime @default(now())
+  channel   String   @default("console")
+  minutesBefore Int
+
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, minutesBefore])
+}
+
+model TimeEntry {
+  id          String   @id @default(uuid())
+  caseId      String
+  userId      String
+  hours       Float
+  rate        Float    @default(0)
+  description String?
+  date        DateTime @default(now())
+  billable    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Expense {
+  id             String        @id @default(uuid())
+  caseId         String?
+  userId         String
+  amount         Float
+  description    String
+  category       String?
+  expensePurpose String?
+  status         ExpenseStatus @default(PENDING)
+  date           DateTime      @default(now())
+  paidAt         DateTime?
+  paidById       String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  case   Case? @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  user   User  @relation(fields: [userId], references: [id])
+  paidBy User? @relation("ExpensePaidBy", fields: [paidById], references: [id])
+}
+
+model PettyCashFund {
+  id        String   @id @default("default")
+  balance   Float    @default(50000)
+  updatedAt DateTime @updatedAt
+}
+
+model TravelLog {
+  id              String   @id @default(uuid())
+  origin          String
+  destination     String
+  distanceMeters  Int
+  durationSeconds Int
+  mapsUrl         String?
+  createdAt       DateTime @default(now())
+
+  calendarEvents CalendarEvent[]
+
+  @@index([origin, destination, createdAt])
+}
+
+model CaseKnowledge {
+  id          String            @id @default(uuid())
+  caseId      String
+  documentId  String?
+  title       String
+  summary     String            @db.Text
+  category    KnowledgeCategory @default(SUMMARY)
+  createdById String
+  createdAt   DateTime          @default(now())
+
+  case      Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdBy User      @relation(fields: [createdById], references: [id])
+}
+
+model DocumentTemplate {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  templateBody String   @db.Text
+  caseTypeId   String?
+  createdAt    DateTime @default(now())
+
+  caseType CaseType? @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
+}
+
+model FirmSettings {
+  id            String   @id @default("default")
+  officeAddress String   @default("Bangkok, Thailand")
+  updatedAt     DateTime @updatedAt
+}
+
+model Invoice {
+  id          String        @id @default(uuid())
+  caseId      String
+  invoiceNumber String      @unique
+  status      InvoiceStatus @default(DRAFT)
+  totalAmount Float         @default(0)
+  issuedAt    DateTime?
+  dueAt       DateTime?
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  case      Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdBy User              @relation("InvoiceCreator", fields: [createdById], references: [id])
+  lineItems InvoiceLineItem[]
+}
+
+model InvoiceLineItem {
+  id          String @id @default(uuid())
+  invoiceId   String
+  description String
+  quantity    Float  @default(1)
+  unitPrice   Float
+  amount      Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,14 @@
+{
+  "name": "lawfirm",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter shared build && pnpm --filter web clean && pnpm --parallel --filter api --filter web dev",
+    "build": "pnpm -r build",
+    "db:migrate": "pnpm --filter api prisma migrate dev",
+    "db:seed": "pnpm --filter api prisma db seed",
+    "db:generate": "pnpm --filter api prisma generate"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

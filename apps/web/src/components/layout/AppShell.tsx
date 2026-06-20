@@ -1,0 +1,64 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+import { LexFlowSidebar } from './LexFlowSidebar';
+import { TopNavbar } from './TopNavbar';
+import { AIAssistantPanel } from '@/components/ai/AIAssistantPanel';
+import { Role } from '@lawfirm/shared';
+
+interface AppShellProps {
+  user: { firstName: string; lastName: string; role: Role; email: string };
+  onLogout: () => void;
+  children: React.ReactNode;
+}
+
+export function AppShell({ user, onLogout, children }: AppShellProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = mobileNavOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileNavOpen]);
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      {mobileNavOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
+      <LexFlowSidebar
+        user={user}
+        onLogout={onLogout}
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <TopNavbar
+          user={user}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onMenuClick={() => setMobileNavOpen(true)}
+        />
+        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 lg:p-8 scrollbar-thin">
+          {children}
+        </main>
+      </div>
+      <AIAssistantPanel />
+    </div>
+  );
+}
