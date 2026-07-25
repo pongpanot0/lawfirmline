@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -13,6 +13,8 @@ interface PortalTokenPayload {
 
 @Injectable()
 export class ClientPortalAuthService {
+  private readonly logger = new Logger(ClientPortalAuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
@@ -47,13 +49,18 @@ export class ClientPortalAuthService {
     });
 
     const verifyUrl = `${this.email.getAppUrl()}/portal/verify?token=${token}`;
-    await this.email.sendClientPortalMagicLinkEmail({
-      to: contact.email!,
-      contactName: contact.name,
-      firmName: contact.client.firm.name,
-      verifyUrl,
-      expiresAt,
-    });
+    try {
+      await this.email.sendClientPortalMagicLinkEmail({
+        to: contact.email!,
+        contactName: contact.name,
+        firmName: contact.client.firm.name,
+        verifyUrl,
+        expiresAt,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to send client portal magic link email to ${contact.email}: ${message}`);
+    }
 
     const isDev = this.config.get<string>('NODE_ENV') !== 'production';
     return { message, linkToken: isDev ? token : undefined };
@@ -64,8 +71,16 @@ export class ClientPortalAuthService {
     contact: { id: string; name: string; email: string | null };
     client: { id: string; name: string };
   }> {
+    const claimed = await this.prisma.clientPortalLoginToken.updateMany({
+      where: { token, usedAt: null, expiresAt: { gt: new Date() } },
+      data: { usedAt: new Date() },
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException('This sign-in link is invalid or has expired.');
+    }
+
     const record = await this.prisma.clientPortalLoginToken.findUnique({ where: { token } });
-    if (!record || record.usedAt || record.expiresAt < new Date()) {
+    if (!record) {
       throw new BadRequestException('This sign-in link is invalid or has expired.');
     }
 
@@ -77,19 +92,13 @@ export class ClientPortalAuthService {
       throw new BadRequestException('Portal access is no longer available for this contact.');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.clientPortalLoginToken.update({
-        where: { id: record.id },
-        data: { usedAt: new Date() },
-      }),
-      this.prisma.auditLog.create({
-        data: {
-          firmId: contact.client.firmId,
-          action: 'CLIENT_PORTAL_LOGIN',
-          metadata: { clientContactId: contact.id },
-        },
-      }),
-    ]);
+    await this.prisma.auditLog.create({
+      data: {
+        firmId: contact.client.firmId,
+        action: 'CLIENT_PORTAL_LOGIN',
+        metadata: { clientContactId: contact.id },
+      },
+    });
 
     const payload: PortalTokenPayload = {
       sub: contact.id,
