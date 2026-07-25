@@ -176,6 +176,7 @@ export interface ClientContactItem {
   phone?: string | null;
   position?: string | null;
   isPrimary?: boolean;
+  portalEnabled?: boolean;
 }
 
 export interface ClientItem {
@@ -715,6 +716,13 @@ export const api = {
     return fetchBlob(`/cases/${caseId}/documents/${documentId}/download${qs}`, { token });
   },
 
+  updateDocumentVisibility: (token: string, caseId: string, documentId: string, visibleToClient: boolean) =>
+    request<DocumentItem>(`/cases/${caseId}/documents/${documentId}/visibility`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ visibleToClient }),
+    }),
+
   getDocumentTemplates: (token: string, caseTypeId?: string) => {
     const qs = caseTypeId ? `?caseTypeId=${caseTypeId}` : '';
     return request<DocumentTemplateItem[]>(`/document-templates${qs}`, { token });
@@ -813,6 +821,7 @@ export interface DocumentItem {
   filename: string;
   mimeType: string;
   version: number;
+  visibleToClient: boolean;
   createdAt: string;
   uploadedBy: { firstName: string; lastName: string };
 }

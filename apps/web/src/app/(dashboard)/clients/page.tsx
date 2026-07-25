@@ -36,6 +36,15 @@ export default function ClientsPage() {
       .finally(() => setLoading(false));
   };
 
+  const togglePortalAccess = async (contactId: string, next: boolean) => {
+    if (!token || !selected) return;
+    const updatedContacts = selected.contacts.map((c) =>
+      c.id === contactId ? { ...c, portalEnabled: next } : c,
+    );
+    const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
+    setSelected(updated);
+  };
+
   useEffect(() => {
     setLoading(true);
     load();
@@ -104,19 +113,30 @@ export default function ClientsPage() {
             <div className="space-y-2">
               {selected.contacts.map((c, i) => (
                 <Card key={c.id ?? i}>
-                  <CardContent className="flex items-start gap-3 p-4">
-                    <User className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">
-                        {c.name}
-                        {c.isPrimary && <span className="ml-2 text-xs text-primary">(Primary)</span>}
-                      </p>
-                      {c.position && <p className="text-xs text-muted-foreground">{c.position}</p>}
-                      <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
-                        {c.email && <p>{c.email}</p>}
-                        {c.phone && <p>{c.phone}</p>}
+                  <CardContent className="flex items-start justify-between gap-3 p-4">
+                    <div className="flex items-start gap-3">
+                      <User className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">
+                          {c.name}
+                          {c.isPrimary && <span className="ml-2 text-xs text-primary">(Primary)</span>}
+                        </p>
+                        {c.position && <p className="text-xs text-muted-foreground">{c.position}</p>}
+                        <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                          {c.email && <p>{c.email}</p>}
+                          {c.phone && <p>{c.phone}</p>}
+                        </div>
                       </div>
                     </div>
+                    {c.id && c.email && (
+                      <Button
+                        size="sm"
+                        variant={c.portalEnabled ? 'default' : 'outline'}
+                        onClick={() => togglePortalAccess(c.id!, !c.portalEnabled)}
+                      >
+                        {c.portalEnabled ? 'Portal enabled' : 'Enable portal'}
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))}

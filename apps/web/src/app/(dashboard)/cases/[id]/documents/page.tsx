@@ -78,6 +78,16 @@ export default function CaseDocumentsPage() {
     }
   };
 
+  const handleToggleVisibility = async (doc: DocumentItem) => {
+    if (!token || !id) return;
+    try {
+      await api.updateDocumentVisibility(token, id, doc.id, !doc.visibleToClient);
+      load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not update visibility');
+    }
+  };
+
   const closePreview = () => {
     setPreview((prev) => {
       if (prev?.url) URL.revokeObjectURL(prev.url);
@@ -210,6 +220,17 @@ export default function CaseDocumentsPage() {
               </button>
               <div className="flex shrink-0 items-center gap-2">
                 <span className="hidden text-xs text-slate-400 sm:inline">{d.mimeType}</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleVisibility(d)}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium ${
+                    d.visibleToClient
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-200 hover:bg-white'
+                  }`}
+                >
+                  {d.visibleToClient ? 'Visible to client' : 'Hidden from client'}
+                </button>
                 <button
                   type="button"
                   onClick={() => handleView(d)}
