@@ -300,17 +300,32 @@ model Client {
 }
 
 model ClientContact {
-  id        String  @id @default(uuid())
-  clientId  String
-  name      String
-  email     String?
-  phone     String?
-  position  String?
-  isPrimary Boolean @default(false)
+  id            String  @id @default(uuid())
+  clientId      String
+  name          String
+  email         String?
+  phone         String?
+  position      String?
+  isPrimary     Boolean @default(false)
+  portalEnabled Boolean @default(false)
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  loginTokens ClientPortalLoginToken[]
 
   @@index([clientId])
+}
+
+model ClientPortalLoginToken {
+  id              String    @id @default(uuid())
+  clientContactId String
+  token           String    @unique
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
+
+  @@index([clientContactId])
 }
 
 model Court {
@@ -420,15 +435,16 @@ model Task {
 }
 
 model Document {
-  id           String   @id @default(uuid())
-  caseId       String
-  filename     String
-  storagePath  String
-  mimeType     String
-  version      Int      @default(1)
-  uploadedById String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(uuid())
+  caseId          String
+  filename        String
+  storagePath     String
+  mimeType        String
+  version         Int      @default(1)
+  uploadedById    String
+  visibleToClient Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   case       Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
   uploadedBy User              @relation(fields: [uploadedById], references: [id])
