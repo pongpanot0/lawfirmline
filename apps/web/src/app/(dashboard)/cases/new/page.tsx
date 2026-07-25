@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, UserItem, CaseTypeItem } from '@/lib/api';
+import { api, UserItem, CaseTypeItem, ClientItem, CourtItem, ApiError } from '@/lib/api';
 import { Stepper } from '@/components/ui/Stepper';
+import { Button } from '@/components/ui/button';
 import type { CaseFieldSchema } from '@lawfirm/shared';
+import { ActivityType, TMP_CLIENT_PLACEHOLDER, CourtLevel, COURT_LEVEL_LABELS } from '@lawfirm/shared';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fmt } from '@/lib/i18n/dashboard';
 
 const STEPS = [
   { id: 'type', label: 'Case Type', description: 'ประเภทคดี' },
@@ -16,41 +21,68 @@ const STEPS = [
 
 export default function NewCasePage() {
   const { token, user } = useAuth();
+  const d = useDashboardT();
+  const nf = d.cases.newForm;
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [clerks, setClerks] = useState<UserItem[]>([]);
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
+  const [clients, setClients] = useState<ClientItem[]>([]);
+  const [courts, setCourts] = useState<CourtItem[]>([]);
+  const [loadingTypes, setLoadingTypes] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const [form, setForm] = useState({
     caseTypeId: '',
-    caseNumber: '',
+    ownRef: '',
+    customerRef: '',
     title: '',
+    clientId: '',
     clientName: '',
+    useTmpClient: false,
     courtName: '',
+    courtLevel: CourtLevel.TRIAL as CourtLevel,
+    blackCaseNumber: '',
+    redCaseNumber: '',
     description: '',
+    estimatedFee: '',
     leadLawyerId: user?.id ?? '',
     coCounselIds: [] as string[],
     clerkIds: [] as string[],
     customFields: {} as Record<string, string>,
+    addInitialActivity: false,
+    initialActivityTitle: '',
+    initialActivityAt: '',
+    initialActivityType: ActivityType.COURT_DATE as string,
+    initialActivityDescription: '',
   });
 
   const selectedType = caseTypes.find((t) => t.id === form.caseTypeId);
-  const fieldSchema = (selectedType?.fieldSchema ?? []) as CaseFieldSchema[];
+  const fieldSchema = (Array.isArray(selectedType?.fieldSchema)
+    ? selectedType.fieldSchema
+    : []) as CaseFieldSchema[];
 
   useEffect(() => {
     if (!token) return;
+    setLoadingTypes(true);
     Promise.all([
       api.getLawyers(token),
-      api.getUsers(token).catch(() => []),
+      api.getClerks(token).catch(() => [] as UserItem[]),
       api.getCaseTypes(token),
-    ]).then(([lawyerList, userList, types]) => {
-      setLawyers(lawyerList);
-      setClerks(userList.filter((u) => u.role === 'CLERK'));
-      setCaseTypes(types);
-    });
+      api.getClients(token).catch(() => [] as ClientItem[]),
+      api.getCourts(token).catch(() => [] as CourtItem[]),
+    ])
+      .then(([lawyerList, clerkList, types, clientList, courtList]) => {
+        setLawyers(lawyerList);
+        setClerks(clerkList);
+        setCaseTypes(types);
+        setClients(clientList);
+        setCourts(courtList);
+      })
+      .catch(() => setError('Failed to load case form data. Please refresh and try again.'))
+      .finally(() => setLoadingTypes(false));
   }, [token]);
 
   useEffect(() => {
@@ -68,9 +100,22 @@ export default function NewCasePage() {
     }));
   };
 
+  const displayClientName = () => {
+    if (form.clientId) {
+      return clients.find((c) => c.id === form.clientId)?.name ?? '';
+    }
+    if (form.useTmpClient) return TMP_CLIENT_PLACEHOLDER;
+    return form.clientName.trim() || TMP_CLIENT_PLACEHOLDER;
+  };
+
   const canNext = () => {
     if (step === 0) return !!form.caseTypeId;
-    if (step === 1) return form.caseNumber && form.title && form.clientName && form.courtName;
+    if (step === 1) {
+      const hasCourt = !!form.courtName && !!form.courtLevel;
+      const hasCaseNumbers = !!form.blackCaseNumber.trim() && !!form.redCaseNumber.trim();
+      const activityOk = !form.addInitialActivity || (form.initialActivityTitle && form.initialActivityAt);
+      return form.ownRef && form.title && hasCourt && hasCaseNumbers && activityOk;
+    }
     if (step === 2) {
       return fieldSchema
         .filter((f) => f.required)
@@ -80,26 +125,69 @@ export default function NewCasePage() {
     return true;
   };
 
+  const goNext = () => {
+    if (step === 1 && fieldSchema.length === 0) {
+      setStep(3);
+      return;
+    }
+    setStep(step + 1);
+  };
+
+  const goBack = () => {
+    if (step === 3 && fieldSchema.length === 0) {
+      setStep(1);
+      return;
+    }
+    if (step > 0) setStep(step - 1);
+    else router.back();
+  };
+
   const handleSubmit = async () => {
     if (!token) return;
     setSubmitting(true);
     setError('');
     try {
-      const created = (await api.createCase(token, {
-        caseNumber: form.caseNumber,
+      const payload: Record<string, unknown> = {
+        ownRef: form.ownRef.trim(),
+        customerRef: form.customerRef.trim() || undefined,
         title: form.title,
         description: form.description || undefined,
-        clientName: form.clientName,
         courtName: form.courtName,
+        courtLevel: form.courtLevel,
+        blackCaseNumber: form.blackCaseNumber.trim(),
+        redCaseNumber: form.redCaseNumber.trim(),
+        estimatedFee: form.estimatedFee ? parseFloat(form.estimatedFee) : undefined,
         leadLawyerId: form.leadLawyerId,
         caseTypeId: form.caseTypeId,
         coCounselIds: form.coCounselIds,
         clerkIds: form.clerkIds,
         customFields: Object.keys(form.customFields).length ? form.customFields : undefined,
-      })) as { id: string };
+      };
+      if (form.clientId) {
+        payload.clientId = form.clientId;
+        const client = clients.find((c) => c.id === form.clientId);
+        if (client) payload.clientName = client.name;
+      } else {
+        payload.clientName = form.useTmpClient
+          ? TMP_CLIENT_PLACEHOLDER
+          : form.clientName.trim() || TMP_CLIENT_PLACEHOLDER;
+      }
+      if (form.addInitialActivity && form.initialActivityTitle && form.initialActivityAt) {
+        payload.initialActivity = {
+          title: form.initialActivityTitle,
+          description: form.initialActivityDescription || undefined,
+          activityAt: new Date(form.initialActivityAt).toISOString(),
+          type: form.initialActivityType,
+        };
+      }
+      const created = (await api.createCase(token, payload)) as { id: string };
       router.push(`/cases/${created.id}`);
-    } catch {
-      setError('Failed to create case. Check case number is unique.');
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to create case. Check own ref is unique.',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -116,25 +204,42 @@ export default function NewCasePage() {
         {step === 0 && (
           <div className="space-y-3">
             <h2 className="font-semibold">Select Case Type / เลือกประเภทคดี</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {caseTypes.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setForm({ ...form, caseTypeId: t.id, customFields: {} })}
-                  className={`rounded-lg border p-4 text-left transition-colors ${
-                    form.caseTypeId === t.id
-                      ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200'
-                      : 'border-slate-200 hover:border-brand-300'
-                  }`}
+            {loadingTypes ? (
+              <p className="text-sm text-slate-500">Loading case types...</p>
+            ) : caseTypes.length === 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-medium">No case types available</p>
+                <p className="mt-1 text-amber-800">
+                  Add at least one case type before creating a case.
+                </p>
+                <Link
+                  href="/admin/case-types"
+                  className="mt-3 inline-block font-medium text-brand-700 hover:underline"
                 >
-                  <p className="font-medium">{t.name}</p>
-                  {t.description && (
-                    <p className="mt-1 text-xs text-slate-500">{t.description}</p>
-                  )}
-                </button>
-              ))}
-            </div>
+                  Go to Case Types settings →
+                </Link>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {caseTypes.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setForm({ ...form, caseTypeId: t.id, customFields: {} })}
+                    className={`rounded-lg border p-4 text-left transition-colors ${
+                      form.caseTypeId === t.id
+                        ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200'
+                        : 'border-slate-200 hover:border-brand-300'
+                    }`}
+                  >
+                    <p className="font-medium">{t.name}</p>
+                    {t.description && (
+                      <p className="mt-1 text-xs text-slate-500">{t.description}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -142,14 +247,49 @@ export default function NewCasePage() {
           <div className="space-y-4">
             <h2 className="font-semibold">Basic Information</h2>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Case Number *</label>
+              <label className="block text-sm font-medium text-slate-700">Own Ref *</label>
               <input
                 required
-                value={form.caseNumber}
-                onChange={(e) => setForm({ ...form, caseNumber: e.target.value })}
+                value={form.ownRef}
+                onChange={(e) => setForm({ ...form, ownRef: e.target.value })}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 placeholder="LF-2025-006"
               />
+              <p className="mt-1 text-xs text-slate-500">เลขอ้างอิงภายในสำนักงาน</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Customer Ref
+                <span className="ml-1 font-normal text-slate-500">(ไม่บังคับ)</span>
+              </label>
+              <input
+                value={form.customerRef}
+                onChange={(e) => setForm({ ...form, customerRef: e.target.value })}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                placeholder="เลขอ้างอิงจากลูกค้า / บริษัท"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">เลขดำ *</label>
+                <input
+                  required
+                  value={form.blackCaseNumber}
+                  onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="เช่น 123/2567"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">เลขแดง *</label>
+                <input
+                  required
+                  value={form.redCaseNumber}
+                  onChange={(e) => setForm({ ...form, redCaseNumber: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="เช่น 456/2567"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">Title *</label>
@@ -161,23 +301,181 @@ export default function NewCasePage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Client Name *</label>
+              <label className="block text-sm font-medium text-slate-700">
+                {nf.clientLabel}{' '}
+                <span className="font-normal text-slate-500">({nf.clientOptional})</span>
+              </label>
+              <select
+                value={form.clientId}
+                disabled={form.useTmpClient}
+                onChange={(e) => {
+                  const client = clients.find((c) => c.id === e.target.value);
+                  setForm({
+                    ...form,
+                    clientId: e.target.value,
+                    clientName: client?.name ?? '',
+                    useTmpClient: false,
+                  });
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+              >
+                <option value="">{nf.selectClient}</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              {clients.length === 0 && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {nf.noClientsYet}{' '}
+                  <Link href="/clients/new" className="text-brand-700 hover:underline">
+                    {nf.createClient}
+                  </Link>
+                </p>
+              )}
+              {!form.clientId && (
+                <div className="mt-2 space-y-2">
+                  <input
+                    value={form.useTmpClient ? TMP_CLIENT_PLACEHOLDER : form.clientName}
+                    disabled={form.useTmpClient}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        clientName: e.target.value,
+                        useTmpClient: false,
+                      })
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                    placeholder={nf.clientNamePlaceholder}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant={form.useTmpClient ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          clientId: '',
+                          clientName: TMP_CLIENT_PLACEHOLDER,
+                          useTmpClient: true,
+                        })
+                      }
+                    >
+                      {nf.useTmpClient}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">{nf.tmpClientHint}</p>
+                  {form.useTmpClient && (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      {fmt(nf.tmpClientActive, { name: TMP_CLIENT_PLACEHOLDER })}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                รายได้โดยประมาณ (บาท)
+                <span className="ml-1 font-normal text-slate-500">(ไม่บังคับ)</span>
+              </label>
               <input
-                required
-                value={form.clientName}
-                onChange={(e) => setForm({ ...form, clientName: e.target.value })}
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.estimatedFee}
+                onChange={(e) => setForm({ ...form, estimatedFee: e.target.value })}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                placeholder="เช่น 50000"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Court Name / ศาล *</label>
-              <input
+              <label className="block text-sm font-medium text-slate-700">ระดับศาล *</label>
+              <select
+                required
+                value={form.courtLevel}
+                onChange={(e) => setForm({ ...form, courtLevel: e.target.value as CourtLevel })}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                {Object.entries(COURT_LEVEL_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Court / ศาล *</label>
+              <select
                 required
                 value={form.courtName}
                 onChange={(e) => setForm({ ...form, courtName: e.target.value })}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="ศาลแพ่งกรุงเทพใต้"
-              />
+              >
+                <option value="">Select court / เลือกศาล</option>
+                {courts.map((c) => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+              </select>
+              {courts.length === 0 && (
+                <p className="mt-1 text-xs text-slate-500">Loading courts...</p>
+              )}
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={form.addInitialActivity}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    setForm({
+                      ...form,
+                      addInitialActivity: checked,
+                      initialActivityAt: checked && !form.initialActivityAt
+                        ? now.toISOString().slice(0, 16)
+                        : form.initialActivityAt,
+                    });
+                  }}
+                />
+                Add initial appointment / เพิ่มนัดหมายแรก
+              </label>
+              {form.addInitialActivity && (
+                <>
+                  <input
+                    required
+                    value={form.initialActivityTitle}
+                    onChange={(e) => setForm({ ...form, initialActivityTitle: e.target.value })}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="เช่น นัดสืบพยาน, นัดไกล่เกลี่ย, ยื่นฟ้อง"
+                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <select
+                      value={form.initialActivityType}
+                      onChange={(e) => setForm({ ...form, initialActivityType: e.target.value })}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value={ActivityType.COURT_DATE}>Court Date / นัดศาล</option>
+                      <option value={ActivityType.CLIENT_MEETING}>Client Meeting / นัดลูกค้า</option>
+                      <option value={ActivityType.FILING}>Filing / ยื่นคำร้อง</option>
+                      <option value={ActivityType.DEADLINE}>Deadline / กำหนดส่ง</option>
+                      <option value={ActivityType.OTHER}>Other / อื่นๆ</option>
+                    </select>
+                    <input
+                      required
+                      type="datetime-local"
+                      value={form.initialActivityAt}
+                      onChange={(e) => setForm({ ...form, initialActivityAt: e.target.value })}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <textarea
+                    value={form.initialActivityDescription}
+                    onChange={(e) => setForm({ ...form, initialActivityDescription: e.target.value })}
+                    rows={2}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm resize-none"
+                    placeholder="รายละเอียดเพิ่มเติม (optional)"
+                  />
+                </>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">Description</label>
@@ -275,8 +573,20 @@ export default function NewCasePage() {
             </div>
             <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
               <p className="font-medium">Summary</p>
-              <p className="mt-1">{form.title} — {form.clientName}</p>
-              <p className="text-xs text-slate-400">Court: {form.courtName}</p>
+              <p className="mt-1">{form.title} — {displayClientName()}</p>
+              <p className="text-xs text-slate-400">
+                Own Ref {form.ownRef || '—'}
+                {form.customerRef ? ` · Customer Ref ${form.customerRef}` : ''}
+              </p>
+              <p className="text-xs text-slate-400">
+                เลขดำ {form.blackCaseNumber || '—'} · เลขแดง {form.redCaseNumber || '—'}
+              </p>
+              <p className="text-xs text-slate-400">
+                {COURT_LEVEL_LABELS[form.courtLevel]} · {form.courtName}
+              </p>
+              {form.addInitialActivity && form.initialActivityTitle && (
+                <p className="text-xs text-slate-400">First activity: {form.initialActivityTitle}</p>
+              )}
               <p className="mt-1 text-xs text-brand-600">Folder ID will be auto-generated on create</p>
             </div>
           </div>
@@ -286,32 +596,22 @@ export default function NewCasePage() {
           <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
         )}
 
-        <div className="mt-6 flex justify-between">
-          <button
-            type="button"
-            onClick={() => (step > 0 ? setStep(step - 1) : router.back())}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
-          >
+        {!canNext() && step === 0 && !loadingTypes && caseTypes.length > 0 && (
+          <p className="mt-4 text-sm text-muted-foreground">เลือกประเภทคดีด้านบนเพื่อดำเนินการต่อ</p>
+        )}
+
+        <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-between gap-3 border-t border-slate-200 bg-white px-6 py-4 pb-6 sm:-mx-6">
+          <Button type="button" variant="outline" onClick={goBack}>
             {step === 0 ? 'Cancel' : 'Back'}
-          </button>
+          </Button>
           {step < STEPS.length - 1 ? (
-            <button
-              type="button"
-              disabled={!canNext()}
-              onClick={() => setStep(step + 1)}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-            >
+            <Button type="button" disabled={!canNext()} onClick={goNext}>
               Next
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
-              disabled={submitting || !canNext()}
-              onClick={handleSubmit}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-            >
+            <Button type="button" disabled={submitting || !canNext()} onClick={handleSubmit}>
               {submitting ? 'Creating...' : 'Create Case'}
-            </button>
+            </Button>
           )}
         </div>
       </div>

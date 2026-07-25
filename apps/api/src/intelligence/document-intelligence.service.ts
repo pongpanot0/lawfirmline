@@ -98,7 +98,7 @@ export class DocumentIntelligenceService {
         createdById: userId,
       },
       include: {
-        case: { select: { id: true, caseNumber: true, title: true } },
+        case: { select: { id: true, ownRef: true, title: true } },
         createdBy: { select: { id: true, firstName: true, lastName: true } },
       },
     });
@@ -119,7 +119,7 @@ export class DocumentIntelligenceService {
           : {}),
       },
       include: {
-        case: { select: { id: true, caseNumber: true, title: true } },
+        case: { select: { id: true, ownRef: true, title: true } },
         createdBy: { select: { firstName: true, lastName: true } },
       },
       orderBy: { createdAt: 'desc' },

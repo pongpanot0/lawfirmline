@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -29,6 +29,15 @@ export class DocumentsService {
     });
   }
 
+  private getFileBuffer(file: Express.Multer.File): Buffer {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    if (file.buffer) return file.buffer;
+    if (file.path) return fs.readFileSync(file.path);
+    throw new BadRequestException('Uploaded file is empty');
+  }
+
   async upload(
     user: AuthUser,
     caseId: string,
@@ -50,7 +59,7 @@ export class DocumentsService {
 
     const ext = path.extname(file.originalname);
     const storagePath = path.join(uploadDir, `${document.id}_v1${ext}`);
-    fs.writeFileSync(storagePath, file.buffer);
+    fs.writeFileSync(storagePath, this.getFileBuffer(file));
 
     const updated = await this.prisma.document.update({
       where: { id: document.id },
@@ -89,7 +98,7 @@ export class DocumentsService {
       uploadDir,
       `${documentId}_v${newVersion}${ext}`,
     );
-    fs.writeFileSync(storagePath, file.buffer);
+    fs.writeFileSync(storagePath, this.getFileBuffer(file));
 
     await this.prisma.documentVersion.create({
       data: {

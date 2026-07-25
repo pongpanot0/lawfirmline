@@ -11,6 +11,8 @@
     "start:web": "pnpm --filter web start",
     "db:migrate": "pnpm --filter api prisma migrate dev",
     "db:migrate:deploy": "pnpm --filter api prisma migrate deploy",
+    "primas": "prisma migrate deploy && node dist/main",
+    
     "db:seed": "pnpm --filter api prisma db seed",
     "db:generate": "pnpm --filter api prisma generate"
   },

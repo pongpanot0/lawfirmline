@@ -1,17 +1,40 @@
 import {
   IsArray,
   IsEnum,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   IsDateString,
   IsObject,
+  ValidateNested,
 } from 'class-validator';
-import { CaseStatus } from '@lawfirm/shared';
+import { Type } from 'class-transformer';
+import { ActivityType, CaseStatus, CourtLevel } from '@lawfirm/shared';
+
+export class InitialActivityDto {
+  @IsString()
+  title!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsDateString()
+  activityAt!: string;
+
+  @IsOptional()
+  @IsEnum(ActivityType)
+  type?: ActivityType;
+}
 
 export class CreateCaseDto {
   @IsString()
-  caseNumber!: string;
+  ownRef!: string;
+
+  @IsOptional()
+  @IsString()
+  customerRef?: string;
 
   @IsString()
   title!: string;
@@ -21,12 +44,25 @@ export class CreateCaseDto {
   description?: string;
 
   @IsOptional()
+  @IsUUID()
+  clientId?: string;
+
+  @IsOptional()
   @IsString()
   clientName?: string;
 
   @IsOptional()
   @IsString()
   courtName?: string;
+
+  @IsEnum(CourtLevel)
+  courtLevel!: CourtLevel;
+
+  @IsString()
+  blackCaseNumber!: string;
+
+  @IsString()
+  redCaseNumber!: string;
 
   @IsOptional()
   @IsObject()
@@ -52,9 +88,26 @@ export class CreateCaseDto {
   @IsOptional()
   @IsUUID()
   caseTypeId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  estimatedFee?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InitialActivityDto)
+  initialActivity?: InitialActivityDto;
 }
 
 export class UpdateCaseDto {
+  @IsOptional()
+  @IsString()
+  ownRef?: string;
+
+  @IsOptional()
+  @IsString()
+  customerRef?: string | null;
+
   @IsOptional()
   @IsString()
   title?: string;
@@ -64,12 +117,28 @@ export class UpdateCaseDto {
   description?: string;
 
   @IsOptional()
+  @IsUUID()
+  clientId?: string;
+
+  @IsOptional()
   @IsString()
   clientName?: string;
 
   @IsOptional()
   @IsString()
   courtName?: string;
+
+  @IsOptional()
+  @IsEnum(CourtLevel)
+  courtLevel?: CourtLevel;
+
+  @IsOptional()
+  @IsString()
+  blackCaseNumber?: string | null;
+
+  @IsOptional()
+  @IsString()
+  redCaseNumber?: string | null;
 
   @IsOptional()
   @IsObject()
@@ -90,6 +159,14 @@ export class UpdateCaseDto {
   @IsOptional()
   @IsUUID()
   caseTypeId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  estimatedFee?: number | null;
+
+  @IsOptional()
+  @IsString()
+  closingSummary?: string | null;
 }
 
 export class CaseQueryDto {

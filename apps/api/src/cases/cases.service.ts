@@ -3,18 +3,22 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
-import { AssignmentType, AuthUser, Role } from '@lawfirm/shared';
+import { AssignmentType, AuthUser, ActivityType, CaseStatus, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CreateCaseDto, UpdateCaseDto, CaseQueryDto } from './dto/case.dto';
-import { Prisma } from '@prisma/client';
+import { CloseCaseDto } from './dto/close-case.dto';
+import { Prisma } from '../generated/prisma';
+import { CaseActivitiesService } from './case-activities.service';
 
 @Injectable()
 export class CasesService {
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
+    private activitiesService: CaseActivitiesService,
   ) {}
 
   private caseInclude = {
@@ -22,6 +26,7 @@ export class CasesService {
       select: { id: true, firstName: true, lastName: true, email: true },
     },
     caseType: { select: { id: true, name: true } },
+    client: { select: { id: true, name: true } },
     assignments: {
       include: {
         user: {
@@ -43,11 +48,18 @@ export class CasesService {
       where.caseTypeId = query.caseTypeId;
     }
     if (query.search) {
+      const term = query.search.trim();
       const searchFilter: Prisma.CaseWhereInput = {
         OR: [
-          { title: { contains: query.search, mode: 'insensitive' } },
-          { caseNumber: { contains: query.search, mode: 'insensitive' } },
-          { clientName: { contains: query.search, mode: 'insensitive' } },
+          { title: { contains: term, mode: 'insensitive' } },
+          { ownRef: { contains: term, mode: 'insensitive' } },
+          { customerRef: { contains: term, mode: 'insensitive' } },
+          { clientName: { contains: term, mode: 'insensitive' } },
+          { folderId: { contains: term, mode: 'insensitive' } },
+          { courtName: { contains: term, mode: 'insensitive' } },
+          { blackCaseNumber: { contains: term, mode: 'insensitive' } },
+          { redCaseNumber: { contains: term, mode: 'insensitive' } },
+          { client: { name: { contains: term, mode: 'insensitive' } } },
         ],
       };
       where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), searchFilter];
@@ -78,7 +90,21 @@ export class CasesService {
           },
           orderBy: { createdAt: 'desc' },
         },
-        calendarEvents: { orderBy: { startAt: 'asc' }, take: 5 },
+        calendarEvents: { orderBy: { startAt: 'asc' }, take: 10 },
+        activities: {
+          include: {
+            createdBy: { select: { firstName: true, lastName: true } },
+          },
+          orderBy: { activityAt: 'desc' },
+          take: 20,
+        },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            contacts: { orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }] },
+          },
+        },
       },
     });
     if (!legalCase) throw new NotFoundException('Case not found');
@@ -92,14 +118,44 @@ export class CasesService {
   }
 
   async create(user: AuthUser, dto: CreateCaseDto) {
-    if (user.role === Role.CLERK) {
-      throw new ForbiddenException('Clerks cannot create cases');
+    const existing = await this.prisma.case.findUnique({
+      where: { firmId_ownRef: { firmId: user.firmId, ownRef: dto.ownRef } },
+    });
+    if (existing) throw new ConflictException('Own ref already exists');
+
+    if (dto.caseTypeId) {
+      const caseType = await this.prisma.caseType.findFirst({
+        where: { id: dto.caseTypeId, firmId: user.firmId, isActive: true },
+      });
+      if (!caseType) {
+        throw new BadRequestException('Invalid or inactive case type');
+      }
     }
 
-    const existing = await this.prisma.case.findUnique({
-      where: { caseNumber: dto.caseNumber },
+    if (dto.clientId) {
+      const client = await this.prisma.client.findFirst({
+        where: { id: dto.clientId, firmId: user.firmId },
+      });
+      if (!client) {
+        throw new BadRequestException('Invalid client');
+      }
+      if (!dto.clientName) {
+        dto.clientName = client.name;
+      }
+    }
+
+    const teamUserIds = [
+      dto.leadLawyerId,
+      ...(dto.coCounselIds ?? []),
+      ...(dto.clerkIds ?? []),
+    ];
+    const uniqueTeamUserIds = [...new Set(teamUserIds)];
+    const firmMembers = await this.prisma.firmMember.count({
+      where: { firmId: user.firmId, userId: { in: uniqueTeamUserIds } },
     });
-    if (existing) throw new ConflictException('Case number already exists');
+    if (firmMembers !== uniqueTeamUserIds.length) {
+      throw new BadRequestException('All assigned team members must belong to your firm');
+    }
 
     const assignments: Prisma.CaseAssignmentCreateWithoutCaseInput[] = [];
 
@@ -116,24 +172,40 @@ export class CasesService {
       });
     }
 
-    return this.prisma.case.create({
+    const created = await this.prisma.case.create({
       data: {
-        caseNumber: dto.caseNumber,
+        firmId: user.firmId,
+        ownRef: dto.ownRef,
+        customerRef: dto.customerRef,
         folderId: this.generateFolderId(),
         title: dto.title,
         description: dto.description,
+        clientId: dto.clientId,
         clientName: dto.clientName,
         courtName: dto.courtName,
+        courtLevel: dto.courtLevel,
+        blackCaseNumber: dto.blackCaseNumber,
+        redCaseNumber: dto.redCaseNumber,
         customFields: dto.customFields as Prisma.InputJsonValue,
+        estimatedFee: dto.estimatedFee,
         status: dto.status,
-        caseType: dto.caseTypeId
-          ? { connect: { id: dto.caseTypeId } }
-          : undefined,
-        leadLawyer: { connect: { id: dto.leadLawyerId } },
+        caseTypeId: dto.caseTypeId ?? undefined,
+        leadLawyerId: dto.leadLawyerId,
         assignments: assignments.length ? { create: assignments } : undefined,
       },
       include: this.caseInclude,
     });
+
+    if (dto.initialActivity) {
+      await this.activitiesService.create(
+        user,
+        created.id,
+        dto.initialActivity,
+        dto.courtName,
+      );
+    }
+
+    return created;
   }
 
   async update(user: AuthUser, id: string, dto: UpdateCaseDto) {
@@ -150,9 +222,56 @@ export class CasesService {
     });
   }
 
+  async close(user: AuthUser, id: string, dto: CloseCaseDto) {
+    const legalCase = await this.findOne(user, id);
+    if (legalCase.status === CaseStatus.CLOSED) {
+      throw new BadRequestException('คดีนี้ปิดแล้ว');
+    }
+
+    const now = new Date();
+    const closed = await this.prisma.case.update({
+      where: { id },
+      data: {
+        status: CaseStatus.CLOSED,
+        closedAt: now,
+        closingSummary: dto.closingSummary.trim(),
+      },
+      include: this.caseInclude,
+    });
+
+    await this.prisma.caseActivity.create({
+      data: {
+        caseId: id,
+        title: 'ปิดคดี / Case Closed',
+        description: dto.closingSummary.trim(),
+        activityAt: now,
+        type: ActivityType.NOTE,
+        createdById: user.id,
+      },
+    });
+
+    return closed;
+  }
+
+  async reopen(user: AuthUser, id: string) {
+    const legalCase = await this.findOne(user, id);
+    if (legalCase.status !== CaseStatus.CLOSED) {
+      throw new BadRequestException('คดีนี้ยังไม่ได้ปิด');
+    }
+
+    return this.prisma.case.update({
+      where: { id },
+      data: {
+        status: CaseStatus.IN_PROGRESS,
+        closedAt: null,
+      },
+      include: this.caseInclude,
+    });
+  }
+
   async remove(user: AuthUser, id: string) {
-    if (user.role !== Role.ADMIN) {
-      throw new ForbiddenException('Only admins can delete cases');
+    if (user.firmRole !== FirmRole.OWNER) {
+      throw new ForbiddenException('Only owners can delete cases');
     }
     await this.findOne(user, id);
     await this.prisma.case.delete({ where: { id } });

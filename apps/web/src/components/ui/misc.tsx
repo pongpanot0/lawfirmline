@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 export function Separator({ className, orientation = 'horizontal' }: { className?: string; orientation?: 'horizontal' | 'vertical' }) {
@@ -39,5 +40,57 @@ export function EmptyState({
       {description && <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
+  );
+}
+
+export function Modal({
+  open,
+  onClose,
+  children,
+  className,
+  closeOnBackdrop = true,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  className?: string;
+  closeOnBackdrop?: boolean;
+}) {
+  React.useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose]);
+
+  if (!open || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/50"
+        aria-hidden
+        onClick={closeOnBackdrop ? onClose : undefined}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={cn(
+          'relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border bg-card p-6 shadow-card',
+          className,
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }

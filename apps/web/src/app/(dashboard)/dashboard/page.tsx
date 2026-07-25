@@ -14,33 +14,43 @@ import {
   UserPlus,
   FileText,
   CheckCircle2,
+  TrendingUp,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
-import { api, DashboardStats } from '@/lib/api';
+import { useAuth, getStoredToken } from '@/lib/auth';
+import { api, ApiError, DashboardStats } from '@/lib/api';
 import { PageHeader, KpiCard, QuickActionButton } from '@/components/lexflow/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/misc';
-
-const ACTIVITIES = [
-  { type: 'case', label: 'New Case Created', time: '2 hours ago' },
-  { type: 'hearing', label: 'Court Hearing Added', time: '5 hours ago' },
-  { type: 'document', label: 'Document Uploaded', time: 'Yesterday' },
-  { type: 'payment', label: 'Payment Received', time: '2 days ago' },
-];
+import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fmt } from '@/lib/i18n/dashboard';
 
 export default function DashboardPage() {
   const { token, user } = useAuth();
+  const d = useDashboardT();
   const router = useRouter();
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!token) return;
-    api.getDashboardStats(token).then(setData).catch(console.error).finally(() => setLoading(false));
-  }, [token]);
+    const authToken = token ?? getStoredToken();
+    if (!authToken) {
+      setLoading(false);
+      return;
+    }
+    setError('');
+    api
+      .getDashboardStats(authToken)
+      .then(setData)
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) return;
+        setError(err instanceof Error ? err.message : d.common.loadFailed);
+      })
+      .finally(() => setLoading(false));
+  }, [token, d.common.loadFailed]);
 
   if (loading) {
     return (
@@ -53,38 +63,90 @@ export default function DashboardPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+        <p className="text-destructive">{error}</p>
+      </div>
+    );
+  }
+
   if (!data || !user) return null;
 
   return (
     <div>
       <PageHeader
-        title="Dashboard"
-        description={`Welcome back, ${user.firstName}. Here's your firm overview.`}
+        title={d.home.title}
+        description={fmt(d.home.welcome, { name: user.firstName }) + ` · ${data.firmName}`}
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Total Cases" value={data.stats.totalCases} icon={Briefcase} change="+2 this month" trend="up" />
-        <KpiCard label="Active Cases" value={data.stats.openCases} icon={Activity} change="In progress" trend="neutral" />
-        <KpiCard label="Upcoming Hearings" value={data.stats.upcomingEvents} icon={CalendarDays} change="Next 30 days" trend="neutral" />
-        <KpiCard label="Monthly Revenue" value={formatCurrency(125000)} icon={Banknote} change="+12% vs last month" trend="up" />
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <KpiCard label={d.home.totalCases} value={data.stats.totalCases} icon={Briefcase} change={d.home.changeThisMonth} trend="up" />
+        <KpiCard label={d.home.activeCases} value={data.stats.openCases} icon={Activity} change={d.home.inProgress} trend="neutral" />
+        <KpiCard label={d.home.upcomingHearings} value={data.stats.upcomingEvents} icon={CalendarDays} change={d.home.next30Days} trend="neutral" />
+        <KpiCard label={d.home.monthlyRevenue} value={formatCurrency(data.stats.monthlyRevenue)} icon={Banknote} change={d.home.revenueChange} trend="up" />
+        <KpiCard label={d.home.totalNetProfit} value={formatCurrency(data.stats.totalNetProfit)} icon={TrendingUp} change={d.home.profitHint} trend={data.stats.totalNetProfit >= 0 ? 'up' : 'down'} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-6">
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>Upcoming Court Appointments</CardTitle>
-              <Link href="/court-schedule" className="text-sm text-primary hover:underline">View all</Link>
+              <CardTitle>{d.home.caseProfitByCase}</CardTitle>
+              <Link href="/expenses" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Case Number</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Court</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>{d.home.ownRef}</TableHead>
+                    <TableHead>{d.home.client}</TableHead>
+                    <TableHead className="text-right">{d.home.revenue}</TableHead>
+                    <TableHead className="text-right">{d.home.profit}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(data.caseProfits ?? []).map((row) => (
+                    <TableRow key={row.caseId}>
+                      <TableCell>
+                        <Link href={`/cases/${row.caseId}`} className="font-medium text-primary hover:underline">
+                          {row.ownRef}
+                        </Link>
+                        <p className="truncate text-xs text-muted-foreground max-w-[140px]">{row.title}</p>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{row.clientName ?? '—'}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.revenue)}</TableCell>
+                      <TableCell className={`text-right font-semibold ${row.profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                        {formatCurrency(row.profit)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(data.caseProfits ?? []).length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                        {d.cases.empty}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle>{d.home.upcomingCourt}</CardTitle>
+              <Link href="/court-schedule" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{d.home.date}</TableHead>
+                    <TableHead>{d.home.ownRef}</TableHead>
+                    <TableHead>{d.home.client}</TableHead>
+                    <TableHead>{d.home.court}</TableHead>
+                    <TableHead>{d.billing.status}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -92,7 +154,7 @@ export default function DashboardPage() {
                     <TableRow key={e.id}>
                       <TableCell className="font-medium">{formatDate(e.startAt)}</TableCell>
                       <TableCell>
-                        <Link href={`/cases`} className="text-primary hover:underline">{e.case.caseNumber}</Link>
+                        <Link href={`/cases`} className="text-primary hover:underline">{e.case.ownRef}</Link>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{e.case.title}</TableCell>
                       <TableCell className="text-muted-foreground">—</TableCell>
@@ -102,7 +164,7 @@ export default function DashboardPage() {
                   {data.upcomingHearings.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                        No upcoming court appointments
+                        {d.home.noUpcomingCourt}
                       </TableCell>
                     </TableRow>
                   )}
@@ -113,18 +175,14 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Recent Activities</CardTitle>
+              <CardTitle>{d.home.recentActivities}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="relative space-y-0">
-                {[...data.recentCases.slice(0, 2).map((c) => ({
+                {[...data.recentCases.slice(0, 4).map((c) => ({
                   icon: Briefcase,
-                  label: `Case updated: ${c.caseNumber}`,
-                  time: 'Recently',
-                })), ...ACTIVITIES.slice(0, 2).map((a) => ({
-                  icon: FileText,
-                  label: a.label,
-                  time: a.time,
+                  label: fmt(d.home.caseUpdated, { ownRef: c.ownRef }),
+                  time: d.home.recently,
                 }))].map((item, i) => {
                   const Icon = item.icon;
                   return (
@@ -150,20 +208,20 @@ export default function DashboardPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
+              <CardTitle>{d.home.quickActions}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <QuickActionButton label="New Case" icon={Plus} onClick={() => router.push('/cases/new')} />
-              <QuickActionButton label="Add Hearing" icon={Gavel} onClick={() => router.push('/court-schedule')} />
-              <QuickActionButton label="Upload Document" icon={Upload} onClick={() => router.push('/documents')} />
-              <QuickActionButton label="Add Client" icon={UserPlus} onClick={() => router.push('/clients')} />
+              <QuickActionButton label={d.home.newCase} icon={Plus} onClick={() => router.push('/cases/new')} />
+              <QuickActionButton label={d.home.addHearing} icon={Gavel} onClick={() => router.push('/court-schedule')} />
+              <QuickActionButton label={d.home.uploadDocument} icon={Upload} onClick={() => router.push('/documents')} />
+              <QuickActionButton label={d.home.addClient} icon={UserPlus} onClick={() => router.push('/clients')} />
             </CardContent>
           </Card>
 
           {data.pendingReimbursements.length > 0 && (
             <Card>
               <CardHeader className="flex-row items-center justify-between">
-                <CardTitle>Pending Expenses</CardTitle>
+                <CardTitle>{d.home.pendingExpenses}</CardTitle>
                 <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
                   {data.pendingReimbursements.length}
                 </span>
@@ -173,7 +231,7 @@ export default function DashboardPage() {
                   <div key={e.id} className="flex items-center justify-between text-sm">
                     <div>
                       <p className="font-medium truncate max-w-[140px]">{e.description}</p>
-                      <p className="text-xs text-muted-foreground">{e.case?.caseNumber ?? 'General'}</p>
+                      <p className="text-xs text-muted-foreground">{e.case?.ownRef ?? 'General'}</p>
                     </div>
                     <p className="font-semibold">{formatCurrency(e.amount)}</p>
                   </div>
@@ -184,16 +242,16 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Tasks Due</CardTitle>
+              <CardTitle>{d.home.tasksDue}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
                 <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                <span>{data.stats.overdueTasks} overdue tasks</span>
+                <span>{fmt(d.home.overdueTasks, { count: data.stats.overdueTasks })}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <CheckCircle2 className="h-4 w-4 text-primary" />
-                <span>{data.stats.myTasks} assigned to you</span>
+                <span>{fmt(d.home.myTasks, { count: data.stats.myTasks })}</span>
               </div>
             </CardContent>
           </Card>

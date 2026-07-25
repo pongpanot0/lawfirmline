@@ -7,6 +7,7 @@ import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, InvoiceItem, TimeEntryItem, ExpenseItem } from '@/lib/api';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
+import { formatCurrency } from '@/lib/utils';
 
 export default function CaseBillingPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,8 @@ export default function CaseBillingPage() {
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [totalSpent, setTotalSpent] = useState(0);
+  const [caseRevenue, setCaseRevenue] = useState(0);
+  const [caseProfit, setCaseProfit] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
@@ -30,13 +33,15 @@ export default function CaseBillingPage() {
       api.getTimeEntries(token, id),
       api.getInvoices(token, id),
       api.getCaseExpenses(token, id),
-      api.getExpenseSummary(token, id).catch(() => ({ totalSpent: 0 })),
+      api.getExpenseSummary(token, id).catch(() => ({ totalSpent: 0, revenue: 0, profit: 0 })),
     ])
       .then(([entries, invs, exps, summary]) => {
         setTimeEntries(entries);
         setInvoices(invs);
         setExpenses(exps);
         setTotalSpent(summary.totalSpent);
+        setCaseRevenue(summary.revenue ?? 0);
+        setCaseProfit(summary.profit ?? 0);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -73,7 +78,21 @@ export default function CaseBillingPage() {
       </Link>
       <h1 className="mt-2 mb-6 text-2xl font-bold text-slate-900">Billing & Expenses</h1>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">รายได้</p>
+          <p className="text-2xl font-bold text-emerald-600">{formatCurrency(caseRevenue)}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">ค่าใช้จ่ายอนุมัติ</p>
+          <p className="text-2xl font-bold text-violet-600">{formatCurrency(totalSpent)}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">กำไร</p>
+          <p className={`text-2xl font-bold ${caseProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            {formatCurrency(caseProfit)}
+          </p>
+        </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">Billable Hours</p>
           <p className="text-2xl font-bold text-brand-600">{totalHours.toFixed(1)}h</p>
@@ -85,10 +104,6 @@ export default function CaseBillingPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">All Expenses</p>
           <p className="text-2xl font-bold text-orange-600">฿{totalExpenses.toLocaleString()}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">Approved Spent</p>
-          <p className="text-2xl font-bold text-violet-600">฿{totalSpent.toLocaleString()}</p>
         </div>
       </div>
 

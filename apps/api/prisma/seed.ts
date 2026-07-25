@@ -5,7 +5,8 @@ import {
   TaskStatus,
   AssignmentType,
   EventType,
-} from '@prisma/client';
+} from '../src/generated/prisma';
+import { DEFAULT_CASE_TYPES, DEFAULT_THAI_COURTS } from '@lawfirm/shared';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -13,6 +14,7 @@ const prisma = new PrismaClient();
 async function main() {
   await prisma.reminderLog.deleteMany();
   await prisma.calendarEvent.deleteMany();
+  await prisma.caseActivity.deleteMany();
   await prisma.invoiceLineItem.deleteMany();
   await prisma.invoice.deleteMany();
   await prisma.expense.deleteMany();
@@ -22,7 +24,34 @@ async function main() {
   await prisma.task.deleteMany();
   await prisma.caseAssignment.deleteMany();
   await prisma.case.deleteMany();
+  await prisma.clientContact.deleteMany();
+  await prisma.client.deleteMany();
+  await prisma.court.deleteMany();
+  await prisma.caseType.deleteMany();
+  await prisma.firmMember.deleteMany();
+  await prisma.invitation.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.billingInvoice.deleteMany();
+  await prisma.subscription.deleteMany();
+  await prisma.pettyCashFund.deleteMany();
+  await prisma.firm.deleteMany();
   await prisma.user.deleteMany();
+
+  const trialEnd = new Date();
+  trialEnd.setDate(trialEnd.getDate() + 30);
+
+  const firm = await prisma.firm.create({
+    data: {
+      name: 'Demo Law Firm',
+      slug: 'demo-law-firm',
+      subscriptionStatus: 'TRIAL',
+      trialStartAt: new Date(),
+      trialEndAt: trialEnd,
+      maxUsers: 20,
+    },
+  });
+
+  await prisma.pettyCashFund.create({ data: { firmId: firm.id } });
 
   const passwordHash = await bcrypt.hash('password123', 10);
 
@@ -76,9 +105,66 @@ async function main() {
     },
   });
 
+  await prisma.firmMember.createMany({
+    data: [
+      { firmId: firm.id, userId: admin.id, role: 'OWNER' },
+      { firmId: firm.id, userId: lawyer1.id, role: 'ASSISTANT' },
+      { firmId: firm.id, userId: lawyer2.id, role: 'ASSISTANT' },
+      { firmId: firm.id, userId: clerk1.id, role: 'ASSISTANT' },
+      { firmId: firm.id, userId: clerk2.id, role: 'ASSISTANT' },
+    ],
+  });
+
+  await prisma.caseType.createMany({
+    data: DEFAULT_CASE_TYPES.map((type) => ({
+      firmId: firm.id,
+      name: type.name,
+      description: type.description,
+      fieldSchema: type.fieldSchema ?? undefined,
+    })),
+  });
+
+  await prisma.court.createMany({
+    data: DEFAULT_THAI_COURTS.map((name) => ({ firmId: firm.id, name })),
+  });
+
+  const clientSmith = await prisma.client.create({
+    data: {
+      firmId: firm.id,
+      name: 'John Smith',
+      type: 'INDIVIDUAL',
+      contacts: {
+        create: [
+          { name: 'John Smith', email: 'john.smith@email.com', phone: '081-234-5678', isPrimary: true },
+          { name: 'Jane Smith', email: 'jane.smith@email.com', phone: '082-345-6789', position: 'Spouse' },
+        ],
+      },
+    },
+  });
+
+  const clientAbc = await prisma.client.create({
+    data: {
+      firmId: firm.id,
+      name: 'ABC Corporation',
+      type: 'COMPANY',
+      contacts: {
+        create: [
+          { name: 'Somsak CEO', email: 'ceo@abc.com', phone: '02-111-2222', position: 'CEO', isPrimary: true },
+          { name: 'Legal Dept', email: 'legal@abc.com', phone: '02-111-2223', position: 'Legal' },
+        ],
+      },
+    },
+  });
+
+  const clientMap: Record<string, string> = {
+    'John Smith': clientSmith.id,
+    'ABC Corporation': clientAbc.id,
+  };
+
   const cases = [
     {
-      caseNumber: 'LF-2025-001',
+      ownRef: 'LF-2025-001',
+      customerRef: 'CUST-001',
       title: 'Smith vs. Johnson Contract Dispute',
       description: 'Breach of contract litigation',
       clientName: 'John Smith',
@@ -88,7 +174,8 @@ async function main() {
       clerks: [clerk1.id],
     },
     {
-      caseNumber: 'LF-2025-002',
+      ownRef: 'LF-2025-002',
+      customerRef: 'CUST-002',
       title: 'ABC Corp Intellectual Property',
       description: 'Patent infringement case',
       clientName: 'ABC Corporation',
@@ -98,7 +185,8 @@ async function main() {
       clerks: [clerk1.id, clerk2.id],
     },
     {
-      caseNumber: 'LF-2025-003',
+      ownRef: 'LF-2025-003',
+      customerRef: 'CUST-003',
       title: 'Real Estate Transaction - Sukhumvit',
       description: 'Property transfer and due diligence',
       clientName: 'Thai Property Ltd.',
@@ -108,7 +196,8 @@ async function main() {
       clerks: [clerk2.id],
     },
     {
-      caseNumber: 'LF-2025-004',
+      ownRef: 'LF-2025-004',
+      customerRef: 'CUST-004',
       title: 'Employment Dispute - Tech Startup',
       description: 'Wrongful termination claim',
       clientName: 'StartupXYZ',
@@ -118,7 +207,8 @@ async function main() {
       clerks: [clerk1.id],
     },
     {
-      caseNumber: 'LF-2025-005',
+      ownRef: 'LF-2025-005',
+      customerRef: 'CUST-005',
       title: 'Family Law - Divorce Proceedings',
       description: 'Asset division and custody',
       clientName: 'Private Client',
@@ -133,11 +223,13 @@ async function main() {
   for (const c of cases) {
     const { coCounsel, clerks, ...caseData } = c;
     const year = new Date().getFullYear();
-    const folderId = `LF-${year}-${caseData.caseNumber.split('-').pop()}`;
+    const folderId = `LF-${year}-${caseData.ownRef.split('-').pop()}`;
     const legalCase = await prisma.case.create({
       data: {
         ...caseData,
+        firmId: firm.id,
         folderId,
+        clientId: clientMap[caseData.clientName ?? ''],
         courtName: 'ศาลแพ่งกรุงเทพใต้',
         assignments: {
           create: [

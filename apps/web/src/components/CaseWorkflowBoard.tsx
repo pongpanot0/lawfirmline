@@ -6,7 +6,7 @@ import { StatusBadge } from './StatusBadge';
 
 export interface WorkflowCase {
   id: string;
-  caseNumber: string;
+  ownRef: string;
   title: string;
   status: CaseStatus | string;
   clientName?: string | null;
@@ -53,7 +53,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                 className="rounded-lg border border-white bg-white p-3 shadow-sm"
               >
                 <Link href={`/cases/${c.id}`} className="block hover:text-brand-600">
-                  <p className="text-xs text-slate-400">{c.caseNumber}</p>
+                  <p className="text-xs text-slate-400">{c.ownRef}</p>
                   <p className="text-sm font-medium">{c.title}</p>
                   {c.courtName && (
                     <p className="mt-1 text-xs text-slate-500">🏛 {c.courtName}</p>

@@ -88,7 +88,7 @@ export class LineMessagingService {
     }
   }
 
-  async sendText(message: string): Promise<boolean> {
+  async sendText(message: string, targetUserIds?: string[]): Promise<boolean> {
     if (!this.isConfigured()) {
       this.logger.warn(`LINE not configured. Message: ${message}`);
       return false;
@@ -100,7 +100,11 @@ export class LineMessagingService {
       return false;
     }
 
-    const pushUserIds = this.getPushUserIds();
+    const pushUserIds =
+      targetUserIds && targetUserIds.length > 0
+        ? targetUserIds
+        : this.getPushUserIds();
+
     if (pushUserIds.length > 0) {
       let sent = false;
       for (const userId of pushUserIds) {
@@ -113,8 +117,39 @@ export class LineMessagingService {
     return this.broadcastMessage(token, message);
   }
 
-  async sendCourtDateAlert(message: string): Promise<void> {
-    await this.sendText(message);
+  async replyText(replyToken: string, text: string): Promise<boolean> {
+    if (!this.isConfigured()) return false;
+
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const res = await fetch('https://api.line.me/v2/bot/message/reply', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          replyToken,
+          messages: [{ type: 'text', text }],
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        this.logger.error(`LINE reply failed (${res.status}): ${body}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.error('LINE reply error', err);
+      return false;
+    }
+  }
+
+  async sendCourtDateAlert(message: string, targetUserIds?: string[]): Promise<void> {
+    await this.sendText(message, targetUserIds);
   }
 
   async sendTestMessage(): Promise<{ ok: boolean; mode: 'push' | 'broadcast' | 'none' }> {

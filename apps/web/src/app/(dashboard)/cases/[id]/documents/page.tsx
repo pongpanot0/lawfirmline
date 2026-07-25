@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { Upload, Eye, Download } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, DocumentItem, DocumentTemplateItem } from '@/lib/api';
-import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { api, ApiError, DocumentItem, DocumentTemplateItem } from '@/lib/api';
+import { DocumentDropZone, DocumentDropZoneHandle } from '@/components/DocumentDropZone';
+import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 
 export default function CaseDocumentsPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +19,10 @@ export default function CaseDocumentsPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [rendered, setRendered] = useState<{ name: string; content: string } | null>(null);
   const [error, setError] = useState('');
+  const uploadRef = useRef<DocumentDropZoneHandle>(null);
+  const analyzeRef = useRef<DocumentDropZoneHandle>(null);
+  const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   const load = () => {
     if (!token || !id) return;
@@ -34,6 +40,51 @@ export default function CaseDocumentsPage() {
 
   useEffect(() => { load(); }, [token, id]);
 
+  useEffect(() => () => {
+    if (preview?.url) URL.revokeObjectURL(preview.url);
+  }, [preview]);
+
+  const handleView = async (doc: DocumentItem) => {
+    if (!token || !id) return;
+    setViewingId(doc.id);
+    setError('');
+    try {
+      const blob = await api.downloadDocument(token, id, doc.id);
+      const url = URL.createObjectURL(blob);
+      setPreview((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url);
+        return { filename: doc.filename, mimeType: doc.mimeType, url };
+      });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not open document');
+    } finally {
+      setViewingId(null);
+    }
+  };
+
+  const handleDownload = async (doc: DocumentItem) => {
+    if (!token || !id) return;
+    setError('');
+    try {
+      const blob = await api.downloadDocument(token, id, doc.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Download failed');
+    }
+  };
+
+  const closePreview = () => {
+    setPreview((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  };
+
   const handleUpload = async (file: File) => {
     if (!token || !id) return;
     setUploading(true);
@@ -41,8 +92,8 @@ export default function CaseDocumentsPage() {
     try {
       await api.uploadDocument(token, id, file);
       load();
-    } catch {
-      setError('Upload failed');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -78,11 +129,41 @@ export default function CaseDocumentsPage() {
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-4 font-semibold">Upload Document</h2>
-          <DocumentDropZone onFile={handleUpload} loading={uploading} label="Upload to case folder" />
+          <DocumentDropZone
+            ref={uploadRef}
+            onFile={handleUpload}
+            loading={uploading}
+            loadingLabel="Uploading..."
+            label="Drag & drop or click here"
+          />
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => uploadRef.current?.open()}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            <Upload className="h-4 w-4" />
+            {uploading ? 'Uploading...' : 'Upload Document'}
+          </button>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-4 font-semibold">AI Document Analyzer</h2>
-          <DocumentDropZone onFile={handleAnalyze} loading={analyzing} label="Upload for AI summary" />
+          <DocumentDropZone
+            ref={analyzeRef}
+            onFile={handleAnalyze}
+            loading={analyzing}
+            loadingLabel="Analyzing document..."
+            label="Drag & drop or click here"
+          />
+          <button
+            type="button"
+            disabled={analyzing}
+            onClick={() => analyzeRef.current?.open()}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+          >
+            <Upload className="h-4 w-4" />
+            {analyzing ? 'Analyzing...' : 'Choose file for AI'}
+          </button>
         </div>
       </div>
 
@@ -112,19 +193,55 @@ export default function CaseDocumentsPage() {
         <h2 className="mb-4 font-semibold">Files ({documents.length})</h2>
         <div className="space-y-2">
           {documents.map((d) => (
-            <div key={d.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
-              <div>
-                <p className="font-medium">{d.filename}</p>
+            <div
+              key={d.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              <button
+                type="button"
+                onClick={() => handleView(d)}
+                disabled={viewingId === d.id}
+                className="min-w-0 flex-1 text-left"
+              >
+                <p className="font-medium text-brand-700 hover:underline">{d.filename}</p>
                 <p className="text-xs text-slate-400">
                   v{d.version} — {d.uploadedBy.firstName} {d.uploadedBy.lastName}
                 </p>
+              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="hidden text-xs text-slate-400 sm:inline">{d.mimeType}</span>
+                <button
+                  type="button"
+                  onClick={() => handleView(d)}
+                  disabled={viewingId === d.id}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium hover:bg-white disabled:opacity-50"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  {viewingId === d.id ? 'Opening...' : 'View'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownload(d)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium hover:bg-white"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </button>
               </div>
-              <span className="text-xs text-slate-400">{d.mimeType}</span>
             </div>
           ))}
           {documents.length === 0 && <p className="text-sm text-slate-400">No documents yet</p>}
         </div>
       </div>
+
+      {preview && (
+        <DocumentPreviewModal
+          filename={preview.filename}
+          mimeType={preview.mimeType}
+          url={preview.url}
+          onClose={closePreview}
+        />
+      )}
     </div>
   );
 }

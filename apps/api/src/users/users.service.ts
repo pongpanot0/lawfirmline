@@ -1,7 +1,7 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.module';
@@ -39,16 +39,9 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto) {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
-    if (existing) throw new ConflictException('Email already exists');
-
-    const passwordHash = await bcrypt.hash(dto.password, 10);
-    const user = await this.prisma.user.create({
-      data: { ...dto, passwordHash },
-    });
-    return this.sanitize(user);
+    throw new BadRequestException(
+      'Direct user creation is disabled. Invite members by email via POST /saas/invitations.',
+    );
   }
 
   async update(id: string, dto: UpdateUserDto) {
@@ -68,9 +61,23 @@ export class UsersService {
     return { deleted: true };
   }
 
-  async findLawyers() {
+  async findLawyers(firmId: string) {
     const users = await this.prisma.user.findMany({
-      where: { role: { in: ['ADMIN', 'LAWYER'] } },
+      where: {
+        role: { in: ['ADMIN', 'LAWYER'] },
+        firmMembers: { some: { firmId } },
+      },
+      orderBy: { lastName: 'asc' },
+    });
+    return users.map((u) => this.sanitize(u));
+  }
+
+  async findClerks(firmId: string) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        role: 'CLERK',
+        firmMembers: { some: { firmId } },
+      },
       orderBy: { lastName: 'asc' },
     });
     return users.map((u) => this.sanitize(u));

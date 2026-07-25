@@ -2,6 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService } from './line-messaging.service';
+import { LineLinkService } from './line-link.service';
+
+function formatReminderLeadTime(minutesBefore: number): string {
+  if (minutesBefore >= 1440 && minutesBefore % 1440 === 0) {
+    const days = minutesBefore / 1440;
+    return `${days} วัน`;
+  }
+  if (minutesBefore >= 60 && minutesBefore % 60 === 0) {
+    return `${minutesBefore / 60} ชั่วโมง`;
+  }
+  return `${minutesBefore} นาที`;
+}
 
 @Injectable()
 export class ReminderScheduler {
@@ -10,6 +22,7 @@ export class ReminderScheduler {
   constructor(
     private prisma: PrismaService,
     private lineMessaging: LineMessagingService,
+    private lineLink: LineLinkService,
   ) {}
 
   @Cron(CronExpression.EVERY_10_MINUTES)
@@ -30,11 +43,15 @@ export class ReminderScheduler {
         );
 
         if (now >= reminderTime && !alreadySent) {
-          const message = `⏰ แจ้งเตือนนัดหมาย (${minutesBefore >= 1440 ? `${Math.round(minutesBefore / 1440)} วัน` : `${minutesBefore} นาที`}ก่อน)\nคดี: ${event.case.caseNumber}\nเรื่อง: ${event.title}\nเวลา: ${event.startAt.toLocaleString('th-TH')}`;
+          const leadTime = formatReminderLeadTime(minutesBefore);
+          const message = `⏰ แจ้งเตือนนัดหมาย (${leadTime}ก่อน)\nคดี: ${event.case.ownRef}\nเรื่อง: ${event.title}\nเวลา: ${event.startAt.toLocaleString('th-TH')}`;
 
-          this.logger.log(`[REMINDER] ${minutesBefore}min before: "${event.title}" for case ${event.case.caseNumber}`);
+          this.logger.log(
+            `[REMINDER] ${minutesBefore}min before: "${event.title}" for case ${event.case.ownRef}`,
+          );
 
-          const lineSent = await this.lineMessaging.sendText(message);
+          const lineUserIds = await this.lineLink.getLineUserIdsForCase(event.caseId);
+          const lineSent = await this.lineMessaging.sendText(message, lineUserIds);
 
           await this.prisma.reminderLog.create({
             data: {

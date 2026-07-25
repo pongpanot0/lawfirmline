@@ -3,14 +3,15 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { ExpenseStatus } from '@lawfirm/shared';
-import { Role } from '@lawfirm/shared';
-import { useAuth } from '@/lib/auth';
-import { api, ExpenseItem } from '@/lib/api';
+import { FirmRole } from '@lawfirm/shared';
+import { useAuth, getStoredToken } from '@/lib/auth';
+import { api, ApiError, ExpenseItem } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/misc';
 import { cn } from '@/lib/utils';
 
 const FILTERS = ['', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
@@ -20,13 +21,22 @@ export default function ReimbursementsPage() {
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const load = () => {
-    if (!token) return;
+    const authToken = token ?? getStoredToken();
+    if (!authToken) {
+      setLoading(false);
+      return;
+    }
+    setError('');
     api
-      .getExpenses(token, filter || undefined)
+      .getExpenses(authToken, filter || undefined)
       .then(setExpenses)
-      .catch(console.error)
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) return;
+        setError(err instanceof Error ? err.message : 'Failed to load reimbursements');
+      })
       .finally(() => setLoading(false));
   };
 
@@ -36,12 +46,14 @@ export default function ReimbursementsPage() {
   }, [token, filter]);
 
   const updateStatus = async (id: string, status: ExpenseStatus) => {
-    if (!token) return;
-    await api.updateExpenseStatus(token, id, status);
+    const authToken = token ?? getStoredToken();
+    if (!authToken) return;
+    await api.updateExpenseStatus(authToken, id, status);
+    setLoading(true);
     load();
   };
 
-  if (user?.role !== Role.ADMIN) {
+  if (user?.firmRole !== FirmRole.OWNER) {
     return <p className="text-destructive">Access denied. Admin only.</p>;
   }
 
@@ -76,7 +88,11 @@ export default function ReimbursementsPage() {
     <div>
       <PageHeader
         title="Reimbursements / เบิกค่าใช้จ่าย"
-        description={`Review and approve expense claims — รอจ่ายรวม ฿${pendingTotal.toLocaleString()}`}
+        description={
+          user
+            ? `${user.firmName} — Review and approve expense claims — รอจ่ายรวม ฿${pendingTotal.toLocaleString()}`
+            : `Review and approve expense claims — รอจ่ายรวม ฿${pendingTotal.toLocaleString()}`
+        }
       />
 
       <div className="-mx-3 mb-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
@@ -98,7 +114,14 @@ export default function ReimbursementsPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <div className="space-y-3">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      ) : error ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+          <p className="text-destructive">{error}</p>
+        </div>
       ) : expenses.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
@@ -117,7 +140,7 @@ export default function ReimbursementsPage() {
                       <p className="font-medium">{e.user.firstName} {e.user.lastName}</p>
                       {e.case ? (
                         <Link href={`/cases/${e.case.id}`} className="text-sm text-primary hover:underline">
-                          {e.case.caseNumber}
+                          {e.case.ownRef}
                         </Link>
                       ) : (
                         <p className="text-sm text-muted-foreground">General</p>
@@ -159,7 +182,7 @@ export default function ReimbursementsPage() {
                       <TableCell>
                         {e.case ? (
                           <Link href={`/cases/${e.case.id}`} className="text-primary hover:underline">
-                            {e.case.caseNumber}
+                            {e.case.ownRef}
                           </Link>
                         ) : (
                           <span className="text-muted-foreground">General</span>

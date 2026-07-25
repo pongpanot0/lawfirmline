@@ -5,10 +5,10 @@ import { usePathname } from 'next/navigation';
 import { LexFlowSidebar } from './LexFlowSidebar';
 import { TopNavbar } from './TopNavbar';
 import { AIAssistantPanel } from '@/components/ai/AIAssistantPanel';
-import { Role } from '@lawfirm/shared';
+import { AuthUser, FirmRole } from '@lawfirm/shared';
 
 interface AppShellProps {
-  user: { firstName: string; lastName: string; role: Role; email: string };
+  user: AuthUser;
   onLogout: () => void;
   children: React.ReactNode;
 }

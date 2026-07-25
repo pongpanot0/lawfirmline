@@ -15,15 +15,18 @@ export default function CaseCalendarPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !id) return;
+    const from = new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
+    const to = new Date(month.getFullYear(), month.getMonth() + 2, 0).toISOString();
+    setLoading(true);
     api
-      .getCalendarEvents(token)
+      .getCalendarEvents(token, { from, to })
       .then((all) => {
         setEvents(all.filter((e) => e.case?.id === id));
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [token, id]);
+  }, [token, id, month]);
 
   if (loading) return <p className="text-slate-500">Loading calendar...</p>;
 

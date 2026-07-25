@@ -30,16 +30,16 @@ export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
                 disabled={!onStepClick}
                 className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
                   isComplete
-                    ? 'bg-brand-600 text-white'
+                    ? 'bg-primary text-primary-foreground'
                     : isCurrent
-                      ? 'border-2 border-brand-600 bg-white text-brand-600'
-                      : 'border-2 border-slate-200 bg-white text-slate-400'
+                      ? 'border-2 border-primary bg-card text-primary'
+                      : 'border-2 border-slate-200 bg-card text-slate-400'
                 }`}
               >
                 {isComplete ? '✓' : index + 1}
               </button>
               <div className="mt-2 text-center">
-                <p className={`text-xs font-medium ${isCurrent ? 'text-brand-700' : 'text-slate-500'}`}>
+                <p className={`text-xs font-medium ${isCurrent ? 'text-primary' : 'text-slate-500'}`}>
                   {step.label}
                 </p>
                 {step.description && (

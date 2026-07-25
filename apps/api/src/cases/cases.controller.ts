@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { CasesService } from './cases.service';
 import { CreateCaseDto, UpdateCaseDto, CaseQueryDto } from './dto/case.dto';
+import { CloseCaseDto } from './dto/close-case.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -48,6 +49,24 @@ export class CasesController {
     @Body() dto: UpdateCaseDto,
   ) {
     return this.casesService.update(user, id, dto);
+  }
+
+  @Post(':id/close')
+  @UseGuards(CaseAccessGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  close(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: CloseCaseDto,
+  ) {
+    return this.casesService.close(user, id, dto);
+  }
+
+  @Post(':id/reopen')
+  @UseGuards(CaseAccessGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  reopen(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.casesService.reopen(user, id);
   }
 
   @Delete(':id')

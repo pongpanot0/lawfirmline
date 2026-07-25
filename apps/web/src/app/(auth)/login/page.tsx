@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Scale } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -83,11 +84,18 @@ export default function LoginPage() {
                 <label className="text-sm font-medium">Password</label>
                 <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1" required />
               </div>
+              <div className="text-right">
+                <Link href="/forgot-password" className="text-xs text-primary hover:underline">Forgot password?</Link>
+              </div>
               {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
               <Button type="submit" className="w-full" disabled={submitting}>
                 {submitting ? 'Signing in...' : 'Sign in'}
               </Button>
             </form>
+
+            <p className="mt-4 text-center text-sm text-muted-foreground">
+              No account? <Link href="/register" className="text-primary hover:underline">Start 30-day trial</Link>
+            </p>
 
             <div className="mt-6 rounded-lg bg-muted p-4 text-xs text-muted-foreground">
               <p className="font-medium text-foreground">Demo accounts (password: password123)</p>

@@ -7,7 +7,7 @@ export interface CalendarEventData {
   startAt: string;
   endAt?: string | null;
   type: string;
-  case?: { id: string; caseNumber: string; title: string };
+  case?: { id: string; ownRef: string; title: string };
 }
 
 interface CalendarViewProps {
@@ -139,7 +139,7 @@ export function CalendarView({
                   <p className="text-sm font-medium">{e.title}</p>
                   {e.case && (
                     <p className="text-xs text-slate-500">
-                      {e.case.caseNumber} — {e.case.title}
+                      {e.case.ownRef} — {e.case.title}
                     </p>
                   )}
                 </div>

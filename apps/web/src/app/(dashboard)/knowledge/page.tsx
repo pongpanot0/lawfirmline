@@ -54,7 +54,7 @@ export default function KnowledgePage() {
         >
           <option value="">All Cases</option>
           {cases.map((c) => (
-            <option key={c.id} value={c.id}>{c.caseNumber} — {c.title}</option>
+            <option key={c.id} value={c.id}>{c.ownRef} — {c.title}</option>
           ))}
         </select>
         <select
@@ -84,7 +84,7 @@ export default function KnowledgePage() {
                   <h3 className="font-semibold">{item.title}</h3>
                   <p className="mt-1 text-xs text-slate-400">
                     <Link href={`/cases/${item.case.id}`} className="text-brand-600 hover:underline">
-                      {item.case.caseNumber}
+                      {item.case.ownRef}
                     </Link>
                     {' — '}{item.createdBy.firstName} {item.createdBy.lastName}
                     {' — '}{new Date(item.createdAt).toLocaleDateString()}

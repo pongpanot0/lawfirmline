@@ -4,7 +4,7 @@ import { StatusBadge } from './StatusBadge';
 
 interface CaseCardProps {
   id: string;
-  caseNumber: string;
+  ownRef: string;
   title: string;
   status: CaseStatus;
   clientName?: string | null;
@@ -13,7 +13,7 @@ interface CaseCardProps {
 
 export function CaseCard({
   id,
-  caseNumber,
+  ownRef,
   title,
   status,
   clientName,
@@ -26,7 +26,7 @@ export function CaseCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-slate-500">{caseNumber}</p>
+          <p className="text-xs font-medium text-slate-500">{ownRef}</p>
           <h3 className="mt-1 font-semibold text-slate-900">{title}</h3>
           {clientName && (
             <p className="mt-1 text-sm text-slate-500">Client: {clientName}</p>

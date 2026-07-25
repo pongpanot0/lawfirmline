@@ -2,12 +2,14 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { landingCopy, Locale, LandingCopy } from '@/lib/i18n/landing';
+import { dashboardCopy, DashboardCopy } from '@/lib/i18n/dashboard';
 
 const STORAGE_KEY = 'lexflow_locale';
 
 interface LocaleContextValue {
   locale: Locale;
   t: LandingCopy;
+  d: DashboardCopy;
   setLocale: (locale: Locale) => void;
 }
 
@@ -36,7 +38,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   }, [locale, ready]);
 
   return (
-    <LocaleContext.Provider value={{ locale, t: landingCopy[locale], setLocale }}>
+    <LocaleContext.Provider
+      value={{ locale, t: landingCopy[locale], d: dashboardCopy[locale], setLocale }}
+    >
       {children}
     </LocaleContext.Provider>
   );
@@ -46,4 +50,8 @@ export function useLocale() {
   const ctx = useContext(LocaleContext);
   if (!ctx) throw new Error('useLocale must be used within LocaleProvider');
   return ctx;
+}
+
+export function useDashboardT() {
+  return useLocale().d;
 }

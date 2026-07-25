@@ -31,8 +31,18 @@ export class BillingController {
   @Get('petty-cash')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
-  getPettyCash() {
-    return this.billingService.getPettyCashBalance();
+  getPettyCash(@CurrentUser() user: AuthUser) {
+    return this.billingService.getPettyCashBalance(user.firmId);
+  }
+
+  @Get('finance/summary')
+  getFinanceSummary(@CurrentUser() user: AuthUser) {
+    return this.billingService.getFinanceSummary(user);
+  }
+
+  @Get('invoices')
+  getFirmInvoices(@CurrentUser() user: AuthUser) {
+    return this.billingService.getFirmInvoices(user);
   }
 
   @Get('expenses')

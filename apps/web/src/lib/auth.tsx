@@ -46,6 +46,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setLoading(false);
     }
+
+    const onSessionExpired = () => {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_KEY);
+      setToken(null);
+      setUser(null);
+    };
+    const onTokenRefreshed = (event: Event) => {
+      const accessToken = (event as CustomEvent<{ accessToken: string }>).detail.accessToken;
+      if (accessToken) setToken(accessToken);
+    };
+    window.addEventListener('auth:session-expired', onSessionExpired);
+    window.addEventListener('auth:token-refreshed', onTokenRefreshed);
+    return () => {
+      window.removeEventListener('auth:session-expired', onSessionExpired);
+      window.removeEventListener('auth:token-refreshed', onTokenRefreshed);
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

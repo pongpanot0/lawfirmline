@@ -5,7 +5,8 @@
   "scripts": {
     "build": "nest build",
     "build:prod": "prisma generate && nest build --path tsconfig.build.json",
-    "dev": "nest start --watch --path tsconfig.build.json",
+    "dev": "pnpm --filter @lawfirm/shared build && prisma generate && nest start --watch --path tsconfig.build.json",
+    "postinstall": "prisma generate",
     "start": "node dist/main",
     "start:prod": "prisma migrate deploy && node dist/main",
     "prisma": "prisma"
@@ -20,6 +21,7 @@
     "@nestjs/platform-express": "^11.0.7",
     "@nestjs/schedule": "^5.0.1",
     "@prisma/client": "^6.3.1",
+    "@sendgrid/mail": "^8.1.6",
     "bcrypt": "^5.1.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
@@ -42,6 +44,7 @@
     "typescript": "^5.7.3"
   },
   "prisma": {
-    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
+    "postgenerate": "node -e \"const fs=require('fs');const p='dist/generated/prisma';fs.mkdirSync('dist/generated',{recursive:true});fs.cpSync('src/generated/prisma',p,{recursive:true,force:true})\""
   }
 }

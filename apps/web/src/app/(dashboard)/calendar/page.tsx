@@ -142,7 +142,7 @@ export default function CourtSchedulePage() {
                   </Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(e.startAt)}</p>
-                {e.case && <p className="text-xs text-primary">{e.case.caseNumber}</p>}
+                {e.case && <p className="text-xs text-primary">{e.case.ownRef}</p>}
               </div>
             ))}
             {upcoming.length === 0 && <p className="text-sm text-muted-foreground">No upcoming events</p>}
@@ -160,7 +160,7 @@ export default function CourtSchedulePage() {
                 setForm({ ...form, caseId: e.target.value, courtName: c?.courtName ?? form.courtName });
               }} className="w-full h-9 rounded-lg border border-input bg-card px-3 text-sm">
                 <option value="">Select case</option>
-                {cases.map((c) => <option key={c.id} value={c.id}>{c.caseNumber} — {c.title}</option>)}
+                {cases.map((c) => <option key={c.id} value={c.id}>{c.ownRef} — {c.title}</option>)}
               </select>
               <Input required placeholder="Event title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
               <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full h-9 rounded-lg border border-input bg-card px-3 text-sm">
@@ -198,7 +198,7 @@ export default function CourtSchedulePage() {
             <h2 className="text-lg font-semibold">{selectedEvent.title}</h2>
             <p className="mt-2 text-sm text-muted-foreground">{formatDateTime(selectedEvent.startAt)}</p>
             <Badge className="mt-2">{selectedEvent.type.replace('_', ' ')}</Badge>
-            {selectedEvent.case && <p className="mt-2 text-sm">Case: {selectedEvent.case.caseNumber}</p>}
+            {selectedEvent.case && <p className="mt-2 text-sm">Case: {selectedEvent.case.ownRef}</p>}
             <div className="mt-4 flex gap-2">
               <Button variant="destructive" size="sm" onClick={async () => {
                 if (!token || !selectedEvent) return;

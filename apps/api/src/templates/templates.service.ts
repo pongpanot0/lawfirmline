@@ -26,7 +26,9 @@ export class TemplatesService {
     if (!legalCase) return null;
 
     const vars: Record<string, string> = {
-      caseNumber: legalCase.caseNumber,
+      ownRef: legalCase.ownRef,
+      caseNumber: legalCase.ownRef,
+      customerRef: legalCase.customerRef ?? '',
       clientName: legalCase.clientName ?? '',
       courtName: legalCase.courtName ?? '',
       folderId: legalCase.folderId,

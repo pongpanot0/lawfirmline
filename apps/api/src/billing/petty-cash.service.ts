@@ -5,25 +5,25 @@ import { PrismaService } from '../prisma/prisma.module';
 export class PettyCashService {
   constructor(private prisma: PrismaService) {}
 
-  async getBalance() {
+  async getBalance(firmId: string) {
     let fund = await this.prisma.pettyCashFund.findUnique({
-      where: { id: 'default' },
+      where: { firmId },
     });
     if (!fund) {
       fund = await this.prisma.pettyCashFund.create({
-        data: { id: 'default', balance: 50000 },
+        data: { firmId, balance: 50000 },
       });
     }
     return fund;
   }
 
-  async deduct(amount: number) {
-    const fund = await this.getBalance();
+  async deduct(firmId: string, amount: number) {
+    const fund = await this.getBalance(firmId);
     if (fund.balance < amount) {
       throw new Error('Insufficient petty cash balance');
     }
     return this.prisma.pettyCashFund.update({
-      where: { id: 'default' },
+      where: { firmId },
       data: { balance: { decrement: amount } },
     });
   }

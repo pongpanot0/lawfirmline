@@ -1,18 +1,35 @@
 import { Injectable } from '@nestjs/common';
-import { AuthUser, Role } from '@lawfirm/shared';
+import { AuthUser, FirmRole, Role } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class DashboardService {
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
+    private billingService: BillingService,
   ) {}
+
+  private getFirmExpenseFilter(firmId: string) {
+    return {
+      OR: [
+        { case: { firmId } },
+        { caseId: null, user: { firmMembers: { some: { firmId } } } },
+      ],
+    };
+  }
 
   async getStats(user: AuthUser) {
     const caseFilter = this.caseAccess.getCaseFilterForUser(user);
+    const firmExpenseFilter = this.getFirmExpenseFilter(user.firmId);
+    const isOwner = user.firmRole === FirmRole.OWNER;
+    const expenseScope = isOwner
+      ? firmExpenseFilter
+      : { userId: user.id, ...firmExpenseFilter };
     const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [totalCases, openCases, upcomingEvents, overdueTasks, myTasks] =
       await Promise.all([
@@ -38,6 +55,7 @@ export class DashboardService {
               where: {
                 assigneeId: user.id,
                 status: { not: 'DONE' },
+                case: { firmId: user.firmId },
               },
             })
           : this.prisma.task.count({
@@ -46,40 +64,40 @@ export class DashboardService {
                 status: { not: 'DONE' },
                 OR: [
                   { assigneeId: user.id },
-                  ...(user.role === Role.ADMIN ? [{}] : []),
+                  ...(isOwner ? [{}] : []),
                 ],
               },
             }),
       ]);
 
-    const expenseFilter =
-      user.role === Role.ADMIN
-        ? {}
-        : { userId: user.id };
+    const [pendingExpenseCount, pendingReimbursementList, timeEntries, caseProfits] =
+      await Promise.all([
+        this.prisma.expense.count({
+          where: { ...expenseScope, status: 'PENDING' },
+        }),
+        this.prisma.expense.findMany({
+          where: isOwner
+            ? { ...firmExpenseFilter, status: { in: ['PENDING', 'APPROVED'] } }
+            : { userId: user.id, ...firmExpenseFilter },
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            user: { select: { firstName: true, lastName: true } },
+            case: { select: { ownRef: true, title: true } },
+          },
+        }),
+        this.prisma.timeEntry.findMany({
+          where: { case: caseFilter, billable: true },
+          select: { hours: true, rate: true, date: true },
+        }),
+        this.billingService.getCaseProfits(user),
+      ]);
 
-    const [pendingExpenseCount, pendingReimbursementList] = await Promise.all([
-      this.prisma.expense.count({
-        where: { ...expenseFilter, status: 'PENDING' },
-      }),
-      user.role === Role.ADMIN
-        ? this.prisma.expense.findMany({
-            where: { status: { in: ['PENDING', 'APPROVED'] } },
-            take: 5,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              user: { select: { firstName: true, lastName: true } },
-              case: { select: { caseNumber: true, title: true } },
-            },
-          })
-        : this.prisma.expense.findMany({
-            where: { userId: user.id },
-            take: 5,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              case: { select: { caseNumber: true, title: true } },
-            },
-          }),
-    ]);
+    const monthlyRevenue = timeEntries
+      .filter((entry) => entry.date >= monthStart)
+      .reduce((sum, entry) => sum + entry.hours * entry.rate, 0);
+
+    const totalNetProfit = caseProfits.reduce((sum, row) => sum + row.profit, 0);
 
     const recentCases = await this.prisma.case.findMany({
       where: caseFilter,
@@ -101,11 +119,13 @@ export class DashboardService {
       take: 5,
       orderBy: { startAt: 'asc' },
       include: {
-        case: { select: { caseNumber: true, title: true } },
+        case: { select: { ownRef: true, title: true } },
       },
     });
 
     return {
+      firmId: user.firmId,
+      firmName: user.firmName,
       role: user.role,
       stats: {
         totalCases,
@@ -114,7 +134,10 @@ export class DashboardService {
         overdueTasks,
         myTasks,
         pendingExpenses: pendingExpenseCount,
+        monthlyRevenue,
+        totalNetProfit,
       },
+      caseProfits: caseProfits.slice(0, 8),
       recentCases,
       upcomingHearings,
       pendingReimbursements: pendingReimbursementList,

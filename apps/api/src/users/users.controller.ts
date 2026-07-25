@@ -13,7 +13,8 @@ import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { Role } from '@lawfirm/shared';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Role, AuthUser } from '@lawfirm/shared';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,8 +28,13 @@ export class UsersController {
   }
 
   @Get('lawyers')
-  findLawyers() {
-    return this.usersService.findLawyers();
+  findLawyers(@CurrentUser() user: AuthUser) {
+    return this.usersService.findLawyers(user.firmId);
+  }
+
+  @Get('clerks')
+  findClerks(@CurrentUser() user: AuthUser) {
+    return this.usersService.findClerks(user.firmId);
   }
 
   @Get(':id')

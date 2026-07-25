@@ -1,12 +1,7 @@
-import { Global, Injectable, Module, OnModuleInit } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Global, Module } from '@nestjs/common';
+import { PrismaService } from './prisma.service';
 
-@Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit {
-  async onModuleInit() {
-    await this.$connect();
-  }
-}
+export { PrismaService } from './prisma.service';
 
 @Global()
 @Module({

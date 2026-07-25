@@ -4,6 +4,80 @@ export enum Role {
   CLERK = 'CLERK',
 }
 
+export enum FirmRole {
+  OWNER = 'OWNER',
+  ASSISTANT = 'ASSISTANT',
+}
+
+export enum SubscriptionPlan {
+  SOLO = 'SOLO',
+  FIRM = 'FIRM',
+  PROFESSIONAL = 'PROFESSIONAL',
+}
+
+export enum SubscriptionStatus {
+  TRIAL = 'TRIAL',
+  ACTIVE = 'ACTIVE',
+  PAST_DUE = 'PAST_DUE',
+  CANCELED = 'CANCELED',
+  EXPIRED = 'EXPIRED',
+}
+
+export enum BillingPaymentStatus {
+  PENDING = 'PENDING',
+  PAID = 'PAID',
+  FAILED = 'FAILED',
+}
+
+export interface PlanConfig {
+  plan: SubscriptionPlan;
+  name: string;
+  priceThb: number;
+  maxUsers: number;
+  features: string[];
+  hasTeamManagement: boolean;
+  hasAdvancedReporting: boolean;
+  hasAuditLogs: boolean;
+}
+
+export const PLAN_CONFIG: Record<SubscriptionPlan, PlanConfig> = {
+  [SubscriptionPlan.SOLO]: {
+    plan: SubscriptionPlan.SOLO,
+    name: 'Solo',
+    priceThb: 990,
+    maxUsers: 2,
+    features: ['Case Management', 'Calendar', 'Client Portal', 'LINE Notification'],
+    hasTeamManagement: false,
+    hasAdvancedReporting: false,
+    hasAuditLogs: false,
+  },
+  [SubscriptionPlan.FIRM]: {
+    plan: SubscriptionPlan.FIRM,
+    name: 'Firm',
+    priceThb: 2999,
+    maxUsers: 5,
+    features: ['Case Management', 'Calendar', 'Client Portal', 'LINE Notification', 'Team Management'],
+    hasTeamManagement: true,
+    hasAdvancedReporting: false,
+    hasAuditLogs: false,
+  },
+  [SubscriptionPlan.PROFESSIONAL]: {
+    plan: SubscriptionPlan.PROFESSIONAL,
+    name: 'Professional',
+    priceThb: 6999,
+    maxUsers: 20,
+    features: ['Everything in Firm', 'Advanced Reporting', 'Audit Logs'],
+    hasTeamManagement: true,
+    hasAdvancedReporting: true,
+    hasAuditLogs: true,
+  },
+};
+
+export const TRIAL_DAYS = 30;
+
+/** Placeholder client name when creating a case before client details are known. */
+export const TMP_CLIENT_PLACEHOLDER = 'tmp';
+
 export enum CaseStatus {
   OPEN = 'OPEN',
   DRAFTING = 'DRAFTING',
@@ -12,6 +86,18 @@ export enum CaseStatus {
   PENDING = 'PENDING',
   CLOSED = 'CLOSED',
 }
+
+export enum CourtLevel {
+  TRIAL = 'TRIAL',
+  APPEAL = 'APPEAL',
+  SUPREME = 'SUPREME',
+}
+
+export const COURT_LEVEL_LABELS: Record<CourtLevel, string> = {
+  [CourtLevel.TRIAL]: 'ศาลชั้นต้น',
+  [CourtLevel.APPEAL]: 'ศาลอุทธรณ์',
+  [CourtLevel.SUPREME]: 'ศาลฎีกา',
+};
 
 export enum TaskStatus {
   TODO = 'TODO',
@@ -53,6 +139,28 @@ export enum KnowledgeCategory {
   OTHER = 'OTHER',
 }
 
+export enum ActivityType {
+  COURT_DATE = 'COURT_DATE',
+  CLIENT_MEETING = 'CLIENT_MEETING',
+  FILING = 'FILING',
+  DEADLINE = 'DEADLINE',
+  NOTE = 'NOTE',
+  OTHER = 'OTHER',
+}
+
+export const DEFAULT_THAI_COURTS = [
+  'ศาลแพ่งกรุงเทพใต้',
+  'ศาลแพ่งกรุงเทพเหนือ',
+  'ศาลแพ่งธนบุรี',
+  'ศาลแพ่งกรุงเทพกลาง',
+  'ศาลอาญากรุงเทพใต้',
+  'ศาลอาญากรุงเทพเหนือ',
+  'ศาลอาญาธนบุรี',
+  'ศาลแรงงานกลาง',
+  'ศาลทรัพย์สินทางปัญญาและการค้าระหว่างประเทศกลาง',
+  'ศาลปกครองกลาง',
+] as const;
+
 export const EXPENSE_CATEGORIES = [
   'ค่าเดินทาง',
   'ค่าธรรมเนียมศาล',
@@ -70,17 +178,78 @@ export interface CaseFieldSchema {
   options?: string[];
 }
 
+export interface DefaultCaseTypeDefinition {
+  name: string;
+  description: string;
+  fieldSchema?: CaseFieldSchema[];
+}
+
+export const DEFAULT_CASE_TYPES: DefaultCaseTypeDefinition[] = [
+  {
+    name: 'Litigation',
+    description: 'คดีความ / ฟ้องร้อง',
+    fieldSchema: [
+      { key: 'claimAmount', label: 'Claim Amount / มูลค่าความเสียหาย', type: 'number' },
+      { key: 'opposingParty', label: 'Opposing Party / คู่ความ', type: 'text' },
+    ],
+  },
+  {
+    name: 'Corporate',
+    description: 'นิติกรรม / บริษัท',
+  },
+  {
+    name: 'Family Law',
+    description: 'ครอบครัว / มรดก',
+  },
+  {
+    name: 'Criminal',
+    description: 'คดีอาญา',
+    fieldSchema: [
+      { key: 'chargeSection', label: 'Charge Section / ข้อหา', type: 'text', required: true },
+      { key: 'prosecutor', label: 'Prosecutor / อัยการ', type: 'text' },
+    ],
+  },
+  {
+    name: 'Intellectual Property',
+    description: 'ทรัพย์สินทางปัญญา',
+  },
+];
+
 export interface AuthUser {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
-  role: Role;
+  firmId: string;
+  firmName: string;
+  firmRole: FirmRole;
+  subscriptionStatus: SubscriptionStatus;
+  subscriptionPlan: SubscriptionPlan | null;
+  trialEndAt: string | null;
+  currentPeriodEnd: string | null;
+  maxUsers: number;
   aiCredits?: number;
+  /** @deprecated use firmRole */
+  role?: Role;
 }
 
 export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
   user: AuthUser;
+}
+
+export interface SubscriptionSummary {
+  status: SubscriptionStatus;
+  plan: SubscriptionPlan | null;
+  trialEndAt: string | null;
+  currentPeriodEnd: string | null;
+  daysRemaining: number | null;
+  maxUsers: number;
+  memberCount: number;
+  canAccessApp: boolean;
+}
+
+export interface PlanOption extends PlanConfig {
+  isCurrent: boolean;
 }

@@ -3,9 +3,10 @@ import { AuthUser, EventType } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
+import { LineLinkService } from '../notifications/line-link.service';
 import { TravelService } from '../travel/travel.service';
 import { CreateEventDto, UpdateEventDto } from './dto/calendar.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma';
 
 @Injectable()
 export class CalendarService {
@@ -13,6 +14,7 @@ export class CalendarService {
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
     private lineMessaging: LineMessagingService,
+    private lineLink: LineLinkService,
     private travelService: TravelService,
   ) {}
 
@@ -20,7 +22,7 @@ export class CalendarService {
     case: {
       select: {
         id: true,
-        caseNumber: true,
+        ownRef: true,
         title: true,
         courtName: true,
         leadLawyer: { select: { firstName: true, lastName: true } },
@@ -80,8 +82,10 @@ export class CalendarService {
       travelLogId = log?.id;
 
       const dateStr = new Date(dto.startAt).toLocaleString('th-TH');
+      const lineUserIds = await this.lineLink.getLineUserIdsForCase(dto.caseId);
       await this.lineMessaging.sendCourtDateAlert(
-        `📅 นัดศาล\nคดี: ${legalCase.caseNumber} — ${legalCase.title}\nศาล: ${courtName}\nวันที่: ${dateStr}\nทนาย: ${legalCase.leadLawyer.firstName} ${legalCase.leadLawyer.lastName}${travel.warning ? `\n⚠️ ${travel.warning}` : ''}`,
+        `📅 นัดศาล\nคดี: ${legalCase.ownRef} — ${legalCase.title}\nศาล: ${courtName}\nวันที่: ${dateStr}\nทนาย: ${legalCase.leadLawyer.firstName} ${legalCase.leadLawyer.lastName}${travel.warning ? `\n⚠️ ${travel.warning}` : ''}`,
+        lineUserIds,
       );
 
       await this.prisma.case.update({
@@ -99,7 +103,7 @@ export class CalendarService {
         startAt: new Date(dto.startAt),
         endAt: dto.endAt ? new Date(dto.endAt) : undefined,
         type: dto.type,
-        reminderMinutes: dto.reminderMinutes ?? [1440, 60],
+        reminderMinutes: dto.reminderMinutes ?? [4320, 1440, 60],
         travelLogId,
       },
       include: this.eventInclude,

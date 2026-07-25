@@ -19,11 +19,12 @@ export class TravelService {
     private config: ConfigService,
   ) {}
 
-  async getOfficeAddress(): Promise<string> {
-    const settings = await this.prisma.firmSettings.findUnique({
-      where: { id: 'default' },
-    });
-    return settings?.officeAddress ?? 'Bangkok, Thailand';
+  async getOfficeAddress(firmId?: string): Promise<string> {
+    if (firmId) {
+      const firm = await this.prisma.firm.findUnique({ where: { id: firmId } });
+      if (firm) return firm.officeAddress;
+    }
+    return 'Bangkok, Thailand';
   }
 
   async calculateTravel(

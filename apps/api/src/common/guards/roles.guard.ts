@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Role } from '@lawfirm/shared';
+import { Role, FirmRole } from '@lawfirm/shared';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 @Injectable()
@@ -16,6 +16,9 @@ export class RolesGuard implements CanActivate {
       return true;
     }
     const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.includes(user.role);
+    if (user.firmRole === FirmRole.OWNER && requiredRoles.includes(Role.ADMIN)) {
+      return true;
+    }
+    return user.role ? requiredRoles.includes(user.role) : false;
   }
 }

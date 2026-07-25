@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { Role } from '@lawfirm/shared';
+import { FirmRole } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseTypeItem } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
@@ -25,7 +25,7 @@ export default function CaseTypesPage() {
     load();
   }, [token]);
 
-  if (user?.role !== Role.ADMIN) {
+  if (user?.firmRole !== FirmRole.OWNER) {
     return <p className="text-destructive">Access denied. Admin only.</p>;
   }
 

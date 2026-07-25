@@ -13,6 +13,7 @@ import {
   UsersRound,
   Settings,
   Bell,
+  CreditCard,
   Scale,
   ChevronLeft,
   ChevronRight,
@@ -22,30 +23,34 @@ import {
   Shield,
   Tags,
 } from 'lucide-react';
-import { Role } from '@lawfirm/shared';
+import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/misc';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { LanguageSwitcher } from '@/components/landing/LanguageSwitcher';
 import { useState } from 'react';
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
-  { href: '/cases', label: 'Cases', icon: Briefcase, roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
-  { href: '/clients', label: 'Clients', icon: Users, roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
-  { href: '/court-schedule', label: 'Court Schedule', icon: CalendarDays, roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
-  { href: '/documents', label: 'Documents', icon: FolderOpen, roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
-  { href: '/expenses', label: 'Expenses', icon: Receipt, roles: [Role.ADMIN, Role.LAWYER] },
-  { href: '/reports', label: 'Reports', icon: BarChart3, roles: [Role.ADMIN, Role.LAWYER] },
-  { href: '/team', label: 'Team Management', icon: UsersRound, roles: [Role.ADMIN] },
-  { href: '/admin/reimbursements', label: 'Reimbursements', icon: Shield, roles: [Role.ADMIN] },
-  { href: '/admin/case-types', label: 'Case Types', icon: Tags, roles: [Role.ADMIN] },
-  { href: '/settings', label: 'Settings', icon: Settings, roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
-];
+  { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false },
+  { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false },
+  { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false },
+  { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false },
+  { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, ownerOnly: false },
+  { href: '/expenses', labelKey: 'expenses' as const, icon: Receipt, ownerOnly: true },
+  { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true },
+  { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true },
+  { href: '/account/billing', labelKey: 'billing' as const, icon: CreditCard, ownerOnly: true },
+  { href: '/admin/reimbursements', labelKey: 'reimbursements' as const, icon: Shield, ownerOnly: true },
+  { href: '/admin/case-types', labelKey: 'caseTypes' as const, icon: Tags, ownerOnly: true },
+  { href: '/admin/courts', labelKey: 'courts' as const, icon: Scale, ownerOnly: true },
+  { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false },
+] as const;
 
 interface LexFlowSidebarProps {
-  user: { firstName: string; lastName: string; role: Role; email: string };
+  user: AuthUser;
   onLogout: () => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
@@ -54,8 +59,11 @@ interface LexFlowSidebarProps {
 export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClose }: LexFlowSidebarProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const d = useDashboardT();
   const [collapsed, setCollapsed] = useState(false);
-  const filtered = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
+  const filtered = NAV_ITEMS.filter(
+    (item) => !item.ownerOnly || user.firmRole === FirmRole.OWNER,
+  );
 
   return (
     <aside
@@ -73,14 +81,14 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
         {(!collapsed || mobileOpen) && (
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold tracking-tight text-foreground">LexFlow</p>
-            <p className="truncate text-[10px] text-muted-foreground">Legal Case Management</p>
+            <p className="truncate text-[10px] text-muted-foreground">{d.nav.tagline}</p>
           </div>
         )}
         <button
           type="button"
           className="ml-auto rounded-lg p-1.5 hover:bg-sidebar-accent md:hidden"
           onClick={onMobileClose}
-          aria-label="Close menu"
+          aria-label={d.nav.closeMenu}
         >
           <X className="h-4 w-4" />
         </button>
@@ -90,12 +98,13 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
         {filtered.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
+          const label = d.nav[item.labelKey];
           return (
             <Link
               key={item.href}
               href={item.href}
               onClick={onMobileClose}
-              title={collapsed ? item.label : undefined}
+              title={collapsed ? label : undefined}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 active
@@ -105,13 +114,19 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className={cn(collapsed && 'md:hidden')}>{item.label}</span>
+              <span className={cn(collapsed && 'md:hidden')}>{label}</span>
             </Link>
           );
         })}
       </nav>
 
       <div className="space-y-1 border-t border-sidebar-border p-3">
+        {(!collapsed || mobileOpen) && (
+          <div className="mb-2 flex justify-center px-1">
+            <LanguageSwitcher />
+          </div>
+        )}
+
         <button
           type="button"
           className={cn(
@@ -120,7 +135,7 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
           )}
         >
           <Bell className="h-4 w-4" />
-          <span className={cn(collapsed && 'md:hidden')}>Notifications</span>
+          <span className={cn(collapsed && 'md:hidden')}>{d.nav.notifications}</span>
         </button>
 
         <button
@@ -132,7 +147,9 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
           )}
         >
           {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          <span className={cn(collapsed && 'md:hidden')}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+          <span className={cn(collapsed && 'md:hidden')}>
+            {theme === 'dark' ? d.nav.lightMode : d.nav.darkMode}
+          </span>
         </button>
 
         <Separator className="my-2" />
@@ -141,7 +158,7 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
           <Avatar fallback={`${user.firstName[0]}${user.lastName[0]}`} />
           <div className={cn('min-w-0 flex-1', collapsed && 'md:hidden')}>
             <p className="truncate text-sm font-medium">{user.firstName} {user.lastName}</p>
-            <p className="truncate text-xs text-muted-foreground">{user.role}</p>
+            <p className="truncate text-xs text-muted-foreground">{user.firmRole}</p>
           </div>
         </div>
 
@@ -151,7 +168,7 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
           className={cn('w-full justify-start text-muted-foreground', collapsed && 'md:hidden')}
           onClick={onLogout}
         >
-          Sign out
+          {d.nav.signOut}
         </Button>
 
         <Button
