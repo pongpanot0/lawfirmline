@@ -135,7 +135,7 @@ async function main() {
       type: 'INDIVIDUAL',
       contacts: {
         create: [
-          { name: 'John Smith', email: 'john.smith@email.com', phone: '081-234-5678', isPrimary: true },
+          { name: 'John Smith', email: 'john.smith@email.com', phone: '081-234-5678', isPrimary: true, portalEnabled: true },
           { name: 'Jane Smith', email: 'jane.smith@email.com', phone: '082-345-6789', position: 'Spouse' },
         ],
       },
