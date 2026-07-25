@@ -9,6 +9,14 @@ import {
 } from 'class-validator';
 
 export class ClientContactDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  clientId?: string;
+
   @IsString()
   name!: string;
 
