@@ -27,6 +27,10 @@ export class ClientContactDto {
   @IsOptional()
   @IsBoolean()
   isPrimary?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  portalEnabled?: boolean;
 }
 
 export class CreateClientDto {

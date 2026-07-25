@@ -64,6 +64,7 @@ export class ClientsService {
             phone: c.phone,
             position: c.position,
             isPrimary: c.isPrimary ?? i === 0,
+            portalEnabled: c.portalEnabled ?? false,
           })),
         },
       },
@@ -85,6 +86,7 @@ export class ClientsService {
             phone: c.phone,
             position: c.position,
             isPrimary: c.isPrimary ?? i === 0,
+            portalEnabled: c.portalEnabled ?? false,
           })),
         });
       }
