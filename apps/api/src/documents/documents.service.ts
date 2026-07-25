@@ -141,4 +141,13 @@ export class DocumentsService {
       mimeType: document.mimeType,
     };
   }
+
+  async updateVisibility(documentId: string, visibleToClient: boolean) {
+    const document = await this.prisma.document.findUnique({ where: { id: documentId } });
+    if (!document) throw new NotFoundException('Document not found');
+    return this.prisma.document.update({
+      where: { id: documentId },
+      data: { visibleToClient },
+    });
+  }
 }

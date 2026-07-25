@@ -2,7 +2,9 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
+  Body,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -13,6 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import * as fs from 'fs';
 import { DocumentsService } from './documents.service';
+import { UpdateDocumentVisibilityDto } from './dto/update-visibility.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -46,6 +49,14 @@ export class DocumentsController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.documentsService.uploadNewVersion(user, documentId, file);
+  }
+
+  @Patch(':documentId/visibility')
+  updateVisibility(
+    @Param('documentId') documentId: string,
+    @Body() dto: UpdateDocumentVisibilityDto,
+  ) {
+    return this.documentsService.updateVisibility(documentId, dto.visibleToClient);
   }
 
   @Get(':documentId/download')
