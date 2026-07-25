@@ -19,6 +19,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { CaseTypesModule } from './case-types/case-types.module';
 import { ClientsModule } from './clients/clients.module';
+import { ClientPortalModule } from './client-portal/client-portal.module';
 import { CourtsModule } from './courts/courts.module';
 import { TravelModule } from './travel/travel.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
@@ -48,6 +49,7 @@ import { HealthModule } from './health/health.module';
     ReportsModule,
     CaseTypesModule,
     ClientsModule,
+    ClientPortalModule,
     CourtsModule,
     TravelModule,
     IntelligenceModule,
