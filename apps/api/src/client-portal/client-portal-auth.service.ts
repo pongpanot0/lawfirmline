@@ -62,8 +62,8 @@ export class ClientPortalAuthService {
       this.logger.error(`Failed to send client portal magic link email to ${contact.email}: ${message}`);
     }
 
-    const isDev = this.config.get<string>('NODE_ENV') !== 'production';
-    return { message, linkToken: isDev ? token : undefined };
+    const exposeDevToken = this.config.get<string>('CLIENT_PORTAL_EXPOSE_DEV_TOKEN') === 'true';
+    return { message, linkToken: exposeDevToken ? token : undefined };
   }
 
   async verify(token: string): Promise<{
@@ -92,13 +92,18 @@ export class ClientPortalAuthService {
       throw new BadRequestException('Portal access is no longer available for this contact.');
     }
 
-    await this.prisma.auditLog.create({
-      data: {
-        firmId: contact.client.firmId,
-        action: 'CLIENT_PORTAL_LOGIN',
-        metadata: { clientContactId: contact.id },
-      },
-    });
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          firmId: contact.client.firmId,
+          action: 'CLIENT_PORTAL_LOGIN',
+          metadata: { clientContactId: contact.id },
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to write audit log for client portal login (contact ${contact.id}): ${message}`);
+    }
 
     const payload: PortalTokenPayload = {
       sub: contact.id,
