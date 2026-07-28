@@ -14,7 +14,7 @@ A monorepo law firm practice management application with role-based access contr
 lawfirm/
 ├── apps/
 │   ├── api/          # NestJS REST API (port 3001)
-│   └── web/          # Next.js frontend (port 3000)
+│   └── web/          # Next.js frontend (port 3005)
 ├── packages/
 │   └── shared/       # Shared enums & types
 └── docker-compose.yml
@@ -68,7 +68,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:3005
 - API: http://localhost:3001
 
 ## Demo Accounts

@@ -50,7 +50,7 @@ export class EmailService {
     const appUrl = this.config.get<string>('APP_URL')?.trim();
     if (appUrl) return appUrl.replace(/\/$/, '');
 
-    const corsOrigin = this.config.get<string>('CORS_ORIGIN') ?? 'http://localhost:3000';
+    const corsOrigin = this.config.get<string>('CORS_ORIGIN') ?? 'http://localhost:3005';
     return corsOrigin.split(',')[0].trim().replace(/\/$/, '');
   }
 

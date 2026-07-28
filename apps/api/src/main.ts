@@ -9,7 +9,7 @@ config({ path: resolve(__dirname, '../.env') });
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
-  const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
+  const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:3005')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);

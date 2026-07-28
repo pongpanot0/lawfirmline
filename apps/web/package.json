@@ -3,9 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 3005",
     "build": "next build",
-    "start": "next start --hostname 0.0.0.0 -p ${PORT:-3000}",
+    "start": "next start --hostname 0.0.0.0 -p ${PORT:-3005}",
     "clean": "rm -rf .next"
   },
   "dependencies": {
