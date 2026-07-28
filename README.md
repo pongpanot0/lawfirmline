@@ -24,9 +24,15 @@ lawfirm/
 
 | Role | Access |
 |------|--------|
-| **Admin / Managing Partner** | All cases, master calendar, firm overview |
-| **Lawyer** | Cases where they are Lead Lawyer or Co-Counsel |
-| **Clerk / Junior** | Cases/tasks assigned to them |
+| **Admin / Firm Owner** | All cases, master calendar, firm overview |
+| **Lawyer** | Cases where they are Case Owner or Buddy |
+
+### Case staffing (buddy model)
+
+| On the case | Meaning |
+|-------------|---------|
+| **Case Owner** | Exactly one lawyer accountable for the case |
+| **Buddy** | Zero or more peer lawyers helping on the case |
 
 ## Quick Start
 
@@ -72,8 +78,7 @@ All accounts use password: `password123`
 | Role | Email |
 |------|-------|
 | Admin | admin@lawfirm.com |
-| Lawyer | lawyer1@lawfirm.com, lawyer2@lawfirm.com |
-| Clerk | clerk1@lawfirm.com, clerk2@lawfirm.com |
+| Lawyer | lawyer1@lawfirm.com … lawyer4@lawfirm.com |
 
 ## API Endpoints
 
@@ -157,3 +162,44 @@ Demo login: `admin@lawfirm.com` / `password123`
 
 - Uploads use ephemeral disk on Railway — use a volume or S3 for production file storage.
 - LINE webhook URL: `https://<api-service>.up.railway.app/line/webhook`
+
+## Deploy on your own VPS (Docker)
+
+Runs the same 3 pieces (Postgres + API + Web) as containers on one server, behind a [Caddy](https://caddyserver.com/) reverse proxy that issues HTTPS certificates automatically. Uploaded files land on the VPS's own persistent disk (not ephemeral like Railway), so no S3/volume setup is required to get started.
+
+### 1. Point DNS at the server
+
+Before starting Caddy, create A records for both `yourdomain.com` and `api.yourdomain.com` pointing at the VPS's IP — Caddy needs these to resolve in order to issue certificates.
+
+### 2. Configure
+
+```bash
+cp .env.production.example .env
+# fill in DOMAIN, POSTGRES_PASSWORD, JWT_SECRET, JWT_REFRESH_SECRET, CLIENT_PORTAL_JWT_SECRET
+# (openssl rand -hex 32 for each secret)
+```
+
+### 3. Build and start
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+First boot runs `prisma migrate deploy` automatically before the API starts. To seed demo data once:
+
+```bash
+docker compose -f docker-compose.prod.yml exec api pnpm prisma db seed
+```
+
+### 4. Redeploying after a code change
+
+```bash
+git pull
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+### Notes
+
+- Postgres data, uploaded files, and Caddy's TLS certificates all live in named Docker volumes (`postgres_data`, `uploads`, `caddy_data`) — they survive `docker compose down` and rebuilds. Only `docker compose down -v` deletes them.
+- `CLIENT_PORTAL_EXPOSE_DEV_TOKEN` is hardcoded to `false` in `docker-compose.prod.yml` — the client-portal magic-link token is never exposed in API responses in this setup; login is via the actual emailed link (requires `SENDGRID_API_KEY`/`SENDGRID_FROM_EMAIL` to be set, or the link has to be pulled from server logs during initial testing).
+- Back up the `postgres_data` volume regularly (e.g. `docker compose -f docker-compose.prod.yml exec postgres pg_dump -U lawfirm lawfirm > backup.sql`) — a VPS has no automatic snapshot unless the provider offers one separately.

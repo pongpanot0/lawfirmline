@@ -1,0 +1,94 @@
+# Production deploy: Postgres + API + Web behind a Caddy reverse proxy
+# with automatic HTTPS. Run from a VPS with Docker + Docker Compose installed.
+#
+# Setup:
+#   1. cp .env.production.example .env   # then fill in real values
+#   2. Point DOMAIN's DNS A record (and api.DOMAIN) at this VPS's IP first —
+#      Caddy needs that to succeed before it can issue a TLS certificate.
+#   3. docker compose -f docker-compose.prod.yml up -d --build
+#   4. docker compose -f docker-compose.prod.yml exec api pnpm prisma db seed   # optional, first run only
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CLIENT_PORTAL_JWT_SECRET: ${CLIENT_PORTAL_JWT_SECRET}
+      CORS_ORIGIN: https://${DOMAIN},https://www.${DOMAIN}
+      APP_URL: https://${DOMAIN}
+      UPLOAD_DIR: /data/uploads
+      PORT: 3001
+      HOST: 0.0.0.0
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-LexFlow}
+      CLIENT_PORTAL_EXPOSE_DEV_TOKEN: "false"
+      LINE_CHANNEL_ID: ${LINE_CHANNEL_ID:-}
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
+      OMISE_PUBLIC_KEY: ${OMISE_PUBLIC_KEY:-}
+      OMISE_SECRET_KEY: ${OMISE_SECRET_KEY:-}
+      OMISE_MOCK: ${OMISE_MOCK:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      - postgres
+    networks: [internal]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks: [internal]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  postgres_data:
+  uploads:
+  caddy_data:
+  caddy_config:
