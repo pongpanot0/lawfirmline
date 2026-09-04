@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { api, WorkloadSummary, WorkloadDetail } from '@/lib/api';
+import { api, WorkloadSummary, WorkloadDetail, PairingEntry } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -21,6 +21,8 @@ export default function OperationsPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [detail, setDetail] = useState<WorkloadDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [pairing, setPairing] = useState<PairingEntry[]>([]);
+  const [pairingLoading, setPairingLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
@@ -44,6 +46,12 @@ export default function OperationsPage() {
       .catch(console.error)
       .finally(() => setDetailLoading(false));
   }, [token, selectedUserId, nearDeadlineDays]);
+
+  useEffect(() => {
+    if (!token) return;
+    setPairingLoading(true);
+    api.getPairing(token).then(setPairing).catch(console.error).finally(() => setPairingLoading(false));
+  }, [token]);
 
   const sorted = [...summary].sort((a, b) => {
     const diff = a.leadCount + a.buddyCount - (b.leadCount + b.buddyCount);
@@ -158,7 +166,34 @@ export default function OperationsPage() {
         </TabsContent>
 
         <TabsContent value="pairing">
-          <p className="text-sm text-muted-foreground">Pairing tab — see Task 6.</p>
+          <Card>
+            <CardContent className="p-0">
+              {pairingLoading ? (
+                <p className="p-6 text-sm text-muted-foreground">กำลังโหลด...</p>
+              ) : pairing.length === 0 ? (
+                <EmptyState title="ยังไม่มีคู่ทำงานร่วมกัน" />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>คู่</TableHead>
+                      <TableHead>จำนวนคดีร่วมกัน</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pairing.map((p) => (
+                      <TableRow key={`${p.userAId}:${p.userBId}`}>
+                        <TableCell className="font-medium">
+                          {p.userAName} + {p.userBName}
+                        </TableCell>
+                        <TableCell>{p.count}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
