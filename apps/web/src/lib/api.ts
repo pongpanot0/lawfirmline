@@ -260,6 +260,24 @@ export interface ExpenseItem {
   case?: { id: string; ownRef: string; title: string; courtName?: string | null } | null;
 }
 
+export interface CaseParticipantItem {
+  id: string;
+  caseId: string;
+  name: string;
+  nickname?: string | null;
+  role: string;
+  side: string;
+  personType?: string | null;
+  idNumber?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  opposingLawyer?: string | null;
+  opposingInsurer?: string | null;
+  medicalLicenseNo?: string | null;
+  notes?: string | null;
+}
+
 export interface CaseDetail extends CaseItem {
   description?: string | null;
   folderId?: string;
@@ -284,6 +302,7 @@ export interface CaseDetail extends CaseItem {
     type: string;
   }>;
   activities?: CaseActivityItem[];
+  participants?: CaseParticipantItem[];
   client?: {
     id: string;
     name: string;
@@ -390,6 +409,37 @@ export interface FirmInvoiceItem {
   clientName: string;
 }
 
+export interface IntakeItem {
+  id: string;
+  receivedDate: string;
+  title?: string | null;
+  referralType: string;
+  referralChannel: string;
+  referralName?: string | null;
+  clientId?: string | null;
+  clientName?: string | null;
+  matterType?: string | null;
+  opposingParty?: string | null;
+  incidentDate?: string | null;
+  description?: string | null;
+  estimatedDamage?: number | null;
+  status: string;
+  decision: string;
+  caseStrength?: string | null;
+  assessmentNotes?: string | null;
+  decisionNotes?: string | null;
+  noticeIssuedAt?: string | null;
+  noticeRecipient?: string | null;
+  noticeDeadline?: string | null;
+  noticeResult?: string | null;
+  receivedBy?: { id: string; firstName: string; lastName: string };
+  assessor?: { id: string; firstName: string; lastName: string } | null;
+  client?: { id: string; name: string } | null;
+  case?: { id: string; ownRef: string; title: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const api = {
   login: (email: string, password: string) =>
     request<import('@lawfirm/shared').LoginResponse>('/auth/login', {
@@ -424,14 +474,20 @@ export const api = {
   getBillingHistory: (token: string) =>
     request<BillingInvoiceItem[]>('/saas/billing/history', { token }),
 
-  checkout: (token: string, plan: string, omiseToken?: string, omiseSource?: string) =>
+  checkout: (
+    token: string,
+    plan: string,
+    omiseToken?: string,
+    omiseSource?: string,
+    billingPeriod?: 'MONTHLY' | 'YEARLY',
+  ) =>
     request<{ success: boolean; plan: string; invoiceId?: string }>('/saas/billing/checkout', {
       method: 'POST',
       token,
-      body: JSON.stringify({ plan, omiseToken, omiseSource }),
+      body: JSON.stringify({ plan, omiseToken, omiseSource, billingPeriod }),
     }),
 
-  checkoutPromptPay: (token: string, plan: string) =>
+  checkoutPromptPay: (token: string, plan: string, billingPeriod?: 'MONTHLY' | 'YEARLY') =>
     request<{
       invoiceId: string;
       chargeId: string;
@@ -441,7 +497,7 @@ export const api = {
     }>('/saas/billing/checkout/promptpay', {
       method: 'POST',
       token,
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, billingPeriod }),
     }),
 
   getInvoiceQrBlob: (token: string, invoiceId: string) =>
@@ -537,6 +593,9 @@ export const api = {
   getCase: (token: string, id: string) =>
     request<CaseDetail>(`/cases/${id}`, { token }),
 
+  getNextOwnRef: (token: string) =>
+    request<{ ownRef: string }>('/cases/next-own-ref', { token }),
+
   createCase: (token: string, data: Record<string, unknown>) =>
     request('/cases', {
       method: 'POST',
@@ -580,8 +639,6 @@ export const api = {
       token,
       body: JSON.stringify({ buddyIds }),
     }),
-
-  getClerks: (token: string) => request<UserItem[]>('/users/clerks', { token }),
 
   getUsers: (token: string) => request<UserItem[]>('/users', { token }),
 
@@ -810,6 +867,59 @@ export const api = {
       method: 'POST',
       token,
     }),
+
+  getParticipants: (token: string, caseId: string) =>
+    request<CaseParticipantItem[]>(`/cases/${caseId}/participants`, { token }),
+
+  createParticipant: (token: string, caseId: string, data: Record<string, unknown>) =>
+    request<CaseParticipantItem>(`/cases/${caseId}/participants`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  updateParticipant: (token: string, caseId: string, participantId: string, data: Record<string, unknown>) =>
+    request<CaseParticipantItem>(`/cases/${caseId}/participants/${participantId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  deleteParticipant: (token: string, caseId: string, participantId: string) =>
+    request(`/cases/${caseId}/participants/${participantId}`, { method: 'DELETE', token }),
+
+  getIntakes: (token: string, params?: { status?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.page != null) query.set('page', String(params.page));
+    if (params?.limit != null) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return request<{ items: IntakeItem[]; total: number; page: number; limit: number }>(
+      `/intake${qs ? `?${qs}` : ''}`,
+      { token },
+    );
+  },
+
+  getIntake: (token: string, id: string) =>
+    request<IntakeItem>(`/intake/${id}`, { token }),
+
+  createIntake: (token: string, data: Record<string, unknown>) =>
+    request<IntakeItem>('/intake', { method: 'POST', token, body: JSON.stringify(data) }),
+
+  updateIntake: (token: string, id: string, data: Record<string, unknown>) =>
+    request<IntakeItem>(`/intake/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  assessIntake: (token: string, id: string, data: Record<string, unknown>) =>
+    request<IntakeItem>(`/intake/${id}/assess`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  decideIntake: (token: string, id: string, data: Record<string, unknown>) =>
+    request<IntakeItem>(`/intake/${id}/decide`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  noticeIntake: (token: string, id: string, data: Record<string, unknown>) =>
+    request<IntakeItem>(`/intake/${id}/notice`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  convertIntake: (token: string, id: string, data?: Record<string, unknown>) =>
+    request<IntakeItem>(`/intake/${id}/convert`, { method: 'POST', token, body: JSON.stringify(data ?? {}) }),
 };
 
 export interface BillingInvoiceItem {

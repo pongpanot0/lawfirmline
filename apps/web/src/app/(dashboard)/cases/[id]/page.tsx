@@ -16,7 +16,14 @@ import {
   LockOpen,
   Pencil,
 } from 'lucide-react';
-import { ActivityType, CaseStatus, COURT_LEVEL_LABELS, FirmRole } from '@lawfirm/shared';
+import {
+  ActivityType,
+  CaseStatus,
+  CourtLevel,
+  COURT_LEVEL_LABELS,
+  CASE_NUMBER_HINT,
+  FirmRole,
+} from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import {
   api,
@@ -25,9 +32,12 @@ import {
   CaseActivityItem,
   UserItem,
   WorkloadSummary,
+  CaseTypeItem,
+  CourtItem,
   ApiError,
 } from '@/lib/api';
 import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,9 +75,21 @@ export default function CaseDetailPage() {
   const [note, setNote] = useState('');
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [editingFee, setEditingFee] = useState(false);
-  const [feeInput, setFeeInput] = useState('');
-  const [savingFee, setSavingFee] = useState(false);
+  const [editingOverview, setEditingOverview] = useState(false);
+  const [savingOverview, setSavingOverview] = useState(false);
+  const [overviewError, setOverviewError] = useState('');
+  const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
+  const [courts, setCourts] = useState<CourtItem[]>([]);
+  const [overviewForm, setOverviewForm] = useState({
+    title: '',
+    customerRef: '',
+    caseTypeId: '',
+    blackCaseNumber: '',
+    redCaseNumber: '',
+    courtLevel: '' as string,
+    courtName: '',
+    estimatedFee: '',
+  });
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [closingSummary, setClosingSummary] = useState('');
   const [closingCase, setClosingCase] = useState(false);
@@ -236,19 +258,62 @@ export default function CaseDetailPage() {
     }
   };
 
-  const handleSaveEstimatedFee = async () => {
+  const startEditOverview = async () => {
+    if (!legalCase) return;
+    setOverviewForm({
+      title: legalCase.title,
+      customerRef: legalCase.customerRef ?? '',
+      caseTypeId: legalCase.caseType?.id ?? '',
+      blackCaseNumber: legalCase.blackCaseNumber ?? '',
+      redCaseNumber: legalCase.redCaseNumber ?? '',
+      courtLevel: legalCase.courtLevel ?? '',
+      courtName: legalCase.courtName ?? '',
+      estimatedFee:
+        legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
+    });
+    setOverviewError('');
+    setEditingOverview(true);
+    if (token) {
+      Promise.all([
+        api.getCaseTypes(token).catch(() => [] as CaseTypeItem[]),
+        api.getCourts(token).catch(() => [] as CourtItem[]),
+      ]).then(([types, courtList]) => {
+        setCaseTypes(types);
+        setCourts(courtList);
+      });
+    }
+  };
+
+  const handleSaveOverview = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!token || !id) return;
-    setSavingFee(true);
+    if (!overviewForm.title.trim()) {
+      setOverviewError('กรุณากรอกชื่อคดี');
+      return;
+    }
+    setSavingOverview(true);
+    setOverviewError('');
     try {
-      const value = feeInput.trim() === '' ? null : parseFloat(feeInput);
-      const estimatedFee = value != null && !Number.isNaN(value) ? value : null;
-      await api.updateCase(token, id, { estimatedFee });
-      setCase((prev) => (prev ? { ...prev, estimatedFee } : prev));
-      setEditingFee(false);
+      const feeRaw = overviewForm.estimatedFee.trim();
+      const feeValue = feeRaw === '' ? null : parseFloat(feeRaw);
+      const estimatedFee =
+        feeValue != null && !Number.isNaN(feeValue) ? feeValue : null;
+      const updated = await api.updateCase(token, id, {
+        title: overviewForm.title.trim(),
+        customerRef: overviewForm.customerRef.trim() || null,
+        caseTypeId: overviewForm.caseTypeId || undefined,
+        blackCaseNumber: overviewForm.blackCaseNumber.trim() || null,
+        redCaseNumber: overviewForm.redCaseNumber.trim() || null,
+        courtLevel: overviewForm.courtLevel || null,
+        courtName: overviewForm.courtName.trim() || null,
+        estimatedFee,
+      }) as CaseDetail;
+      setCase(updated);
+      setEditingOverview(false);
     } catch (err) {
-      console.error(err);
+      setOverviewError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
     } finally {
-      setSavingFee(false);
+      setSavingOverview(false);
     }
   };
 
@@ -400,8 +465,142 @@ export default function CaseDetailPage() {
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-3 space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-sm">Case Overview</CardTitle></CardHeader>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-sm">Case Overview</CardTitle>
+              {!editingOverview && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={startEditOverview}
+                >
+                  <Pencil className="h-3 w-3" />
+                  แก้ไข
+                </Button>
+              )}
+            </CardHeader>
             <CardContent className="space-y-3 text-sm">
+              {editingOverview ? (
+                <form onSubmit={handleSaveOverview} className="space-y-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">ชื่อคดี *</label>
+                    <Input
+                      required
+                      value={overviewForm.title}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, title: e.target.value })}
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Own Ref</label>
+                    <p className="mt-1 font-medium">{legalCase.ownRef}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Customer Ref</label>
+                    <Input
+                      value={overviewForm.customerRef}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, customerRef: e.target.value })}
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Case Type</label>
+                    <select
+                      value={overviewForm.caseTypeId}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, caseTypeId: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                    >
+                      <option value="">—</option>
+                      {caseTypes.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">เลขดำ</label>
+                    <Input
+                      value={overviewForm.blackCaseNumber}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, blackCaseNumber: e.target.value })}
+                      placeholder={CASE_NUMBER_HINT}
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">เลขแดง</label>
+                    <Input
+                      value={overviewForm.redCaseNumber}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, redCaseNumber: e.target.value })}
+                      placeholder={CASE_NUMBER_HINT}
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">ระดับศาล</label>
+                    <select
+                      value={overviewForm.courtLevel}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, courtLevel: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                    >
+                      <option value="">—</option>
+                      {Object.values(CourtLevel).map((level) => (
+                        <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Court / ศาล</label>
+                    <select
+                      value={overviewForm.courtName}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, courtName: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                    >
+                      <option value="">—</option>
+                      {courts.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                      {overviewForm.courtName &&
+                        !courts.some((c) => c.name === overviewForm.courtName) && (
+                          <option value={overviewForm.courtName}>{overviewForm.courtName}</option>
+                        )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">รายได้โดยประมาณ / Estimated Fee</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={overviewForm.estimatedFee}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, estimatedFee: e.target.value })}
+                      placeholder="เช่น 50000"
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Client / ลูกค้า</p>
+                    <p className="font-medium">{clientDisplay}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Case Owner / เจ้าของเคส</p>
+                    <p className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</p>
+                  </div>
+                  {overviewError && <p className="text-sm text-destructive">{overviewError}</p>}
+                  <div className="flex gap-2 pt-1">
+                    <Button type="submit" size="sm" disabled={savingOverview}>
+                      {savingOverview ? 'กำลังบันทึก...' : 'บันทึก'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setEditingOverview(false)}
+                    >
+                      ยกเลิก
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <>
               <div>
                 <p className="text-xs text-muted-foreground">Own Ref</p>
                 <p className="font-medium">{legalCase.ownRef}</p>
@@ -544,52 +743,11 @@ export default function CaseDetailPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">รายได้โดยประมาณ / Estimated Fee</p>
-                {editingFee ? (
-                  <div className="mt-1 flex items-center gap-2">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="เช่น 50000"
-                      value={feeInput}
-                      onChange={(e) => setFeeInput(e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                    <Button size="sm" onClick={handleSaveEstimatedFee} disabled={savingFee}>
-                      {savingFee ? '...' : 'บันทึก'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setEditingFee(false)}
-                    >
-                      ยกเลิก
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-green-600">
-                      {legalCase.estimatedFee != null
-                        ? formatCurrency(legalCase.estimatedFee)
-                        : '—'}
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-xs"
-                      onClick={() => {
-                        setFeeInput(
-                          legalCase.estimatedFee != null
-                            ? String(legalCase.estimatedFee)
-                            : '',
-                        );
-                        setEditingFee(true);
-                      }}
-                    >
-                      แก้ไข
-                    </Button>
-                  </div>
-                )}
+                <p className="font-medium text-green-600">
+                  {legalCase.estimatedFee != null
+                    ? formatCurrency(legalCase.estimatedFee)
+                    : '—'}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Approved Expenses</p>
@@ -601,6 +759,8 @@ export default function CaseDetailPage() {
                   <p className="font-medium">{v}</p>
                 </div>
               ))}
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -693,6 +853,11 @@ export default function CaseDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          <CaseParticipantsSection
+            caseId={legalCase.id}
+            initialParticipants={legalCase.participants}
+          />
 
           {legalCase.description && (
             <Card>

@@ -8,7 +8,17 @@ import { api, UserItem, CaseTypeItem, ClientItem, CourtItem, ApiError, WorkloadS
 import { Stepper } from '@/components/ui/Stepper';
 import { Button } from '@/components/ui/button';
 import type { CaseFieldSchema } from '@lawfirm/shared';
-import { ActivityType, TMP_CLIENT_PLACEHOLDER, CourtLevel, COURT_LEVEL_LABELS } from '@lawfirm/shared';
+import {
+  ActivityType,
+  TMP_CLIENT_PLACEHOLDER,
+  CourtLevel,
+  COURT_LEVEL_LABELS,
+  CASE_NUMBER_HINT,
+  CASE_NUMBER_HTML,
+  CASE_NUMBER_REGEX,
+  FEE_MAX,
+  FEE_MIN,
+} from '@lawfirm/shared';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 
@@ -36,7 +46,6 @@ export default function NewCasePage() {
 
   const [form, setForm] = useState({
     caseTypeId: '',
-    ownRef: '',
     customerRef: '',
     title: '',
     clientId: '',
@@ -57,6 +66,7 @@ export default function NewCasePage() {
     initialActivityType: ActivityType.COURT_DATE as string,
     initialActivityDescription: '',
   });
+  const [nextOwnRef, setNextOwnRef] = useState<string>('');
 
   const selectedType = caseTypes.find((t) => t.id === form.caseTypeId);
   const fieldSchema = (Array.isArray(selectedType?.fieldSchema)
@@ -77,13 +87,15 @@ export default function NewCasePage() {
       api.getCaseTypes(token),
       api.getClients(token).catch(() => [] as ClientItem[]),
       api.getCourts(token).catch(() => [] as CourtItem[]),
+      api.getNextOwnRef(token).catch(() => ({ ownRef: '' })),
       api.getWorkloadSummary(token).catch(() => [] as WorkloadSummary[]),
     ])
-      .then(([lawyerList, types, clientList, courtList, workloadList]) => {
+      .then(([lawyerList, types, clientList, courtList, nextRef, workloadList]) => {
         setLawyers(lawyerList);
         setCaseTypes(types);
         setClients(clientList);
         setCourts(courtList);
+        setNextOwnRef(nextRef.ownRef);
         setWorkload(workloadList);
       })
       .catch(() => setError('Failed to load case form data. Please refresh and try again.'))
@@ -117,9 +129,11 @@ export default function NewCasePage() {
     if (step === 0) return !!form.caseTypeId;
     if (step === 1) {
       const hasCourt = !!form.courtName && !!form.courtLevel;
-      const hasCaseNumbers = !!form.blackCaseNumber.trim() && !!form.redCaseNumber.trim();
+      const hasCaseNumbers =
+        CASE_NUMBER_REGEX.test(form.blackCaseNumber.trim()) &&
+        CASE_NUMBER_REGEX.test(form.redCaseNumber.trim());
       const activityOk = !form.addInitialActivity || (form.initialActivityTitle && form.initialActivityAt);
-      return form.ownRef && form.title && hasCourt && hasCaseNumbers && activityOk;
+      return form.title && hasCourt && hasCaseNumbers && activityOk;
     }
     if (step === 2) {
       return fieldSchema
@@ -153,7 +167,6 @@ export default function NewCasePage() {
     setError('');
     try {
       const payload: Record<string, unknown> = {
-        ownRef: form.ownRef.trim(),
         customerRef: form.customerRef.trim() || undefined,
         title: form.title,
         description: form.description || undefined,
@@ -190,7 +203,7 @@ export default function NewCasePage() {
       setError(
         err instanceof ApiError
           ? err.message
-          : 'Failed to create case. Check own ref is unique.',
+          : 'Failed to create case. Please try again.',
       );
     } finally {
       setSubmitting(false);
@@ -198,7 +211,7 @@ export default function NewCasePage() {
   };
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full">
       <h1 className="mb-2 text-2xl font-bold text-slate-900">Create New Case</h1>
       <p className="mb-6 text-sm text-slate-500">Multi-step case intake with auto-generated folder ID</p>
 
@@ -224,7 +237,7 @@ export default function NewCasePage() {
                 </Link>
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {caseTypes.map((t) => (
                   <button
                     key={t.id}
@@ -251,15 +264,15 @@ export default function NewCasePage() {
           <div className="space-y-4">
             <h2 className="font-semibold">Basic Information</h2>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Own Ref *</label>
-              <input
-                required
-                value={form.ownRef}
-                onChange={(e) => setForm({ ...form, ownRef: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="LF-2025-006"
-              />
-              <p className="mt-1 text-xs text-slate-500">เลขอ้างอิงภายในสำนักงาน</p>
+              <label className="block text-sm font-medium text-slate-700">Own Ref</label>
+              <div className="mt-1 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm">
+                <span className="font-mono font-medium text-slate-900">
+                  {nextOwnRef || 'TSBREFYYYY0001'}
+                </span>
+                <p className="mt-1 text-xs text-slate-500">
+                  สร้างอัตโนมัติ · รูปแบบ TSBREF + ปี + เลขรันต่อเนื่อง (รีเซ็ตทุกปี)
+                </p>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">
@@ -278,21 +291,29 @@ export default function NewCasePage() {
                 <label className="block text-sm font-medium text-slate-700">เลขดำ *</label>
                 <input
                   required
+                  inputMode="numeric"
+                  pattern={CASE_NUMBER_HTML}
+                  title={CASE_NUMBER_HINT}
                   value={form.blackCaseNumber}
                   onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   placeholder="เช่น 123/2567"
                 />
+                <p className="mt-1 text-xs text-slate-500">{CASE_NUMBER_HINT}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700">เลขแดง *</label>
                 <input
                   required
+                  inputMode="numeric"
+                  pattern={CASE_NUMBER_HTML}
+                  title={CASE_NUMBER_HINT}
                   value={form.redCaseNumber}
                   onChange={(e) => setForm({ ...form, redCaseNumber: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   placeholder="เช่น 456/2567"
                 />
+                <p className="mt-1 text-xs text-slate-500">{CASE_NUMBER_HINT}</p>
               </div>
             </div>
             <div>
@@ -385,7 +406,8 @@ export default function NewCasePage() {
               <input
                 type="number"
                 step="0.01"
-                min="0"
+                min={FEE_MIN}
+                max={FEE_MAX}
                 value={form.estimatedFee}
                 onChange={(e) => setForm({ ...form, estimatedFee: e.target.value })}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -526,16 +548,27 @@ export default function NewCasePage() {
 
         {step === 3 && (
           <div className="space-y-4">
-            <h2 className="font-semibold">Assign Team</h2>
+            <h2 className="font-semibold">Assign Team / มอบหมายทีม</h2>
+            <p className="text-sm text-slate-500">
+              เลือกเจ้าของเคส 1 คน และ Buddy (ผู้ช่วย) ได้หลายคน — ทุกคนเป็นทนาย
+            </p>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Lead Lawyer *</label>
+              <label className="block text-sm font-medium text-slate-700">
+                Case Owner / เจ้าของเคส *
+              </label>
               <select
                 required
                 value={form.leadLawyerId}
-                onChange={(e) => setForm({ ...form, leadLawyerId: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    leadLawyerId: e.target.value,
+                    buddyIds: form.buddyIds.filter((id) => id !== e.target.value),
+                  })
+                }
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="">Select lead lawyer</option>
+                <option value="">Select case owner</option>
                 {lawyers.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.firstName} {l.lastName}
@@ -545,7 +578,9 @@ export default function NewCasePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Buddy / ผู้ช่วย</label>
+              <label className="block text-sm font-medium text-slate-700">
+                Buddies / ผู้ช่วย
+              </label>
               <div className="mt-2 space-y-2">
                 {lawyers
                   .filter((l) => l.id !== form.leadLawyerId)
@@ -560,13 +595,16 @@ export default function NewCasePage() {
                       {workloadLabel(l.id)}
                     </label>
                   ))}
+                {lawyers.filter((l) => l.id !== form.leadLawyerId).length === 0 && (
+                  <p className="text-xs text-slate-400">ไม่มีทนายคนอื่นในสำนักงานให้เลือกเป็น Buddy</p>
+                )}
               </div>
             </div>
             <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
               <p className="font-medium">Summary</p>
               <p className="mt-1">{form.title} — {displayClientName()}</p>
               <p className="text-xs text-slate-400">
-                Own Ref {form.ownRef || '—'}
+                Own Ref {nextOwnRef || 'auto'}
                 {form.customerRef ? ` · Customer Ref ${form.customerRef}` : ''}
               </p>
               <p className="text-xs text-slate-400">
