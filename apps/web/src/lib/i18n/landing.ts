@@ -67,7 +67,10 @@ export const landingCopy = {
       perMonth: 'บาท/เดือน',
       contactUs: 'ติดต่อเรา',
       perUser: '≈ {amount} ฿ / user',
-      features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดหมาย', 'แจ้งเตือน LINE', 'Support ภาษาไทย'],
+      billingMonthly: 'รายเดือน',
+      billingYearly: 'รายปี',
+      yearlySave: 'ฟรี 2 เดือน',
+      yearlyNote: 'เรียกเก็บ {amount} ฿/ปี',
       tryFree: 'ทดลองใช้ฟรี',
       contactSales: 'ติดต่อทีมขาย',
       chartMonthly: 'เปรียบเทียบราคารายเดือน',
@@ -79,10 +82,23 @@ export const landingCopy = {
       tablePrice: 'ราคา',
       perUserTooltip: '/ user',
       plans: {
-        solo: { users: '1 User' },
-        firm: { users: '5 Users' },
-        professional: { users: '20 Users' },
-        enterprise: { users: 'Unlimited', priceLabel: 'Custom' },
+        solo: {
+          users: '1 User',
+          features: ['จัดการคดี & เอกสาร', 'ปฏิทินนัดหมาย', 'Client Portal ลูกความ', 'Support ภาษาไทย'],
+        },
+        firm: {
+          users: '5 Users',
+          features: ['ทุกอย่างใน Solo', 'แจ้งเตือน LINE อัตโนมัติ', 'มอบหมายงานในทีม', 'Billing & ใบแจ้งหนี้'],
+        },
+        professional: {
+          users: '20 Users',
+          features: ['ทุกอย่างใน Firm', 'รายงานภาพรวมสำนักงาน', 'ช่วยย้ายข้อมูลจากระบบเดิมฟรี', 'Priority support'],
+        },
+        enterprise: {
+          users: 'Unlimited',
+          priceLabel: 'Custom',
+          features: ['ทุกอย่างใน Professional', 'Users ไม่จำกัด', 'Onboarding เฉพาะทีม', 'SLA & สัญญารายปี'],
+        },
       },
     },
     cta: {
@@ -160,7 +176,10 @@ export const landingCopy = {
       perMonth: 'THB/month',
       contactUs: 'Contact us',
       perUser: '≈ {amount} THB / user',
-      features: ['Case & document management', 'Appointment calendar', 'LINE notifications', 'Thai support'],
+      billingMonthly: 'Monthly',
+      billingYearly: 'Yearly',
+      yearlySave: '2 months free',
+      yearlyNote: 'Billed {amount} THB/year',
       tryFree: 'Start free trial',
       contactSales: 'Contact sales',
       chartMonthly: 'Monthly price comparison',
@@ -172,10 +191,23 @@ export const landingCopy = {
       tablePrice: 'Price',
       perUserTooltip: '/ user',
       plans: {
-        solo: { users: '1 User' },
-        firm: { users: '5 Users' },
-        professional: { users: '20 Users' },
-        enterprise: { users: 'Unlimited', priceLabel: 'Custom' },
+        solo: {
+          users: '1 User',
+          features: ['Case & document management', 'Appointment calendar', 'Client portal', 'Thai support'],
+        },
+        firm: {
+          users: '5 Users',
+          features: ['Everything in Solo', 'Automatic LINE notifications', 'Team task assignment', 'Billing & invoicing'],
+        },
+        professional: {
+          users: '20 Users',
+          features: ['Everything in Firm', 'Firm-wide reporting', 'Free data migration', 'Priority support'],
+        },
+        enterprise: {
+          users: 'Unlimited',
+          priceLabel: 'Custom',
+          features: ['Everything in Professional', 'Unlimited users', 'Dedicated onboarding', 'SLA & annual contract'],
+        },
       },
     },
     cta: {

@@ -41,8 +41,8 @@ export default function PortalCaseDetailPage() {
   if (loading || !contact || !detail) return null;
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="mx-auto max-w-3xl">
+    <div className="min-h-screen w-full bg-background p-6">
+      <div className="w-full">
         <Link href="/portal" className="text-sm text-primary hover:underline">
           ← All cases
         </Link>

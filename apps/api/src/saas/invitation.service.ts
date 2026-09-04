@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, FirmRole, maskEmail } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
 import { EmailService } from '../notifications/email.service';
@@ -67,7 +67,7 @@ export class InvitationService {
         firmId: user.firmId,
         userId: user.id,
         action: 'USER_INVITED',
-        metadata: { email: dto.email, role: invitation.role },
+        metadata: { email: maskEmail(dto.email), role: invitation.role },
       },
     });
 
@@ -140,7 +140,7 @@ export class InvitationService {
             passwordHash: await bcrypt.hash(dto.password, 10),
             firstName: dto.firstName,
             lastName: dto.lastName,
-            role: 'CLERK',
+            role: 'LAWYER',
           },
         });
       }
@@ -163,7 +163,7 @@ export class InvitationService {
           firmId: invitation.firmId,
           userId: user!.id,
           action: 'INVITATION_ACCEPTED',
-          metadata: { email: invitation.email },
+          metadata: { email: maskEmail(invitation.email) },
         },
       });
     });
@@ -201,7 +201,7 @@ export class InvitationService {
         firmId: user.firmId,
         userId: user.id,
         action: 'INVITATION_CANCELLED',
-        metadata: { email: invitation.email },
+        metadata: { email: maskEmail(invitation.email) },
       },
     });
 

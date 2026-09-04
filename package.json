@@ -3,7 +3,8 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "pnpm --filter shared build && pnpm --filter web clean && pnpm --parallel --filter api --filter web dev",
+    "dev": "pnpm --filter shared build && pnpm --parallel --filter api --filter web dev",
+    "dev:clean": "pnpm --filter web clean && pnpm dev",
     "build": "pnpm -r build",
     "build:api": "pnpm --filter @lawfirm/shared build && pnpm --filter api build:prod",
     "build:web": "pnpm --filter @lawfirm/shared build && pnpm --filter web build",
@@ -12,11 +13,19 @@
     "db:migrate": "pnpm --filter api prisma migrate dev",
     "db:migrate:deploy": "pnpm --filter api prisma migrate deploy",
     "primas": "prisma migrate deploy && node dist/main",
-    
     "db:seed": "pnpm --filter api prisma db seed",
-    "db:generate": "pnpm --filter api prisma generate"
+    "db:generate": "pnpm --filter api prisma generate",
+    "e2e": "playwright test",
+    "e2e:guide": "playwright test --project=guide && node e2e/build-deck.mjs",
+    "e2e:validation": "playwright test --project=validation",
+    "e2e:report": "playwright show-report e2e/report",
+    "e2e:pii": "playwright test --project=pii"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@lawfirm/shared": "workspace:^",
+    "@playwright/test": "^1.62.0"
   }
 }

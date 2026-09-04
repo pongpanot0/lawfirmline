@@ -7,10 +7,27 @@ import {
   IsUUID,
   IsDateString,
   IsObject,
+  Matches,
+  Max,
+  Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { ActivityType, CaseStatus, CourtLevel } from '@lawfirm/shared';
+import { Transform, Type } from 'class-transformer';
+import {
+  ActivityType,
+  CaseStatus,
+  CASE_NUMBER_HINT,
+  CASE_NUMBER_REGEX,
+  CourtLevel,
+  FEE_MAX,
+  FEE_MIN,
+  ParticipantRole,
+  ParticipantSide,
+} from '@lawfirm/shared';
+
+/** Trim incoming strings so stray whitespace never breaks a format check. */
+const Trim = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
 
 export class InitialActivityDto {
   @IsString()
@@ -29,8 +46,9 @@ export class InitialActivityDto {
 }
 
 export class CreateCaseDto {
+  @IsOptional()
   @IsString()
-  ownRef!: string;
+  ownRef?: string;
 
   @IsOptional()
   @IsString()
@@ -58,10 +76,14 @@ export class CreateCaseDto {
   @IsEnum(CourtLevel)
   courtLevel!: CourtLevel;
 
+  @Trim()
   @IsString()
+  @Matches(CASE_NUMBER_REGEX, { message: `เลขดำ: ${CASE_NUMBER_HINT}` })
   blackCaseNumber!: string;
 
+  @Trim()
   @IsString()
+  @Matches(CASE_NUMBER_REGEX, { message: `เลขแดง: ${CASE_NUMBER_HINT}` })
   redCaseNumber!: string;
 
   @IsOptional()
@@ -85,7 +107,9 @@ export class CreateCaseDto {
   caseTypeId?: string;
 
   @IsOptional()
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(FEE_MIN)
+  @Max(FEE_MAX)
   estimatedFee?: number;
 
   @IsOptional()
@@ -127,12 +151,20 @@ export class UpdateCaseDto {
   @IsEnum(CourtLevel)
   courtLevel?: CourtLevel;
 
+  // Legacy cases were created before the format was enforced, so clearing the
+  // field (null / '') stays allowed — only a non-empty value must match.
   @IsOptional()
+  @Trim()
   @IsString()
+  @ValidateIf((_, value) => value !== '')
+  @Matches(CASE_NUMBER_REGEX, { message: `เลขดำ: ${CASE_NUMBER_HINT}` })
   blackCaseNumber?: string | null;
 
   @IsOptional()
+  @Trim()
   @IsString()
+  @ValidateIf((_, value) => value !== '')
+  @Matches(CASE_NUMBER_REGEX, { message: `เลขแดง: ${CASE_NUMBER_HINT}` })
   redCaseNumber?: string | null;
 
   @IsOptional()
@@ -156,12 +188,119 @@ export class UpdateCaseDto {
   caseTypeId?: string;
 
   @IsOptional()
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(FEE_MIN)
+  @Max(FEE_MAX)
   estimatedFee?: number | null;
 
   @IsOptional()
   @IsString()
   closingSummary?: string | null;
+}
+
+export class CreateParticipantDto {
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  nickname?: string;
+
+  @IsEnum(ParticipantRole)
+  role!: ParticipantRole;
+
+  @IsEnum(ParticipantSide)
+  side!: ParticipantSide;
+
+  @IsOptional()
+  @IsString()
+  personType?: string;
+
+  @IsOptional()
+  @IsString()
+  idNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  opposingLawyer?: string;
+
+  @IsOptional()
+  @IsString()
+  opposingInsurer?: string;
+
+  @IsOptional()
+  @IsString()
+  medicalLicenseNo?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class UpdateParticipantDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  nickname?: string;
+
+  @IsOptional()
+  @IsEnum(ParticipantRole)
+  role?: ParticipantRole;
+
+  @IsOptional()
+  @IsEnum(ParticipantSide)
+  side?: ParticipantSide;
+
+  @IsOptional()
+  @IsString()
+  personType?: string;
+
+  @IsOptional()
+  @IsString()
+  idNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  opposingLawyer?: string;
+
+  @IsOptional()
+  @IsString()
+  opposingInsurer?: string;
+
+  @IsOptional()
+  @IsString()
+  medicalLicenseNo?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class CaseQueryDto {
@@ -177,7 +316,6 @@ export class CaseQueryDto {
   @IsUUID()
   caseTypeId?: string;
 }
-
 
 export class UpdateCaseAssignmentsDto {
   @IsArray()

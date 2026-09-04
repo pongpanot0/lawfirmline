@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Firm" ADD COLUMN "ownRefPrefix" TEXT NOT NULL DEFAULT 'TSBREF';

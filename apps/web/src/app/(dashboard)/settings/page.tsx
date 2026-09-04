@@ -114,7 +114,7 @@ export default function SettingsPage() {
     <div>
       <PageHeader title="Settings" description="Manage your account and firm preferences" />
 
-      <div className="grid gap-6 lg:max-w-2xl">
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>Profile</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -154,7 +154,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader><CardTitle>Integrations</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>

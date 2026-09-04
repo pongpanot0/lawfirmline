@@ -20,14 +20,19 @@ import { Role, AuthUser } from '@lawfirm/shared';
 import { LineMessagingService } from './line-messaging.service';
 import { LineLinkService } from './line-link.service';
 import { SkipSubscription } from '../saas/decorators/saas.decorators';
+import { LineBotRouterService } from './line-conversation/line-bot-router.service';
 
 interface LineWebhookBody {
   destination?: string;
   events?: Array<{
     type: string;
     replyToken?: string;
-    source?: { userId?: string; type?: string };
-    message?: { type: string; text?: string };
+    source?: { userId?: string; type?: string; groupId?: string; roomId?: string };
+    message?: {
+      type: string;
+      text?: string;
+      mention?: { mentionees: Array<{ type: string; isSelf?: boolean }> };
+    };
   }>;
 }
 
@@ -38,6 +43,7 @@ export class LineController {
   constructor(
     private line: LineMessagingService,
     private lineLink: LineLinkService,
+    private router: LineBotRouterService,
   ) {}
 
   @Post('line/webhook')
@@ -72,16 +78,29 @@ export class LineController {
         event.source?.userId
       ) {
         const text = event.message.text ?? '';
-        this.logger.log(
-          `LINE message from ${event.source.userId}: ${text}`,
-        );
+        this.logger.log(`LINE message received from ${event.source.userId}`);
 
-        const reply = await this.lineLink.handleIncomingMessage(
-          event.source.userId,
-          text,
-        );
-        if (reply && event.replyToken) {
-          await this.line.replyText(event.replyToken, reply);
+        try {
+          const reply = await this.lineLink.handleIncomingMessage(
+            event.source.userId,
+            text,
+          );
+          if (reply) {
+            if (event.replyToken) {
+              await this.line.replyText(event.replyToken, reply);
+            }
+          } else {
+            const sourceType = (event.source.type as 'user' | 'group' | 'room') ?? 'user';
+            const mentionsBot = !!event.message.mention?.mentionees?.some((m) => m.isSelf);
+            await this.router.route(event.source.userId, text, {
+              replyToken: event.replyToken,
+              sourceType,
+              groupId: event.source.groupId,
+              roomId: event.source.roomId,
+            }, mentionsBot);
+          }
+        } catch (err) {
+          this.logger.error('Error processing LINE message event', err);
         }
       }
     }

@@ -3,7 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus, TrendingUp, TrendingDown, Wallet, Receipt } from 'lucide-react';
-import { EXPENSE_CATEGORIES, FirmRole } from '@lawfirm/shared';
+import {
+  EXPENSE_CATEGORIES,
+  FirmRole,
+  MONEY_HINT,
+  MONEY_MAX,
+  MONEY_MIN,
+  MONEY_STEP,
+} from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, CaseItem, ExpenseItem, FinanceSummary, FirmInvoiceItem } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
@@ -187,7 +194,20 @@ export default function ExpensesPage() {
         <Card className="mb-6">
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-              <Input required type="number" step="0.01" placeholder="Amount (฿)" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+              <div>
+                <Input
+                  required
+                  type="number"
+                  step={MONEY_STEP}
+                  min={MONEY_MIN}
+                  max={MONEY_MAX}
+                  title={MONEY_HINT}
+                  placeholder="Amount (฿)"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">{MONEY_HINT}</p>
+              </div>
               <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="h-9 rounded-lg border border-input bg-card px-3 text-sm">
                 {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>

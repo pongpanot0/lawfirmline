@@ -30,7 +30,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
   }, [mobileNavOpen]);
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-dvh w-full overflow-hidden bg-background">
       {mobileNavOpen && (
         <button
           type="button"
@@ -47,14 +47,14 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
         onMobileClose={() => setMobileNavOpen(false)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <TopNavbar
           user={user}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onMenuClick={() => setMobileNavOpen(true)}
         />
-        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 lg:p-8 scrollbar-thin">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 scrollbar-thin">
           {children}
         </main>
       </div>

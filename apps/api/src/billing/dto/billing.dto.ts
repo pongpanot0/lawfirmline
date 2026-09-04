@@ -2,26 +2,47 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsNotEmpty,
   IsBoolean,
   IsDateString,
   IsArray,
   IsEnum,
   IsUUID,
+  Max,
+  MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { ExpenseStatus } from '@lawfirm/shared';
+import { Transform, Type } from 'class-transformer';
+import {
+  ExpenseStatus,
+  HOURS_MAX,
+  HOURS_MIN,
+  MONEY_MAX,
+  MONEY_MIN,
+} from '@lawfirm/shared';
+
+/** Trim incoming strings so "   " does not pass @IsNotEmpty. */
+const Trim = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
+
+const money = { maxDecimalPlaces: 2 } as const;
 
 export class CreateTimeEntryDto {
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(HOURS_MIN)
+  @Max(HOURS_MAX)
   hours!: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsNumber(money)
+  @Min(0)
+  @Max(MONEY_MAX)
   rate?: number;
 
   @IsOptional()
+  @Trim()
   @IsString()
+  @MaxLength(500)
   description?: string;
 
   @IsOptional()
@@ -34,18 +55,27 @@ export class CreateTimeEntryDto {
 }
 
 export class CreateExpenseDto {
-  @IsNumber()
+  @IsNumber(money)
+  @Min(MONEY_MIN)
+  @Max(MONEY_MAX)
   amount!: number;
 
+  @Trim()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
   description!: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
+  @MaxLength(100)
   category?: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
+  @MaxLength(500)
   expensePurpose?: string;
 
   @IsOptional()
@@ -65,13 +95,20 @@ export class UpdateExpenseStatusDto {
 }
 
 export class InvoiceLineItemDto {
+  @Trim()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
   description!: string;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(1_000_000)
   quantity!: number;
 
-  @IsNumber()
+  @IsNumber(money)
+  @Min(0)
+  @Max(MONEY_MAX)
   unitPrice!: number;
 }
 

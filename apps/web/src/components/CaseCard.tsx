@@ -33,7 +33,7 @@ export function CaseCard({
           )}
           {leadLawyer && (
             <p className="mt-1 text-sm text-slate-500">
-              Lead: {leadLawyer.firstName} {leadLawyer.lastName}
+              Owner: {leadLawyer.firstName} {leadLawyer.lastName}
             </p>
           )}
         </div>

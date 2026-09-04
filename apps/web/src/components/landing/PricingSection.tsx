@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   BarChart,
@@ -82,18 +83,34 @@ function PerUserTooltip({
 export function PricingSection() {
   const { locale, t } = useLocale();
   const p = t.pricing;
+  const [chartsReady, setChartsReady] = useState(false);
+  const [yearly, setYearly] = useState(false);
 
-  const plans = PLAN_KEYS.map((key) => ({
-    key,
-    name: PLAN_NAMES[key],
-    users: p.plans[key].users,
-    price: PLAN_PRICES[key].price,
-    priceLabel: key === 'enterprise' ? p.plans.enterprise.priceLabel : PLAN_PRICES[key].priceLabel,
-    perUser: PLAN_PRICES[key].perUser,
-    popular: PLAN_PRICES[key].popular,
-    href: key === 'enterprise' ? 'mailto:hello@lexflow.co?subject=LexFlow Enterprise' : '/login',
-    cta: key === 'enterprise' ? p.contactSales : p.tryFree,
-  }));
+  useEffect(() => {
+    setChartsReady(true);
+  }, []);
+
+  const plans = PLAN_KEYS.map((key) => {
+    const base = PLAN_PRICES[key].price;
+    // Yearly = pay 10 months (2 months free); card shows the monthly-equivalent price
+    const shown = base !== null && yearly ? Math.round((base * 10) / 12) : base;
+    return {
+      key,
+      name: PLAN_NAMES[key],
+      users: p.plans[key].users,
+      features: p.plans[key].features,
+      price: shown,
+      yearlyTotal: base !== null ? base * 10 : null,
+      priceLabel:
+        key === 'enterprise'
+          ? p.plans.enterprise.priceLabel
+          : (shown as number).toLocaleString(locale === 'th' ? 'th-TH' : 'en-US'),
+      perUser: PLAN_PRICES[key].perUser,
+      popular: PLAN_PRICES[key].popular,
+      href: key === 'enterprise' ? 'mailto:hello@lexflow.co?subject=LexFlow Enterprise' : '/login',
+      cta: key === 'enterprise' ? p.contactSales : p.tryFree,
+    };
+  });
 
   const priceChartData = plans
     .filter((plan) => plan.price !== null)
@@ -117,6 +134,35 @@ export function PricingSection() {
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-xl font-bold sm:text-2xl md:text-3xl">{p.title}</h2>
           <p className="mt-2 text-sm text-muted-foreground sm:mt-3 sm:text-base">{p.subtitle}</p>
+        </div>
+
+        {/* Billing period toggle */}
+        <div className="mt-6 flex items-center justify-center gap-1 sm:mt-8">
+          <div className="inline-flex items-center rounded-full border border-border bg-muted/50 p-1">
+            <button
+              type="button"
+              onClick={() => setYearly(false)}
+              className={cn(
+                'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+                !yearly ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground',
+              )}
+            >
+              {p.billingMonthly}
+            </button>
+            <button
+              type="button"
+              onClick={() => setYearly(true)}
+              className={cn(
+                'flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+                yearly ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground',
+              )}
+            >
+              {p.billingYearly}
+              <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+                {p.yearlySave}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Pricing cards */}
@@ -145,6 +191,14 @@ export function PricingSection() {
                   {plan.price === null && (
                     <p className="mt-1 text-sm text-muted-foreground">{p.contactUs}</p>
                   )}
+                  {yearly && plan.yearlyTotal !== null && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {p.yearlyNote.replace(
+                        '{amount}',
+                        plan.yearlyTotal.toLocaleString(locale === 'th' ? 'th-TH' : 'en-US'),
+                      )}
+                    </p>
+                  )}
                 </div>
                 {plan.perUser !== null && (
                   <p className="mt-2 text-xs text-muted-foreground">
@@ -152,7 +206,7 @@ export function PricingSection() {
                   </p>
                 )}
                 <ul className="mt-5 flex-1 space-y-2 text-sm sm:mt-6">
-                  {p.features.map((item) => (
+                  {plan.features.map((item) => (
                     <li key={item} className="flex items-start gap-2">
                       <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
                       {item}
@@ -191,38 +245,40 @@ export function PricingSection() {
             <CardContent className="p-4 sm:p-6">
               <h3 className="text-sm font-semibold sm:text-base">{p.chartMonthly}</h3>
               <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{p.chartMonthlyDesc}</p>
-              <div className="mt-4 h-52 sm:mt-6 sm:h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={priceChartData} margin={{ top: 8, right: 4, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={{ stroke: 'hsl(var(--border))' }}
-                      tickLine={false}
-                      interval={0}
-                      angle={-20}
-                      textAnchor="end"
-                      height={50}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                      width={36}
-                    />
-                    <Tooltip
-                      content={<PriceTooltip locale={locale} />}
-                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
-                    />
-                    <Bar dataKey="price" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                      {priceChartData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="mt-4 h-52 min-h-0 min-w-0 sm:mt-6 sm:h-64">
+                {chartsReady ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={priceChartData} margin={{ top: 8, right: 4, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                        tickLine={false}
+                        interval={0}
+                        angle={-20}
+                        textAnchor="end"
+                        height={50}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                        width={36}
+                      />
+                      <Tooltip
+                        content={<PriceTooltip locale={locale} />}
+                        cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
+                      />
+                      <Bar dataKey="price" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                        {priceChartData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -231,38 +287,40 @@ export function PricingSection() {
             <CardContent className="p-4 sm:p-6">
               <h3 className="text-sm font-semibold sm:text-base">{p.chartPerUser}</h3>
               <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{p.chartPerUserDesc}</p>
-              <div className="mt-4 h-52 sm:mt-6 sm:h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={perUserChartData} margin={{ top: 8, right: 4, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={{ stroke: 'hsl(var(--border))' }}
-                      tickLine={false}
-                      interval={0}
-                      angle={-20}
-                      textAnchor="end"
-                      height={50}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => (locale === 'th' ? `${v}฿` : `${v}`)}
-                      width={36}
-                    />
-                    <Tooltip
-                      content={<PerUserTooltip locale={locale} suffix={p.perUserTooltip} />}
-                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
-                    />
-                    <Bar dataKey="perUser" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                      {perUserChartData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="mt-4 h-52 min-h-0 min-w-0 sm:mt-6 sm:h-64">
+                {chartsReady ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={perUserChartData} margin={{ top: 8, right: 4, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                        tickLine={false}
+                        interval={0}
+                        angle={-20}
+                        textAnchor="end"
+                        height={50}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => (locale === 'th' ? `${v}฿` : `${v}`)}
+                        width={36}
+                      />
+                      <Tooltip
+                        content={<PerUserTooltip locale={locale} suffix={p.perUserTooltip} />}
+                        cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
+                      />
+                      <Bar dataKey="perUser" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                        {perUserChartData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : null}
               </div>
             </CardContent>
           </Card>

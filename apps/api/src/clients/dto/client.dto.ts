@@ -1,12 +1,19 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
   IsEmail,
+  IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { PHONE_HINT, PHONE_REGEX } from '@lawfirm/shared';
+
+/** Trim incoming strings so "   " does not pass @IsNotEmpty. */
+const Trim = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
 
 export class ClientContactDto {
   @IsOptional()
@@ -17,7 +24,10 @@ export class ClientContactDto {
   @IsString()
   clientId?: string;
 
+  @Trim()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
   name!: string;
 
   @IsOptional()
@@ -25,11 +35,15 @@ export class ClientContactDto {
   email?: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
+  @Matches(PHONE_REGEX, { message: PHONE_HINT })
   phone?: string;
 
   @IsOptional()
+  @Trim()
   @IsString()
+  @MaxLength(100)
   position?: string;
 
   @IsOptional()
@@ -42,7 +56,10 @@ export class ClientContactDto {
 }
 
 export class CreateClientDto {
+  @Trim()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
   name!: string;
 
   @IsOptional()

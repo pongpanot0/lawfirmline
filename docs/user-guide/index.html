@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>LexFlow — คู่มือการใช้งาน</title>
+<style>
+  :root { --red:#e11d48; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.6 "Noto Sans Thai",Sarabun,-apple-system,system-ui,sans-serif }
+  .wrap { max-width:1100px; margin:0 auto; padding:32px 20px 80px }
+  .cover { background:#fff; border:1px solid var(--line); border-radius:18px; padding:40px; margin-bottom:28px }
+  .cover h1 { margin:0 0 8px; font-size:32px }
+  .cover p { margin:0; color:var(--muted) }
+  .toc { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:8px; margin-top:24px }
+  .toc a { display:block; padding:10px 12px; background:var(--bg); border:1px solid var(--line);
+           border-radius:10px; text-decoration:none; color:var(--ink); font-size:14px }
+  .toc a:hover { border-color:var(--red); color:var(--red) }
+  .slide { background:#fff; border:1px solid var(--line); border-radius:18px; padding:28px;
+           margin-bottom:28px; scroll-margin-top:20px }
+  .slide header { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; border-bottom:2px solid var(--red);
+                  padding-bottom:12px; margin-bottom:16px }
+  .num { background:var(--red); color:#fff; border-radius:999px; padding:3px 11px; font-size:13px; font-weight:700 }
+  .slide h2 { margin:0; font-size:22px; flex:1 }
+  .slide code { color:var(--muted); font-size:13px }
+  .desc { margin:0 0 16px; color:#334155 }
+  .callouts { margin:0 0 20px; padding:0; list-style:none; display:grid; gap:8px;
+              grid-template-columns:repeat(auto-fill,minmax(280px,1fr)) }
+  .callouts li { display:flex; align-items:flex-start; gap:9px; font-size:14px; background:var(--bg);
+                 border:1px solid var(--line); border-radius:10px; padding:8px 11px }
+  .pin { flex:none; width:22px; height:22px; border-radius:999px; background:var(--red); color:#fff;
+         font-size:12px; font-weight:700; display:grid; place-items:center }
+  figure { margin:0; border:1px solid var(--line); border-radius:12px; overflow:hidden }
+  figure img { display:block; width:100%; height:auto }
+  @media print { body{background:#fff} .slide{page-break-after:always; border:none} .toc{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="cover">
+    <h1>LexFlow — คู่มือการใช้งานทีละหน้าจอ</h1>
+    <p>ภาพหน้าจอทั้งหมดถูกถ่ายอัตโนมัติด้วย Playwright จากระบบจริง กรอบและป้ายสีแดงคือจุดที่ต้องกด/กรอกในแต่ละหน้า</p>
+    <nav class="toc">
+      <a href="#slide-1">1. หน้าเข้าสู่ระบบ (Login)</a>
+      <a href="#slide-2">2. แดชบอร์ด — ภาพรวมสำนักงาน</a>
+      <a href="#slide-3">3. คดี — รายการคดีทั้งหมด</a>
+      <a href="#slide-4">4. Case Workflow Board — บอร์ดติดตามสถานะ</a>
+      <a href="#slide-5">5. สร้างคดีใหม่ — ขั้นที่ 1 เลือกประเภทคดี</a>
+      <a href="#slide-6">6. สร้างคดีใหม่ — ขั้นที่ 2 ข้อมูลพื้นฐาน</a>
+      <a href="#slide-7">7. รายละเอียดคดี</a>
+      <a href="#slide-8">8. งานในคดี (Tasks)</a>
+      <a href="#slide-9">9. เอกสารของคดี</a>
+      <a href="#slide-10">10. การเงินรายคดี — เวลาทำงาน ค่าใช้จ่าย ใบแจ้งหนี้</a>
+      <a href="#slide-11">11. ลูกค้า — ทะเบียนลูกค้าและผู้ติดต่อ</a>
+      <a href="#slide-12">12. เพิ่มลูกค้า — พร้อมผู้ติดต่อหลายคน</a>
+      <a href="#slide-13">13. ตารางศาล — ปฏิทินนัดหมาย</a>
+      <a href="#slide-14">14. เอกสาร — คลังเอกสารรวมทุกคดี</a>
+      <a href="#slide-15">15. ค่าใช้จ่าย &amp; การเงิน</a>
+      <a href="#slide-16">16. รายงาน</a>
+      <a href="#slide-17">17. Knowledge Base — คลังสรุปคดี</a>
+      <a href="#slide-18">18. จัดการทีม — เชิญและกำหนดสิทธิ์</a>
+      <a href="#slide-19">19. แพ็กเกจ &amp; การชำระเงิน</a>
+      <a href="#slide-20">20. เบิกจ่าย — อนุมัติค่าใช้จ่าย (เฉพาะเจ้าของสำนักงาน)</a>
+      <a href="#slide-21">21. ประเภทคดี — ตั้งค่าฟิลด์ของแต่ละประเภท</a>
+      <a href="#slide-22">22. ศาล — ทะเบียนศาลของสำนักงาน</a>
+      <a href="#slide-23">23. ตั้งค่า — โปรไฟล์ ธีม และการเชื่อมต่อ</a>
+      <a href="#slide-24">24. Client Portal — หน้าเข้าสู่ระบบของลูกค้า</a>
+    </nav>
+  </div>
+  
+  <section class="slide" id="slide-1" data-index="1">
+    <header>
+      <span class="num">1 / 24</span>
+      <h2>หน้าเข้าสู่ระบบ (Login)</h2>
+      <code>/login</code>
+    </header>
+    <p class="desc">เริ่มต้นใช้งานที่หน้านี้ กรอกอีเมลและรหัสผ่านของบัญชีสำนักงาน แล้วกด Sign in ระบบจะพาเข้าสู่ Dashboard</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>กรอกอีเมลผู้ใช้</li>
+      <li><span class="pin">2</span>กรอกรหัสผ่าน</li>
+      <li><span class="pin">3</span>กดเพื่อเข้าสู่ระบบ</li>
+      <li><span class="pin">4</span>ลืมรหัสผ่าน กดที่นี่</li>
+      <li><span class="pin">5</span>สมัครใช้งาน ทดลองฟรี 30 วัน</li>
+    </ol>
+    <figure><img src="shots/01-login.png" alt="หน้าเข้าสู่ระบบ (Login)" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-2" data-index="2">
+    <header>
+      <span class="num">2 / 24</span>
+      <h2>แดชบอร์ด — ภาพรวมสำนักงาน</h2>
+      <code>/dashboard</code>
+    </header>
+    <p class="desc">หน้าแรกหลังเข้าสู่ระบบ สรุปจำนวนคดี คดีที่ดำเนินอยู่ นัดศาลที่จะถึง และรายได้เดือนนี้ พร้อมทางลัดสร้างคดี/เพิ่มนัดศาล/อัปโหลดเอกสาร</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เมนูหลัก ใช้สลับหน้าจอทั้งระบบ</li>
+      <li><span class="pin">2</span>ช่องค้นหาด่วน คดี/ลูกค้า</li>
+      <li><span class="pin">3</span>ชื่อหน้าและคำทักทายผู้ใช้</li>
+      <li><span class="pin">4</span>การ์ดสรุปตัวเลขสำคัญ (KPI)</li>
+      <li><span class="pin">5</span>ปุ่มลัด สร้างคดีใหม่</li>
+    </ol>
+    <figure><img src="shots/02-dashboard.png" alt="แดชบอร์ด — ภาพรวมสำนักงาน" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-3" data-index="3">
+    <header>
+      <span class="num">3 / 24</span>
+      <h2>คดี — รายการคดีทั้งหมด</h2>
+      <code>/cases</code>
+    </header>
+    <p class="desc">ตารางคดีทั้งหมดของสำนักงาน ค้นหาด้วย Own Ref / Customer Ref / เลขดำ / เลขแดง / ชื่อลูกค้า กรองตามสถานะ และส่งออกเป็นไฟล์ได้</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ค้นหาคดีจากเลขอ้างอิงหรือชื่อลูกค้า</li>
+      <li><span class="pin">2</span>กรองตามสถานะคดี</li>
+      <li><span class="pin">3</span>ส่งออกรายการคดี</li>
+      <li><span class="pin">4</span>ตารางคดี คลิกแถวเพื่อเปิดรายละเอียด</li>
+      <li><span class="pin">5</span>สร้างคดีใหม่</li>
+    </ol>
+    <figure><img src="shots/03-cases-list.png" alt="คดี — รายการคดีทั้งหมด" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-4" data-index="4">
+    <header>
+      <span class="num">4 / 24</span>
+      <h2>Case Workflow Board — บอร์ดติดตามสถานะ</h2>
+      <code>/cases/board</code>
+    </header>
+    <p class="desc">มุมมองแบบคัมบัง แบ่งคดีตามสถานะ เปิดคดี → ร่างเอกสาร → นัดศาล → ปิดคดี ลากการ์ดเพื่อเปลี่ยนสถานะได้ทันที</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ตัวกรองมุมมองบอร์ด</li>
+      <li><span class="pin">2</span>คอลัมน์สถานะ พร้อมจำนวนคดี</li>
+      <li><span class="pin">3</span>การ์ดคดี ลากเพื่อเปลี่ยนสถานะ / คลิกเพื่อเปิด</li>
+    </ol>
+    <figure><img src="shots/04-cases-board.png" alt="Case Workflow Board — บอร์ดติดตามสถานะ" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-5" data-index="5">
+    <header>
+      <span class="num">5 / 24</span>
+      <h2>สร้างคดีใหม่ — ขั้นที่ 1 เลือกประเภทคดี</h2>
+      <code>/cases/new</code>
+    </header>
+    <p class="desc">การสร้างคดีเป็นแบบ 4 ขั้นตอน ขั้นแรกเลือกประเภทคดี ระบบจะปรับฟิลด์ในขั้นถัดไปตามประเภทที่เลือก</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>หัวข้อหน้า สร้างคดีใหม่</li>
+      <li><span class="pin">2</span>คลิกเลือกประเภทคดี</li>
+      <li><span class="pin">3</span>กด Next เพื่อไปขั้นถัดไป (ต้องเลือกประเภทก่อน)</li>
+    </ol>
+    <figure><img src="shots/05-case-new-step1.png" alt="สร้างคดีใหม่ — ขั้นที่ 1 เลือกประเภทคดี" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-6" data-index="6">
+    <header>
+      <span class="num">6 / 24</span>
+      <h2>สร้างคดีใหม่ — ขั้นที่ 2 ข้อมูลพื้นฐาน</h2>
+      <code>/cases/new</code>
+    </header>
+    <p class="desc">กรอกข้อมูลคดี Own Ref ถูกสร้างอัตโนมัติ (TSBREF + ปี + เลขรัน) ส่วนเลขดำ/เลขแดงกรอกในรูปแบบ เลขที่/ปีพ.ศ. เช่น 123/2567 และระบุลูกค้ากับรายได้โดยประมาณ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>Customer Ref เลขอ้างอิงฝั่งลูกค้า (ไม่บังคับ)</li>
+      <li><span class="pin">2</span>เลขดำ รูปแบบ 123/2567</li>
+      <li><span class="pin">3</span>เลขแดง รูปแบบ 456/2567</li>
+      <li><span class="pin">4</span>รายได้โดยประมาณ ต้องเป็นตัวเลขไม่ติดลบ</li>
+      <li><span class="pin">5</span>ไปขั้นตอนถัดไป</li>
+    </ol>
+    <figure><img src="shots/06-case-new-step2.png" alt="สร้างคดีใหม่ — ขั้นที่ 2 ข้อมูลพื้นฐาน" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-7" data-index="7">
+    <header>
+      <span class="num">7 / 24</span>
+      <h2>รายละเอียดคดี</h2>
+      <code>/cases/:id</code>
+    </header>
+    <p class="desc">หน้ารวมข้อมูลคดีหนึ่งเรื่อง สถานะ ทนายผู้รับผิดชอบ ผู้ช่วย ศาล เลขคดี และรายได้โดยประมาณ พร้อมแท็บย่อย งาน / เอกสาร / ปฏิทิน / การเงิน</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อคดีและเลขอ้างอิง</li>
+      <li><span class="pin">2</span>แท็บงานในคดี</li>
+      <li><span class="pin">3</span>แท็บเอกสารของคดี</li>
+      <li><span class="pin">4</span>แท็บการเงิน/ค่าใช้จ่ายของคดี</li>
+    </ol>
+    <figure><img src="shots/07-case-detail.png" alt="รายละเอียดคดี" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-8" data-index="8">
+    <header>
+      <span class="num">8 / 24</span>
+      <h2>งานในคดี (Tasks)</h2>
+      <code>/cases/:id/tasks</code>
+    </header>
+    <p class="desc">สร้างและติดตามงานย่อยของคดี กำหนดผู้รับผิดชอบและวันครบกำหนด งานที่เลยกำหนดจะแสดงบนแดชบอร์ด</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>หน้างานของคดีนี้</li>
+      <li><span class="pin">2</span>ปุ่มจัดการงาน</li>
+    </ol>
+    <figure><img src="shots/08-case-tasks.png" alt="งานในคดี (Tasks)" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-9" data-index="9">
+    <header>
+      <span class="num">9 / 24</span>
+      <h2>เอกสารของคดี</h2>
+      <code>/cases/:id/documents</code>
+    </header>
+    <p class="desc">อัปโหลดและจัดเวอร์ชันเอกสารรายคดี ตั้งค่าการมองเห็นเพื่อเปิด/ปิดให้ลูกค้าเห็นผ่าน Client Portal และดาวน์โหลดได้</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เอกสารของคดีนี้</li>
+    </ol>
+    <figure><img src="shots/09-case-documents.png" alt="เอกสารของคดี" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-10" data-index="10">
+    <header>
+      <span class="num">10 / 24</span>
+      <h2>การเงินรายคดี — เวลาทำงาน ค่าใช้จ่าย ใบแจ้งหนี้</h2>
+      <code>/cases/:id/billing</code>
+    </header>
+    <p class="desc">บันทึกชั่วโมงทำงาน ค่าใช้จ่ายที่ขอเบิก และออกใบแจ้งหนี้ของคดีนี้ ยอดเงินต้องมากกว่า 0 เสมอ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>สรุปการเงินของคดี</li>
+      <li><span class="pin">2</span>เพิ่มรายการเบิกค่าใช้จ่าย</li>
+    </ol>
+    <figure><img src="shots/10-case-billing.png" alt="การเงินรายคดี — เวลาทำงาน ค่าใช้จ่าย ใบแจ้งหนี้" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-11" data-index="11">
+    <header>
+      <span class="num">11 / 24</span>
+      <h2>ลูกค้า — ทะเบียนลูกค้าและผู้ติดต่อ</h2>
+      <code>/clients</code>
+    </header>
+    <p class="desc">รายชื่อลูกค้าทั้งหมด ค้นหาได้จากชื่อ และเปิดดูผู้ติดต่อ คดีที่เกี่ยวข้อง และสิทธิ์เข้าใช้ Client Portal</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เมนูหลัก ใช้สลับหน้าจอทั้งระบบ</li>
+      <li><span class="pin">2</span>ช่องค้นหาด่วน คดี/ลูกค้า</li>
+      <li><span class="pin">3</span>ค้นหาลูกค้า</li>
+      <li><span class="pin">4</span>เพิ่มลูกค้าใหม่</li>
+    </ol>
+    <figure><img src="shots/11-clients.png" alt="ลูกค้า — ทะเบียนลูกค้าและผู้ติดต่อ" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-12" data-index="12">
+    <header>
+      <span class="num">12 / 24</span>
+      <h2>เพิ่มลูกค้า — พร้อมผู้ติดต่อหลายคน</h2>
+      <code>/clients/new</code>
+    </header>
+    <p class="desc">สร้างลูกค้าใหม่ เลือกประเภทบุคคล/นิติบุคคล และเพิ่มผู้ติดต่อได้หลายคน เบอร์โทรต้องเป็นตัวเลข และต้องเลือกผู้ติดต่อหลัก 1 คน</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ชื่อลูกค้า (บังคับ)</li>
+      <li><span class="pin">2</span>ประเภท บุคคล หรือ นิติบุคคล</li>
+      <li><span class="pin">3</span>ชื่อผู้ติดต่อ (บังคับ)</li>
+      <li><span class="pin">4</span>เบอร์โทร ตัวเลข 9-10 หลัก</li>
+      <li><span class="pin">5</span>เพิ่มผู้ติดต่อคนถัดไป</li>
+      <li><span class="pin">6</span>บันทึกลูกค้า</li>
+    </ol>
+    <figure><img src="shots/12-clients-new.png" alt="เพิ่มลูกค้า — พร้อมผู้ติดต่อหลายคน" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-13" data-index="13">
+    <header>
+      <span class="num">13 / 24</span>
+      <h2>ตารางศาล — ปฏิทินนัดหมาย</h2>
+      <code>/court-schedule</code>
+    </header>
+    <p class="desc">ปฏิทินนัดศาลและนัดหมายลูกค้า สลับมุมมอง วัน / สัปดาห์ / เดือน และเพิ่มนัดใหม่ได้จากปุ่ม Add Event</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เพิ่มนัดหมายใหม่</li>
+      <li><span class="pin">2</span>สลับมุมมอง วัน/สัปดาห์/เดือน</li>
+      <li><span class="pin">3</span>กลับไปวันนี้</li>
+      <li><span class="pin">4</span>สรุปนัดในเดือนนี้และการแจ้งเตือน</li>
+    </ol>
+    <figure><img src="shots/13-court-schedule.png" alt="ตารางศาล — ปฏิทินนัดหมาย" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-14" data-index="14">
+    <header>
+      <span class="num">14 / 24</span>
+      <h2>เอกสาร — คลังเอกสารรวมทุกคดี</h2>
+      <code>/documents</code>
+    </header>
+    <p class="desc">ค้นหาเอกสารข้ามคดี กรองตามคดี อัปโหลดเอกสารใหม่ และลิงก์ไปยัง Knowledge Base</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ค้นหาเอกสาร</li>
+      <li><span class="pin">2</span>กรองตามคดี</li>
+      <li><span class="pin">3</span>อัปโหลดเอกสาร</li>
+      <li><span class="pin">4</span>ไปยังคลังความรู้</li>
+    </ol>
+    <figure><img src="shots/14-documents.png" alt="เอกสาร — คลังเอกสารรวมทุกคดี" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-15" data-index="15">
+    <header>
+      <span class="num">15 / 24</span>
+      <h2>ค่าใช้จ่าย &amp; การเงิน</h2>
+      <code>/expenses</code>
+    </header>
+    <p class="desc">ดูกำไรรายคดี บันทึกค่าใช้จ่ายเพื่อขออนุมัติ และติดตามใบแจ้งหนี้ ยอดเงินต้องมากกว่า 0 และไม่เกิน 100,000,000 บาท</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ยอดเงิน (บาท) ต้องมากกว่า 0</li>
+      <li><span class="pin">2</span>รายละเอียดค่าใช้จ่าย (บังคับ)</li>
+      <li><span class="pin">3</span>เลือกหมวดและคดีที่เกี่ยวข้อง</li>
+      <li><span class="pin">4</span>ส่งขออนุมัติ</li>
+      <li><span class="pin">5</span>ตารางกำไรรายคดี / รายการเบิก / ใบแจ้งหนี้</li>
+    </ol>
+    <figure><img src="shots/15-expenses.png" alt="ค่าใช้จ่าย &amp; การเงิน" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-16" data-index="16">
+    <header>
+      <span class="num">16 / 24</span>
+      <h2>รายงาน</h2>
+      <code>/reports</code>
+    </header>
+    <p class="desc">รายงานเชิงบริหาร ปริมาณคดีตามประเภท รายได้ต่อทนาย บันทึกการขึ้นศาล และสรุปค่าใช้จ่าย ส่งออกได้ทั้งหมด</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ส่งออกรายงานทั้งหมด</li>
+      <li><span class="pin">2</span>การ์ดรายงานแต่ละหัวข้อ</li>
+    </ol>
+    <figure><img src="shots/16-reports.png" alt="รายงาน" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-17" data-index="17">
+    <header>
+      <span class="num">17 / 24</span>
+      <h2>Knowledge Base — คลังสรุปคดี</h2>
+      <code>/knowledge</code>
+    </header>
+    <p class="desc">รวมบทสรุปคดีที่ผ่านมา ค้นหาและกรองตามประเภท/ผลคดี เพื่อใช้อ้างอิงกับคดีใหม่</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ค้นหาสรุปคดี</li>
+      <li><span class="pin">2</span>กรองตามประเภทคดีและผลคดี</li>
+    </ol>
+    <figure><img src="shots/17-knowledge.png" alt="Knowledge Base — คลังสรุปคดี" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-18" data-index="18">
+    <header>
+      <span class="num">18 / 24</span>
+      <h2>จัดการทีม — เชิญและกำหนดสิทธิ์</h2>
+      <code>/team</code>
+    </header>
+    <p class="desc">เชิญสมาชิกใหม่ด้วยอีเมล กำหนดบทบาท (OWNER / LAWYER / CLERK) ดูสมาชิกปัจจุบันและคำเชิญที่รอตอบรับ</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>อีเมลผู้ที่ต้องการเชิญ</li>
+      <li><span class="pin">2</span>เลือกบทบาท/สิทธิ์</li>
+      <li><span class="pin">3</span>ส่งคำเชิญทางอีเมล</li>
+      <li><span class="pin">4</span>สมาชิกในทีมปัจจุบัน</li>
+    </ol>
+    <figure><img src="shots/18-team.png" alt="จัดการทีม — เชิญและกำหนดสิทธิ์" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-19" data-index="19">
+    <header>
+      <span class="num">19 / 24</span>
+      <h2>แพ็กเกจ &amp; การชำระเงิน</h2>
+      <code>/account/billing</code>
+    </header>
+    <p class="desc">ดูสถานะทดลองใช้/แพ็กเกจปัจจุบัน จำนวนผู้ใช้ที่ใช้ไป และเลือกสมัครแพ็กเกจ Solo / Firm / Professional</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>สถานะแพ็กเกจปัจจุบันและจำนวนผู้ใช้</li>
+      <li><span class="pin">2</span>เลือกแพ็กเกจแล้วชำระเงิน</li>
+    </ol>
+    <figure><img src="shots/19-account-billing.png" alt="แพ็กเกจ &amp; การชำระเงิน" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-20" data-index="20">
+    <header>
+      <span class="num">20 / 24</span>
+      <h2>เบิกจ่าย — อนุมัติค่าใช้จ่าย (เฉพาะเจ้าของสำนักงาน)</h2>
+      <code>/admin/reimbursements</code>
+    </header>
+    <p class="desc">คิวอนุมัติค่าใช้จ่ายที่ทีมส่งเข้ามา กรองตามสถานะ แล้วกด Approve / Reject / Mark Paid</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>กรองตามสถานะรายการ</li>
+      <li><span class="pin">2</span>อนุมัติรายการ</li>
+      <li><span class="pin">3</span>ปฏิเสธรายการ</li>
+    </ol>
+    <figure><img src="shots/20-reimbursements.png" alt="เบิกจ่าย — อนุมัติค่าใช้จ่าย (เฉพาะเจ้าของสำนักงาน)" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-21" data-index="21">
+    <header>
+      <span class="num">21 / 24</span>
+      <h2>ประเภทคดี — ตั้งค่าฟิลด์ของแต่ละประเภท</h2>
+      <code>/admin/case-types</code>
+    </header>
+    <p class="desc">กำหนดประเภทคดีของสำนักงานและฟิลด์เฉพาะที่จะให้กรอกในขั้นตอนสร้างคดี</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เพิ่มประเภทคดีใหม่</li>
+      <li><span class="pin">2</span>ประเภทคดีที่มีอยู่</li>
+    </ol>
+    <figure><img src="shots/21-case-types.png" alt="ประเภทคดี — ตั้งค่าฟิลด์ของแต่ละประเภท" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-22" data-index="22">
+    <header>
+      <span class="num">22 / 24</span>
+      <h2>ศาล — ทะเบียนศาลของสำนักงาน</h2>
+      <code>/admin/courts</code>
+    </header>
+    <p class="desc">จัดการรายชื่อศาลที่ใช้เลือกตอนสร้างคดีและตั้งนัด เพิ่ม แก้ไข หรือลบได้</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>เพิ่มศาลใหม่</li>
+      <li><span class="pin">2</span>ทะเบียนศาล</li>
+    </ol>
+    <figure><img src="shots/22-courts.png" alt="ศาล — ทะเบียนศาลของสำนักงาน" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-23" data-index="23">
+    <header>
+      <span class="num">23 / 24</span>
+      <h2>ตั้งค่า — โปรไฟล์ ธีม และการเชื่อมต่อ</h2>
+      <code>/settings</code>
+    </header>
+    <p class="desc">แก้ไขชื่อผู้ใช้ สลับโหมดสว่าง/มืด และเชื่อมต่อ LINE Official Account เพื่อรับการแจ้งเตือน</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>ข้อมูลโปรไฟล์ (อีเมลแก้ไขไม่ได้)</li>
+      <li><span class="pin">2</span>บันทึกการเปลี่ยนแปลง</li>
+      <li><span class="pin">3</span>สลับธีมสว่าง/มืด</li>
+      <li><span class="pin">4</span>เชื่อมต่อแจ้งเตือนผ่าน LINE</li>
+    </ol>
+    <figure><img src="shots/23-settings.png" alt="ตั้งค่า — โปรไฟล์ ธีม และการเชื่อมต่อ" loading="lazy" /></figure>
+  </section>
+
+  <section class="slide" id="slide-24" data-index="24">
+    <header>
+      <span class="num">24 / 24</span>
+      <h2>Client Portal — หน้าเข้าสู่ระบบของลูกค้า</h2>
+      <code>/portal/login</code>
+    </header>
+    <p class="desc">ลูกค้าเข้าใช้งานด้วย magic link ไม่ต้องจำรหัสผ่าน กรอกอีเมลที่สำนักงานเปิดสิทธิ์ไว้ ระบบจะส่งลิงก์เข้าสู่ระบบไปให้ทางอีเมล</p>
+    <ol class="callouts">
+      <li><span class="pin">1</span>อีเมลของลูกค้า</li>
+      <li><span class="pin">2</span>ขอลิงก์เข้าสู่ระบบ</li>
+    </ol>
+    <figure><img src="shots/24-portal-login.png" alt="Client Portal — หน้าเข้าสู่ระบบของลูกค้า" loading="lazy" /></figure>
+  </section>
+</div>
+</body>
+</html>

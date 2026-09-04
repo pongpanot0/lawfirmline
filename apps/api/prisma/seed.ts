@@ -1,4 +1,5 @@
 import {
+  Prisma,
   PrismaClient,
   Role,
   CaseStatus,
@@ -62,6 +63,8 @@ async function main() {
       firstName: 'Somchai',
       lastName: 'Admin',
       role: Role.ADMIN,
+      lineUserId: 'U-e2e-test-line-user',
+      lineConnectedAt: new Date(),
     },
   });
 
@@ -85,23 +88,23 @@ async function main() {
     },
   });
 
-  const clerk1 = await prisma.user.create({
+  const lawyer3 = await prisma.user.create({
     data: {
-      email: 'clerk1@lawfirm.com',
+      email: 'lawyer3@lawfirm.com',
       passwordHash,
       firstName: 'Siriporn',
       lastName: 'Kaew',
-      role: Role.CLERK,
+      role: Role.LAWYER,
     },
   });
 
-  const clerk2 = await prisma.user.create({
+  const lawyer4 = await prisma.user.create({
     data: {
-      email: 'clerk2@lawfirm.com',
+      email: 'lawyer4@lawfirm.com',
       passwordHash,
       firstName: 'Anan',
       lastName: 'Boonma',
-      role: Role.CLERK,
+      role: Role.LAWYER,
     },
   });
 
@@ -110,8 +113,8 @@ async function main() {
       { firmId: firm.id, userId: admin.id, role: 'OWNER' },
       { firmId: firm.id, userId: lawyer1.id, role: 'ASSISTANT' },
       { firmId: firm.id, userId: lawyer2.id, role: 'ASSISTANT' },
-      { firmId: firm.id, userId: clerk1.id, role: 'ASSISTANT' },
-      { firmId: firm.id, userId: clerk2.id, role: 'ASSISTANT' },
+      { firmId: firm.id, userId: lawyer3.id, role: 'ASSISTANT' },
+      { firmId: firm.id, userId: lawyer4.id, role: 'ASSISTANT' },
     ],
   });
 
@@ -120,7 +123,7 @@ async function main() {
       firmId: firm.id,
       name: type.name,
       description: type.description,
-      fieldSchema: type.fieldSchema ?? undefined,
+      fieldSchema: (type.fieldSchema ?? undefined) as Prisma.InputJsonValue | undefined,
     })),
   });
 
@@ -163,65 +166,60 @@ async function main() {
 
   const cases = [
     {
-      ownRef: 'LF-2025-001',
+      ownRef: 'TSBREF20250001',
       customerRef: 'CUST-001',
       title: 'Smith vs. Johnson Contract Dispute',
       description: 'Breach of contract litigation',
       clientName: 'John Smith',
       status: CaseStatus.IN_PROGRESS,
       leadLawyerId: lawyer1.id,
-      coCounsel: [lawyer2.id],
-      clerks: [clerk1.id],
+      buddies: [lawyer2.id, lawyer3.id],
     },
     {
-      ownRef: 'LF-2025-002',
+      ownRef: 'TSBREF20250002',
       customerRef: 'CUST-002',
       title: 'ABC Corp Intellectual Property',
       description: 'Patent infringement case',
       clientName: 'ABC Corporation',
       status: CaseStatus.OPEN,
       leadLawyerId: lawyer2.id,
-      coCounsel: [],
-      clerks: [clerk1.id, clerk2.id],
+      buddies: [lawyer3.id, lawyer4.id],
     },
     {
-      ownRef: 'LF-2025-003',
+      ownRef: 'TSBREF20250003',
       customerRef: 'CUST-003',
       title: 'Real Estate Transaction - Sukhumvit',
       description: 'Property transfer and due diligence',
       clientName: 'Thai Property Ltd.',
       status: CaseStatus.PENDING,
       leadLawyerId: lawyer1.id,
-      coCounsel: [],
-      clerks: [clerk2.id],
+      buddies: [lawyer4.id],
     },
     {
-      ownRef: 'LF-2025-004',
+      ownRef: 'TSBREF20250004',
       customerRef: 'CUST-004',
       title: 'Employment Dispute - Tech Startup',
       description: 'Wrongful termination claim',
       clientName: 'StartupXYZ',
       status: CaseStatus.IN_PROGRESS,
       leadLawyerId: lawyer2.id,
-      coCounsel: [lawyer1.id],
-      clerks: [clerk1.id],
+      buddies: [lawyer1.id, lawyer3.id],
     },
     {
-      ownRef: 'LF-2025-005',
+      ownRef: 'TSBREF20250005',
       customerRef: 'CUST-005',
       title: 'Family Law - Divorce Proceedings',
       description: 'Asset division and custody',
       clientName: 'Private Client',
       status: CaseStatus.CLOSED,
       leadLawyerId: lawyer1.id,
-      coCounsel: [],
-      clerks: [],
+      buddies: [],
     },
   ];
 
   const createdCases = [];
   for (const c of cases) {
-    const { coCounsel, clerks, ...caseData } = c;
+    const { buddies, ...caseData } = c;
     const year = new Date().getFullYear();
     const folderId = `LF-${year}-${caseData.ownRef.split('-').pop()}`;
     const legalCase = await prisma.case.create({
@@ -232,16 +230,10 @@ async function main() {
         clientId: clientMap[caseData.clientName ?? ''],
         courtName: 'ศาลแพ่งกรุงเทพใต้',
         assignments: {
-          create: [
-            ...coCounsel.map((userId) => ({
-              userId,
-              assignmentType: AssignmentType.BUDDY,
-            })),
-            ...clerks.map((userId) => ({
-              userId,
-              assignmentType: AssignmentType.BUDDY,
-            })),
-          ],
+          create: buddies.map((userId) => ({
+            userId,
+            assignmentType: AssignmentType.BUDDY,
+          })),
         },
       },
     });
@@ -254,7 +246,7 @@ async function main() {
       caseId: createdCases[0].id,
       title: 'Draft initial complaint',
       status: TaskStatus.DONE,
-      assigneeId: clerk1.id,
+      assigneeId: lawyer3.id,
       createdById: lawyer1.id,
       dueDate: new Date(now.getTime() - 7 * 86400000),
     },
@@ -262,7 +254,7 @@ async function main() {
       caseId: createdCases[0].id,
       title: 'Gather evidence documents',
       status: TaskStatus.IN_PROGRESS,
-      assigneeId: clerk1.id,
+      assigneeId: lawyer3.id,
       createdById: lawyer1.id,
       dueDate: new Date(now.getTime() + 3 * 86400000),
     },
@@ -270,7 +262,7 @@ async function main() {
       caseId: createdCases[0].id,
       title: 'Prepare witness list',
       status: TaskStatus.TODO,
-      assigneeId: clerk1.id,
+      assigneeId: lawyer3.id,
       createdById: lawyer2.id,
       dueDate: new Date(now.getTime() + 14 * 86400000),
     },
@@ -278,7 +270,7 @@ async function main() {
       caseId: createdCases[1].id,
       title: 'Patent prior art search',
       status: TaskStatus.IN_PROGRESS,
-      assigneeId: clerk2.id,
+      assigneeId: lawyer4.id,
       createdById: lawyer2.id,
       dueDate: new Date(now.getTime() + 5 * 86400000),
     },
@@ -286,7 +278,7 @@ async function main() {
       caseId: createdCases[3].id,
       title: 'Review employment contract',
       status: TaskStatus.TODO,
-      assigneeId: clerk1.id,
+      assigneeId: lawyer3.id,
       createdById: lawyer2.id,
       dueDate: new Date(now.getTime() - 2 * 86400000),
     },
@@ -396,9 +388,8 @@ async function main() {
 
   console.log('Seed completed!');
   console.log('Login credentials (all use password: password123):');
-  console.log('  Admin:  admin@lawfirm.com');
-  console.log('  Lawyer: lawyer1@lawfirm.com, lawyer2@lawfirm.com');
-  console.log('  Clerk:  clerk1@lawfirm.com, clerk2@lawfirm.com');
+  console.log('  Admin:   admin@lawfirm.com');
+  console.log('  Lawyers: lawyer1@lawfirm.com … lawyer4@lawfirm.com');
 }
 
 main()

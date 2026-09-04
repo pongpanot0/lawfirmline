@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
+import { PHONE_HINT, PHONE_HTML } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
@@ -89,7 +90,7 @@ export default function NewClientPage() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <div className="w-full">
       <Link href="/clients" className="text-sm text-primary hover:underline">
         ← Back to Clients
       </Link>
@@ -161,11 +162,18 @@ export default function NewClientPage() {
                         value={contact.email ?? ''}
                         onChange={(e) => updateContact(index, 'email', e.target.value)}
                       />
+                      <div>
                       <Input
                         placeholder="Phone / เบอร์โทร"
+                        type="tel"
+                        inputMode="tel"
+                        pattern={PHONE_HTML}
+                        title={PHONE_HINT}
                         value={contact.phone ?? ''}
                         onChange={(e) => updateContact(index, 'phone', e.target.value)}
                       />
+                      <p className="mt-1 text-xs text-muted-foreground">{PHONE_HINT}</p>
+                      </div>
                     </div>
                     <Input
                       placeholder="Position / ตำแหน่ง"

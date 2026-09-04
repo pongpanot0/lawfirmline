@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { TaskSource } from '../generated/prisma';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
@@ -33,7 +34,12 @@ export class TasksService {
     return task;
   }
 
-  async create(user: AuthUser, caseId: string, dto: CreateTaskDto) {
+  async create(
+    user: AuthUser,
+    caseId: string | null,
+    dto: CreateTaskDto,
+    source: TaskSource = TaskSource.WEB,
+  ) {
     return this.prisma.task.create({
       data: {
         caseId,
@@ -43,6 +49,7 @@ export class TasksService {
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
         status: dto.status,
         createdById: user.id,
+        source,
       },
       include: this.taskInclude,
     });

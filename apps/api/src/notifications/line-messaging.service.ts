@@ -2,6 +2,28 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'crypto';
 
+export interface QuickReplyItem {
+  label: string;
+  text: string;
+}
+
+function buildMessage(text: string, quickReply?: QuickReplyItem[]) {
+  return {
+    type: 'text',
+    text,
+    ...(quickReply?.length
+      ? {
+          quickReply: {
+            items: quickReply.slice(0, 13).map((item) => ({
+              type: 'action',
+              action: { type: 'message', label: item.label.slice(0, 20), text: item.text },
+            })),
+          },
+        }
+      : {}),
+  };
+}
+
 interface LineTokenResponse {
   access_token: string;
   expires_in: number;
@@ -117,6 +139,35 @@ export class LineMessagingService {
     return this.broadcastMessage(token, message);
   }
 
+  async pushTo(
+    targetId: string,
+    text: string,
+    quickReply?: QuickReplyItem[],
+  ): Promise<boolean> {
+    if (!this.isConfigured()) return false;
+
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const res = await fetch('https://api.line.me/v2/bot/message/push', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: targetId, messages: [buildMessage(text, quickReply)] }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        this.logger.error(`LINE push failed (${res.status}): ${body}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.error('LINE push error', err);
+      return false;
+    }
+  }
+
   async replyText(replyToken: string, text: string): Promise<boolean> {
     if (!this.isConfigured()) return false;
 
@@ -144,6 +195,35 @@ export class LineMessagingService {
       return true;
     } catch (err) {
       this.logger.error('LINE reply error', err);
+      return false;
+    }
+  }
+
+  async replyWithQuickReply(
+    replyToken: string,
+    text: string,
+    quickReply?: QuickReplyItem[],
+  ): Promise<boolean> {
+    if (!this.isConfigured()) return false;
+
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const res = await fetch('https://api.line.me/v2/bot/message/reply', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ replyToken, messages: [buildMessage(text, quickReply)] }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        this.logger.error(`LINE reply with quick reply failed (${res.status}): ${body}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.error('LINE reply with quick reply error', err);
       return false;
     }
   }

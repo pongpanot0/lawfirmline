@@ -1,5 +1,5 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
-import { AuthUser, Role, ExpenseStatus, FirmRole } from '@lawfirm/shared';
+import { AuthUser, ExpenseStatus, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -221,9 +221,6 @@ export class BillingService {
   }
 
   async createStandaloneExpense(user: AuthUser, dto: CreateStandaloneExpenseDto) {
-    if (user.role === Role.CLERK) {
-      throw new ForbiddenException('Clerks cannot submit expenses');
-    }
     if (dto.caseId) {
       const legalCase = await this.prisma.case.findFirst({
         where: { id: dto.caseId, firmId: user.firmId },
@@ -392,10 +389,6 @@ export class BillingService {
   }
 
   async createInvoice(user: AuthUser, caseId: string, dto: CreateInvoiceDto) {
-    if (user.role === Role.CLERK) {
-      throw new ForbiddenException('Clerks cannot create invoices');
-    }
-
     const lineItems = dto.lineItems.map((item) => ({
       description: item.description,
       quantity: item.quantity,

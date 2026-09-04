@@ -1,7 +1,6 @@
 export enum Role {
   ADMIN = 'ADMIN',
   LAWYER = 'LAWYER',
-  CLERK = 'CLERK',
 }
 
 export enum FirmRole {
@@ -27,6 +26,19 @@ export enum BillingPaymentStatus {
   PENDING = 'PENDING',
   PAID = 'PAID',
   FAILED = 'FAILED',
+}
+
+export enum BillingPeriod {
+  MONTHLY = 'MONTHLY',
+  YEARLY = 'YEARLY',
+}
+
+/** Yearly billing charges 10 months up front (2 months free). */
+export const YEARLY_BILLED_MONTHS = 10;
+
+export function planPriceThb(plan: SubscriptionPlan, period: BillingPeriod): number {
+  const monthly = PLAN_CONFIG[plan].priceThb;
+  return period === BillingPeriod.YEARLY ? monthly * YEARLY_BILLED_MONTHS : monthly;
 }
 
 export interface PlanConfig {
@@ -151,6 +163,24 @@ export enum ActivityType {
   OTHER = 'OTHER',
 }
 
+export enum ParticipantRole {
+  PLAINTIFF = 'PLAINTIFF',
+  DEFENDANT = 'DEFENDANT',
+  PETITIONER = 'PETITIONER',
+  RESPONDENT = 'RESPONDENT',
+  WITNESS = 'WITNESS',
+  EXPERT = 'EXPERT',
+  OPPOSING_LAWYER = 'OPPOSING_LAWYER',
+  OPPOSING_INSURER = 'OPPOSING_INSURER',
+  OTHER = 'OTHER',
+}
+
+export enum ParticipantSide {
+  OURS = 'OURS',
+  OPPONENT = 'OPPONENT',
+  NEUTRAL = 'NEUTRAL',
+}
+
 export const DEFAULT_THAI_COURTS = [
   'ศาลแพ่งกรุงเทพใต้',
   'ศาลแพ่งกรุงเทพเหนือ',
@@ -256,3 +286,6 @@ export interface SubscriptionSummary {
 export interface PlanOption extends PlanConfig {
   isCurrent: boolean;
 }
+
+export * from './validation';
+export * from './pii';

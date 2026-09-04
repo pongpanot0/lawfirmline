@@ -32,6 +32,11 @@ export class CasesController {
     return this.casesService.findAll(user, query);
   }
 
+  @Get('next-own-ref')
+  previewNextOwnRef(@CurrentUser() user: AuthUser) {
+    return this.casesService.previewNextOwnRef(user);
+  }
+
   @Get(':id')
   @UseGuards(CaseAccessGuard)
   findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
@@ -54,7 +59,6 @@ export class CasesController {
     return this.casesService.update(user, id, dto);
   }
 
-
   @Put(':id/assignments')
   @UseGuards(CaseAccessGuard, FirmRoleGuard)
   @OwnerOnly()
@@ -65,6 +69,7 @@ export class CasesController {
   ) {
     return this.casesService.updateAssignments(user, id, dto);
   }
+
   @Post(':id/close')
   @UseGuards(CaseAccessGuard)
   @Roles(Role.ADMIN, Role.LAWYER)

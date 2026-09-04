@@ -8,12 +8,13 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
-  { href: '/cases', label: 'Cases', roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
-  { href: '/cases/board', label: 'Workflow Board', roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
-  { href: '/calendar', label: 'Calendar', roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
+  { href: '/dashboard', label: 'Dashboard', roles: [Role.ADMIN, Role.LAWYER] },
+  { href: '/intake', label: 'รับเรื่อง', roles: [Role.ADMIN, Role.LAWYER] },
+  { href: '/cases', label: 'Cases', roles: [Role.ADMIN, Role.LAWYER] },
+  { href: '/cases/board', label: 'Workflow Board', roles: [Role.ADMIN, Role.LAWYER] },
+  { href: '/calendar', label: 'Calendar', roles: [Role.ADMIN, Role.LAWYER] },
   { href: '/expenses', label: 'Expenses / เบิก', roles: [Role.ADMIN, Role.LAWYER] },
-  { href: '/knowledge', label: 'Knowledge Base', roles: [Role.ADMIN, Role.LAWYER, Role.CLERK] },
+  { href: '/knowledge', label: 'Knowledge Base', roles: [Role.ADMIN, Role.LAWYER] },
   { href: '/admin/reimbursements', label: 'Reimbursements', roles: [Role.ADMIN] },
   { href: '/admin/users', label: 'Users', roles: [Role.ADMIN] },
   { href: '/admin/case-types', label: 'Case Types', roles: [Role.ADMIN] },

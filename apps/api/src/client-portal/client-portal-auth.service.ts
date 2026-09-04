@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.module';
 import { EmailService } from '../notifications/email.service';
+import { maskEmail } from '@lawfirm/shared';
 
 interface PortalTokenPayload {
   sub: string;
@@ -44,7 +45,7 @@ export class ClientPortalAuthService {
       data: {
         firmId: contact.client.firmId,
         action: 'CLIENT_PORTAL_LINK_REQUESTED',
-        metadata: { clientContactId: contact.id, email },
+        metadata: { clientContactId: contact.id, email: maskEmail(email) },
       },
     });
 
@@ -59,7 +60,9 @@ export class ClientPortalAuthService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to send client portal magic link email to ${contact.email}: ${message}`);
+      this.logger.error(
+        `Failed to send client portal magic link email to ${maskEmail(contact.email)}: ${message}`,
+      );
     }
 
     const exposeDevToken = this.config.get<string>('CLIENT_PORTAL_EXPOSE_DEV_TOKEN') === 'true';

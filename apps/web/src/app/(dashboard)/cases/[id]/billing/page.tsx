@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
+import {
+  EXPENSE_CATEGORIES,
+  MONEY_HINT,
+  MONEY_MAX,
+  MONEY_MIN,
+  MONEY_STEP,
+} from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, InvoiceItem, TimeEntryItem, ExpenseItem } from '@/lib/api';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
@@ -121,12 +127,21 @@ export default function CaseBillingPage() {
         {showExpenseForm && (
           <form onSubmit={handleCreateExpense} className="mb-4 space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-4">
             <div className="grid gap-3 md:grid-cols-2">
-              <input
-                required type="number" step="0.01" placeholder="Amount (฿)"
-                value={expenseForm.amount}
-                onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
+              <div>
+                <input
+                  required
+                  type="number"
+                  step={MONEY_STEP}
+                  min={MONEY_MIN}
+                  max={MONEY_MAX}
+                  title={MONEY_HINT}
+                  placeholder="Amount (฿)"
+                  value={expenseForm.amount}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-xs text-slate-500">{MONEY_HINT}</p>
+              </div>
               <select
                 value={expenseForm.category}
                 onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
