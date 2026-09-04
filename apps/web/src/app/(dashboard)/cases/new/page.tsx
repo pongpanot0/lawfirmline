@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, UserItem, CaseTypeItem, ClientItem, CourtItem, ApiError } from '@/lib/api';
+import { api, UserItem, CaseTypeItem, ClientItem, CourtItem, ApiError, WorkloadSummary } from '@/lib/api';
 import { Stepper } from '@/components/ui/Stepper';
 import { Button } from '@/components/ui/button';
 import type { CaseFieldSchema } from '@lawfirm/shared';
@@ -33,6 +33,7 @@ export default function NewCasePage() {
   const [loadingTypes, setLoadingTypes] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
 
   const [form, setForm] = useState({
     caseTypeId: '',
@@ -64,6 +65,12 @@ export default function NewCasePage() {
     ? selectedType.fieldSchema
     : []) as CaseFieldSchema[];
 
+  const workloadLabel = (userId: string) => {
+    const w = workload.find((x) => x.userId === userId);
+    if (!w) return '';
+    return ` (Lead ${w.leadCount}, Buddy ${w.buddyCount}, ใกล้ deadline ${w.nearDeadlineCount})`;
+  };
+
   useEffect(() => {
     if (!token) return;
     setLoadingTypes(true);
@@ -73,13 +80,15 @@ export default function NewCasePage() {
       api.getCaseTypes(token),
       api.getClients(token).catch(() => [] as ClientItem[]),
       api.getCourts(token).catch(() => [] as CourtItem[]),
+      api.getWorkloadSummary(token).catch(() => [] as WorkloadSummary[]),
     ])
-      .then(([lawyerList, clerkList, types, clientList, courtList]) => {
+      .then(([lawyerList, clerkList, types, clientList, courtList, workloadList]) => {
         setLawyers(lawyerList);
         setClerks(clerkList);
         setCaseTypes(types);
         setClients(clientList);
         setCourts(courtList);
+        setWorkload(workloadList);
       })
       .catch(() => setError('Failed to load case form data. Please refresh and try again.'))
       .finally(() => setLoadingTypes(false));
@@ -535,6 +544,7 @@ export default function NewCasePage() {
                 {lawyers.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.firstName} {l.lastName}
+                    {workloadLabel(l.id)}
                   </option>
                 ))}
               </select>
@@ -552,6 +562,7 @@ export default function NewCasePage() {
                         onChange={() => toggleMulti('coCounselIds', l.id)}
                       />
                       {l.firstName} {l.lastName}
+                      {workloadLabel(l.id)}
                     </label>
                   ))}
               </div>
