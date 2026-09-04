@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { LineMessagingService, QuickReplyItem } from '../line-messaging.service';
 import { LineAuthContextService } from './line-auth-context.service';
 import { LineConversationStoreService } from './line-conversation-store.service';
@@ -21,6 +21,8 @@ const MENU_SELECTION_MAP: Record<string, FlowType> = {
 
 @Injectable()
 export class LineBotRouterService {
+  private readonly logger = new Logger(LineBotRouterService.name);
+
   constructor(
     private line: LineMessagingService,
     private auth: LineAuthContextService,
@@ -78,7 +80,11 @@ export class LineBotRouterService {
         await this.showMainMenu(lineUserId, target);
         return;
       }
-      const updated = this.store.update(lineUserId, { flowType, target })!;
+      const updated = this.store.update(lineUserId, { flowType, target });
+      if (!updated) {
+        this.logger.warn(`Session for ${lineUserId} expired before flow could start`);
+        return;
+      }
       if (flowType === FlowType.CASE) return this.intakeFlow.start(updated);
       if (flowType === FlowType.TASK) return this.taskFlow.start(updated);
       if (flowType === FlowType.TODO) return this.todoFlow.start(updated);
@@ -86,7 +92,11 @@ export class LineBotRouterService {
     }
 
     // An action flow is active — refresh the target (replyToken changes every turn) and delegate.
-    const updated = this.store.update(lineUserId, { target })!;
+    const updated = this.store.update(lineUserId, { target });
+    if (!updated) {
+      this.logger.warn(`Session for ${lineUserId} expired before message could be routed`);
+      return;
+    }
     if (existing.flowType === FlowType.CASE) return this.intakeFlow.handle(updated, text);
     if (existing.flowType === FlowType.TASK) return this.taskFlow.handle(updated, text);
     if (existing.flowType === FlowType.TODO) return this.todoFlow.handle(updated, text);

@@ -45,7 +45,7 @@ export class LineTaskFlowService {
       case ConversationStep.TASK_CASE_SEARCH: {
         const authUser = await this.authContext.resolve(session.lineUserId);
         if (!authUser) {
-          await this.reply(session, `ไม่พบคดีที่ตรงกับ "${text}" ลองพิมพ์คำอื่นดูครับ`);
+          await this.reply(session, 'เกิดข้อผิดพลาดในการยืนยันตัวตน กรุณาลองใหม่อีกครั้งครับ');
           return;
         }
         const results = await this.cases.findAll(authUser, { search: text });
@@ -107,6 +107,13 @@ export class LineTaskFlowService {
         return;
       }
       case ConversationStep.TASK_DUE_DATE: {
+        if (text !== 'ข้าม') {
+          const isValidDate = !isNaN(new Date(text).getTime());
+          if (!isValidDate) {
+            await this.reply(session, 'รูปแบบวันที่ไม่ถูกต้อง กรุณาพิมพ์ใหม่ เช่น 2026-09-15 (หรือพิมพ์ "ข้าม")');
+            return;
+          }
+        }
         const dueDate = text === 'ข้าม' ? undefined : text;
         const data = { ...session.data, dueDate };
         this.store.update(session.lineUserId, { data, step: ConversationStep.TASK_CONFIRM });
@@ -130,6 +137,14 @@ export class LineTaskFlowService {
         const field = text.startsWith('แก้:') ? text.slice(4) : null;
         if (!field || !FIELDS.some((f) => f.key === field)) {
           await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
+          return;
+        }
+        if (field === 'assigneeLabel') {
+          this.store.update(session.lineUserId, {
+            step: ConversationStep.TASK_ASSIGNEE_PICK,
+            pagingOffset: 0,
+          });
+          await this.showAssigneePage(session, 0);
           return;
         }
         this.store.update(session.lineUserId, { editingField: field, step: ConversationStep.TASK_EDIT_VALUE });

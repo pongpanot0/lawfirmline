@@ -3,7 +3,7 @@ import { TaskSource } from '../../../generated/prisma';
 import type { AuthUser } from '@lawfirm/shared';
 import { TasksService } from '../../../tasks/tasks.service';
 import { UsersService } from '../../../users/users.service';
-import { LineMessagingService } from '../../line-messaging.service';
+import { LineMessagingService, QuickReplyItem } from '../../line-messaging.service';
 import { LineNotificationService } from '../line-notification.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
 import { ConversationSession, ConversationStep } from '../line-conversation.types';
@@ -67,6 +67,13 @@ export class LineTodoFlowService {
         return;
       }
       case ConversationStep.TODO_DUE_DATE: {
+        if (text !== 'ข้าม') {
+          const isValidDate = !isNaN(new Date(text).getTime());
+          if (!isValidDate) {
+            await this.reply(session, 'รูปแบบวันที่ไม่ถูกต้อง กรุณาพิมพ์ใหม่ เช่น 2026-09-15 (หรือพิมพ์ "ข้าม")');
+            return;
+          }
+        }
         const dueDate = text === 'ข้าม' ? undefined : text;
         const data = { ...session.data, dueDate };
         this.store.update(session.lineUserId, { data, step: ConversationStep.TODO_CONFIRM });
@@ -80,11 +87,7 @@ export class LineTodoFlowService {
         }
         if (text === 'แก้ไข') {
           this.store.update(session.lineUserId, { step: ConversationStep.TODO_EDIT_PICK_FIELD });
-          await this.line.replyWithQuickReply(
-            session.target.replyToken!,
-            'จะแก้ไขข้อมูลไหนครับ?',
-            buildFieldPickerQuickReply(FIELDS),
-          );
+          await this.reply(session, 'จะแก้ไขข้อมูลไหนครับ?', buildFieldPickerQuickReply(FIELDS));
           return;
         }
         await this.confirmStep(session, session.data);
@@ -94,6 +97,14 @@ export class LineTodoFlowService {
         const field = text.startsWith('แก้:') ? text.slice(4) : null;
         if (!field || !FIELDS.some((f) => f.key === field)) {
           await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
+          return;
+        }
+        if (field === 'assigneeLabel') {
+          this.store.update(session.lineUserId, {
+            step: ConversationStep.TODO_ASSIGNEE_PICK,
+            pagingOffset: 0,
+          });
+          await this.showAssigneePage(session, 0);
           return;
         }
         this.store.update(session.lineUserId, { editingField: field, step: ConversationStep.TODO_EDIT_VALUE });
@@ -115,17 +126,17 @@ export class LineTodoFlowService {
     this.store.update(session.lineUserId, { searchResults: items });
     const buttons = items.map((u) => ({ label: u.label.slice(0, 20), text: u.label }));
     if (hasMore) buttons.push({ label: 'ดูเพิ่มเติม', text: 'ดูเพิ่มเติม' });
-    await this.line.replyWithQuickReply(session.target.replyToken!, 'มอบหมายให้ใครครับ?', buttons);
+    await this.reply(session, 'มอบหมายให้ใครครับ?', buttons);
   }
 
   private async confirmStep(session: ConversationSession, data: Record<string, unknown>): Promise<void> {
-    await this.line.replyWithQuickReply(session.target.replyToken!, renderSummary(FIELDS, data), CONFIRM_QUICK_REPLY);
+    await this.reply(session, renderSummary(FIELDS, data), CONFIRM_QUICK_REPLY);
   }
 
   private async create(session: ConversationSession): Promise<void> {
     const data = session.data as { title: string; assigneeId?: string; assigneeLabel?: string; dueDate?: string };
     const minimalUser = { id: session.userId, firmId: session.firmId } as unknown as AuthUser;
-    const created = await this.tasks.create(
+    await this.tasks.create(
       minimalUser,
       null,
       { title: data.title, assigneeId: data.assigneeId, dueDate: data.dueDate },
@@ -137,15 +148,14 @@ export class LineTodoFlowService {
       target: session.target,
       summaryText: `📝 Todo ใหม่: ${data.title}${data.assigneeLabel ? `\nผู้รับผิดชอบ: ${data.assigneeLabel}` : ''}`,
       assigneeUserId: data.assigneeId,
-      entityPath: `/todos/${created.id}`,
     });
   }
 
-  private async reply(session: ConversationSession, text: string): Promise<void> {
+  private async reply(session: ConversationSession, text: string, quickReply?: QuickReplyItem[]): Promise<void> {
     if (session.target.replyToken) {
-      await this.line.replyWithQuickReply(session.target.replyToken, text);
+      await this.line.replyWithQuickReply(session.target.replyToken, text, quickReply);
     } else {
-      await this.line.pushTo(session.lineUserId, text);
+      await this.line.pushTo(session.lineUserId, text, quickReply);
     }
   }
 }

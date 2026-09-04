@@ -118,6 +118,11 @@ export class LineIntakeFlowService {
           await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
           return;
         }
+        if (field === 'clientName') {
+          this.store.update(session.lineUserId, { step: ConversationStep.CASE_CLIENT_SEARCH });
+          await this.reply(session, 'พิมพ์ชื่อลูกความอีกครั้งครับ');
+          return;
+        }
         this.store.update(session.lineUserId, { editingField: field, step: ConversationStep.CASE_EDIT_VALUE });
         const label = FIELDS.find((f) => f.key === field)!.label;
         await this.reply(session, `กรอกค่าใหม่สำหรับ "${label}" ครับ`);

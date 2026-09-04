@@ -78,25 +78,29 @@ export class LineController {
         event.source?.userId
       ) {
         const text = event.message.text ?? '';
-        this.logger.log(
-          `LINE message from ${event.source.userId}: ${text}`,
-        );
+        this.logger.log(`LINE message received from ${event.source.userId}`);
 
-        const reply = await this.lineLink.handleIncomingMessage(
-          event.source.userId,
-          text,
-        );
-        if (reply && event.replyToken) {
-          await this.line.replyText(event.replyToken, reply);
-        } else {
-          const sourceType = (event.source.type as 'user' | 'group' | 'room') ?? 'user';
-          const mentionsBot = !!event.message.mention?.mentionees?.some((m) => m.isSelf);
-          await this.router.route(event.source.userId, text, {
-            replyToken: event.replyToken,
-            sourceType,
-            groupId: event.source.groupId,
-            roomId: event.source.roomId,
-          }, mentionsBot);
+        try {
+          const reply = await this.lineLink.handleIncomingMessage(
+            event.source.userId,
+            text,
+          );
+          if (reply) {
+            if (event.replyToken) {
+              await this.line.replyText(event.replyToken, reply);
+            }
+          } else {
+            const sourceType = (event.source.type as 'user' | 'group' | 'room') ?? 'user';
+            const mentionsBot = !!event.message.mention?.mentionees?.some((m) => m.isSelf);
+            await this.router.route(event.source.userId, text, {
+              replyToken: event.replyToken,
+              sourceType,
+              groupId: event.source.groupId,
+              roomId: event.source.roomId,
+            }, mentionsBot);
+          }
+        } catch (err) {
+          this.logger.error('Error processing LINE message event', err);
         }
       }
     }

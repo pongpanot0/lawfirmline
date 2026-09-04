@@ -144,14 +144,28 @@ export class LineMessagingService {
     text: string,
     quickReply?: QuickReplyItem[],
   ): Promise<boolean> {
+    if (!this.isConfigured()) return false;
+
     const token = await this.getAccessToken();
     if (!token) return false;
-    const res = await fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: targetId, messages: [buildMessage(text, quickReply)] }),
-    });
-    return res.ok;
+
+    try {
+      const res = await fetch('https://api.line.me/v2/bot/message/push', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: targetId, messages: [buildMessage(text, quickReply)] }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        this.logger.error(`LINE push failed (${res.status}): ${body}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.error('LINE push error', err);
+      return false;
+    }
   }
 
   async replyText(replyToken: string, text: string): Promise<boolean> {
@@ -190,14 +204,28 @@ export class LineMessagingService {
     text: string,
     quickReply?: QuickReplyItem[],
   ): Promise<boolean> {
+    if (!this.isConfigured()) return false;
+
     const token = await this.getAccessToken();
     if (!token) return false;
-    const res = await fetch('https://api.line.me/v2/bot/message/reply', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ replyToken, messages: [buildMessage(text, quickReply)] }),
-    });
-    return res.ok;
+
+    try {
+      const res = await fetch('https://api.line.me/v2/bot/message/reply', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ replyToken, messages: [buildMessage(text, quickReply)] }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        this.logger.error(`LINE reply with quick reply failed (${res.status}): ${body}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this.logger.error('LINE reply with quick reply error', err);
+      return false;
+    }
   }
 
   async sendCourtDateAlert(message: string, targetUserIds?: string[]): Promise<void> {

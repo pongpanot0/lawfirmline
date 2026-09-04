@@ -16,27 +16,24 @@ export class LineNotificationService {
     target: ConversationTarget;
     summaryText: string;
     assigneeUserId?: string | null;
-    entityPath: string;
+    entityPath?: string;
   }): Promise<void> {
     const webUrl = this.config.get<string>('WEB_APP_URL') ?? 'http://localhost:3000';
-    const link = `${webUrl}${params.entityPath}`;
-    const groupMessage = `${params.summaryText}\n\n🔗 ${link}`;
+    const link = params.entityPath ? `${webUrl}${params.entityPath}` : null;
+    const groupMessage = link ? `${params.summaryText}\n\n🔗 ${link}` : params.summaryText;
 
     const groupOrRoomId = params.target.groupId ?? params.target.roomId;
     if (groupOrRoomId) {
       await this.line.pushTo(groupOrRoomId, groupMessage);
-    } else if (params.target.sourceType === 'user') {
-      // Triggered from a 1:1 chat — the confirm-step reply already showed the summary,
-      // no separate group push needed.
     }
 
     if (params.assigneeUserId) {
       const assignee = await this.prisma.user.findUnique({ where: { id: params.assigneeUserId } });
       if (assignee?.lineUserId) {
-        await this.line.pushTo(
-          assignee.lineUserId,
-          `📌 คุณได้รับมอบหมายงานใหม่\n\n${params.summaryText}\n\n🔗 ${link}`,
-        );
+        const assigneeMessage = link
+          ? `📌 คุณได้รับมอบหมายงานใหม่\n\n${params.summaryText}\n\n🔗 ${link}`
+          : `📌 คุณได้รับมอบหมายงานใหม่\n\n${params.summaryText}`;
+        await this.line.pushTo(assignee.lineUserId, assigneeMessage);
       }
     }
   }
