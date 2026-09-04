@@ -89,7 +89,7 @@ export class LineTaskFlowService {
       }
       case ConversationStep.TASK_ASSIGNEE_PICK: {
         if (text === 'ดูเพิ่มเติม') {
-          const nextOffset = (session.pagingOffset ?? 0) + 13;
+          const nextOffset = (session.pagingOffset ?? 0) + 12;
           this.store.update(session.lineUserId, { pagingOffset: nextOffset });
           await this.showAssigneePage(session, nextOffset);
           return;
