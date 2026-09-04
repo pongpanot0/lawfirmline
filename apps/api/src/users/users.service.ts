@@ -71,4 +71,28 @@ export class UsersService {
     });
     return users.map((u) => this.sanitize(u));
   }
+
+  async findAllByFirm(
+    firmId: string,
+    offset = 0,
+    limit = 13,
+  ): Promise<{ items: Array<{ id: string; label: string }>; hasMore: boolean }> {
+    const users = await this.prisma.user.findMany({
+      where: {
+        firmMembers: { some: { firmId } },
+      },
+      orderBy: { lastName: 'asc' },
+      skip: offset,
+      take: limit + 1,
+    });
+    const hasMore = users.length > limit;
+    const page = users.slice(0, limit);
+    return {
+      items: page.map((u) => ({
+        id: u.id,
+        label: `${u.firstName} ${u.lastName}`,
+      })),
+      hasMore,
+    };
+  }
 }
