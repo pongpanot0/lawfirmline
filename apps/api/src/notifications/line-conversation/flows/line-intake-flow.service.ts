@@ -8,6 +8,7 @@ import { LineNotificationService } from '../line-notification.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
 import { ConversationSession, ConversationStep } from '../line-conversation.types';
 import { renderSummary, buildFieldPickerQuickReply, CONFIRM_QUICK_REPLY, FieldSpec } from './flow-confirmation.util';
+import { QuickReplyItem } from '../../line-messaging.service';
 
 const FIELDS: FieldSpec[] = [
   { key: 'title', label: 'ชื่อเรื่อง' },
@@ -63,8 +64,8 @@ export class LineIntakeFlowService {
           step: ConversationStep.CASE_CLIENT_PICK,
           searchResults: results.slice(0, 12).map((c) => ({ id: c.id, label: c.name })),
         });
-        await this.line.replyWithQuickReply(
-          session.target.replyToken!,
+        await this.reply(
+          session,
           'เลือกลูกความ หรือพิมพ์ "ไม่เจอ" เพื่อใช้ชื่อที่พิมพ์ไปแทน',
           [
             ...results.slice(0, 12).map((c) => ({ label: c.name.slice(0, 20), text: c.name })),
@@ -101,8 +102,8 @@ export class LineIntakeFlowService {
         }
         if (text === 'แก้ไข') {
           this.store.update(session.lineUserId, { step: ConversationStep.CASE_EDIT_PICK_FIELD });
-          await this.line.replyWithQuickReply(
-            session.target.replyToken!,
+          await this.reply(
+            session,
             'จะแก้ไขข้อมูลไหนครับ?',
             buildFieldPickerQuickReply(FIELDS),
           );
@@ -112,7 +113,7 @@ export class LineIntakeFlowService {
         return;
       }
       case ConversationStep.CASE_EDIT_PICK_FIELD: {
-        const field = text.startsWith('แก้:') ? text.slice(3) : null;
+        const field = text.startsWith('แก้:') ? text.slice(4) : null;
         if (!field || !FIELDS.some((f) => f.key === field)) {
           await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
           return;
@@ -133,7 +134,7 @@ export class LineIntakeFlowService {
   }
 
   private async confirmStep(session: ConversationSession, data: Record<string, unknown>): Promise<void> {
-    await this.line.replyWithQuickReply(session.target.replyToken!, renderSummary(FIELDS, data), CONFIRM_QUICK_REPLY);
+    await this.reply(session, renderSummary(FIELDS, data), CONFIRM_QUICK_REPLY);
   }
 
   private async create(session: ConversationSession): Promise<void> {
@@ -158,11 +159,11 @@ export class LineIntakeFlowService {
     });
   }
 
-  private async reply(session: ConversationSession, text: string): Promise<void> {
+  private async reply(session: ConversationSession, text: string, quickReply?: QuickReplyItem[]): Promise<void> {
     if (session.target.replyToken) {
-      await this.line.replyWithQuickReply(session.target.replyToken, text);
+      await this.line.replyWithQuickReply(session.target.replyToken, text, quickReply);
     } else {
-      await this.line.pushTo(session.lineUserId, text);
+      await this.line.pushTo(session.lineUserId, text, quickReply);
     }
   }
 }
