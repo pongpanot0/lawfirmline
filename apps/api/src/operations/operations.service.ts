@@ -51,7 +51,11 @@ export class OperationsService {
       ...tasks.filter((t): t is { dueDate: Date } => t.dueDate !== null).map((t) => t.dueDate),
     ];
     if (!dates.length) return null;
-    const nearest = dates.reduce((min, d) => (d < min ? d : min));
+    const nearest = dates.reduce((closest, d) =>
+      Math.abs(d.getTime() - now.getTime()) < Math.abs(closest.getTime() - now.getTime())
+        ? d
+        : closest,
+    );
     return Math.floor((nearest.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   }
 
