@@ -40,5 +40,9 @@ export default defineConfig({
       dependencies: ['setup'],
       use: { storageState: 'e2e/.auth/admin.json' },
     },
+    {
+      name: 'line-bot',
+      testMatch: /line-bot-case\.spec\.ts/,
+    },
   ],
 });

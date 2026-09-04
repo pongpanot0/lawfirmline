@@ -36,6 +36,14 @@ export class IntakeService {
     if (query.status) {
       where.status = query.status;
     }
+    if (query.search) {
+      const term = query.search.trim();
+      where.OR = [
+        { title: { contains: term, mode: 'insensitive' } },
+        { clientName: { contains: term, mode: 'insensitive' } },
+        { referralName: { contains: term, mode: 'insensitive' } },
+      ];
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.intake.findMany({

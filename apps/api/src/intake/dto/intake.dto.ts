@@ -252,6 +252,10 @@ export class IntakeQueryDto {
   status?: IntakeStatus;
 
   @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
   @IsNumber()
   @Min(1)

@@ -63,6 +63,8 @@ async function main() {
       firstName: 'Somchai',
       lastName: 'Admin',
       role: Role.ADMIN,
+      lineUserId: 'U-e2e-test-line-user',
+      lineConnectedAt: new Date(),
     },
   });
 
