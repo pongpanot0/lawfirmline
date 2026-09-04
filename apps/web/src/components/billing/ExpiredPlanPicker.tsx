@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FirmRole, SubscriptionPlan } from '@lawfirm/shared';
+import { BillingPeriod, FirmRole, planPriceThb, SubscriptionPlan } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Check } from 'lucide-react';
 import { OmiseEmbeddedCheckout } from '@/components/billing/OmiseEmbeddedCheckout';
+import { BillingPeriodToggle } from '@/components/billing/BillingPeriodToggle';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
 
@@ -18,6 +19,7 @@ export function ExpiredPlanPicker() {
   const [plans, setPlans] = useState<Awaited<ReturnType<typeof api.getPlans>>>([]);
   const [loading, setLoading] = useState(true);
   const [paymentError, setPaymentError] = useState('');
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(BillingPeriod.MONTHLY);
   const loc = dateLocale(locale);
 
   const isOwner = user?.firmRole === FirmRole.OWNER;
@@ -44,7 +46,7 @@ export function ExpiredPlanPicker() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 py-8">
+    <div className="w-full space-y-6 py-8">
       <div className="text-center">
         <h2 className="text-xl font-semibold">{d.subscription.expiredTitle}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{d.subscription.expiredDesc}</p>
@@ -59,16 +61,30 @@ export function ExpiredPlanPicker() {
       {loading ? (
         <p className="text-center text-muted-foreground">{d.subscription.loadingPlans}</p>
       ) : (
+        <>
+        <BillingPeriodToggle value={billingPeriod} onChange={setBillingPeriod} />
         <div className="grid gap-4 md:grid-cols-3">
-          {plans.map((plan) => (
+          {plans.map((plan) => {
+            const yearly = billingPeriod === BillingPeriod.YEARLY;
+            const total = planPriceThb(plan.plan as SubscriptionPlan, billingPeriod);
+            const shownMonthly = yearly ? Math.round(total / 12) : plan.priceThb;
+            return (
             <Card key={plan.plan}>
               <CardContent className="space-y-4 p-6">
                 <div>
                   <h3 className="font-semibold">{plan.name}</h3>
                   <p className="text-2xl font-bold text-primary">
-                    {plan.priceThb.toLocaleString(loc)}{' '}
+                    {shownMonthly.toLocaleString(loc)}{' '}
                     <span className="text-sm font-normal text-muted-foreground">{d.billing.perMonth}</span>
                   </p>
+                  {yearly && (
+                    <p className="text-xs text-muted-foreground">
+                      {fmt(d.billing.billedYearly, {
+                        amount: total.toLocaleString(loc),
+                        monthly: shownMonthly.toLocaleString(loc),
+                      })}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {fmt(d.billing.upToUsers, { count: plan.maxUsers })}
                   </p>
@@ -86,6 +102,7 @@ export function ExpiredPlanPicker() {
                     plan: plan.plan as SubscriptionPlan,
                     name: plan.name,
                     priceThb: plan.priceThb,
+                    billingPeriod,
                   }}
                   className="w-full"
                   onSuccess={() => {
@@ -97,8 +114,10 @@ export function ExpiredPlanPicker() {
                 </OmiseEmbeddedCheckout>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
+        </>
       )}
 
       <p className="text-center text-sm text-muted-foreground">

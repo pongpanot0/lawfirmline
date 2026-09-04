@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sgMail from '@sendgrid/mail';
+import { maskEmail } from '@lawfirm/shared';
 
 export interface InvitationEmailParams {
   to: string;
@@ -107,7 +108,7 @@ export class EmailService {
         text,
         html,
       });
-      this.logger.log(`Invitation email sent to ${params.to}`);
+      this.logger.log(`Invitation email sent to ${maskEmail(params.to)}`);
     } catch (error) {
       const message =
         error instanceof Error
@@ -115,7 +116,7 @@ export class EmailService {
           : typeof error === 'object' && error && 'response' in error
             ? JSON.stringify((error as { response?: { body?: unknown } }).response?.body)
             : 'Unknown SendGrid error';
-      this.logger.error(`Failed to send invitation email to ${params.to}: ${message}`);
+      this.logger.error(`Failed to send invitation email to ${maskEmail(params.to)}: ${message}`);
       throw error;
     }
   }
@@ -163,7 +164,7 @@ export class EmailService {
         text,
         html,
       });
-      this.logger.log(`Client portal magic link email sent to ${params.to}`);
+      this.logger.log(`Client portal magic link email sent to ${maskEmail(params.to)}`);
     } catch (error) {
       const message =
         error instanceof Error
@@ -171,7 +172,9 @@ export class EmailService {
           : typeof error === 'object' && error && 'response' in error
             ? JSON.stringify((error as { response?: { body?: unknown } }).response?.body)
             : 'Unknown SendGrid error';
-      this.logger.error(`Failed to send client portal magic link email to ${params.to}: ${message}`);
+      this.logger.error(
+        `Failed to send client portal magic link email to ${maskEmail(params.to)}: ${message}`,
+      );
       throw error;
     }
   }

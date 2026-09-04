@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SubscriptionPlan } from '@lawfirm/shared';
+import { BillingPeriod, planPriceThb, SubscriptionPlan } from '@lawfirm/shared';
 import { api } from '@/lib/api';
 import { getStoredToken } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,9 @@ declare global {
 export interface CheckoutPlanInfo {
   plan: SubscriptionPlan;
   name: string;
+  /** Monthly base price; the charged amount is derived from billingPeriod. */
   priceThb: number;
+  billingPeriod?: BillingPeriod;
 }
 
 type PaymentMethod = 'promptpay' | 'card';
@@ -72,6 +74,10 @@ export function OmiseEmbeddedCheckout({
   const { locale } = useLocale();
   const d = useDashboardT();
   const loc = dateLocale(locale);
+  const billingPeriod = plan.billingPeriod ?? BillingPeriod.MONTHLY;
+  const yearly = billingPeriod === BillingPeriod.YEARLY;
+  const chargeAmount = planPriceThb(plan.plan, billingPeriod);
+  const perLabel = yearly ? d.payment.perYear : d.payment.perMonth;
   const [ready, setReady] = useState(false);
   const [mockMode, setMockMode] = useState(true);
   const [open, setOpen] = useState(false);
@@ -185,7 +191,7 @@ export function OmiseEmbeddedCheckout({
     setError('');
     setSubmitting(true);
     try {
-      const result = await api.checkoutPromptPay(token, plan.plan);
+      const result = await api.checkoutPromptPay(token, plan.plan, billingPeriod);
       if (result.paid) {
         onSuccess();
         return;
@@ -231,12 +237,12 @@ export function OmiseEmbeddedCheckout({
       if (!token) throw new Error('Not authenticated');
 
       if (nonce.startsWith('tokn_')) {
-        await api.checkout(token, plan.plan, nonce);
+        await api.checkout(token, plan.plan, nonce, undefined, billingPeriod);
         onSuccess();
         return;
       }
 
-      const result = await api.checkout(token, plan.plan, undefined, nonce);
+      const result = await api.checkout(token, plan.plan, undefined, nonce, billingPeriod);
       if (result.success) {
         onSuccess();
         return;
@@ -245,7 +251,7 @@ export function OmiseEmbeddedCheckout({
         startPolling(result.invoiceId);
       }
     },
-    [plan.plan, onSuccess, startPolling],
+    [plan.plan, billingPeriod, onSuccess, startPolling],
   );
 
   const openCardCheckout = useCallback(async () => {
@@ -262,10 +268,10 @@ export function OmiseEmbeddedCheckout({
       }
 
       window.OmiseCard.open({
-        amount: plan.priceThb * 100,
+        amount: chargeAmount * 100,
         currency: 'THB',
         frameLabel: 'LexFlow',
-        frameDescription: `${plan.name} — ${plan.priceThb.toLocaleString()} THB/month`,
+        frameDescription: `${plan.name} — ${chargeAmount.toLocaleString()} THB/${yearly ? 'year' : 'month'}`,
         onCreateTokenSuccess: async (nonce: string) => {
           try {
             await completeCardPayment(nonce);
@@ -320,7 +326,7 @@ export function OmiseEmbeddedCheckout({
             <h2 className="text-lg font-semibold">{d.payment.title}</h2>
             <p className="font-medium">{plan.name} Plan</p>
             <p className="text-sm text-muted-foreground">
-              {plan.priceThb.toLocaleString(loc)} {d.payment.perMonth}
+              {chargeAmount.toLocaleString(loc)} {perLabel}
             </p>
           </div>
           <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={closePanel} aria-label={d.common.close}>
@@ -395,7 +401,7 @@ export function OmiseEmbeddedCheckout({
             <Button className="w-full" onClick={openCardCheckout} disabled={submitting}>
               {submitting
                 ? d.payment.opening
-                : fmt(d.payment.payWithCard, { amount: plan.priceThb.toLocaleString(loc) })}
+                : fmt(d.payment.payWithCard, { amount: chargeAmount.toLocaleString(loc) })}
             </Button>
           </div>
         )}

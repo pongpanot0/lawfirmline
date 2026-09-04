@@ -22,6 +22,7 @@ import {
   X,
   Shield,
   Tags,
+  ClipboardList,
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,7 @@ import { useState } from 'react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false },
+  { href: '/intake', labelKey: 'intake' as const, icon: ClipboardList, ownerOnly: false },
   { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false },
   { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false },
   { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false },
@@ -68,9 +70,9 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
   return (
     <aside
       className={cn(
-        'flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200',
-        'fixed inset-y-0 left-0 z-50 w-72 md:relative md:z-auto md:translate-x-0',
-        mobileOpen ? 'translate-x-0' : '-translate-x-full',
+        'flex h-dvh flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200',
+        'fixed inset-y-0 left-0 z-50 w-72 shrink-0 md:relative md:h-full md:z-auto',
+        mobileOpen ? 'translate-x-0' : 'max-md:-translate-x-full',
         collapsed ? 'md:w-[68px]' : 'md:w-60',
       )}
     >

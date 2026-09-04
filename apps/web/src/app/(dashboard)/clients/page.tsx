@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, Mail, Phone, Building2, Briefcase, Plus, User } from 'lucide-react';
+import { Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Star } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ClientItem } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
@@ -28,12 +28,60 @@ export default function ClientsPage() {
   const [tab, setTab] = useState('information');
   const [loading, setLoading] = useState(true);
 
+  const emptyContact = { name: '', nickname: '', email: '', phone: '', position: '', isPrimary: false, notes: '' };
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [contactForm, setContactForm] = useState(emptyContact);
+  const [savingContact, setSavingContact] = useState(false);
+
   const load = () => {
     if (!token) return;
     api.getClients(token, search || undefined)
       .then(setClients)
       .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  const openAddContact = () => {
+    setEditingContactId(null);
+    setContactForm(emptyContact);
+    setShowContactForm(true);
+  };
+
+  const openEditContact = (c: ClientItem['contacts'][number]) => {
+    setEditingContactId(c.id ?? null);
+    setContactForm({ name: c.name, nickname: (c as any).nickname ?? '', email: c.email ?? '', phone: c.phone ?? '', position: c.position ?? '', isPrimary: c.isPrimary ?? false, notes: (c as any).notes ?? '' });
+    setShowContactForm(true);
+  };
+
+  const cancelContactForm = () => { setShowContactForm(false); setEditingContactId(null); };
+
+  const saveContact = async () => {
+    if (!token || !selected || !contactForm.name.trim()) return;
+    setSavingContact(true);
+    try {
+      let updatedContacts;
+      if (editingContactId) {
+        updatedContacts = selected.contacts.map((c) =>
+          c.id === editingContactId ? { ...c, ...contactForm } : c
+        );
+      } else {
+        updatedContacts = [...selected.contacts, { ...contactForm, dateAdded: new Date().toISOString() }];
+      }
+      const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
+      setSelected(updated);
+      setShowContactForm(false);
+      setEditingContactId(null);
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
+  const deleteContact = async (contactId: string) => {
+    if (!token || !selected || !confirm('ลบบุคคลติดต่อนี้?')) return;
+    const updatedContacts = selected.contacts.filter((c) => c.id !== contactId);
+    const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
+    setSelected(updated);
   };
 
   const togglePortalAccess = async (contactId: string, next: boolean) => {
@@ -110,36 +158,100 @@ export default function ClientsPage() {
           </TabsContent>
 
           <TabsContent value="contacts">
-            <div className="space-y-2">
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <Button size="sm" onClick={openAddContact}>
+                  <Plus className="h-4 w-4 mr-1" />เพิ่มบุคคลติดต่อ
+                </Button>
+              </div>
+
+              {/* Inline form */}
+              {showContactForm && (
+                <Card className="border-primary/40">
+                  <CardContent className="p-4 space-y-3">
+                    <p className="font-medium text-sm">{editingContactId ? 'แก้ไขบุคคลติดต่อ' : 'เพิ่มบุคคลติดต่อใหม่'}</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground">ชื่อ-นามสกุล *</label>
+                        <Input value={contactForm.name} onChange={(e) => setContactForm((f) => ({ ...f, name: e.target.value }))} placeholder="ชื่อ-นามสกุล" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">ชื่อเล่น</label>
+                        <Input value={contactForm.nickname} onChange={(e) => setContactForm((f) => ({ ...f, nickname: e.target.value }))} placeholder="ชื่อเล่น" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">เบอร์โทร</label>
+                        <Input value={contactForm.phone} onChange={(e) => setContactForm((f) => ({ ...f, phone: e.target.value }))} placeholder="เบอร์โทร" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">อีเมล</label>
+                        <Input value={contactForm.email} onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))} placeholder="อีเมล" type="email" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">ตำแหน่ง / ความสัมพันธ์</label>
+                        <Input value={contactForm.position} onChange={(e) => setContactForm((f) => ({ ...f, position: e.target.value }))} placeholder="เช่น CEO, ทายาท, ผู้จัดการ" />
+                      </div>
+                      <div className="flex items-center gap-2 pt-5">
+                        <input type="checkbox" id="isPrimary" checked={contactForm.isPrimary} onChange={(e) => setContactForm((f) => ({ ...f, isPrimary: e.target.checked }))} className="h-4 w-4" />
+                        <label htmlFor="isPrimary" className="text-sm">ผู้ติดต่อหลัก</label>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs text-muted-foreground">หมายเหตุ</label>
+                        <Input value={contactForm.notes} onChange={(e) => setContactForm((f) => ({ ...f, notes: e.target.value }))} placeholder="เช่น ติดต่อได้เฉพาะวันทำการ" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={cancelContactForm}>ยกเลิก</Button>
+                      <Button size="sm" onClick={saveContact} disabled={savingContact || !contactForm.name.trim()}>
+                        {savingContact ? 'กำลังบันทึก...' : 'บันทึก'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Contact list */}
               {selected.contacts.map((c, i) => (
                 <Card key={c.id ?? i}>
                   <CardContent className="flex items-start justify-between gap-3 p-4">
                     <div className="flex items-start gap-3">
                       <User className="mt-0.5 h-4 w-4 text-muted-foreground" />
                       <div>
-                        <p className="font-medium">
+                        <p className="font-medium flex items-center gap-2">
                           {c.name}
-                          {c.isPrimary && <span className="ml-2 text-xs text-primary">(Primary)</span>}
+                          {(c as any).nickname && <span className="text-muted-foreground font-normal text-sm">({(c as any).nickname})</span>}
+                          {c.isPrimary && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
                         </p>
                         {c.position && <p className="text-xs text-muted-foreground">{c.position}</p>}
                         <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
-                          {c.email && <p>{c.email}</p>}
-                          {c.phone && <p>{c.phone}</p>}
+                          {c.phone && <p className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</p>}
+                          {c.email && <p className="flex items-center gap-1"><Mail className="h-3 w-3" />{c.email}</p>}
+                          {(c as any).notes && <p className="text-xs italic">{(c as any).notes}</p>}
                         </div>
                       </div>
                     </div>
-                    {c.id && c.email && (
-                      <Button
-                        size="sm"
-                        variant={c.portalEnabled ? 'default' : 'outline'}
-                        onClick={() => togglePortalAccess(c.id!, !c.portalEnabled)}
-                      >
-                        {c.portalEnabled ? 'Portal enabled' : 'Enable portal'}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {c.id && c.email && (
+                        <Button size="sm" variant={c.portalEnabled ? 'default' : 'outline'} onClick={() => togglePortalAccess(c.id!, !c.portalEnabled)} className="text-xs h-7">
+                          {c.portalEnabled ? 'Portal on' : 'Portal'}
+                        </Button>
+                      )}
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditContact(c)}>
+                        <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                    )}
+                      {c.id && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteContact(c.id!)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
+
+              {selected.contacts.length === 0 && !showContactForm && (
+                <p className="text-sm text-muted-foreground text-center py-6">ยังไม่มีบุคคลติดต่อ — กด "เพิ่มบุคคลติดต่อ" เพื่อเริ่ม</p>
+              )}
             </div>
           </TabsContent>
 

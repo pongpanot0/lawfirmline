@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { AuthProvider } from '@/lib/auth';
 import { ThemeProvider } from '@/lib/theme';
 import './globals.css';
@@ -6,6 +6,11 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'LexFlow — Legal Case Management',
   description: 'Modern case management SaaS for Thai law firms',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -3,13 +3,15 @@ import { CasesService } from './cases.service';
 import { CasesController } from './cases.controller';
 import { CaseActivitiesService } from './case-activities.service';
 import { CaseActivitiesController } from './case-activities.controller';
+import { CaseParticipantsService } from './case-participants.service';
+import { CaseParticipantsController } from './case-participants.controller';
 import { CalendarModule } from '../calendar/calendar.module';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 
 @Module({
   imports: [CalendarModule],
-  controllers: [CasesController, CaseActivitiesController],
-  providers: [CasesService, CaseActivitiesService, FirmRoleGuard],
+  controllers: [CasesController, CaseActivitiesController, CaseParticipantsController],
+  providers: [CasesService, CaseActivitiesService, CaseParticipantsService, FirmRoleGuard],
   exports: [CasesService],
 })
 export class CasesModule {}

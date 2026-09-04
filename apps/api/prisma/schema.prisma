@@ -11,7 +11,6 @@ datasource db {
 enum Role {
   ADMIN
   LAWYER
-  CLERK
 }
 
 enum FirmRole {
@@ -39,6 +38,11 @@ enum BillingPaymentStatus {
   FAILED
 }
 
+enum BillingPeriod {
+  MONTHLY
+  YEARLY
+}
+
 enum CourtLevel {
   TRIAL
   APPEAL
@@ -54,6 +58,67 @@ enum CaseStatus {
   CLOSED
 }
 
+enum CaseOutcome {
+  WON
+  LOST
+  SETTLED
+  WITHDRAWN
+  IN_PROGRESS
+}
+
+enum IntakeStatus {
+  RECEIVED
+  ASSESSING
+  ACCEPTED
+  REJECTED
+  CONVERTED
+}
+
+enum IntakeDecision {
+  FILE_SUIT
+  DO_NOT_FILE
+  NEGOTIATE_FIRST
+  SEND_NOTICE
+  COMPLAIN_TO_AUTHORITY
+  PENDING
+}
+
+enum ReferralType {
+  INDIVIDUAL
+  LAWYER
+  HOSPITAL
+  COMPANY
+  GOVERNMENT
+  OTHER
+}
+
+enum ReferralChannel {
+  WALK_IN
+  PHONE
+  EMAIL
+  LINE
+  REFERRAL
+  OTHER
+}
+
+enum ParticipantRole {
+  PLAINTIFF
+  DEFENDANT
+  PETITIONER
+  RESPONDENT
+  WITNESS
+  EXPERT
+  OPPOSING_LAWYER
+  OPPOSING_INSURER
+  OTHER
+}
+
+enum ParticipantSide {
+  OURS
+  OPPONENT
+  NEUTRAL
+}
+
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -61,9 +126,7 @@ enum TaskStatus {
 }
 
 enum AssignmentType {
-  LEAD
-  CO_COUNSEL
-  CLERK
+  BUDDY
 }
 
 enum EventType {
@@ -115,6 +178,8 @@ model Firm {
   omiseCustomerId    String?
   maxUsers           Int                @default(2)
   officeAddress      String             @default("Bangkok, Thailand")
+  /// Prefix for auto Own Ref, e.g. TSBREF → TSBREF20260001
+  ownRefPrefix       String             @default("TSBREF")
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -128,6 +193,7 @@ model Firm {
   clients          Client[]
   courts           Court[]
   pettyCashFund    PettyCashFund?
+  intakes          Intake[]
 }
 
 model FirmMember {
@@ -165,6 +231,7 @@ model Subscription {
   id                   String             @id @default(uuid())
   firmId               String
   plan                 SubscriptionPlan
+  billingPeriod        BillingPeriod      @default(MONTHLY)
   status               SubscriptionStatus
   omiseSubscriptionId  String?
   currentPeriodStart   DateTime
@@ -183,6 +250,7 @@ model BillingInvoice {
   firmId        String
   invoiceNumber String               @unique
   plan          SubscriptionPlan
+  billingPeriod BillingPeriod        @default(MONTHLY)
   amount        Int
   currency      String               @default("THB")
   status        BillingPaymentStatus @default(PENDING)
@@ -264,6 +332,8 @@ model User {
   paidExpenses        Expense[]            @relation("ExpensePaidBy")
   knowledge           CaseKnowledge[]
   caseActivities      CaseActivity[]
+  receivedIntakes     Intake[]             @relation("IntakeReceiver")
+  assessedIntakes     Intake[]             @relation("IntakeAssessor")
 }
 
 model CaseType {
@@ -295,21 +365,25 @@ model Client {
   firm     Firm            @relation(fields: [firmId], references: [id], onDelete: Cascade)
   contacts ClientContact[]
   cases    Case[]
+  intakes  Intake[]
 
   @@index([firmId])
 }
 
 model ClientContact {
-  id            String  @id @default(uuid())
+  id            String   @id @default(uuid())
   clientId      String
   name          String
+  nickname      String?
   email         String?
   phone         String?
   position      String?
-  isPrimary     Boolean @default(false)
-  portalEnabled Boolean @default(false)
+  isPrimary     Boolean  @default(false)
+  portalEnabled Boolean  @default(false)
+  dateAdded     DateTime @default(now())
+  notes         String?
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client      Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   loginTokens ClientPortalLoginToken[]
 
   @@index([clientId])
@@ -344,35 +418,44 @@ model Court {
 }
 
 model Case {
-  id           String     @id @default(uuid())
+  id              String      @id @default(uuid())
   firmId          String
   ownRef          String
   customerRef     String?
   folderId        String
-  title        String
-  description  String?
-  status       CaseStatus @default(OPEN)
-  clientId     String?
-  clientName     String?
-  courtName      String?
-  courtLevel     CourtLevel?
+  title           String
+  description     String?
+  status          CaseStatus  @default(OPEN)
+  outcome         CaseOutcome @default(IN_PROGRESS)
+  clientId        String?
+  clientName      String?
+  courtName       String?
+  courtLevel      CourtLevel?
   blackCaseNumber String?
   redCaseNumber   String?
-  customFields Json?
-  caseTypeId   String?
+  customFields    Json?
+  caseTypeId      String?
+  subType         String?
+  claimedAmount   Float?
   estimatedFee    Float?
-  closingSummary  String?    @db.Text
+  actualFee       Float?
+  limitationDeadline DateTime?
+  referralSource  String?
+  intakeId        String?     @unique
+  closingSummary  String?     @db.Text
   leadLawyerId    String
-  openedAt        DateTime   @default(now())
+  openedAt        DateTime    @default(now())
   closedAt        DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   firm           Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
   client         Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
   leadLawyer     User             @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
   caseType       CaseType?        @relation(fields: [caseTypeId], references: [id])
+  intake         Intake?          @relation(fields: [intakeId], references: [id])
   assignments    CaseAssignment[]
+  participants   CaseParticipant[]
   tasks          Task[]
   documents      Document[]
   calendarEvents CalendarEvent[]
@@ -386,6 +469,72 @@ model Case {
   @@unique([firmId, folderId])
   @@index([firmId])
   @@index([clientId])
+}
+
+model Intake {
+  id              String          @id @default(uuid())
+  firmId          String
+  receivedById    String
+  receivedDate    DateTime        @default(now())
+  title           String?
+  referralType    ReferralType    @default(INDIVIDUAL)
+  referralChannel ReferralChannel @default(WALK_IN)
+  referralName    String?
+  clientId        String?
+  clientName      String?
+  matterType      String?
+  opposingParty   String?
+  incidentDate    DateTime?
+  description     String?         @db.Text
+  estimatedDamage Float?
+  status          IntakeStatus    @default(RECEIVED)
+  assessorId      String?
+  assessedAt      DateTime?
+  assessmentNotes String?         @db.Text
+  caseStrength    String?
+  decision        IntakeDecision  @default(PENDING)
+  decisionNotes   String?         @db.Text
+  decidedAt       DateTime?
+  clientDecision  String?
+  noticeIssuedAt  DateTime?
+  noticeRecipient String?
+  noticeDeadline  DateTime?
+  noticeResult    String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  firm       Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  receivedBy User    @relation("IntakeReceiver", fields: [receivedById], references: [id])
+  assessor   User?   @relation("IntakeAssessor", fields: [assessorId], references: [id])
+  client     Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  case       Case?
+
+  @@index([firmId])
+  @@index([clientId])
+}
+
+model CaseParticipant {
+  id                  String          @id @default(uuid())
+  caseId              String
+  name                String
+  nickname            String?
+  role                ParticipantRole @default(OTHER)
+  side                ParticipantSide @default(OPPONENT)
+  personType          String?
+  idNumber            String?
+  address             String?
+  phone               String?
+  email               String?
+  opposingLawyer      String?
+  opposingInsurer     String?
+  medicalLicenseNo    String?
+  notes               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
 }
 
 model CaseActivity {

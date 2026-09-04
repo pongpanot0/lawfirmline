@@ -19,7 +19,7 @@ import { AuthService } from '../auth/auth.service';
 import { AcceptInviteDto, CheckoutDto, InviteUserDto, PromptPayCheckoutDto } from './dto/saas.dto';
 import { FirmRoleGuard } from './guards/firm-role.guard';
 import { OwnerOnly, SkipSubscription } from './decorators/saas.decorators';
-import { SubscriptionPlan } from '@lawfirm/shared';
+import { BillingPeriod, SubscriptionPlan } from '@lawfirm/shared';
 
 @Controller('saas')
 export class SaasController {
@@ -58,10 +58,15 @@ export class SaasController {
   @OwnerOnly()
   @SkipSubscription()
   checkout(@CurrentUser() user: AuthUser, @Body() dto: CheckoutDto) {
-    return this.subscriptions.createCheckout(user, dto.plan as SubscriptionPlan, {
-      omiseToken: dto.omiseToken,
-      omiseSource: dto.omiseSource,
-    });
+    return this.subscriptions.createCheckout(
+      user,
+      dto.plan as SubscriptionPlan,
+      {
+        omiseToken: dto.omiseToken,
+        omiseSource: dto.omiseSource,
+      },
+      (dto.billingPeriod as BillingPeriod | undefined) ?? BillingPeriod.MONTHLY,
+    );
   }
 
   @Post('billing/checkout/promptpay')
@@ -69,7 +74,11 @@ export class SaasController {
   @OwnerOnly()
   @SkipSubscription()
   promptPayCheckout(@CurrentUser() user: AuthUser, @Body() dto: PromptPayCheckoutDto) {
-    return this.subscriptions.createPromptPayCheckout(user, dto.plan as SubscriptionPlan);
+    return this.subscriptions.createPromptPayCheckout(
+      user,
+      dto.plan as SubscriptionPlan,
+      (dto.billingPeriod as BillingPeriod | undefined) ?? BillingPeriod.MONTHLY,
+    );
   }
 
   @Get('billing/invoices/:invoiceId/qr')

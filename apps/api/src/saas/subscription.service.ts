@@ -2,7 +2,9 @@ import { Injectable, BadRequestException, ForbiddenException, Logger } from '@ne
 import { ConfigService } from '@nestjs/config';
 import {
   AuthUser,
+  BillingPeriod,
   PLAN_CONFIG,
+  planPriceThb,
   SubscriptionPlan,
   SubscriptionStatus,
   SubscriptionSummary,
@@ -66,25 +68,32 @@ export class SubscriptionService {
     }));
   }
 
-  private async createPendingInvoice(user: AuthUser, plan: SubscriptionPlan) {
+  private async createPendingInvoice(
+    user: AuthUser,
+    plan: SubscriptionPlan,
+    billingPeriod: BillingPeriod,
+  ) {
     const planConfig = PLAN_CONFIG[plan];
+    const amount = planPriceThb(plan, billingPeriod);
     const invoiceNumber = `LF-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const invoice = await this.prisma.billingInvoice.create({
       data: {
         firmId: user.firmId,
         invoiceNumber,
         plan,
-        amount: planConfig.priceThb,
+        billingPeriod,
+        amount,
         status: 'PENDING',
       },
     });
-    return { invoice, planConfig };
+    return { invoice, planConfig, amount };
   }
 
   async createCheckout(
     user: AuthUser,
     plan: SubscriptionPlan,
     payment: { omiseToken?: string; omiseSource?: string },
+    billingPeriod: BillingPeriod = BillingPeriod.MONTHLY,
   ) {
     if (!this.tenant.isOwner(user)) {
       throw new ForbiddenException('Only owners can manage billing');
@@ -94,12 +103,16 @@ export class SubscriptionService {
       throw new BadRequestException('Payment token or source required');
     }
 
-    const { invoice, planConfig } = await this.createPendingInvoice(user, plan);
-    const metadata = { firmId: user.firmId, invoiceId: invoice.id, plan };
+    const { invoice, planConfig, amount } = await this.createPendingInvoice(
+      user,
+      plan,
+      billingPeriod,
+    );
+    const metadata = { firmId: user.firmId, invoiceId: invoice.id, plan, billingPeriod };
     const chargeParams = {
-      amount: planConfig.priceThb * 100,
+      amount: amount * 100,
       currency: 'thb',
-      description: `LexFlow ${planConfig.name} Plan`,
+      description: `LexFlow ${planConfig.name} Plan (${billingPeriod === BillingPeriod.YEARLY ? 'Yearly' : 'Monthly'})`,
       metadata,
     };
 
@@ -116,7 +129,7 @@ export class SubscriptionService {
         await this.prisma.payment.create({
           data: {
             billingInvoiceId: invoice.id,
-            amount: planConfig.priceThb,
+            amount,
             status: 'PENDING',
             omiseChargeId: charge.id,
           },
@@ -132,7 +145,7 @@ export class SubscriptionService {
       await this.prisma.payment.create({
         data: {
           billingInvoiceId: invoice.id,
-          amount: planConfig.priceThb,
+          amount,
           status: 'FAILED',
           omiseChargeId: charge.id,
           failureCode: charge.failure_code,
@@ -142,23 +155,31 @@ export class SubscriptionService {
       throw new BadRequestException(charge.failure_message ?? 'Payment failed');
     }
 
-    return this.activateSubscription(user.firmId, plan, invoice.id, charge.id, planConfig.priceThb);
+    return this.activateSubscription(user.firmId, plan, invoice.id, charge.id, amount);
   }
 
-  async createPromptPayCheckout(user: AuthUser, plan: SubscriptionPlan) {
+  async createPromptPayCheckout(
+    user: AuthUser,
+    plan: SubscriptionPlan,
+    billingPeriod: BillingPeriod = BillingPeriod.MONTHLY,
+  ) {
     if (!this.tenant.isOwner(user)) {
       throw new ForbiddenException('Only owners can manage billing');
     }
 
-    const { invoice, planConfig } = await this.createPendingInvoice(user, plan);
-    const metadata = { firmId: user.firmId, invoiceId: invoice.id, plan };
+    const { invoice, planConfig, amount } = await this.createPendingInvoice(
+      user,
+      plan,
+      billingPeriod,
+    );
+    const metadata = { firmId: user.firmId, invoiceId: invoice.id, plan, billingPeriod };
 
     let result;
     try {
       result = await this.omise.createPromptPayCharge({
-        amount: planConfig.priceThb * 100,
+        amount: amount * 100,
         currency: 'thb',
-        description: `LexFlow ${planConfig.name} Plan (PromptPay)`,
+        description: `LexFlow ${planConfig.name} Plan (${billingPeriod === BillingPeriod.YEARLY ? 'Yearly' : 'Monthly'}, PromptPay)`,
         metadata,
       });
     } catch (err) {
@@ -176,26 +197,20 @@ export class SubscriptionService {
     await this.prisma.payment.create({
       data: {
         billingInvoiceId: invoice.id,
-        amount: planConfig.priceThb,
+        amount,
         status: 'PENDING',
         omiseChargeId: result.chargeId,
       },
     });
 
     if (result.paid) {
-      await this.activateSubscription(
-        user.firmId,
-        plan,
-        invoice.id,
-        result.chargeId,
-        planConfig.priceThb,
-      );
+      await this.activateSubscription(user.firmId, plan, invoice.id, result.chargeId, amount);
     }
 
     return {
       invoiceId: invoice.id,
       chargeId: result.chargeId,
-      amount: planConfig.priceThb,
+      amount,
       expiresAt: result.expiresAt,
       paid: result.paid,
     };
@@ -299,9 +314,10 @@ export class SubscriptionService {
       return { success: true, plan, periodEnd: existing?.periodEnd?.toISOString() ?? null };
     }
 
+    const billingPeriod = (existing.billingPeriod as BillingPeriod) ?? BillingPeriod.MONTHLY;
     const now = new Date();
     const periodEnd = new Date(now);
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    periodEnd.setMonth(periodEnd.getMonth() + (billingPeriod === BillingPeriod.YEARLY ? 12 : 1));
     const planConfig = PLAN_CONFIG[plan];
 
     await this.prisma.$transaction(async (tx) => {
@@ -339,6 +355,7 @@ export class SubscriptionService {
         data: {
           firmId,
           plan,
+          billingPeriod,
           status: SubscriptionStatus.ACTIVE,
           currentPeriodStart: now,
           currentPeriodEnd: periodEnd,
@@ -349,7 +366,7 @@ export class SubscriptionService {
         data: {
           firmId,
           action: 'SUBSCRIPTION_ACTIVATED',
-          metadata: { plan, chargeId },
+          metadata: { plan, billingPeriod, chargeId },
         },
       });
     });

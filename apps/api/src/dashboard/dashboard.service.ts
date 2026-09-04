@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AuthUser, FirmRole, Role } from '@lawfirm/shared';
+import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { BillingService } from '../billing/billing.service';
@@ -50,24 +50,16 @@ export class DashboardService {
             dueDate: { lt: now },
           },
         }),
-        user.role === Role.CLERK
-          ? this.prisma.task.count({
-              where: {
-                assigneeId: user.id,
-                status: { not: 'DONE' },
-                case: { firmId: user.firmId },
-              },
-            })
-          : this.prisma.task.count({
-              where: {
-                case: caseFilter,
-                status: { not: 'DONE' },
-                OR: [
-                  { assigneeId: user.id },
-                  ...(isOwner ? [{}] : []),
-                ],
-              },
-            }),
+        this.prisma.task.count({
+          where: {
+            case: caseFilter,
+            status: { not: 'DONE' },
+            OR: [
+              { assigneeId: user.id },
+              ...(isOwner ? [{}] : []),
+            ],
+          },
+        }),
       ]);
 
     const [pendingExpenseCount, pendingReimbursementList, timeEntries, caseProfits] =

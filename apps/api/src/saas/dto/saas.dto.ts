@@ -1,5 +1,5 @@
 import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { FirmRole, SubscriptionPlan } from '../../generated/prisma';
+import { BillingPeriod, FirmRole, SubscriptionPlan } from '../../generated/prisma';
 
 export class InviteUserDto {
   @IsEmail()
@@ -32,6 +32,10 @@ export class CheckoutDto {
   plan!: SubscriptionPlan;
 
   @IsOptional()
+  @IsEnum(BillingPeriod)
+  billingPeriod?: BillingPeriod;
+
+  @IsOptional()
   @IsString()
   omiseToken?: string;
 
@@ -43,4 +47,8 @@ export class CheckoutDto {
 export class PromptPayCheckoutDto {
   @IsEnum(SubscriptionPlan)
   plan!: SubscriptionPlan;
+
+  @IsOptional()
+  @IsEnum(BillingPeriod)
+  billingPeriod?: BillingPeriod;
 }

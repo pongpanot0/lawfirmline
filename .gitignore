@@ -10,3 +10,8 @@ coverage
 .turbo
 apps/api/src/generated
 .superpowers/
+
+# Playwright
+e2e/.auth/
+e2e/report/
+test-results/

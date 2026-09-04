@@ -27,6 +27,7 @@ export const dashboardCopy = {
     nav: {
       tagline: 'ระบบจัดการคดีความ',
       dashboard: 'แดชบอร์ด',
+      intake: 'รับเรื่อง',
       cases: 'คดี',
       clients: 'ลูกค้า',
       courtSchedule: 'ตารางศาล',
@@ -80,6 +81,11 @@ export const dashboardCopy = {
       plans: 'แพ็กเกจ',
       loadingPlans: 'กำลังโหลดแพ็กเกจ...',
       perMonth: 'THB/เดือน',
+      perYear: 'THB/ปี',
+      billingMonthly: 'รายเดือน',
+      billingYearly: 'รายปี',
+      yearlySave: 'ฟรี 2 เดือน',
+      billedYearly: 'เรียกเก็บ {amount} THB/ปี (เท่ากับ {monthly} THB/เดือน)',
       upToUsers: 'สูงสุด {count} users',
       currentPlan: 'แพ็กเกจปัจจุบัน',
       subscribe: 'สมัคร / ชำระเงิน',
@@ -100,6 +106,7 @@ export const dashboardCopy = {
     payment: {
       title: 'ชำระเงิน',
       perMonth: 'THB / เดือน',
+      perYear: 'THB / ปี',
       testMode: 'โหมดทดสอบ — QR จะสำเร็จอัตโนมัติในไม่กี่วินาที; บัตรใช้ mock payment',
       promptPay: 'PromptPay QR',
       creditCard: 'บัตรเครดิต',
@@ -178,7 +185,7 @@ export const dashboardCopy = {
       caseTitle: 'ชื่อคดี',
       ownRef: 'Own Ref',
       customerRef: 'Customer Ref',
-      assignedLawyer: 'ทนายที่รับผิดชอบ',
+      assignedLawyer: 'เจ้าของเคส',
       lastUpdated: 'อัปเดตล่าสุด',
       newForm: {
         clientLabel: 'ลูกค้า',
@@ -308,6 +315,7 @@ export const dashboardCopy = {
     nav: {
       tagline: 'Legal Case Management',
       dashboard: 'Dashboard',
+      intake: 'Intake',
       cases: 'Cases',
       clients: 'Clients',
       courtSchedule: 'Court Schedule',
@@ -361,6 +369,11 @@ export const dashboardCopy = {
       plans: 'Plans',
       loadingPlans: 'Loading plans...',
       perMonth: 'THB/mo',
+      perYear: 'THB/yr',
+      billingMonthly: 'Monthly',
+      billingYearly: 'Yearly',
+      yearlySave: '2 months free',
+      billedYearly: 'Billed {amount} THB/year (≈ {monthly} THB/mo)',
       upToUsers: 'Up to {count} users',
       currentPlan: 'Current plan',
       subscribe: 'Subscribe / Pay',
@@ -381,6 +394,7 @@ export const dashboardCopy = {
     payment: {
       title: 'Payment',
       perMonth: 'THB / month',
+      perYear: 'THB / year',
       testMode: 'Test mode — QR auto-completes after a few seconds; card uses mock payment.',
       promptPay: 'PromptPay QR',
       creditCard: 'Credit Card',
@@ -459,7 +473,7 @@ export const dashboardCopy = {
       caseTitle: 'Case Title',
       ownRef: 'Own Ref',
       customerRef: 'Customer Ref',
-      assignedLawyer: 'Assigned Lawyer',
+      assignedLawyer: 'Case Owner',
       lastUpdated: 'Last Updated',
       newForm: {
         clientLabel: 'Client',

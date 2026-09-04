@@ -82,6 +82,12 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    min-height: 100dvh;
+    width: 100%;
+  }
+
+  html {
+    width: 100%;
   }
 }
 

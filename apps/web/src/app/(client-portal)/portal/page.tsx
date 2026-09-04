@@ -31,8 +31,8 @@ export default function PortalDashboardPage() {
   if (loading || !contact) return null;
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="mx-auto max-w-3xl">
+    <div className="min-h-screen w-full bg-background p-6">
+      <div className="w-full">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Welcome, {contact.name}</h1>

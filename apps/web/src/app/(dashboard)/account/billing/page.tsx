@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FirmRole, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
+import { BillingPeriod, FirmRole, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, BillingInvoiceItem } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check } from 'lucide-react';
 import { OmiseEmbeddedCheckout } from '@/components/billing/OmiseEmbeddedCheckout';
+import { BillingPeriodToggle } from '@/components/billing/BillingPeriodToggle';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
 
@@ -34,6 +35,7 @@ function BillingPageContent() {
   const [loading, setLoading] = useState(true);
   const [autoOpenPlan, setAutoOpenPlan] = useState<SubscriptionPlan | null>(null);
   const [paymentError, setPaymentError] = useState('');
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(BillingPeriod.MONTHLY);
   const loc = dateLocale(locale);
 
   useEffect(() => {
@@ -164,16 +166,30 @@ function BillingPageContent() {
         {loading ? (
           <p className="text-muted-foreground">{d.billing.loadingPlans}</p>
         ) : (
+          <>
+          <BillingPeriodToggle value={billingPeriod} onChange={setBillingPeriod} className="mb-4 justify-start" />
           <div className="grid gap-4 md:grid-cols-3">
-            {plans.map((plan) => (
+            {plans.map((plan) => {
+              const yearly = billingPeriod === BillingPeriod.YEARLY;
+              const total = planPriceThb(plan.plan as SubscriptionPlan, billingPeriod);
+              const shownMonthly = yearly ? Math.round(total / 12) : plan.priceThb;
+              return (
               <Card key={plan.plan} className={plan.isCurrent ? 'border-primary ring-2 ring-primary/20' : ''}>
                 <CardContent className="space-y-4 p-6">
                   <div>
                     <h3 className="font-semibold">{plan.name}</h3>
                     <p className="text-2xl font-bold text-primary">
-                      {plan.priceThb.toLocaleString(loc)}{' '}
+                      {shownMonthly.toLocaleString(loc)}{' '}
                       <span className="text-sm font-normal text-muted-foreground">{d.billing.perMonth}</span>
                     </p>
+                    {yearly && (
+                      <p className="text-xs text-muted-foreground">
+                        {fmt(d.billing.billedYearly, {
+                          amount: total.toLocaleString(loc),
+                          monthly: shownMonthly.toLocaleString(loc),
+                        })}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {fmt(d.billing.upToUsers, { count: plan.maxUsers })}
                     </p>
@@ -190,6 +206,7 @@ function BillingPageContent() {
                       plan: plan.plan as SubscriptionPlan,
                       name: plan.name,
                       priceThb: plan.priceThb,
+                      billingPeriod,
                     }}
                     className="w-full"
                     variant={plan.isCurrent ? 'outline' : 'default'}
@@ -202,8 +219,10 @@ function BillingPageContent() {
                   </OmiseEmbeddedCheckout>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
+          </>
         )}
       </div>
 

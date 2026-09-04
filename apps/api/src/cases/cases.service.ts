@@ -98,6 +98,7 @@ export class CasesService {
           orderBy: { activityAt: 'desc' },
           take: 20,
         },
+        participants: { orderBy: { createdAt: 'asc' } },
         client: {
           select: {
             id: true,
@@ -117,11 +118,73 @@ export class CasesService {
     return `LF-${year}-${rand}`;
   }
 
-  async create(user: AuthUser, dto: CreateCaseDto) {
-    const existing = await this.prisma.case.findUnique({
-      where: { firmId_ownRef: { firmId: user.firmId, ownRef: dto.ownRef } },
+  /** Bangkok calendar year for Own Ref sequencing. */
+  private bangkokYear(date = new Date()): string {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+    }).format(date);
+  }
+
+  /**
+   * Own Ref format: {prefix}{YYYY}{NNNN}
+   * e.g. TSBREF20260001 — sequence runs through the calendar year, resets each Jan 1 (Bangkok).
+   */
+  async generateOwnRef(firmId: string): Promise<string> {
+    const firm = await this.prisma.firm.findUnique({
+      where: { id: firmId },
+      select: { ownRefPrefix: true },
     });
-    if (existing) throw new ConflictException('Own ref already exists');
+    const prefix = (firm?.ownRefPrefix || 'TSBREF').toUpperCase();
+    const year = this.bangkokYear();
+    const yearKey = `${prefix}${year}`;
+
+    const existing = await this.prisma.case.findMany({
+      where: {
+        firmId,
+        ownRef: { startsWith: yearKey },
+      },
+      select: { ownRef: true },
+    });
+
+    let maxSeq = 0;
+    const pattern = new RegExp(
+      `^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${year}(\\d+)$`,
+    );
+    for (const row of existing) {
+      const match = row.ownRef.match(pattern);
+      if (!match) continue;
+      const seq = parseInt(match[1], 10);
+      if (!Number.isNaN(seq) && seq > maxSeq) maxSeq = seq;
+    }
+
+    const nextSeq = String(maxSeq + 1).padStart(4, '0');
+    return `${prefix}${year}${nextSeq}`;
+  }
+
+  async previewNextOwnRef(user: AuthUser) {
+    const ownRef = await this.generateOwnRef(user.firmId);
+    return { ownRef };
+  }
+
+  async create(user: AuthUser, dto: CreateCaseDto) {
+    let ownRef = dto.ownRef?.trim()
+      ? dto.ownRef.trim()
+      : await this.generateOwnRef(user.firmId);
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const existing = await this.prisma.case.findUnique({
+        where: { firmId_ownRef: { firmId: user.firmId, ownRef } },
+      });
+      if (!existing) break;
+      if (dto.ownRef?.trim()) {
+        throw new ConflictException('Own ref already exists');
+      }
+      if (attempt === 4) {
+        throw new ConflictException('Could not allocate a unique Own Ref — please retry');
+      }
+      ownRef = await this.generateOwnRef(user.firmId);
+    }
 
     if (dto.caseTypeId) {
       const caseType = await this.prisma.caseType.findFirst({
@@ -146,8 +209,7 @@ export class CasesService {
 
     const teamUserIds = [
       dto.leadLawyerId,
-      ...(dto.coCounselIds ?? []),
-      ...(dto.clerkIds ?? []),
+      ...(dto.buddyIds ?? []),
     ];
     const uniqueTeamUserIds = [...new Set(teamUserIds)];
     const firmMembers = await this.prisma.firmMember.count({
@@ -157,25 +219,18 @@ export class CasesService {
       throw new BadRequestException('All assigned team members must belong to your firm');
     }
 
-    const assignments: Prisma.CaseAssignmentCreateWithoutCaseInput[] = [];
-
-    for (const userId of dto.coCounselIds ?? []) {
-      assignments.push({
+    const buddyIds = [...new Set((dto.buddyIds ?? []).filter((id) => id !== dto.leadLawyerId))];
+    const assignments: Prisma.CaseAssignmentCreateWithoutCaseInput[] = buddyIds.map(
+      (userId) => ({
         user: { connect: { id: userId } },
-        assignmentType: AssignmentType.CO_COUNSEL,
-      });
-    }
-    for (const userId of dto.clerkIds ?? []) {
-      assignments.push({
-        user: { connect: { id: userId } },
-        assignmentType: AssignmentType.CLERK,
-      });
-    }
+        assignmentType: AssignmentType.BUDDY,
+      }),
+    );
 
     const created = await this.prisma.case.create({
       data: {
         firmId: user.firmId,
-        ownRef: dto.ownRef,
+        ownRef,
         customerRef: dto.customerRef,
         folderId: this.generateFolderId(),
         title: dto.title,
@@ -231,7 +286,6 @@ export class CasesService {
       include: this.caseInclude,
     });
   }
-
 
   async updateAssignments(user: AuthUser, id: string, dto: UpdateCaseAssignmentsDto) {
     const legalCase = await this.prisma.case.findFirst({

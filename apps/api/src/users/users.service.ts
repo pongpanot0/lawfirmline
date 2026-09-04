@@ -71,15 +71,4 @@ export class UsersService {
     });
     return users.map((u) => this.sanitize(u));
   }
-
-  async findClerks(firmId: string) {
-    const users = await this.prisma.user.findMany({
-      where: {
-        role: 'CLERK',
-        firmMembers: { some: { firmId } },
-      },
-      orderBy: { lastName: 'asc' },
-    });
-    return users.map((u) => this.sanitize(u));
-  }
 }

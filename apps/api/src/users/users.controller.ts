@@ -32,11 +32,6 @@ export class UsersController {
     return this.usersService.findLawyers(user.firmId);
   }
 
-  @Get('clerks')
-  findClerks(@CurrentUser() user: AuthUser) {
-    return this.usersService.findClerks(user.firmId);
-  }
-
   @Get(':id')
   @Roles(Role.ADMIN)
   findOne(@Param('id') id: string) {

@@ -13,6 +13,7 @@ import {
   SubscriptionStatus,
   TRIAL_DAYS,
   PLAN_CONFIG,
+  maskEmail,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
@@ -78,7 +79,7 @@ export class SaasAuthService {
           firmId: firm.id,
           userId: createdUser.id,
           action: 'FIRM_REGISTERED',
-          metadata: { email: dto.email },
+          metadata: { email: maskEmail(dto.email) },
         },
       });
 
