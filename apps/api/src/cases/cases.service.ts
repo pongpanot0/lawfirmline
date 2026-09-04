@@ -267,6 +267,9 @@ export class CasesService {
     await this.findOne(user, id);
 
     if (dto.leadLawyerId) {
+      if (user.firmRole !== FirmRole.OWNER) {
+        throw new ForbiddenException('Only owners can reassign the case lead lawyer');
+      }
       const isMember = await this.prisma.firmMember.count({
         where: { firmId: user.firmId, userId: dto.leadLawyerId },
       });
