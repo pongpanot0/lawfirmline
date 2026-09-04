@@ -138,6 +138,38 @@ export interface UserItem {
   role: import('@lawfirm/shared').Role;
 }
 
+export interface WorkloadSummary {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  leadCount: number;
+  buddyCount: number;
+  nearDeadlineCount: number;
+}
+
+export interface WorkloadCaseItem {
+  caseId: string;
+  title: string;
+  status: string;
+  role: 'LEAD' | 'BUDDY';
+  nearestDeadlineDays: number | null;
+}
+
+export interface WorkloadDetail {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  cases: WorkloadCaseItem[];
+}
+
+export interface PairingEntry {
+  userAId: string;
+  userAName: string;
+  userBId: string;
+  userBName: string;
+  count: number;
+}
+
 export interface CalendarEventItem {
   id: string;
   title: string;
@@ -533,6 +565,21 @@ export const api = {
     }),
 
   getLawyers: (token: string) => request<UserItem[]>('/users/lawyers', { token }),
+
+  getWorkloadSummary: (token: string, nearDeadlineDays = 7) =>
+    request<WorkloadSummary[]>(`/operations/workload?nearDeadlineDays=${nearDeadlineDays}`, { token }),
+
+  getWorkloadDetail: (token: string, userId: string, nearDeadlineDays = 7) =>
+    request<WorkloadDetail>(`/operations/workload/${userId}?nearDeadlineDays=${nearDeadlineDays}`, { token }),
+
+  getPairing: (token: string) => request<PairingEntry[]>('/operations/pairing', { token }),
+
+  updateCaseAssignments: (token: string, caseId: string, buddyIds: string[]) =>
+    request(`/cases/${caseId}/assignments`, {
+      method: 'PUT',
+      token,
+      body: JSON.stringify({ buddyIds }),
+    }),
 
   getClerks: (token: string) => request<UserItem[]>('/users/clerks', { token }),
 
