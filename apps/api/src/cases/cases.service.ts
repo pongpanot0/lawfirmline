@@ -146,8 +146,7 @@ export class CasesService {
 
     const teamUserIds = [
       dto.leadLawyerId,
-      ...(dto.coCounselIds ?? []),
-      ...(dto.clerkIds ?? []),
+      ...(dto.buddyIds ?? []),
     ];
     const uniqueTeamUserIds = [...new Set(teamUserIds)];
     const firmMembers = await this.prisma.firmMember.count({
@@ -157,20 +156,13 @@ export class CasesService {
       throw new BadRequestException('All assigned team members must belong to your firm');
     }
 
-    const assignments: Prisma.CaseAssignmentCreateWithoutCaseInput[] = [];
-
-    for (const userId of dto.coCounselIds ?? []) {
-      assignments.push({
+    const buddyIds = [...new Set((dto.buddyIds ?? []).filter((id) => id !== dto.leadLawyerId))];
+    const assignments: Prisma.CaseAssignmentCreateWithoutCaseInput[] = buddyIds.map(
+      (userId) => ({
         user: { connect: { id: userId } },
-        assignmentType: AssignmentType.CO_COUNSEL,
-      });
-    }
-    for (const userId of dto.clerkIds ?? []) {
-      assignments.push({
-        user: { connect: { id: userId } },
-        assignmentType: AssignmentType.CLERK,
-      });
-    }
+        assignmentType: AssignmentType.BUDDY,
+      }),
+    );
 
     const created = await this.prisma.case.create({
       data: {
@@ -212,6 +204,9 @@ export class CasesService {
     await this.findOne(user, id);
 
     if (dto.leadLawyerId) {
+      if (user.firmRole !== FirmRole.OWNER) {
+        throw new ForbiddenException('Only owners can reassign the case lead lawyer');
+      }
       const isMember = await this.prisma.firmMember.count({
         where: { firmId: user.firmId, userId: dto.leadLawyerId },
       });

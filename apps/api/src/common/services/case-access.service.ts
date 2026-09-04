@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AssignmentType, AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../../prisma/prisma.module';
 
 @Injectable()
@@ -21,15 +21,8 @@ export class CaseAccessService {
 
     if (legalCase.leadLawyerId === user.id) return true;
 
-    const coCounsel = legalCase.assignments.some(
-      (a) => a.userId === user.id && a.assignmentType === AssignmentType.CO_COUNSEL,
-    );
-    if (coCounsel) return true;
-
-    const clerk = legalCase.assignments.some(
-      (a) => a.userId === user.id && a.assignmentType === AssignmentType.CLERK,
-    );
-    if (clerk || legalCase.tasks.length > 0) return true;
+    const isBuddy = legalCase.assignments.some((a) => a.userId === user.id);
+    if (isBuddy || legalCase.tasks.length > 0) return true;
 
     return false;
   }

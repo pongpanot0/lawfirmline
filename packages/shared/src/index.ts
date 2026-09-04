@@ -105,11 +105,14 @@ export enum TaskStatus {
   DONE = 'DONE',
 }
 
+/** Per-case helper role. Case Owner is stored on Case.leadLawyerId, not here. */
 export enum AssignmentType {
-  LEAD = 'LEAD',
-  CO_COUNSEL = 'CO_COUNSEL',
-  CLERK = 'CLERK',
+  BUDDY = 'BUDDY',
 }
+
+export const ASSIGNMENT_TYPE_LABELS: Record<AssignmentType, string> = {
+  [AssignmentType.BUDDY]: 'Buddy / ผู้ช่วย',
+};
 
 export enum EventType {
   COURT_DATE = 'COURT_DATE',

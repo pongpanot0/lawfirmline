@@ -74,12 +74,7 @@ export class CreateCaseDto {
   @IsOptional()
   @IsArray()
   @IsUUID('4', { each: true })
-  coCounselIds?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @IsUUID('4', { each: true })
-  clerkIds?: string[];
+  buddyIds?: string[];
 
   @IsOptional()
   @IsEnum(CaseStatus)

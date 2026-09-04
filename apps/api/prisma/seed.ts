@@ -235,11 +235,11 @@ async function main() {
           create: [
             ...coCounsel.map((userId) => ({
               userId,
-              assignmentType: AssignmentType.CO_COUNSEL,
+              assignmentType: AssignmentType.BUDDY,
             })),
             ...clerks.map((userId) => ({
               userId,
-              assignmentType: AssignmentType.CLERK,
+              assignmentType: AssignmentType.BUDDY,
             })),
           ],
         },

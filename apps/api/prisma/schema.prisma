@@ -61,9 +61,7 @@ enum TaskStatus {
 }
 
 enum AssignmentType {
-  LEAD
-  CO_COUNSEL
-  CLERK
+  BUDDY
 }
 
 enum EventType {
