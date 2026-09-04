@@ -26,7 +26,6 @@ export default function NewCasePage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
-  const [clerks, setClerks] = useState<UserItem[]>([]);
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [courts, setCourts] = useState<CourtItem[]>([]);
@@ -50,8 +49,7 @@ export default function NewCasePage() {
     description: '',
     estimatedFee: '',
     leadLawyerId: user?.id ?? '',
-    coCounselIds: [] as string[],
-    clerkIds: [] as string[],
+    buddyIds: [] as string[],
     customFields: {} as Record<string, string>,
     addInitialActivity: false,
     initialActivityTitle: '',
@@ -76,15 +74,13 @@ export default function NewCasePage() {
     setLoadingTypes(true);
     Promise.all([
       api.getLawyers(token),
-      api.getClerks(token).catch(() => [] as UserItem[]),
       api.getCaseTypes(token),
       api.getClients(token).catch(() => [] as ClientItem[]),
       api.getCourts(token).catch(() => [] as CourtItem[]),
       api.getWorkloadSummary(token).catch(() => [] as WorkloadSummary[]),
     ])
-      .then(([lawyerList, clerkList, types, clientList, courtList, workloadList]) => {
+      .then(([lawyerList, types, clientList, courtList, workloadList]) => {
         setLawyers(lawyerList);
-        setClerks(clerkList);
         setCaseTypes(types);
         setClients(clientList);
         setCourts(courtList);
@@ -100,12 +96,12 @@ export default function NewCasePage() {
     }
   }, [user, form.leadLawyerId]);
 
-  const toggleMulti = (field: 'coCounselIds' | 'clerkIds', id: string) => {
+  const toggleBuddy = (id: string) => {
     setForm((prev) => ({
       ...prev,
-      [field]: prev[field].includes(id)
-        ? prev[field].filter((x) => x !== id)
-        : [...prev[field], id],
+      buddyIds: prev.buddyIds.includes(id)
+        ? prev.buddyIds.filter((x) => x !== id)
+        : [...prev.buddyIds, id],
     }));
   };
 
@@ -168,8 +164,7 @@ export default function NewCasePage() {
         estimatedFee: form.estimatedFee ? parseFloat(form.estimatedFee) : undefined,
         leadLawyerId: form.leadLawyerId,
         caseTypeId: form.caseTypeId,
-        coCounselIds: form.coCounselIds,
-        clerkIds: form.clerkIds,
+        buddyIds: form.buddyIds,
         customFields: Object.keys(form.customFields).length ? form.customFields : undefined,
       };
       if (form.clientId) {
@@ -550,7 +545,7 @@ export default function NewCasePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Co-Counsel</label>
+              <label className="block text-sm font-medium text-slate-700">Buddy / ผู้ช่วย</label>
               <div className="mt-2 space-y-2">
                 {lawyers
                   .filter((l) => l.id !== form.leadLawyerId)
@@ -558,28 +553,13 @@ export default function NewCasePage() {
                     <label key={l.id} className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
-                        checked={form.coCounselIds.includes(l.id)}
-                        onChange={() => toggleMulti('coCounselIds', l.id)}
+                        checked={form.buddyIds.includes(l.id)}
+                        onChange={() => toggleBuddy(l.id)}
                       />
                       {l.firstName} {l.lastName}
                       {workloadLabel(l.id)}
                     </label>
                   ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Clerks</label>
-              <div className="mt-2 space-y-2">
-                {clerks.map((c) => (
-                  <label key={c.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={form.clerkIds.includes(c.id)}
-                      onChange={() => toggleMulti('clerkIds', c.id)}
-                    />
-                    {c.firstName} {c.lastName}
-                  </label>
-                ))}
               </div>
             </div>
             <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
