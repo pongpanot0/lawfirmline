@@ -25,6 +25,7 @@ import { TravelModule } from './travel/travel.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { TemplatesModule } from './templates/templates.module';
 import { HealthModule } from './health/health.module';
+import { OperationsModule } from './operations/operations.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { HealthModule } from './health/health.module';
     TravelModule,
     IntelligenceModule,
     TemplatesModule,
+    OperationsModule,
   ],
   providers: [
     {
