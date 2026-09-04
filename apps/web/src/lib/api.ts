@@ -266,10 +266,10 @@ export interface CaseDetail extends CaseItem {
   courtName?: string | null;
   customFields?: Record<string, unknown> | null;
   openedAt: string;
-  leadLawyer: { firstName: string; lastName: string; email: string };
+  leadLawyer: { id: string; firstName: string; lastName: string; email: string };
   assignments: Array<{
     assignmentType: string;
-    user: { firstName: string; lastName: string; role: string };
+    user: { id: string; firstName: string; lastName: string; role: string };
   }>;
   tasks: Array<{
     id: string;

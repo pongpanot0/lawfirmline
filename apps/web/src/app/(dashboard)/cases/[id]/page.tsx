@@ -14,10 +14,19 @@ import {
   X,
   Lock,
   LockOpen,
+  Pencil,
 } from 'lucide-react';
-import { ActivityType, CaseStatus, COURT_LEVEL_LABELS } from '@lawfirm/shared';
+import { ActivityType, CaseStatus, COURT_LEVEL_LABELS, FirmRole } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CaseDetail, TaskItem, CaseActivityItem, ApiError } from '@/lib/api';
+import {
+  api,
+  CaseDetail,
+  TaskItem,
+  CaseActivityItem,
+  UserItem,
+  WorkloadSummary,
+  ApiError,
+} from '@/lib/api';
 import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,7 +54,7 @@ const ACTIVITY_ICONS: Record<string, typeof Gavel> = {
 
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const [legalCase, setCase] = useState<CaseDetail | null>(null);
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
@@ -64,6 +73,12 @@ export default function CaseDetailPage() {
   const [closingCase, setClosingCase] = useState(false);
   const [reopeningCase, setReopeningCase] = useState(false);
   const [closeError, setCloseError] = useState('');
+  const [editingTeam, setEditingTeam] = useState(false);
+  const [savingTeam, setSavingTeam] = useState(false);
+  const [teamError, setTeamError] = useState('');
+  const [lawyers, setLawyers] = useState<UserItem[]>([]);
+  const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
+  const [teamForm, setTeamForm] = useState({ leadLawyerId: '', buddyIds: [] as string[] });
   const [activityForm, setActivityForm] = useState({
     title: '',
     description: '',
@@ -92,6 +107,48 @@ export default function CaseDetailPage() {
   useEffect(() => {
     loadCase();
   }, [token, id]);
+
+  const startEditTeam = () => {
+    if (!legalCase) return;
+    setTeamForm({
+      leadLawyerId: legalCase.leadLawyer.id,
+      buddyIds: legalCase.assignments.map((a) => a.user.id),
+    });
+    setTeamError('');
+    if (token && lawyers.length === 0) {
+      Promise.all([
+        api.getLawyers(token),
+        api.getWorkloadSummary(token).catch(() => [] as WorkloadSummary[]),
+      ]).then(([l, w]) => {
+        setLawyers(l);
+        setWorkload(w);
+      });
+    }
+    setEditingTeam(true);
+  };
+
+  const workloadLabel = (userId: string) => {
+    const w = workload.find((x) => x.userId === userId);
+    if (!w) return '';
+    return ` (Lead ${w.leadCount}, Buddy ${w.buddyCount}, ใกล้ deadline ${w.nearDeadlineCount})`;
+  };
+
+  const handleSaveTeam = async () => {
+    if (!token || !id || !teamForm.leadLawyerId) return;
+    setSavingTeam(true);
+    setTeamError('');
+    try {
+      await api.updateCase(token, id, { leadLawyerId: teamForm.leadLawyerId });
+      const buddyIds = teamForm.buddyIds.filter((uid) => uid !== teamForm.leadLawyerId);
+      const updated = (await api.updateCaseAssignments(token, id, buddyIds)) as CaseDetail;
+      setCase(updated);
+      setEditingTeam(false);
+    } catch (err) {
+      setTeamError(err instanceof ApiError ? err.message : 'บันทึกทีมไม่สำเร็จ');
+    } finally {
+      setSavingTeam(false);
+    }
+  };
 
   const timeline = useMemo(() => {
     const items: Array<{
@@ -383,9 +440,104 @@ export default function CaseDetailPage() {
                   </div>
                 )}
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Assigned Lawyer</p>
-                <p className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</p>
+              <div className="rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">ทีมของคดี</p>
+                  {!editingTeam && user?.firmRole === FirmRole.OWNER && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={startEditTeam}>
+                      <Pencil className="h-3 w-3" />
+                      แก้ไขทีม
+                    </Button>
+                  )}
+                </div>
+
+                {!editingTeam ? (
+                  <>
+                    <div className="mt-2">
+                      <p className="text-xs text-muted-foreground">Case Owner / เจ้าของเคส</p>
+                      <p className="font-medium">
+                        {legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}
+                      </p>
+                    </div>
+                    {legalCase.assignments.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-muted-foreground">Buddies / ผู้ช่วย</p>
+                        <p className="font-medium">
+                          {legalCase.assignments
+                            .map((a) => `${a.user.firstName} ${a.user.lastName}`)
+                            .join(', ')}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="mt-2 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        Case Owner / เจ้าของเคส
+                      </label>
+                      <select
+                        value={teamForm.leadLawyerId}
+                        onChange={(e) =>
+                          setTeamForm((f) => ({
+                            ...f,
+                            leadLawyerId: e.target.value,
+                            buddyIds: f.buddyIds.filter((uid) => uid !== e.target.value),
+                          }))
+                        }
+                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        {lawyers.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.firstName} {l.lastName}
+                            {workloadLabel(l.id)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        Buddies / ผู้ช่วย
+                      </label>
+                      <div className="mt-1 space-y-1">
+                        {lawyers
+                          .filter((l) => l.id !== teamForm.leadLawyerId)
+                          .map((l) => (
+                            <label key={l.id} className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={teamForm.buddyIds.includes(l.id)}
+                                onChange={() =>
+                                  setTeamForm((f) => ({
+                                    ...f,
+                                    buddyIds: f.buddyIds.includes(l.id)
+                                      ? f.buddyIds.filter((x) => x !== l.id)
+                                      : [...f.buddyIds, l.id],
+                                  }))
+                                }
+                              />
+                              {l.firstName} {l.lastName}
+                              {workloadLabel(l.id)}
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                    {teamError && <p className="text-xs text-destructive">{teamError}</p>}
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" disabled={savingTeam} onClick={handleSaveTeam}>
+                        {savingTeam ? 'กำลังบันทึก...' : 'บันทึก'}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingTeam(false)}
+                      >
+                        ยกเลิก
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">รายได้โดยประมาณ / Estimated Fee</p>
