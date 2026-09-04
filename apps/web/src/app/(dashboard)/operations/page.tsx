@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
+import { FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,7 +13,8 @@ import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/misc';
 
 export default function OperationsPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const isOwner = user?.firmRole === FirmRole.OWNER;
   const [tab, setTab] = useState('workload');
   const [summary, setSummary] = useState<WorkloadSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,17 +27,17 @@ export default function OperationsPage() {
   const [pairingLoading, setPairingLoading] = useState(true);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !isOwner) return;
     setLoading(true);
     api
       .getWorkloadSummary(token, nearDeadlineDays)
       .then(setSummary)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [token, nearDeadlineDays]);
+  }, [token, isOwner, nearDeadlineDays]);
 
   useEffect(() => {
-    if (!token || !selectedUserId) {
+    if (!token || !isOwner || !selectedUserId) {
       setDetail(null);
       return;
     }
@@ -45,18 +47,22 @@ export default function OperationsPage() {
       .then(setDetail)
       .catch(console.error)
       .finally(() => setDetailLoading(false));
-  }, [token, selectedUserId, nearDeadlineDays]);
+  }, [token, isOwner, selectedUserId, nearDeadlineDays]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !isOwner) return;
     setPairingLoading(true);
     api.getPairing(token).then(setPairing).catch(console.error).finally(() => setPairingLoading(false));
-  }, [token]);
+  }, [token, isOwner]);
 
   const sorted = [...summary].sort((a, b) => {
     const diff = a.leadCount + a.buddyCount - (b.leadCount + b.buddyCount);
     return sortDesc ? -diff : diff;
   });
+
+  if (!isOwner) {
+    return <p className="text-destructive">Owner access only / เฉพาะเจ้าของสำนักงานเท่านั้น</p>;
+  }
 
   return (
     <div>
