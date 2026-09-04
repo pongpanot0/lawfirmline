@@ -182,3 +182,10 @@ export class CaseQueryDto {
   @IsUUID()
   caseTypeId?: string;
 }
+
+
+export class UpdateCaseAssignmentsDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  buddyIds!: string[];
+}

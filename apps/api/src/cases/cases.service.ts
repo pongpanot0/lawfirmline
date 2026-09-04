@@ -8,7 +8,7 @@ import {
 import { AssignmentType, AuthUser, ActivityType, CaseStatus, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
-import { CreateCaseDto, UpdateCaseDto, CaseQueryDto } from './dto/case.dto';
+import { CreateCaseDto, UpdateCaseDto, CaseQueryDto, UpdateCaseAssignmentsDto } from './dto/case.dto';
 import { CloseCaseDto } from './dto/close-case.dto';
 import { Prisma } from '../generated/prisma';
 import { CaseActivitiesService } from './case-activities.service';
@@ -210,6 +210,16 @@ export class CasesService {
 
   async update(user: AuthUser, id: string, dto: UpdateCaseDto) {
     await this.findOne(user, id);
+
+    if (dto.leadLawyerId) {
+      const isMember = await this.prisma.firmMember.count({
+        where: { firmId: user.firmId, userId: dto.leadLawyerId },
+      });
+      if (!isMember) {
+        throw new BadRequestException('Lead lawyer must belong to your firm');
+      }
+    }
+
     const { customFields, ...rest } = dto;
     return this.prisma.case.update({
       where: { id },
@@ -220,6 +230,46 @@ export class CasesService {
       },
       include: this.caseInclude,
     });
+  }
+
+
+  async updateAssignments(user: AuthUser, id: string, dto: UpdateCaseAssignmentsDto) {
+    const legalCase = await this.prisma.case.findFirst({
+      where: { id, firmId: user.firmId },
+    });
+    if (!legalCase) throw new NotFoundException('Case not found');
+
+    const buddyIds = [
+      ...new Set(dto.buddyIds.filter((uid) => uid !== legalCase.leadLawyerId)),
+    ];
+
+    if (buddyIds.length) {
+      const firmMembers = await this.prisma.firmMember.count({
+        where: { firmId: user.firmId, userId: { in: buddyIds } },
+      });
+      if (firmMembers !== buddyIds.length) {
+        throw new BadRequestException('All assigned team members must belong to your firm');
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.caseAssignment.deleteMany({
+        where: { caseId: id, assignmentType: AssignmentType.BUDDY },
+      }),
+      ...(buddyIds.length
+        ? [
+            this.prisma.caseAssignment.createMany({
+              data: buddyIds.map((userId) => ({
+                caseId: id,
+                userId,
+                assignmentType: AssignmentType.BUDDY,
+              })),
+            }),
+          ]
+        : []),
+    ]);
+
+    return this.prisma.case.findUnique({ where: { id }, include: this.caseInclude });
   }
 
   async close(user: AuthUser, id: string, dto: CloseCaseDto) {

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Put,
   Delete,
   Body,
   Param,
@@ -10,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CasesService } from './cases.service';
-import { CreateCaseDto, UpdateCaseDto, CaseQueryDto } from './dto/case.dto';
+import { CreateCaseDto, UpdateCaseDto, CaseQueryDto, UpdateCaseAssignmentsDto } from './dto/case.dto';
 import { CloseCaseDto } from './dto/close-case.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -18,6 +19,8 @@ import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser, Role } from '@lawfirm/shared';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { OwnerOnly } from '../saas/decorators/saas.decorators';
 
 @Controller('cases')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -51,6 +54,17 @@ export class CasesController {
     return this.casesService.update(user, id, dto);
   }
 
+
+  @Put(':id/assignments')
+  @UseGuards(CaseAccessGuard, FirmRoleGuard)
+  @OwnerOnly()
+  updateAssignments(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateCaseAssignmentsDto,
+  ) {
+    return this.casesService.updateAssignments(user, id, dto);
+  }
   @Post(':id/close')
   @UseGuards(CaseAccessGuard)
   @Roles(Role.ADMIN, Role.LAWYER)
