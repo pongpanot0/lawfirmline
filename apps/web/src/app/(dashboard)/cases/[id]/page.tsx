@@ -140,8 +140,11 @@ export default function CaseDetailPage() {
     try {
       await api.updateCase(token, id, { leadLawyerId: teamForm.leadLawyerId });
       const buddyIds = teamForm.buddyIds.filter((uid) => uid !== teamForm.leadLawyerId);
-      const updated = (await api.updateCaseAssignments(token, id, buddyIds)) as CaseDetail;
-      setCase(updated);
+      const updated = await api.updateCaseAssignments(token, id, buddyIds);
+      // Merge, don't replace: the assignments response omits tasks/calendarEvents/activities.
+      setCase((prev) =>
+        prev ? { ...prev, leadLawyer: updated.leadLawyer, assignments: updated.assignments } : prev,
+      );
       setEditingTeam(false);
     } catch (err) {
       setTeamError(err instanceof ApiError ? err.message : 'บันทึกทีมไม่สำเร็จ');

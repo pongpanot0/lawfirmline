@@ -575,7 +575,7 @@ export const api = {
   getPairing: (token: string) => request<PairingEntry[]>('/operations/pairing', { token }),
 
   updateCaseAssignments: (token: string, caseId: string, buddyIds: string[]) =>
-    request(`/cases/${caseId}/assignments`, {
+    request<CaseDetail>(`/cases/${caseId}/assignments`, {
       method: 'PUT',
       token,
       body: JSON.stringify({ buddyIds }),
