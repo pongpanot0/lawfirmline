@@ -358,6 +358,8 @@ model User {
   insuranceClaims     InsuranceClaim[]
   followedTaskOnHolds TaskOnHold[] @relation("TaskOnHoldFollower")
   createdTaskOnHolds  TaskOnHold[] @relation("TaskOnHoldCreator")
+  grantedContactCaseAccess ContactCaseAccess[] @relation("ContactCaseAccessGranted")
+  revokedContactCaseAccess ContactCaseAccess[] @relation("ContactCaseAccessRevoked")
 }
 
 model CaseType {
@@ -411,6 +413,7 @@ model ClientContact {
   client      Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   loginTokens ClientPortalLoginToken[]
   portalIntakeSubmissions PortalIntakeSubmission[]
+  caseAccess  ContactCaseAccess[]
 
   @@index([clientId])
 }
@@ -492,6 +495,7 @@ model Case {
   knowledge      CaseKnowledge[]
   closingEmailDrafts ClosingEmailDraft[]
   insuranceClaim InsuranceClaim?
+  contactAccess  ContactCaseAccess[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -886,4 +890,26 @@ model PortalIntakeSubmission {
   @@index([clientId, submittedAt])
   @@index([clientContactId, submittedAt])
   @@index([withdrawnByClient])
+}
+
+model ContactCaseAccess {
+  id            String    @id @default(uuid())
+  clientContactId String
+  caseId        String
+  grantedAt     DateTime  @default(now())
+  startDate     DateTime  @default(now())
+  endDate       DateTime?
+  grantedById   String
+  revokedAt     DateTime?
+  revokedById   String?
+  notes         String?
+
+  clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
+  case          Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  grantedBy     User          @relation("ContactCaseAccessGranted", fields: [grantedById], references: [id])
+  revokedBy     User?         @relation("ContactCaseAccessRevoked", fields: [revokedById], references: [id])
+
+  @@unique([clientContactId, caseId])
+  @@index([clientContactId])
+  @@index([startDate, endDate])
 }
