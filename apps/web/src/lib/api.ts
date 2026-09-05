@@ -1020,6 +1020,16 @@ export const api = {
   convertIntake: (token: string, id: string, data?: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/convert`, { method: 'POST', token, body: JSON.stringify(data ?? {}) }),
 
+  listPortalSubmissions: (token: string) =>
+    request<PortalSubmissionStaffEntry[]>('/intake/portal-submissions', { token }),
+
+  convertPortalSubmission: (token: string, submissionId: string, officePlannedDate?: string) =>
+    request<IntakeItem>(`/intake/portal-submissions/${submissionId}/convert`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(officePlannedDate ? { officePlannedDate } : {}),
+    }),
+
   createClosingEmailDraft: (token: string, caseId: string, selectedActivityIds: string[]) =>
     request<ClosingEmailDraft>(`/cases/${caseId}/closing-email-drafts`, {
       method: 'POST',
@@ -1130,6 +1140,17 @@ export interface InvoiceItem {
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+}
+
+export interface PortalSubmissionStaffEntry {
+  id: string;
+  referenceNumber: string;
+  title: string;
+  detail: string;
+  submittedAt: string;
+  urgencyFlag: boolean;
+  clientContact: { name: string; email: string | null };
+  client: { name: string };
 }
 
 export interface ClosingEmailDraft {
