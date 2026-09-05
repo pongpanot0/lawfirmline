@@ -1,23 +1,5 @@
-/*
-  Warnings:
-
-  - You are about to drop the `InsuranceClaim` table. If the table is not empty, all the data it contains will be lost.
-
-*/
 -- CreateEnum
 CREATE TYPE "ClosingEmailDraftStatus" AS ENUM ('DRAFT', 'APPROVED');
-
--- DropForeignKey
-ALTER TABLE "InsuranceClaim" DROP CONSTRAINT "InsuranceClaim_caseId_fkey";
-
--- DropForeignKey
-ALTER TABLE "InsuranceClaim" DROP CONSTRAINT "InsuranceClaim_createdById_fkey";
-
--- DropTable
-DROP TABLE "InsuranceClaim";
-
--- DropEnum
-DROP TYPE "InsuranceClaimStage";
 
 -- CreateTable
 CREATE TABLE "ClosingEmailDraft" (
