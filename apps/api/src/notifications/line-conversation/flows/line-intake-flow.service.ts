@@ -3,6 +3,7 @@ import { AuthUser } from '@lawfirm/shared';
 import { IntakeService } from '../../../intake/intake.service';
 import { ReferralChannel } from '../../../intake/dto/intake.dto';
 import { ClientsService } from '../../../clients/clients.service';
+import { UsersService } from '../../../users/users.service';
 import { LineMessagingService } from '../../line-messaging.service';
 import { LineNotificationService } from '../line-notification.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
@@ -14,6 +15,12 @@ const FIELDS: FieldSpec[] = [
   { key: 'title', label: 'ชื่อเรื่อง' },
   { key: 'clientName', label: 'ลูกความ' },
   { key: 'description', label: 'รายละเอียด' },
+  {
+    key: 'assignedUserLabels',
+    label: 'ผู้รับผิดชอบ',
+    format: (value) => (Array.isArray(value) && value.length ? value.join(', ') : '(ไม่ระบุ)'),
+  },
+  { key: 'deadlineDate', label: 'วันครบกำหนด' },
 ];
 
 @Injectable()
@@ -21,6 +28,7 @@ export class LineIntakeFlowService {
   constructor(
     private intake: IntakeService,
     private clients: ClientsService,
+    private users: UsersService,
     private line: LineMessagingService,
     private notify: LineNotificationService,
     private store: LineConversationStoreService,
@@ -57,7 +65,10 @@ export class LineIntakeFlowService {
             data: { ...session.data, clientName: text },
             step: ConversationStep.CASE_DESCRIPTION,
           });
-          await this.reply(session, `ไม่พบลูกความที่ตรงกับ "${text}" — จะใช้ชื่อนี้ไปก่อนนะครับ\n\nมีรายละเอียดเพิ่มเติมไหมครับ? (หรือพิมพ์ "ข้าม")`);
+          await this.reply(
+            session,
+            `ไม่พบลูกความที่ตรงกับ "${text}" ครับ จะบันทึกเป็นชื่อ "${text}" ไปก่อนนะครับ\n\n▶︎ ต่อไป: มีรายละเอียดคดีเพิ่มเติมไหมครับ? พิมพ์รายละเอียด หรือพิมพ์ "ข้าม" ถ้าไม่มี`,
+          );
           return;
         }
         this.store.update(session.lineUserId, {
@@ -90,7 +101,75 @@ export class LineIntakeFlowService {
       }
       case ConversationStep.CASE_DESCRIPTION: {
         const description = text === 'ข้าม' ? undefined : text;
-        const data = { ...session.data, description };
+        this.store.update(session.lineUserId, {
+          data: { ...session.data, description, assignedUserIds: [], assignedUserLabels: [] },
+          step: ConversationStep.CASE_ASSIGNEE_PICK,
+          pagingOffset: 0,
+        });
+        await this.showAssigneePage(session, 0);
+        return;
+      }
+      case ConversationStep.CASE_ASSIGNEE_PICK: {
+        if (text === 'ดูเพิ่มเติม') {
+          const nextOffset = (session.pagingOffset ?? 0) + 12;
+          this.store.update(session.lineUserId, { pagingOffset: nextOffset });
+          await this.showAssigneePage(session, nextOffset);
+          return;
+        }
+        if (text === 'ไม่ระบุ') {
+          this.store.update(session.lineUserId, { step: ConversationStep.CASE_DEADLINE });
+          await this.reply(session, 'คดีนี้มีวันครบกำหนด (deadline) ไหมครับ? พิมพ์วันที่ เช่น 2026-09-15 หรือพิมพ์ "ข้าม" ถ้าไม่มี');
+          return;
+        }
+        const picked = session.searchResults?.find((r) => r.label === text);
+        if (!picked) {
+          await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
+          return;
+        }
+        const existingIds = (session.data.assignedUserIds as string[] | undefined) ?? [];
+        const existingLabels = (session.data.assignedUserLabels as string[] | undefined) ?? [];
+        if (existingIds.includes(picked.id)) {
+          await this.reply(session, `เลือก ${picked.label} ไปแล้วครับ — เพิ่มคนอื่นอีกไหมครับ?`, [
+            { label: 'เพิ่มอีก', text: 'เพิ่มอีก' },
+            { label: 'พอแล้ว', text: 'พอแล้ว' },
+          ]);
+          this.store.update(session.lineUserId, { step: ConversationStep.CASE_ASSIGNEE_ADD_MORE });
+          return;
+        }
+        this.store.update(session.lineUserId, {
+          data: {
+            ...session.data,
+            assignedUserIds: [...existingIds, picked.id],
+            assignedUserLabels: [...existingLabels, picked.label],
+          },
+          step: ConversationStep.CASE_ASSIGNEE_ADD_MORE,
+        });
+        await this.reply(session, `เพิ่ม ${picked.label} แล้วครับ — เพิ่มคนอื่นอีกไหมครับ?`, [
+          { label: 'เพิ่มอีก', text: 'เพิ่มอีก' },
+          { label: 'พอแล้ว', text: 'พอแล้ว' },
+        ]);
+        return;
+      }
+      case ConversationStep.CASE_ASSIGNEE_ADD_MORE: {
+        if (text === 'เพิ่มอีก') {
+          this.store.update(session.lineUserId, { step: ConversationStep.CASE_ASSIGNEE_PICK, pagingOffset: 0 });
+          await this.showAssigneePage(session, 0);
+          return;
+        }
+        this.store.update(session.lineUserId, { step: ConversationStep.CASE_DEADLINE });
+        await this.reply(session, 'คดีนี้มีวันครบกำหนด (deadline) ไหมครับ? พิมพ์วันที่ เช่น 2026-09-15 หรือพิมพ์ "ข้าม" ถ้าไม่มี');
+        return;
+      }
+      case ConversationStep.CASE_DEADLINE: {
+        if (text !== 'ข้าม') {
+          const isValidDate = !isNaN(new Date(text).getTime());
+          if (!isValidDate) {
+            await this.reply(session, 'รูปแบบวันที่ไม่ถูกต้อง กรุณาพิมพ์ใหม่ เช่น 2026-09-15 (หรือพิมพ์ "ข้าม")');
+            return;
+          }
+        }
+        const deadlineDate = text === 'ข้าม' ? undefined : text;
+        const data = { ...session.data, deadlineDate };
         this.store.update(session.lineUserId, { data, step: ConversationStep.CASE_CONFIRM });
         await this.confirmStep(session, data);
         return;
@@ -123,6 +202,15 @@ export class LineIntakeFlowService {
           await this.reply(session, 'พิมพ์ชื่อลูกความอีกครั้งครับ');
           return;
         }
+        if (field === 'assignedUserLabels') {
+          this.store.update(session.lineUserId, {
+            data: { ...session.data, assignedUserIds: [], assignedUserLabels: [] },
+            step: ConversationStep.CASE_ASSIGNEE_PICK,
+            pagingOffset: 0,
+          });
+          await this.showAssigneePage(session, 0);
+          return;
+        }
         this.store.update(session.lineUserId, { editingField: field, step: ConversationStep.CASE_EDIT_VALUE });
         const label = FIELDS.find((f) => f.key === field)!.label;
         await this.reply(session, `กรอกค่าใหม่สำหรับ "${label}" ครับ`);
@@ -138,12 +226,29 @@ export class LineIntakeFlowService {
     }
   }
 
+  private async showAssigneePage(session: ConversationSession, offset: number): Promise<void> {
+    const { items, hasMore } = await this.users.findAllByFirm(session.firmId, offset, 12);
+    this.store.update(session.lineUserId, { searchResults: items });
+    const buttons = items.map((u) => ({ label: u.label.slice(0, 20), text: u.label }));
+    if (hasMore) buttons.push({ label: 'ดูเพิ่มเติม', text: 'ดูเพิ่มเติม' });
+    buttons.push({ label: 'ไม่ระบุ', text: 'ไม่ระบุ' });
+    await this.reply(session, 'มีผู้รับผิดชอบร่วมไหมครับ? (เลือกได้หลายคน)', buttons);
+  }
+
   private async confirmStep(session: ConversationSession, data: Record<string, unknown>): Promise<void> {
     await this.reply(session, renderSummary(FIELDS, data), CONFIRM_QUICK_REPLY);
   }
 
   private async create(session: ConversationSession): Promise<void> {
-    const data = session.data as { title: string; clientId?: string; clientName?: string; description?: string };
+    const data = session.data as {
+      title: string;
+      clientId?: string;
+      clientName?: string;
+      description?: string;
+      assignedUserIds?: string[];
+      assignedUserLabels?: string[];
+      deadlineDate?: string;
+    };
     const created = await this.intake.create(
       { id: session.userId, firmId: session.firmId } as unknown as AuthUser,
       {
@@ -153,13 +258,17 @@ export class LineIntakeFlowService {
         clientName: data.clientName,
         description: data.description,
         referralChannel: ReferralChannel.LINE,
+        assignedUserIds: data.assignedUserIds,
+        deadlineDate: data.deadlineDate,
       },
     );
     this.store.clear(session.lineUserId);
     await this.reply(session, `สร้าง Case สำเร็จแล้วครับ ✅\n\n"${data.title}"`);
     await this.notify.notifyCreated({
       target: session.target,
-      summaryText: `📋 สร้าง Intake ใหม่: ${data.title}${data.clientName ? `\nลูกความ: ${data.clientName}` : ''}`,
+      summaryText: `📋 สร้าง Intake ใหม่: ${data.title}${data.clientName ? `\nลูกความ: ${data.clientName}` : ''}${
+        data.assignedUserLabels?.length ? `\nผู้รับผิดชอบ: ${data.assignedUserLabels.join(', ')}` : ''
+      }${data.deadlineDate ? `\nครบกำหนด: ${data.deadlineDate}` : ''}`,
       entityPath: `/intake/${created.id}`,
     });
   }

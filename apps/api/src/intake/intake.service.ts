@@ -1,6 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '@lawfirm/shared';
+import { AssignmentType } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
+import { TasksService } from '../tasks/tasks.service';
 import {
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -12,9 +15,17 @@ import {
   IntakeDecision,
 } from './dto/intake.dto';
 
+export const DRAFT_NOTICE_COST = 5;
+
 @Injectable()
 export class IntakeService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(IntakeService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private tasksService: TasksService,
+    private config: ConfigService,
+  ) {}
 
   private intakeInclude = {
     receivedBy: {
@@ -85,6 +96,8 @@ export class IntakeService {
         incidentDate: dto.incidentDate ? new Date(dto.incidentDate) : undefined,
         description: dto.description,
         estimatedDamage: dto.estimatedDamage,
+        assignedUserIds: dto.assignedUserIds ?? [],
+        deadlineDate: dto.deadlineDate ? new Date(dto.deadlineDate) : undefined,
       },
       include: this.intakeInclude,
     });
@@ -160,17 +173,104 @@ export class IntakeService {
   }
 
   async issueNotice(user: AuthUser, id: string, dto: NoticeDto) {
-    await this.findOne(user, id);
-    return this.prisma.intake.update({
+    const existing = await this.findOne(user, id);
+
+    if (dto.noticeContent && !dto.noticeContentReviewed) {
+      throw new BadRequestException(
+        'กรุณายืนยันว่าตรวจสอบเนื้อหาหนังสือแล้วก่อนบันทึก',
+      );
+    }
+
+    const updated = await this.prisma.intake.update({
       where: { id },
       data: {
         noticeIssuedAt: new Date(),
         noticeRecipient: dto.noticeRecipient,
         noticeDeadline: dto.noticeDeadline ? new Date(dto.noticeDeadline) : undefined,
         noticeResult: dto.noticeResult,
+        noticeContent: dto.noticeContent,
       },
       include: this.intakeInclude,
     });
+
+    // Only the first time notice is issued for this intake, add a personal
+    // follow-up reminder — avoids duplicate tasks if the notice is edited later.
+    if (!existing.noticeIssuedAt && dto.noticeDeadline) {
+      await this.tasksService.create(user, null, {
+        title: `ติดตามผล Notice: ${updated.title || updated.clientName || updated.client?.name || ''}`.trim(),
+        assigneeId: user.id,
+        dueDate: dto.noticeDeadline,
+      });
+    }
+
+    return updated;
+  }
+
+  async draftNotice(user: AuthUser, id: string) {
+    const intake = await this.findOne(user, id);
+
+    const facts = [
+      `ชื่อลูกความ (ผู้ส่งหนังสือ): ${intake.clientName || intake.client?.name || '(ไม่ระบุ)'}`,
+      `คู่กรณี (ผู้รับหนังสือ): ${intake.opposingParty || '(ไม่ระบุ)'}`,
+      `ประเภทเรื่อง: ${intake.matterType || '(ไม่ระบุ)'}`,
+      intake.description ? `รายละเอียดเหตุการณ์: ${intake.description}` : null,
+      intake.estimatedDamage ? `มูลค่าความเสียหายโดยประมาณ: ${intake.estimatedDamage} บาท` : null,
+      intake.deadlineDate
+        ? `กำหนดให้ตอบกลับ/ดำเนินการภายใน: ${intake.deadlineDate.toISOString().slice(0, 10)}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const content = await this.generateNoticeDraft(facts);
+
+    await this.prisma.auditLog.create({
+      data: {
+        firmId: user.firmId,
+        userId: user.id,
+        action: 'intake.notice.draft',
+        metadata: { intakeId: id },
+      },
+    });
+
+    return { content };
+  }
+
+  private async generateNoticeDraft(facts: string): Promise<string> {
+    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    if (!apiKey) {
+      return `[ร่างตัวอย่าง — ตั้งค่า OPENAI_API_KEY เพื่อให้ AI ร่างจริง]\n\nหนังสือบอกกล่าว\n\n${facts}\n\n(โปรดตรวจสอบและแก้ไขก่อนส่ง)`;
+    }
+
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'คุณเป็นทนายความไทย ช่วยร่างหนังสือบอกกล่าว/ทวงถามที่เป็นทางการจากข้อเท็จจริงที่ให้มา ใช้ภาษากฎหมายไทยที่สุภาพและเป็นทางการ ระบุข้อเรียกร้องและกำหนดเวลาให้ชัดเจน ห้ามแต่งข้อเท็จจริงเพิ่มเติมนอกเหนือจากที่ให้มา นี่เป็นเพียงร่างสำหรับให้ทนายความตรวจสอบและแก้ไขก่อนส่งจริง',
+          },
+          { role: 'user', content: facts },
+        ],
+        temperature: 0.3,
+      }),
+    });
+
+    if (!res.ok) {
+      this.logger.error(`OpenAI error: ${res.status}`);
+      throw new Error('AI notice drafting failed');
+    }
+
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    return data.choices?.[0]?.message?.content ?? '';
   }
 
   async convertToCase(user: AuthUser, id: string, dto: ConvertToCaseDto) {
@@ -227,12 +327,44 @@ export class IntakeService {
         status: 'OPEN' as any,
         leadLawyerId: dto.leadLawyerId ?? user.id,
         intakeId: intake.id,
+        limitationDeadline: intake.deadlineDate ?? undefined,
       },
     });
 
     await this.prisma.intake.update({
       where: { id },
       data: { status: 'CONVERTED' as any },
+    });
+
+    const assigneeIds = (intake.assignedUserIds ?? []).filter(
+      (userId) => userId !== newCase.leadLawyerId,
+    );
+    if (assigneeIds.length > 0) {
+      await this.prisma.caseAssignment.createMany({
+        data: assigneeIds.map((userId) => ({
+          caseId: newCase.id,
+          userId,
+          assignmentType: AssignmentType.BUDDY,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    if (intake.deadlineDate) {
+      await this.prisma.calendarEvent.create({
+        data: {
+          caseId: newCase.id,
+          title: `ครบกำหนด: ${newCase.title}`,
+          startAt: intake.deadlineDate,
+          type: 'DEADLINE' as any,
+        },
+      });
+    }
+
+    await this.tasksService.create(user, newCase.id, {
+      title: `เริ่มดำเนินการคดี: ${newCase.title}`,
+      assigneeId: newCase.leadLawyerId,
+      dueDate: intake.deadlineDate?.toISOString(),
     });
 
     return newCase;

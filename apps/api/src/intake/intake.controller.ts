@@ -7,6 +7,7 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { IntakeService } from './intake.service';
 import {
@@ -21,6 +22,8 @@ import {
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequireCredits } from '../common/decorators/require-credits.decorator';
+import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { AuthUser } from '@lawfirm/shared';
 
 @Controller('intake')
@@ -77,6 +80,13 @@ export class IntakeController {
     @Body() dto: NoticeDto,
   ) {
     return this.intakeService.issueNotice(user, id, dto);
+  }
+
+  @Post(':id/notice/draft')
+  @RequireCredits(5)
+  @UseInterceptors(AiCreditsInterceptor)
+  draftNotice(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.intakeService.draftNotice(user, id);
   }
 
   @Post(':id/convert')

@@ -24,6 +24,7 @@ import {
   Shield,
   Tags,
   ClipboardList,
+  ListTodo,
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ import { useState } from 'react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false },
+  { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false },
   { href: '/intake', labelKey: 'intake' as const, icon: ClipboardList, ownerOnly: false },
   { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false },
   { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false },

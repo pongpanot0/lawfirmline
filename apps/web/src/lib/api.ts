@@ -432,6 +432,7 @@ export interface IntakeItem {
   noticeRecipient?: string | null;
   noticeDeadline?: string | null;
   noticeResult?: string | null;
+  noticeContent?: string | null;
   receivedBy?: { id: string; firstName: string; lastName: string };
   assessor?: { id: string; firstName: string; lastName: string } | null;
   client?: { id: string; name: string } | null;
@@ -651,6 +652,22 @@ export const api = {
 
   getTasks: (token: string, caseId: string) =>
     request<TaskItem[]>(`/cases/${caseId}/tasks`, { token }),
+
+  getMyTodos: (token: string) => request<TaskItem[]>('/todos', { token }),
+
+  createTodo: (token: string, data: Record<string, unknown>) =>
+    request<TaskItem>('/todos', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  updateTodo: (token: string, taskId: string, data: Record<string, unknown>) =>
+    request<TaskItem>(`/todos/${taskId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
 
   createTask: (token: string, caseId: string, data: Record<string, unknown>) =>
     request(`/cases/${caseId}/tasks`, {
@@ -917,6 +934,9 @@ export const api = {
 
   noticeIntake: (token: string, id: string, data: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/notice`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  draftNoticeIntake: (token: string, id: string) =>
+    request<{ content: string }>(`/intake/${id}/notice/draft`, { method: 'POST', token }),
 
   convertIntake: (token: string, id: string, data?: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/convert`, { method: 'POST', token, body: JSON.stringify(data ?? {}) }),

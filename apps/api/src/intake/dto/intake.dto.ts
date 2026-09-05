@@ -1,4 +1,6 @@
 import {
+  IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
@@ -102,6 +104,15 @@ export class CreateIntakeDto {
   @Min(0)
   @Max(1_000_000_000)
   estimatedDamage?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  assignedUserIds?: string[];
+
+  @IsOptional()
+  @IsDateString()
+  deadlineDate?: string;
 }
 
 export class UpdateIntakeDto {
@@ -234,6 +245,14 @@ export class NoticeDto {
   @IsOptional()
   @IsString()
   noticeResult?: string;
+
+  @IsOptional()
+  @IsString()
+  noticeContent?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  noticeContentReviewed?: boolean;
 }
 
 export class ConvertToCaseDto {

@@ -27,6 +27,7 @@ export const dashboardCopy = {
     nav: {
       tagline: 'ระบบจัดการคดีความ',
       dashboard: 'แดชบอร์ด',
+      todos: 'งานของฉัน',
       intake: 'รับเรื่อง',
       cases: 'คดี',
       clients: 'ลูกค้า',
@@ -316,6 +317,7 @@ export const dashboardCopy = {
     nav: {
       tagline: 'Legal Case Management',
       dashboard: 'Dashboard',
+      todos: 'My Todos',
       intake: 'Intake',
       cases: 'Cases',
       clients: 'Clients',

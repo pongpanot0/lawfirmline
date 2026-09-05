@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { TaskSource } from '../generated/prisma';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
@@ -23,6 +23,22 @@ export class TasksService {
       include: this.taskInclude,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async findMine(user: AuthUser) {
+    return this.prisma.task.findMany({
+      where: { caseId: null, assigneeId: user.id },
+      include: this.taskInclude,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async assertStandaloneOwnership(id: string, user: AuthUser) {
+    const task = await this.prisma.task.findUnique({ where: { id } });
+    if (!task || task.caseId !== null) throw new NotFoundException('Task not found');
+    if (task.assigneeId !== user.id && task.createdById !== user.id) {
+      throw new ForbiddenException('You do not have access to this task');
+    }
   }
 
   async findOne(id: string) {

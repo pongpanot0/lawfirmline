@@ -492,6 +492,8 @@ model Intake {
   incidentDate    DateTime?
   description     String?         @db.Text
   estimatedDamage Float?
+  assignedUserIds String[]        @default([])
+  deadlineDate    DateTime?
   status          IntakeStatus    @default(RECEIVED)
   assessorId      String?
   assessedAt      DateTime?
@@ -505,6 +507,7 @@ model Intake {
   noticeRecipient String?
   noticeDeadline  DateTime?
   noticeResult    String?
+  noticeContent   String?         @db.Text
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 

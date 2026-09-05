@@ -24,6 +24,8 @@ const STATUS_COLOR: Record<string, string> = {
   CONVERTED: 'bg-purple-100 text-purple-700',
 };
 
+const DRAFT_NOTICE_COST = 5;
+
 const DECISION_LABELS: Record<string, string> = {
   FILE_SUIT: 'ฟ้อง',
   DO_NOT_FILE: 'ไม่ฟ้อง',
@@ -78,7 +80,7 @@ type ModalType = 'assess' | 'decide' | 'notice' | null;
 
 export default function IntakeDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const [intake, setIntake] = useState<IntakeItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,6 +100,9 @@ export default function IntakeDetailPage() {
   const [noticeRecipient, setNoticeRecipient] = useState('');
   const [noticeDeadline, setNoticeDeadline] = useState('');
   const [noticeResult, setNoticeResult] = useState('');
+  const [noticeContent, setNoticeContent] = useState('');
+  const [noticeReviewed, setNoticeReviewed] = useState(false);
+  const [drafting, setDrafting] = useState(false);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -147,6 +152,10 @@ export default function IntakeDetailPage() {
 
   const handleNotice = async () => {
     if (!token || !id) return;
+    if (noticeContent && !noticeReviewed) {
+      setError('กรุณายืนยันว่าตรวจสอบเนื้อหาหนังสือแล้วก่อนบันทึก');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -154,6 +163,8 @@ export default function IntakeDetailPage() {
         noticeRecipient: noticeRecipient || undefined,
         noticeDeadline: noticeDeadline || undefined,
         noticeResult: noticeResult || undefined,
+        noticeContent: noticeContent || undefined,
+        noticeContentReviewed: noticeContent ? noticeReviewed : undefined,
       });
       await reload();
       setModal(null);
@@ -161,6 +172,21 @@ export default function IntakeDetailPage() {
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDraftNotice = async () => {
+    if (!token || !id) return;
+    setDrafting(true);
+    setError('');
+    try {
+      const { content } = await api.draftNoticeIntake(token, id);
+      setNoticeContent(content);
+      setNoticeReviewed(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setDrafting(false);
     }
   };
 
@@ -304,6 +330,12 @@ export default function IntakeDetailPage() {
               <InfoRow label="ผู้รับ" value={intake.noticeRecipient} />
               <InfoRow label="กำหนดตอบ" value={formatDate(intake.noticeDeadline)} />
               <InfoRow label="ผล" value={intake.noticeResult} />
+              {intake.noticeContent && (
+                <div className="pt-2">
+                  <p className="text-sm text-muted-foreground">เนื้อหาหนังสือ</p>
+                  <p className="whitespace-pre-wrap text-sm">{intake.noticeContent}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -414,10 +446,57 @@ export default function IntakeDetailPage() {
                       placeholder="ผลที่ได้รับ (ถ้ามี)"
                     />
                   </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium">เนื้อหาหนังสือ</label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDraftNotice}
+                        disabled={drafting || (user?.aiCredits ?? 0) < DRAFT_NOTICE_COST}
+                        title={
+                          (user?.aiCredits ?? 0) < DRAFT_NOTICE_COST
+                            ? `credit ไม่พอ (ต้องใช้ ${DRAFT_NOTICE_COST}, เหลือ ${user?.aiCredits ?? 0})`
+                            : undefined
+                        }
+                      >
+                        {drafting
+                          ? 'กำลังร่าง...'
+                          : `ให้ AI ช่วยร่าง (ใช้ ${DRAFT_NOTICE_COST} credit, เหลือ ${user?.aiCredits ?? 0})`}
+                      </Button>
+                    </div>
+                    <textarea
+                      value={noticeContent}
+                      onChange={(e) => {
+                        setNoticeContent(e.target.value);
+                        setNoticeReviewed(false);
+                      }}
+                      rows={10}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="กด 'ให้ AI ช่วยร่าง' เพื่อให้ร่างจากข้อมูลของเรื่องนี้ แล้วตรวจสอบ/แก้ไขก่อนบันทึก"
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      AI ร่างให้เท่านั้น ต้องตรวจสอบและแก้ไขให้ถูกต้องก่อนบันทึก/ส่งจริงทุกครั้ง
+                    </p>
+                    {noticeContent && (
+                      <label className="mt-2 flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={noticeReviewed}
+                          onChange={(e) => setNoticeReviewed(e.target.checked)}
+                        />
+                        ฉันตรวจสอบเนื้อหาหนังสือนี้แล้วและยืนยันว่าถูกต้อง
+                      </label>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setModal(null)}>ยกเลิก</Button>
-                  <Button onClick={handleNotice} disabled={submitting}>
+                  <Button
+                    onClick={handleNotice}
+                    disabled={submitting || (!!noticeContent && !noticeReviewed)}
+                  >
                     {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
                   </Button>
                 </div>
