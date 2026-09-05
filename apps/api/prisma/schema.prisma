@@ -171,6 +171,11 @@ enum ActivityType {
   OTHER
 }
 
+enum ClosingEmailDraftStatus {
+  DRAFT
+  APPROVED
+}
+
 model Firm {
   id                 String             @id @default(uuid())
   name               String
@@ -339,6 +344,8 @@ model User {
   caseActivities      CaseActivity[]
   receivedIntakes     Intake[]             @relation("IntakeReceiver")
   assessedIntakes     Intake[]             @relation("IntakeAssessor")
+  createdClosingEmailDrafts  ClosingEmailDraft[] @relation("ClosingEmailDraftCreator")
+  approvedClosingEmailDrafts ClosingEmailDraft[] @relation("ClosingEmailDraftApprover")
 }
 
 model CaseType {
@@ -469,6 +476,7 @@ model Case {
   expenses       Expense[]
   invoices       Invoice[]
   knowledge      CaseKnowledge[]
+  closingEmailDrafts ClosingEmailDraft[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -766,4 +774,25 @@ model InvoiceLineItem {
   amount      Float
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model ClosingEmailDraft {
+  id                 String                  @id @default(uuid())
+  caseId             String
+  createdById        String
+  subject            String
+  bodyText           String                  @db.Text
+  selectedActivityIds String[]               @default([])
+  missingDataNotes   String[]                @default([])
+  status             ClosingEmailDraftStatus @default(DRAFT)
+  approvedById       String?
+  approvedAt         DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  case        Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdBy   User  @relation("ClosingEmailDraftCreator", fields: [createdById], references: [id])
+  approvedBy  User? @relation("ClosingEmailDraftApprover", fields: [approvedById], references: [id])
+
+  @@index([caseId, createdAt])
 }
