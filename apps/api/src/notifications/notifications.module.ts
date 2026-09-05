@@ -4,6 +4,8 @@ import { ReminderScheduler } from './reminder.scheduler';
 import { LineMessagingService } from './line-messaging.service';
 import { LineLinkService } from './line-link.service';
 import { EmailService } from './email.service';
+import { ContactLineLinkService } from './contact-line-link.service';
+import { ContactNotificationPreferenceService } from './contact-notification-preference.service';
 import { LineConversationStoreService } from './line-conversation/line-conversation-store.service';
 import { LineAuthContextService } from './line-conversation/line-auth-context.service';
 import { LineBotRouterService } from './line-conversation/line-bot-router.service';
@@ -33,6 +35,8 @@ import { SaasModule } from '../saas/saas.module';
     LineMessagingService,
     LineLinkService,
     EmailService,
+    ContactLineLinkService,
+    ContactNotificationPreferenceService,
     LineConversationStoreService,
     LineAuthContextService,
     LineBotRouterService,
@@ -41,6 +45,12 @@ import { SaasModule } from '../saas/saas.module';
     LineTaskFlowService,
     LineTodoFlowService,
   ],
-  exports: [LineMessagingService, LineLinkService, EmailService],
+  exports: [
+    LineMessagingService,
+    LineLinkService,
+    EmailService,
+    ContactLineLinkService,
+    ContactNotificationPreferenceService,
+  ],
 })
 export class NotificationsModule {}

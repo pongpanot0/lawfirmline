@@ -19,6 +19,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role, AuthUser } from '@lawfirm/shared';
 import { LineMessagingService } from './line-messaging.service';
 import { LineLinkService } from './line-link.service';
+import { ContactLineLinkService } from './contact-line-link.service';
 import { SkipSubscription } from '../saas/decorators/saas.decorators';
 import { LineBotRouterService } from './line-conversation/line-bot-router.service';
 
@@ -43,6 +44,7 @@ export class LineController {
   constructor(
     private line: LineMessagingService,
     private lineLink: LineLinkService,
+    private contactLineLink: ContactLineLinkService,
     private router: LineBotRouterService,
   ) {}
 
@@ -81,10 +83,10 @@ export class LineController {
         this.logger.log(`LINE message received from ${event.source.userId}`);
 
         try {
-          const reply = await this.lineLink.handleIncomingMessage(
-            event.source.userId,
-            text,
-          );
+          let reply = await this.lineLink.handleIncomingMessage(event.source.userId, text);
+          if (!reply) {
+            reply = await this.contactLineLink.handleIncomingMessage(event.source.userId, text);
+          }
           if (reply) {
             if (event.replyToken) {
               await this.line.replyText(event.replyToken, reply);

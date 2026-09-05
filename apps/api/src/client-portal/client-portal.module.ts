@@ -8,12 +8,18 @@ import { ClientPortalController } from './client-portal.controller';
 import { ClientPortalIntakeController } from './client-portal-intake.controller';
 import { ClientPortalIntakeService } from './client-portal-intake.service';
 import { ClientPortalJwtStrategy } from './client-portal-jwt.strategy';
+import { ClientPortalIntegrationsController } from './client-portal-integrations.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DocumentsModule } from '../documents/documents.module';
 
 @Module({
   imports: [PassportModule.register({}), JwtModule.register({}), NotificationsModule, DocumentsModule],
-  controllers: [ClientPortalAuthController, ClientPortalController, ClientPortalIntakeController],
+  controllers: [
+    ClientPortalAuthController,
+    ClientPortalController,
+    ClientPortalIntakeController,
+    ClientPortalIntegrationsController,
+  ],
   providers: [
     ClientPortalAuthService,
     ClientPortalService,
