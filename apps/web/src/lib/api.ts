@@ -1070,6 +1070,22 @@ export const api = {
 
   revokeContactCaseAccess: (token: string, caseId: string, accessId: string) =>
     request(`/cases/${caseId}/contact-access/${accessId}`, { method: 'DELETE', token }),
+
+  listDocumentPublications: (token: string, caseId: string, documentId: string) =>
+    request<DocumentPublicationEntry[]>(`/cases/${caseId}/documents/${documentId}/publications`, { token }),
+
+  publishDocument: (token: string, caseId: string, documentId: string, data: { title?: string; summary?: string }) =>
+    request<DocumentPublicationEntry>(`/cases/${caseId}/documents/${documentId}/publications`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  unpublishDocument: (token: string, caseId: string, documentId: string, publicationId: string) =>
+    request(`/cases/${caseId}/documents/${documentId}/publications/${publicationId}`, {
+      method: 'DELETE',
+      token,
+    }),
 };
 
 export interface BillingInvoiceItem {
@@ -1131,6 +1147,16 @@ export interface DocumentItem {
   visibleToClient: boolean;
   createdAt: string;
   uploadedBy: { firstName: string; lastName: string };
+}
+
+export interface DocumentPublicationEntry {
+  id: string;
+  documentId: string;
+  publishedAt: string;
+  unpublishedAt: string | null;
+  title?: string | null;
+  summary?: string | null;
+  documentVersion: { version: number };
 }
 
 export interface DocumentTemplateItem {

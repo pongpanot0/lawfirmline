@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Upload, Eye, Download } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, DocumentItem, DocumentTemplateItem } from '@/lib/api';
+import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry } from '@/lib/api';
 import { DocumentDropZone, DocumentDropZoneHandle } from '@/components/DocumentDropZone';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 
@@ -23,6 +23,16 @@ export default function CaseDocumentsPage() {
   const analyzeRef = useRef<DocumentDropZoneHandle>(null);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [publications, setPublications] = useState<Record<string, DocumentPublicationEntry[]>>({});
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+
+  const loadPublications = (documentId: string) => {
+    if (!token || !id) return;
+    api
+      .listDocumentPublications(token, id, documentId)
+      .then((entries) => setPublications((s) => ({ ...s, [documentId]: entries })))
+      .catch(() => {});
+  };
 
   const load = () => {
     if (!token || !id) return;
@@ -33,6 +43,7 @@ export default function CaseDocumentsPage() {
       .then(([docs, tmpls]) => {
         setDocuments(docs);
         setTemplates(tmpls);
+        docs.forEach((d) => loadPublications(d.id));
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -85,6 +96,32 @@ export default function CaseDocumentsPage() {
       load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not update visibility');
+    }
+  };
+
+  const handlePublish = async (doc: DocumentItem) => {
+    if (!token || !id) return;
+    setPublishingId(doc.id);
+    try {
+      await api.publishDocument(token, id, doc.id, { title: doc.filename });
+      loadPublications(doc.id);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not publish document');
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const handleUnpublish = async (doc: DocumentItem, publicationId: string) => {
+    if (!token || !id) return;
+    setPublishingId(doc.id);
+    try {
+      await api.unpublishDocument(token, id, doc.id, publicationId);
+      loadPublications(doc.id);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not unpublish document');
+    } finally {
+      setPublishingId(null);
     }
   };
 
@@ -231,6 +268,28 @@ export default function CaseDocumentsPage() {
                 >
                   {d.visibleToClient ? 'Visible to client' : 'Hidden from client'}
                 </button>
+                {(() => {
+                  const activePub = (publications[d.id] ?? []).find((p) => !p.unpublishedAt);
+                  return activePub ? (
+                    <button
+                      type="button"
+                      onClick={() => handleUnpublish(d, activePub.id)}
+                      disabled={publishingId === d.id}
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 disabled:opacity-50"
+                    >
+                      {publishingId === d.id ? 'กำลังยกเลิก...' : 'เผยแพร่แล้ว — ยกเลิก'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handlePublish(d)}
+                      disabled={publishingId === d.id}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium hover:bg-white disabled:opacity-50"
+                    >
+                      {publishingId === d.id ? 'กำลังเผยแพร่...' : 'เผยแพร่ให้ลูกความ'}
+                    </button>
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => handleView(d)}
