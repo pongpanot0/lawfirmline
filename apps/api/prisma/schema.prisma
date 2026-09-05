@@ -119,6 +119,14 @@ enum ParticipantSide {
   NEUTRAL
 }
 
+enum InsuranceClaimStage {
+  CLAIM_FILED
+  DENIED_OR_PARTIAL
+  DEMAND_SENT
+  OIC_COMPLAINT
+  SUIT_FILED
+}
+
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -346,6 +354,7 @@ model User {
   assessedIntakes     Intake[]             @relation("IntakeAssessor")
   createdClosingEmailDrafts  ClosingEmailDraft[] @relation("ClosingEmailDraftCreator")
   approvedClosingEmailDrafts ClosingEmailDraft[] @relation("ClosingEmailDraftApprover")
+  insuranceClaims     InsuranceClaim[]
 }
 
 model CaseType {
@@ -477,6 +486,7 @@ model Case {
   invoices       Invoice[]
   knowledge      CaseKnowledge[]
   closingEmailDrafts ClosingEmailDraft[]
+  insuranceClaim InsuranceClaim?
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -795,4 +805,30 @@ model ClosingEmailDraft {
   approvedBy  User? @relation("ClosingEmailDraftApprover", fields: [approvedById], references: [id])
 
   @@index([caseId, createdAt])
+}
+
+model InsuranceClaim {
+  id                   String              @id @default(uuid())
+  caseId               String              @unique
+  insurerName          String
+  policyNumber         String?
+  claimNumber          String?
+  incidentDate         DateTime
+  claimedDate          DateTime?
+  denialReason         String?             @db.Text
+  stage                InsuranceClaimStage @default(CLAIM_FILED)
+  demandLetterSentAt   DateTime?
+  demandLetterDeadline DateTime?
+  oicComplaintNumber   String?
+  oicComplaintDate     DateTime?
+  oicOutcome           String?             @db.Text
+  limitationEventId    String?
+  createdById          String
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  case      Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([caseId])
 }

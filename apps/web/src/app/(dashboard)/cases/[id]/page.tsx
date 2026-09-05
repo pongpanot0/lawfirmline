@@ -349,6 +349,7 @@ export default function CaseDetailPage() {
     { id: 'calendar', label: 'Calendar', href: `/cases/${id}/calendar` },
     { id: 'documents', label: 'Documents', href: `/cases/${id}/documents` },
     { id: 'billing', label: 'Billing', href: `/cases/${id}/billing` },
+    { id: 'insurance', label: 'Insurance', href: `/cases/${id}/insurance` },
   ];
 
   return (

@@ -32,7 +32,7 @@ CREATE UNIQUE INDEX "InsuranceClaim_caseId_key" ON "InsuranceClaim"("caseId");
 CREATE INDEX "InsuranceClaim_caseId_idx" ON "InsuranceClaim"("caseId");
 
 -- AddForeignKey
-ALTER TABLE "InsuranceClaim" ADD CONSTRAINT "InsuranceClaim_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "Case"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+ALTER TABLE "InsuranceClaim" ADD CONSTRAINT "InsuranceClaim_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "Case"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "InsuranceClaim" ADD CONSTRAINT "InsuranceClaim_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON UPDATE CASCADE ON DELETE RESTRICT;
+ALTER TABLE "InsuranceClaim" ADD CONSTRAINT "InsuranceClaim_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
