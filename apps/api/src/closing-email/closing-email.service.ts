@@ -21,6 +21,11 @@ export interface ClosingEmailCaseData {
   missingDataNotes: string[];
 }
 
+export interface RenderedClosingEmail {
+  subject: string;
+  bodyText: string;
+}
+
 @Injectable()
 export class ClosingEmailService {
   constructor(private readonly prisma: PrismaService) {}
@@ -67,5 +72,48 @@ export class ClosingEmailService {
       })),
       missingDataNotes,
     };
+  }
+
+  renderDraft(
+    data: ClosingEmailCaseData,
+    selectedActivityIds: string[],
+  ): RenderedClosingEmail {
+    const selectedSet = new Set(selectedActivityIds);
+    const chosenActivities = data.activities.filter((a) =>
+      selectedSet.has(a.id),
+    );
+
+    const subject = `สรุปงาน: ${data.title} (${data.ownRef}) — ${data.clientName ?? ''}`;
+
+    const timelineLines = chosenActivities
+      .sort((a, b) => a.activityAt.getTime() - b.activityAt.getTime())
+      .map(
+        (a) =>
+          `- ${a.activityAt.toLocaleDateString('th-TH')}: ${a.title}${
+            a.description ? ` — ${a.description}` : ''
+          }`,
+      )
+      .join('\n');
+
+    const bodyText = [
+      `เรียน ${data.clientName ?? 'ลูกความ'}`,
+      '',
+      `เรื่อง: ${data.title} (เลขอ้างอิงสำนักงาน ${data.ownRef}${
+        data.customerRef ? `, เลขอ้างอิงลูกความ ${data.customerRef}` : ''
+      })`,
+      data.courtName ? `ศาล: ${data.courtName}` : '',
+      '',
+      'ลำดับการดำเนินงานที่สำคัญ:',
+      timelineLines || '(ยังไม่ได้เลือกเหตุการณ์)',
+      '',
+      'ผลที่ได้รับ:',
+      data.closingSummary ?? '(ยังไม่มีสรุปผลคดี)',
+      '',
+      'หากมีข้อสงสัยประการใด ติดต่อทนายเจ้าของคดีได้ตามช่องทางเดิม',
+    ]
+      .filter((line) => line !== '')
+      .join('\n');
+
+    return { subject, bodyText };
   }
 }
