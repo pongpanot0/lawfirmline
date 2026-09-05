@@ -64,4 +64,33 @@ describe('AuditLogService', () => {
       expect.objectContaining({ take: 200 }),
     );
   });
+
+  it('ignores a malformed cursor and returns a valid first-page result instead of throwing', async () => {
+    mockPrisma.auditLog.findMany.mockResolvedValue([{ id: 'log-1' }]);
+    mockPrisma.auditLog.count.mockResolvedValue(1);
+
+    const result = await service.list('firm-1', { cursor: 'not-a-uuid' });
+
+    expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { firmId: 'firm-1' } }),
+    );
+    const callArgs = mockPrisma.auditLog.findMany.mock.calls[0][0];
+    expect(callArgs.cursor).toBeUndefined();
+    expect(callArgs.skip).toBeUndefined();
+    expect(result).toEqual({ items: [{ id: 'log-1' }], total: 1 });
+  });
+
+  it('applies a valid UUID cursor', async () => {
+    mockPrisma.auditLog.findMany.mockResolvedValue([]);
+    mockPrisma.auditLog.count.mockResolvedValue(0);
+
+    await service.list('firm-1', { cursor: '123e4567-e89b-12d3-a456-426614174000' });
+
+    expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cursor: { id: '123e4567-e89b-12d3-a456-426614174000' },
+        skip: 1,
+      }),
+    );
+  });
 });

@@ -6,7 +6,7 @@ import { ClientPortalGuard } from './client-portal.guard';
 import { CurrentPortalUser } from './current-portal-user.decorator';
 import { PortalIdentity } from './client-portal-jwt.strategy';
 import { SkipSubscription } from '../saas/decorators/saas.decorators';
-import { sanitizeFilenameForHeader } from '../common/utils/sanitize-filename';
+import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 
 @Controller('client-portal')
 @UseGuards(ClientPortalGuard)
@@ -36,8 +36,9 @@ export class ClientPortalController {
     @Res() res: Response,
   ) {
     const fileInfo = await this.portalService.getVisibleDocumentFile(portalUser, documentId);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', fileInfo.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilenameForHeader(fileInfo.filename)}"`);
+    res.setHeader('Content-Disposition', buildContentDispositionHeader(fileInfo.filename));
     fs.createReadStream(fileInfo.path).pipe(res);
   }
 }

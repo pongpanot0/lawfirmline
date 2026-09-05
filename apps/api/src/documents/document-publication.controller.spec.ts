@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
 import { DocumentPublicationController } from './document-publication.controller';
 import { DocumentPublicationService } from './document-publication.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { Role, FirmRole } from '@lawfirm/shared';
 
 describe('DocumentPublicationController', () => {
   let controller: DocumentPublicationController;
@@ -46,5 +48,49 @@ describe('DocumentPublicationController', () => {
     const result = await controller.unpublish(user, 'case-1', 'doc-1', 'pub-1');
     expect(mockService.unpublish).toHaveBeenCalledWith(user, 'case-1', 'doc-1', 'pub-1');
     expect(result).toEqual(expect.objectContaining({ id: 'pub-1' }));
+  });
+});
+
+describe('DocumentPublicationController RolesGuard outcome', () => {
+  const guard = new RolesGuard(new Reflector());
+
+  function buildContext(handler: (...args: any[]) => unknown, reqUser: Record<string, unknown>) {
+    return {
+      getHandler: () => handler,
+      getClass: () => DocumentPublicationController,
+      switchToHttp: () => ({ getRequest: () => ({ user: reqUser }) }),
+    } as any;
+  }
+
+  it('denies a non-owner LAWYER on publish', () => {
+    const context = buildContext(DocumentPublicationController.prototype.publish, {
+      role: Role.LAWYER,
+      firmRole: FirmRole.ASSISTANT,
+    });
+    expect(guard.canActivate(context)).toBe(false);
+  });
+
+  it('denies a non-owner LAWYER on unpublish', () => {
+    const context = buildContext(DocumentPublicationController.prototype.unpublish, {
+      role: Role.LAWYER,
+      firmRole: FirmRole.ASSISTANT,
+    });
+    expect(guard.canActivate(context)).toBe(false);
+  });
+
+  it('allows an ADMIN on publish', () => {
+    const context = buildContext(DocumentPublicationController.prototype.publish, {
+      role: Role.ADMIN,
+      firmRole: FirmRole.ASSISTANT,
+    });
+    expect(guard.canActivate(context)).toBe(true);
+  });
+
+  it('allows a firm OWNER on publish regardless of professional role', () => {
+    const context = buildContext(DocumentPublicationController.prototype.publish, {
+      role: Role.LAWYER,
+      firmRole: FirmRole.OWNER,
+    });
+    expect(guard.canActivate(context)).toBe(true);
   });
 });

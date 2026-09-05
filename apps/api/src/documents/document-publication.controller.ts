@@ -24,7 +24,7 @@ export class DocumentPublicationController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.LAWYER)
+  @Roles(Role.ADMIN)
   publish(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -36,7 +36,7 @@ export class DocumentPublicationController {
 
   @Delete(':publicationId')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.LAWYER)
+  @Roles(Role.ADMIN)
   unpublish(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,

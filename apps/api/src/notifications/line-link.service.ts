@@ -116,7 +116,7 @@ export class LineLinkService {
       '❌ ไม่สามารถเชื่อมต่อได้ กรุณาสร้างรหัสใหม่จาก Settings และลองอีกครั้ง';
 
     if (!user) {
-      return GENERIC_FAILURE_MESSAGE;
+      return null;
     }
 
     if (

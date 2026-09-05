@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
 import { ContactCaseAccessController } from './contact-case-access.controller';
 import { ContactCaseAccessService } from './contact-case-access.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { Role, FirmRole } from '@lawfirm/shared';
 
 describe('ContactCaseAccessController', () => {
   let controller: ContactCaseAccessController;
@@ -50,5 +52,49 @@ describe('ContactCaseAccessController', () => {
     const result = await controller.revoke(user, 'case-1', 'access-1');
     expect(mockService.revoke).toHaveBeenCalledWith(user, 'case-1', 'access-1');
     expect(result).toEqual(expect.objectContaining({ id: 'access-1' }));
+  });
+});
+
+describe('ContactCaseAccessController RolesGuard outcome', () => {
+  const guard = new RolesGuard(new Reflector());
+
+  function buildContext(handler: (...args: any[]) => unknown, reqUser: Record<string, unknown>) {
+    return {
+      getHandler: () => handler,
+      getClass: () => ContactCaseAccessController,
+      switchToHttp: () => ({ getRequest: () => ({ user: reqUser }) }),
+    } as any;
+  }
+
+  it('denies a non-owner LAWYER on grant', () => {
+    const context = buildContext(ContactCaseAccessController.prototype.grant, {
+      role: Role.LAWYER,
+      firmRole: FirmRole.ASSISTANT,
+    });
+    expect(guard.canActivate(context)).toBe(false);
+  });
+
+  it('denies a non-owner LAWYER on revoke', () => {
+    const context = buildContext(ContactCaseAccessController.prototype.revoke, {
+      role: Role.LAWYER,
+      firmRole: FirmRole.ASSISTANT,
+    });
+    expect(guard.canActivate(context)).toBe(false);
+  });
+
+  it('allows an ADMIN on grant', () => {
+    const context = buildContext(ContactCaseAccessController.prototype.grant, {
+      role: Role.ADMIN,
+      firmRole: FirmRole.ASSISTANT,
+    });
+    expect(guard.canActivate(context)).toBe(true);
+  });
+
+  it('allows a firm OWNER on grant regardless of professional role', () => {
+    const context = buildContext(ContactCaseAccessController.prototype.grant, {
+      role: Role.LAWYER,
+      firmRole: FirmRole.OWNER,
+    });
+    expect(guard.canActivate(context)).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ export interface AuditLogFilters {
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class AuditLogService {
@@ -21,13 +22,14 @@ export class AuditLogService {
     if (filters.userId) where.userId = filters.userId;
 
     const take = Math.min(filters.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    const validCursor = filters.cursor && UUID_PATTERN.test(filters.cursor) ? filters.cursor : undefined;
 
     const [items, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         take,
-        ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+        ...(validCursor ? { cursor: { id: validCursor }, skip: 1 } : {}),
       }),
       this.prisma.auditLog.count({ where }),
     ]);

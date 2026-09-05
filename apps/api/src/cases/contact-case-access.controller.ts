@@ -20,7 +20,7 @@ export class ContactCaseAccessController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.LAWYER)
+  @Roles(Role.ADMIN)
   grant(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -31,7 +31,7 @@ export class ContactCaseAccessController {
 
   @Delete(':accessId')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.LAWYER)
+  @Roles(Role.ADMIN)
   revoke(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
