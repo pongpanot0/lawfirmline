@@ -191,6 +191,35 @@ describe('DocumentPublicationService', () => {
       expect(mockLine.pushTo).not.toHaveBeenCalled();
     });
 
+    it('only notifies recipientContacts that have an active ContactCaseAccess grant for the case', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1', version: 2 });
+      mockPrisma.documentVersion.findFirst.mockResolvedValue({ id: 'ver-2', version: 2 });
+      mockPrisma.case.findUnique.mockResolvedValue({ clientId: 'client-1' });
+      mockPrisma.clientContact.count.mockResolvedValue(2);
+      mockPrisma.documentPublication.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.documentPublication.create.mockResolvedValue({ id: 'pub-1', title: 'สรุปคดี' });
+      // only contact-1 has an active grant for this case
+      mockPrisma.contactCaseAccess.findMany.mockResolvedValue([{ clientContactId: 'contact-1' }]);
+      const allContacts = [
+        { id: 'contact-1', lineUserId: 'U-GRANTED' },
+        { id: 'contact-2', lineUserId: 'U-NOT-GRANTED' },
+      ];
+      mockPrisma.clientContact.findMany.mockImplementation(({ where }: any) => {
+        const ids: string[] = where.id.in;
+        return Promise.resolve(allContacts.filter((c) => ids.includes(c.id)));
+      });
+      mockPrefs.isChannelEnabled.mockResolvedValue(true);
+      mockLine.pushTo.mockResolvedValue(true);
+
+      await service.publish(user, 'case-1', 'doc-1', {
+        recipientContacts: ['contact-1', 'contact-2'],
+      });
+
+      expect(mockLine.pushTo).toHaveBeenCalledWith('U-GRANTED', expect.stringContaining('สรุปคดี'));
+      expect(mockLine.pushTo).not.toHaveBeenCalledWith('U-NOT-GRANTED', expect.anything());
+      expect(mockLine.pushTo).toHaveBeenCalledTimes(1);
+    });
+
     it('does not throw when LINE push fails', async () => {
       mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1', version: 2 });
       mockPrisma.documentVersion.findFirst.mockResolvedValue({ id: 'ver-2', version: 2 });

@@ -63,7 +63,7 @@ export class LineLinkService {
       throw new BadRequestException('LINE account is already connected');
     }
 
-    const code = this.generateLinkCode();
+    const code = await this.generateLinkCode();
     const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MS);
 
     await this.prisma.user.update({
@@ -106,22 +106,25 @@ export class LineLinkService {
       where: { lineLinkCode: trimmed },
     });
 
+    const GENERIC_FAILURE_MESSAGE =
+      '❌ ไม่สามารถเชื่อมต่อได้ กรุณาสร้างรหัสใหม่จาก Settings และลองอีกครั้ง';
+
     if (!user) {
-      return '❌ รหัสเชื่อมต่อไม่ถูกต้อง กรุณาสร้างรหัสใหม่จากหน้า Settings ใน LexFlow';
+      return GENERIC_FAILURE_MESSAGE;
     }
 
     if (
       !user.lineLinkCodeExpiresAt ||
       user.lineLinkCodeExpiresAt.getTime() < Date.now()
     ) {
-      return '❌ รหัสเชื่อมต่อหมดอายุแล้ว กรุณาสร้างรหัสใหม่จากหน้า Settings ใน LexFlow';
+      return GENERIC_FAILURE_MESSAGE;
     }
 
     const existing = await this.prisma.user.findUnique({
       where: { lineUserId },
     });
     if (existing && existing.id !== user.id) {
-      return '❌ LINE นี้เชื่อมต่อกับบัญชี LexFlow อื่นอยู่แล้ว';
+      return GENERIC_FAILURE_MESSAGE;
     }
 
     await this.prisma.user.update({
@@ -166,11 +169,21 @@ export class LineLinkService {
       .filter((id): id is string => Boolean(id));
   }
 
-  private generateLinkCode(): string {
+  private async generateLinkCode(): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {
       const suffix = randomBytes(3).toString('hex').toUpperCase();
       const code = `LF-${suffix}`;
-      return code;
+      const [existingUser, existingContact] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { lineLinkCode: code },
+          select: { id: true },
+        }),
+        this.prisma.clientContact.findUnique({
+          where: { lineLinkCode: code },
+          select: { id: true },
+        }),
+      ]);
+      if (!existingUser && !existingContact) return code;
     }
     throw new ConflictException('Could not generate link code');
   }

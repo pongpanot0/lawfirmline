@@ -8,6 +8,7 @@ describe('ContactLineLinkService', () => {
   let service: ContactLineLinkService;
   const mockPrisma = {
     clientContact: { findUnique: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
+    user: { findUnique: jest.fn() },
   };
   const mockLineLink = { getOfficialAccountUrl: jest.fn().mockReturnValue('https://line.me/R/ti/p/@test') };
 
@@ -35,8 +36,12 @@ describe('ContactLineLinkService', () => {
     });
 
     it('generates and stores a code when not yet connected', async () => {
-      mockPrisma.clientContact.findUnique.mockResolvedValue({ id: 'contact-1', lineUserId: null });
+      mockPrisma.clientContact.findUnique.mockImplementation(({ where }: any) => {
+        if (where.id) return Promise.resolve({ id: 'contact-1', lineUserId: null });
+        return Promise.resolve(null); // no existing code collision
+      });
       mockPrisma.clientContact.update.mockResolvedValue({});
+      mockPrisma.user.findUnique.mockResolvedValue(null);
 
       const result = await service.createLinkCode('contact-1');
 
@@ -45,6 +50,28 @@ describe('ContactLineLinkService', () => {
         where: { id: 'contact-1' },
         data: { lineLinkCode: result.code, lineLinkCodeExpiresAt: expect.any(Date) },
       });
+    });
+
+    it('retries generating a code when the first attempt collides with an existing contact or user code', async () => {
+      mockPrisma.clientContact.findUnique.mockImplementation(({ where }: any) => {
+        if (where.id) return Promise.resolve({ id: 'contact-1', lineUserId: null });
+        // uniqueness check on lineLinkCode: first call collides, subsequent calls do not
+        return uniquenessCallCount++ === 0
+          ? Promise.resolve({ id: 'other-contact' })
+          : Promise.resolve(null);
+      });
+      let uniquenessCallCount = 0;
+      mockPrisma.clientContact.update.mockResolvedValue({});
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      const result = await service.createLinkCode('contact-1');
+
+      expect(result.code).toMatch(/^LF-[A-Z0-9]{6}$/);
+      // findUnique on lineLinkCode should have been called more than once (collision then success)
+      const uniquenessChecks = mockPrisma.clientContact.findUnique.mock.calls.filter(
+        ([arg]: any) => arg?.where?.lineLinkCode,
+      );
+      expect(uniquenessChecks.length).toBeGreaterThan(1);
     });
   });
 

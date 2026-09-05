@@ -56,7 +56,7 @@ export class ContactLineLinkService {
       throw new BadRequestException('LINE account is already connected');
     }
 
-    const code = this.generateLinkCode();
+    const code = await this.generateLinkCode();
     const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MS);
 
     await this.prisma.clientContact.update({
@@ -96,22 +96,25 @@ export class ContactLineLinkService {
       where: { lineLinkCode: trimmed },
     });
 
+    const GENERIC_FAILURE_MESSAGE =
+      '❌ ไม่สามารถเชื่อมต่อได้ กรุณาสร้างรหัสใหม่จาก Portal และลองอีกครั้ง';
+
     if (!contact) {
-      return '❌ รหัสเชื่อมต่อไม่ถูกต้อง กรุณาสร้างรหัสใหม่จาก Portal';
+      return GENERIC_FAILURE_MESSAGE;
     }
 
     if (
       !contact.lineLinkCodeExpiresAt ||
       contact.lineLinkCodeExpiresAt.getTime() < Date.now()
     ) {
-      return '❌ รหัสเชื่อมต่อหมดอายุแล้ว กรุณาสร้างรหัสใหม่จาก Portal';
+      return GENERIC_FAILURE_MESSAGE;
     }
 
     const existing = await this.prisma.clientContact.findFirst({
       where: { lineUserId },
     });
     if (existing && existing.id !== contact.id) {
-      return '❌ LINE นี้เชื่อมต่อกับผู้ติดต่ออื่นอยู่แล้ว';
+      return GENERIC_FAILURE_MESSAGE;
     }
 
     await this.prisma.clientContact.update({
@@ -128,10 +131,21 @@ export class ContactLineLinkService {
     return `✅ เชื่อมต่อสำเร็จ!\nสวัสดีคุณ ${contact.name} คุณจะได้รับแจ้งเตือนเมื่อสำนักงานเผยแพร่เอกสารใหม่ให้คุณ`;
   }
 
-  private generateLinkCode(): string {
+  private async generateLinkCode(): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {
       const suffix = randomBytes(3).toString('hex').toUpperCase();
-      return `LF-${suffix}`;
+      const code = `LF-${suffix}`;
+      const [existingContact, existingUser] = await Promise.all([
+        this.prisma.clientContact.findUnique({
+          where: { lineLinkCode: code },
+          select: { id: true },
+        }),
+        this.prisma.user.findUnique({
+          where: { lineLinkCode: code },
+          select: { id: true },
+        }),
+      ]);
+      if (!existingContact && !existingUser) return code;
     }
     throw new ConflictException('Could not generate link code');
   }

@@ -69,20 +69,23 @@ export class DocumentPublicationService {
 
   private async notifyPublication(caseId: string, recipientContacts: string[], title: string) {
     try {
-      let targetContactIds = recipientContacts;
-      if (targetContactIds.length === 0) {
-        const now = new Date();
-        const grants = await this.prisma.contactCaseAccess.findMany({
-          where: {
-            caseId,
-            revokedAt: null,
-            startDate: { lte: now },
-            OR: [{ endDate: null }, { endDate: { gte: now } }],
-          },
-          select: { clientContactId: true },
-        });
-        targetContactIds = grants.map((g) => g.clientContactId);
-      }
+      const now = new Date();
+      const grants = await this.prisma.contactCaseAccess.findMany({
+        where: {
+          caseId,
+          revokedAt: null,
+          startDate: { lte: now },
+          OR: [{ endDate: null }, { endDate: { gte: now } }],
+        },
+        select: { clientContactId: true },
+      });
+      const grantedContactIds = new Set(grants.map((g) => g.clientContactId));
+
+      const targetContactIds =
+        recipientContacts.length > 0
+          ? recipientContacts.filter((id) => grantedContactIds.has(id))
+          : [...grantedContactIds];
+
       if (targetContactIds.length === 0) return;
 
       const contacts = await this.prisma.clientContact.findMany({
