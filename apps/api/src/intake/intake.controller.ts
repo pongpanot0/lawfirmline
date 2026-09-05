@@ -19,6 +19,7 @@ import {
   ConvertToCaseDto,
   IntakeQueryDto,
 } from './dto/intake.dto';
+import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -34,6 +35,20 @@ export class IntakeController {
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: IntakeQueryDto) {
     return this.intakeService.findAll(user, query);
+  }
+
+  @Get('portal-submissions')
+  listPortalSubmissions(@CurrentUser() user: AuthUser) {
+    return this.intakeService.listPortalSubmissions(user);
+  }
+
+  @Post('portal-submissions/:id/convert')
+  convertPortalSubmission(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: ConvertPortalSubmissionDto,
+  ) {
+    return this.intakeService.convertPortalSubmission(user, id, dto);
   }
 
   @Get(':id')
