@@ -77,18 +77,32 @@ export class ClientsService {
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.contacts) {
-        await tx.clientContact.deleteMany({ where: { clientId: id } });
-        await tx.clientContact.createMany({
-          data: dto.contacts.map((c, i) => ({
-            clientId: id,
+        const existing = await tx.clientContact.findMany({ where: { clientId: id } });
+        const existingIds = new Set(existing.map((c) => c.id));
+        const incomingIds = new Set(
+          dto.contacts.filter((c) => c.id).map((c) => c.id as string),
+        );
+
+        const toDelete = [...existingIds].filter((eid) => !incomingIds.has(eid));
+        if (toDelete.length > 0) {
+          await tx.clientContact.deleteMany({ where: { id: { in: toDelete } } });
+        }
+
+        for (const [i, c] of dto.contacts.entries()) {
+          const data = {
             name: c.name,
             email: c.email,
             phone: c.phone,
             position: c.position,
             isPrimary: c.isPrimary ?? i === 0,
             portalEnabled: c.portalEnabled ?? false,
-          })),
-        });
+          };
+          if (c.id && existingIds.has(c.id)) {
+            await tx.clientContact.update({ where: { id: c.id }, data });
+          } else {
+            await tx.clientContact.create({ data: { ...data, clientId: id } });
+          }
+        }
       }
 
       return tx.client.update({
