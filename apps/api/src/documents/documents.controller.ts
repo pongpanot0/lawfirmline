@@ -21,6 +21,7 @@ import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { sanitizeFilenameForHeader } from '../common/utils/sanitize-filename';
 import { AuthUser, Role } from '@lawfirm/shared';
 
 @Controller('cases/:caseId/documents')
@@ -84,7 +85,7 @@ export class DocumentsController {
     res.setHeader('Content-Type', fileInfo.mimeType);
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${fileInfo.filename}"`,
+      `attachment; filename="${sanitizeFilenameForHeader(fileInfo.filename)}"`,
     );
     const stream = fs.createReadStream(fileInfo.path);
     stream.pipe(res);
