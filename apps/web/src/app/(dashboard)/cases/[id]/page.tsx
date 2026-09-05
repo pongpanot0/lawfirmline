@@ -350,6 +350,11 @@ export default function CaseDetailPage() {
     { id: 'documents', label: 'Documents', href: `/cases/${id}/documents` },
     { id: 'billing', label: 'Billing', href: `/cases/${id}/billing` },
     { id: 'insurance', label: 'Insurance', href: `/cases/${id}/insurance` },
+    {
+      id: 'closing-report',
+      label: 'รายงานปิดงาน',
+      href: `/cases/${id}/closing-report`,
+    },
   ];
 
   return (

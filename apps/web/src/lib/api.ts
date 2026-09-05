@@ -982,6 +982,34 @@ export const api = {
 
   convertIntake: (token: string, id: string, data?: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/convert`, { method: 'POST', token, body: JSON.stringify(data ?? {}) }),
+
+  createClosingEmailDraft: (token: string, caseId: string, selectedActivityIds: string[]) =>
+    request<ClosingEmailDraft>(`/cases/${caseId}/closing-email-drafts`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ selectedActivityIds }),
+    }),
+
+  listClosingEmailDrafts: (token: string, caseId: string) =>
+    request<ClosingEmailDraft[]>(`/cases/${caseId}/closing-email-drafts`, { token }),
+
+  updateClosingEmailDraft: (
+    token: string,
+    caseId: string,
+    draftId: string,
+    data: { subject?: string; bodyText?: string },
+  ) =>
+    request<ClosingEmailDraft>(`/cases/${caseId}/closing-email-drafts/${draftId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  approveClosingEmailDraft: (token: string, caseId: string, draftId: string) =>
+    request<ClosingEmailDraft>(`/cases/${caseId}/closing-email-drafts/${draftId}/approve`, {
+      method: 'POST',
+      token,
+    }),
 };
 
 export interface BillingInvoiceItem {
@@ -1065,4 +1093,15 @@ export interface InvoiceItem {
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+}
+
+export interface ClosingEmailDraft {
+  id: string;
+  caseId: string;
+  subject: string;
+  bodyText: string;
+  selectedActivityIds: string[];
+  missingDataNotes: string[];
+  status: 'DRAFT' | 'APPROVED';
+  createdAt: string;
 }
