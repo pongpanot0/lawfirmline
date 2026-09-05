@@ -2,6 +2,7 @@ import { InsuranceClaimStage, INSURANCE_CLAIM_STAGE_ORDER } from '@lawfirm/share
 
 export function getAllowedNextStages(current: InsuranceClaimStage): InsuranceClaimStage[] {
   const currentIndex = INSURANCE_CLAIM_STAGE_ORDER.indexOf(current);
+  if (currentIndex === -1) return [];
   return INSURANCE_CLAIM_STAGE_ORDER.slice(currentIndex + 1);
 }
 

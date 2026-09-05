@@ -9,7 +9,7 @@ import {
   INSURANCE_CLAIM_STAGE_LABELS,
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, InsuranceClaimItem } from '@/lib/api';
+import { api, ApiError, InsuranceClaimItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 
 export default function CaseInsurancePage() {
@@ -24,10 +24,21 @@ export default function CaseInsurancePage() {
   const load = () => {
     if (!token || !id) return;
     setLoading(true);
+    setError(null);
     api
       .getInsuranceClaim(token, id)
       .then(setClaim)
-      .catch(() => setClaim(null))
+      .catch((err) => {
+        const isNotFound =
+          err instanceof ApiError
+            ? err.status === 404
+            : err instanceof Error && /no insurance claim tracked/i.test(err.message);
+        if (isNotFound) {
+          setClaim(null);
+        } else {
+          setError(err instanceof Error ? err.message : 'โหลดข้อมูลเคลมประกันไม่สำเร็จ');
+        }
+      })
       .finally(() => setLoading(false));
   };
 
@@ -167,6 +178,24 @@ export default function CaseInsurancePage() {
             <div>
               <p className="text-sm text-slate-500">วันวินาศภัย</p>
               <p className="font-medium text-slate-900">{formatDate(claim.incidentDate)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">วันครบอายุความ</p>
+              <p className="font-medium text-slate-900">
+                {claim.limitationDeadline ? formatDate(claim.limitationDeadline) : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">กำหนดหนังสือทวงถาม</p>
+              <p className="font-medium text-slate-900">
+                {claim.demandLetterDeadline ? formatDate(claim.demandLetterDeadline) : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">วันยื่นร้องเรียน คปภ.</p>
+              <p className="font-medium text-slate-900">
+                {claim.oicComplaintDate ? formatDate(claim.oicComplaintDate) : '—'}
+              </p>
             </div>
           </div>
 

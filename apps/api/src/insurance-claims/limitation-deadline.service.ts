@@ -35,6 +35,7 @@ export class LimitationDeadlineService {
       const updated = await this.calendarService.update(existingEventId, {
         startAt: deadline.toISOString(),
       });
+      await this.prisma.reminderLog.deleteMany({ where: { eventId: existingEventId } });
       return updated.id;
     }
 

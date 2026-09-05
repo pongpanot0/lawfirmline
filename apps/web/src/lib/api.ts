@@ -216,6 +216,7 @@ export interface InsuranceClaimItem {
   oicComplaintNumber?: string | null;
   oicComplaintDate?: string | null;
   oicOutcome?: string | null;
+  limitationDeadline: string | null;
 }
 
 export interface ClientContactItem {
