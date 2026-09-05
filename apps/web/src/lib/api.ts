@@ -1057,6 +1057,19 @@ export const api = {
       method: 'POST',
       token,
     }),
+
+  listContactCaseAccess: (token: string, caseId: string) =>
+    request<ContactCaseAccessEntry[]>(`/cases/${caseId}/contact-access`, { token }),
+
+  grantContactCaseAccess: (token: string, caseId: string, clientContactId: string, endDate?: string) =>
+    request<ContactCaseAccessEntry>(`/cases/${caseId}/contact-access`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ clientContactId, ...(endDate ? { endDate } : {}) }),
+    }),
+
+  revokeContactCaseAccess: (token: string, caseId: string, accessId: string) =>
+    request(`/cases/${caseId}/contact-access/${accessId}`, { method: 'DELETE', token }),
 };
 
 export interface BillingInvoiceItem {
@@ -1151,6 +1164,18 @@ export interface PortalSubmissionStaffEntry {
   urgencyFlag: boolean;
   clientContact: { name: string; email: string | null };
   client: { name: string };
+}
+
+export interface ContactCaseAccessEntry {
+  id: string;
+  caseId: string;
+  clientContactId: string;
+  grantedAt: string;
+  startDate?: string;
+  endDate: string | null;
+  revokedAt: string | null;
+  notes?: string | null;
+  clientContact: { name: string; email: string | null };
 }
 
 export interface ClosingEmailDraft {

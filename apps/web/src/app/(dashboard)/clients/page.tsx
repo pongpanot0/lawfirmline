@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Star } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, ClientItem } from '@/lib/api';
+import { api, ClientItem, ContactCaseAccessEntry } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -92,6 +92,54 @@ export default function ClientsPage() {
     const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
     setSelected(updated);
   };
+
+  const [caseAccess, setCaseAccess] = useState<Record<string, ContactCaseAccessEntry[]>>({});
+  const [caseAccessLoading, setCaseAccessLoading] = useState<Record<string, boolean>>({});
+  const [caseAccessError, setCaseAccessError] = useState<Record<string, boolean>>({});
+  const [grantSelection, setGrantSelection] = useState<Record<string, string>>({});
+  const [grantingCaseId, setGrantingCaseId] = useState<string | null>(null);
+  const [revokingAccessId, setRevokingAccessId] = useState<string | null>(null);
+
+  const loadCaseAccess = (caseId: string) => {
+    if (!token) return;
+    setCaseAccessLoading((s) => ({ ...s, [caseId]: true }));
+    setCaseAccessError((s) => ({ ...s, [caseId]: false }));
+    api
+      .listContactCaseAccess(token, caseId)
+      .then((entries) => setCaseAccess((s) => ({ ...s, [caseId]: entries })))
+      .catch(() => setCaseAccessError((s) => ({ ...s, [caseId]: true })))
+      .finally(() => setCaseAccessLoading((s) => ({ ...s, [caseId]: false })));
+  };
+
+  const grantCaseAccess = async (caseId: string) => {
+    const clientContactId = grantSelection[caseId];
+    if (!token || !clientContactId) return;
+    setGrantingCaseId(caseId);
+    try {
+      await api.grantContactCaseAccess(token, caseId, clientContactId);
+      setGrantSelection((s) => ({ ...s, [caseId]: '' }));
+      loadCaseAccess(caseId);
+    } finally {
+      setGrantingCaseId(null);
+    }
+  };
+
+  const revokeCaseAccess = async (caseId: string, accessId: string) => {
+    if (!token) return;
+    setRevokingAccessId(accessId);
+    try {
+      await api.revokeContactCaseAccess(token, caseId, accessId);
+      loadCaseAccess(caseId);
+    } finally {
+      setRevokingAccessId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!selected || !token) return;
+    (selected.cases ?? []).forEach((c) => loadCaseAccess(c.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, token]);
 
   useEffect(() => {
     setLoading(true);
@@ -256,18 +304,96 @@ export default function ClientsPage() {
           </TabsContent>
 
           <TabsContent value="cases">
-            <div className="space-y-2">
-              {(selected.cases ?? []).map((c) => (
-                <Card key={c.id} className="cursor-pointer hover:bg-accent/50" onClick={() => router.push(`/cases/${c.id}`)}>
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div>
-                      <p className="font-medium">{c.title}</p>
-                      <p className="text-xs text-muted-foreground">{c.ownRef}{c.courtName ? ` · ${c.courtName}` : ''}</p>
-                    </div>
-                    <CaseStatusBadge status={c.status} />
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="space-y-4">
+              {(selected.cases ?? []).map((c) => {
+                const eligibleContacts = selected.contacts.filter((ct) => ct.id && ct.portalEnabled);
+                const entries = caseAccess[c.id] ?? [];
+                const activeEntries = entries.filter((e) => !e.revokedAt);
+                const isLoading = caseAccessLoading[c.id];
+                const hasError = caseAccessError[c.id];
+                return (
+                  <Card key={c.id}>
+                    <CardContent className="p-4 space-y-3">
+                      <div
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={() => router.push(`/cases/${c.id}`)}
+                      >
+                        <div>
+                          <p className="font-medium">{c.title}</p>
+                          <p className="text-xs text-muted-foreground">{c.ownRef}{c.courtName ? ` · ${c.courtName}` : ''}</p>
+                        </div>
+                        <CaseStatusBadge status={c.status} />
+                      </div>
+
+                      <div className="border-t pt-3 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">สิทธิ์เข้าถึงคดี</p>
+
+                        {isLoading ? (
+                          <p className="text-xs text-muted-foreground">กำลังโหลด...</p>
+                        ) : hasError ? (
+                          <p className="text-xs text-destructive">โหลดสิทธิ์เข้าถึงไม่สำเร็จ</p>
+                        ) : (
+                          <>
+                            {activeEntries.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">ยังไม่มีผู้ติดต่อที่ได้รับสิทธิ์</p>
+                            ) : (
+                              <ul className="space-y-1">
+                                {activeEntries.map((entry) => (
+                                  <li key={entry.id} className="flex items-center justify-between text-sm">
+                                    <span>
+                                      {entry.clientContact.name}
+                                      {entry.clientContact.email ? ` (${entry.clientContact.email})` : ''}
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-destructive hover:text-destructive"
+                                      disabled={revokingAccessId === entry.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        revokeCaseAccess(c.id, entry.id);
+                                      }}
+                                    >
+                                      {revokingAccessId === entry.id ? 'กำลังถอน...' : 'ถอนสิทธิ์'}
+                                    </Button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </>
+                        )}
+
+                        {eligibleContacts.length > 0 && (
+                          <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                            <select
+                              className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                              value={grantSelection[c.id] ?? ''}
+                              onChange={(e) => setGrantSelection((s) => ({ ...s, [c.id]: e.target.value }))}
+                            >
+                              <option value="">เลือกผู้ติดต่อ...</option>
+                              {eligibleContacts
+                                .filter((ct) => !activeEntries.some((e) => e.clientContactId === ct.id))
+                                .map((ct) => (
+                                  <option key={ct.id} value={ct.id}>
+                                    {ct.name}
+                                  </option>
+                                ))}
+                            </select>
+                            <Button
+                              size="sm"
+                              className="h-8 text-xs"
+                              disabled={!grantSelection[c.id] || grantingCaseId === c.id}
+                              onClick={() => grantCaseAccess(c.id)}
+                            >
+                              {grantingCaseId === c.id ? 'กำลังให้สิทธิ์...' : 'ให้สิทธิ์'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
               {(selected.cases ?? []).length === 0 && (
                 <p className="text-sm text-muted-foreground">No cases linked yet</p>
               )}
