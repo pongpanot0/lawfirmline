@@ -80,6 +80,15 @@ export interface PortalCaseDetail extends PortalCaseSummary {
   }>;
 }
 
+export interface PortalIntakeSubmissionEntry {
+  id: string;
+  referenceNumber: string;
+  title: string;
+  submittedAt: string;
+  withdrawnByClient: boolean;
+  externalStatus: string;
+}
+
 export const portalApi = {
   requestLink: (email: string) =>
     request<{ message: string; linkToken?: string }>('/client-portal/auth/request-link', {
@@ -103,4 +112,17 @@ export const portalApi = {
 
   downloadDocument: (token: string, documentId: string) =>
     requestBlob(`/client-portal/documents/${documentId}/download`, token),
+
+  submitIntake: (
+    token: string,
+    dto: { title: string; detail: string; clientRequestedDate?: string; urgencyFlag?: boolean },
+  ) =>
+    request<PortalIntakeSubmissionEntry>('/client-portal/intake', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+      token,
+    }),
+
+  getMyIntakeSubmissions: (token: string) =>
+    request<PortalIntakeSubmissionEntry[]>('/client-portal/intake', { token }),
 };

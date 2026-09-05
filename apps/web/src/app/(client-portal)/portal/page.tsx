@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { usePortalAuth } from '@/lib/portal-auth';
 import { portalApi, PortalCaseSummary } from '@/lib/portal-api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -38,9 +39,17 @@ export default function PortalDashboardPage() {
             <h1 className="text-2xl font-bold">Welcome, {contact.name}</h1>
             <p className="text-sm text-muted-foreground">{contact.client?.name}</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={logout}>
-            Sign out
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href="/portal/intake/new" className="rounded bg-blue-600 px-4 py-2 text-white">
+              ส่งเรื่องใหม่
+            </Link>
+            <Link href="/portal/intake" className="rounded border px-4 py-2">
+              เรื่องที่ส่ง
+            </Link>
+            <Button variant="ghost" size="sm" onClick={logout}>
+              Sign out
+            </Button>
+          </div>
         </div>
 
         {loadingCases ? (
