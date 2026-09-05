@@ -18,6 +18,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { CaseTypesModule } from './case-types/case-types.module';
+import { InsuranceClaimsModule } from './insurance-claims/insurance-claims.module';
 import { ClientsModule } from './clients/clients.module';
 import { ClientPortalModule } from './client-portal/client-portal.module';
 import { CourtsModule } from './courts/courts.module';
@@ -49,6 +50,7 @@ import { OperationsModule } from './operations/operations.module';
     DashboardModule,
     ReportsModule,
     CaseTypesModule,
+    InsuranceClaimsModule,
     ClientsModule,
     ClientPortalModule,
     CourtsModule,

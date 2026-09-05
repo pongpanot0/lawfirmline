@@ -201,6 +201,24 @@ export interface CaseItem {
   client?: { id: string; name: string } | null;
 }
 
+export interface InsuranceClaimItem {
+  id: string;
+  caseId: string;
+  insurerName: string;
+  policyNumber?: string | null;
+  claimNumber?: string | null;
+  incidentDate: string;
+  claimedDate?: string | null;
+  denialReason?: string | null;
+  stage: import('@lawfirm/shared').InsuranceClaimStage;
+  demandLetterSentAt?: string | null;
+  demandLetterDeadline?: string | null;
+  oicComplaintNumber?: string | null;
+  oicComplaintDate?: string | null;
+  oicOutcome?: string | null;
+  limitationDeadline: string | null;
+}
+
 export interface ClientContactItem {
   id?: string;
   name: string;
@@ -743,6 +761,30 @@ export const api = {
       method: 'POST',
       token,
       body: JSON.stringify(data),
+    }),
+
+  getInsuranceClaim: (token: string, caseId: string) =>
+    request<InsuranceClaimItem>(`/cases/${caseId}/insurance-claim`, { token }),
+
+  createInsuranceClaim: (token: string, caseId: string, data: Record<string, unknown>) =>
+    request<InsuranceClaimItem>(`/cases/${caseId}/insurance-claim`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  updateInsuranceClaim: (token: string, caseId: string, data: Record<string, unknown>) =>
+    request<InsuranceClaimItem>(`/cases/${caseId}/insurance-claim`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  advanceInsuranceClaimStage: (token: string, caseId: string, stage: string) =>
+    request<InsuranceClaimItem>(`/cases/${caseId}/insurance-claim/advance-stage`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ stage }),
     }),
 
   createCaseType: (token: string, data: Record<string, unknown>) =>
