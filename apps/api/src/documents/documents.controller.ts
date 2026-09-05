@@ -18,8 +18,10 @@ import { DocumentsService } from './documents.service';
 import { UpdateDocumentVisibilityDto } from './dto/update-visibility.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AuthUser } from '@lawfirm/shared';
+import { AuthUser, Role } from '@lawfirm/shared';
 
 @Controller('cases/:caseId/documents')
 @UseGuards(JwtAuthGuard, CaseAccessGuard)
@@ -33,6 +35,8 @@ export class DocumentsController {
 
   @Post()
   @UseInterceptors(FileInterceptor('file'))
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
   upload(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -43,6 +47,8 @@ export class DocumentsController {
 
   @Post(':documentId/versions')
   @UseInterceptors(FileInterceptor('file'))
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
   uploadVersion(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -53,6 +59,8 @@ export class DocumentsController {
   }
 
   @Patch(':documentId/visibility')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
   updateVisibility(
     @Param('caseId') caseId: string,
     @Param('documentId') documentId: string,
