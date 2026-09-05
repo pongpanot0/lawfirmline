@@ -21,6 +21,7 @@ export class TasksService {
     createdBy: {
       select: { id: true, firstName: true, lastName: true },
     },
+    onHold: true,
   };
 
   async findByCase(caseId: string) {
@@ -95,9 +96,9 @@ export class TasksService {
     return { deleted: true };
   }
 
-  async startOnHold(taskId: string, user: AuthUser, dto: StartTaskOnHoldDto) {
-    const task = await this.prisma.task.findUnique({
-      where: { id: taskId },
+  async startOnHold(caseId: string, taskId: string, user: AuthUser, dto: StartTaskOnHoldDto) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, caseId },
       include: { onHold: true },
     });
     if (!task) {
@@ -118,8 +119,10 @@ export class TasksService {
     });
   }
 
-  async updateOnHold(taskId: string, dto: UpdateTaskOnHoldDto) {
-    const hold = await this.prisma.taskOnHold.findUnique({ where: { taskId } });
+  async updateOnHold(caseId: string, taskId: string, dto: UpdateTaskOnHoldDto) {
+    const hold = await this.prisma.taskOnHold.findFirst({
+      where: { taskId, task: { caseId } },
+    });
     if (!hold || hold.endedAt) {
       throw new NotFoundException('ไม่พบสถานะ On hold ที่ยังใช้งานอยู่สำหรับงานนี้');
     }
@@ -135,13 +138,12 @@ export class TasksService {
     });
   }
 
-  async resumeFromOnHold(taskId: string) {
-    const hold = await this.prisma.taskOnHold.findUnique({ where: { taskId } });
-    if (!hold) {
-      throw new NotFoundException('ไม่พบสถานะ On hold สำหรับงานนี้');
-    }
-    if (hold.endedAt) {
-      throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะ On hold');
+  async resumeFromOnHold(caseId: string, taskId: string) {
+    const hold = await this.prisma.taskOnHold.findFirst({
+      where: { taskId, task: { caseId } },
+    });
+    if (!hold || hold.endedAt) {
+      throw new NotFoundException('ไม่พบสถานะ On hold ที่ยังใช้งานอยู่สำหรับงานนี้');
     }
 
     return this.prisma.taskOnHold.update({

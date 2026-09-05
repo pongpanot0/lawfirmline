@@ -43,23 +43,28 @@ export class TasksController {
   @Patch(':taskId/hold')
   startOnHold(
     @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
     @Param('taskId') taskId: string,
     @Body() dto: StartTaskOnHoldDto,
   ) {
-    return this.tasksService.startOnHold(taskId, user, dto);
+    return this.tasksService.startOnHold(caseId, taskId, user, dto);
   }
 
   @Patch(':taskId/hold/follow-up')
   updateOnHold(
+    @Param('caseId') caseId: string,
     @Param('taskId') taskId: string,
     @Body() dto: UpdateTaskOnHoldDto,
   ) {
-    return this.tasksService.updateOnHold(taskId, dto);
+    return this.tasksService.updateOnHold(caseId, taskId, dto);
   }
 
   @Post(':taskId/hold/resume')
-  resumeFromOnHold(@Param('taskId') taskId: string) {
-    return this.tasksService.resumeFromOnHold(taskId);
+  resumeFromOnHold(
+    @Param('caseId') caseId: string,
+    @Param('taskId') taskId: string,
+  ) {
+    return this.tasksService.resumeFromOnHold(caseId, taskId);
   }
 
   @Delete(':taskId')

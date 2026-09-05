@@ -671,6 +671,18 @@ export const api = {
   getOnHoldTasks: (token: string) =>
     request<OnHoldTaskEntry[]>('/operations/onhold', { token }),
 
+  startTaskOnHold: (
+    token: string,
+    caseId: string,
+    taskId: string,
+    data: { reason: string; followerUserId?: string; nextFollowUpAt?: string },
+  ) =>
+    request<{ id: string }>(`/cases/${caseId}/tasks/${taskId}/hold`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
   resumeTaskFromOnHold: (token: string, caseId: string, taskId: string) =>
     request<{ id: string }>(`/cases/${caseId}/tasks/${taskId}/hold/resume`, {
       method: 'POST',

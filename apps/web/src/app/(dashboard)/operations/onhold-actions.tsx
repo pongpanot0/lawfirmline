@@ -17,6 +17,7 @@ export function OnHoldResumeButton({
   onResumed,
 }: OnHoldResumeButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!caseId) {
     return (
@@ -28,21 +29,27 @@ export function OnHoldResumeButton({
 
   const handleResume = async () => {
     setLoading(true);
+    setError(null);
     try {
       await api.resumeTaskFromOnHold(token, caseId, taskId);
       onResumed();
+    } catch {
+      setError('ไม่สามารถเคลียร์สถานะ On hold ได้ กรุณาลองใหม่');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <button
-      className="rounded bg-green-600 px-3 py-1 text-xs text-white disabled:opacity-50"
-      onClick={handleResume}
-      disabled={loading}
-    >
-      {loading ? 'กำลังดำเนินการ...' : 'เคลียร์ On hold'}
-    </button>
+    <div className="flex flex-col items-start gap-1">
+      <button
+        className="rounded bg-green-600 px-3 py-1 text-xs text-white disabled:opacity-50"
+        onClick={handleResume}
+        disabled={loading}
+      >
+        {loading ? 'กำลังดำเนินการ...' : 'เคลียร์ On hold'}
+      </button>
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </div>
   );
 }
