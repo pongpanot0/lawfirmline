@@ -27,6 +27,7 @@ import { IntelligenceModule } from './intelligence/intelligence.module';
 import { TemplatesModule } from './templates/templates.module';
 import { HealthModule } from './health/health.module';
 import { OperationsModule } from './operations/operations.module';
+import { ClosingEmailModule } from './closing-email/closing-email.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { OperationsModule } from './operations/operations.module';
     IntelligenceModule,
     TemplatesModule,
     OperationsModule,
+    ClosingEmailModule,
   ],
   providers: [
     {
