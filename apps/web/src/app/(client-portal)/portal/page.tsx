@@ -46,6 +46,9 @@ export default function PortalDashboardPage() {
             <Link href="/portal/intake" className="rounded border px-4 py-2">
               เรื่องที่ส่ง
             </Link>
+            <Link href="/portal/settings" className="rounded border px-4 py-2">
+              ตั้งค่าการแจ้งเตือน
+            </Link>
             <Button variant="ghost" size="sm" onClick={logout}>
               Sign out
             </Button>

@@ -89,6 +89,25 @@ export interface PortalIntakeSubmissionEntry {
   externalStatus: string;
 }
 
+export interface PortalLineStatus {
+  connected: boolean;
+  connectedAt: string | null;
+  pendingLinkCode: string | null;
+  pendingLinkExpiresAt: string | null;
+  officialAccountUrl: string | null;
+}
+
+export interface PortalLineLinkCode {
+  code: string;
+  expiresAt: string;
+  officialAccountUrl: string | null;
+}
+
+export interface PortalNotificationPreference {
+  channel: 'EMAIL' | 'LINE';
+  isEnabled: boolean;
+}
+
 export const portalApi = {
   requestLink: (email: string) =>
     request<{ message: string; linkToken?: string }>('/client-portal/auth/request-link', {
@@ -125,4 +144,34 @@ export const portalApi = {
 
   getMyIntakeSubmissions: (token: string) =>
     request<PortalIntakeSubmissionEntry[]>('/client-portal/intake', { token }),
+
+  getLineStatus: (token: string) =>
+    request<PortalLineStatus>('/client-portal/integrations/line/me', { token }),
+
+  createLineLinkCode: (token: string) =>
+    request<PortalLineLinkCode>('/client-portal/integrations/line/me/link-code', {
+      method: 'POST',
+      token,
+    }),
+
+  disconnectLine: (token: string) =>
+    request<{ ok: boolean }>('/client-portal/integrations/line/me', {
+      method: 'DELETE',
+      token,
+    }),
+
+  getNotificationPreferences: (token: string) =>
+    request<PortalNotificationPreference[]>('/client-portal/integrations/notifications', {
+      token,
+    }),
+
+  updateNotificationPreference: (
+    token: string,
+    dto: { channel: 'EMAIL' | 'LINE'; isEnabled: boolean },
+  ) =>
+    request<PortalNotificationPreference>('/client-portal/integrations/notifications', {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+      token,
+    }),
 };
