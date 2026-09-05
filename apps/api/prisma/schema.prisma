@@ -412,10 +412,16 @@ model ClientContact {
   dateAdded     DateTime @default(now())
   notes         String?
 
+  lineUserId            String?   @unique
+  lineLinkCode          String?   @unique
+  lineLinkCodeExpiresAt DateTime?
+  lineConnectedAt       DateTime?
+
   client      Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   loginTokens ClientPortalLoginToken[]
   portalIntakeSubmissions PortalIntakeSubmission[]
   caseAccess  ContactCaseAccess[]
+  notificationPreferences ContactNotificationPreference[]
 
   @@index([clientId])
 }
@@ -938,4 +944,15 @@ model ContactCaseAccess {
   @@unique([clientContactId, caseId])
   @@index([clientContactId])
   @@index([startDate, endDate])
+}
+
+model ContactNotificationPreference {
+  id              String  @id @default(uuid())
+  clientContactId String
+  channel         String  // "EMAIL" | "LINE"
+  isEnabled       Boolean @default(true)
+
+  clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
+
+  @@unique([clientContactId, channel])
 }
