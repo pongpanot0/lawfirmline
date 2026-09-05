@@ -1,11 +1,19 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module';
 import { AuthUser } from '@lawfirm/shared';
 import { PublishDocumentDto } from './dto/publish-document.dto';
+import { LineMessagingService } from '../notifications/line-messaging.service';
+import { ContactNotificationPreferenceService } from '../notifications/contact-notification-preference.service';
 
 @Injectable()
 export class DocumentPublicationService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(DocumentPublicationService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly lineMessaging: LineMessagingService,
+    private readonly preferences: ContactNotificationPreferenceService,
+  ) {}
 
   private async verifyDocument(caseId: string, documentId: string) {
     const document = await this.prisma.document.findFirst({
@@ -42,7 +50,7 @@ export class DocumentPublicationService {
       data: { unpublishedAt: new Date(), unpublishedById: user.id },
     });
 
-    return this.prisma.documentPublication.create({
+    const publication = await this.prisma.documentPublication.create({
       data: {
         documentId,
         documentVersionId: documentVersion.id,
@@ -53,6 +61,50 @@ export class DocumentPublicationService {
         recipientContacts: dto.recipientContacts ?? [],
       },
     });
+
+    await this.notifyPublication(document.caseId, dto.recipientContacts ?? [], publication.title ?? 'เอกสารใหม่');
+
+    return publication;
+  }
+
+  private async notifyPublication(caseId: string, recipientContacts: string[], title: string) {
+    try {
+      let targetContactIds = recipientContacts;
+      if (targetContactIds.length === 0) {
+        const now = new Date();
+        const grants = await this.prisma.contactCaseAccess.findMany({
+          where: {
+            caseId,
+            revokedAt: null,
+            startDate: { lte: now },
+            OR: [{ endDate: null }, { endDate: { gte: now } }],
+          },
+          select: { clientContactId: true },
+        });
+        targetContactIds = grants.map((g) => g.clientContactId);
+      }
+      if (targetContactIds.length === 0) return;
+
+      const contacts = await this.prisma.clientContact.findMany({
+        where: { id: { in: targetContactIds }, lineUserId: { not: null } },
+        select: { id: true, lineUserId: true },
+      });
+
+      for (const contact of contacts) {
+        try {
+          const enabled = await this.preferences.isChannelEnabled(contact.id, 'LINE');
+          if (!enabled) continue;
+          await this.lineMessaging.pushTo(
+            contact.lineUserId!,
+            `📄 มีเอกสารใหม่: ${title}\nเข้าดูได้ที่ Client Portal`,
+          );
+        } catch (err) {
+          this.logger.error(`Failed to notify contact ${contact.id}`, err as Error);
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to dispatch publication notifications', err as Error);
+    }
   }
 
   async unpublish(user: AuthUser, caseId: string, documentId: string, publicationId: string) {
