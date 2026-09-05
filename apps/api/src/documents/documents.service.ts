@@ -16,6 +16,14 @@ export class DocumentsService {
     return this.config.get<string>('UPLOAD_DIR') ?? './uploads';
   }
 
+  private async verifyDocument(caseId: string, documentId: string) {
+    const document = await this.prisma.document.findFirst({
+      where: { id: documentId, caseId },
+    });
+    if (!document) throw new NotFoundException('Document not found');
+    return document;
+  }
+
   async findByCase(caseId: string) {
     return this.prisma.document.findMany({
       where: { caseId },
@@ -81,13 +89,11 @@ export class DocumentsService {
 
   async uploadNewVersion(
     user: AuthUser,
+    caseId: string,
     documentId: string,
     file: Express.Multer.File,
   ) {
-    const document = await this.prisma.document.findUnique({
-      where: { id: documentId },
-    });
-    if (!document) throw new NotFoundException('Document not found');
+    const document = await this.verifyDocument(caseId, documentId);
 
     const newVersion = document.version + 1;
     const uploadDir = path.join(this.getUploadDir(), document.caseId);
@@ -122,9 +128,9 @@ export class DocumentsService {
     });
   }
 
-  async getFilePath(documentId: string, version?: number) {
-    const document = await this.prisma.document.findUnique({
-      where: { id: documentId },
+  async getFilePath(caseId: string, documentId: string, version?: number) {
+    const document = await this.prisma.document.findFirst({
+      where: { id: documentId, caseId },
       include: { versions: true },
     });
     if (!document) throw new NotFoundException('Document not found');
@@ -142,9 +148,8 @@ export class DocumentsService {
     };
   }
 
-  async updateVisibility(documentId: string, visibleToClient: boolean) {
-    const document = await this.prisma.document.findUnique({ where: { id: documentId } });
-    if (!document) throw new NotFoundException('Document not found');
+  async updateVisibility(caseId: string, documentId: string, visibleToClient: boolean) {
+    await this.verifyDocument(caseId, documentId);
     return this.prisma.document.update({
       where: { id: documentId },
       data: { visibleToClient },
