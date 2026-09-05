@@ -12,6 +12,8 @@ describe('ClientPortalService case-access scoping', () => {
     calendarEvent: { findFirst: jest.fn() },
     document: { findMany: jest.fn(), findFirst: jest.fn() },
     invoice: { findMany: jest.fn() },
+    documentPublication: { findFirst: jest.fn(), create: jest.fn() },
+    auditLog: { create: jest.fn() },
   };
   const mockDocumentsService = { getFilePath: jest.fn() };
   const now = new Date();
@@ -64,6 +66,45 @@ describe('ClientPortalService case-access scoping', () => {
       expect(callArg.where.contactAccess).toEqual(
         expect.objectContaining({
           some: expect.objectContaining({ clientContactId: 'contact-1' }),
+        }),
+      );
+    });
+  });
+
+  describe('getVisibleDocumentFile', () => {
+    it('throws NotFoundException when the document has no active publication, even if visibleToClient is true', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getVisibleDocumentFile(portalUser, 'doc-1'),
+      ).rejects.toThrow(NotFoundException);
+
+      const callArg = mockPrisma.document.findFirst.mock.calls[0][0];
+      expect(callArg.where.publications).toEqual(
+        expect.objectContaining({
+          some: expect.objectContaining({ unpublishedAt: null }),
+        }),
+      );
+    });
+
+    it('writes a DOCUMENT_READ AuditLog entry when the document is found', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({
+        id: 'doc-1',
+        caseId: 'case-1',
+        case: { firmId: 'firm-1' },
+        publications: [{ id: 'pub-1' }],
+      });
+      mockDocumentsService.getFilePath.mockResolvedValue({ path: '/tmp/f', filename: 'f.pdf', mimeType: 'application/pdf' });
+
+      await service.getVisibleDocumentFile(portalUser, 'doc-1');
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            firmId: 'firm-1',
+            action: 'DOCUMENT_READ',
+            metadata: { documentPublicationId: 'pub-1', clientContactId: 'contact-1' },
+          }),
         }),
       );
     });

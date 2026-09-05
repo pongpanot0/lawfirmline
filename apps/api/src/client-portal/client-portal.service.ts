@@ -82,7 +82,10 @@ export class ClientPortalService {
         select: { id: true, title: true, startAt: true },
       }),
       this.prisma.document.findMany({
-        where: { caseId, visibleToClient: true },
+        where: {
+          caseId,
+          publications: { some: { unpublishedAt: null } },
+        },
         select: { id: true, filename: true, mimeType: true, createdAt: true },
         orderBy: { createdAt: 'desc' },
       }),
@@ -111,7 +114,7 @@ export class ClientPortalService {
     const document = await this.prisma.document.findFirst({
       where: {
         id: documentId,
-        visibleToClient: true,
+        publications: { some: { unpublishedAt: null } },
         case: {
           clientId: portalUser.clientId,
           contactAccess: {
@@ -124,8 +127,25 @@ export class ClientPortalService {
           },
         },
       },
+      include: {
+        case: { select: { firmId: true } },
+        publications: { where: { unpublishedAt: null }, take: 1, orderBy: { publishedAt: 'desc' } },
+      },
     });
     if (!document) throw new NotFoundException('Document not found');
-    return this.documentsService.getFilePath(documentId);
+
+    await this.prisma.auditLog.create({
+      data: {
+        firmId: document.case.firmId,
+        userId: undefined,
+        action: 'DOCUMENT_READ',
+        metadata: {
+          documentPublicationId: document.publications[0]?.id ?? null,
+          clientContactId: portalUser.clientContactId,
+        },
+      },
+    });
+
+    return this.documentsService.getFilePath(document.caseId, documentId);
   }
 }
