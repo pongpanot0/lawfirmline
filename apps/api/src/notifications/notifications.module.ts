@@ -3,6 +3,7 @@ import { LineController } from './line.controller';
 import { ReminderScheduler } from './reminder.scheduler';
 import { LineMessagingService } from './line-messaging.service';
 import { LineLinkService } from './line-link.service';
+import { LinkCodeAttemptLimiterService } from './link-code-attempt-limiter.service';
 import { EmailService } from './email.service';
 import { ContactLineLinkService } from './contact-line-link.service';
 import { ContactNotificationPreferenceService } from './contact-notification-preference.service';
@@ -34,6 +35,7 @@ import { SaasModule } from '../saas/saas.module';
     ReminderScheduler,
     LineMessagingService,
     LineLinkService,
+    LinkCodeAttemptLimiterService,
     EmailService,
     ContactLineLinkService,
     ContactNotificationPreferenceService,

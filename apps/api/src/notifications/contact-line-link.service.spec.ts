@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ContactLineLinkService } from './contact-line-link.service';
 import { LineLinkService } from './line-link.service';
 import { PrismaService } from '../prisma/prisma.module';
+import { LinkCodeAttemptLimiterService } from './link-code-attempt-limiter.service';
 
 describe('ContactLineLinkService', () => {
   let service: ContactLineLinkService;
@@ -11,14 +12,17 @@ describe('ContactLineLinkService', () => {
     user: { findUnique: jest.fn() },
   };
   const mockLineLink = { getOfficialAccountUrl: jest.fn().mockReturnValue('https://line.me/R/ti/p/@test') };
+  const mockLimiter = { recordAttempt: jest.fn().mockReturnValue(true), reset: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockLimiter.recordAttempt.mockReturnValue(true);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContactLineLinkService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: LineLinkService, useValue: mockLineLink },
+        { provide: LinkCodeAttemptLimiterService, useValue: mockLimiter },
       ],
     }).compile();
     service = module.get(ContactLineLinkService);

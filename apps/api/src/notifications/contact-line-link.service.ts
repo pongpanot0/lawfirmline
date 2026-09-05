@@ -8,6 +8,7 @@ import {
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineLinkService } from './line-link.service';
+import { LinkCodeAttemptLimiterService } from './link-code-attempt-limiter.service';
 
 const LINK_CODE_TTL_MS = 15 * 60 * 1000;
 const LINK_CODE_PATTERN = /^LF-[A-Z0-9]{6}$/i;
@@ -19,6 +20,7 @@ export class ContactLineLinkService {
   constructor(
     private prisma: PrismaService,
     private lineLink: LineLinkService,
+    private limiter: LinkCodeAttemptLimiterService,
   ) {}
 
   async getPersonalStatus(clientContactId: string) {
@@ -92,6 +94,10 @@ export class ContactLineLinkService {
     const trimmed = text.trim().toUpperCase();
     if (!LINK_CODE_PATTERN.test(trimmed)) return null;
 
+    if (!this.limiter.recordAttempt(lineUserId)) {
+      return '❌ พยายามเชื่อมต่อบ่อยเกินไป กรุณาลองใหม่ภายหลัง';
+    }
+
     const contact = await this.prisma.clientContact.findFirst({
       where: { lineLinkCode: trimmed },
     });
@@ -127,6 +133,7 @@ export class ContactLineLinkService {
       },
     });
 
+    this.limiter.reset(lineUserId);
     this.logger.log(`Linked LINE user ${lineUserId} to ClientContact ${contact.id}`);
     return `✅ เชื่อมต่อสำเร็จ!\nสวัสดีคุณ ${contact.name} คุณจะได้รับแจ้งเตือนเมื่อสำนักงานเผยแพร่เอกสารใหม่ให้คุณ`;
   }

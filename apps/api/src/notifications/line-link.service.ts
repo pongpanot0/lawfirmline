@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.module';
+import { LinkCodeAttemptLimiterService } from './link-code-attempt-limiter.service';
 
 const LINK_CODE_TTL_MS = 15 * 60 * 1000;
 const LINK_CODE_PATTERN = /^LF-[A-Z0-9]{6}$/i;
@@ -19,6 +20,7 @@ export class LineLinkService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private limiter: LinkCodeAttemptLimiterService,
   ) {}
 
   getOfficialAccountUrl(): string | null {
@@ -102,6 +104,10 @@ export class LineLinkService {
     const trimmed = text.trim().toUpperCase();
     if (!LINK_CODE_PATTERN.test(trimmed)) return null;
 
+    if (!this.limiter.recordAttempt(lineUserId)) {
+      return '❌ พยายามเชื่อมต่อบ่อยเกินไป กรุณาลองใหม่ภายหลัง';
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { lineLinkCode: trimmed },
     });
@@ -137,6 +143,7 @@ export class LineLinkService {
       },
     });
 
+    this.limiter.reset(lineUserId);
     this.logger.log(`Linked LINE user ${lineUserId} to LexFlow user ${user.id}`);
     return `✅ เชื่อมต่อสำเร็จ!\nสวัสดีคุณ ${user.firstName} คุณจะได้รับแจ้งเตือนนัดหมายล่วงหน้า 3 วันก่อนถึงวันนัด`;
   }
