@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '@lawfirm/shared';
-import { AssignmentType } from '../generated/prisma';
+import { AssignmentType, ReferralChannel } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import {
@@ -14,6 +14,7 @@ import {
   IntakeQueryDto,
   IntakeDecision,
 } from './dto/intake.dto';
+import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 
 export const DRAFT_NOTICE_COST = 5;
 
@@ -368,5 +369,53 @@ export class IntakeService {
     });
 
     return newCase;
+  }
+
+  async listPortalSubmissions(user: AuthUser) {
+    return this.prisma.portalIntakeSubmission.findMany({
+      where: { client: { firmId: user.firmId }, intakeId: null, withdrawnByClient: false },
+      include: {
+        clientContact: { select: { name: true, email: true } },
+        client: { select: { name: true } },
+      },
+      orderBy: { submittedAt: 'asc' },
+    });
+  }
+
+  async convertPortalSubmission(
+    user: AuthUser,
+    submissionId: string,
+    dto: ConvertPortalSubmissionDto,
+  ) {
+    const submission = await this.prisma.portalIntakeSubmission.findFirst({
+      where: { id: submissionId, client: { firmId: user.firmId } },
+    });
+    if (!submission) {
+      throw new NotFoundException('ไม่พบเรื่องที่ส่งจาก Portal นี้');
+    }
+    if (submission.intakeId) {
+      throw new BadRequestException('เรื่องนี้ถูกรับเข้าระบบไปแล้ว');
+    }
+
+    const intake = await this.prisma.intake.create({
+      data: {
+        firmId: user.firmId,
+        receivedById: user.id,
+        receivedDate: new Date(),
+        title: submission.title,
+        description: submission.detail,
+        referralChannel: ReferralChannel.PORTAL,
+        clientId: submission.clientId,
+        deadlineDate: dto.officePlannedDate ? new Date(dto.officePlannedDate) : undefined,
+        portalSubmissionId: submission.id,
+      },
+    });
+
+    await this.prisma.portalIntakeSubmission.update({
+      where: { id: submission.id },
+      data: { intakeId: intake.id },
+    });
+
+    return intake;
   }
 }
