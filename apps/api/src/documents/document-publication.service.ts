@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module';
 import { AuthUser } from '@lawfirm/shared';
 import { PublishDocumentDto } from './dto/publish-document.dto';
@@ -22,6 +22,25 @@ export class DocumentPublicationService {
       where: { documentId, version: document.version },
     });
     if (!documentVersion) throw new NotFoundException('Document version not found');
+
+    if (dto.recipientContacts && dto.recipientContacts.length > 0) {
+      const legalCase = await this.prisma.case.findUnique({
+        where: { id: document.caseId },
+        select: { clientId: true },
+      });
+      if (!legalCase || !legalCase.clientId) throw new NotFoundException('Case not found');
+      const validContacts = await this.prisma.clientContact.count({
+        where: { id: { in: dto.recipientContacts }, clientId: legalCase.clientId },
+      });
+      if (validContacts !== dto.recipientContacts.length) {
+        throw new BadRequestException('recipientContacts contains contacts that do not belong to this case client');
+      }
+    }
+
+    await this.prisma.documentPublication.updateMany({
+      where: { documentId, unpublishedAt: null },
+      data: { unpublishedAt: new Date(), unpublishedById: user.id },
+    });
 
     return this.prisma.documentPublication.create({
       data: {

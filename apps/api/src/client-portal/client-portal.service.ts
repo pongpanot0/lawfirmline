@@ -1,14 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module';
-import { DocumentsService } from '../documents/documents.service';
 import { PortalIdentity } from './client-portal-jwt.strategy';
 
 @Injectable()
 export class ClientPortalService {
-  constructor(
-    private prisma: PrismaService,
-    private documentsService: DocumentsService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async getMe(portalUser: PortalIdentity) {
     const client = await this.prisma.client.findUnique({
@@ -75,7 +71,7 @@ export class ClientPortalService {
     });
     if (!legalCase) throw new NotFoundException('Case not found');
 
-    const [nextHearing, documents, invoices] = await Promise.all([
+    const [nextHearing, rawDocuments, invoices] = await Promise.all([
       this.prisma.calendarEvent.findFirst({
         where: { caseId, type: 'COURT_DATE', startAt: { gte: new Date() } },
         orderBy: { startAt: 'asc' },
@@ -84,9 +80,34 @@ export class ClientPortalService {
       this.prisma.document.findMany({
         where: {
           caseId,
-          publications: { some: { unpublishedAt: null } },
+          publications: {
+            some: {
+              unpublishedAt: null,
+              isInternal: false,
+              OR: [
+                { recipientContacts: { isEmpty: true } },
+                { recipientContacts: { has: portalUser.clientContactId } },
+              ],
+            },
+          },
         },
-        select: { id: true, filename: true, mimeType: true, createdAt: true },
+        select: {
+          id: true,
+          createdAt: true,
+          publications: {
+            where: {
+              unpublishedAt: null,
+              isInternal: false,
+              OR: [
+                { recipientContacts: { isEmpty: true } },
+                { recipientContacts: { has: portalUser.clientContactId } },
+              ],
+            },
+            take: 1,
+            orderBy: { publishedAt: 'desc' },
+            select: { title: true, documentVersion: { select: { filename: true, mimeType: true } } },
+          },
+        },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.invoice.findMany({
@@ -106,6 +127,16 @@ export class ClientPortalService {
       }),
     ]);
 
+    const documents = rawDocuments.map((doc) => {
+      const version = doc.publications[0]?.documentVersion;
+      return {
+        id: doc.id,
+        filename: version?.filename,
+        mimeType: version?.mimeType,
+        createdAt: doc.createdAt,
+      };
+    });
+
     return { ...legalCase, nextHearing, documents, invoices };
   }
 
@@ -114,7 +145,16 @@ export class ClientPortalService {
     const document = await this.prisma.document.findFirst({
       where: {
         id: documentId,
-        publications: { some: { unpublishedAt: null } },
+        publications: {
+          some: {
+            unpublishedAt: null,
+            isInternal: false,
+            OR: [
+              { recipientContacts: { isEmpty: true } },
+              { recipientContacts: { has: portalUser.clientContactId } },
+            ],
+          },
+        },
         case: {
           clientId: portalUser.clientId,
           contactAccess: {
@@ -129,7 +169,19 @@ export class ClientPortalService {
       },
       include: {
         case: { select: { firmId: true } },
-        publications: { where: { unpublishedAt: null }, take: 1, orderBy: { publishedAt: 'desc' } },
+        publications: {
+          where: {
+            unpublishedAt: null,
+            isInternal: false,
+            OR: [
+              { recipientContacts: { isEmpty: true } },
+              { recipientContacts: { has: portalUser.clientContactId } },
+            ],
+          },
+          take: 1,
+          orderBy: { publishedAt: 'desc' },
+          include: { documentVersion: { select: { version: true, storagePath: true, filename: true, mimeType: true } } },
+        },
       },
     });
     if (!document) throw new NotFoundException('Document not found');
@@ -146,6 +198,8 @@ export class ClientPortalService {
       },
     });
 
-    return this.documentsService.getFilePath(document.caseId, documentId);
+    const version = document.publications[0]?.documentVersion;
+    if (!version) throw new NotFoundException('Document not found');
+    return { path: version.storagePath, filename: version.filename, mimeType: version.mimeType };
   }
 }

@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { ClientPortalService } from './client-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { DocumentsService } from '../documents/documents.service';
 
 describe('ClientPortalService case-access scoping', () => {
   let service: ClientPortalService;
@@ -15,7 +14,6 @@ describe('ClientPortalService case-access scoping', () => {
     documentPublication: { findFirst: jest.fn(), create: jest.fn() },
     auditLog: { create: jest.fn() },
   };
-  const mockDocumentsService = { getFilePath: jest.fn() };
   const now = new Date();
   const portalUser = {
     clientContactId: 'contact-1',
@@ -28,11 +26,7 @@ describe('ClientPortalService case-access scoping', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ClientPortalService,
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: DocumentsService, useValue: mockDocumentsService },
-      ],
+      providers: [ClientPortalService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
     service = module.get(ClientPortalService);
   });
@@ -92,9 +86,13 @@ describe('ClientPortalService case-access scoping', () => {
         id: 'doc-1',
         caseId: 'case-1',
         case: { firmId: 'firm-1' },
-        publications: [{ id: 'pub-1' }],
+        publications: [
+          {
+            id: 'pub-1',
+            documentVersion: { version: 1, storagePath: '/tmp/f', filename: 'f.pdf', mimeType: 'application/pdf' },
+          },
+        ],
       });
-      mockDocumentsService.getFilePath.mockResolvedValue({ path: '/tmp/f', filename: 'f.pdf', mimeType: 'application/pdf' });
 
       await service.getVisibleDocumentFile(portalUser, 'doc-1');
 
@@ -107,6 +105,36 @@ describe('ClientPortalService case-access scoping', () => {
           }),
         }),
       );
+    });
+
+    it('returns the FROZEN published version file info, not the document top-level (mutable) fields, when a newer re-upload has occurred', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({
+        id: 'doc-1',
+        caseId: 'case-1',
+        case: { firmId: 'firm-1' },
+        storagePath: '/uploads/doc-1_v2.pdf',
+        filename: 'draft-v2-unreviewed.pdf',
+        mimeType: 'application/pdf',
+        publications: [
+          {
+            id: 'pub-1',
+            documentVersion: {
+              version: 1,
+              storagePath: '/uploads/doc-1_v1.pdf',
+              filename: 'published-v1.pdf',
+              mimeType: 'application/pdf',
+            },
+          },
+        ],
+      });
+
+      const result = await service.getVisibleDocumentFile(portalUser, 'doc-1');
+
+      expect(result).toEqual({
+        path: '/uploads/doc-1_v1.pdf',
+        filename: 'published-v1.pdf',
+        mimeType: 'application/pdf',
+      });
     });
   });
 });
