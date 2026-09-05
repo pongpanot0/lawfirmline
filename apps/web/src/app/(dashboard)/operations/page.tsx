@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { FirmRole } from '@lawfirm/shared';
-import { api, WorkloadSummary, WorkloadDetail, PairingEntry } from '@/lib/api';
+import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
+import { OnHoldResumeButton } from './onhold-actions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -25,6 +26,8 @@ export default function OperationsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [pairing, setPairing] = useState<PairingEntry[]>([]);
   const [pairingLoading, setPairingLoading] = useState(true);
+  const [onHold, setOnHold] = useState<OnHoldTaskEntry[]>([]);
+  const [onHoldLoading, setOnHoldLoading] = useState(true);
 
   useEffect(() => {
     if (!token || !isOwner) return;
@@ -55,6 +58,18 @@ export default function OperationsPage() {
     api.getPairing(token).then(setPairing).catch(console.error).finally(() => setPairingLoading(false));
   }, [token, isOwner]);
 
+  const loadOnHold = () => {
+    if (!token || !isOwner) return;
+    setOnHoldLoading(true);
+    api
+      .getOnHoldTasks(token)
+      .then(setOnHold)
+      .catch(console.error)
+      .finally(() => setOnHoldLoading(false));
+  };
+
+  useEffect(loadOnHold, [token, isOwner]);
+
   const sorted = [...summary].sort((a, b) => {
     const diff = a.leadCount + a.buddyCount - (b.leadCount + b.buddyCount);
     return sortDesc ? -diff : diff;
@@ -72,6 +87,7 @@ export default function OperationsPage() {
         <TabsList>
           <TabsTrigger value="workload">Workload</TabsTrigger>
           <TabsTrigger value="pairing">Pairing</TabsTrigger>
+          <TabsTrigger value="onhold">On Hold</TabsTrigger>
         </TabsList>
 
         <TabsContent value="workload">
@@ -193,6 +209,69 @@ export default function OperationsPage() {
                           {p.userAName} + {p.userBName}
                         </TableCell>
                         <TableCell>{p.count}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="onhold">
+          <Card>
+            <CardContent className="p-0">
+              {onHoldLoading ? (
+                <p className="p-6 text-sm text-muted-foreground">กำลังโหลด...</p>
+              ) : onHold.length === 0 ? (
+                <EmptyState title="ไม่มีงาน On hold ในขณะนี้" />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>งาน</TableHead>
+                      <TableHead>คดี</TableHead>
+                      <TableHead>ผู้รับผิดชอบ</TableHead>
+                      <TableHead>เหตุผล</TableHead>
+                      <TableHead>ผู้ติดตาม</TableHead>
+                      <TableHead>วันติดตามถัดไป</TableHead>
+                      <TableHead>กำหนดส่ง</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {onHold.map((item) => (
+                      <TableRow key={item.taskId}>
+                        <TableCell>{item.taskTitle}</TableCell>
+                        <TableCell>
+                          {item.caseOwnRef ?? '-'} {item.caseTitle ?? ''}
+                        </TableCell>
+                        <TableCell>{item.assigneeName ?? '-'}</TableCell>
+                        <TableCell>{item.reason}</TableCell>
+                        <TableCell>{item.followerName ?? '-'}</TableCell>
+                        <TableCell>
+                          {item.nextFollowUpAt
+                            ? new Date(item.nextFollowUpAt).toLocaleDateString('th-TH')
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {item.dueDate ? (
+                            <span className={item.isOverdue ? 'text-red-600 font-medium' : ''}>
+                              {new Date(item.dueDate).toLocaleDateString('th-TH')}
+                              {item.isOverdue ? ' (เกินกำหนด)' : ''}
+                            </span>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <OnHoldResumeButton
+                            token={token!}
+                            caseId={item.caseId}
+                            taskId={item.taskId}
+                            onResumed={loadOnHold}
+                          />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

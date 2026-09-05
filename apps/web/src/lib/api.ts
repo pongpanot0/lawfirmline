@@ -170,6 +170,22 @@ export interface PairingEntry {
   count: number;
 }
 
+export interface OnHoldTaskEntry {
+  taskId: string;
+  taskTitle: string;
+  caseId: string | null;
+  caseTitle: string | null;
+  caseOwnRef: string | null;
+  assigneeName: string | null;
+  reason: string;
+  startedAt: string;
+  followerName: string | null;
+  lastFollowUpAt: string | null;
+  nextFollowUpAt: string | null;
+  dueDate: string | null;
+  isOverdue: boolean;
+}
+
 export interface CalendarEventItem {
   id: string;
   title: string;
@@ -651,6 +667,15 @@ export const api = {
     request<WorkloadDetail>(`/operations/workload/${userId}?nearDeadlineDays=${nearDeadlineDays}`, { token }),
 
   getPairing: (token: string) => request<PairingEntry[]>('/operations/pairing', { token }),
+
+  getOnHoldTasks: (token: string) =>
+    request<OnHoldTaskEntry[]>('/operations/onhold', { token }),
+
+  resumeTaskFromOnHold: (token: string, caseId: string, taskId: string) =>
+    request<{ id: string }>(`/cases/${caseId}/tasks/${taskId}/hold/resume`, {
+      method: 'POST',
+      token,
+    }),
 
   updateCaseAssignments: (token: string, caseId: string, buddyIds: string[]) =>
     request<CaseDetail>(`/cases/${caseId}/assignments`, {
