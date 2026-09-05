@@ -99,6 +99,7 @@ export class CasesService {
           take: 20,
         },
         participants: { orderBy: { createdAt: 'asc' } },
+        insuranceClaim: true,
         client: {
           select: {
             id: true,
