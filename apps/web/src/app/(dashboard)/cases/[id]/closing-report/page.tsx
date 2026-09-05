@@ -40,6 +40,15 @@ export default function ClosingReportPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleSaveDraft = async () => {
+    if (!token || !caseId || !draft) return;
+    const saved = await api.updateClosingEmailDraft(token, caseId, draft.id, {
+      subject: draft.subject,
+      bodyText: draft.bodyText,
+    });
+    setDraft(saved);
+  };
+
   const handleApprove = async () => {
     if (!token || !caseId || !draft) return;
     const approved = await api.approveClosingEmailDraft(token, caseId, draft.id);
@@ -104,6 +113,14 @@ export default function ClosingReportPage() {
                 }
               />
               <div className="mt-2 flex gap-2">
+                {draft.status !== 'APPROVED' && (
+                  <button
+                    className="rounded bg-blue-600 px-4 py-2 text-white"
+                    onClick={handleSaveDraft}
+                  >
+                    บันทึกร่าง
+                  </button>
+                )}
                 <button
                   className="rounded bg-gray-600 px-4 py-2 text-white"
                   onClick={handleCopy}

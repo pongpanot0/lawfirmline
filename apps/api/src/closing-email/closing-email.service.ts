@@ -1,5 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { ClosingEmailDraftStatus } from '../generated/prisma';
+import {
+  CreateClosingEmailDraftDto,
+  UpdateClosingEmailDraftDto,
+} from './dto/closing-email.dto';
 
 export interface CaseActivitySummary {
   id: string;
@@ -115,5 +121,73 @@ export class ClosingEmailService {
       .join('\n');
 
     return { subject, bodyText };
+  }
+
+  async createDraft(
+    user: AuthUser,
+    caseId: string,
+    dto: CreateClosingEmailDraftDto,
+  ) {
+    const data = await this.gatherCaseData(caseId);
+    const rendered = this.renderDraft(data, dto.selectedActivityIds);
+
+    return this.prisma.closingEmailDraft.create({
+      data: {
+        caseId,
+        createdById: user.id,
+        subject: rendered.subject,
+        bodyText: rendered.bodyText,
+        selectedActivityIds: dto.selectedActivityIds,
+        missingDataNotes: data.missingDataNotes,
+      },
+    });
+  }
+
+  listDrafts(caseId: string) {
+    return this.prisma.closingEmailDraft.findMany({
+      where: { caseId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async updateDraft(
+    caseId: string,
+    draftId: string,
+    dto: UpdateClosingEmailDraftDto,
+  ) {
+    const draft = await this.prisma.closingEmailDraft.findFirst({
+      where: { id: draftId, caseId },
+    });
+    if (!draft) throw new NotFoundException('ไม่พบร่างอีเมลนี้');
+    if (draft.status === ClosingEmailDraftStatus.APPROVED) {
+      throw new BadRequestException('ร่างที่อนุมัติแล้วไม่สามารถแก้ไขได้');
+    }
+
+    return this.prisma.closingEmailDraft.update({
+      where: { id: draftId },
+      data: {
+        subject: dto.subject ?? draft.subject,
+        bodyText: dto.bodyText ?? draft.bodyText,
+      },
+    });
+  }
+
+  async approveDraft(user: AuthUser, caseId: string, draftId: string) {
+    const draft = await this.prisma.closingEmailDraft.findFirst({
+      where: { id: draftId, caseId },
+    });
+    if (!draft) throw new NotFoundException('ไม่พบร่างอีเมลนี้');
+    if (draft.status === ClosingEmailDraftStatus.APPROVED) {
+      throw new BadRequestException('ร่างนี้อนุมัติไปแล้ว');
+    }
+
+    return this.prisma.closingEmailDraft.update({
+      where: { id: draftId },
+      data: {
+        status: ClosingEmailDraftStatus.APPROVED,
+        approvedById: user.id,
+        approvedAt: new Date(),
+      },
+    });
   }
 }
