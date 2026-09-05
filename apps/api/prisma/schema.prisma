@@ -99,6 +99,7 @@ enum ReferralChannel {
   LINE
   REFERRAL
   OTHER
+  PORTAL
 }
 
 enum ParticipantRole {
@@ -389,6 +390,7 @@ model Client {
   contacts ClientContact[]
   cases    Case[]
   intakes  Intake[]
+  portalIntakeSubmissions PortalIntakeSubmission[]
 
   @@index([firmId])
 }
@@ -408,6 +410,7 @@ model ClientContact {
 
   client      Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   loginTokens ClientPortalLoginToken[]
+  portalIntakeSubmissions PortalIntakeSubmission[]
 
   @@index([clientId])
 }
@@ -514,6 +517,7 @@ model Intake {
   estimatedDamage Float?
   assignedUserIds String[]        @default([])
   deadlineDate    DateTime?
+  portalSubmissionId String?       @unique
   status          IntakeStatus    @default(RECEIVED)
   assessorId      String?
   assessedAt      DateTime?
@@ -536,6 +540,7 @@ model Intake {
   assessor   User?   @relation("IntakeAssessor", fields: [assessorId], references: [id])
   client     Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
   case       Case?
+  portalIntakeSubmission PortalIntakeSubmission?
 
   @@index([firmId])
   @@index([clientId])
@@ -856,4 +861,29 @@ model TaskOnHold {
 
   @@index([nextFollowUpAt])
   @@index([endedAt])
+}
+
+model PortalIntakeSubmission {
+  id                  String    @id @default(uuid())
+  clientId            String
+  clientContactId     String
+  referenceNumber     String    @unique
+  title               String
+  detail              String    @db.Text
+  clientRequestedDate DateTime?
+  urgencyFlag         Boolean   @default(false)
+  submittedAt         DateTime  @default(now())
+  withdrawnByClient   Boolean   @default(false)
+  withdrawnAt         DateTime?
+  withdrawnReason     String?
+  intakeId            String?   @unique
+  createdAt           DateTime  @default(now())
+
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientContact ClientContact  @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
+  intake        Intake?        @relation(fields: [intakeId], references: [id])
+
+  @@index([clientId, submittedAt])
+  @@index([clientContactId, submittedAt])
+  @@index([withdrawnByClient])
 }
