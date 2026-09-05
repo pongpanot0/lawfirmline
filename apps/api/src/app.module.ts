@@ -17,6 +17,7 @@ import { BillingModule } from './billing/billing.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
 import { CaseTypesModule } from './case-types/case-types.module';
 import { InsuranceClaimsModule } from './insurance-claims/insurance-claims.module';
 import { ClientsModule } from './clients/clients.module';
@@ -50,6 +51,7 @@ import { ClosingEmailModule } from './closing-email/closing-email.module';
     NotificationsModule,
     DashboardModule,
     ReportsModule,
+    AuditLogModule,
     CaseTypesModule,
     InsuranceClaimsModule,
     ClientsModule,
