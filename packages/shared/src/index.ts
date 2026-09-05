@@ -181,6 +181,30 @@ export enum ParticipantSide {
   NEUTRAL = 'NEUTRAL',
 }
 
+export enum InsuranceClaimStage {
+  CLAIM_FILED = 'CLAIM_FILED',
+  DENIED_OR_PARTIAL = 'DENIED_OR_PARTIAL',
+  DEMAND_SENT = 'DEMAND_SENT',
+  OIC_COMPLAINT = 'OIC_COMPLAINT',
+  SUIT_FILED = 'SUIT_FILED',
+}
+
+export const INSURANCE_CLAIM_STAGE_ORDER: InsuranceClaimStage[] = [
+  InsuranceClaimStage.CLAIM_FILED,
+  InsuranceClaimStage.DENIED_OR_PARTIAL,
+  InsuranceClaimStage.DEMAND_SENT,
+  InsuranceClaimStage.OIC_COMPLAINT,
+  InsuranceClaimStage.SUIT_FILED,
+]
+
+export const INSURANCE_CLAIM_STAGE_LABELS: Record<InsuranceClaimStage, string> = {
+  [InsuranceClaimStage.CLAIM_FILED]: 'ยื่นเคลม',
+  [InsuranceClaimStage.DENIED_OR_PARTIAL]: 'ถูกปฏิเสธ/จ่ายไม่ครบ',
+  [InsuranceClaimStage.DEMAND_SENT]: 'ทวงถาม/สงวนสิทธิ์',
+  [InsuranceClaimStage.OIC_COMPLAINT]: 'ร้องเรียน คปภ.',
+  [InsuranceClaimStage.SUIT_FILED]: 'ยื่นฟ้อง',
+}
+
 export const DEFAULT_THAI_COURTS = [
   'ศาลแพ่งกรุงเทพใต้',
   'ศาลแพ่งกรุงเทพเหนือ',
