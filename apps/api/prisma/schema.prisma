@@ -355,6 +355,8 @@ model User {
   createdClosingEmailDrafts  ClosingEmailDraft[] @relation("ClosingEmailDraftCreator")
   approvedClosingEmailDrafts ClosingEmailDraft[] @relation("ClosingEmailDraftApprover")
   insuranceClaims     InsuranceClaim[]
+  followedTaskOnHolds TaskOnHold[] @relation("TaskOnHoldFollower")
+  createdTaskOnHolds  TaskOnHold[] @relation("TaskOnHoldCreator")
 }
 
 model CaseType {
@@ -608,6 +610,7 @@ model Task {
   case      Case?  @relation(fields: [caseId], references: [id], onDelete: Cascade)
   assignee  User?  @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy User   @relation("TaskCreator", fields: [createdById], references: [id])
+  onHold    TaskOnHold?
 }
 
 model Document {
@@ -831,4 +834,26 @@ model InsuranceClaim {
   createdBy User @relation(fields: [createdById], references: [id])
 
   @@index([caseId])
+}
+
+model TaskOnHold {
+  id             String    @id @default(uuid())
+  taskId         String    @unique
+  reason         String    @db.Text
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+  followerUserId String?
+  lastFollowUpAt DateTime?
+  nextFollowUpAt DateTime?
+  notes          String?   @db.Text
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  task      Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  follower  User? @relation("TaskOnHoldFollower", fields: [followerUserId], references: [id])
+  createdBy User  @relation("TaskOnHoldCreator", fields: [createdById], references: [id])
+
+  @@index([nextFollowUpAt])
+  @@index([endedAt])
 }
