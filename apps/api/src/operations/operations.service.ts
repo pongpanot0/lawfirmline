@@ -194,4 +194,44 @@ export class OperationsService {
       })
       .sort((a, b) => b.count - a.count);
   }
+
+  async getOnHoldTasks(user: AuthUser) {
+    const now = new Date();
+    const holds = await this.prisma.taskOnHold.findMany({
+      where: {
+        endedAt: null,
+        task: { case: { firmId: user.firmId } },
+      },
+      include: {
+        task: {
+          include: {
+            case: { select: { id: true, title: true, ownRef: true } },
+            assignee: { select: { firstName: true, lastName: true } },
+          },
+        },
+        follower: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { nextFollowUpAt: 'asc' },
+    });
+
+    return holds.map((hold) => ({
+      taskId: hold.taskId,
+      taskTitle: hold.task.title,
+      caseId: hold.task.case?.id ?? null,
+      caseTitle: hold.task.case?.title ?? null,
+      caseOwnRef: hold.task.case?.ownRef ?? null,
+      assigneeName: hold.task.assignee
+        ? `${hold.task.assignee.firstName} ${hold.task.assignee.lastName}`
+        : null,
+      reason: hold.reason,
+      startedAt: hold.startedAt,
+      followerName: hold.follower
+        ? `${hold.follower.firstName} ${hold.follower.lastName}`
+        : null,
+      lastFollowUpAt: hold.lastFollowUpAt,
+      nextFollowUpAt: hold.nextFollowUpAt,
+      dueDate: hold.task.dueDate,
+      isOverdue: hold.task.dueDate ? hold.task.dueDate.getTime() < now.getTime() : false,
+    }));
+  }
 }

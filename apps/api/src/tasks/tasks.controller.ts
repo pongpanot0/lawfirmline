@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
+import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -37,6 +38,28 @@ export class TasksController {
   @Patch(':taskId')
   update(@Param('taskId') taskId: string, @Body() dto: UpdateTaskDto) {
     return this.tasksService.update(taskId, dto);
+  }
+
+  @Patch(':taskId/hold')
+  startOnHold(
+    @CurrentUser() user: AuthUser,
+    @Param('taskId') taskId: string,
+    @Body() dto: StartTaskOnHoldDto,
+  ) {
+    return this.tasksService.startOnHold(taskId, user, dto);
+  }
+
+  @Patch(':taskId/hold/follow-up')
+  updateOnHold(
+    @Param('taskId') taskId: string,
+    @Body() dto: UpdateTaskOnHoldDto,
+  ) {
+    return this.tasksService.updateOnHold(taskId, dto);
+  }
+
+  @Post(':taskId/hold/resume')
+  resumeFromOnHold(@Param('taskId') taskId: string) {
+    return this.tasksService.resumeFromOnHold(taskId);
   }
 
   @Delete(':taskId')

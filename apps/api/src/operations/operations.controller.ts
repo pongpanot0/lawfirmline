@@ -31,4 +31,9 @@ export class OperationsController {
   getPairing(@CurrentUser() user: AuthUser) {
     return this.operationsService.getPairing(user);
   }
+
+  @Get('onhold')
+  getOnHoldTasks(@CurrentUser() user: AuthUser) {
+    return this.operationsService.getOnHoldTasks(user);
+  }
 }
