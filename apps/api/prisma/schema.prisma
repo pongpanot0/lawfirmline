@@ -360,6 +360,8 @@ model User {
   createdTaskOnHolds  TaskOnHold[] @relation("TaskOnHoldCreator")
   grantedContactCaseAccess ContactCaseAccess[] @relation("ContactCaseAccessGranted")
   revokedContactCaseAccess ContactCaseAccess[] @relation("ContactCaseAccessRevoked")
+  publishedDocuments   DocumentPublication[] @relation("DocumentPublicationPublished")
+  unpublishedDocuments DocumentPublication[] @relation("DocumentPublicationUnpublished")
 }
 
 model CaseType {
@@ -638,6 +640,7 @@ model Document {
   uploadedBy User              @relation(fields: [uploadedById], references: [id])
   versions   DocumentVersion[]
   knowledge  CaseKnowledge[]
+  publications DocumentPublication[]
 }
 
 model DocumentVersion {
@@ -650,8 +653,31 @@ model DocumentVersion {
   createdAt   DateTime @default(now())
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  publications DocumentPublication[]
 
   @@unique([documentId, version])
+}
+
+model DocumentPublication {
+  id                String    @id @default(uuid())
+  documentId        String
+  documentVersionId String
+  publishedAt       DateTime  @default(now())
+  publishedById     String
+  unpublishedAt     DateTime?
+  unpublishedById   String?
+  title             String?
+  summary           String?   @db.Text
+  eventDate         DateTime?
+  recipientContacts String[]  @default([])
+  isInternal        Boolean   @default(false)
+
+  document        Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersion DocumentVersion @relation(fields: [documentVersionId], references: [id])
+  publishedBy     User            @relation("DocumentPublicationPublished", fields: [publishedById], references: [id])
+  unpublishedBy   User?           @relation("DocumentPublicationUnpublished", fields: [unpublishedById], references: [id])
+
+  @@index([documentId, publishedAt])
 }
 
 model CalendarEvent {
