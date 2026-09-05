@@ -24,8 +24,18 @@ export class ClientPortalService {
   }
 
   async getCases(portalUser: PortalIdentity) {
+    const now = new Date();
     return this.prisma.case.findMany({
-      where: { clientId: portalUser.clientId },
+      where: {
+        clientId: portalUser.clientId,
+        contactAccess: {
+          some: {
+            clientContactId: portalUser.clientContactId,
+            startDate: { lte: now },
+            OR: [{ endDate: null }, { endDate: { gte: now } }],
+          },
+        },
+      },
       select: {
         id: true,
         ownRef: true,
@@ -39,8 +49,19 @@ export class ClientPortalService {
   }
 
   async getCase(portalUser: PortalIdentity, caseId: string) {
+    const now = new Date();
     const legalCase = await this.prisma.case.findFirst({
-      where: { id: caseId, clientId: portalUser.clientId },
+      where: {
+        id: caseId,
+        clientId: portalUser.clientId,
+        contactAccess: {
+          some: {
+            clientContactId: portalUser.clientContactId,
+            startDate: { lte: now },
+            OR: [{ endDate: null }, { endDate: { gte: now } }],
+          },
+        },
+      },
       select: {
         id: true,
         ownRef: true,
@@ -84,8 +105,22 @@ export class ClientPortalService {
   }
 
   async getVisibleDocumentFile(portalUser: PortalIdentity, documentId: string) {
+    const now = new Date();
     const document = await this.prisma.document.findFirst({
-      where: { id: documentId, visibleToClient: true, case: { clientId: portalUser.clientId } },
+      where: {
+        id: documentId,
+        visibleToClient: true,
+        case: {
+          clientId: portalUser.clientId,
+          contactAccess: {
+            some: {
+              clientContactId: portalUser.clientContactId,
+              startDate: { lte: now },
+              OR: [{ endDate: null }, { endDate: { gte: now } }],
+            },
+          },
+        },
+      },
     });
     if (!document) throw new NotFoundException('Document not found');
     return this.documentsService.getFilePath(documentId);
