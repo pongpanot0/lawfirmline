@@ -3,6 +3,7 @@ import { ContactCaseAccessController } from './contact-case-access.controller';
 import { ContactCaseAccessService } from './contact-case-access.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 describe('ContactCaseAccessController', () => {
   let controller: ContactCaseAccessController;
@@ -22,6 +23,8 @@ describe('ContactCaseAccessController', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(CaseAccessGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
       .useValue({ canActivate: () => true })
       .compile();
     controller = module.get(ContactCaseAccessController);

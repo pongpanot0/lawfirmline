@@ -7,11 +7,13 @@ describe('ContactCaseAccessService', () => {
   let service: ContactCaseAccessService;
   const mockPrisma = {
     case: { findFirst: jest.fn() },
+    clientContact: { findFirst: jest.fn() },
     contactCaseAccess: {
       create: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      upsert: jest.fn(),
     },
   };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
@@ -35,17 +37,58 @@ describe('ContactCaseAccessService', () => {
       });
     });
 
-    it('creates an access grant when the case belongs to the firm', async () => {
-      mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', firmId: 'firm-1' });
-      mockPrisma.contactCaseAccess.create.mockResolvedValue({ id: 'access-1' });
+    it('throws NotFoundException when the contact does not belong to the case client', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({
+        id: 'case-1',
+        firmId: 'firm-1',
+        clientId: 'client-1',
+      });
+      mockPrisma.clientContact.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.grant(user, 'case-1', { clientContactId: 'contact-1' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.clientContact.findFirst).toHaveBeenCalledWith({
+        where: { id: 'contact-1', clientId: 'client-1' },
+      });
+      expect(mockPrisma.contactCaseAccess.upsert).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the case has no client', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({
+        id: 'case-1',
+        firmId: 'firm-1',
+        clientId: null,
+      });
+
+      await expect(
+        service.grant(user, 'case-1', { clientContactId: 'contact-1' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.clientContact.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('upserts an access grant when the contact belongs to the case client', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({
+        id: 'case-1',
+        firmId: 'firm-1',
+        clientId: 'client-1',
+      });
+      mockPrisma.clientContact.findFirst.mockResolvedValue({ id: 'contact-1', clientId: 'client-1' });
+      mockPrisma.contactCaseAccess.upsert.mockResolvedValue({ id: 'access-1' });
 
       await service.grant(user, 'case-1', { clientContactId: 'contact-1' });
 
-      expect(mockPrisma.contactCaseAccess.create).toHaveBeenCalledWith(
+      expect(mockPrisma.contactCaseAccess.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
+          where: { clientContactId_caseId: { clientContactId: 'contact-1', caseId: 'case-1' } },
+          create: expect.objectContaining({
             caseId: 'case-1',
             clientContactId: 'contact-1',
+            grantedById: 'user-1',
+          }),
+          update: expect.objectContaining({
+            revokedAt: null,
+            revokedById: null,
             grantedById: 'user-1',
           }),
         }),

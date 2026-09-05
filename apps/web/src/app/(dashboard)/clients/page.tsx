@@ -119,6 +119,8 @@ export default function ClientsPage() {
       await api.grantContactCaseAccess(token, caseId, clientContactId);
       setGrantSelection((s) => ({ ...s, [caseId]: '' }));
       loadCaseAccess(caseId);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'ให้สิทธิ์ไม่สำเร็จ');
     } finally {
       setGrantingCaseId(null);
     }
@@ -130,6 +132,8 @@ export default function ClientsPage() {
     try {
       await api.revokeContactCaseAccess(token, caseId, accessId);
       loadCaseAccess(caseId);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'ถอนสิทธิ์ไม่สำเร็จ');
     } finally {
       setRevokingAccessId(null);
     }

@@ -31,6 +31,7 @@ export class ClientPortalService {
         contactAccess: {
           some: {
             clientContactId: portalUser.clientContactId,
+            revokedAt: null,
             startDate: { lte: now },
             OR: [{ endDate: null }, { endDate: { gte: now } }],
           },
@@ -57,6 +58,7 @@ export class ClientPortalService {
         contactAccess: {
           some: {
             clientContactId: portalUser.clientContactId,
+            revokedAt: null,
             startDate: { lte: now },
             OR: [{ endDate: null }, { endDate: { gte: now } }],
           },
@@ -115,6 +117,7 @@ export class ClientPortalService {
           contactAccess: {
             some: {
               clientContactId: portalUser.clientContactId,
+              revokedAt: null,
               startDate: { lte: now },
               OR: [{ endDate: null }, { endDate: { gte: now } }],
             },
