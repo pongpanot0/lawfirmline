@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DocumentPublicationService } from './document-publication.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { ContactNotificationPreferenceService } from '../notifications/contact-notification-preference.service';
+import { EmailService } from '../notifications/email.service';
 
 describe('DocumentPublicationService', () => {
   let service: DocumentPublicationService;
@@ -23,18 +25,23 @@ describe('DocumentPublicationService', () => {
   };
   const defaultMockLine = { pushTo: jest.fn() };
   const defaultMockPrefs = { isChannelEnabled: jest.fn() };
+  const defaultMockEmail = { sendDocumentPublishedEmail: jest.fn() };
+  const mockConfig = { get: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     mockPrisma.contactCaseAccess.findMany.mockResolvedValue([]);
     mockPrisma.clientContact.findMany.mockResolvedValue([]);
+    mockPrisma.case.findUnique.mockResolvedValue(null);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentPublicationService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: LineMessagingService, useValue: defaultMockLine },
         { provide: ContactNotificationPreferenceService, useValue: defaultMockPrefs },
+        { provide: EmailService, useValue: defaultMockEmail },
+        { provide: ConfigService, useValue: mockConfig },
       ],
     }).compile();
     service = module.get(DocumentPublicationService);
@@ -147,6 +154,7 @@ describe('DocumentPublicationService', () => {
   describe('publish notification dispatch', () => {
     const mockLine = { pushTo: jest.fn() };
     const mockPrefs = { isChannelEnabled: jest.fn() };
+    const mockEmail = { sendDocumentPublishedEmail: jest.fn() };
 
     beforeEach(async () => {
       const module: TestingModule = await Test.createTestingModule({
@@ -155,10 +163,13 @@ describe('DocumentPublicationService', () => {
           { provide: PrismaService, useValue: mockPrisma },
           { provide: LineMessagingService, useValue: mockLine },
           { provide: ContactNotificationPreferenceService, useValue: mockPrefs },
+          { provide: EmailService, useValue: mockEmail },
+          { provide: ConfigService, useValue: mockConfig },
         ],
       }).compile();
       service = module.get(DocumentPublicationService);
       jest.clearAllMocks();
+      mockPrisma.case.findUnique.mockResolvedValue(null);
     });
 
     it('pushes a LINE notification to each contact with active case access and LINE enabled, when recipientContacts is empty', async () => {
@@ -233,6 +244,46 @@ describe('DocumentPublicationService', () => {
       await expect(service.publish(user, 'case-1', 'doc-1', {})).resolves.toEqual(
         expect.objectContaining({ id: 'pub-1' }),
       );
+    });
+
+    it('sends a document-published email to a contact with EMAIL enabled and an email address', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1', version: 2 });
+      mockPrisma.documentVersion.findFirst.mockResolvedValue({ id: 'ver-2', version: 2 });
+      mockPrisma.documentPublication.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.documentPublication.create.mockResolvedValue({ id: 'pub-1', title: 'สรุปคดี' });
+      mockPrisma.contactCaseAccess.findMany.mockResolvedValue([{ clientContactId: 'contact-1' }]);
+      mockPrisma.clientContact.findMany.mockResolvedValue([
+        { id: 'contact-1', lineUserId: null, email: 'client@example.com', name: 'คุณสมชาย' },
+      ]);
+      mockPrefs.isChannelEnabled.mockImplementation((_id: string, channel: string) =>
+        Promise.resolve(channel === 'EMAIL'),
+      );
+
+      await service.publish(user, 'case-1', 'doc-1', {});
+
+      expect(mockEmail.sendDocumentPublishedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'client@example.com',
+          contactName: 'คุณสมชาย',
+          documentTitle: 'สรุปคดี',
+        }),
+      );
+    });
+
+    it('does not send email when the contact has no email address on file', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1', version: 2 });
+      mockPrisma.documentVersion.findFirst.mockResolvedValue({ id: 'ver-2', version: 2 });
+      mockPrisma.documentPublication.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.documentPublication.create.mockResolvedValue({ id: 'pub-1', title: 'x' });
+      mockPrisma.contactCaseAccess.findMany.mockResolvedValue([{ clientContactId: 'contact-1' }]);
+      mockPrisma.clientContact.findMany.mockResolvedValue([
+        { id: 'contact-1', lineUserId: null, email: null, name: 'คุณสมชาย' },
+      ]);
+      mockPrefs.isChannelEnabled.mockResolvedValue(true);
+
+      await service.publish(user, 'case-1', 'doc-1', {});
+
+      expect(mockEmail.sendDocumentPublishedEmail).not.toHaveBeenCalled();
     });
   });
 });

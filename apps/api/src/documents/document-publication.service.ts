@@ -1,9 +1,15 @@
 import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.module';
 import { AuthUser } from '@lawfirm/shared';
 import { PublishDocumentDto } from './dto/publish-document.dto';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { ContactNotificationPreferenceService } from '../notifications/contact-notification-preference.service';
+import { EmailService } from '../notifications/email.service';
+import { NotificationChannel } from '../generated/prisma';
+
+const DEFAULT_APP_URL = 'http://localhost:3005';
+const DEFAULT_FIRM_NAME = 'สำนักงานกฎหมาย';
 
 @Injectable()
 export class DocumentPublicationService {
@@ -13,6 +19,8 @@ export class DocumentPublicationService {
     private readonly prisma: PrismaService,
     private readonly lineMessaging: LineMessagingService,
     private readonly preferences: ContactNotificationPreferenceService,
+    private readonly emailService: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   private async verifyDocument(caseId: string, documentId: string) {
@@ -70,15 +78,22 @@ export class DocumentPublicationService {
   private async notifyPublication(caseId: string, recipientContacts: string[], title: string) {
     try {
       const now = new Date();
-      const grants = await this.prisma.contactCaseAccess.findMany({
-        where: {
-          caseId,
-          revokedAt: null,
-          startDate: { lte: now },
-          OR: [{ endDate: null }, { endDate: { gte: now } }],
-        },
-        select: { clientContactId: true },
-      });
+      const [grants, legalCase] = await Promise.all([
+        this.prisma.contactCaseAccess.findMany({
+          where: {
+            caseId,
+            revokedAt: null,
+            startDate: { lte: now },
+            OR: [{ endDate: null }, { endDate: { gte: now } }],
+          },
+          select: { clientContactId: true },
+        }),
+        this.prisma.case.findUnique({
+          where: { id: caseId },
+          select: { client: { select: { firm: { select: { name: true } } } } },
+        }),
+      ]);
+      const firmName = legalCase?.client?.firm?.name ?? DEFAULT_FIRM_NAME;
       const grantedContactIds = new Set(grants.map((g) => g.clientContactId));
 
       const targetContactIds =
@@ -89,20 +104,45 @@ export class DocumentPublicationService {
       if (targetContactIds.length === 0) return;
 
       const contacts = await this.prisma.clientContact.findMany({
-        where: { id: { in: targetContactIds }, lineUserId: { not: null } },
-        select: { id: true, lineUserId: true },
+        where: {
+          id: { in: targetContactIds },
+          OR: [{ lineUserId: { not: null } }, { email: { not: null } }],
+        },
+        select: { id: true, lineUserId: true, email: true, name: true },
       });
 
+      const portalUrl = `${this.config.get<string>('APP_URL') ?? DEFAULT_APP_URL}/portal`;
+
       for (const contact of contacts) {
-        try {
-          const enabled = await this.preferences.isChannelEnabled(contact.id, 'LINE');
-          if (!enabled) continue;
-          await this.lineMessaging.pushTo(
-            contact.lineUserId!,
-            `📄 มีเอกสารใหม่: ${title}\nเข้าดูได้ที่ Client Portal`,
-          );
-        } catch (err) {
-          this.logger.error(`Failed to notify contact ${contact.id}`, err as Error);
+        if (contact.lineUserId) {
+          try {
+            const enabled = await this.preferences.isChannelEnabled(contact.id, NotificationChannel.LINE);
+            if (enabled) {
+              await this.lineMessaging.pushTo(
+                contact.lineUserId,
+                `📄 มีเอกสารใหม่: ${title}\nเข้าดูได้ที่ Client Portal`,
+              );
+            }
+          } catch (err) {
+            this.logger.error(`Failed to notify contact ${contact.id} via LINE`, err as Error);
+          }
+        }
+
+        if (contact.email) {
+          try {
+            const enabled = await this.preferences.isChannelEnabled(contact.id, NotificationChannel.EMAIL);
+            if (enabled) {
+              await this.emailService.sendDocumentPublishedEmail({
+                to: contact.email,
+                contactName: contact.name,
+                firmName,
+                documentTitle: title,
+                portalUrl,
+              });
+            }
+          } catch (err) {
+            this.logger.error(`Failed to notify contact ${contact.id} via email`, err as Error);
+          }
         }
       }
     } catch (err) {

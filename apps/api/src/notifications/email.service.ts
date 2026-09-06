@@ -20,6 +20,14 @@ export interface ClientPortalMagicLinkParams {
   expiresAt: Date;
 }
 
+export interface DocumentPublishedEmailParams {
+  to: string;
+  contactName: string;
+  firmName: string;
+  documentTitle: string;
+  portalUrl: string;
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -176,6 +184,55 @@ export class EmailService {
         `Failed to send client portal magic link email to ${maskEmail(params.to)}: ${message}`,
       );
       throw error;
+    }
+  }
+
+  async sendDocumentPublishedEmail(params: DocumentPublishedEmailParams): Promise<void> {
+    if (!this.isConfigured()) {
+      this.logger.warn(
+        `SendGrid not configured (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL); skipped document-published email to ${params.to}`,
+      );
+      return;
+    }
+
+    const fromEmail = this.getFromEmail()!;
+
+    const text = [
+      `${params.firmName} has published a new document for you: ${params.documentTitle}`,
+      `Hi ${params.contactName}, view it in your client portal:`,
+      params.portalUrl,
+    ].join('\n\n');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;max-width:560px">
+        <h2 style="margin:0 0 12px">New document from ${params.firmName}</h2>
+        <p>Hi <strong>${params.contactName}</strong>, a new document has been published for you: <strong>${params.documentTitle}</strong></p>
+        <p style="margin:24px 0">
+          <a href="${params.portalUrl}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">
+            View in client portal
+          </a>
+        </p>
+        <p style="font-size:14px;color:#6b7280">Or copy this link:<br><a href="${params.portalUrl}">${params.portalUrl}</a></p>
+      </div>
+    `.trim();
+
+    try {
+      await sgMail.send({
+        to: params.to,
+        from: { email: fromEmail, name: this.getFromName() },
+        subject: `New document from ${params.firmName}: ${params.documentTitle}`,
+        text,
+        html,
+      });
+      this.logger.log(`Document-published email sent to ${maskEmail(params.to)}`);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error && 'response' in error
+            ? JSON.stringify((error as { response?: { body?: unknown } }).response?.body)
+            : 'Unknown SendGrid error';
+      this.logger.error(`Failed to send document-published email to ${maskEmail(params.to)}: ${message}`);
     }
   }
 }
