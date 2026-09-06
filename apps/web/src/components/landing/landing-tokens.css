@@ -58,10 +58,55 @@
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-body);
+
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: clip;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  /* The floating nav sits in normal flow before the first section (it's
+     sticky, not fixed), so the snap-port's "start" must be pushed down by
+     its height — otherwise `mandatory` snapping auto-scrolls past it on
+     load to align the hero's top edge to the container's true top. */
+  scroll-padding-top: 5rem;
+}
+
+@media (max-width: 40rem) {
+  .lf-landing {
+    scroll-padding-top: 4.5rem;
+  }
 }
 
 .lf-landing * {
   box-sizing: border-box;
+}
+
+/* Every top-level section is a snap stop. .lf-snap forces a full-viewport
+   "slide" (short sections); .lf-snap-tall only floors the height so long
+   sections (bento, pricing) still anchor cleanly without being squeezed. */
+.lf-landing > section,
+.lf-landing > footer {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.lf-snap {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.lf-snap-tall {
+  min-height: 100dvh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lf-landing {
+    scroll-snap-type: y proximity;
+    scroll-behavior: auto;
+  }
 }
 
 /* ---------- layout shell ---------- */
@@ -333,7 +378,11 @@
   position: relative;
   margin-inline: auto;
   max-width: 56rem;
-  padding-block: var(--space-lg) var(--space-2xl);
+  /* margin, not padding — the aux frames are absolutely positioned against
+     this box's padding edge, so only margin (real document-flow spacing)
+     keeps their negative top/left offset from reaching into the heading
+     above. */
+  margin-block: clamp(3rem, 6vw, 4.5rem) var(--space-2xl);
 }
 
 .lf-tour-frame {
@@ -364,14 +413,17 @@
 }
 
 .lf-tour-frame--aux-a {
-  top: -6%;
-  left: -6%;
+  /* Fixed rem offsets, not percentages — a percentage here is relative to
+     the stage's own padding-box height, so it can grow arbitrarily large
+     (and reach above the heading) as the stage itself grows. */
+  top: -1.25rem;
+  left: -1.25rem;
   transform: rotate(-6deg);
 }
 
 .lf-tour-frame--aux-b {
-  bottom: -8%;
-  right: -7%;
+  bottom: -1.25rem;
+  right: -1.25rem;
   z-index: 2;
   transform: rotate(5deg);
 }
