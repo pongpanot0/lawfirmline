@@ -76,7 +76,7 @@ export default function PortalSubmissionsPage() {
                     <TableCell>{item.client.name}</TableCell>
                     <TableCell>{item.clientContact.name}</TableCell>
                     <TableCell>
-                      {new Date(item.submittedAt).toLocaleDateString('th-TH')}
+                      {new Date(item.submittedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </TableCell>
                     <TableCell>
                       <Button size="sm" onClick={() => handleConvert(item.id)}>
