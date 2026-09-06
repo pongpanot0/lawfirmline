@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { api, ClientItem, ApiError, IntakeItem, CaseItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { getCaseStatusDisplay } from '@/lib/case-status';
 
 const REFERRAL_TYPE_LABELS: Record<string, string> = {
   INDIVIDUAL: 'บุคคลทั่วไป',
@@ -79,7 +80,7 @@ export default function NewIntakePage() {
     if (clientId && token) {
       api
         .getClient(token, clientId)
-        .then((full) => setClientCases((full as ClientItem & { cases?: CaseItem[] }).cases ?? []))
+        .then((full) => setClientCases(full.cases ?? []))
         .catch(() => setClientCases([]));
     }
   };
@@ -245,7 +246,7 @@ export default function NewIntakePage() {
               >
                 <option value="">-- ไม่ผูกกับคดีเดิม (เรื่องใหม่) --</option>
                 {clientCases.map((c) => (
-                  <option key={c.id} value={c.id}>{c.ownRef} — {c.title}</option>
+                  <option key={c.id} value={c.id}>{c.ownRef} — {c.title} ({getCaseStatusDisplay(c.status).label})</option>
                 ))}
               </select>
             </div>

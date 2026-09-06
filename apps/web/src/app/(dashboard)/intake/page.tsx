@@ -15,6 +15,7 @@ const STATUS_LABELS: Record<string, string> = {
   ACCEPTED: 'รับเป็นคดี',
   REJECTED: 'ปฏิเสธ',
   CONVERTED: 'แปลงเป็นคดีแล้ว',
+  CONSULTED: 'ให้คำปรึกษาเรียบร้อยแล้ว',
 };
 
 const STATUS_VARIANT: Record<string, string> = {
@@ -23,6 +24,7 @@ const STATUS_VARIANT: Record<string, string> = {
   ACCEPTED: 'bg-green-100 text-green-700',
   REJECTED: 'bg-red-100 text-red-700',
   CONVERTED: 'bg-purple-100 text-purple-700',
+  CONSULTED: 'bg-teal-100 text-teal-700',
 };
 
 function formatDate(date: string) {

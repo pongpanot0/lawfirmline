@@ -320,7 +320,7 @@ export default function IntakeDetailPage() {
       </div>
 
       {/* Status timeline */}
-      {intake.status !== 'REJECTED' && intake.status !== 'CONVERTED' && (
+      {intake.status !== 'REJECTED' && intake.status !== 'CONVERTED' && intake.status !== 'CONSULTED' && (
         <div className="flex items-center gap-2">
           {STEPS.map((s, i) => (
             <div key={s} className="flex items-center gap-2">
@@ -511,6 +511,13 @@ export default function IntakeDetailPage() {
             <InfoRow label="วันเกิดเหตุ" value={formatDate(intake.incidentDate)} />
             <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
             <InfoRow label="รายละเอียด" value={intake.description} />
+            {intake.isOngoingElsewhere && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <p className="font-medium text-amber-900">คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน</p>
+                {intake.externalCaseNumber && <p className="mt-1 text-amber-800">เลขคดี/หมายเลขดำ: {intake.externalCaseNumber}</p>}
+                {intake.currentStageNote && <p className="mt-1 text-amber-800">สถานะปัจจุบัน: {intake.currentStageNote}</p>}
+              </div>
+            )}
             <div className="mt-4 border-t border-border pt-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">ไฟล์แนบ (PDF)</p>
