@@ -51,6 +51,19 @@ export class ContactLineLinkService {
     };
   }
 
+  async getStatusForStaff(firmId: string, clientContactId: string) {
+    const contact = await this.prisma.clientContact.findFirst({
+      where: { id: clientContactId, client: { firmId } },
+      select: { lineUserId: true, lineConnectedAt: true },
+    });
+    if (!contact) throw new NotFoundException('Contact not found');
+
+    return {
+      connected: Boolean(contact.lineUserId),
+      connectedAt: contact.lineConnectedAt?.toISOString() ?? null,
+    };
+  }
+
   async createLinkCode(clientContactId: string) {
     const contact = await this.prisma.clientContact.findUnique({ where: { id: clientContactId } });
     if (!contact) throw new NotFoundException('Contact not found');

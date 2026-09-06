@@ -781,6 +781,12 @@ export const api = {
   updateClient: (token: string, id: string, data: Record<string, unknown>) =>
     request<ClientItem>(`/clients/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
+  getContactLineStatus: (token: string, contactId: string) =>
+    request<{ connected: boolean; connectedAt: string | null }>(
+      `/clients/contacts/${contactId}/line-status`,
+      { token },
+    ),
+
   getCourts: (token: string, activeOnly = true) =>
     request<CourtItem[]>(`/courts?activeOnly=${activeOnly}`, { token }),
 

@@ -25,7 +25,7 @@ import { SaasModule } from '../saas/saas.module';
   imports: [
     IntakeModule,
     TasksModule,
-    ClientsModule,
+    forwardRef(() => ClientsModule),
     forwardRef(() => CasesModule),
     UsersModule,
     forwardRef(() => SaasModule),

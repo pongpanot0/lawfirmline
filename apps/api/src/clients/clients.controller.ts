@@ -15,15 +15,24 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser, Role } from '@lawfirm/shared';
+import { ContactLineLinkService } from '../notifications/contact-line-link.service';
 
 @Controller('clients')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ClientsController {
-  constructor(private clientsService: ClientsService) {}
+  constructor(
+    private clientsService: ClientsService,
+    private contactLineLink: ContactLineLinkService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query('search') search?: string) {
     return this.clientsService.findAll(user, search);
+  }
+
+  @Get('contacts/:contactId/line-status')
+  getContactLineStatus(@CurrentUser() user: AuthUser, @Param('contactId') contactId: string) {
+    return this.contactLineLink.getStatusForStaff(user.firmId, contactId);
   }
 
   @Get(':id')

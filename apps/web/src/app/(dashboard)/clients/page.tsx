@@ -93,6 +93,8 @@ export default function ClientsPage() {
     setSelected(updated);
   };
 
+  const [lineStatus, setLineStatus] = useState<Record<string, { connected: boolean }>>({});
+
   const [caseAccess, setCaseAccess] = useState<Record<string, ContactCaseAccessEntry[]>>({});
   const [caseAccessLoading, setCaseAccessLoading] = useState<Record<string, boolean>>({});
   const [caseAccessError, setCaseAccessError] = useState<Record<string, boolean>>({});
@@ -142,6 +144,18 @@ export default function ClientsPage() {
   useEffect(() => {
     if (!selected || !token) return;
     (selected.cases ?? []).forEach((c) => loadCaseAccess(c.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, token]);
+
+  useEffect(() => {
+    if (!selected || !token) return;
+    selected.contacts.forEach((c) => {
+      if (!c.id) return;
+      api
+        .getContactLineStatus(token, c.id)
+        .then((status) => setLineStatus((s) => ({ ...s, [c.id!]: { connected: status.connected } })))
+        .catch(() => {});
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, token]);
 
@@ -287,6 +301,17 @@ export default function ClientsPage() {
                         <Button size="sm" variant={c.portalEnabled ? 'default' : 'outline'} onClick={() => togglePortalAccess(c.id!, !c.portalEnabled)} className="text-xs h-7">
                           {c.portalEnabled ? 'Portal on' : 'Portal'}
                         </Button>
+                      )}
+                      {c.id && lineStatus[c.id] && (
+                        <span
+                          className={`text-xs h-7 flex items-center rounded px-2 ${
+                            lineStatus[c.id].connected
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {lineStatus[c.id].connected ? 'LINE เชื่อมต่อแล้ว' : 'LINE ยังไม่เชื่อมต่อ'}
+                        </span>
                       )}
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditContact(c)}>
                         <Pencil className="h-3.5 w-3.5" />

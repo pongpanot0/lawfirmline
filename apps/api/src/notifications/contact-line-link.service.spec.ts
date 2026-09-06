@@ -79,6 +79,29 @@ describe('ContactLineLinkService', () => {
     });
   });
 
+  describe('getStatusForStaff', () => {
+    it('throws NotFoundException when the contact does not belong to the given firm', async () => {
+      mockPrisma.clientContact.findFirst.mockResolvedValue(null);
+
+      await expect(service.getStatusForStaff('firm-1', 'contact-1')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.clientContact.findFirst).toHaveBeenCalledWith({
+        where: { id: 'contact-1', client: { firmId: 'firm-1' } },
+        select: { lineUserId: true, lineConnectedAt: true },
+      });
+    });
+
+    it('returns connection status when the contact belongs to the firm', async () => {
+      mockPrisma.clientContact.findFirst.mockResolvedValue({
+        lineUserId: 'U123',
+        lineConnectedAt: new Date('2026-01-01T00:00:00Z'),
+      });
+
+      const result = await service.getStatusForStaff('firm-1', 'contact-1');
+
+      expect(result).toEqual({ connected: true, connectedAt: '2026-01-01T00:00:00.000Z' });
+    });
+  });
+
   describe('handleIncomingMessage', () => {
     it('returns null for text that does not match the link-code pattern', async () => {
       const result = await service.handleIncomingMessage('U123', 'hello');
