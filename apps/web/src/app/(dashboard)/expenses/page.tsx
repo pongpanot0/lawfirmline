@@ -2,21 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Plus, TrendingUp, TrendingDown, Wallet, Receipt } from 'lucide-react';
-import {
-  EXPENSE_CATEGORIES,
-  FirmRole,
-  MONEY_HINT,
-  MONEY_MAX,
-  MONEY_MIN,
-  MONEY_STEP,
-} from '@lawfirm/shared';
+import { FirmRole } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
-import { api, ApiError, CaseItem, ExpenseItem, FinanceSummary, FirmInvoiceItem } from '@/lib/api';
+import { api, ApiError, ExpenseItem, FinanceSummary, FirmInvoiceItem } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { Badge } from '@/components/ui/badge';
@@ -39,19 +32,14 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 
 export default function ExpensesPage() {
   const { token, user } = useAuth();
-  const [cases, setCases] = useState<CaseItem[]>([]);
+  const router = useRouter();
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [invoices, setInvoices] = useState<FirmInvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    amount: '', description: '', category: EXPENSE_CATEGORIES[0] as string,
-    expensePurpose: '', caseId: '',
-  });
 
-  const load = () => {
+  useEffect(() => {
     const authToken = token ?? getStoredToken();
     if (!authToken) {
       setLoading(false);
@@ -59,13 +47,11 @@ export default function ExpensesPage() {
     }
     setError('');
     Promise.all([
-      api.getCases(authToken),
       api.getExpenses(authToken),
       api.getFinanceSummary(authToken),
       api.getFirmInvoices(authToken),
     ])
-      .then(([c, e, f, inv]) => {
-        setCases(c);
+      .then(([e, f, inv]) => {
         setExpenses(e);
         setFinance(f);
         setInvoices(inv);
@@ -75,28 +61,7 @@ export default function ExpensesPage() {
         setError(err instanceof Error ? err.message : 'Failed to load expenses / โหลดค่าใช้จ่ายไม่สำเร็จ');
       })
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, [token]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const authToken = token ?? getStoredToken();
-    if (!authToken) return;
-    await api.createStandaloneExpense(authToken, {
-      amount: parseFloat(form.amount), description: form.description,
-      category: form.category, expensePurpose: form.expensePurpose || undefined,
-      caseId: form.caseId || undefined,
-    });
-
-    setShowForm(false);
-    setForm({
-      amount: '', description: '', category: EXPENSE_CATEGORIES[0] as string,
-      expensePurpose: '', caseId: '',
-    });
-    setLoading(true);
-    load();
-  };
+  }, [token]);
 
   if (loading) {
     return (
@@ -131,7 +96,7 @@ export default function ExpensesPage() {
             : `แดชบอร์ดการเงินของ ${finance.firmName}`
         }
         actions={
-          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+          <Button size="sm" onClick={() => router.push('/expenses/new')}>
             <Plus className="h-4 w-4" />New Expense / เพิ่มค่าใช้จ่าย
           </Button>
         }
@@ -195,39 +160,6 @@ export default function ExpensesPage() {
           </Table>
         </CardContent>
       </Card>
-
-      {showForm && (
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Input
-                  required
-                  type="number"
-                  step={MONEY_STEP}
-                  min={MONEY_MIN}
-                  max={MONEY_MAX}
-                  title={MONEY_HINT}
-                  placeholder="Amount (฿) / จำนวนเงิน"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                />
-                <p className="mt-1 text-xs text-muted-foreground">{MONEY_HINT}</p>
-              </div>
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="h-9 rounded-lg border border-input bg-card px-3 text-sm">
-                {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <Input required placeholder="Description / รายละเอียด" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              <Input placeholder="Purpose / วัตถุประสงค์" value={form.expensePurpose} onChange={(e) => setForm({ ...form, expensePurpose: e.target.value })} />
-              <select value={form.caseId} onChange={(e) => setForm({ ...form, caseId: e.target.value })} className="h-9 rounded-lg border border-input bg-card px-3 text-sm md:col-span-2">
-                <option value="">No case — general expense / ไม่ระบุคดี</option>
-                {cases.map((c) => <option key={c.id} value={c.id}>{c.ownRef} — {c.title}</option>)}
-              </select>
-              <Button type="submit" className="md:col-span-2 w-fit">Submit for Approval / ส่งขออนุมัติ</Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
