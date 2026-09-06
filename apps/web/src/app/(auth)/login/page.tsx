@@ -94,7 +94,7 @@ export default function LoginPage() {
             </form>
 
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              No account? <Link href="/register" className="text-primary hover:underline">Start 30-day trial</Link>
+              Need access? Contact your firm administrator to be invited.
             </p>
 
             <div className="mt-6 rounded-lg bg-muted p-4 text-xs text-muted-foreground">
