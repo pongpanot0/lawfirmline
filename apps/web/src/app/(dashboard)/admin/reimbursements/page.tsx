@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/misc';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 
 const FILTERS = ['', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
@@ -79,7 +79,7 @@ export default function ReimbursementsPage() {
         </Button>
       )}
       {e.status === 'PAID' && e.paidAt && (
-        <span className="text-xs text-muted-foreground">{new Date(e.paidAt).toLocaleDateString()}</span>
+        <span className="text-xs text-muted-foreground">{formatDate(e.paidAt)}</span>
       )}
     </div>
   );

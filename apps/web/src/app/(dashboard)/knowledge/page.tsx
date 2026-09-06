@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { api, KnowledgeItem, CaseItem } from '@/lib/api';
+import { formatDate } from '@/lib/utils';
 
 const CATEGORIES = ['', 'SUMMARY', 'CONTRACT', 'COURT_ORDER', 'CORRESPONDENCE', 'OTHER'];
 
@@ -87,7 +88,7 @@ export default function KnowledgePage() {
                       {item.case.ownRef}
                     </Link>
                     {' — '}{item.createdBy.firstName} {item.createdBy.lastName}
-                    {' — '}{new Date(item.createdAt).toLocaleDateString()}
+                    {' — '}{formatDate(item.createdAt)}
                   </p>
                   <span className="mt-2 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                     {item.category}

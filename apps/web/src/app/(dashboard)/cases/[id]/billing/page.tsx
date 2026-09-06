@@ -13,7 +13,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { api, InvoiceItem, TimeEntryItem, ExpenseItem } from '@/lib/api';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 export default function CaseBillingPage() {
   const { id } = useParams<{ id: string }>();
@@ -179,7 +179,7 @@ export default function CaseBillingPage() {
                   {e.user.firstName} {e.user.lastName}
                   {e.category && ` — ${e.category}`}
                   {' — '}
-                  {new Date(e.date).toLocaleDateString()}
+                  {formatDate(e.date)}
                 </p>
               </div>
               <div className="text-right">
@@ -202,7 +202,7 @@ export default function CaseBillingPage() {
               <div>
                 <p className="font-medium">{e.description || 'Time entry'}</p>
                 <p className="text-xs text-slate-400">
-                  {e.user.firstName} {e.user.lastName} — {new Date(e.date).toLocaleDateString()}
+                  {e.user.firstName} {e.user.lastName} — {formatDate(e.date)}
                 </p>
               </div>
               <div className="text-right">

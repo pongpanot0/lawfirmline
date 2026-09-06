@@ -8,6 +8,7 @@ import { usePortalAuth } from '@/lib/portal-auth';
 import { portalApi, PortalCaseDetail, CaseMessageEntry, PortalApiError } from '@/lib/portal-api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { formatDate, formatDateTime } from '@/lib/utils';
 
 export default function PortalCaseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -96,7 +97,7 @@ export default function PortalCaseDetailPage() {
             <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Next hearing</h2>
             {detail.nextHearing ? (
               <p className="text-sm">
-                {detail.nextHearing.title} — {new Date(detail.nextHearing.startAt).toLocaleString()}
+                {detail.nextHearing.title} — {formatDateTime(detail.nextHearing.startAt)}
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">No upcoming hearing scheduled.</p>
@@ -142,7 +143,7 @@ export default function PortalCaseDetailPage() {
                     <div>
                       <p className="font-medium">{inv.invoiceNumber}</p>
                       <p className="text-xs text-muted-foreground">
-                        {inv.dueAt ? `Due ${new Date(inv.dueAt).toLocaleDateString()}` : ''}
+                        {inv.dueAt ? `Due ${formatDate(inv.dueAt)}` : ''}
                       </p>
                     </div>
                     <div className="text-right">
@@ -181,7 +182,7 @@ export default function PortalCaseDetailPage() {
                       m.senderType === 'CONTACT' ? 'text-primary-foreground/70' : 'text-muted-foreground'
                     }`}
                   >
-                    {new Date(m.createdAt).toLocaleString()}
+                    {formatDateTime(m.createdAt)}
                   </p>
                 </div>
               ))}
