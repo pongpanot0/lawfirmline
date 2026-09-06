@@ -15,6 +15,7 @@ export default function NewIntakePage() {
   const [urgencyFlag, setUrgencyFlag] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [referenceNumber, setReferenceNumber] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!loading && !contact) router.replace('/portal/login');
@@ -23,6 +24,7 @@ export default function NewIntakePage() {
   const handleSubmit = async () => {
     if (!token) return;
     setSubmitting(true);
+    setError('');
     try {
       const result = await portalApi.submitIntake(token, {
         title,
@@ -31,6 +33,8 @@ export default function NewIntakePage() {
         urgencyFlag,
       });
       setReferenceNumber(result.referenceNumber);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ส่งเรื่องไม่สำเร็จ กรุณาลองใหม่');
     } finally {
       setSubmitting(false);
     }
@@ -91,6 +95,7 @@ export default function NewIntakePage() {
             />
             เรื่องเร่งด่วน
           </label>
+          {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
           <button
             className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
             onClick={handleSubmit}
