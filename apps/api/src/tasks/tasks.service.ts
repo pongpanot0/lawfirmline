@@ -5,10 +5,20 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { TaskSource } from '../generated/prisma';
-import { AuthUser } from '@lawfirm/shared';
+import {
+  ActivityType,
+  AssignmentType,
+  AuthUser,
+  FirmRole,
+  TaskLogAction,
+  TaskStatus,
+} from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
+import { HandoffTaskDto, ReassignTaskDto, RejectTaskDto } from './dto/task-handoff.dto';
+
+type CaseForAccess = { id: string; leadLawyerId: string };
 
 @Injectable()
 export class TasksService {
@@ -22,7 +32,67 @@ export class TasksService {
       select: { id: true, firstName: true, lastName: true },
     },
     onHold: true,
+    assignmentLogs: {
+      orderBy: { createdAt: 'asc' as const },
+      include: {
+        fromUser: { select: { id: true, firstName: true, lastName: true } },
+        toUser: { select: { id: true, firstName: true, lastName: true } },
+        performedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    },
   };
+
+  private assertLeadOrOwner(user: AuthUser, legalCase: CaseForAccess) {
+    if (user.firmRole === FirmRole.OWNER) return;
+    if (legalCase.leadLawyerId === user.id) return;
+    throw new ForbiddenException('เฉพาะ Senior lawyer (Lead) หรือ Owner เท่านั้นที่ทำรายการนี้ได้');
+  }
+
+  private async ensureCaseMembership(caseId: string, userId: string) {
+    const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
+    if (!legalCase || legalCase.leadLawyerId === userId) return;
+
+    await this.prisma.caseAssignment.upsert({
+      where: {
+        caseId_userId_assignmentType: {
+          caseId,
+          userId,
+          assignmentType: AssignmentType.BUDDY,
+        },
+      },
+      create: { caseId, userId, assignmentType: AssignmentType.BUDDY },
+      update: {},
+    });
+  }
+
+  private async logAssignment(params: {
+    taskId: string;
+    action: TaskLogAction;
+    toUserId: string;
+    performedById: string;
+    fromUserId?: string | null;
+    note?: string | null;
+    stageDueDate?: Date | null;
+  }) {
+    await this.prisma.taskAssignmentLog.create({
+      data: {
+        taskId: params.taskId,
+        action: params.action,
+        toUserId: params.toUserId,
+        performedById: params.performedById,
+        fromUserId: params.fromUserId ?? undefined,
+        note: params.note ?? undefined,
+        stageDueDate: params.stageDueDate ?? undefined,
+      },
+    });
+  }
+
+  private async logActivity(caseId: string | null, title: string, createdById: string) {
+    if (!caseId) return;
+    await this.prisma.caseActivity.create({
+      data: { caseId, title, type: ActivityType.TASK, createdById },
+    });
+  }
 
   async findByCase(caseId: string) {
     return this.prisma.task.findMany({
@@ -63,7 +133,7 @@ export class TasksService {
     dto: CreateTaskDto,
     source: TaskSource = TaskSource.WEB,
   ) {
-    return this.prisma.task.create({
+    const task = await this.prisma.task.create({
       data: {
         caseId,
         title: dto.title,
@@ -76,10 +146,50 @@ export class TasksService {
       },
       include: this.taskInclude,
     });
+
+    if (caseId && dto.assigneeId) {
+      await this.ensureCaseMembership(caseId, dto.assigneeId);
+      await this.logAssignment({
+        taskId: task.id,
+        action: TaskLogAction.ASSIGNED,
+        toUserId: dto.assigneeId,
+        performedById: user.id,
+        stageDueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+      });
+      if (dto.assigneeId !== user.id) {
+        await this.logActivity(caseId, `มอบหมายงาน "${task.title}" ให้ทำ`, user.id);
+      }
+    }
+
+    return this.findOne(task.id);
   }
 
-  async update(id: string, dto: UpdateTaskDto) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateTaskDto, user: AuthUser) {
+    const task = await this.findOne(id);
+
+    if (dto.status === TaskStatus.PENDING_REVIEW || dto.status === TaskStatus.NEEDS_REVISION) {
+      throw new BadRequestException(
+        'ใช้ปุ่ม "ส่งต่อให้ Senior" หรือ "ตีกลับ" สำหรับสถานะนี้ ไม่สามารถตั้งค่าตรงนี้ได้',
+      );
+    }
+
+    if (dto.assigneeId && task.caseId) {
+      const legalCase = await this.prisma.case.findUnique({ where: { id: task.caseId } });
+      if (!legalCase) throw new NotFoundException('Case not found');
+      this.assertLeadOrOwner(user, legalCase);
+      await this.ensureCaseMembership(task.caseId, dto.assigneeId);
+      if (dto.assigneeId !== task.assigneeId) {
+        await this.logAssignment({
+          taskId: task.id,
+          action: TaskLogAction.ASSIGNED,
+          fromUserId: task.assigneeId,
+          toUserId: dto.assigneeId,
+          performedById: user.id,
+        });
+        await this.logActivity(task.caseId, `มอบหมายงาน "${task.title}" ใหม่`, user.id);
+      }
+    }
+
     return this.prisma.task.update({
       where: { id },
       data: {
@@ -94,6 +204,132 @@ export class TasksService {
     await this.findOne(id);
     await this.prisma.task.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  async handoff(caseId: string, taskId: string, user: AuthUser, dto: HandoffTaskDto) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
+    if (!legalCase) throw new NotFoundException('Case not found');
+
+    if (user.id === legalCase.leadLawyerId) {
+      throw new BadRequestException('คุณเป็น Senior lawyer ของคดีนี้อยู่แล้ว ไม่ต้องส่งต่อ');
+    }
+    if (task.assigneeId !== user.id) {
+      throw new ForbiddenException('คุณไม่ใช่ผู้รับผิดชอบงานนี้');
+    }
+    const allowedStatuses: TaskStatus[] = [
+      TaskStatus.TODO,
+      TaskStatus.IN_PROGRESS,
+      TaskStatus.NEEDS_REVISION,
+    ];
+    if (!allowedStatuses.includes(task.status as TaskStatus)) {
+      throw new BadRequestException('งานนี้ไม่อยู่ในสถานะที่ส่งต่อได้');
+    }
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.PENDING_REVIEW, assigneeId: legalCase.leadLawyerId },
+    });
+
+    await this.logAssignment({
+      taskId,
+      action: TaskLogAction.HANDED_OFF,
+      fromUserId: user.id,
+      toUserId: legalCase.leadLawyerId,
+      performedById: user.id,
+      note: dto.note,
+      stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
+    });
+    await this.logActivity(caseId, `ส่งงาน "${task.title}" ให้ Senior lawyer ตรวจ`, user.id);
+
+    return this.findOne(taskId);
+  }
+
+  async accept(caseId: string, taskId: string, user: AuthUser) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
+    if (!legalCase) throw new NotFoundException('Case not found');
+    this.assertLeadOrOwner(user, legalCase);
+
+    if (task.status !== TaskStatus.PENDING_REVIEW) {
+      throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
+    }
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.DONE },
+    });
+    await this.logActivity(caseId, `ปิดงาน "${task.title}"`, user.id);
+
+    return this.findOne(taskId);
+  }
+
+  async reject(caseId: string, taskId: string, user: AuthUser, dto: RejectTaskDto) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
+    if (!legalCase) throw new NotFoundException('Case not found');
+    this.assertLeadOrOwner(user, legalCase);
+
+    if (task.status !== TaskStatus.PENDING_REVIEW) {
+      throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
+    }
+
+    const lastHandoff = await this.prisma.taskAssignmentLog.findFirst({
+      where: { taskId, action: TaskLogAction.HANDED_OFF },
+      orderBy: { createdAt: 'desc' },
+    });
+    const returnToUserId = lastHandoff?.fromUserId ?? task.createdById;
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId },
+    });
+
+    await this.logAssignment({
+      taskId,
+      action: TaskLogAction.REJECTED,
+      fromUserId: user.id,
+      toUserId: returnToUserId,
+      performedById: user.id,
+      note: dto.reason,
+    });
+    await this.logActivity(caseId, `ตีกลับงาน "${task.title}": ${dto.reason}`, user.id);
+
+    return this.findOne(taskId);
+  }
+
+  async reassign(caseId: string, taskId: string, user: AuthUser, dto: ReassignTaskDto) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
+    if (!legalCase) throw new NotFoundException('Case not found');
+    this.assertLeadOrOwner(user, legalCase);
+
+    await this.ensureCaseMembership(caseId, dto.assigneeId);
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { assigneeId: dto.assigneeId },
+    });
+
+    await this.logAssignment({
+      taskId,
+      action: TaskLogAction.ASSIGNED,
+      fromUserId: task.assigneeId,
+      toUserId: dto.assigneeId,
+      performedById: user.id,
+      stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
+    });
+    await this.logActivity(caseId, `มอบหมายงาน "${task.title}" ใหม่`, user.id);
+
+    return this.findOne(taskId);
   }
 
   async startOnHold(caseId: string, taskId: string, user: AuthUser, dto: StartTaskOnHoldDto) {

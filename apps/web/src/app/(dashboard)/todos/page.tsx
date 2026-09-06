@@ -14,7 +14,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 export default function TodosPage() {
   const d = useDashboardT();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,7 +111,7 @@ export default function TodosPage() {
         </Card>
       )}
 
-      <KanbanBoard tasks={tasks} onStatusChange={handleStatusChange} />
+      <KanbanBoard tasks={tasks} onStatusChange={handleStatusChange} currentUserId={user?.id ?? ''} />
     </div>
   );
 }
