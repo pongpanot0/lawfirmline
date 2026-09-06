@@ -15,6 +15,12 @@ import { api, InvoiceItem, TimeEntryItem, ExpenseItem } from '@/lib/api';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'ร่าง',
+  SENT: 'ส่งแล้ว',
+  PAID: 'ชำระแล้ว',
+};
+
 export default function CaseBillingPage() {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
@@ -71,7 +77,7 @@ export default function CaseBillingPage() {
     load();
   };
 
-  if (loading) return <p className="text-slate-500">Loading billing...</p>;
+  if (loading) return <p className="text-slate-500">Loading billing... / กำลังโหลด...</p>;
 
   const totalHours = timeEntries.reduce((sum, e) => sum + e.hours, 0);
   const totalBilled = timeEntries.reduce((sum, e) => sum + e.hours * e.rate, 0);
@@ -80,9 +86,9 @@ export default function CaseBillingPage() {
   return (
     <div>
       <Link href={`/cases/${id}`} className="text-sm text-brand-600 hover:underline">
-        ← Back to case
+        ← Back to case / กลับไปหน้าคดี
       </Link>
-      <h1 className="mt-2 mb-6 text-2xl font-bold text-slate-900">Billing & Expenses</h1>
+      <h1 className="mt-2 mb-6 text-2xl font-bold text-slate-900">Billing & Expenses / ค่าใช้จ่ายและรายได้</h1>
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -100,15 +106,15 @@ export default function CaseBillingPage() {
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">Billable Hours</p>
+          <p className="text-sm text-slate-500">Billable Hours / ชั่วโมงคิดค่าบริการ</p>
           <p className="text-2xl font-bold text-brand-600">{totalHours.toFixed(1)}h</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">Time Billed</p>
+          <p className="text-sm text-slate-500">Time Billed / มูลค่าชั่วโมงทำงาน</p>
           <p className="text-2xl font-bold text-green-600">฿{totalBilled.toLocaleString()}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">All Expenses</p>
+          <p className="text-sm text-slate-500">All Expenses / ค่าใช้จ่ายทั้งหมด</p>
           <p className="text-2xl font-bold text-orange-600">฿{totalExpenses.toLocaleString()}</p>
         </div>
       </div>
@@ -120,7 +126,7 @@ export default function CaseBillingPage() {
             onClick={() => setShowExpenseForm(!showExpenseForm)}
             className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm text-white hover:bg-brand-700"
           >
-            + Submit Expense
+            + Submit Expense / เพิ่มค่าใช้จ่าย
           </button>
         </div>
 
@@ -135,7 +141,7 @@ export default function CaseBillingPage() {
                   min={MONEY_MIN}
                   max={MONEY_MAX}
                   title={MONEY_HINT}
-                  placeholder="Amount (฿)"
+                  placeholder="Amount (฿) / จำนวนเงิน"
                   value={expenseForm.amount}
                   onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -153,7 +159,7 @@ export default function CaseBillingPage() {
               </select>
             </div>
             <input
-              required placeholder="Description"
+              required placeholder="Description / รายละเอียด"
               value={expenseForm.description}
               onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -165,7 +171,7 @@ export default function CaseBillingPage() {
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
             <button type="submit" className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">
-              Submit for Approval
+              Submit for Approval / ส่งขออนุมัติ
             </button>
           </form>
         )}
@@ -189,18 +195,18 @@ export default function CaseBillingPage() {
             </div>
           ))}
           {expenses.length === 0 && (
-            <p className="text-sm text-slate-400">No expense claims yet</p>
+            <p className="text-sm text-slate-400">No expense claims yet / ยังไม่มีรายการเบิก</p>
           )}
         </div>
       </div>
 
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 font-semibold">Time Entries</h2>
+        <h2 className="mb-4 font-semibold">Time Entries / บันทึกเวลาทำงาน</h2>
         <div className="space-y-2">
           {timeEntries.map((e) => (
             <div key={e.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
               <div>
-                <p className="font-medium">{e.description || 'Time entry'}</p>
+                <p className="font-medium">{e.description || 'Time entry / บันทึกเวลา'}</p>
                 <p className="text-xs text-slate-400">
                   {e.user.firstName} {e.user.lastName} — {formatDate(e.date)}
                 </p>
@@ -211,23 +217,23 @@ export default function CaseBillingPage() {
               </div>
             </div>
           ))}
-          {timeEntries.length === 0 && <p className="text-sm text-slate-400">No time entries</p>}
+          {timeEntries.length === 0 && <p className="text-sm text-slate-400">No time entries / ยังไม่มีบันทึกเวลา</p>}
         </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 font-semibold">Invoices</h2>
+        <h2 className="mb-4 font-semibold">Invoices / ใบแจ้งหนี้</h2>
         <div className="space-y-2">
           {invoices.map((inv) => (
             <div key={inv.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
               <span className="font-medium">{inv.invoiceNumber}</span>
               <div className="text-right">
                 <p>฿{inv.totalAmount.toLocaleString()}</p>
-                <p className="text-xs text-slate-400">{inv.status}</p>
+                <p className="text-xs text-slate-400">{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</p>
               </div>
             </div>
           ))}
-          {invoices.length === 0 && <p className="text-sm text-slate-400">No invoices</p>}
+          {invoices.length === 0 && <p className="text-sm text-slate-400">No invoices / ยังไม่มีใบแจ้งหนี้</p>}
         </div>
       </div>
     </div>

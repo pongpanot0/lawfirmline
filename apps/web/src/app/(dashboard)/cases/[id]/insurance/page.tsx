@@ -82,12 +82,12 @@ export default function CaseInsurancePage() {
     }
   };
 
-  if (loading) return <p className="text-slate-500">Loading...</p>;
+  if (loading) return <p className="text-slate-500">กำลังโหลด...</p>;
 
   return (
     <div>
       <Link href={`/cases/${id}`} className="text-sm text-brand-600 hover:underline">
-        ← Back to case
+        ← กลับไปหน้าคดี
       </Link>
       <h1 className="mt-2 mb-6 text-2xl font-bold text-slate-900">ติดตามเคลมประกัน</h1>
 

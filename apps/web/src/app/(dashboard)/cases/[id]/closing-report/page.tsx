@@ -70,7 +70,7 @@ export default function ClosingReportPage() {
                 onChange={() => toggleActivity(activity.id)}
               />
               <span>
-                {new Date(activity.activityAt).toLocaleDateString('th-TH')} —{' '}
+                {new Date(activity.activityAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })} —{' '}
                 {activity.title}
               </span>
             </label>
