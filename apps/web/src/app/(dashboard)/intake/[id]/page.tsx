@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { api, IntakeItem, IntakePrecedentAnalysisItem, ApiError } from '@/lib/api';
+import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -118,6 +119,24 @@ export default function IntakeDetailPage() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
   const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
+
+  // Documents (intake document repository — distinct from the AI-input PDF attachments above)
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  const loadDocuments = useCallback(async () => {
+    if (!token || !id) return;
+    try {
+      const docs = await api.getIntakeDocuments(token, id as string);
+      setDocuments(docs);
+    } catch {
+      setDocuments([]);
+    }
+  }, [token, id]);
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -276,6 +295,30 @@ export default function IntakeDetailPage() {
     } catch {
       setAttachmentError('ลบไฟล์ไม่สำเร็จ');
     }
+  };
+
+  const handleUploadDocument = async (file: File) => {
+    if (!token || !id) return;
+    setUploadingDoc(true);
+    try {
+      await api.uploadIntakeDocument(token, id as string, file);
+      await loadDocuments();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'อัปโหลดไฟล์ไม่สำเร็จ');
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleDownloadDocument = async (doc: DocumentItem) => {
+    if (!token || !id) return;
+    const blob = await api.downloadIntakeDocument(token, id as string, doc.id);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = doc.filename;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleConvert = async () => {
@@ -561,6 +604,27 @@ export default function IntakeDetailPage() {
                 <p className="mt-2 text-sm text-muted-foreground">ยังไม่มีไฟล์แนบ</p>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="sm:col-span-2">
+          <CardHeader><CardTitle className="text-base">เอกสารประกอบ</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <DocumentDropZone onFile={handleUploadDocument} loading={uploadingDoc} />
+            {documents.length === 0 ? (
+              <p className="text-sm text-muted-foreground">ยังไม่มีเอกสาร</p>
+            ) : (
+              <ul className="divide-y">
+                {documents.map((doc) => (
+                  <li key={doc.id} className="flex items-center justify-between py-2 text-sm">
+                    <span>{doc.filename}</span>
+                    <Button variant="outline" size="sm" onClick={() => handleDownloadDocument(doc)}>
+                      ดาวน์โหลด
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
