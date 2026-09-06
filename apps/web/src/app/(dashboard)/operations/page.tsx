@@ -6,6 +6,7 @@ import { FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
+import { getCaseStatusDisplay } from '@/lib/case-status';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -141,10 +142,10 @@ export default function OperationsPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="workload">Workload</TabsTrigger>
-          <TabsTrigger value="pairing">Pairing</TabsTrigger>
+          <TabsTrigger value="workload">ภาระงาน</TabsTrigger>
+          <TabsTrigger value="pairing">การจับคู่ทีม</TabsTrigger>
           <TabsTrigger value="onhold">
-            On Hold{onHold.length > 0 ? ` (${onHold.length})` : ''}
+            พักงาน{onHold.length > 0 ? ` (${onHold.length})` : ''}
           </TabsTrigger>
         </TabsList>
 
@@ -272,10 +273,10 @@ export default function OperationsPage() {
                           <li key={c.caseId} className="rounded-lg border border-border p-3 text-sm">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-medium">{c.title}</span>
-                              <span className="rounded bg-muted px-2 py-0.5 text-xs">{c.role}</span>
+                              <span className="rounded bg-muted px-2 py-0.5 text-xs">{c.role === 'LEAD' ? 'ผู้รับผิดชอบหลัก' : 'ผู้ช่วย'}</span>
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              สถานะ: {c.status} ·{' '}
+                              สถานะ: {getCaseStatusDisplay(c.status).label} ·{' '}
                               {c.nearestDeadlineDays === null ? (
                                 'ไม่มี deadline ใกล้ตัว'
                               ) : c.nearestDeadlineDays < 0 ? (
