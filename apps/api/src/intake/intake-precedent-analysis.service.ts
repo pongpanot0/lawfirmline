@@ -7,6 +7,13 @@ import { DocumentIntelligenceService } from '../intelligence/document-intelligen
 
 export const PRECEDENT_ANALYSIS_COST = 10;
 
+/**
+ * Cap on extracted attachment text — applied both when storing `extractedFacts`
+ * and when building the LLM prompt, so a large PDF never bloats the DB row (and
+ * every API response that carries it).
+ */
+const MAX_ATTACHMENT_TEXT_LENGTH = 6000;
+
 interface ExtractedFacts {
   description: string | null;
   matterType: string | null;
@@ -52,7 +59,8 @@ export class IntakePrecedentAnalysisService {
           attachmentExtractionFailed = true;
         }
       }
-      attachmentText = texts.length > 0 ? texts.join('\n\n') : null;
+      attachmentText =
+        texts.length > 0 ? texts.join('\n\n').slice(0, MAX_ATTACHMENT_TEXT_LENGTH) : null;
     }
 
     return {
@@ -73,7 +81,7 @@ export class IntakePrecedentAnalysisService {
       facts.description ? `รายละเอียดเหตุการณ์: ${facts.description}` : null,
       facts.estimatedDamage ? `มูลค่าความเสียหายโดยประมาณ: ${facts.estimatedDamage} บาท` : null,
       facts.incidentDate ? `วันที่เกิดเหตุ: ${facts.incidentDate}` : null,
-      facts.attachmentText ? `เนื้อหาจากเอกสารแนบ: ${facts.attachmentText.slice(0, 6000)}` : null,
+      facts.attachmentText ? `เนื้อหาจากเอกสารแนบ: ${facts.attachmentText.slice(0, MAX_ATTACHMENT_TEXT_LENGTH)}` : null,
     ]
       .filter(Boolean)
       .join('\n');
@@ -249,6 +257,14 @@ export class IntakePrecedentAnalysisService {
       where: { id: analysisId, intakeId, intake: { firmId: user.firmId } },
     });
     if (!analysis) throw new NotFoundException('Analysis not found');
+    // A FAILED/PENDING analysis has an empty noticeFacts — drafting from it would
+    // produce garbage while still charging AI credits. Throwing here also keeps
+    // the credit interceptor from charging, since it only decrements on success.
+    if (analysis.status !== 'COMPLETE') {
+      throw new BadRequestException(
+        'ผลการวิเคราะห์นี้ยังไม่สำเร็จ ไม่สามารถใช้ร่างหนังสือได้',
+      );
+    }
     return analysis;
   }
 }

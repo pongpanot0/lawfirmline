@@ -126,7 +126,10 @@ export default function IntakeDetailPage() {
           .listPrecedentAnalyses(token, id as string)
           .then((items) => {
             setAnalyses(items);
-            if (items.length > 0) setSelectedAnalysisId(items[0].id);
+            // Prefer the newest COMPLETE run for the default view — a FAILED one
+            // renders blank and would read as a successful "nothing found".
+            const preferred = items.find((a) => a.status === 'COMPLETE') ?? items[0];
+            if (preferred) setSelectedAnalysisId(preferred.id);
           })
           .catch(() => setAnalyses([]));
       })
@@ -291,6 +294,8 @@ export default function IntakeDetailPage() {
 
   const STEPS = ['RECEIVED', 'ASSESSING', 'ACCEPTED'];
   const currentStep = STEPS.indexOf(intake.status);
+  const currentAnalysis =
+    analyses.find((a) => a.id === selectedAnalysisId) ?? analyses[0];
 
   return (
     <div className="w-full space-y-6">
@@ -364,7 +369,7 @@ export default function IntakeDetailPage() {
         <Card className="mt-4">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm">
-              ผลวิเคราะห์ ({new Date(analyses[0].createdAt).toLocaleString('th-TH')})
+              ผลวิเคราะห์ ({new Date(currentAnalysis.createdAt).toLocaleString('th-TH')})
             </CardTitle>
             {analyses.length > 1 && (
               <button
@@ -386,13 +391,33 @@ export default function IntakeDetailPage() {
                 {analyses.map((a) => (
                   <option key={a.id} value={a.id}>
                     {new Date(a.createdAt).toLocaleString('th-TH')}
+                    {a.status !== 'COMPLETE' ? ' (ไม่สำเร็จ)' : ''}
                   </option>
                 ))}
               </select>
             )}
 
             {(() => {
-              const current = analyses.find((a) => a.id === selectedAnalysisId) ?? analyses[0];
+              const current = currentAnalysis;
+              if (current.status !== 'COMPLETE') {
+                // A failed run has empty summary/noticeFacts — showing the normal
+                // layout would be indistinguishable from a genuine "nothing found".
+                return (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-destructive">
+                      ⚠️ การวิเคราะห์นี้ไม่สำเร็จ
+                    </p>
+                    {current.errorMessage && (
+                      <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-2 text-xs text-muted-foreground">
+                        {current.errorMessage}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      กรุณากดวิเคราะห์ใหม่อีกครั้ง หรือตรวจสอบว่ามีรายละเอียด/ไฟล์แนบเพียงพอ
+                    </p>
+                  </div>
+                );
+              }
               return (
                 <>
                   <div>

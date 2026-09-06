@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { IntakeService } from './intake.service';
@@ -45,6 +45,36 @@ describe('IntakeService attachments', () => {
       mockPrisma.intake.findFirst.mockResolvedValue(null);
       const file = { originalname: 'a.pdf', mimetype: 'application/pdf', buffer: Buffer.from('x') } as any;
       await expect(service.uploadAttachment(user, 'intake-1', file)).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects a file whose mime type is not application/pdf', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1' });
+      const file = {
+        originalname: 'a.png',
+        mimetype: 'image/png',
+        size: 1024,
+        buffer: Buffer.from('x'),
+      } as any;
+
+      await expect(service.uploadAttachment(user, 'intake-1', file)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPrisma.intakeAttachment.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a PDF larger than the 10MB limit', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1' });
+      const file = {
+        originalname: 'big.pdf',
+        mimetype: 'application/pdf',
+        size: 10 * 1024 * 1024 + 1,
+        buffer: Buffer.from('x'),
+      } as any;
+
+      await expect(service.uploadAttachment(user, 'intake-1', file)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPrisma.intakeAttachment.create).not.toHaveBeenCalled();
     });
 
     it('writes the file to disk and creates an IntakeAttachment row', async () => {

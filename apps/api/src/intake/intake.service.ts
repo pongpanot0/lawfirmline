@@ -42,7 +42,10 @@ export class IntakeService {
     },
     client: { select: { id: true, name: true } },
     case: { select: { id: true, ownRef: true, title: true, status: true } },
-    attachments: { orderBy: { createdAt: 'desc' as const } },
+    attachments: {
+      orderBy: { createdAt: 'desc' as const },
+      select: { id: true, filename: true, mimeType: true, createdAt: true },
+    },
   };
 
   async findAll(user: AuthUser, query: IntakeQueryDto) {
@@ -441,6 +444,9 @@ export class IntakeService {
     });
     if (!intake) throw new NotFoundException('Intake not found');
 
+    if (!file) {
+      throw new BadRequestException('กรุณาแนบไฟล์');
+    }
     if (file.mimetype !== 'application/pdf') {
       throw new BadRequestException('รองรับเฉพาะไฟล์ PDF เท่านั้น');
     }
@@ -475,7 +481,19 @@ export class IntakeService {
       throw new NotFoundException('Attachment not found');
     }
 
-    fs.unlinkSync(attachment.storagePath);
+    // The file on disk may already be gone (manual cleanup, a prior partial
+    // failure, a DB restored without its files). Never let that block removing
+    // the DB row, or the attachment becomes permanently un-deletable.
+    try {
+      fs.unlinkSync(attachment.storagePath);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to remove attachment file ${attachment.storagePath}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
     await this.prisma.intakeAttachment.delete({ where: { id: attachmentId } });
+    return { deleted: true };
   }
 }
