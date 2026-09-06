@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Copy, Check, Mail, UserPlus, Clock, Trash2 } from 'lucide-react';
 import { FirmRole } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
@@ -37,10 +36,6 @@ export default function TeamPage() {
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-
-  const maxUsers = user?.maxUsers ?? 0;
-  const usedSeats = members.length + invitations.length;
-  const atLimit = usedSeats >= maxUsers;
 
   const loadTeam = useCallback(async () => {
     if (!token || !isOwner) {
@@ -115,7 +110,7 @@ export default function TeamPage() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || atLimit) return;
+    if (!token) return;
     setInviting(true);
     setInviteError('');
     setInviteUrl('');
@@ -143,31 +138,6 @@ export default function TeamPage() {
       <PageHeader title={d.team.title} description={d.team.description} />
 
       <Card>
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">{d.team.seats}</p>
-            <p className="text-2xl font-bold">
-              {fmt(d.team.seatsUsage, { used: usedSeats, max: maxUsers })}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {fmt(d.team.seatsDetail, {
-                members: members.length,
-                pending: invitations.length,
-              })}
-            </p>
-          </div>
-          {atLimit && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <p>{d.team.atLimit}</p>
-              <Link href="/account/billing" className="font-medium text-primary hover:underline">
-                {d.team.upgradePlan}
-              </Link>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <UserPlus className="h-4 w-4" />
@@ -181,7 +151,6 @@ export default function TeamPage() {
               <Input
                 type="email"
                 required
-                disabled={atLimit}
                 placeholder={d.team.emailPlaceholder}
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
@@ -189,13 +158,12 @@ export default function TeamPage() {
               />
               <select
                 value={inviteRole}
-                disabled={atLimit}
                 onChange={(e) => setInviteRole(e.target.value as FirmRole)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               >
                 <option value={FirmRole.ASSISTANT}>{d.team.roleAssistant}</option>
               </select>
-              <Button type="submit" disabled={inviting || atLimit}>
+              <Button type="submit" disabled={inviting}>
                 {inviting ? d.team.sending : d.team.sendInvite}
               </Button>
             </div>

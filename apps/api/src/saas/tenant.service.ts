@@ -10,7 +10,6 @@ import {
   SubscriptionPlan,
   SubscriptionStatus,
   TRIAL_DAYS,
-  PLAN_CONFIG,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -105,54 +104,15 @@ export class TenantService {
   }
 
   async assertCanInvite(
-    firmId: string,
-    inviteEmail?: string,
+    _firmId: string,
+    _inviteEmail?: string,
   ): Promise<{ allowed: boolean; message?: string }> {
-    const firm = await this.prisma.firm.findUnique({ where: { id: firmId } });
-    if (!firm) return { allowed: false, message: 'Firm not found' };
-
-    const count = await this.getMemberCount(firmId);
-    let pending = await this.prisma.invitation.count({
-      where: { firmId, acceptedAt: null, expiresAt: { gt: new Date() } },
-    });
-
-    if (inviteEmail) {
-      const existingInvite = await this.prisma.invitation.findUnique({
-        where: { firmId_email: { firmId, email: inviteEmail } },
-      });
-      if (
-        existingInvite &&
-        !existingInvite.acceptedAt &&
-        existingInvite.expiresAt > new Date()
-      ) {
-        pending = Math.max(0, pending - 1);
-      }
-    }
-
-    if (count + pending >= firm.maxUsers) {
-      const plan = firm.subscriptionPlan ?? SubscriptionPlan.SOLO;
-      const planName = PLAN_CONFIG[plan as SubscriptionPlan]?.name ?? 'current';
-      return {
-        allowed: false,
-        message: `Your plan allows only ${firm.maxUsers} users (${count} active, ${pending} pending). Cancel a pending invite or upgrade from ${planName} Plan.`,
-      };
-    }
+    // Single-firm deployment: no seat-limit enforcement.
     return { allowed: true };
   }
 
-  async assertCanAddMember(firmId: string): Promise<{ allowed: boolean; message?: string }> {
-    const firm = await this.prisma.firm.findUnique({ where: { id: firmId } });
-    if (!firm) return { allowed: false, message: 'Firm not found' };
-
-    const count = await this.getMemberCount(firmId);
-    if (count >= firm.maxUsers) {
-      const plan = firm.subscriptionPlan ?? SubscriptionPlan.SOLO;
-      const planName = PLAN_CONFIG[plan as SubscriptionPlan]?.name ?? 'current';
-      return {
-        allowed: false,
-        message: `Your plan allows only ${firm.maxUsers} users (${count} active). Upgrade from ${planName} Plan.`,
-      };
-    }
+  async assertCanAddMember(_firmId: string): Promise<{ allowed: boolean; message?: string }> {
+    // Single-firm deployment: no seat-limit enforcement.
     return { allowed: true };
   }
 
