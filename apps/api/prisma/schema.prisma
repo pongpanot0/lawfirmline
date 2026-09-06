@@ -168,6 +168,12 @@ enum EventType {
   OTHER
 }
 
+enum DateSuggestionStatus {
+  PENDING
+  CONFIRMED
+  DISMISSED
+}
+
 enum ExpenseStatus {
   PENDING
   APPROVED
@@ -356,35 +362,37 @@ model User {
   updatedAt             DateTime  @updatedAt
 
   firmMembers                FirmMember[]
-  sentInvitations            Invitation[]          @relation("SentInvitations")
+  sentInvitations            Invitation[]             @relation("SentInvitations")
   passwordResetTokens        PasswordResetToken[]
   auditLogs                  AuditLog[]
-  leadCases                  Case[]                @relation("LeadLawyer")
+  leadCases                  Case[]                   @relation("LeadLawyer")
   assignments                CaseAssignment[]
-  assignedTasks              Task[]                @relation("TaskAssignee")
-  createdTasks               Task[]                @relation("TaskCreator")
+  assignedTasks              Task[]                   @relation("TaskAssignee")
+  createdTasks               Task[]                   @relation("TaskCreator")
   documents                  Document[]
   timeEntries                TimeEntry[]
-  createdInvoices            Invoice[]             @relation("InvoiceCreator")
+  createdInvoices            Invoice[]                @relation("InvoiceCreator")
   expenses                   Expense[]
-  paidExpenses               Expense[]             @relation("ExpensePaidBy")
+  paidExpenses               Expense[]                @relation("ExpensePaidBy")
   knowledge                  CaseKnowledge[]
   caseActivities             CaseActivity[]
-  receivedIntakes            Intake[]              @relation("IntakeReceiver")
-  assessedIntakes            Intake[]              @relation("IntakeAssessor")
-  createdClosingEmailDrafts  ClosingEmailDraft[]   @relation("ClosingEmailDraftCreator")
-  approvedClosingEmailDrafts ClosingEmailDraft[]   @relation("ClosingEmailDraftApprover")
+  receivedIntakes            Intake[]                 @relation("IntakeReceiver")
+  assessedIntakes            Intake[]                 @relation("IntakeAssessor")
+  createdClosingEmailDrafts  ClosingEmailDraft[]      @relation("ClosingEmailDraftCreator")
+  approvedClosingEmailDrafts ClosingEmailDraft[]      @relation("ClosingEmailDraftApprover")
   insuranceClaims            InsuranceClaim[]
-  followedTaskOnHolds        TaskOnHold[]          @relation("TaskOnHoldFollower")
-  createdTaskOnHolds         TaskOnHold[]          @relation("TaskOnHoldCreator")
-  taskLogsFrom               TaskAssignmentLog[]   @relation("TaskLogFrom")
-  taskLogsTo                 TaskAssignmentLog[]   @relation("TaskLogTo")
-  taskLogsPerformed          TaskAssignmentLog[]   @relation("TaskLogPerformer")
-  grantedContactCaseAccess   ContactCaseAccess[]   @relation("ContactCaseAccessGranted")
-  revokedContactCaseAccess   ContactCaseAccess[]   @relation("ContactCaseAccessRevoked")
-  publishedDocuments         DocumentPublication[] @relation("DocumentPublicationPublished")
-  unpublishedDocuments       DocumentPublication[] @relation("DocumentPublicationUnpublished")
+  followedTaskOnHolds        TaskOnHold[]             @relation("TaskOnHoldFollower")
+  createdTaskOnHolds         TaskOnHold[]             @relation("TaskOnHoldCreator")
+  taskLogsFrom               TaskAssignmentLog[]      @relation("TaskLogFrom")
+  taskLogsTo                 TaskAssignmentLog[]      @relation("TaskLogTo")
+  taskLogsPerformed          TaskAssignmentLog[]      @relation("TaskLogPerformer")
+  grantedContactCaseAccess   ContactCaseAccess[]      @relation("ContactCaseAccessGranted")
+  revokedContactCaseAccess   ContactCaseAccess[]      @relation("ContactCaseAccessRevoked")
+  publishedDocuments         DocumentPublication[]    @relation("DocumentPublicationPublished")
+  unpublishedDocuments       DocumentPublication[]    @relation("DocumentPublicationUnpublished")
   caseMessages               CaseMessage[]
+  createdDateSuggestions     DocumentDateSuggestion[] @relation("DateSuggestionCreator")
+  reviewedDateSuggestions    DocumentDateSuggestion[] @relation("DateSuggestionReviewer")
 }
 
 model CaseType {
@@ -510,11 +518,11 @@ model Case {
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
-  firm               Firm                @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  client             Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  leadLawyer         User                @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
-  caseType           CaseType?           @relation(fields: [caseTypeId], references: [id])
-  intake             Intake?             @relation(fields: [intakeId], references: [id])
+  firm               Firm                     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client             Client?                  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  leadLawyer         User                     @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
+  caseType           CaseType?                @relation(fields: [caseTypeId], references: [id])
+  intake             Intake?                  @relation(fields: [intakeId], references: [id])
   assignments        CaseAssignment[]
   participants       CaseParticipant[]
   tasks              Task[]
@@ -525,6 +533,7 @@ model Case {
   expenses           Expense[]
   invoices           Invoice[]
   knowledge          CaseKnowledge[]
+  dateSuggestions    DocumentDateSuggestion[]
   closingEmailDrafts ClosingEmailDraft[]
   insuranceClaim     InsuranceClaim?
   contactAccess      ContactCaseAccess[]
@@ -687,11 +696,12 @@ model Document {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  case         Case                  @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  uploadedBy   User                  @relation(fields: [uploadedById], references: [id])
-  versions     DocumentVersion[]
-  knowledge    CaseKnowledge[]
-  publications DocumentPublication[]
+  case            Case                     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  uploadedBy      User                     @relation(fields: [uploadedById], references: [id])
+  versions        DocumentVersion[]
+  knowledge       CaseKnowledge[]
+  dateSuggestions DocumentDateSuggestion[]
+  publications    DocumentPublication[]
 }
 
 model DocumentVersion {
@@ -745,9 +755,10 @@ model CalendarEvent {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  case         Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  travelLog    TravelLog?    @relation(fields: [travelLogId], references: [id])
-  reminderLogs ReminderLog[]
+  case           Case                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  travelLog      TravelLog?              @relation(fields: [travelLogId], references: [id])
+  reminderLogs   ReminderLog[]
+  dateSuggestion DocumentDateSuggestion?
 }
 
 model ReminderLog {
@@ -834,6 +845,31 @@ model CaseKnowledge {
   case      Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
   document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
   createdBy User      @relation(fields: [createdById], references: [id])
+}
+
+model DocumentDateSuggestion {
+  id              String               @id @default(uuid())
+  caseId          String
+  documentId      String?
+  label           String
+  suggestedDate   DateTime
+  eventType       EventType            @default(DEADLINE)
+  sourceExcerpt   String               @db.Text
+  status          DateSuggestionStatus @default(PENDING)
+  calendarEventId String?              @unique
+  createdById     String
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  case          Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  document      Document?      @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  calendarEvent CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  createdBy     User           @relation("DateSuggestionCreator", fields: [createdById], references: [id])
+  reviewedBy    User?          @relation("DateSuggestionReviewer", fields: [reviewedById], references: [id])
+
+  @@index([caseId, status])
 }
 
 model DocumentTemplate {

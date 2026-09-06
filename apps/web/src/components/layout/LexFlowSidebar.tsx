@@ -13,7 +13,6 @@ import {
   UsersRound,
   Gauge,
   Settings,
-  Bell,
   Scale,
   ChevronLeft,
   ChevronRight,
@@ -133,17 +132,6 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
 
         <button
           type="button"
-          className={cn(
-            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent',
-            collapsed && 'md:justify-center md:px-2',
-          )}
-        >
-          <Bell className="h-4 w-4" />
-          <span className={cn(collapsed && 'md:hidden')}>{d.nav.notifications}</span>
-        </button>
-
-        <button
-          type="button"
           onClick={toggleTheme}
           className={cn(
             'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent',
@@ -162,7 +150,9 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
           <Avatar fallback={`${user.firstName[0]}${user.lastName[0]}`} />
           <div className={cn('min-w-0 flex-1', collapsed && 'md:hidden')}>
             <p className="truncate text-sm font-medium">{user.firstName} {user.lastName}</p>
-            <p className="truncate text-xs text-muted-foreground">{user.firmRole}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {user.firmRole === FirmRole.OWNER ? d.team.roleOwner : d.team.roleAssistant}
+            </p>
           </div>
         </div>
 

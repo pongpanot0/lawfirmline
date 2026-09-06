@@ -247,7 +247,7 @@ export default function TeamPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(m.joinedAt).toLocaleDateString(loc)}
+                        {new Date(m.joinedAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' })}
                       </TableCell>
                       <TableCell>
                         {canRemoveMember(m) && (
@@ -297,7 +297,7 @@ export default function TeamPage() {
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {fmt(d.team.expires, {
-                        date: new Date(inv.expiresAt).toLocaleDateString(loc),
+                        date: new Date(inv.expiresAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' }),
                       })}
                     </span>
                     <Button

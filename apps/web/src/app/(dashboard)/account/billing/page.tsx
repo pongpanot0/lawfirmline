@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BillingPeriod, FirmRole, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
+import { BillingPeriod, FirmRole, PLAN_CONFIG, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, BillingInvoiceItem } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
@@ -131,7 +131,7 @@ function BillingPageContent() {
           <CardHeader><CardTitle className="text-sm">{d.billing.currentStatus}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {statusBadge()}
-            <p className="text-2xl font-bold">{user.subscriptionPlan ?? d.billing.trial}</p>
+            <p className="text-2xl font-bold">{user.subscriptionPlan ? PLAN_CONFIG[user.subscriptionPlan].name : d.billing.trial}</p>
             {user.trialEndAt && user.subscriptionStatus === SubscriptionStatus.TRIAL && (
               <p className="text-sm text-muted-foreground">
                 {fmt(d.billing.trialEnds, {
@@ -249,7 +249,7 @@ function BillingPageContent() {
               {history.map((inv) => (
                 <tr key={inv.id} className="border-b">
                   <td className="px-4 py-3 font-medium">{inv.invoiceNumber}</td>
-                  <td className="px-4 py-3">{inv.plan}</td>
+                  <td className="px-4 py-3">{PLAN_CONFIG[inv.plan as SubscriptionPlan]?.name ?? inv.plan}</td>
                   <td className="px-4 py-3 text-right">{inv.amount.toLocaleString(loc)} THB</td>
                   <td className="px-4 py-3"><Badge variant={inv.status === 'PAID' ? 'default' : 'muted'}>{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</Badge></td>
                   <td className="px-4 py-3 text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' })}</td>

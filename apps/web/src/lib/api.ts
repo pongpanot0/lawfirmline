@@ -975,6 +975,39 @@ export const api = {
     });
   },
 
+  extractDates: (token: string, caseId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<DateSuggestionItem[]>(`/cases/${caseId}/documents/extract-dates`, {
+      method: 'POST',
+      token,
+      body: form,
+    });
+  },
+
+  getDateSuggestions: (token: string, caseId: string, status?: string) => {
+    const qs = status ? `?status=${status}` : '';
+    return request<DateSuggestionItem[]>(`/cases/${caseId}/date-suggestions${qs}`, { token });
+  },
+
+  confirmDateSuggestion: (
+    token: string,
+    caseId: string,
+    id: string,
+    overrides: { label?: string; date?: string; eventType?: string },
+  ) =>
+    request<DateSuggestionItem>(`/cases/${caseId}/date-suggestions/${id}/confirm`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(overrides),
+    }),
+
+  dismissDateSuggestion: (token: string, caseId: string, id: string) =>
+    request<DateSuggestionItem>(`/cases/${caseId}/date-suggestions/${id}/dismiss`, {
+      method: 'POST',
+      token,
+    }),
+
   uploadDocument: (token: string, caseId: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -1216,6 +1249,19 @@ export interface KnowledgeItem {
   createdAt: string;
   case: { id: string; ownRef: string; title: string };
   createdBy: { firstName: string; lastName: string };
+}
+
+export interface DateSuggestionItem {
+  id: string;
+  caseId: string;
+  documentId?: string | null;
+  label: string;
+  suggestedDate: string;
+  eventType: 'COURT_DATE' | 'CLIENT_MEETING' | 'DEADLINE' | 'OTHER';
+  sourceExcerpt: string;
+  status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
+  calendarEventId?: string | null;
+  createdAt: string;
 }
 
 export interface DocumentItem {

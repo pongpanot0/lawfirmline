@@ -13,6 +13,7 @@ export default function ClosingReportPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<ClosingEmailDraft | null>(null);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!token || !caseId) return;
@@ -29,8 +30,13 @@ export default function ClosingReportPage() {
 
   const handleGenerate = async () => {
     if (!token || !caseId) return;
-    const created = await api.createClosingEmailDraft(token, caseId, selectedIds);
-    setDraft(created);
+    setError('');
+    try {
+      const created = await api.createClosingEmailDraft(token, caseId, selectedIds);
+      setDraft(created);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'สร้างร่างไม่สำเร็จ กรุณาลองใหม่');
+    }
   };
 
   const handleCopy = async () => {
@@ -42,21 +48,34 @@ export default function ClosingReportPage() {
 
   const handleSaveDraft = async () => {
     if (!token || !caseId || !draft) return;
-    const saved = await api.updateClosingEmailDraft(token, caseId, draft.id, {
-      subject: draft.subject,
-      bodyText: draft.bodyText,
-    });
-    setDraft(saved);
+    setError('');
+    try {
+      const saved = await api.updateClosingEmailDraft(token, caseId, draft.id, {
+        subject: draft.subject,
+        bodyText: draft.bodyText,
+      });
+      setDraft(saved);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'บันทึกร่างไม่สำเร็จ กรุณาลองใหม่');
+    }
   };
 
   const handleApprove = async () => {
     if (!token || !caseId || !draft) return;
-    const approved = await api.approveClosingEmailDraft(token, caseId, draft.id);
-    setDraft(approved);
+    setError('');
+    try {
+      const approved = await api.approveClosingEmailDraft(token, caseId, draft.id);
+      setDraft(approved);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'อนุมัติไม่สำเร็จ กรุณาลองใหม่');
+    }
   };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {error && (
+        <p className="md:col-span-2 text-sm text-red-600">{error}</p>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>เหตุการณ์ที่จะนำมาใช้</CardTitle>

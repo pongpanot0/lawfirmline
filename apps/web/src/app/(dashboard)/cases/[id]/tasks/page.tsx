@@ -22,6 +22,7 @@ export default function CaseTasksPage() {
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState('');
 
   const loadTasks = () => {
     if (!token || !id) return;
@@ -43,8 +44,13 @@ export default function CaseTasksPage() {
 
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
     if (!token || !id) return;
-    await api.updateTask(token, id, taskId, { status });
-    loadTasks();
+    setError('');
+    try {
+      await api.updateTask(token, id, taskId, { status });
+      loadTasks();
+    } catch {
+      setError(d.caseTasks.updateFailed);
+    }
   };
 
   const handleHandoff = async (taskId: string, note: string) => {
@@ -68,10 +74,15 @@ export default function CaseTasksPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !id || !newTitle) return;
-    await api.createTask(token, id, { title: newTitle });
-    setNewTitle('');
-    setShowForm(false);
-    loadTasks();
+    setError('');
+    try {
+      await api.createTask(token, id, { title: newTitle });
+      setNewTitle('');
+      setShowForm(false);
+      loadTasks();
+    } catch {
+      setError(d.caseTasks.createFailed);
+    }
   };
 
   if (loading) return <p className="text-muted-foreground">{d.caseTasks.loading}</p>;
@@ -94,6 +105,8 @@ export default function CaseTasksPage() {
           {d.caseTasks.addTask}
         </Button>
       </div>
+
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
       {showForm && (
         <Card className="mb-6">

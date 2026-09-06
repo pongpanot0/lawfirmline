@@ -134,7 +134,7 @@ export default function DocumentsPage() {
         {CATEGORIES.map((cat) => {
           const Icon = cat.icon;
           return (
-            <Card key={cat.id} className="cursor-pointer hover:bg-accent/50 transition-colors">
+            <Card key={cat.id}>
               <CardContent className="flex flex-col items-center gap-2 p-4 text-center">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                   <Icon className="h-5 w-5 text-primary" />
