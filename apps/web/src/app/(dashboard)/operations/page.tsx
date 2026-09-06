@@ -13,7 +13,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/misc';
-import { Users, Scale, AlarmClock, PauseCircle } from 'lucide-react';
+import { Users, Scale, AlarmClock, PauseCircle, Sparkles } from 'lucide-react';
 
 function workloadLevel(total: number): { label: string; variant: 'success' | 'warning' | 'destructive' } {
   if (total <= 3) return { label: 'เบา', variant: 'success' };
@@ -104,6 +104,14 @@ export default function OperationsPage() {
   const totalNearDeadline = enriched.reduce((sum, s) => sum + s.nearDeadlineCount, 0);
   const overdueOnHoldCount = onHold.filter((o) => o.isOverdue).length;
 
+  const recommended = useMemo(() => {
+    if (enriched.length === 0) return null;
+    return [...enriched].sort((a, b) => {
+      if (a.total !== b.total) return a.total - b.total;
+      return a.nearDeadlineCount - b.nearDeadlineCount;
+    })[0];
+  }, [enriched]);
+
   if (!isOwner) {
     return <p className="text-destructive">Owner access only / เฉพาะเจ้าของสำนักงานเท่านั้น</p>;
   }
@@ -141,6 +149,28 @@ export default function OperationsPage() {
         </TabsList>
 
         <TabsContent value="workload">
+          {recommended && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <Sparkles className="h-4 w-4 text-primary" />
+              </div>
+              <p className="text-sm">
+                <span className="text-muted-foreground">ถ้ามีคดีใหม่เข้ามา แนะนำมอบหมายให้{' '}</span>
+                <span className="font-semibold text-primary">
+                  {recommended.firstName} {recommended.lastName}
+                </span>
+                <span className="text-muted-foreground">
+                  {' '}
+                  — ตอนนี้มีภาระงานน้อยที่สุด ({recommended.total} คดี
+                  {recommended.nearDeadlineCount > 0
+                    ? `, ใกล้ deadline ${recommended.nearDeadlineCount} คดี`
+                    : ''}
+                  )
+                </span>
+              </p>
+            </div>
+          )}
+
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
               ใกล้ deadline ภายใน
@@ -177,15 +207,24 @@ export default function OperationsPage() {
                     </TableHeader>
                     <TableBody>
                       {sorted.map((s) => {
+                        const isRecommended = s.userId === recommended?.userId;
                         return (
                           <TableRow
                             key={s.userId}
-                            className="cursor-pointer"
+                            className={`cursor-pointer ${isRecommended ? 'bg-primary/5' : ''}`}
                             onClick={() => setSelectedUserId(s.userId)}
                             data-state={selectedUserId === s.userId ? 'selected' : undefined}
                           >
                             <TableCell className="font-medium">
-                              {s.firstName} {s.lastName}
+                              <div className="flex items-center gap-2">
+                                {s.firstName} {s.lastName}
+                                {isRecommended && (
+                                  <Badge variant="default" className="gap-1">
+                                    <Sparkles className="h-3 w-3" />
+                                    แนะนำ
+                                  </Badge>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div className="flex min-w-[140px] items-center gap-2">
