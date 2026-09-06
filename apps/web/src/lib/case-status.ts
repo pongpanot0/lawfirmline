@@ -17,6 +17,16 @@ export function getCaseStatusDisplay(status: CaseStatus | string) {
   return STATUS_MAP[status] ?? { label: String(status), variant: 'muted' as BadgeVariant };
 }
 
+/** Status filter options in display order, sharing the same Thai labels as the badge. */
+export const CASE_STATUS_OPTIONS: { value: string; label: string }[] = [
+  'OPEN',
+  'DRAFTING',
+  'IN_PROGRESS',
+  'COURT_DATE',
+  'PENDING',
+  'CLOSED',
+].map((value) => ({ value, label: STATUS_MAP[value].label }));
+
 export const ACTIVITY_ICONS = {
   case: 'Briefcase',
   hearing: 'Gavel',

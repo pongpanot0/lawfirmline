@@ -3,12 +3,13 @@
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Download, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { Plus, Download, ArrowUpDown } from 'lucide-react';
 import { Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseItem } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
 import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { CASE_STATUS_OPTIONS, getCaseStatusDisplay } from '@/lib/case-status';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -62,6 +63,38 @@ function CasesPageContent() {
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   const canCreate = user?.role === Role.ADMIN || user?.role === Role.LAWYER;
 
+  const exportCsv = () => {
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const header = [
+      'Own Ref',
+      'Customer Ref',
+      'ชื่อคดี',
+      'ลูกความ',
+      'ศาล',
+      'เจ้าของคดี',
+      'รายได้โดยประมาณ',
+      'สถานะ',
+    ];
+    const rows = sorted.map((c) => [
+      c.ownRef,
+      c.customerRef ?? '',
+      c.title,
+      c.clientName ?? '',
+      c.courtName ?? '',
+      `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}`,
+      c.estimatedFee != null ? String(c.estimatedFee) : '',
+      getCaseStatusDisplay(c.status).label,
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `cases-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
       <PageHeader
@@ -69,8 +102,10 @@ function CasesPageContent() {
         description={d.cases.description}
         actions={
           <>
-            <Button variant="outline" size="sm"><Download className="h-4 w-4" />{d.common.export}</Button>
-            <Button variant="outline" size="sm"><SlidersHorizontal className="h-4 w-4" />{d.common.filter}</Button>
+            <Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={exportCsv}>
+              <Download className="h-4 w-4" />
+              {d.common.export}
+            </Button>
             {canCreate && (
               <Button size="sm" onClick={() => router.push('/cases/new')}>
                 <Plus className="h-4 w-4" />{d.cases.newCase}
@@ -94,12 +129,11 @@ function CasesPageContent() {
             className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
           >
             <option value="">{d.cases.allStatuses}</option>
-            <option value="OPEN">คดีใหม่</option>
-            <option value="DRAFTING">ร่างคำฟ้อง</option>
-            <option value="IN_PROGRESS">ยื่นฟ้องแล้ว</option>
-            <option value="COURT_DATE">นัดศาล</option>
-            <option value="PENDING">รอคำพิพากษา</option>
-            <option value="CLOSED">ปิดคดี</option>
+            {CASE_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </CardContent>
       </Card>
@@ -162,7 +196,7 @@ function CasesPageContent() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between border-t px-4 py-3">
                   <p className="text-sm text-muted-foreground">
-                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} of {sorted.length}
+                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} จาก {sorted.length}
                   </p>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>{d.common.previous}</Button>

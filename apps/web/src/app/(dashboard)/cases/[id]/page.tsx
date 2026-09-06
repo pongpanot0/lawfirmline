@@ -79,6 +79,7 @@ export default function CaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('overview');
   const [note, setNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingOverview, setEditingOverview] = useState(false);
@@ -344,6 +345,25 @@ export default function CaseDetailPage() {
     }
   };
 
+  const handleSaveNote = async () => {
+    if (!token || !id || !note.trim()) return;
+    setSavingNote(true);
+    try {
+      const created = await api.createCaseActivity(token, id, {
+        title: note.trim().slice(0, 60),
+        description: note.trim(),
+        activityAt: new Date().toISOString(),
+        type: ActivityType.NOTE,
+      });
+      setActivities((prev) => [created, ...prev]);
+      setNote('');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (!legalCase) return <p className="text-destructive">Case not found / ไม่พบคดี</p>;
 
@@ -368,7 +388,7 @@ export default function CaseDetailPage() {
     <div>
       <div className="mb-6">
         <button type="button" onClick={() => router.push('/cases')} className="text-sm text-primary hover:underline">
-          ← Back to Cases
+          ← Back to Cases / กลับไปหน้าคดี
         </button>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">{legalCase.title}</h1>
@@ -931,18 +951,25 @@ export default function CaseDetailPage() {
                 rows={3}
                 className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
-              <Button size="sm" className="mt-2" variant="secondary">
-                <StickyNote className="h-4 w-4" />Save Note / บันทึก
+              <Button
+                size="sm"
+                className="mt-2"
+                variant="secondary"
+                disabled={!note.trim() || savingNote}
+                onClick={handleSaveNote}
+              >
+                <StickyNote className="h-4 w-4" />
+                {savingNote ? 'กำลังบันทึก...' : 'Save Note / บันทึก'}
               </Button>
             </CardContent>
           </Card>
 
           <div className="flex gap-2">
             <Button size="sm" variant="outline" className="flex-1" onClick={() => router.push(`/cases/${id}/documents`)}>
-              <Upload className="h-4 w-4" />Documents
+              <Upload className="h-4 w-4" />Documents / เอกสาร
             </Button>
             <Button size="sm" variant="outline" className="flex-1" onClick={() => router.push(`/cases/${id}/billing`)}>
-              <FileText className="h-4 w-4" />Billing
+              <FileText className="h-4 w-4" />Billing / ค่าใช้จ่าย
             </Button>
           </div>
         </div>

@@ -22,6 +22,11 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
     setMobileNavOpen(false);
   }, [pathname]);
 
+  // /cases/:id (and its sub-routes like /cases/:id/documents) carry a case
+  // context that the AI panel's "summarize" action can skip re-selecting.
+  const caseIdMatch = pathname.match(/^\/cases\/([^/]+)/);
+  const activeCaseId = caseIdMatch && caseIdMatch[1] !== 'new' ? caseIdMatch[1] : undefined;
+
   useEffect(() => {
     document.body.style.overflow = mobileNavOpen ? 'hidden' : '';
     return () => {
@@ -58,7 +63,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           {children}
         </main>
       </div>
-      <AIAssistantPanel />
+      <AIAssistantPanel caseId={activeCaseId} />
     </div>
   );
 }
