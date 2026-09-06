@@ -11,6 +11,7 @@ export default function CaseBoardPage() {
   const { token, user } = useAuth();
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const load = () => {
     if (!token) return;
@@ -21,8 +22,13 @@ export default function CaseBoardPage() {
 
   const handleStatusChange = async (caseId: string, status: string) => {
     if (!token) return;
-    await api.updateCase(token, caseId, { status });
-    load();
+    setError('');
+    try {
+      await api.updateCase(token, caseId, { status });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่');
+    }
   };
 
   const canEdit = user?.role === Role.ADMIN || user?.role === Role.LAWYER;
@@ -45,6 +51,8 @@ export default function CaseBoardPage() {
           )}
         </div>
       </div>
+
+      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       {loading ? (
         <p className="text-slate-500">Loading board... / กำลังโหลด...</p>
