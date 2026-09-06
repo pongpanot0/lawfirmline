@@ -82,11 +82,14 @@ describe('DocumentsService — intake-scoped methods', () => {
       update: jest.fn(),
     },
     documentVersion: { create: jest.fn() },
+    intake: { findFirst: jest.fn() },
   };
   const mockConfig = { get: jest.fn().mockReturnValue('./uploads') };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1' });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentsService,
@@ -100,10 +103,20 @@ describe('DocumentsService — intake-scoped methods', () => {
   describe('findByIntake', () => {
     it('queries Document filtered by intakeId', async () => {
       mockPrisma.document.findMany.mockResolvedValue([]);
-      await service.findByIntake('intake-1');
+      await service.findByIntake(user, 'intake-1');
       expect(mockPrisma.document.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { intakeId: 'intake-1' } }),
       );
+    });
+
+    it('throws NotFoundException when the intake does not belong to the caller firm', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue(null);
+
+      await expect(service.findByIntake(user, 'intake-1')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.intake.findFirst).toHaveBeenCalledWith({
+        where: { id: 'intake-1', firmId: 'firm-1' },
+      });
+      expect(mockPrisma.document.findMany).not.toHaveBeenCalled();
     });
   });
 
@@ -111,7 +124,6 @@ describe('DocumentsService — intake-scoped methods', () => {
     it('creates a Document row with intakeId set and caseId omitted', async () => {
       mockPrisma.document.create.mockResolvedValue({ id: 'doc-1', intakeId: 'intake-1' });
       mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', intakeId: 'intake-1' });
-      const user = { id: 'user-1' } as any;
       const file = { originalname: 'a.pdf', mimetype: 'application/pdf', buffer: Buffer.from('x') } as any;
 
       await service.uploadForIntake(user, 'intake-1', file);
@@ -127,9 +139,18 @@ describe('DocumentsService — intake-scoped methods', () => {
   describe('getFilePathForIntake', () => {
     it('throws NotFoundException when the document does not belong to that intake', async () => {
       mockPrisma.document.findFirst.mockResolvedValue(null);
-      await expect(service.getFilePathForIntake('intake-1', 'doc-1')).rejects.toThrow(
+      await expect(service.getFilePathForIntake(user, 'intake-1', 'doc-1')).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('throws NotFoundException when the intake belongs to a different firm', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue(null);
+
+      await expect(service.getFilePathForIntake(user, 'intake-1', 'doc-1')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.document.findFirst).not.toHaveBeenCalled();
     });
   });
 });

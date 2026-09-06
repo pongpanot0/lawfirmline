@@ -29,12 +29,12 @@ export class IntakeDocumentsController {
   constructor(private documentsService: DocumentsService) {}
 
   @Get()
-  findByIntake(@Param('intakeId') intakeId: string) {
-    return this.documentsService.findByIntake(intakeId);
+  findByIntake(@CurrentUser() user: AuthUser, @Param('intakeId') intakeId: string) {
+    return this.documentsService.findByIntake(user, intakeId);
   }
 
   @Post()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   upload(
     @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,
@@ -44,7 +44,7 @@ export class IntakeDocumentsController {
   }
 
   @Post(':documentId/versions')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   uploadVersion(
     @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,
@@ -56,21 +56,24 @@ export class IntakeDocumentsController {
 
   @Patch(':documentId/visibility')
   updateVisibility(
+    @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,
     @Param('documentId') documentId: string,
     @Body() dto: UpdateDocumentVisibilityDto,
   ) {
-    return this.documentsService.updateVisibilityForIntake(intakeId, documentId, dto.visibleToClient);
+    return this.documentsService.updateVisibilityForIntake(user, intakeId, documentId, dto.visibleToClient);
   }
 
   @Get(':documentId/download')
   async download(
+    @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,
     @Param('documentId') documentId: string,
     @Query('version') version: string,
     @Res() res: Response,
   ) {
     const fileInfo = await this.documentsService.getFilePathForIntake(
+      user,
       intakeId,
       documentId,
       version ? parseInt(version, 10) : undefined,

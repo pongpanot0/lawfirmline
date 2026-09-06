@@ -24,6 +24,14 @@ export class DocumentsService {
     return document;
   }
 
+  private async verifyIntake(user: AuthUser, intakeId: string) {
+    const intake = await this.prisma.intake.findFirst({
+      where: { id: intakeId, firmId: user.firmId },
+    });
+    if (!intake) throw new NotFoundException('Intake not found');
+    return intake;
+  }
+
   async findByCase(caseId: string) {
     return this.prisma.document.findMany({
       where: { caseId },
@@ -37,7 +45,8 @@ export class DocumentsService {
     });
   }
 
-  async findByIntake(intakeId: string) {
+  async findByIntake(user: AuthUser, intakeId: string) {
+    await this.verifyIntake(user, intakeId);
     return this.prisma.document.findMany({
       where: { intakeId },
       include: {
@@ -113,7 +122,9 @@ export class DocumentsService {
     intakeId: string,
     file: Express.Multer.File,
   ) {
-    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId);
+    await this.verifyIntake(user, intakeId);
+
+    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId, 'documents');
     fs.mkdirSync(uploadDir, { recursive: true });
 
     const document = await this.prisma.document.create({
@@ -197,10 +208,11 @@ export class DocumentsService {
     documentId: string,
     file: Express.Multer.File,
   ) {
+    await this.verifyIntake(user, intakeId);
     const document = await this.verifyIntakeDocument(intakeId, documentId);
 
     const newVersion = document.version + 1;
-    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId);
+    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId, 'documents');
     fs.mkdirSync(uploadDir, { recursive: true });
 
     const ext = path.extname(file.originalname);
@@ -260,7 +272,8 @@ export class DocumentsService {
     });
   }
 
-  async getFilePathForIntake(intakeId: string, documentId: string, version?: number) {
+  async getFilePathForIntake(user: AuthUser, intakeId: string, documentId: string, version?: number) {
+    await this.verifyIntake(user, intakeId);
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, intakeId },
       include: { versions: true },
@@ -280,7 +293,8 @@ export class DocumentsService {
     };
   }
 
-  async updateVisibilityForIntake(intakeId: string, documentId: string, visibleToClient: boolean) {
+  async updateVisibilityForIntake(user: AuthUser, intakeId: string, documentId: string, visibleToClient: boolean) {
+    await this.verifyIntake(user, intakeId);
     await this.verifyIntakeDocument(intakeId, documentId);
     return this.prisma.document.update({
       where: { id: documentId },
