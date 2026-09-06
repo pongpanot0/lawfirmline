@@ -26,7 +26,7 @@ export default function CourtsPage() {
   }, [token]);
 
   if (user?.firmRole !== FirmRole.OWNER) {
-    return <p className="text-destructive">Access denied. Admin only.</p>;
+    return <p className="text-destructive">Access denied. Admin only. / ไม่มีสิทธิ์เข้าถึง เฉพาะ Admin</p>;
   }
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -42,10 +42,10 @@ export default function CourtsPage() {
     <div>
       <PageHeader
         title="Courts / ศาล"
-        description="Manage court list for case and calendar selection"
+        description="Manage court list for case and calendar selection / จัดการรายชื่อศาลสำหรับใช้ในคดีและปฏิทิน"
         actions={
           <Button size="sm" onClick={() => setShowForm(!showForm)}>
-            <Plus className="h-4 w-4" />Add Court
+            <Plus className="h-4 w-4" />Add Court / เพิ่มศาล
           </Button>
         }
       />
@@ -65,15 +65,15 @@ export default function CourtsPage() {
                 />
               </div>
               <div className="flex-1">
-                <label className="text-sm font-medium">Address</label>
+                <label className="text-sm font-medium">Address / ที่อยู่</label>
                 <Input
-                  placeholder="Optional address"
+                  placeholder="Optional address / ที่อยู่ (ไม่บังคับ)"
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                   className="mt-1"
                 />
               </div>
-              <Button type="submit" className="w-full sm:w-auto">Save</Button>
+              <Button type="submit" className="w-full sm:w-auto">Save / บันทึก</Button>
             </form>
           </CardContent>
         </Card>
@@ -87,7 +87,7 @@ export default function CourtsPage() {
                 <p className="font-medium">{court.name}</p>
                 {court.address && <p className="text-xs text-muted-foreground">{court.address}</p>}
               </div>
-              {!court.isActive && <span className="text-xs text-muted-foreground">Inactive</span>}
+              {!court.isActive && <span className="text-xs text-muted-foreground">Inactive / ปิดใช้งาน</span>}
             </CardContent>
           </Card>
         ))}

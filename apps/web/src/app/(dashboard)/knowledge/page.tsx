@@ -8,6 +8,14 @@ import { formatDate } from '@/lib/utils';
 
 const CATEGORIES = ['', 'SUMMARY', 'CONTRACT', 'COURT_ORDER', 'CORRESPONDENCE', 'OTHER'];
 
+const CATEGORY_LABELS: Record<string, string> = {
+  SUMMARY: 'สรุปคดี',
+  CONTRACT: 'สัญญา',
+  COURT_ORDER: 'คำสั่งศาล',
+  CORRESPONDENCE: 'หนังสือโต้ตอบ',
+  OTHER: 'อื่นๆ',
+};
+
 export default function KnowledgePage() {
   const { token } = useAuth();
   const [items, setItems] = useState<KnowledgeItem[]>([]);
@@ -37,13 +45,13 @@ export default function KnowledgePage() {
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">Case Knowledge Base</h1>
-      <p className="mb-6 text-sm text-slate-500">AI-generated summaries and document insights</p>
+      <h1 className="mb-2 text-2xl font-bold text-slate-900">Case Knowledge Base / คลังความรู้คดี</h1>
+      <p className="mb-6 text-sm text-slate-500">AI-generated summaries and document insights / สรุปและข้อมูลเชิงลึกจาก AI</p>
 
       <div className="mb-6 flex flex-wrap gap-3">
         <input
           type="text"
-          placeholder="Search summaries..."
+          placeholder="Search summaries... / ค้นหาสรุป..."
           value={filters.search}
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -53,7 +61,7 @@ export default function KnowledgePage() {
           onChange={(e) => setFilters({ ...filters, caseId: e.target.value })}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
         >
-          <option value="">All Cases</option>
+          <option value="">All Cases / ทุกคดี</option>
           {cases.map((c) => (
             <option key={c.id} value={c.id}>{c.ownRef} — {c.title}</option>
           ))}
@@ -64,17 +72,17 @@ export default function KnowledgePage() {
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
         >
           {CATEGORIES.map((c) => (
-            <option key={c} value={c}>{c || 'All Categories'}</option>
+            <option key={c} value={c}>{c ? CATEGORY_LABELS[c] : 'All Categories / ทุกประเภท'}</option>
           ))}
         </select>
       </div>
 
       {loading ? (
-        <p className="text-slate-500">Loading...</p>
+        <p className="text-slate-500">Loading... / กำลังโหลด...</p>
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center">
-          <p className="text-slate-500">No knowledge entries yet</p>
-          <p className="mt-1 text-xs text-slate-400">Upload documents in a case and run AI analysis</p>
+          <p className="text-slate-500">No knowledge entries yet / ยังไม่มีข้อมูล</p>
+          <p className="mt-1 text-xs text-slate-400">Upload documents in a case and run AI analysis / อัปโหลดเอกสารในคดีแล้ววิเคราะห์ด้วย AI</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -91,14 +99,14 @@ export default function KnowledgePage() {
                     {' — '}{formatDate(item.createdAt)}
                   </p>
                   <span className="mt-2 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                    {item.category}
+                    {CATEGORY_LABELS[item.category] ?? item.category}
                   </span>
                 </div>
                 <button
                   onClick={() => setExpanded(expanded === item.id ? null : item.id)}
                   className="text-sm text-brand-600 hover:underline"
                 >
-                  {expanded === item.id ? 'Collapse' : 'Expand'}
+                  {expanded === item.id ? 'Collapse / ย่อ' : 'Expand / ขยาย'}
                 </button>
               </div>
               <p className={`mt-3 text-sm text-slate-600 whitespace-pre-wrap ${expanded === item.id ? '' : 'line-clamp-3'}`}>

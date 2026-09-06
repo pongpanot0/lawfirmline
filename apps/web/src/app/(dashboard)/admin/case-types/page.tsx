@@ -26,7 +26,7 @@ export default function CaseTypesPage() {
   }, [token]);
 
   if (user?.firmRole !== FirmRole.OWNER) {
-    return <p className="text-destructive">Access denied. Admin only.</p>;
+    return <p className="text-destructive">Access denied. Admin only. / ไม่มีสิทธิ์เข้าถึง เฉพาะ Admin</p>;
   }
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -42,11 +42,11 @@ export default function CaseTypesPage() {
     <div>
       <PageHeader
         title="Case Types / ประเภทคดี"
-        description="Manage case categories for the firm"
+        description="Manage case categories for the firm / จัดการหมวดหมู่คดีของสำนักงาน"
         actions={
           <Button size="sm" onClick={() => setShowForm(!showForm)} className="w-full sm:w-auto">
             <Plus className="h-4 w-4" />
-            Add Type
+            Add Type / เพิ่มประเภท
           </Button>
         }
       />
@@ -56,25 +56,25 @@ export default function CaseTypesPage() {
           <CardContent className="p-4 sm:p-6">
             <form onSubmit={handleCreate} className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="flex-1">
-                <label className="text-sm font-medium">Name</label>
+                <label className="text-sm font-medium">Name / ชื่อ</label>
                 <Input
                   required
-                  placeholder="e.g. Litigation"
+                  placeholder="e.g. Litigation / เช่น คดีความ"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="mt-1"
                 />
               </div>
               <div className="flex-1">
-                <label className="text-sm font-medium">Description</label>
+                <label className="text-sm font-medium">Description / คำอธิบาย</label>
                 <Input
-                  placeholder="Optional description"
+                  placeholder="Optional description / คำอธิบาย (ไม่บังคับ)"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="mt-1"
                 />
               </div>
-              <Button type="submit" className="w-full sm:w-auto">Save</Button>
+              <Button type="submit" className="w-full sm:w-auto">Save / บันทึก</Button>
             </form>
           </CardContent>
         </Card>
@@ -86,10 +86,10 @@ export default function CaseTypesPage() {
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-semibold">{t.name}</h3>
-                <span className="shrink-0 text-xs text-muted-foreground">{t._count?.cases ?? 0} cases</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{t._count?.cases ?? 0} cases / คดี</span>
               </div>
               {t.description && <p className="mt-1 text-sm text-muted-foreground">{t.description}</p>}
-              {!t.isActive && <p className="mt-2 text-xs text-destructive">Inactive</p>}
+              {!t.isActive && <p className="mt-2 text-xs text-destructive">Inactive / ปิดใช้งาน</p>}
             </CardContent>
           </Card>
         ))}

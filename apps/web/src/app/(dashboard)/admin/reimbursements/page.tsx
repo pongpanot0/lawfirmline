@@ -16,6 +16,13 @@ import { cn, formatDate } from '@/lib/utils';
 
 const FILTERS = ['', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
+const FILTER_LABELS: Record<string, string> = {
+  PENDING: 'รออนุมัติ',
+  APPROVED: 'อนุมัติแล้ว',
+  PAID: 'จ่ายแล้ว',
+  REJECTED: 'ปฏิเสธ',
+};
+
 export default function ReimbursementsPage() {
   const { token, user } = useAuth();
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
@@ -35,7 +42,7 @@ export default function ReimbursementsPage() {
       .then(setExpenses)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
-        setError(err instanceof Error ? err.message : 'Failed to load reimbursements');
+        setError(err instanceof Error ? err.message : 'Failed to load reimbursements / โหลดรายการเบิกจ่ายไม่สำเร็จ');
       })
       .finally(() => setLoading(false));
   };
@@ -54,7 +61,7 @@ export default function ReimbursementsPage() {
   };
 
   if (user?.firmRole !== FirmRole.OWNER) {
-    return <p className="text-destructive">Access denied. Admin only.</p>;
+    return <p className="text-destructive">Access denied. Admin only. / ไม่มีสิทธิ์เข้าถึง เฉพาะ Admin</p>;
   }
 
   const pendingTotal = expenses
@@ -66,16 +73,16 @@ export default function ReimbursementsPage() {
       {e.status === 'PENDING' && (
         <>
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => updateStatus(e.id, 'APPROVED' as ExpenseStatus)}>
-            Approve
+            Approve / อนุมัติ
           </Button>
           <Button size="sm" variant="outline" className="h-7 text-xs text-destructive" onClick={() => updateStatus(e.id, 'REJECTED' as ExpenseStatus)}>
-            Reject
+            Reject / ปฏิเสธ
           </Button>
         </>
       )}
       {e.status === 'APPROVED' && (
         <Button size="sm" className="h-7 text-xs" onClick={() => updateStatus(e.id, 'PAID' as ExpenseStatus)}>
-          Mark Paid
+          Mark Paid / จ่ายแล้ว
         </Button>
       )}
       {e.status === 'PAID' && e.paidAt && (
@@ -90,8 +97,8 @@ export default function ReimbursementsPage() {
         title="Reimbursements / เบิกค่าใช้จ่าย"
         description={
           user
-            ? `${user.firmName} — Review and approve expense claims — รอจ่ายรวม ฿${pendingTotal.toLocaleString()}`
-            : `Review and approve expense claims — รอจ่ายรวม ฿${pendingTotal.toLocaleString()}`
+            ? `${user.firmName} — Review and approve expense claims / ตรวจสอบและอนุมัติค่าใช้จ่าย — รอจ่ายรวม ฿${pendingTotal.toLocaleString()}`
+            : `Review and approve expense claims / ตรวจสอบและอนุมัติค่าใช้จ่าย — รอจ่ายรวม ฿${pendingTotal.toLocaleString()}`
         }
       />
 
@@ -108,7 +115,7 @@ export default function ReimbursementsPage() {
                 : 'border border-border text-muted-foreground hover:bg-muted',
             )}
           >
-            {s || 'All'}
+            {s ? FILTER_LABELS[s] : 'All / ทั้งหมด'}
           </button>
         ))}
       </div>
@@ -125,7 +132,7 @@ export default function ReimbursementsPage() {
       ) : expenses.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            No reimbursement requests
+            No reimbursement requests / ยังไม่มีรายการเบิกจ่าย
           </CardContent>
         </Card>
       ) : (
@@ -143,7 +150,7 @@ export default function ReimbursementsPage() {
                           {e.case.ownRef}
                         </Link>
                       ) : (
-                        <p className="text-sm text-muted-foreground">General</p>
+                        <p className="text-sm text-muted-foreground">General / ทั่วไป</p>
                       )}
                     </div>
                     <ExpenseStatusBadge status={e.status} />
@@ -167,12 +174,12 @@ export default function ReimbursementsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Lawyer</TableHead>
-                    <TableHead>Case</TableHead>
+                    <TableHead>Lawyer / ทนาย</TableHead>
+                    <TableHead>Case / คดี</TableHead>
                     <TableHead>รายการ</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>Amount / จำนวนเงิน</TableHead>
+                    <TableHead>Status / สถานะ</TableHead>
+                    <TableHead>Actions / การดำเนินการ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -185,7 +192,7 @@ export default function ReimbursementsPage() {
                             {e.case.ownRef}
                           </Link>
                         ) : (
-                          <span className="text-muted-foreground">General</span>
+                          <span className="text-muted-foreground">General / ทั่วไป</span>
                         )}
                       </TableCell>
                       <TableCell>
