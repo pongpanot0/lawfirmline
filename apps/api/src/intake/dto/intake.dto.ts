@@ -9,6 +9,7 @@ import {
   IsUUID,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
@@ -226,8 +227,9 @@ export class UpdateIntakeDto {
   noticeResult?: string;
 
   @IsOptional()
+  @ValidateIf((o) => o.relatedCaseId !== null)
   @IsUUID()
-  relatedCaseId?: string;
+  relatedCaseId?: string | null;
 
   @IsOptional()
   @IsBoolean()

@@ -465,6 +465,8 @@ export class IntakeService {
       relatedCaseId: string | null;
       assignedUserIds: string[];
       deadlineDate: Date | null;
+      title: string | null;
+      matterType: string | null;
     },
     dto: ConvertToCaseDto,
   ) {
@@ -478,7 +480,7 @@ export class IntakeService {
     const updatedCase = await this.prisma.case.update({
       where: { id: relatedCase.id },
       data: {
-        limitationDeadline: intake.deadlineDate ?? undefined,
+        limitationDeadline: relatedCase.limitationDeadline ?? intake.deadlineDate ?? undefined,
       },
     });
 
@@ -493,7 +495,7 @@ export class IntakeService {
     });
 
     const assigneeIds = (intake.assignedUserIds ?? []).filter(
-      (userId) => userId !== dto.leadLawyerId,
+      (userId) => userId !== relatedCase.leadLawyerId,
     );
     if (assigneeIds.length > 0) {
       await this.prisma.caseAssignment.createMany({
@@ -518,8 +520,8 @@ export class IntakeService {
     }
 
     await this.tasksService.create(user, relatedCase.id, {
-      title: `เรื่องใหม่จาก Intake: ${updatedCase.title}`,
-      assigneeId: user.id,
+      title: `เรื่องใหม่จาก Intake: ${intake.title ?? intake.matterType ?? 'ไม่ระบุ'}`,
+      assigneeId: relatedCase.leadLawyerId,
       dueDate: intake.deadlineDate?.toISOString(),
     });
 
