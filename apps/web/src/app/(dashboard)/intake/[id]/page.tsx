@@ -45,10 +45,10 @@ const REFERRAL_TYPE_LABELS: Record<string, string> = {
 };
 
 const REFERRAL_CHANNEL_LABELS: Record<string, string> = {
-  WALK_IN: 'Walk-in',
+  WALK_IN: 'มาติดต่อด้วยตนเอง',
   PHONE: 'โทรศัพท์',
   EMAIL: 'อีเมล',
-  LINE: 'Line',
+  LINE: 'LINE',
   REFERRAL: 'แนะนำ',
   OTHER: 'อื่นๆ',
 };

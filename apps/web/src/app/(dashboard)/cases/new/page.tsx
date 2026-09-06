@@ -23,10 +23,10 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 
 const STEPS = [
-  { id: 'type', label: 'Case Type', description: 'ประเภทคดี' },
-  { id: 'basic', label: 'Basic Info', description: 'ข้อมูลพื้นฐาน' },
-  { id: 'custom', label: 'Details', description: 'รายละเอียดเพิ่มเติม' },
-  { id: 'team', label: 'Team', description: 'ทีมงาน' },
+  { id: 'type', label: 'ประเภทคดี', description: 'Case Type' },
+  { id: 'basic', label: 'ข้อมูลพื้นฐาน', description: 'Basic Info' },
+  { id: 'custom', label: 'รายละเอียดเพิ่มเติม', description: 'Details' },
+  { id: 'team', label: 'ทีมงาน', description: 'Team' },
 ];
 
 export default function NewCasePage() {
@@ -76,7 +76,7 @@ export default function NewCasePage() {
   const workloadLabel = (userId: string) => {
     const w = workload.find((x) => x.userId === userId);
     if (!w) return '';
-    return ` (Lead ${w.leadCount}, Buddy ${w.buddyCount}, ใกล้ deadline ${w.nearDeadlineCount})`;
+    return ` (หลัก ${w.leadCount}, ผู้ช่วย ${w.buddyCount}, ใกล้ deadline ${w.nearDeadlineCount})`;
   };
 
   useEffect(() => {
@@ -598,7 +598,7 @@ export default function NewCasePage() {
                     </label>
                   ))}
                 {lawyers.filter((l) => l.id !== form.leadLawyerId).length === 0 && (
-                  <p className="text-xs text-slate-400">ไม่มีทนายคนอื่นในสำนักงานให้เลือกเป็น Buddy</p>
+                  <p className="text-xs text-slate-400">ไม่มีทนายคนอื่นในสำนักงานให้เลือกเป็นผู้ช่วย</p>
                 )}
               </div>
             </div>
