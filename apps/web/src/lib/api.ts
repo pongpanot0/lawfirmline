@@ -262,6 +262,15 @@ export interface CourtItem {
   isActive: boolean;
 }
 
+export interface CaseMessageEntry {
+  id: string;
+  senderType: 'STAFF' | 'CONTACT';
+  senderUserId: string | null;
+  senderContactId: string | null;
+  body: string;
+  createdAt: string;
+}
+
 export interface CaseActivityItem {
   id: string;
   title: string;
@@ -804,6 +813,16 @@ export const api = {
       method: 'POST',
       token,
       body: JSON.stringify(data),
+    }),
+
+  getCaseMessages: (token: string, caseId: string) =>
+    request<CaseMessageEntry[]>(`/cases/${caseId}/messages`, { token }),
+
+  sendCaseMessage: (token: string, caseId: string, body: string) =>
+    request<CaseMessageEntry>(`/cases/${caseId}/messages`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ body }),
     }),
 
   getInsuranceClaim: (token: string, caseId: string) =>

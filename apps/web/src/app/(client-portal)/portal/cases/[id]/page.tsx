@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Download } from 'lucide-react';
 import { usePortalAuth } from '@/lib/portal-auth';
-import { portalApi, PortalCaseDetail } from '@/lib/portal-api';
+import { portalApi, PortalCaseDetail, CaseMessageEntry, PortalApiError } from '@/lib/portal-api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -14,6 +14,11 @@ export default function PortalCaseDetailPage() {
   const { contact, token, loading } = usePortalAuth();
   const router = useRouter();
   const [detail, setDetail] = useState<PortalCaseDetail | null>(null);
+  const [messages, setMessages] = useState<CaseMessageEntry[]>([]);
+  const [messageBody, setMessageBody] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageError, setMessageError] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && !contact) router.replace('/portal/login');
@@ -26,6 +31,35 @@ export default function PortalCaseDetailPage() {
       .then(setDetail)
       .catch(() => setDetail(null));
   }, [token, id]);
+
+  const loadMessages = () => {
+    if (!token || !id) return;
+    portalApi
+      .getCaseMessages(token, id)
+      .then(setMessages)
+      .catch(console.error);
+  };
+
+  useEffect(() => { loadMessages(); }, [token, id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  const handleSendMessage = async () => {
+    if (!token || !id || !messageBody.trim()) return;
+    setSendingMessage(true);
+    setMessageError('');
+    try {
+      await portalApi.sendCaseMessage(token, id, messageBody.trim());
+      setMessageBody('');
+      loadMessages();
+    } catch (e) {
+      setMessageError(e instanceof PortalApiError ? e.message : 'Could not send message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
   const handleDownload = async (documentId: string, filename: string) => {
     if (!token) return;
@@ -119,6 +153,58 @@ export default function PortalCaseDetailPage() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="mt-4">
+          <CardContent className="p-5">
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Messages</h2>
+
+            {messageError && <p className="mb-3 text-sm text-destructive">{messageError}</p>}
+
+            <div className="mb-4 max-h-[50vh] space-y-3 overflow-y-auto rounded-lg border border-border bg-background p-3">
+              {messages.length === 0 && (
+                <p className="text-sm text-muted-foreground">No messages yet.</p>
+              )}
+              {messages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                    m.senderType === 'CONTACT'
+                      ? 'ml-auto bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground'
+                  }`}
+                >
+                  <p>{m.body}</p>
+                  <p
+                    className={`mt-1 text-xs ${
+                      m.senderType === 'CONTACT' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {new Date(m.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+              <div ref={bottomRef} />
+            </div>
+
+            <div className="flex gap-2">
+              <textarea
+                value={messageBody}
+                onChange={(e) => setMessageBody(e.target.value)}
+                rows={2}
+                className="flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                placeholder="Type a message..."
+              />
+              <button
+                type="button"
+                onClick={handleSendMessage}
+                disabled={sendingMessage || !messageBody.trim()}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {sendingMessage ? 'Sending...' : 'Send'}
+              </button>
+            </div>
           </CardContent>
         </Card>
       </div>

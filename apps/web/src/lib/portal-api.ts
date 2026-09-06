@@ -80,6 +80,15 @@ export interface PortalCaseDetail extends PortalCaseSummary {
   }>;
 }
 
+export interface CaseMessageEntry {
+  id: string;
+  senderType: 'STAFF' | 'CONTACT';
+  senderUserId: string | null;
+  senderContactId: string | null;
+  body: string;
+  createdAt: string;
+}
+
 export interface PortalIntakeSubmissionEntry {
   id: string;
   referenceNumber: string;
@@ -131,6 +140,16 @@ export const portalApi = {
 
   downloadDocument: (token: string, documentId: string) =>
     requestBlob(`/client-portal/documents/${documentId}/download`, token),
+
+  getCaseMessages: (token: string, caseId: string) =>
+    request<CaseMessageEntry[]>(`/client-portal/cases/${caseId}/messages`, { token }),
+
+  sendCaseMessage: (token: string, caseId: string, body: string) =>
+    request<CaseMessageEntry>(`/client-portal/cases/${caseId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+      token,
+    }),
 
   submitIntake: (
     token: string,
