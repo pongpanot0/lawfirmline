@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { IntakeService } from './intake.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
+import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -21,6 +22,7 @@ describe('IntakeService attachments', () => {
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
+  const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -32,6 +34,7 @@ describe('IntakeService attachments', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TasksService, useValue: mockTasksService },
         { provide: ConfigService, useValue: mockConfig },
+        { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -93,5 +96,73 @@ describe('IntakeService attachments', () => {
       expect(fs.unlinkSync).toHaveBeenCalledWith('uploads/intake-1/att-1.pdf');
       expect(mockPrisma.intakeAttachment.delete).toHaveBeenCalledWith({ where: { id: 'att-1' } });
     });
+  });
+});
+
+describe('IntakeService draftNotice with analysisId', () => {
+  let service: IntakeService;
+  const mockPrisma = {
+    intake: { findFirst: jest.fn() },
+    auditLog: { create: jest.fn() },
+  };
+  const mockTasksService = { create: jest.fn() };
+  const mockConfig = { get: jest.fn() };
+  const mockAnalysisService = { getOne: jest.fn() };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockConfig.get.mockReturnValue(undefined); // demo mode: no OPENAI_API_KEY needed for this test
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IntakeService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: TasksService, useValue: mockTasksService },
+        { provide: ConfigService, useValue: mockConfig },
+        { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+      ],
+    }).compile();
+    service = module.get(IntakeService);
+  });
+
+  it('behaves exactly as before when analysisId is omitted (regression check)', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      clientName: 'คุณสมชาย',
+      opposingParty: 'บริษัท เอบีซี',
+      matterType: 'แรงงาน',
+      description: 'รายละเอียด',
+      estimatedDamage: null,
+      deadlineDate: null,
+      client: null,
+    });
+
+    const { content } = await service.draftNotice(user, 'intake-1');
+
+    expect(mockAnalysisService.getOne).not.toHaveBeenCalled();
+    expect(content).toContain('คุณสมชาย');
+    expect(mockPrisma.auditLog.create).toHaveBeenCalled();
+  });
+
+  it('uses noticeFacts from the analysis when analysisId is provided', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      clientName: 'คุณสมชาย',
+      opposingParty: 'บริษัท เอบีซี',
+      matterType: 'แรงงาน',
+      description: 'รายละเอียด',
+      estimatedDamage: null,
+      deadlineDate: null,
+      client: null,
+    });
+    mockAnalysisService.getOne.mockResolvedValue({
+      id: 'analysis-1',
+      noticeFacts: 'ข้อเท็จจริงที่เตรียมไว้แล้วจากการวิเคราะห์ฎีกา',
+    });
+
+    const { content } = await service.draftNotice(user, 'intake-1', 'analysis-1');
+
+    expect(mockAnalysisService.getOne).toHaveBeenCalledWith(user, 'intake-1', 'analysis-1');
+    expect(content).toContain('ข้อเท็จจริงที่เตรียมไว้แล้วจากการวิเคราะห์ฎีกา');
   });
 });

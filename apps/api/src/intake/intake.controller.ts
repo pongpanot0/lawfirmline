@@ -19,6 +19,7 @@ import {
   AssessIntakeDto,
   DecideIntakeDto,
   NoticeDto,
+  DraftNoticeDto,
   ConvertToCaseDto,
   IntakeQueryDto,
 } from './dto/intake.dto';
@@ -107,8 +108,12 @@ export class IntakeController {
   @Post(':id/notice/draft')
   @RequireCredits(5)
   @UseInterceptors(AiCreditsInterceptor)
-  draftNotice(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.intakeService.draftNotice(user, id);
+  draftNotice(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: DraftNoticeDto,
+  ) {
+    return this.intakeService.draftNotice(user, id, dto.analysisId);
   }
 
   @Post(':id/convert')

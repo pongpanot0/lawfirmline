@@ -6,6 +6,7 @@ import * as path from 'path';
 import { AssignmentType, ReferralChannel } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
+import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 import {
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -29,6 +30,7 @@ export class IntakeService {
     private prisma: PrismaService,
     private tasksService: TasksService,
     private config: ConfigService,
+    private precedentAnalysisService: IntakePrecedentAnalysisService,
   ) {}
 
   private intakeInclude = {
@@ -211,21 +213,27 @@ export class IntakeService {
     return updated;
   }
 
-  async draftNotice(user: AuthUser, id: string) {
+  async draftNotice(user: AuthUser, id: string, analysisId?: string) {
     const intake = await this.findOne(user, id);
 
-    const facts = [
-      `ชื่อลูกความ (ผู้ส่งหนังสือ): ${intake.clientName || intake.client?.name || '(ไม่ระบุ)'}`,
-      `คู่กรณี (ผู้รับหนังสือ): ${intake.opposingParty || '(ไม่ระบุ)'}`,
-      `ประเภทเรื่อง: ${intake.matterType || '(ไม่ระบุ)'}`,
-      intake.description ? `รายละเอียดเหตุการณ์: ${intake.description}` : null,
-      intake.estimatedDamage ? `มูลค่าความเสียหายโดยประมาณ: ${intake.estimatedDamage} บาท` : null,
-      intake.deadlineDate
-        ? `กำหนดให้ตอบกลับ/ดำเนินการภายใน: ${intake.deadlineDate.toISOString().slice(0, 10)}`
-        : null,
-    ]
-      .filter(Boolean)
-      .join('\n');
+    let facts: string;
+    if (analysisId) {
+      const analysis = await this.precedentAnalysisService.getOne(user, id, analysisId);
+      facts = analysis.noticeFacts;
+    } else {
+      facts = [
+        `ชื่อลูกความ (ผู้ส่งหนังสือ): ${intake.clientName || intake.client?.name || '(ไม่ระบุ)'}`,
+        `คู่กรณี (ผู้รับหนังสือ): ${intake.opposingParty || '(ไม่ระบุ)'}`,
+        `ประเภทเรื่อง: ${intake.matterType || '(ไม่ระบุ)'}`,
+        intake.description ? `รายละเอียดเหตุการณ์: ${intake.description}` : null,
+        intake.estimatedDamage ? `มูลค่าความเสียหายโดยประมาณ: ${intake.estimatedDamage} บาท` : null,
+        intake.deadlineDate
+          ? `กำหนดให้ตอบกลับ/ดำเนินการภายใน: ${intake.deadlineDate.toISOString().slice(0, 10)}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
 
     const content = await this.generateNoticeDraft(facts);
 
@@ -234,7 +242,7 @@ export class IntakeService {
         firmId: user.firmId,
         userId: user.id,
         action: 'intake.notice.draft',
-        metadata: { intakeId: id },
+        metadata: { intakeId: id, analysisId: analysisId ?? null },
       },
     });
 
