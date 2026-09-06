@@ -187,6 +187,7 @@ describe('IntakeService draftNotice with analysisId', () => {
     });
     mockAnalysisService.getOne.mockResolvedValue({
       id: 'analysis-1',
+      status: 'COMPLETE',
       noticeFacts: 'ข้อเท็จจริงที่เตรียมไว้แล้วจากการวิเคราะห์ฎีกา',
     });
 
@@ -194,6 +195,29 @@ describe('IntakeService draftNotice with analysisId', () => {
 
     expect(mockAnalysisService.getOne).toHaveBeenCalledWith(user, 'intake-1', 'analysis-1');
     expect(content).toContain('ข้อเท็จจริงที่เตรียมไว้แล้วจากการวิเคราะห์ฎีกา');
+  });
+
+  it('throws BadRequestException when the analysis is not COMPLETE, so no credit is charged', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      clientName: 'คุณสมชาย',
+      opposingParty: 'บริษัท เอบีซี',
+      matterType: 'แรงงาน',
+      description: 'รายละเอียด',
+      estimatedDamage: null,
+      deadlineDate: null,
+      client: null,
+    });
+    mockAnalysisService.getOne.mockResolvedValue({
+      id: 'analysis-1',
+      status: 'FAILED',
+      noticeFacts: '',
+    });
+
+    await expect(service.draftNotice(user, 'intake-1', 'analysis-1')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(mockPrisma.auditLog.create).not.toHaveBeenCalled();
   });
 });
 

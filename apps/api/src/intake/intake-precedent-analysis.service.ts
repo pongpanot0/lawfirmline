@@ -264,14 +264,6 @@ export class IntakePrecedentAnalysisService {
       where: { id: analysisId, intakeId, intake: { firmId: user.firmId } },
     });
     if (!analysis) throw new NotFoundException('Analysis not found');
-    // A FAILED/PENDING analysis has an empty noticeFacts — drafting from it would
-    // produce garbage while still charging AI credits. Throwing here also keeps
-    // the credit interceptor from charging, since it only decrements on success.
-    if (analysis.status !== 'COMPLETE') {
-      throw new BadRequestException(
-        'ผลการวิเคราะห์นี้ยังไม่สำเร็จ ไม่สามารถใช้ร่างหนังสือได้',
-      );
-    }
     return analysis;
   }
 }

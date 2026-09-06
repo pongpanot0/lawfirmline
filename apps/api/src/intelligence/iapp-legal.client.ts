@@ -48,8 +48,8 @@ export class IappLegalClient {
   ): Promise<IappDekaSearchResult[]> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
-      this.logger.warn('IAPP_API_KEY not set — skipping precedent search (demo mode)');
-      return [];
+      this.logger.error('IAPP_API_KEY not set — cannot search precedents');
+      throw new Error('IAPP_API_KEY ยังไม่ได้ตั้งค่า ไม่สามารถค้นหาฎีกาได้');
     }
 
     const params = new URLSearchParams({ query });

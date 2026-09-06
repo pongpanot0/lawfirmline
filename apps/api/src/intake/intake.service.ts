@@ -222,6 +222,14 @@ export class IntakeService {
     let facts: string;
     if (analysisId) {
       const analysis = await this.precedentAnalysisService.getOne(user, id, analysisId);
+      // A FAILED/PENDING analysis has an empty noticeFacts — drafting from it would
+      // produce garbage while still charging AI credits. Throwing here also keeps
+      // the credit interceptor from charging, since it only decrements on success.
+      if (analysis.status !== 'COMPLETE') {
+        throw new BadRequestException(
+          'ผลการวิเคราะห์นี้ยังไม่สำเร็จ ไม่สามารถใช้ร่างหนังสือได้',
+        );
+      }
       facts = analysis.noticeFacts;
     } else {
       facts = [
