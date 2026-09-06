@@ -123,14 +123,17 @@ export default function IntakeDetailPage() {
   // Documents (intake document repository — distinct from the AI-input PDF attachments above)
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
 
   const loadDocuments = useCallback(async () => {
     if (!token || !id) return;
     try {
       const docs = await api.getIntakeDocuments(token, id as string);
       setDocuments(docs);
-    } catch {
+      setDocumentsError(null);
+    } catch (err) {
       setDocuments([]);
+      setDocumentsError(err instanceof ApiError ? err.message : 'โหลดรายการเอกสารไม่สำเร็จ');
     }
   }, [token, id]);
 
@@ -300,11 +303,12 @@ export default function IntakeDetailPage() {
   const handleUploadDocument = async (file: File) => {
     if (!token || !id) return;
     setUploadingDoc(true);
+    setDocumentsError(null);
     try {
       await api.uploadIntakeDocument(token, id as string, file);
       await loadDocuments();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'อัปโหลดไฟล์ไม่สำเร็จ');
+      setDocumentsError(err instanceof ApiError ? err.message : 'อัปโหลดไฟล์ไม่สำเร็จ');
     } finally {
       setUploadingDoc(false);
     }
@@ -312,6 +316,7 @@ export default function IntakeDetailPage() {
 
   const handleDownloadDocument = async (doc: DocumentItem) => {
     if (!token || !id) return;
+    setDocumentsError(null);
     try {
       const blob = await api.downloadIntakeDocument(token, id as string, doc.id);
       const url = URL.createObjectURL(blob);
@@ -321,7 +326,7 @@ export default function IntakeDetailPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setDocumentsError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
     }
   };
 
@@ -615,6 +620,7 @@ export default function IntakeDetailPage() {
           <CardHeader><CardTitle className="text-base">เอกสารประกอบ</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <DocumentDropZone onFile={handleUploadDocument} loading={uploadingDoc} />
+            {documentsError && <p className="mt-1 text-sm text-destructive">{documentsError}</p>}
             {documents.length === 0 ? (
               <p className="text-sm text-muted-foreground">ยังไม่มีเอกสาร</p>
             ) : (
