@@ -34,6 +34,7 @@ const HANDOFF_SOURCE_STATUSES: TaskStatus[] = [
   TaskStatus.TODO,
   TaskStatus.IN_PROGRESS,
   TaskStatus.NEEDS_REVISION,
+  TaskStatus.DONE,
 ];
 
 export function KanbanBoard({
@@ -97,7 +98,9 @@ export function KanbanBoard({
                 const isAssignee = task.assignee?.id === currentUserId;
                 const canSetPlainStatus = isAssignee || !task.assignee;
                 const canHandoff =
-                  enableHandoff && isAssignee && HANDOFF_SOURCE_STATUSES.includes(task.status);
+                  enableHandoff &&
+                  (isAssignee || !task.assignee) &&
+                  HANDOFF_SOURCE_STATUSES.includes(task.status);
                 const canReview =
                   enableHandoff &&
                   task.status === TaskStatus.PENDING_REVIEW &&
