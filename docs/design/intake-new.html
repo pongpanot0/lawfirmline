@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LexFlow · ส่งเรื่องใหม่</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="portal-shared.css" />
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">LF</div>
+      <div>
+        <div class="brand-name">LexFlow</div>
+        <div class="brand-sub">Client Portal</div>
+      </div>
+    </div>
+
+    <div class="nav-section-label">เมนูหลัก</div>
+    <a class="nav-item" href="dashboard.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      ภาพรวม
+    </a>
+    <a class="nav-item active" href="intake-list.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+      เรื่องที่ส่ง
+      <span class="badge-count">3</span>
+    </a>
+    <a class="nav-item" href="settings.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg>
+      ตั้งค่าการแจ้งเตือน
+    </a>
+    <a class="nav-item" href="login.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      ออกจากระบบ
+    </a>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">สธ</div>
+        <div>
+          <div class="user-name">สมชาย ธนโชติ</div>
+          <div class="user-role">บจก. ธนโชติ คอนสตรัคชั่น</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main">
+
+    <a class="back-link" href="intake-list.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      เรื่องที่ส่งทั้งหมด
+    </a>
+
+    <!-- ===== State A: form ===== -->
+    <div id="state-form">
+      <div class="topbar">
+        <div>
+          <h1 class="page-title">ส่งเรื่องใหม่</h1>
+          <p class="page-sub">อธิบายเรื่องที่ต้องการปรึกษาโดยย่อ ทีมกฎหมายจะติดต่อกลับภายใน 1 วันทำการ</p>
+        </div>
+      </div>
+
+      <div class="card card-pad">
+        <form onsubmit="return false;">
+          <div class="field">
+            <label for="title">หัวข้อ</label>
+            <input id="title" class="input" type="text" placeholder="เช่น ข้อพิพาทค่าจ้างก่อสร้างค้างจ่าย" required />
+          </div>
+
+          <div class="field">
+            <label for="detail">รายละเอียด</label>
+            <textarea id="detail" class="textarea" rows="6" placeholder="อธิบายเหตุการณ์ คู่กรณี และสิ่งที่ต้องการให้ช่วยดำเนินการ" required></textarea>
+          </div>
+
+          <div class="field">
+            <label for="date">วันที่ต้องการดำเนินการ (ถ้ามี)</label>
+            <input id="date" class="input" type="date" style="max-width:220px;" />
+            <p class="hint">ระบุเฉพาะกรณีมีกำหนดเวลาที่ต้องดำเนินการ เช่น วันครบกำหนดฟ้อง</p>
+          </div>
+
+          <div class="field">
+            <label>ไฟล์แนบ (ถ้ามี)</label>
+            <label class="file-drop" id="file-drop">
+              <input type="file" id="file-input" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" />
+              <div class="file-drop-icon">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 5v12"/></svg>
+              </div>
+              <span class="file-drop-title">ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์</span>
+              <span class="file-drop-sub">PDF, JPG, PNG, DOC — ไฟล์ละไม่เกิน 20 MB</span>
+            </label>
+            <div class="file-list" id="file-list"></div>
+          </div>
+
+          <div class="field mb-0">
+            <label class="checkbox-row">
+              <input type="checkbox" />
+              เรื่องเร่งด่วน — ต้องการให้ทีมกฎหมายติดต่อกลับโดยเร็ว
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <a class="btn btn-outline" href="intake-list.html">ยกเลิก</a>
+            <button class="btn btn-primary" type="submit">ส่งเรื่อง</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      // Front-end preview only: shows picked/dropped files with remove — wire to
+      // real multipart upload (alongside portalApi.submitIntake) in the React build.
+      (function () {
+        const dropZone = document.getElementById('file-drop');
+        const fileInput = document.getElementById('file-input');
+        const fileListEl = document.getElementById('file-list');
+        let files = [];
+
+        function formatSize(bytes) {
+          if (bytes < 1024) return bytes + ' B';
+          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+          return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function extLabel(name) {
+          const ext = name.split('.').pop().toUpperCase();
+          return ext.length <= 4 ? ext : 'FILE';
+        }
+
+        function render() {
+          fileListEl.innerHTML = '';
+          files.forEach((file, i) => {
+            const row = document.createElement('div');
+            row.className = 'file-row';
+            row.innerHTML =
+              '<div class="file-row-icon">' + extLabel(file.name) + '</div>' +
+              '<div><p class="file-row-name">' + file.name + '</p>' +
+              '<p class="file-row-meta">' + formatSize(file.size) + '</p></div>' +
+              '<button type="button" class="file-row-remove" aria-label="ลบไฟล์" data-i="' + i + '">' +
+              '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>';
+            fileListEl.appendChild(row);
+          });
+          fileListEl.querySelectorAll('.file-row-remove').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              files.splice(Number(btn.dataset.i), 1);
+              render();
+            });
+          });
+        }
+
+        function addFiles(list) {
+          files = files.concat(Array.from(list));
+          render();
+        }
+
+        fileInput.addEventListener('change', (e) => addFiles(e.target.files));
+        ['dragover', 'dragenter'].forEach((evt) =>
+          dropZone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+          }),
+        );
+        ['dragleave', 'drop'].forEach((evt) =>
+          dropZone.addEventListener(evt, () => dropZone.classList.remove('dragover')),
+        );
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
+        });
+      })();
+    </script>
+
+    <!-- ===== State B: success (shown after submit in the real build) ===== -->
+    <div id="state-success" style="display:none;">
+      <div class="card card-pad auth-center" style="padding:40px 32px;">
+        <div class="success-check">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <h1 class="auth-title">ส่งเรื่องสำเร็จ</h1>
+        <p class="auth-sub">
+          เลขอ้างอิงของท่านคือ <b style="color:hsl(var(--foreground));">TNC-2026-035</b><br />
+          ทีมกฎหมายจะตรวจสอบและติดต่อกลับภายใน 1 วันทำการ
+        </p>
+        <a class="btn btn-primary btn-block" href="intake-list.html">ดูรายการเรื่องที่ส่ง</a>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

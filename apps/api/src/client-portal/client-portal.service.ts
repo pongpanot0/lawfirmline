@@ -19,20 +19,32 @@ export class ClientPortalService {
     };
   }
 
-  async getCases(portalUser: PortalIdentity) {
+  private accessibleCaseWhere(portalUser: PortalIdentity) {
     const now = new Date();
-    return this.prisma.case.findMany({
-      where: {
-        clientId: portalUser.clientId,
-        contactAccess: {
-          some: {
-            clientContactId: portalUser.clientContactId,
-            revokedAt: null,
-            startDate: { lte: now },
-            OR: [{ endDate: null }, { endDate: { gte: now } }],
-          },
+    return {
+      clientId: portalUser.clientId,
+      contactAccess: {
+        some: {
+          clientContactId: portalUser.clientContactId,
+          revokedAt: null,
+          startDate: { lte: now },
+          OR: [{ endDate: null }, { endDate: { gte: now } }],
         },
       },
+    };
+  }
+
+  private visibleDocumentPublicationWhere(clientContactId: string) {
+    return {
+      unpublishedAt: null,
+      isInternal: false,
+      OR: [{ recipientContacts: { isEmpty: true } }, { recipientContacts: { has: clientContactId } }],
+    };
+  }
+
+  async getCases(portalUser: PortalIdentity) {
+    const cases = await this.prisma.case.findMany({
+      where: this.accessibleCaseWhere(portalUser),
       select: {
         id: true,
         ownRef: true,
@@ -43,6 +55,141 @@ export class ClientPortalService {
       },
       orderBy: { updatedAt: 'desc' },
     });
+
+    const caseIds = cases.map((c) => c.id);
+    const hearings = caseIds.length
+      ? await this.prisma.calendarEvent.findMany({
+          where: { caseId: { in: caseIds }, type: 'COURT_DATE', startAt: { gte: new Date() } },
+          orderBy: { startAt: 'asc' },
+          select: { caseId: true, id: true, title: true, startAt: true },
+        })
+      : [];
+    const nextHearingByCase = new Map<string, { id: string; title: string; startAt: Date }>();
+    for (const hearing of hearings) {
+      if (!nextHearingByCase.has(hearing.caseId)) {
+        nextHearingByCase.set(hearing.caseId, { id: hearing.id, title: hearing.title, startAt: hearing.startAt });
+      }
+    }
+
+    return cases.map((c) => ({ ...c, nextHearing: nextHearingByCase.get(c.id) ?? null }));
+  }
+
+  async getDashboardSummary(portalUser: PortalIdentity) {
+    const [cases, contact] = await Promise.all([
+      this.prisma.case.findMany({
+        where: this.accessibleCaseWhere(portalUser),
+        select: { id: true, title: true, status: true, updatedAt: true },
+      }),
+      this.prisma.clientContact.findUnique({
+        where: { id: portalUser.clientContactId },
+        select: { lastSeenMessagesAt: true },
+      }),
+    ]);
+
+    const caseIds = cases.map((c) => c.id);
+    const caseTitleById = new Map(cases.map((c) => [c.id, c.title]));
+    const activeCases = cases.filter((c) => c.status !== 'CLOSED').length;
+
+    if (caseIds.length === 0) {
+      return {
+        activeCases: 0,
+        totalCases: 0,
+        nextHearing: null,
+        pendingDocuments: 0,
+        unreadMessages: 0,
+        recentActivity: [],
+        recentDocuments: [],
+      };
+    }
+
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const publicationWhere = this.visibleDocumentPublicationWhere(portalUser.clientContactId);
+
+    const [nextHearing, recentPublications, unreadMessages, recentMessages, recentHearings] = await Promise.all([
+      this.prisma.calendarEvent.findFirst({
+        where: { caseId: { in: caseIds }, type: 'COURT_DATE', startAt: { gte: new Date() } },
+        orderBy: { startAt: 'asc' },
+        select: { id: true, caseId: true, title: true, startAt: true, courtName: true },
+      }),
+      this.prisma.documentPublication.findMany({
+        where: { ...publicationWhere, document: { caseId: { in: caseIds } } },
+        orderBy: { publishedAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          publishedAt: true,
+          document: { select: { id: true, caseId: true } },
+          documentVersion: { select: { filename: true, mimeType: true } },
+        },
+      }),
+      this.prisma.caseMessage.count({
+        where: {
+          caseId: { in: caseIds },
+          senderType: 'STAFF',
+          createdAt: contact?.lastSeenMessagesAt ? { gt: contact.lastSeenMessagesAt } : undefined,
+        },
+      }),
+      this.prisma.caseMessage.findMany({
+        where: { caseId: { in: caseIds }, senderType: 'STAFF' },
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        select: { id: true, caseId: true, createdAt: true },
+      }),
+      this.prisma.calendarEvent.findMany({
+        where: { caseId: { in: caseIds } },
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        select: { id: true, caseId: true, title: true, startAt: true, createdAt: true },
+      }),
+    ]);
+
+    const pendingDocuments = recentPublications.filter((p) => p.publishedAt >= fourteenDaysAgo).length;
+
+    const recentDocuments = recentPublications.slice(0, 5).map((p) => ({
+      documentId: p.document.id,
+      caseId: p.document.caseId,
+      caseTitle: caseTitleById.get(p.document.caseId) ?? '',
+      filename: p.documentVersion?.filename ?? '',
+      mimeType: p.documentVersion?.mimeType ?? '',
+      publishedAt: p.publishedAt,
+    }));
+
+    type ActivityItem = { type: string; caseId: string; caseTitle: string; label: string; occurredAt: Date };
+    const activity: ActivityItem[] = [
+      ...recentPublications.slice(0, 6).map((p) => ({
+        type: 'document',
+        caseId: p.document.caseId,
+        caseTitle: caseTitleById.get(p.document.caseId) ?? '',
+        label: p.documentVersion?.filename ?? 'เอกสารใหม่',
+        occurredAt: p.publishedAt,
+      })),
+      ...recentMessages.map((m) => ({
+        type: 'message',
+        caseId: m.caseId,
+        caseTitle: caseTitleById.get(m.caseId) ?? '',
+        label: 'ข้อความใหม่จากทนายความ',
+        occurredAt: m.createdAt,
+      })),
+      ...recentHearings.map((h) => ({
+        type: 'hearing',
+        caseId: h.caseId,
+        caseTitle: caseTitleById.get(h.caseId) ?? '',
+        label: h.title,
+        occurredAt: h.createdAt,
+      })),
+    ]
+      .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
+      .slice(0, 6);
+
+    return {
+      activeCases,
+      totalCases: cases.length,
+      nextHearing,
+      pendingDocuments,
+      unreadMessages,
+      recentActivity: activity,
+      recentDocuments,
+    };
   }
 
   async getCase(portalUser: PortalIdentity, caseId: string) {

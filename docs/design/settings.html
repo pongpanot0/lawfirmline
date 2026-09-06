@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LexFlow · ตั้งค่าการแจ้งเตือน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="portal-shared.css" />
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">LF</div>
+      <div>
+        <div class="brand-name">LexFlow</div>
+        <div class="brand-sub">Client Portal</div>
+      </div>
+    </div>
+
+    <div class="nav-section-label">เมนูหลัก</div>
+    <a class="nav-item" href="dashboard.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      ภาพรวม
+    </a>
+    <a class="nav-item" href="intake-list.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+      เรื่องที่ส่ง
+      <span class="badge-count">3</span>
+    </a>
+    <a class="nav-item active" href="settings.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg>
+      ตั้งค่าการแจ้งเตือน
+    </a>
+    <a class="nav-item" href="login.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      ออกจากระบบ
+    </a>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">สธ</div>
+        <div>
+          <div class="user-name">สมชาย ธนโชติ</div>
+          <div class="user-role">บจก. ธนโชติ คอนสตรัคชั่น</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <h1 class="page-title">ตั้งค่าการแจ้งเตือน</h1>
+        <p class="page-sub">จัดการช่องทางที่ใช้รับการแจ้งเตือนความคืบหน้าคดี</p>
+      </div>
+    </div>
+
+    <div class="stack">
+
+      <!-- LINE connection -->
+      <div class="card card-pad">
+        <div class="section-head">
+          <span class="section-title">เชื่อมต่อ LINE</span>
+          <span class="badge badge-success">เชื่อมต่อแล้ว</span>
+        </div>
+        <p class="hint" style="margin-bottom:16px;">
+          บัญชี LINE Official ของสำนักงานจะส่งแจ้งเตือนนัดศาล เอกสารใหม่ และข้อความจากทนายความ
+        </p>
+
+        <div class="card" style="background:hsl(var(--accent)/0.5); border-style:dashed; padding:16px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="stat-icon" style="background:hsl(152 60% 40% / 0.14); color:hsl(152 60% 40%); width:36px; height:36px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+            </div>
+            <div>
+              <p style="font-size:13px; font-weight:700; margin:0;">เชื่อมต่อเมื่อ 3 มิ.ย. 2569</p>
+              <p style="font-size:12px; color:hsl(var(--muted-foreground)); margin:2px 0 0;">บัญชี LINE: สมชาย ธ.</p>
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm">ยกเลิกการเชื่อมต่อ</button>
+        </div>
+
+        <!-- Alternate state: not yet connected, showing link code (reference) -->
+        <!--
+        <div class="card" style="background:hsl(var(--accent)/0.5); border-style:dashed; padding:16px;">
+          <p class="hint" style="margin-bottom:10px;">ส่งรหัสนี้ในแชท LINE Official ของสำนักงานเพื่อเชื่อมต่อบัญชีของท่าน</p>
+          <p style="font-size:26px; font-weight:800; letter-spacing:0.08em; margin:0 0 8px;">4V9K-27</p>
+          <p class="hint" style="margin-bottom:14px;">รหัสหมดอายุ: 6 ก.ย. 2569 · 14:20 น.</p>
+          <button class="btn btn-outline btn-sm">สร้างรหัสใหม่</button>
+        </div>
+        -->
+      </div>
+
+      <!-- Notification channels -->
+      <div class="card card-pad">
+        <div class="section-head"><span class="section-title">ช่องทางการแจ้งเตือน</span></div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid hsl(var(--border));">
+          <div>
+            <p style="font-size:13.5px; font-weight:600; margin:0 0 2px;">แจ้งเตือนทางอีเมล</p>
+            <p class="hint">ส่งไปที่ somchai@thanachot.co.th</p>
+          </div>
+          <label class="checkbox-row"><input type="checkbox" checked /></label>
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 0;">
+          <div>
+            <p style="font-size:13.5px; font-weight:600; margin:0 0 2px;">แจ้งเตือนทาง LINE</p>
+            <p class="hint">ต้องเชื่อมต่อบัญชี LINE ก่อนจึงจะเปิดใช้งานได้</p>
+          </div>
+          <label class="checkbox-row"><input type="checkbox" checked /></label>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

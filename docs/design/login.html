@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LexFlow · เข้าสู่ระบบ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="portal-shared.css" />
+</head>
+<body>
+
+<div class="auth-shell">
+  <div class="card auth-card">
+    <div class="auth-brand">
+      <div class="brand-mark">LF</div>
+      <span class="auth-brand-name">LexFlow — พอร์ทัลลูกความ</span>
+    </div>
+
+    <h1 class="auth-title">ตรวจสอบคดีของคุณออนไลน์</h1>
+    <p class="auth-sub">
+      กรอกอีเมลที่ทนายความบันทึกไว้ให้กับบริษัทของท่าน ระบบจะส่งลิงก์เข้าสู่ระบบให้ —
+      ไม่ต้องตั้งรหัสผ่าน
+    </p>
+
+    <form onsubmit="return false;">
+      <div class="field">
+        <label for="email">อีเมล</label>
+        <input id="email" class="input" type="email" placeholder="you@company.com" required />
+        <p class="hint">ใช้อีเมลเดียวกับที่ทนายความของท่านบันทึกไว้ในระบบ</p>
+      </div>
+
+      <!-- error state example (hidden by default in the real build) -->
+      <!-- <p class="form-error">ไม่พบอีเมลนี้ในระบบ กรุณาติดต่อทนายความของท่าน</p> -->
+
+      <button class="btn btn-primary btn-block" type="submit">ส่งลิงก์เข้าสู่ระบบ</button>
+    </form>
+
+    <p class="hint" style="text-align:center; margin-top:18px;">
+      ยังไม่เคยได้รับคำเชิญ? <a href="#" style="color:hsl(var(--primary)); font-weight:600;">ติดต่อทนายความของท่าน</a>
+      เพื่อขอเปิดใช้งานพอร์ทัล
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -77,10 +77,19 @@ export class CaseMessageService {
   async listForPortal(portalUser: PortalIdentity, caseId: string) {
     await this.verifyPortalAccess(portalUser, caseId);
 
-    return this.prisma.caseMessage.findMany({
+    const messages = await this.prisma.caseMessage.findMany({
       where: { caseId },
       orderBy: { createdAt: 'asc' },
     });
+
+    // Viewing a case's messages counts as reading them — clears the portal
+    // dashboard's unread-messages count for this contact.
+    await this.prisma.clientContact.update({
+      where: { id: portalUser.clientContactId },
+      data: { lastSeenMessagesAt: new Date() },
+    });
+
+    return messages;
   }
 
   async createFromPortal(portalUser: PortalIdentity, caseId: string, body: string) {
