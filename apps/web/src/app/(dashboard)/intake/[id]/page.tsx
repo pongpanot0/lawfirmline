@@ -343,13 +343,15 @@ export default function IntakeDetailPage() {
             <Button variant="outline">ดูคดี {intake.case.ownRef}</Button>
           </Link>
         )}
-        <Button
-          variant="outline"
-          onClick={handleRunPrecedentAnalysis}
-          disabled={analyzing}
-        >
-          {analyzing ? 'กำลังวิเคราะห์...' : 'วิเคราะห์ฎีกา + เตรียมข้อมูล Notice'}
-        </Button>
+        {intake.status !== 'REJECTED' && intake.status !== 'CONVERTED' && (
+          <Button
+            variant="outline"
+            onClick={handleRunPrecedentAnalysis}
+            disabled={analyzing}
+          >
+            {analyzing ? 'กำลังวิเคราะห์...' : 'วิเคราะห์ฎีกา + เตรียมข้อมูล Notice'}
+          </Button>
+        )}
       </div>
 
       {error && (
