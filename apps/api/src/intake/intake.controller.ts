@@ -29,11 +29,15 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequireCredits } from '../common/decorators/require-credits.decorator';
 import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { AuthUser } from '@lawfirm/shared';
+import { IntakePrecedentAnalysisService, PRECEDENT_ANALYSIS_COST } from './intake-precedent-analysis.service';
 
 @Controller('intake')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class IntakeController {
-  constructor(private intakeService: IntakeService) {}
+  constructor(
+    private intakeService: IntakeService,
+    private precedentAnalysisService: IntakePrecedentAnalysisService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: IntakeQueryDto) {
@@ -133,5 +137,26 @@ export class IntakeController {
     @Param('attachmentId') attachmentId: string,
   ) {
     return this.intakeService.deleteAttachment(user, id, attachmentId);
+  }
+
+  @Post(':id/precedent-analysis')
+  @RequireCredits(PRECEDENT_ANALYSIS_COST)
+  @UseInterceptors(AiCreditsInterceptor)
+  runPrecedentAnalysis(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.precedentAnalysisService.analyze(user, id);
+  }
+
+  @Get(':id/precedent-analysis')
+  listPrecedentAnalyses(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.precedentAnalysisService.listForIntake(user, id);
+  }
+
+  @Get(':id/precedent-analysis/:analysisId')
+  getPrecedentAnalysis(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('analysisId') analysisId: string,
+  ) {
+    return this.precedentAnalysisService.getOne(user, id, analysisId);
   }
 }
