@@ -10,7 +10,6 @@ import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { formatDateTime } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -34,7 +33,6 @@ export default function CourtSchedulePage() {
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [month, setMonth] = useState(new Date());
-  const [viewMode, setViewMode] = useState('month');
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<'create' | 'view' | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventData | null>(null);
@@ -97,16 +95,6 @@ export default function CourtSchedulePage() {
           </Button>
         }
       />
-
-      <div className="mb-4">
-        <Tabs value={viewMode} onValueChange={setViewMode}>
-          <TabsList>
-            <TabsTrigger value="day">{d.calendar.day}</TabsTrigger>
-            <TabsTrigger value="week">{d.calendar.week}</TabsTrigger>
-            <TabsTrigger value="month">{d.calendar.month}</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="lg:col-span-3">

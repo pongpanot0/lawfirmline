@@ -299,7 +299,7 @@ export default function ClientsPage() {
                     <div className="flex items-center gap-1 shrink-0">
                       {c.id && c.email && (
                         <Button size="sm" variant={c.portalEnabled ? 'default' : 'outline'} onClick={() => togglePortalAccess(c.id!, !c.portalEnabled)} className="text-xs h-7">
-                          {c.portalEnabled ? 'Portal on' : 'Portal'}
+                          {c.portalEnabled ? 'เปิดพอร์ทัลแล้ว' : 'เปิดพอร์ทัล'}
                         </Button>
                       )}
                       {c.id && lineStatus[c.id] && (
