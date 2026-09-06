@@ -1,3 +1,4 @@
+import { BatchAnalysisDto } from './dto/batch-analysis.dto';
 import {
   Controller,
   Get,
@@ -7,9 +8,11 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
+  Body,
 } from '@nestjs/common';
 import * as fs from 'fs';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { KnowledgeCategory } from '@lawfirm/shared';
 import { DocumentIntelligenceService } from './document-intelligence.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -28,6 +31,12 @@ export class IntelligenceController {
     private documentsService: DocumentsService,
   ) {}
 
+  @Get('cases/:caseId/knowledge')
+  @UseGuards(CaseAccessGuard)
+  findCaseKnowledge(@Param('caseId') caseId: string) {
+    return this.intelligenceService.findKnowledge(caseId);
+  }
+
   @Get('knowledge')
   findKnowledge(
     @Query('caseId') caseId?: string,
@@ -35,6 +44,30 @@ export class IntelligenceController {
     @Query('search') search?: string,
   ) {
     return this.intelligenceService.findKnowledge(caseId, category, search);
+  }
+
+  @Post('documents/analyze-batch')
+  @RequireCredits(5)
+  @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024, files: 10 } }), AiCreditsInterceptor)
+  analyzeDraftBatch(@CurrentUser() user: AuthUser, @UploadedFiles() files: Express.Multer.File[]) {
+    return this.intelligenceService.analyzeBatch((files ?? []).map((file) => ({ buffer: file.buffer, mimeType: file.mimetype, filename: file.originalname })), user.id);
+  }
+
+  @Get('cases/:caseId/documents/batch-analyses')
+  @UseGuards(CaseAccessGuard)
+  listBatchAnalyses(@Param('caseId') caseId: string) {
+    return this.intelligenceService.listBatchAnalyses(caseId);
+  }
+
+  @Post('cases/:caseId/documents/analyze-batch')
+  @UseGuards(CaseAccessGuard)
+  @RequireCredits(5)
+  @UseInterceptors(AiCreditsInterceptor)
+  async analyzeExistingBatch(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: BatchAnalysisDto) {
+    // Resolve all files within this authorized case before reading any content.
+    const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePath(caseId, id)));
+    const files = await Promise.all(paths.map(async (file) => ({ buffer: await fs.promises.readFile(file.path), mimeType: file.mimeType, filename: file.filename })));
+    return this.intelligenceService.analyzeBatch(files, user.id, caseId);
   }
 
   @Post('cases/:caseId/documents/analyze')

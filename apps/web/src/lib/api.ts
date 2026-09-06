@@ -209,6 +209,7 @@ export interface CaseItem {
   blackCaseNumber?: string | null;
   redCaseNumber?: string | null;
   customFields?: Record<string, unknown> | null;
+  claimedAmount?: number | null;
   estimatedFee?: number | null;
   closingSummary?: string | null;
   closedAt?: string | null;
@@ -524,6 +525,7 @@ export interface IntakePrecedentItem {
 }
 
 export interface IntakePrecedentAnalysisItem {
+  extractedFacts?: { selectedAttachments?: Array<{ id: string; filename: string }>; attachmentWarnings?: string[] };
   id: string;
   status: 'PENDING' | 'COMPLETE' | 'FAILED';
   precedents: IntakePrecedentItem[];
@@ -965,7 +967,7 @@ export const api = {
     }),
 
   getDocuments: (token: string, caseId: string) =>
-    request(`/cases/${caseId}/documents`, { token }),
+    request<DocumentItem[]>(`/cases/${caseId}/documents`, { token }),
 
   getTimeEntries: (token: string, caseId: string) =>
     request<TimeEntryItem[]>(`/cases/${caseId}/billing/time-entries`, { token }),
@@ -984,6 +986,9 @@ export const api = {
 
   getPettyCash: (token: string) =>
     request<{ balance: number }>('/petty-cash', { token }),
+
+  getCaseKnowledge: (token: string, caseId: string) =>
+    request<KnowledgeItem[]>(`/cases/${caseId}/knowledge`, { token }),
 
   getKnowledge: (
     token: string,
@@ -1016,6 +1021,20 @@ export const api = {
       token,
       body: form,
     });
+  },
+
+  getBatchAnalyses: (token: string, caseId: string) =>
+    request<Array<{ id: string; summary: string; createdAt: string }>>(`/cases/${caseId}/documents/batch-analyses`, { token }),
+
+  analyzeSelectedDocuments: (token: string, caseId: string, documentIds: string[]) =>
+    request<{ summary: string; sources: string[]; truncatedFiles: string[] }>(`/cases/${caseId}/documents/analyze-batch`, {
+      method: 'POST', token, body: JSON.stringify({ documentIds }),
+    }),
+
+  analyzeDraftFiles: (token: string, files: File[]) => {
+    const body = new FormData();
+    files.forEach((file) => body.append('files', file));
+    return request<{ summary: string; sources: string[]; truncatedFiles: string[] }>('/documents/analyze-batch', { method: 'POST', token, body });
   },
 
   analyzeExistingDocument: (token: string, caseId: string, documentId: string) =>
@@ -1194,10 +1213,11 @@ export const api = {
   deleteIntakeAttachment: (token: string, intakeId: string, attachmentId: string) =>
     request(`/intake/${intakeId}/attachments/${attachmentId}`, { method: 'DELETE', token }),
 
-  runPrecedentAnalysis: (token: string, intakeId: string) =>
+  runPrecedentAnalysis: (token: string, intakeId: string, attachmentIds?: string[]) =>
     request<IntakePrecedentAnalysisItem>(`/intake/${intakeId}/precedent-analysis`, {
       method: 'POST',
       token,
+      body: JSON.stringify({ attachmentIds }),
     }),
 
   listPrecedentAnalyses: (token: string, intakeId: string) =>
@@ -1319,6 +1339,7 @@ export interface TravelResult {
 }
 
 export interface KnowledgeItem {
+  document?: { id: string; filename: string } | null;
   id: string;
   title: string;
   summary: string;

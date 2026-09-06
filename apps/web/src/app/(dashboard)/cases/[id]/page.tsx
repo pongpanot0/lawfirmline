@@ -1,5 +1,8 @@
 'use client';
 
+import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
+import { CASE_COSTS_KEY } from '@/lib/case-costs';
+import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -96,6 +99,7 @@ export default function CaseDetailPage() {
     redCaseNumber: '',
     courtLevel: '' as string,
     courtName: '',
+    claimedAmount: '',
     estimatedFee: '',
   });
   const [showCloseForm, setShowCloseForm] = useState(false);
@@ -281,6 +285,7 @@ export default function CaseDetailPage() {
       redCaseNumber: legalCase.redCaseNumber ?? '',
       courtLevel: legalCase.courtLevel ?? '',
       courtName: legalCase.courtName ?? '',
+      claimedAmount: legalCase.claimedAmount != null ? String(legalCase.claimedAmount) : '',
       estimatedFee:
         legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
     });
@@ -320,6 +325,7 @@ export default function CaseDetailPage() {
         courtLevel: overviewForm.courtLevel || null,
         courtName: overviewForm.courtName.trim() || null,
         estimatedFee,
+        claimedAmount: overviewForm.claimedAmount.trim() ? Number(overviewForm.claimedAmount) : null,
       }) as CaseDetail;
       setCase(updated);
       setEditingOverview(false);
@@ -513,6 +519,8 @@ export default function CaseDetailPage() {
         ))}
       </nav>
 
+      <div className="mb-5"><BatchAnalysisPanel caseId={id} /></div>
+
       <div className="grid items-start gap-5 lg:grid-cols-12">
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-1">
           <Card>
@@ -615,6 +623,7 @@ export default function CaseDetailPage() {
                         )}
                     </select>
                   </div>
+                  <div><label className="text-xs text-muted-foreground">ทุนทรัพย์ (บาท)</label><Input type="number" min="0" step="0.01" value={overviewForm.claimedAmount} onChange={(e) => setOverviewForm({ ...overviewForm, claimedAmount: e.target.value })} /></div>
                   <div>
                     <label className="text-xs text-muted-foreground">รายได้โดยประมาณ</label>
                     <Input
@@ -793,6 +802,7 @@ export default function CaseDetailPage() {
                   </div>
                 )}
               </div>
+              <div><p className="text-xs text-muted-foreground">ทุนทรัพย์</p><p className="font-medium">{legalCase.claimedAmount != null ? formatCurrency(legalCase.claimedAmount) : 'ยังไม่ระบุ'}</p></div>
               <div>
                 <p className="text-xs text-muted-foreground">รายได้โดยประมาณ</p>
                 <p className="font-medium text-green-600">
@@ -805,7 +815,7 @@ export default function CaseDetailPage() {
                 <p className="text-xs text-muted-foreground">ค่าใช้จ่ายที่อนุมัติ</p>
                 <p className="font-medium text-primary">{formatCurrency(totalSpent)}</p>
               </div>
-              {customFields && Object.entries(customFields).map(([k, v]) => (
+              {customFields && Object.entries(customFields).filter(([key]) => key !== CASE_COSTS_KEY).map(([k, v]) => (
                 <div key={k}>
                   <p className="text-xs text-muted-foreground">{k}</p>
                   <p className="font-medium">{v}</p>
@@ -818,6 +828,7 @@ export default function CaseDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">
+          <SavedCaseCostCalculator key={legalCase.id} caseId={id} customFields={customFields} onSaved={loadCase} />
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm">ความเคลื่อนไหวคดี</CardTitle>

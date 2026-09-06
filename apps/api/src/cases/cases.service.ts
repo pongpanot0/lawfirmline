@@ -244,6 +244,7 @@ export class CasesService {
         redCaseNumber: dto.redCaseNumber,
         customFields: dto.customFields as Prisma.InputJsonValue,
         estimatedFee: dto.estimatedFee,
+        claimedAmount: dto.claimedAmount,
         status: dto.status,
         caseTypeId: dto.caseTypeId ?? undefined,
         leadLawyerId: dto.leadLawyerId,

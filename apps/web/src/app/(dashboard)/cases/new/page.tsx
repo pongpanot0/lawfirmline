@@ -1,5 +1,12 @@
 'use client';
 
+import { CaseCostCalculator } from '@/components/cases/CaseCostCalculator';
+import {
+  CASE_COSTS_KEY,
+  initialCaseCosts,
+  caseCostTotal,
+} from '@/lib/case-costs';
+import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -31,6 +38,10 @@ export default function NewCasePage() {
   const { token, user } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const [costLines, setCostLines] = useState(initialCaseCosts);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [createdCaseId, setCreatedCaseId] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const submittingRef = useRef(false);
   const [autoTitle, setAutoTitle] = useState(true);
@@ -59,6 +70,7 @@ export default function NewCasePage() {
     blackCaseNumber: '',
     redCaseNumber: '',
     description: '',
+    claimedAmount: '',
     estimatedFee: '',
     leadLawyerId: '',
     buddyIds: [] as string[],
@@ -138,7 +150,7 @@ export default function NewCasePage() {
     if (autoTitle) setForm((f) => ({ ...f, title: suggestedTitle }));
   }, [autoTitle, suggestedTitle]);
   useEffect(() => {
-    headingRef.current?.focus();
+    if (step > 0) headingRef.current?.focus();
   }, [step]);
 
   const toggleBuddy = (id: string) => {
@@ -162,6 +174,14 @@ export default function NewCasePage() {
     if (targetStep === 0 && !form.caseTypeId)
       return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
     if (targetStep === 1) {
+      if (
+        form.claimedAmount &&
+        (!Number.isFinite(Number(form.claimedAmount)) ||
+          Number(form.claimedAmount) < 0 ||
+          Number(form.claimedAmount) > FEE_MAX ||
+          !/^\d+(\.\d{1,2})?$/.test(form.claimedAmount))
+      )
+        return 'กรุณากรอกทุนทรัพย์เป็นจำนวนเงินตั้งแต่ 0 และทศนิยมไม่เกิน 2 ตำแหน่ง';
       if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
       if (!form.courtName) return 'กรุณาเลือกศาล';
       if (!CASE_NUMBER_REGEX.test(form.blackCaseNumber.trim()))
@@ -226,7 +246,7 @@ export default function NewCasePage() {
   };
 
   const handleSubmit = async () => {
-    if (!token || submittingRef.current) return;
+    if (!token || submittingRef.current || analysisBusy) return;
     for (const target of visibleSteps) {
       const message = validationMessage(target.value);
       if (message) {
@@ -247,15 +267,19 @@ export default function NewCasePage() {
         courtLevel: form.courtLevel,
         blackCaseNumber: form.blackCaseNumber.trim(),
         redCaseNumber: form.redCaseNumber.trim(),
+        claimedAmount: form.claimedAmount
+          ? Number(form.claimedAmount)
+          : undefined,
         estimatedFee: form.estimatedFee
           ? parseFloat(form.estimatedFee)
           : undefined,
         leadLawyerId: form.leadLawyerId,
         caseTypeId: form.caseTypeId,
         buddyIds: form.buddyIds.filter((id) => id !== form.leadLawyerId),
-        customFields: Object.keys(form.customFields).length
-          ? form.customFields
-          : undefined,
+        customFields: {
+          ...form.customFields,
+          [CASE_COSTS_KEY]: JSON.stringify(costLines),
+        },
       };
       if (form.clientId) {
         payload.clientId = form.clientId;
@@ -278,7 +302,27 @@ export default function NewCasePage() {
           type: form.initialActivityType,
         };
       }
-      const created = (await api.createCase(token, payload)) as { id: string };
+      const created = createdCaseId
+        ? { id: createdCaseId }
+        : ((await api.createCase(token, payload)) as { id: string });
+      setCreatedCaseId(created.id);
+      const failedFiles: File[] = [];
+      for (const file of files) {
+        try {
+          await api.uploadDocument(token, created.id, file);
+        } catch {
+          failedFiles.push(file);
+        }
+      }
+      setFiles(failedFiles);
+      if (failedFiles.length) {
+        setError(
+          `สร้างคดีแล้ว แต่แนบไฟล์ไม่สำเร็จ ${failedFiles.length} ไฟล์ กดอีกครั้งเพื่อแนบไฟล์ที่เหลือ โดยไม่สร้างคดีซ้ำ`,
+        );
+        submittingRef.current = false;
+        setSubmitting(false);
+        return;
+      }
       router.push(`/cases/${created.id}`);
     } catch (err) {
       setError(
@@ -331,6 +375,22 @@ export default function NewCasePage() {
           ))}
         </ol>
       </nav>
+      <div className="mb-5">
+        <BatchAnalysisPanel
+          files={files}
+          onFilesChange={setFiles}
+          onBusyChange={setAnalysisBusy}
+          disabled={submitting || !!createdCaseId}
+          onUseSummary={(summary) =>
+            setForm((previous) => ({
+              ...previous,
+              description: [previous.description, summary]
+                .filter(Boolean)
+                .join('\n\n'),
+            }))
+          }
+        />
+      </div>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -340,7 +400,7 @@ export default function NewCasePage() {
         className="rounded-xl border border-border bg-card text-card-foreground shadow-soft"
       >
         <fieldset
-          disabled={submitting}
+          disabled={submitting || analysisBusy || !!createdCaseId}
           className="min-w-0 space-y-6 p-4 sm:p-6"
         >
           <div>
@@ -571,6 +631,39 @@ export default function NewCasePage() {
                 </div>
               </section>
 
+              <div>
+                <label htmlFor="claimed-amount" className={fieldLabel}>
+                  ทุนทรัพย์ (บาท)
+                </label>
+                <input
+                  id="claimed-amount"
+                  type="number"
+                  min="0"
+                  max={FEE_MAX}
+                  step="0.01"
+                  value={form.claimedAmount}
+                  onChange={(e) =>
+                    setForm({ ...form, claimedAmount: e.target.value })
+                  }
+                  className={inputClass}
+                  placeholder="ระบุจำนวนเงินที่เรียกร้อง"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  แยกจากค่าทนายและค่าใช้จ่ายดำเนินคดี
+                </p>
+              </div>
+              <details className="rounded-lg border border-border p-4">
+                <summary className="cursor-pointer text-sm font-medium">
+                  คำนวณค่าบริการและค่าไปศาล (ไม่บังคับ)
+                </summary>
+                <div className="mt-4">
+                  <CaseCostCalculator
+                    value={costLines}
+                    onChange={setCostLines}
+                    disabled={submitting || analysisBusy || !!createdCaseId}
+                  />
+                </div>
+              </details>
               <section
                 className="space-y-4 border-t border-border pt-5"
                 aria-labelledby="court-heading"
@@ -1000,6 +1093,16 @@ export default function NewCasePage() {
                 <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
                   {[
                     ['ชื่อคดี', form.title],
+                    [
+                      'ประมาณการค่าใช้จ่าย',
+                      `${(caseCostTotal(costLines).totalCents / 100).toLocaleString('th-TH')} บาท${caseCostTotal(costLines).incomplete ? ' (ยังกรอกอัตราไม่ครบ)' : ''}`,
+                    ],
+                    [
+                      'ทุนทรัพย์',
+                      form.claimedAmount
+                        ? `${Number(form.claimedAmount).toLocaleString('th-TH')} บาท`
+                        : 'ยังไม่ระบุ',
+                    ],
                     ['ประเภทคดี', selectedType?.name],
                     ['ลูกค้า', displayClientName()],
                     [
@@ -1074,7 +1177,7 @@ export default function NewCasePage() {
           <Button
             type="button"
             variant="outline"
-            disabled={submitting}
+            disabled={submitting || analysisBusy || !!createdCaseId}
             onClick={goBack}
           >
             {step === 0 ? 'ยกเลิก' : 'ย้อนกลับ'}
@@ -1082,10 +1185,19 @@ export default function NewCasePage() {
           <Button
             type="submit"
             disabled={
-              submitting || loadingTypes || (step === 0 && !caseTypes.length)
+              submitting ||
+              analysisBusy ||
+              loadingTypes ||
+              (step === 0 && !caseTypes.length)
             }
           >
-            {submitting ? 'กำลังสร้าง…' : step === 3 ? 'สร้างคดี' : 'ถัดไป'}
+            {submitting
+              ? 'กำลังบันทึก…'
+              : step === 3
+                ? createdCaseId
+                  ? 'แนบไฟล์ที่เหลืออีกครั้ง'
+                  : 'สร้างคดี'
+                : 'ถัดไป'}
           </Button>
         </div>
       </form>

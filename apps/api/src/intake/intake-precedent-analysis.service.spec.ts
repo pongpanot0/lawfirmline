@@ -200,6 +200,42 @@ describe('IntakePrecedentAnalysisService', () => {
       expect(facts.attachmentExtractionFailed).toBe(true);
     });
 
+    it('parses markdown-fenced JSON and coerces array summaryBullets into a string', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue(baseIntake);
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ choices: [{ message: { content: 'คำค้น' } }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  content:
+                    '```json\n{"summaryBullets":["ฎ. 224/2567: หัวข้อหนึ่ง","ฎ. 100/2566: หัวข้อสอง"],"noticeFacts":"คู่กรณี: บริษัท เอบีซี จำกัด"}\n```',
+                },
+              },
+            ],
+          }),
+        });
+
+      mockIapp.searchPrecedents.mockResolvedValue([]);
+      mockPrisma.intakePrecedentAnalysis.create.mockImplementation(({ data }: any) => ({
+        id: 'analysis-fenced',
+        ...data,
+      }));
+
+      const result = await service.analyze(user, 'intake-1');
+
+      const summarizeBody = JSON.parse((global.fetch as jest.Mock).mock.calls[1][1].body);
+      expect(summarizeBody.response_format).toEqual({ type: 'json_object' });
+      expect(result.summaryBullets).toBe('ฎ. 224/2567: หัวข้อหนึ่ง\nฎ. 100/2566: หัวข้อสอง');
+      expect(result.noticeFacts).toBe('คู่กรณี: บริษัท เอบีซี จำกัด');
+    });
+
     it('throws BadRequestException (charging nothing) when the only attachment fails to extract and there are no other facts', async () => {
       // Passes the pre-gatherFacts guard (one attachment exists) but every fact
       // field is empty and extraction fails, so factsText ends up blank — the

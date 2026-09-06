@@ -184,7 +184,7 @@ export class ClientPortalService {
         },
       },
     });
-    if (!document) throw new NotFoundException('Document not found');
+    if (!document || !document.case) throw new NotFoundException('Document not found');
 
     await this.prisma.auditLog.create({
       data: {

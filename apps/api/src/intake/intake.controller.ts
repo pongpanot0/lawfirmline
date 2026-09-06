@@ -1,3 +1,4 @@
+import { SelectedAttachmentsDto } from './dto/selected-attachments.dto';
 import {
   Controller,
   Get,
@@ -147,8 +148,8 @@ export class IntakeController {
   @Post(':id/precedent-analysis')
   @RequireCredits(PRECEDENT_ANALYSIS_COST)
   @UseInterceptors(AiCreditsInterceptor)
-  runPrecedentAnalysis(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.precedentAnalysisService.analyze(user, id);
+  runPrecedentAnalysis(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SelectedAttachmentsDto) {
+    return this.precedentAnalysisService.analyze(user, id, dto?.attachmentIds);
   }
 
   @Get(':id/precedent-analysis')
