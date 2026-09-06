@@ -44,6 +44,12 @@ import { Input } from '@/components/ui/input';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/misc';
 
+const TASK_STATUS_LABELS: Record<string, string> = {
+  TODO: 'ยังไม่เริ่ม',
+  IN_PROGRESS: 'กำลังทำ',
+  DONE: 'เสร็จแล้ว',
+};
+
 const ACTIVITY_LABELS: Record<string, string> = {
   COURT_DATE: 'Court Date / นัดศาล',
   CLIENT_MEETING: 'Client Meeting / นัดลูกค้า',
@@ -339,18 +345,18 @@ export default function CaseDetailPage() {
   };
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (!legalCase) return <p className="text-destructive">Case not found</p>;
+  if (!legalCase) return <p className="text-destructive">Case not found / ไม่พบคดี</p>;
 
   const customFields = legalCase.customFields as Record<string, string> | null;
   const clientDisplay = legalCase.client?.name ?? legalCase.clientName ?? '—';
   const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'tasks', label: 'Tasks', href: `/cases/${id}/tasks` },
-    { id: 'calendar', label: 'Calendar', href: `/cases/${id}/calendar` },
-    { id: 'documents', label: 'Documents', href: `/cases/${id}/documents` },
-    { id: 'billing', label: 'Billing', href: `/cases/${id}/billing` },
-    { id: 'insurance', label: 'Insurance', href: `/cases/${id}/insurance` },
-    { id: 'messages', label: 'Messages', href: `/cases/${id}/messages` },
+    { id: 'overview', label: 'ภาพรวม' },
+    { id: 'tasks', label: 'งาน', href: `/cases/${id}/tasks` },
+    { id: 'calendar', label: 'ปฏิทิน', href: `/cases/${id}/calendar` },
+    { id: 'documents', label: 'เอกสาร', href: `/cases/${id}/documents` },
+    { id: 'billing', label: 'ค่าใช้จ่าย', href: `/cases/${id}/billing` },
+    { id: 'insurance', label: 'ประกัน', href: `/cases/${id}/insurance` },
+    { id: 'messages', label: 'ข้อความ', href: `/cases/${id}/messages` },
     {
       id: 'closing-report',
       label: 'รายงานปิดงาน',
@@ -473,7 +479,7 @@ export default function CaseDetailPage() {
         <div className="lg:col-span-3 space-y-4">
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm">Case Overview</CardTitle>
+              <CardTitle className="text-sm">Case Overview / ภาพรวมคดี</CardTitle>
               {!editingOverview && (
                 <Button
                   size="sm"
@@ -511,7 +517,7 @@ export default function CaseDetailPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Case Type</label>
+                    <label className="text-xs text-muted-foreground">Case Type / ประเภทคดี</label>
                     <select
                       value={overviewForm.caseTypeId}
                       onChange={(e) => setOverviewForm({ ...overviewForm, caseTypeId: e.target.value })}
@@ -617,7 +623,7 @@ export default function CaseDetailPage() {
                 <p className="font-medium">{legalCase.customerRef ?? '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Case Type</p>
+                <p className="text-xs text-muted-foreground">Case Type / ประเภทคดี</p>
                 <p className="font-medium">{legalCase.caseType?.name ?? '—'}</p>
               </div>
               <div>
@@ -757,7 +763,7 @@ export default function CaseDetailPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Approved Expenses</p>
+                <p className="text-xs text-muted-foreground">Approved Expenses / ค่าใช้จ่ายที่อนุมัติ</p>
                 <p className="font-medium text-primary">{formatCurrency(totalSpent)}</p>
               </div>
               {customFields && Object.entries(customFields).map(([k, v]) => (
@@ -777,7 +783,7 @@ export default function CaseDetailPage() {
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-sm">Case Timeline / ไทม์ไลน์คดี</CardTitle>
               <Button variant="outline" size="sm" onClick={openActivityForm}>
-                <Plus className="h-3 w-3" />Add Activity
+                <Plus className="h-3 w-3" />Add Activity / เพิ่มกิจกรรม
               </Button>
             </CardHeader>
             <CardContent>
@@ -798,7 +804,7 @@ export default function CaseDetailPage() {
                   />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="text-xs text-muted-foreground">Type</label>
+                      <label className="text-xs text-muted-foreground">Type / ประเภท</label>
                       <select
                         value={activityForm.type}
                         onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
@@ -810,7 +816,7 @@ export default function CaseDetailPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Date & Time</label>
+                      <label className="text-xs text-muted-foreground">Date & Time / วันที่และเวลา</label>
                       <Input
                         required
                         type="datetime-local"
@@ -821,7 +827,7 @@ export default function CaseDetailPage() {
                     </div>
                   </div>
                   <textarea
-                    placeholder="Description (optional)"
+                    placeholder="Description (optional) / รายละเอียด (ไม่บังคับ)"
                     value={activityForm.description}
                     onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
                     rows={2}
@@ -868,7 +874,7 @@ export default function CaseDetailPage() {
 
           {legalCase.description && (
             <Card>
-              <CardHeader><CardTitle className="text-sm">Description</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">Description / รายละเอียด</CardTitle></CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">{legalCase.description}</p>
               </CardContent>
@@ -879,25 +885,25 @@ export default function CaseDetailPage() {
         <div className="lg:col-span-4 space-y-4">
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-sm">Upcoming Tasks</CardTitle>
-              <Link href={`/cases/${id}/tasks`} className="text-xs text-primary hover:underline">View all</Link>
+              <CardTitle className="text-sm">Upcoming Tasks / งานที่จะถึง</CardTitle>
+              <Link href={`/cases/${id}/tasks`} className="text-xs text-primary hover:underline">ดูทั้งหมด</Link>
             </CardHeader>
             <CardContent className="space-y-2">
               {tasks.slice(0, 4).map((t) => (
                 <div key={t.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
                   <CheckSquare className="h-4 w-4 text-muted-foreground" />
                   <span className="flex-1 truncate">{t.title}</span>
-                  <span className="text-xs text-muted-foreground">{t.status}</span>
+                  <span className="text-xs text-muted-foreground">{TASK_STATUS_LABELS[t.status] ?? t.status}</span>
                 </div>
               ))}
               {tasks.length === 0 && (
-                <p className="text-sm text-muted-foreground">No tasks assigned</p>
+                <p className="text-sm text-muted-foreground">ยังไม่มีงานที่มอบหมาย</p>
               )}
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">Calendar</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">Calendar / ปฏิทิน</CardTitle></CardHeader>
             <CardContent>
               {(legalCase.calendarEvents ?? []).length > 0 ? (
                 (legalCase.calendarEvents ?? []).slice(0, 3).map((e) => (
@@ -907,26 +913,26 @@ export default function CaseDetailPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">No upcoming events</p>
+                <p className="text-sm text-muted-foreground">ไม่มีนัดที่จะถึง</p>
               )}
               <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => router.push(`/cases/${id}/calendar`)}>
-                <CalendarDays className="h-4 w-4" />Open Calendar
+                <CalendarDays className="h-4 w-4" />เปิดปฏิทิน
               </Button>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">Quick Notes</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">Quick Notes / บันทึกย่อ</CardTitle></CardHeader>
             <CardContent>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Add a quick note..."
+                placeholder="เพิ่มบันทึกย่อ..."
                 rows={3}
                 className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <Button size="sm" className="mt-2" variant="secondary">
-                <StickyNote className="h-4 w-4" />Save Note
+                <StickyNote className="h-4 w-4" />Save Note / บันทึก
               </Button>
             </CardContent>
           </Card>

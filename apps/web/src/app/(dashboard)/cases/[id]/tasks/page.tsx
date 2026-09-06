@@ -3,12 +3,18 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { Plus, ArrowLeft } from 'lucide-react';
 import { TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, TaskItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 export default function CaseTasksPage() {
+  const d = useDashboardT();
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -44,44 +50,39 @@ export default function CaseTasksPage() {
     loadTasks();
   };
 
-  if (loading) return <p className="text-slate-500">Loading tasks...</p>;
+  if (loading) return <p className="text-muted-foreground">{d.caseTasks.loading}</p>;
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <Link href={`/cases/${id}`} className="text-sm text-brand-600 hover:underline">
-            ← Back to case
+          <Link href={`/cases/${id}`} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+            <ArrowLeft className="h-4 w-4" />
+            {d.messages.backToCase.replace('← ', '')}
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-slate-900">Task Board</h1>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-foreground">{d.caseTasks.title}</h1>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          + Add Task
-        </button>
+        <Button size="sm" onClick={() => setShowForm(!showForm)}>
+          <Plus className="h-4 w-4" />
+          {d.caseTasks.addTask}
+        </Button>
       </div>
 
       {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="mb-6 flex gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-        >
-          <input
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="Task title..."
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            required
-          />
-          <button
-            type="submit"
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700"
-          >
-            Create
-          </button>
-        </form>
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <form onSubmit={handleCreate} className="flex gap-3">
+              <Input
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder={d.caseTasks.titlePlaceholder}
+                className="flex-1"
+                required
+              />
+              <Button type="submit" size="sm">{d.caseTasks.create}</Button>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       <KanbanBoard tasks={tasks} onStatusChange={handleStatusChange} />

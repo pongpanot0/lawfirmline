@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, CalendarEventItem } from '@/lib/api';
 import { CalendarView } from '@/components/CalendarView';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 export default function CaseCalendarPage() {
+  const d = useDashboardT();
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
@@ -28,14 +31,15 @@ export default function CaseCalendarPage() {
       .finally(() => setLoading(false));
   }, [token, id, month]);
 
-  if (loading) return <p className="text-slate-500">Loading calendar...</p>;
+  if (loading) return <p className="text-muted-foreground">{d.calendar.loading}</p>;
 
   return (
     <div>
-      <Link href={`/cases/${id}`} className="text-sm text-brand-600 hover:underline">
-        ← Back to case
+      <Link href={`/cases/${id}`} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+        <ArrowLeft className="h-4 w-4" />
+        {d.messages.backToCase.replace('← ', '')}
       </Link>
-      <h1 className="mt-2 mb-6 text-2xl font-bold text-slate-900">Case Calendar</h1>
+      <h1 className="mt-2 mb-6 text-2xl font-bold tracking-tight text-foreground">{d.caseCalendar.title}</h1>
       <CalendarView
         events={events}
         month={month}

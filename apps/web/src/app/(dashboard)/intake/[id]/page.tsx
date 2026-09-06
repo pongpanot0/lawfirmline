@@ -324,7 +324,7 @@ export default function IntakeDetailPage() {
 
         {intake.noticeIssuedAt && (
           <Card>
-            <CardHeader><CardTitle className="text-base">Notice</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">หนังสือแจ้ง</CardTitle></CardHeader>
             <CardContent className="space-y-0">
               <InfoRow label="ออกเมื่อ" value={formatDate(intake.noticeIssuedAt)} />
               <InfoRow label="ผู้รับ" value={intake.noticeRecipient} />
