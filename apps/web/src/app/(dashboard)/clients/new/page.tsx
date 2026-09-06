@@ -83,7 +83,7 @@ export default function NewClientPage() {
       });
       router.push(`/clients?id=${created.id}`);
     } catch {
-      setError('Failed to create client. Please try again.');
+      setError('Failed to create client. Please try again. / สร้างลูกค้าไม่สำเร็จ กรุณาลองใหม่');
     } finally {
       setSubmitting(false);
     }
