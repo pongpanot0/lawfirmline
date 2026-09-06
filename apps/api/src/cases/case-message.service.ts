@@ -1,10 +1,12 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { AuthUser } from '@lawfirm/shared';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { LineLinkService } from '../notifications/line-link.service';
 import { PortalIdentity } from '../client-portal/client-portal-jwt.strategy';
+import { CaseMessageRateLimiterService } from './case-message-rate-limiter.service';
 
 @Injectable()
 export class CaseMessageService {
@@ -15,6 +17,7 @@ export class CaseMessageService {
     private readonly caseAccess: CaseAccessService,
     private readonly lineMessaging: LineMessagingService,
     private readonly lineLink: LineLinkService,
+    private readonly rateLimiter: CaseMessageRateLimiterService,
   ) {}
 
   async listForStaff(user: AuthUser, caseId: string) {
@@ -31,8 +34,19 @@ export class CaseMessageService {
     const allowed = await this.caseAccess.canAccessCase(user, caseId);
     if (!allowed) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงคดีนี้');
 
+    if (!this.rateLimiter.recordSend(user.id)) {
+      throw new BadRequestException('ส่งข้อความบ่อยเกินไป กรุณาลองใหม่ภายหลัง');
+    }
+
     const message = await this.prisma.caseMessage.create({
       data: { caseId, senderType: 'STAFF', senderUserId: user.id, body },
+    });
+
+    await this.writeAuditLog({
+      firmId: user.firmId,
+      userId: user.id,
+      action: 'CASE_MESSAGE_SENT',
+      metadata: { caseId, messageId: message.id, senderType: 'STAFF' },
     });
 
     await this.notifyContacts(caseId, body);
@@ -72,13 +86,42 @@ export class CaseMessageService {
   async createFromPortal(portalUser: PortalIdentity, caseId: string, body: string) {
     await this.verifyPortalAccess(portalUser, caseId);
 
+    if (!this.rateLimiter.recordSend(portalUser.clientContactId)) {
+      throw new BadRequestException('ส่งข้อความบ่อยเกินไป กรุณาลองใหม่ภายหลัง');
+    }
+
     const message = await this.prisma.caseMessage.create({
       data: { caseId, senderType: 'CONTACT', senderContactId: portalUser.clientContactId, body },
+    });
+
+    await this.writeAuditLog({
+      firmId: portalUser.firmId,
+      userId: null,
+      action: 'CASE_MESSAGE_SENT',
+      metadata: {
+        caseId,
+        messageId: message.id,
+        senderType: 'CONTACT',
+        clientContactId: portalUser.clientContactId,
+      },
     });
 
     await this.notifyStaff(caseId, body);
 
     return message;
+  }
+
+  private async writeAuditLog(data: {
+    firmId: string;
+    userId: string | null;
+    action: string;
+    metadata: Prisma.InputJsonValue;
+  }) {
+    try {
+      await this.prisma.auditLog.create({ data });
+    } catch (err) {
+      this.logger.error('Failed to write audit log for case message', err as Error);
+    }
   }
 
   private async notifyContacts(caseId: string, body: string) {

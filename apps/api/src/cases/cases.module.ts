@@ -8,6 +8,7 @@ import { CaseParticipantsController } from './case-participants.controller';
 import { ContactCaseAccessService } from './contact-case-access.service';
 import { ContactCaseAccessController } from './contact-case-access.controller';
 import { CaseMessageService } from './case-message.service';
+import { CaseMessageRateLimiterService } from './case-message-rate-limiter.service';
 import { CaseMessageController } from './case-message.controller';
 import { CalendarModule } from '../calendar/calendar.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -28,6 +29,7 @@ import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
     CaseParticipantsService,
     ContactCaseAccessService,
     CaseMessageService,
+    CaseMessageRateLimiterService,
     FirmRoleGuard,
   ],
   exports: [CasesService, CaseMessageService],
