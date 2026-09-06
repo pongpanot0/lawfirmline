@@ -14,6 +14,7 @@ const STATUS_LABELS: Record<string, string> = {
   ACCEPTED: 'รับเป็นคดี',
   REJECTED: 'ปฏิเสธ',
   CONVERTED: 'แปลงเป็นคดีแล้ว',
+  CONSULTED: 'ให้คำปรึกษาเรียบร้อยแล้ว',
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -22,6 +23,7 @@ const STATUS_COLOR: Record<string, string> = {
   ACCEPTED: 'bg-green-100 text-green-700',
   REJECTED: 'bg-red-100 text-red-700',
   CONVERTED: 'bg-purple-100 text-purple-700',
+  CONSULTED: 'bg-slate-100 text-slate-700',
 };
 
 const DRAFT_NOTICE_COST = 5;
@@ -32,6 +34,7 @@ const DECISION_LABELS: Record<string, string> = {
   NEGOTIATE_FIRST: 'เจรจาก่อน',
   SEND_NOTICE: 'ออก Notice',
   COMPLAIN_TO_AUTHORITY: 'ร้องเรียน',
+  CONSULTATION_ONLY: 'ให้คำปรึกษาเท่านั้น (ไม่รับเป็นคดี)',
   PENDING: 'รอตัดสินใจ',
 };
 
@@ -352,15 +355,22 @@ export default function IntakeDetailPage() {
             <Button variant="outline">ดูคดี {intake.case.ownRef}</Button>
           </Link>
         )}
-        {intake.status !== 'REJECTED' && intake.status !== 'CONVERTED' && (
-          <Button
-            variant="outline"
-            onClick={handleRunPrecedentAnalysis}
-            disabled={analyzing}
-          >
-            {analyzing ? 'กำลังวิเคราะห์...' : 'วิเคราะห์ฎีกา + เตรียมข้อมูล Notice'}
-          </Button>
+        {!intake.case && intake.relatedCase && (
+          <Link href={`/cases/${intake.relatedCase.id}`}>
+            <Button variant="outline">ดูคดีที่เกี่ยวข้อง {intake.relatedCase.ownRef}</Button>
+          </Link>
         )}
+        {intake.status !== 'REJECTED' &&
+          intake.status !== 'CONVERTED' &&
+          intake.status !== 'CONSULTED' && (
+            <Button
+              variant="outline"
+              onClick={handleRunPrecedentAnalysis}
+              disabled={analyzing}
+            >
+              {analyzing ? 'กำลังวิเคราะห์...' : 'วิเคราะห์ฎีกา + เตรียมข้อมูล Notice'}
+            </Button>
+          )}
       </div>
 
       {error && (
