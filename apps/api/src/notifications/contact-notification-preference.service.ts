@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { NotificationChannel } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 
 @Injectable()
@@ -12,7 +13,7 @@ export class ContactNotificationPreferenceService {
     });
   }
 
-  async setForContact(clientContactId: string, channel: 'EMAIL' | 'LINE', isEnabled: boolean) {
+  async setForContact(clientContactId: string, channel: NotificationChannel, isEnabled: boolean) {
     return this.prisma.contactNotificationPreference.upsert({
       where: { clientContactId_channel: { clientContactId, channel } },
       create: { clientContactId, channel, isEnabled },
@@ -20,7 +21,7 @@ export class ContactNotificationPreferenceService {
     });
   }
 
-  async isChannelEnabled(clientContactId: string, channel: 'EMAIL' | 'LINE'): Promise<boolean> {
+  async isChannelEnabled(clientContactId: string, channel: NotificationChannel): Promise<boolean> {
     const pref = await this.prisma.contactNotificationPreference.findUnique({
       where: { clientContactId_channel: { clientContactId, channel } },
     });

@@ -102,6 +102,11 @@ enum ReferralChannel {
   PORTAL
 }
 
+enum NotificationChannel {
+  EMAIL
+  LINE
+}
+
 enum ParticipantRole {
   PLAINTIFF
   DEFENDANT
@@ -949,7 +954,7 @@ model ContactCaseAccess {
 model ContactNotificationPreference {
   id              String  @id @default(uuid())
   clientContactId String
-  channel         String  // "EMAIL" | "LINE"
+  channel         NotificationChannel
   isEnabled       Boolean @default(true)
 
   clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)

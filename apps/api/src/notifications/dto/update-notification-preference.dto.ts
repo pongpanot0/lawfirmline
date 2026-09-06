@@ -1,8 +1,9 @@
-import { IsBoolean, IsIn } from 'class-validator';
+import { IsBoolean, IsEnum } from 'class-validator';
+import { NotificationChannel } from '../../generated/prisma';
 
 export class UpdateNotificationPreferenceDto {
-  @IsIn(['EMAIL', 'LINE'])
-  channel!: 'EMAIL' | 'LINE';
+  @IsEnum(NotificationChannel)
+  channel!: NotificationChannel;
 
   @IsBoolean()
   isEnabled!: boolean;
