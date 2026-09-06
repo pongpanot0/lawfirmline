@@ -56,4 +56,21 @@ describe('ContactNotificationPreferenceService', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('getEnabledMap', () => {
+    it('returns a map defaulting to true for contacts with no preference row, and the stored value for those with one', async () => {
+      mockPrisma.contactNotificationPreference.findMany.mockResolvedValue([
+        { clientContactId: 'contact-2', isEnabled: false },
+      ]);
+
+      const result = await service.getEnabledMap(['contact-1', 'contact-2'], 'LINE' as any);
+
+      expect(mockPrisma.contactNotificationPreference.findMany).toHaveBeenCalledWith({
+        where: { clientContactId: { in: ['contact-1', 'contact-2'] }, channel: 'LINE' },
+        select: { clientContactId: true, isEnabled: true },
+      });
+      expect(result.get('contact-1')).toBe(true);
+      expect(result.get('contact-2')).toBe(false);
+    });
+  });
 });

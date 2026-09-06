@@ -24,7 +24,7 @@ describe('DocumentPublicationService', () => {
     contactCaseAccess: { findMany: jest.fn() },
   };
   const defaultMockLine = { pushTo: jest.fn() };
-  const defaultMockPrefs = { isChannelEnabled: jest.fn() };
+  const defaultMockPrefs = { getEnabledMap: jest.fn() };
   const defaultMockEmail = { sendDocumentPublishedEmail: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
@@ -153,7 +153,7 @@ describe('DocumentPublicationService', () => {
 
   describe('publish notification dispatch', () => {
     const mockLine = { pushTo: jest.fn() };
-    const mockPrefs = { isChannelEnabled: jest.fn() };
+    const mockPrefs = { getEnabledMap: jest.fn() };
     const mockEmail = { sendDocumentPublishedEmail: jest.fn() };
 
     beforeEach(async () => {
@@ -179,12 +179,12 @@ describe('DocumentPublicationService', () => {
       mockPrisma.documentPublication.create.mockResolvedValue({ id: 'pub-1', title: 'สรุปคดี' });
       mockPrisma.contactCaseAccess.findMany.mockResolvedValue([{ clientContactId: 'contact-1' }]);
       mockPrisma.clientContact.findMany.mockResolvedValue([{ id: 'contact-1', lineUserId: 'U123' }]);
-      mockPrefs.isChannelEnabled.mockResolvedValue(true);
+      mockPrefs.getEnabledMap.mockResolvedValue(new Map([['contact-1', true]]));
       mockLine.pushTo.mockResolvedValue(true);
 
       await service.publish(user, 'case-1', 'doc-1', {});
 
-      expect(mockPrefs.isChannelEnabled).toHaveBeenCalledWith('contact-1', 'LINE');
+      expect(mockPrefs.getEnabledMap).toHaveBeenCalledWith(['contact-1'], 'LINE');
       expect(mockLine.pushTo).toHaveBeenCalledWith('U123', expect.stringContaining('สรุปคดี'));
     });
 
@@ -195,7 +195,7 @@ describe('DocumentPublicationService', () => {
       mockPrisma.documentPublication.create.mockResolvedValue({ id: 'pub-1', title: 'x' });
       mockPrisma.contactCaseAccess.findMany.mockResolvedValue([{ clientContactId: 'contact-1' }]);
       mockPrisma.clientContact.findMany.mockResolvedValue([{ id: 'contact-1', lineUserId: 'U123' }]);
-      mockPrefs.isChannelEnabled.mockResolvedValue(false);
+      mockPrefs.getEnabledMap.mockResolvedValue(new Map([['contact-1', false]]));
 
       await service.publish(user, 'case-1', 'doc-1', {});
 
@@ -219,7 +219,7 @@ describe('DocumentPublicationService', () => {
         const ids: string[] = where.id.in;
         return Promise.resolve(allContacts.filter((c) => ids.includes(c.id)));
       });
-      mockPrefs.isChannelEnabled.mockResolvedValue(true);
+      mockPrefs.getEnabledMap.mockResolvedValue(new Map([['contact-1', true]]));
       mockLine.pushTo.mockResolvedValue(true);
 
       await service.publish(user, 'case-1', 'doc-1', {
@@ -238,7 +238,7 @@ describe('DocumentPublicationService', () => {
       mockPrisma.documentPublication.create.mockResolvedValue({ id: 'pub-1', title: 'x' });
       mockPrisma.contactCaseAccess.findMany.mockResolvedValue([{ clientContactId: 'contact-1' }]);
       mockPrisma.clientContact.findMany.mockResolvedValue([{ id: 'contact-1', lineUserId: 'U123' }]);
-      mockPrefs.isChannelEnabled.mockResolvedValue(true);
+      mockPrefs.getEnabledMap.mockResolvedValue(new Map([['contact-1', true]]));
       mockLine.pushTo.mockRejectedValue(new Error('LINE API down'));
 
       await expect(service.publish(user, 'case-1', 'doc-1', {})).resolves.toEqual(
@@ -255,8 +255,8 @@ describe('DocumentPublicationService', () => {
       mockPrisma.clientContact.findMany.mockResolvedValue([
         { id: 'contact-1', lineUserId: null, email: 'client@example.com', name: 'คุณสมชาย' },
       ]);
-      mockPrefs.isChannelEnabled.mockImplementation((_id: string, channel: string) =>
-        Promise.resolve(channel === 'EMAIL'),
+      mockPrefs.getEnabledMap.mockImplementation((_ids: string[], channel: string) =>
+        Promise.resolve(new Map([['contact-1', channel === 'EMAIL']])),
       );
 
       await service.publish(user, 'case-1', 'doc-1', {});
@@ -279,7 +279,7 @@ describe('DocumentPublicationService', () => {
       mockPrisma.clientContact.findMany.mockResolvedValue([
         { id: 'contact-1', lineUserId: null, email: null, name: 'คุณสมชาย' },
       ]);
-      mockPrefs.isChannelEnabled.mockResolvedValue(true);
+      mockPrefs.getEnabledMap.mockResolvedValue(new Map([['contact-1', true]]));
 
       await service.publish(user, 'case-1', 'doc-1', {});
 

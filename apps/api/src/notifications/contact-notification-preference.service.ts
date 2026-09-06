@@ -27,4 +27,19 @@ export class ContactNotificationPreferenceService {
     });
     return pref ? pref.isEnabled : true;
   }
+
+  async getEnabledMap(
+    clientContactIds: string[],
+    channel: NotificationChannel,
+  ): Promise<Map<string, boolean>> {
+    const prefs = await this.prisma.contactNotificationPreference.findMany({
+      where: { clientContactId: { in: clientContactIds }, channel },
+      select: { clientContactId: true, isEnabled: true },
+    });
+    const map = new Map<string, boolean>(clientContactIds.map((id) => [id, true]));
+    for (const pref of prefs) {
+      map.set(pref.clientContactId, pref.isEnabled);
+    }
+    return map;
+  }
 }

@@ -113,10 +113,16 @@ export class DocumentPublicationService {
 
       const portalUrl = `${this.config.get<string>('APP_URL') ?? DEFAULT_APP_URL}/portal`;
 
+      const contactIds = contacts.map((c) => c.id);
+      const [lineEnabled, emailEnabled] = await Promise.all([
+        this.preferences.getEnabledMap(contactIds, NotificationChannel.LINE),
+        this.preferences.getEnabledMap(contactIds, NotificationChannel.EMAIL),
+      ]);
+
       for (const contact of contacts) {
         if (contact.lineUserId) {
           try {
-            const enabled = await this.preferences.isChannelEnabled(contact.id, NotificationChannel.LINE);
+            const enabled = lineEnabled.get(contact.id) ?? true;
             if (enabled) {
               await this.lineMessaging.pushTo(
                 contact.lineUserId,
@@ -130,7 +136,7 @@ export class DocumentPublicationService {
 
         if (contact.email) {
           try {
-            const enabled = await this.preferences.isChannelEnabled(contact.id, NotificationChannel.EMAIL);
+            const enabled = emailEnabled.get(contact.id) ?? true;
             if (enabled) {
               await this.emailService.sendDocumentPublishedEmail({
                 to: contact.email,
