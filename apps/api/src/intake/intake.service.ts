@@ -396,6 +396,11 @@ export class IntakeService {
       data: { caseId: newCase.id },
     });
 
+    await this.prisma.document.updateMany({
+      where: { intakeId: intake.id },
+      data: { caseId: newCase.id, intakeId: null },
+    });
+
     await this.prisma.intake.update({
       where: { id },
       data: { status: 'CONVERTED' as any },
@@ -487,6 +492,11 @@ export class IntakeService {
     await this.prisma.intakePrecedentAnalysis.updateMany({
       where: { intakeId: intake.id },
       data: { caseId: relatedCase.id },
+    });
+
+    await this.prisma.document.updateMany({
+      where: { intakeId: intake.id },
+      data: { caseId: relatedCase.id, intakeId: null },
     });
 
     await this.prisma.intake.update({

@@ -1063,6 +1063,31 @@ export const api = {
     });
   },
 
+  getIntakeDocuments: (token: string, intakeId: string) =>
+    request<DocumentItem[]>(`/intake/${intakeId}/documents`, { token }),
+
+  uploadIntakeDocument: (token: string, intakeId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<DocumentItem>(`/intake/${intakeId}/documents`, {
+      method: 'POST',
+      token,
+      body: form,
+    });
+  },
+
+  downloadIntakeDocument: (token: string, intakeId: string, documentId: string, version?: number) => {
+    const qs = version ? `?version=${version}` : '';
+    return fetchBlob(`/intake/${intakeId}/documents/${documentId}/download${qs}`, { token });
+  },
+
+  updateIntakeDocumentVisibility: (token: string, intakeId: string, documentId: string, visibleToClient: boolean) =>
+    request<DocumentItem>(`/intake/${intakeId}/documents/${documentId}/visibility`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ visibleToClient }),
+    }),
+
   downloadDocument: (
     token: string,
     caseId: string,

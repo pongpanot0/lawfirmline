@@ -606,6 +606,7 @@ model Intake {
   attachments            IntakeAttachment[]
   precedentAnalyses      IntakePrecedentAnalysis[]
   relatedCase            Case?                     @relation("CaseRelatedIntakes", fields: [relatedCaseId], references: [id])
+  documents              Document[]
 
   @@index([firmId])
   @@index([clientId])
@@ -744,7 +745,8 @@ model TaskAssignmentLog {
 
 model Document {
   id              String   @id @default(uuid())
-  caseId          String
+  caseId          String?
+  intakeId        String?
   filename        String
   storagePath     String
   mimeType        String
@@ -754,12 +756,15 @@ model Document {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  case            Case                     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  case            Case?                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  intake          Intake?                  @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   uploadedBy      User                     @relation(fields: [uploadedById], references: [id])
   versions        DocumentVersion[]
   knowledge       CaseKnowledge[]
   dateSuggestions DocumentDateSuggestion[]
   publications    DocumentPublication[]
+
+  @@index([intakeId])
 }
 
 model DocumentVersion {
