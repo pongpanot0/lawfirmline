@@ -1013,6 +1013,18 @@ export const api = {
     });
   },
 
+  analyzeExistingDocument: (token: string, caseId: string, documentId: string) =>
+    request<KnowledgeItem>(`/cases/${caseId}/documents/${documentId}/analyze`, {
+      method: 'POST',
+      token,
+    }),
+
+  extractDatesFromDocument: (token: string, caseId: string, documentId: string) =>
+    request<DateSuggestionItem[]>(`/cases/${caseId}/documents/${documentId}/extract-dates`, {
+      method: 'POST',
+      token,
+    }),
+
   getDateSuggestions: (token: string, caseId: string, status?: string) => {
     const qs = status ? `?status=${status}` : '';
     return request<DateSuggestionItem[]>(`/cases/${caseId}/date-suggestions${qs}`, { token });
