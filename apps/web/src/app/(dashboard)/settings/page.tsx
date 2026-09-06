@@ -10,8 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/misc';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fmt } from '@/lib/i18n/dashboard';
+import { formatDate } from '@/lib/utils';
 
 export default function SettingsPage() {
+  const d = useDashboardT();
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [lineStatus, setLineStatus] = useState<LineIntegrationStatus | null>(null);
@@ -103,66 +107,66 @@ export default function SettingsPage() {
   };
 
   const lineLabel = lineStatus?.configured
-    ? `Connected · Channel ${lineStatus.channelId} · ${lineStatus.deliveryMode}`
-    : 'Not configured';
+    ? fmt(d.settings.lineConnected, { channelId: lineStatus.channelId ?? '', mode: lineStatus.deliveryMode ?? '' })
+    : d.settings.lineNotConfigured;
 
   const personalLabel = linePersonal?.connected
-    ? `เชื่อมต่อแล้ว${linePersonal.connectedAt ? ` · ${new Date(linePersonal.connectedAt).toLocaleDateString('th-TH')}` : ''}`
+    ? `เชื่อมต่อแล้ว${linePersonal.connectedAt ? ` · ${formatDate(linePersonal.connectedAt)}` : ''}`
     : 'ยังไม่เชื่อมต่อ';
 
   return (
     <div>
-      <PageHeader title="Settings" description="Manage your account and firm preferences" />
+      <PageHeader title={d.settings.title} description={d.settings.description} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Profile</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{d.settings.profile}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-sm font-medium">First Name</label>
+                <label className="text-sm font-medium">{d.settings.firstName}</label>
                 <Input defaultValue={user?.firstName} className="mt-1" />
               </div>
               <div>
-                <label className="text-sm font-medium">Last Name</label>
+                <label className="text-sm font-medium">{d.settings.lastName}</label>
                 <Input defaultValue={user?.lastName} className="mt-1" />
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">{d.settings.email}</label>
               <Input defaultValue={user?.email} className="mt-1" disabled />
             </div>
-            <Button size="sm">Save Changes</Button>
+            <Button size="sm">{d.settings.saveChanges}</Button>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{d.settings.appearance}</CardTitle></CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {theme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
                 <div>
-                  <p className="text-sm font-medium">Theme</p>
-                  <p className="text-xs text-muted-foreground">{theme === 'dark' ? 'Dark mode' : 'Light mode (default)'}</p>
+                  <p className="text-sm font-medium">{d.settings.theme}</p>
+                  <p className="text-xs text-muted-foreground">{theme === 'dark' ? d.settings.darkMode : d.settings.lightModeDefault}</p>
                 </div>
               </div>
               <Button variant="outline" size="sm" onClick={toggleTheme}>
-                Switch to {theme === 'dark' ? 'Light' : 'Dark'}
+                {theme === 'dark' ? d.settings.switchToLight : d.settings.switchToDark}
               </Button>
             </div>
           </CardContent>
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Integrations</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{d.settings.integrations}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Bell className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">LINE Messaging API</p>
+                    <p className="text-sm font-medium">{d.settings.lineMessagingApi}</p>
                     <p className="text-xs text-muted-foreground">การตั้งค่าระบบแจ้งเตือน (Admin)</p>
                   </div>
                 </div>
@@ -173,7 +177,7 @@ export default function SettingsPage() {
               {lineStatus?.configured && user?.firmRole === 'OWNER' && (
                 <div className="mt-3 flex items-center gap-3">
                   <Button size="sm" variant="outline" onClick={handleLineTest} disabled={lineTesting}>
-                    {lineTesting ? 'Sending...' : 'Send test message'}
+                    {lineTesting ? d.settings.sending : d.settings.sendTestMessage}
                   </Button>
                   {lineTestResult && (
                     <p className="text-xs text-muted-foreground">{lineTestResult}</p>
@@ -267,9 +271,9 @@ export default function SettingsPage() {
             </div>
 
             {[
-              { icon: Building2, name: 'Google Maps', desc: 'Travel distance calculation', status: 'Optional' },
-              { icon: Sparkles, name: 'OpenAI GPT-4o', desc: 'Document analysis', status: 'Demo mode' },
-              { icon: Key, name: 'API Keys', desc: 'Manage external service keys', status: 'Admin only' },
+              { icon: Building2, name: d.settings.googleMapsName, desc: d.settings.googleMapsDesc, status: d.settings.optional },
+              { icon: Sparkles, name: d.settings.openAiName, desc: d.settings.openAiDesc, status: d.settings.demoMode },
+              { icon: Key, name: d.settings.apiKeysName, desc: d.settings.apiKeysDesc, status: d.settings.adminOnly },
             ].map((item) => {
               const Icon = item.icon;
               return (

@@ -189,9 +189,9 @@ export default function ClientsPage() {
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
-            <TabsTrigger value="information">Information</TabsTrigger>
-            <TabsTrigger value="contacts">Contacts</TabsTrigger>
-            <TabsTrigger value="cases">Cases</TabsTrigger>
+            <TabsTrigger value="information">{d.clients.information}</TabsTrigger>
+            <TabsTrigger value="contacts">{d.clients.contactsTab}</TabsTrigger>
+            <TabsTrigger value="cases">{d.clients.casesTab}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="information">
@@ -200,22 +200,22 @@ export default function ClientsPage() {
                 {primary?.email && (
                   <div className="flex items-center gap-3">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <div><p className="text-xs text-muted-foreground">Email</p><p className="text-sm">{primary.email}</p></div>
+                    <div><p className="text-xs text-muted-foreground">{d.clients.email}</p><p className="text-sm">{primary.email}</p></div>
                   </div>
                 )}
                 {primary?.phone && (
                   <div className="flex items-center gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    <div><p className="text-xs text-muted-foreground">Phone</p><p className="text-sm">{primary.phone}</p></div>
+                    <div><p className="text-xs text-muted-foreground">{d.clients.phone}</p><p className="text-sm">{primary.phone}</p></div>
                   </div>
                 )}
                 <div className="flex items-center gap-3">
                   <Building2 className="h-4 w-4 text-muted-foreground" />
-                  <div><p className="text-xs text-muted-foreground">Type</p><p className="text-sm">{selected.type === 'COMPANY' ? 'Company' : 'Individual'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">{d.clients.type}</p><p className="text-sm">{selected.type === 'COMPANY' ? d.clients.company : d.clients.individual}</p></div>
                 </div>
                 {selected.notes && (
                   <div className="sm:col-span-2">
-                    <p className="text-xs text-muted-foreground">Notes</p>
+                    <p className="text-xs text-muted-foreground">{d.clients.notes}</p>
                     <p className="text-sm">{selected.notes}</p>
                   </div>
                 )}
@@ -424,7 +424,7 @@ export default function ClientsPage() {
                 );
               })}
               {(selected.cases ?? []).length === 0 && (
-                <p className="text-sm text-muted-foreground">No cases linked yet</p>
+                <p className="text-sm text-muted-foreground">{d.clients.noCasesLinked}</p>
               )}
             </div>
           </TabsContent>
@@ -478,14 +478,14 @@ export default function ClientsPage() {
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold truncate">{client.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {client.contacts.length} contact{client.contacts.length !== 1 ? 's' : ''}
+                        {fmt(d.clients.contacts, { count: client.contacts.length })}
                       </p>
                     </div>
                   </div>
                   <div className="mt-4 space-y-1 text-xs text-muted-foreground">
                     {primary?.email && <p className="flex items-center gap-1"><Mail className="h-3 w-3" />{primary.email}</p>}
                     {primary?.phone && <p className="flex items-center gap-1"><Phone className="h-3 w-3" />{primary.phone}</p>}
-                    <p className="flex items-center gap-1"><Briefcase className="h-3 w-3" />{client._count?.cases ?? 0} cases</p>
+                    <p className="flex items-center gap-1"><Briefcase className="h-3 w-3" />{fmt(d.clients.casesCount, { count: client._count?.cases ?? 0 })}</p>
                   </div>
                 </CardContent>
               </Card>

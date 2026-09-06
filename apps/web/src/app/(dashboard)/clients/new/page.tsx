@@ -92,11 +92,11 @@ export default function NewClientPage() {
   return (
     <div className="w-full">
       <Link href="/clients" className="text-sm text-primary hover:underline">
-        ← Back to Clients
+        ← Back to Clients / กลับไปหน้าลูกค้า
       </Link>
       <PageHeader
         title="Add Client / เพิ่มลูกค้า"
-        description="Create a client with multiple contact persons"
+        description="Create a client with multiple contact persons / สร้างลูกค้าพร้อมผู้ติดต่อได้หลายคน"
       />
 
       <Card>
@@ -129,7 +129,7 @@ export default function NewClientPage() {
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-sm font-medium">Contacts / ผู้ติดต่อ *</label>
                 <Button type="button" variant="outline" size="sm" onClick={addContact}>
-                  <Plus className="h-3 w-3" />Add Contact
+                  <Plus className="h-3 w-3" />Add Contact / เพิ่มผู้ติดต่อ
                 </Button>
               </div>
               <div className="space-y-4">
@@ -137,7 +137,7 @@ export default function NewClientPage() {
                   <div key={index} className="rounded-lg border border-border p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-muted-foreground">
-                        Contact {index + 1}
+                        Contact / ผู้ติดต่อ {index + 1}
                       </span>
                       {form.contacts.length > 1 && (
                         <button
@@ -157,7 +157,7 @@ export default function NewClientPage() {
                     />
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Input
-                        placeholder="Email"
+                        placeholder="Email / อีเมล"
                         type="email"
                         value={contact.email ?? ''}
                         onChange={(e) => updateContact(index, 'email', e.target.value)}
@@ -195,7 +195,7 @@ export default function NewClientPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Notes</label>
+              <label className="text-sm font-medium">Notes / หมายเหตุ</label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -208,10 +208,10 @@ export default function NewClientPage() {
 
             <div className="flex gap-3">
               <Button type="button" variant="outline" onClick={() => router.push('/clients')}>
-                Cancel
+                Cancel / ยกเลิก
               </Button>
               <Button type="submit" disabled={submitting || !form.name.trim()}>
-                {submitting ? 'Saving...' : 'Create Client'}
+                {submitting ? 'Saving... / กำลังบันทึก...' : 'Create Client / สร้างลูกค้า'}
               </Button>
             </div>
           </form>
