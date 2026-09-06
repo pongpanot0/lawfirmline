@@ -414,3 +414,109 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
     );
   });
 });
+
+describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', () => {
+  let service: IntakeService;
+  const mockPrisma = {
+    intake: { findFirst: jest.fn(), update: jest.fn() },
+    firm: { findUnique: jest.fn() },
+    case: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    intakePrecedentAnalysis: { updateMany: jest.fn() },
+    caseAssignment: { createMany: jest.fn() },
+    calendarEvent: { create: jest.fn() },
+  };
+  const mockTasksService = { create: jest.fn() };
+  const mockConfig = { get: jest.fn() };
+  const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IntakeService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: TasksService, useValue: mockTasksService },
+        { provide: ConfigService, useValue: mockConfig },
+        { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+      ],
+    }).compile();
+    service = module.get(IntakeService);
+  });
+
+  it('attaches to the existing case and does not create a new one when relatedCaseId is set', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: 'case-1',
+      assignedUserIds: [],
+      deadlineDate: null,
+    });
+    mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', firmId: 'firm-1', title: 'คดีเดิม' });
+    mockPrisma.case.update.mockResolvedValue({ id: 'case-1', title: 'คดีเดิม' });
+
+    const result = await service.convertToCase(user, 'intake-1', {});
+
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+    expect(mockPrisma.case.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'case-1' } }),
+    );
+    expect(mockPrisma.intakePrecedentAnalysis.updateMany).toHaveBeenCalledWith({
+      where: { intakeId: 'intake-1' },
+      data: { caseId: 'case-1' },
+    });
+    expect(mockPrisma.intake.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'intake-1' }, data: { status: 'CONVERTED' } }),
+    );
+    expect(result).toEqual(expect.objectContaining({ id: 'case-1' }));
+  });
+
+  it('rejects conversion when relatedCaseId no longer belongs to the firm', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: 'case-1',
+    });
+    mockPrisma.case.findFirst.mockResolvedValue(null);
+
+    await expect(service.convertToCase(user, 'intake-1', {})).rejects.toThrow(
+      'ไม่พบคดีที่เลือกไว้ในสำนักงานนี้',
+    );
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+    expect(mockPrisma.case.update).not.toHaveBeenCalled();
+  });
+
+  it('appends isOngoingElsewhere/externalCaseNumber/currentStageNote to the new case description when creating a new case', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: null,
+      isOngoingElsewhere: true,
+      externalCaseNumber: 'ดำที่ 123/2569',
+      currentStageNote: 'นัดสืบพยาน 15 ต.ค.',
+      description: 'ลูกค้าถูกฟ้องเรียกค่าเสียหาย',
+      clientName: 'นายทดสอบ',
+      matterType: null,
+      assignedUserIds: [],
+      deadlineDate: null,
+      title: null,
+    });
+    mockPrisma.firm.findUnique.mockResolvedValue({ ownRefPrefix: 'TSBREF' });
+    mockPrisma.case.findMany.mockResolvedValue([]);
+    mockPrisma.case.create.mockResolvedValue({ id: 'case-new', leadLawyerId: 'user-1', title: 'คดีจาก Intake' });
+
+    await service.convertToCase(user, 'intake-1', {});
+
+    expect(mockPrisma.case.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          description: expect.stringContaining('ลูกค้าถูกฟ้องเรียกค่าเสียหาย'),
+        }),
+      }),
+    );
+    const createArg = mockPrisma.case.create.mock.calls[0][0];
+    expect(createArg.data.description).toContain('คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน');
+    expect(createArg.data.description).toContain('ดำที่ 123/2569');
+    expect(createArg.data.description).toContain('นัดสืบพยาน 15 ต.ค.');
+  });
+});
