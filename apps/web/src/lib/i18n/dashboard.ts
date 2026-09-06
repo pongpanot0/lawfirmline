@@ -326,6 +326,7 @@ export const dashboardCopy = {
       noTasks: 'ไม่มีงาน',
       due: 'ครบกำหนด {date}',
       handoffToSenior: 'ส่งต่อให้ Senior',
+      handoffReviewerPlaceholder: '-- เลือกผู้ตรวจ --',
       handoffNotePlaceholder: 'หมายเหตุ (ไม่บังคับ)',
       handoffSubmit: 'ส่งงาน',
       accept: 'รับงาน (ปิดงาน)',
@@ -333,6 +334,7 @@ export const dashboardCopy = {
       rejectReasonPlaceholder: 'เหตุผลที่ตีกลับ (จำเป็นต้องระบุ)',
       rejectSubmit: 'ยืนยันตีกลับ',
       cancel: 'ยกเลิก',
+      actionFailed: 'ดำเนินการไม่สำเร็จ กรุณาลองใหม่',
     },
     documents: {
       title: 'เอกสาร',
@@ -748,6 +750,7 @@ export const dashboardCopy = {
       noTasks: 'No tasks',
       due: 'Due {date}',
       handoffToSenior: 'Hand off to Senior',
+      handoffReviewerPlaceholder: '-- Select reviewer --',
       handoffNotePlaceholder: 'Note (optional)',
       handoffSubmit: 'Send',
       accept: 'Accept (Close)',
@@ -755,6 +758,7 @@ export const dashboardCopy = {
       rejectReasonPlaceholder: 'Reason for rejection (required)',
       rejectSubmit: 'Confirm reject',
       cancel: 'Cancel',
+      actionFailed: 'Action failed, please try again',
     },
     documents: {
       title: 'Documents',

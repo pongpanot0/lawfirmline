@@ -16,7 +16,12 @@ import {
 import { PrismaService } from '../prisma/prisma.module';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
-import { HandoffTaskDto, ReassignTaskDto, RejectTaskDto } from './dto/task-handoff.dto';
+import {
+  HandoffStandaloneTaskDto,
+  HandoffTaskDto,
+  ReassignTaskDto,
+  RejectTaskDto,
+} from './dto/task-handoff.dto';
 
 type CaseForAccess = { id: string; leadLawyerId: string };
 
@@ -328,6 +333,96 @@ export class TasksService {
       stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
     });
     await this.logActivity(caseId, `มอบหมายงาน "${task.title}" ใหม่`, user.id);
+
+    return this.findOne(taskId);
+  }
+
+  async handoffStandalone(taskId: string, user: AuthUser, dto: HandoffStandaloneTaskDto) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId: null } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    if (task.assigneeId !== user.id) {
+      throw new ForbiddenException('คุณไม่ใช่ผู้รับผิดชอบงานนี้');
+    }
+    if (dto.reviewerId === user.id) {
+      throw new BadRequestException('ไม่สามารถส่งงานให้ตัวเองตรวจได้');
+    }
+    const allowedStatuses: TaskStatus[] = [
+      TaskStatus.TODO,
+      TaskStatus.IN_PROGRESS,
+      TaskStatus.NEEDS_REVISION,
+    ];
+    if (!allowedStatuses.includes(task.status as TaskStatus)) {
+      throw new BadRequestException('งานนี้ไม่อยู่ในสถานะที่ส่งต่อได้');
+    }
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.PENDING_REVIEW, assigneeId: dto.reviewerId },
+    });
+
+    await this.logAssignment({
+      taskId,
+      action: TaskLogAction.HANDED_OFF,
+      fromUserId: user.id,
+      toUserId: dto.reviewerId,
+      performedById: user.id,
+      note: dto.note,
+      stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
+    });
+
+    return this.findOne(taskId);
+  }
+
+  async acceptStandalone(taskId: string, user: AuthUser) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId: null } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    if (task.assigneeId !== user.id) {
+      throw new ForbiddenException('คุณไม่ใช่ผู้ตรวจงานนี้');
+    }
+    if (task.status !== TaskStatus.PENDING_REVIEW) {
+      throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
+    }
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.DONE },
+    });
+
+    return this.findOne(taskId);
+  }
+
+  async rejectStandalone(taskId: string, user: AuthUser, dto: RejectTaskDto) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId: null } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    if (task.assigneeId !== user.id) {
+      throw new ForbiddenException('คุณไม่ใช่ผู้ตรวจงานนี้');
+    }
+    if (task.status !== TaskStatus.PENDING_REVIEW) {
+      throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
+    }
+
+    const lastHandoff = await this.prisma.taskAssignmentLog.findFirst({
+      where: { taskId, action: TaskLogAction.HANDED_OFF },
+      orderBy: { createdAt: 'desc' },
+    });
+    const returnToUserId = lastHandoff?.fromUserId ?? task.createdById;
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId },
+    });
+
+    await this.logAssignment({
+      taskId,
+      action: TaskLogAction.REJECTED,
+      fromUserId: user.id,
+      toUserId: returnToUserId,
+      performedById: user.id,
+      note: dto.reason,
+    });
 
     return this.findOne(taskId);
   }

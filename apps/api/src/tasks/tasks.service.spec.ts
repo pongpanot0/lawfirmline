@@ -261,4 +261,138 @@ describe('TasksService on-hold', () => {
       });
     });
   });
+
+  describe('handoffStandalone', () => {
+    it('throws ForbiddenException when the caller is not the current assignee', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({
+        id: 'task-1',
+        caseId: null,
+        assigneeId: 'other-user',
+        status: TaskStatus.IN_PROGRESS,
+      });
+
+      await expect(
+        service.handoffStandalone('task-1', user, { reviewerId: 'reviewer-1' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws BadRequestException when the chosen reviewer is the caller themselves', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({
+        id: 'task-1',
+        caseId: null,
+        assigneeId: 'user-1',
+        status: TaskStatus.IN_PROGRESS,
+      });
+
+      await expect(
+        service.handoffStandalone('task-1', user, { reviewerId: 'user-1' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('moves the task to PENDING_REVIEW, reassigns to the chosen reviewer, and logs the handoff', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({
+        id: 'task-1',
+        title: 'ร่างสัญญา',
+        caseId: null,
+        assigneeId: 'user-1',
+        status: TaskStatus.IN_PROGRESS,
+      });
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
+
+      await service.handoffStandalone('task-1', user, {
+        reviewerId: 'reviewer-1',
+        note: 'ช่วยตรวจให้หน่อย',
+      });
+
+      expect(mockPrisma.task.update).toHaveBeenCalledWith({
+        where: { id: 'task-1' },
+        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'reviewer-1' },
+      });
+      expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          taskId: 'task-1',
+          action: TaskLogAction.HANDED_OFF,
+          fromUserId: 'user-1',
+          toUserId: 'reviewer-1',
+          performedById: 'user-1',
+          note: 'ช่วยตรวจให้หน่อย',
+        }),
+      });
+    });
+  });
+
+  describe('acceptStandalone / rejectStandalone', () => {
+    const reviewer = { id: 'reviewer-1', firmId: 'firm-1' } as any;
+
+    it('acceptStandalone throws ForbiddenException for a user who is not the current assignee', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({
+        id: 'task-1',
+        caseId: null,
+        assigneeId: 'reviewer-1',
+        status: TaskStatus.PENDING_REVIEW,
+      });
+
+      await expect(service.acceptStandalone('task-1', user)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('acceptStandalone sets status to DONE for the chosen reviewer', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({
+        id: 'task-1',
+        title: 'ร่างสัญญา',
+        caseId: null,
+        assigneeId: 'reviewer-1',
+        status: TaskStatus.PENDING_REVIEW,
+      });
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
+
+      await service.acceptStandalone('task-1', reviewer);
+
+      expect(mockPrisma.task.update).toHaveBeenCalledWith({
+        where: { id: 'task-1' },
+        data: { status: TaskStatus.DONE },
+      });
+    });
+
+    it('rejectStandalone requires the task to be PENDING_REVIEW', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({
+        id: 'task-1',
+        caseId: null,
+        assigneeId: 'reviewer-1',
+        status: TaskStatus.TODO,
+      });
+
+      await expect(
+        service.rejectStandalone('task-1', reviewer, { reason: 'แก้คำผิด' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejectStandalone returns the task to whoever handed it off, with the reason logged', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({
+        id: 'task-1',
+        title: 'ร่างสัญญา',
+        caseId: null,
+        assigneeId: 'reviewer-1',
+        status: TaskStatus.PENDING_REVIEW,
+        createdById: 'user-1',
+      });
+      mockPrisma.taskAssignmentLog.findFirst.mockResolvedValue({ fromUserId: 'user-1' });
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
+
+      await service.rejectStandalone('task-1', reviewer, { reason: 'แก้คำผิด' });
+
+      expect(mockPrisma.task.update).toHaveBeenCalledWith({
+        where: { id: 'task-1' },
+        data: { status: TaskStatus.NEEDS_REVISION, assigneeId: 'user-1' },
+      });
+      expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: TaskLogAction.REJECTED,
+          toUserId: 'user-1',
+          note: 'แก้คำผิด',
+        }),
+      });
+    });
+  });
 });
