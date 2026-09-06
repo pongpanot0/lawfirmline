@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '@lawfirm/shared';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AssignmentType, ReferralChannel } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
@@ -17,6 +19,7 @@ import {
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 
 export const DRAFT_NOTICE_COST = 5;
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 @Injectable()
 export class IntakeService {
@@ -37,6 +40,7 @@ export class IntakeService {
     },
     client: { select: { id: true, name: true } },
     case: { select: { id: true, ownRef: true, title: true, status: true } },
+    attachments: { orderBy: { createdAt: 'desc' as const } },
   };
 
   async findAll(user: AuthUser, query: IntakeQueryDto) {
@@ -417,5 +421,53 @@ export class IntakeService {
     });
 
     return intake;
+  }
+
+  private getUploadDir() {
+    return this.config.get<string>('UPLOAD_DIR') ?? './uploads';
+  }
+
+  async uploadAttachment(user: AuthUser, intakeId: string, file: Express.Multer.File) {
+    const intake = await this.prisma.intake.findFirst({
+      where: { id: intakeId, firmId: user.firmId },
+    });
+    if (!intake) throw new NotFoundException('Intake not found');
+
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('รองรับเฉพาะไฟล์ PDF เท่านั้น');
+    }
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      throw new BadRequestException('ไฟล์มีขนาดใหญ่เกิน 10MB');
+    }
+
+    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId);
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const storagePath = path.join(uploadDir, `${fileId}.pdf`);
+    fs.writeFileSync(storagePath, file.buffer);
+
+    return this.prisma.intakeAttachment.create({
+      data: {
+        intakeId,
+        filename: file.originalname,
+        storagePath,
+        mimeType: file.mimetype,
+        uploadedById: user.id,
+      },
+    });
+  }
+
+  async deleteAttachment(user: AuthUser, intakeId: string, attachmentId: string) {
+    const attachment = await this.prisma.intakeAttachment.findFirst({
+      where: { id: attachmentId, intakeId },
+      include: { intake: { select: { firmId: true } } },
+    });
+    if (!attachment || attachment.intake.firmId !== user.firmId) {
+      throw new NotFoundException('Attachment not found');
+    }
+
+    fs.unlinkSync(attachment.storagePath);
+    await this.prisma.intakeAttachment.delete({ where: { id: attachmentId } });
   }
 }
