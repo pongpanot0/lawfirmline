@@ -192,7 +192,12 @@ export class IntakeService {
       IntakeDecision.SEND_NOTICE,
       IntakeDecision.COMPLAIN_TO_AUTHORITY,
     ];
-    const status = acceptedDecisions.includes(dto.decision) ? 'ACCEPTED' : 'REJECTED';
+    const status =
+      dto.decision === IntakeDecision.CONSULTATION_ONLY
+        ? 'CONSULTED'
+        : acceptedDecisions.includes(dto.decision)
+          ? 'ACCEPTED'
+          : 'REJECTED';
 
     return this.prisma.intake.update({
       where: { id },

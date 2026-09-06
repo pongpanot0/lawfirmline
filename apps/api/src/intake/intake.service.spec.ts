@@ -373,3 +373,44 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
     expect(mockPrisma.intake.create).toHaveBeenCalled();
   });
 });
+
+describe('IntakeService.decide — CONSULTATION_ONLY', () => {
+  let service: IntakeService;
+  const mockPrisma = {
+    intake: { findFirst: jest.fn(), update: jest.fn() },
+  };
+  const mockTasksService = { create: jest.fn() };
+  const mockConfig = { get: jest.fn() };
+  const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IntakeService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: TasksService, useValue: mockTasksService },
+        { provide: ConfigService, useValue: mockConfig },
+        { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+      ],
+    }).compile();
+    service = module.get(IntakeService);
+  });
+
+  it('sets status to CONSULTED, not REJECTED, when decision is CONSULTATION_ONLY', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1' });
+    mockPrisma.intake.update.mockResolvedValue({ id: 'intake-1', status: 'CONSULTED' });
+
+    await service.decide(user, 'intake-1', {
+      decision: 'CONSULTATION_ONLY' as any,
+      decisionNotes: 'ให้คำปรึกษาทางโทรศัพท์ ไม่ประสงค์ดำเนินคดี',
+    });
+
+    expect(mockPrisma.intake.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'CONSULTED', decision: 'CONSULTATION_ONLY' }),
+      }),
+    );
+  });
+});
