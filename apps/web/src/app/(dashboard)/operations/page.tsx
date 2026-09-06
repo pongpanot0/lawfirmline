@@ -144,7 +144,7 @@ export default function OperationsPage() {
   }, [enriched]);
 
   if (!isOwner) {
-    return <p className="text-destructive">Owner access only / เฉพาะเจ้าของสำนักงานเท่านั้น</p>;
+    return <p className="text-destructive">ไม่มีสิทธิ์เข้าถึง — เฉพาะเจ้าของสำนักงานเท่านั้น</p>;
   }
 
   return (
@@ -424,13 +424,13 @@ export default function OperationsPage() {
                         <TableCell>{item.followerName ?? '-'}</TableCell>
                         <TableCell>
                           {item.nextFollowUpAt
-                            ? new Date(item.nextFollowUpAt).toLocaleDateString('th-TH')
+                            ? new Date(item.nextFollowUpAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
                             : '-'}
                         </TableCell>
                         <TableCell>
                           {item.dueDate ? (
                             <Badge variant={item.isOverdue ? 'destructive' : 'muted'}>
-                              {new Date(item.dueDate).toLocaleDateString('th-TH')}
+                              {new Date(item.dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
                               {item.isOverdue ? ' เกินกำหนด' : ''}
                             </Badge>
                           ) : (
