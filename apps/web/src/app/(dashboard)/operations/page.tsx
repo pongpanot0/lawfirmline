@@ -162,7 +162,7 @@ export default function OperationsPage() {
           change={totalNearDeadline > 0 ? 'ต้องติดตาม' : undefined}
         />
         <KpiCard
-          label="งาน On Hold"
+          label="งานพักไว้"
           value={onHold.length}
           icon={PauseCircle}
           trend={overdueOnHoldCount > 0 ? 'down' : 'neutral'}
@@ -397,7 +397,7 @@ export default function OperationsPage() {
               {onHoldLoading ? (
                 <p className="p-6 text-sm text-muted-foreground">กำลังโหลด...</p>
               ) : onHold.length === 0 ? (
-                <EmptyState title="ไม่มีงาน On hold ในขณะนี้" />
+                <EmptyState title="ไม่มีงานที่พักไว้ในขณะนี้" />
               ) : (
                 <Table>
                   <TableHeader>

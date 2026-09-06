@@ -34,7 +34,7 @@ export function OnHoldResumeButton({
       await api.resumeTaskFromOnHold(token, caseId, taskId);
       onResumed();
     } catch {
-      setError('ไม่สามารถเคลียร์สถานะ On hold ได้ กรุณาลองใหม่');
+      setError('ไม่สามารถเคลียร์สถานะพักงานได้ กรุณาลองใหม่');
     } finally {
       setLoading(false);
     }
@@ -47,7 +47,7 @@ export function OnHoldResumeButton({
         onClick={handleResume}
         disabled={loading}
       >
-        {loading ? 'กำลังดำเนินการ...' : 'เคลียร์ On hold'}
+        {loading ? 'กำลังดำเนินการ...' : 'เคลียร์สถานะพักงาน'}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>
