@@ -59,7 +59,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           onSearchChange={setSearchQuery}
           onMenuClick={() => setMobileNavOpen(true)}
         />
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 scrollbar-thin">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 pb-24 sm:p-4 sm:pb-24 md:p-6 md:pb-24 lg:p-8 lg:pb-24 scrollbar-thin">
           {children}
         </main>
       </div>
