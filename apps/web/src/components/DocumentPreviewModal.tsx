@@ -57,13 +57,13 @@ export function DocumentPreviewModal({
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
             >
               <Download className="h-3.5 w-3.5" />
-              Download
+              ดาวน์โหลด
             </button>
             <button
               type="button"
               onClick={onClose}
               className="rounded-lg p-1.5 hover:bg-slate-100"
-              aria-label="Close preview"
+              aria-label="ปิดหน้าตัวอย่าง"
             >
               <X className="h-4 w-4" />
             </button>
@@ -82,14 +82,14 @@ export function DocumentPreviewModal({
             )
           ) : (
             <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-3 text-center">
-              <p className="text-sm text-slate-600">Preview is not available for this file type.</p>
+              <p className="text-sm text-slate-600">ไม่สามารถแสดงตัวอย่างไฟล์ประเภทนี้ได้</p>
               <button
                 type="button"
                 onClick={handleDownload}
                 className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
               >
                 <Download className="h-4 w-4" />
-                Download file
+                ดาวน์โหลดไฟล์
               </button>
             </div>
           )}

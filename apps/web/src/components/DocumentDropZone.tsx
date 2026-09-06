@@ -23,9 +23,9 @@ export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZ
       accept = '.pdf,.docx,.txt,.jpg,.jpeg,.png',
       loading,
       disabled,
-      label = 'Drop a document here or click to upload',
-      loadingLabel = 'Uploading...',
-      hint = 'PDF, DOCX, TXT, images',
+      label = 'ลากไฟล์มาวาง หรือคลิกที่นี่',
+      loadingLabel = 'กำลังอัปโหลด...',
+      hint = 'PDF, DOCX, TXT, รูปภาพ',
     },
     ref,
   ) {
