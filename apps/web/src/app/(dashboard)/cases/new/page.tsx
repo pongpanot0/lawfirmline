@@ -299,7 +299,7 @@ export default function NewCasePage() {
 
   // Hallmark · pre-emit critique: P4 H4 E4 S5 R5 V4 · existing LexFlow design tokens
   return (
-    <div className="mx-auto w-full max-w-4xl min-w-0 [overflow-wrap:anywhere]">
+    <div className="mx-auto w-full max-w-4xl min-w-0 pb-20 [overflow-wrap:anywhere]">
       <Link href="/cases" className="text-sm text-primary hover:underline">
         ← กลับไปหน้าคดี
       </Link>
@@ -1070,7 +1070,7 @@ export default function NewCasePage() {
             </div>
           )}
         </fieldset>
-        <div className="sticky bottom-20 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-border bg-card pl-4 pr-20 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-border bg-card pl-4 pr-20 py-4 sm:px-6">
           <Button
             type="button"
             variant="outline"
