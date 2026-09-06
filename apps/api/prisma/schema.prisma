@@ -187,6 +187,12 @@ enum KnowledgeCategory {
   OTHER
 }
 
+enum AnalysisStatus {
+  PENDING
+  COMPLETE
+  FAILED
+}
+
 enum ActivityType {
   COURT_DATE
   CLIENT_MEETING
@@ -366,6 +372,8 @@ model User {
   expenses            Expense[]
   paidExpenses        Expense[]            @relation("ExpensePaidBy")
   knowledge           CaseKnowledge[]
+  intakeAttachments       IntakeAttachment[]
+  intakePrecedentAnalyses IntakePrecedentAnalysis[]
   caseActivities      CaseActivity[]
   receivedIntakes     Intake[]             @relation("IntakeReceiver")
   assessedIntakes     Intake[]             @relation("IntakeAssessor")
@@ -521,6 +529,7 @@ model Case {
   expenses       Expense[]
   invoices       Invoice[]
   knowledge      CaseKnowledge[]
+  precedentAnalyses IntakePrecedentAnalysis[]
   dateSuggestions DocumentDateSuggestion[]
   closingEmailDrafts ClosingEmailDraft[]
   insuranceClaim InsuranceClaim?
@@ -575,9 +584,49 @@ model Intake {
   client     Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
   case       Case?
   portalIntakeSubmission PortalIntakeSubmission?
+  attachments        IntakeAttachment[]
+  precedentAnalyses  IntakePrecedentAnalysis[]
 
   @@index([firmId])
   @@index([clientId])
+}
+
+model IntakeAttachment {
+  id           String   @id @default(uuid())
+  intakeId     String
+  filename     String
+  storagePath  String
+  mimeType     String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  intake     Intake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  uploadedBy User   @relation(fields: [uploadedById], references: [id])
+
+  @@index([intakeId])
+}
+
+model IntakePrecedentAnalysis {
+  id             String         @id @default(uuid())
+  intakeId       String
+  caseId         String?
+  status         AnalysisStatus @default(PENDING)
+  extractedFacts Json
+  searchQueries  Json
+  precedents     Json
+  summaryBullets String         @db.Text
+  noticeFacts    String         @db.Text
+  creditsCost    Float
+  createdById    String
+  createdAt      DateTime       @default(now())
+  errorMessage   String?        @db.Text
+
+  intake    Intake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  case      Case?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([intakeId, createdAt])
+  @@index([caseId])
 }
 
 model CaseParticipant {

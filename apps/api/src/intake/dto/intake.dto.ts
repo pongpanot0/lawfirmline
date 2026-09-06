@@ -255,6 +255,12 @@ export class NoticeDto {
   noticeContentReviewed?: boolean;
 }
 
+export class DraftNoticeDto {
+  @IsOptional()
+  @IsUUID()
+  analysisId?: string;
+}
+
 export class ConvertToCaseDto {
   @IsOptional()
   @IsUUID()
