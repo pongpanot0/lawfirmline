@@ -42,6 +42,7 @@ export class IntakeService {
     },
     client: { select: { id: true, name: true } },
     case: { select: { id: true, ownRef: true, title: true, status: true } },
+    relatedCase: { select: { id: true, ownRef: true, title: true, status: true } },
     attachments: {
       orderBy: { createdAt: 'desc' as const },
       select: { id: true, filename: true, mimeType: true, createdAt: true },
@@ -90,6 +91,14 @@ export class IntakeService {
   }
 
   async create(user: AuthUser, dto: CreateIntakeDto) {
+    if (dto.relatedCaseId) {
+      const relatedCase = await this.prisma.case.findFirst({
+        where: { id: dto.relatedCaseId, firmId: user.firmId },
+      });
+      if (!relatedCase) {
+        throw new BadRequestException('ไม่พบคดีที่เลือกไว้ในสำนักงานนี้');
+      }
+    }
     return this.prisma.intake.create({
       data: {
         firmId: user.firmId,
@@ -108,6 +117,10 @@ export class IntakeService {
         estimatedDamage: dto.estimatedDamage,
         assignedUserIds: dto.assignedUserIds ?? [],
         deadlineDate: dto.deadlineDate ? new Date(dto.deadlineDate) : undefined,
+        relatedCaseId: dto.relatedCaseId,
+        isOngoingElsewhere: dto.isOngoingElsewhere ?? false,
+        externalCaseNumber: dto.externalCaseNumber,
+        currentStageNote: dto.currentStageNote,
       },
       include: this.intakeInclude,
     });
@@ -115,6 +128,14 @@ export class IntakeService {
 
   async update(user: AuthUser, id: string, dto: UpdateIntakeDto) {
     await this.findOne(user, id);
+    if (dto.relatedCaseId) {
+      const relatedCase = await this.prisma.case.findFirst({
+        where: { id: dto.relatedCaseId, firmId: user.firmId },
+      });
+      if (!relatedCase) {
+        throw new BadRequestException('ไม่พบคดีที่เลือกไว้ในสำนักงานนี้');
+      }
+    }
     return this.prisma.intake.update({
       where: { id },
       data: {
@@ -138,6 +159,10 @@ export class IntakeService {
         noticeRecipient: dto.noticeRecipient,
         noticeDeadline: dto.noticeDeadline ? new Date(dto.noticeDeadline) : undefined,
         noticeResult: dto.noticeResult,
+        relatedCaseId: dto.relatedCaseId,
+        isOngoingElsewhere: dto.isOngoingElsewhere,
+        externalCaseNumber: dto.externalCaseNumber,
+        currentStageNote: dto.currentStageNote,
       },
       include: this.intakeInclude,
     });
@@ -167,7 +192,12 @@ export class IntakeService {
       IntakeDecision.SEND_NOTICE,
       IntakeDecision.COMPLAIN_TO_AUTHORITY,
     ];
-    const status = acceptedDecisions.includes(dto.decision) ? 'ACCEPTED' : 'REJECTED';
+    const status =
+      dto.decision === IntakeDecision.CONSULTATION_ONLY
+        ? 'CONSULTED'
+        : acceptedDecisions.includes(dto.decision)
+          ? 'ACCEPTED'
+          : 'REJECTED';
 
     return this.prisma.intake.update({
       where: { id },
@@ -300,6 +330,10 @@ export class IntakeService {
   async convertToCase(user: AuthUser, id: string, dto: ConvertToCaseDto) {
     const intake = await this.findOne(user, id);
 
+    if (intake.relatedCaseId) {
+      return this.attachToExistingCase(user, intake, dto);
+    }
+
     // Generate ownRef like cases.service.ts
     const firm = await this.prisma.firm.findUnique({
       where: { id: user.firmId },
@@ -344,7 +378,7 @@ export class IntakeService {
         ownRef,
         folderId,
         title,
-        description: intake.description ?? undefined,
+        description: this.buildCaseDescription(intake),
         clientId: intake.clientId ?? undefined,
         clientName: intake.clientName ?? undefined,
         referralSource: intake.referralName ?? undefined,
@@ -399,6 +433,99 @@ export class IntakeService {
     });
 
     return newCase;
+  }
+
+  private buildCaseDescription(intake: {
+    description?: string | null;
+    isOngoingElsewhere?: boolean;
+    externalCaseNumber?: string | null;
+    currentStageNote?: string | null;
+  }): string | undefined {
+    const parts = [intake.description ?? undefined];
+    if (intake.isOngoingElsewhere) {
+      parts.push(
+        [
+          'คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน:',
+          intake.externalCaseNumber ? `เลขคดี/หมายเลขดำ: ${intake.externalCaseNumber}` : null,
+          intake.currentStageNote ? `สถานะปัจจุบัน: ${intake.currentStageNote}` : null,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      );
+    }
+    const combined = parts.filter(Boolean).join('\n\n');
+    return combined || undefined;
+  }
+
+  private async attachToExistingCase(
+    user: AuthUser,
+    intake: {
+      id: string;
+      firmId: string;
+      relatedCaseId: string | null;
+      assignedUserIds: string[];
+      deadlineDate: Date | null;
+      title: string | null;
+      matterType: string | null;
+    },
+    dto: ConvertToCaseDto,
+  ) {
+    const relatedCase = await this.prisma.case.findFirst({
+      where: { id: intake.relatedCaseId!, firmId: user.firmId },
+    });
+    if (!relatedCase) {
+      throw new BadRequestException('ไม่พบคดีที่เลือกไว้ในสำนักงานนี้');
+    }
+
+    const updatedCase = await this.prisma.case.update({
+      where: { id: relatedCase.id },
+      data: {
+        limitationDeadline: relatedCase.limitationDeadline ?? intake.deadlineDate ?? undefined,
+      },
+    });
+
+    await this.prisma.intakePrecedentAnalysis.updateMany({
+      where: { intakeId: intake.id },
+      data: { caseId: relatedCase.id },
+    });
+
+    await this.prisma.intake.update({
+      where: { id: intake.id },
+      data: { status: 'CONVERTED' as any },
+    });
+
+    const assigneeIds = (intake.assignedUserIds ?? []).filter(
+      (userId) => userId !== relatedCase.leadLawyerId,
+    );
+    if (assigneeIds.length > 0) {
+      await this.prisma.caseAssignment.createMany({
+        data: assigneeIds.map((userId) => ({
+          caseId: relatedCase.id,
+          userId,
+          assignmentType: AssignmentType.BUDDY,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    if (intake.deadlineDate) {
+      await this.prisma.calendarEvent.create({
+        data: {
+          caseId: relatedCase.id,
+          title: `ครบกำหนด: ${updatedCase.title}`,
+          startAt: intake.deadlineDate,
+          type: 'DEADLINE' as any,
+        },
+      });
+    }
+
+    await this.tasksService.create(user, relatedCase.id, {
+      title: `เรื่องใหม่จาก Intake: ${intake.title ?? intake.matterType ?? 'ไม่ระบุ'}`,
+      assigneeId: relatedCase.leadLawyerId,
+      dueDate: intake.deadlineDate?.toISOString(),
+    });
+
+    return updatedCase;
   }
 
   async listPortalSubmissions(user: AuthUser) {

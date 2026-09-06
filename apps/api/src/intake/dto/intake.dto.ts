@@ -9,6 +9,7 @@ import {
   IsUUID,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
@@ -18,6 +19,7 @@ export enum IntakeStatus {
   ACCEPTED = 'ACCEPTED',
   REJECTED = 'REJECTED',
   CONVERTED = 'CONVERTED',
+  CONSULTED = 'CONSULTED',
 }
 
 export enum IntakeDecision {
@@ -26,6 +28,7 @@ export enum IntakeDecision {
   NEGOTIATE_FIRST = 'NEGOTIATE_FIRST',
   SEND_NOTICE = 'SEND_NOTICE',
   COMPLAIN_TO_AUTHORITY = 'COMPLAIN_TO_AUTHORITY',
+  CONSULTATION_ONLY = 'CONSULTATION_ONLY',
   PENDING = 'PENDING',
 }
 
@@ -113,6 +116,23 @@ export class CreateIntakeDto {
   @IsOptional()
   @IsDateString()
   deadlineDate?: string;
+
+  @IsOptional()
+  @IsUUID()
+  relatedCaseId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isOngoingElsewhere?: boolean;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  externalCaseNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  currentStageNote?: string;
 }
 
 export class UpdateIntakeDto {
@@ -205,6 +225,24 @@ export class UpdateIntakeDto {
   @IsOptional()
   @IsString()
   noticeResult?: string;
+
+  @IsOptional()
+  @ValidateIf((o) => o.relatedCaseId !== null)
+  @IsUUID()
+  relatedCaseId?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isOngoingElsewhere?: boolean;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  externalCaseNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  currentStageNote?: string;
 }
 
 export class AssessIntakeDto {

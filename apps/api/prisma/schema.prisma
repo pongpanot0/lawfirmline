@@ -72,6 +72,7 @@ enum IntakeStatus {
   ACCEPTED
   REJECTED
   CONVERTED
+  CONSULTED
 }
 
 enum IntakeDecision {
@@ -80,6 +81,7 @@ enum IntakeDecision {
   NEGOTIATE_FIRST
   SEND_NOTICE
   COMPLAIN_TO_AUTHORITY
+  CONSULTATION_ONLY
   PENDING
 }
 
@@ -542,6 +544,7 @@ model Case {
   invoices           Invoice[]
   knowledge          CaseKnowledge[]
   precedentAnalyses  IntakePrecedentAnalysis[]
+  relatedIntakes     Intake[]                  @relation("CaseRelatedIntakes")
   dateSuggestions    DocumentDateSuggestion[]
   closingEmailDrafts ClosingEmailDraft[]
   insuranceClaim     InsuranceClaim?
@@ -587,6 +590,10 @@ model Intake {
   noticeDeadline     DateTime?
   noticeResult       String?
   noticeContent      String?         @db.Text
+  relatedCaseId      String?
+  isOngoingElsewhere Boolean         @default(false)
+  externalCaseNumber String?
+  currentStageNote   String?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
@@ -598,9 +605,11 @@ model Intake {
   portalIntakeSubmission PortalIntakeSubmission?
   attachments            IntakeAttachment[]
   precedentAnalyses      IntakePrecedentAnalysis[]
+  relatedCase            Case?                     @relation("CaseRelatedIntakes", fields: [relatedCaseId], references: [id])
 
   @@index([firmId])
   @@index([clientId])
+  @@index([relatedCaseId])
 }
 
 model IntakeAttachment {
