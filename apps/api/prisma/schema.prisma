@@ -160,6 +160,12 @@ enum EventType {
   OTHER
 }
 
+enum DateSuggestionStatus {
+  PENDING
+  CONFIRMED
+  DISMISSED
+}
+
 enum ExpenseStatus {
   PENDING
   APPROVED
@@ -381,6 +387,8 @@ model User {
   publishedDocuments   DocumentPublication[] @relation("DocumentPublicationPublished")
   unpublishedDocuments DocumentPublication[] @relation("DocumentPublicationUnpublished")
   caseMessages         CaseMessage[]
+  createdDateSuggestions  DocumentDateSuggestion[] @relation("DateSuggestionCreator")
+  reviewedDateSuggestions DocumentDateSuggestion[] @relation("DateSuggestionReviewer")
 }
 
 model CaseType {
@@ -522,6 +530,7 @@ model Case {
   invoices       Invoice[]
   knowledge      CaseKnowledge[]
   precedentAnalyses IntakePrecedentAnalysis[]
+  dateSuggestions DocumentDateSuggestion[]
   closingEmailDrafts ClosingEmailDraft[]
   insuranceClaim InsuranceClaim?
   contactAccess  ContactCaseAccess[]
@@ -708,6 +717,7 @@ model Document {
   uploadedBy User              @relation(fields: [uploadedById], references: [id])
   versions   DocumentVersion[]
   knowledge  CaseKnowledge[]
+  dateSuggestions DocumentDateSuggestion[]
   publications DocumentPublication[]
 }
 
@@ -765,6 +775,7 @@ model CalendarEvent {
   case         Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
   travelLog    TravelLog?    @relation(fields: [travelLogId], references: [id])
   reminderLogs ReminderLog[]
+  dateSuggestion DocumentDateSuggestion?
 }
 
 model ReminderLog {
@@ -851,6 +862,31 @@ model CaseKnowledge {
   case      Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
   document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
   createdBy User      @relation(fields: [createdById], references: [id])
+}
+
+model DocumentDateSuggestion {
+  id              String               @id @default(uuid())
+  caseId          String
+  documentId      String?
+  label           String
+  suggestedDate   DateTime
+  eventType       EventType            @default(DEADLINE)
+  sourceExcerpt   String               @db.Text
+  status          DateSuggestionStatus @default(PENDING)
+  calendarEventId String?              @unique
+  createdById     String
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  case          Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  document      Document?      @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  calendarEvent CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  createdBy     User           @relation("DateSuggestionCreator", fields: [createdById], references: [id])
+  reviewedBy    User?          @relation("DateSuggestionReviewer", fields: [reviewedById], references: [id])
+
+  @@index([caseId, status])
 }
 
 model DocumentTemplate {

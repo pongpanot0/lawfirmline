@@ -125,18 +125,17 @@ export default function SettingsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-medium">{d.settings.firstName}</label>
-                <Input defaultValue={user?.firstName} className="mt-1" />
+                <Input defaultValue={user?.firstName} className="mt-1" disabled />
               </div>
               <div>
                 <label className="text-sm font-medium">{d.settings.lastName}</label>
-                <Input defaultValue={user?.lastName} className="mt-1" />
+                <Input defaultValue={user?.lastName} className="mt-1" disabled />
               </div>
             </div>
             <div>
               <label className="text-sm font-medium">{d.settings.email}</label>
               <Input defaultValue={user?.email} className="mt-1" disabled />
             </div>
-            <Button size="sm">{d.settings.saveChanges}</Button>
           </CardContent>
         </Card>
 
@@ -247,7 +246,7 @@ export default function SettingsPage() {
                         </div>
                         {linkExpiresAt && (
                           <p className="text-xs text-muted-foreground">
-                            รหัสหมดอายุ {new Date(linkExpiresAt).toLocaleTimeString('th-TH')}
+                            รหัสหมดอายุ {new Date(linkExpiresAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         )}
                         <Button size="sm" variant="outline" onClick={handleCreateLinkCode} disabled={linkLoading}>

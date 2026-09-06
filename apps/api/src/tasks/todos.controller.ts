@@ -17,7 +17,7 @@ export class TodosController {
 
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateTaskDto) {
-    return this.tasksService.create(user, null, dto);
+    return this.tasksService.create(user, null, { ...dto, assigneeId: dto.assigneeId ?? user.id });
   }
 
   @Patch(':taskId')

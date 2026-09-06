@@ -52,4 +52,23 @@ export class IntelligenceController {
       title,
     );
   }
+
+  @Post('cases/:caseId/documents/extract-dates')
+  @UseGuards(CaseAccessGuard)
+  @RequireCredits(5)
+  @UseInterceptors(FileInterceptor('file'), AiCreditsInterceptor)
+  extractDates(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('documentId') documentId?: string,
+  ) {
+    return this.intelligenceService.extractDates(
+      file.buffer,
+      file.mimetype,
+      caseId,
+      user.id,
+      documentId,
+    );
+  }
 }

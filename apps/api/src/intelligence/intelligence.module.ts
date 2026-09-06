@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
 import { DocumentIntelligenceService } from './document-intelligence.service';
+import { DateSuggestionsService } from './date-suggestions.service';
 import { IntelligenceController } from './intelligence.controller';
+import { DateSuggestionsController } from './date-suggestions.controller';
 import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
+import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
-  providers: [DocumentIntelligenceService, AiCreditsInterceptor],
-  controllers: [IntelligenceController],
-  exports: [DocumentIntelligenceService],
+  imports: [CalendarModule],
+  providers: [DocumentIntelligenceService, DateSuggestionsService, AiCreditsInterceptor],
+  controllers: [IntelligenceController, DateSuggestionsController],
+  exports: [DocumentIntelligenceService, DateSuggestionsService],
 })
 export class IntelligenceModule {}
