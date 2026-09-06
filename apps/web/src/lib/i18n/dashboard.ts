@@ -21,8 +21,8 @@ export const dashboardCopy = {
       done: 'เสร็จสิ้น',
       confirmDelete: 'ยืนยันการลบ?',
       noData: 'ไม่มีข้อมูล',
-      export: 'Export',
-      filter: 'Filter',
+      export: 'ส่งออก',
+      filter: 'กรอง',
     },
     nav: {
       tagline: 'ระบบจัดการคดีความ',

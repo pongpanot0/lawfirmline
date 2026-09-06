@@ -288,33 +288,43 @@ async function main() {
     await prisma.task.create({ data: task });
   }
 
+  // Pin seeded events to a sensible business-hours time (9:00 AM local) instead
+  // of inheriting whatever wall-clock time `now` happens to be when the seed
+  // script runs — otherwise every event shows the same odd time (e.g. 00:14)
+  // in the calendar UI.
+  const atNine = (daysFromNow: number) => {
+    const d = new Date(now.getTime() + daysFromNow * 86400000);
+    d.setHours(9, 0, 0, 0);
+    return d;
+  };
+
   const events = [
     {
       caseId: createdCases[0].id,
       title: 'Court Hearing - Preliminary',
       type: EventType.COURT_DATE,
-      startAt: new Date(now.getTime() + 7 * 86400000),
+      startAt: atNine(7),
       reminderMinutes: [1440, 60],
     },
     {
       caseId: createdCases[0].id,
       title: 'Client Meeting',
       type: EventType.CLIENT_MEETING,
-      startAt: new Date(now.getTime() + 2 * 86400000),
+      startAt: atNine(2),
       reminderMinutes: [60],
     },
     {
       caseId: createdCases[1].id,
       title: 'Patent Filing Deadline',
       type: EventType.DEADLINE,
-      startAt: new Date(now.getTime() + 30 * 86400000),
+      startAt: atNine(30),
       reminderMinutes: [10080, 1440],
     },
     {
       caseId: createdCases[3].id,
       title: 'Mediation Session',
       type: EventType.COURT_DATE,
-      startAt: new Date(now.getTime() + 14 * 86400000),
+      startAt: atNine(14),
       reminderMinutes: [1440, 60],
     },
   ];

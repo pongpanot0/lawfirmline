@@ -98,7 +98,7 @@ export default function NewCasePage() {
         setNextOwnRef(nextRef.ownRef);
         setWorkload(workloadList);
       })
-      .catch(() => setError('Failed to load case form data. Please refresh and try again.'))
+      .catch(() => setError('Failed to load case form data / โหลดข้อมูลฟอร์มไม่สำเร็จ กรุณาลองใหม่'))
       .finally(() => setLoadingTypes(false));
   }, [token]);
 
@@ -203,7 +203,7 @@ export default function NewCasePage() {
       setError(
         err instanceof ApiError
           ? err.message
-          : 'Failed to create case. Please try again.',
+          : 'Failed to create case / สร้างคดีไม่สำเร็จ กรุณาลองใหม่',
       );
     } finally {
       setSubmitting(false);
@@ -212,8 +212,10 @@ export default function NewCasePage() {
 
   return (
     <div className="w-full">
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">Create New Case</h1>
-      <p className="mb-6 text-sm text-slate-500">Multi-step case intake with auto-generated folder ID</p>
+      <h1 className="mb-2 text-2xl font-bold text-slate-900">Create New Case / สร้างคดีใหม่</h1>
+      <p className="mb-6 text-sm text-slate-500">
+        Multi-step case intake / ขั้นตอนสร้างคดี พร้อมเลขที่แฟ้มอัตโนมัติ
+      </p>
 
       <Stepper steps={STEPS} currentStep={step} onStepClick={(i) => i < step && setStep(i)} />
 
@@ -222,18 +224,18 @@ export default function NewCasePage() {
           <div className="space-y-3">
             <h2 className="font-semibold">Select Case Type / เลือกประเภทคดี</h2>
             {loadingTypes ? (
-              <p className="text-sm text-slate-500">Loading case types...</p>
+              <p className="text-sm text-slate-500">Loading case types... / กำลังโหลดประเภทคดี...</p>
             ) : caseTypes.length === 0 ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                <p className="font-medium">No case types available</p>
+                <p className="font-medium">No case types available / ยังไม่มีประเภทคดี</p>
                 <p className="mt-1 text-amber-800">
-                  Add at least one case type before creating a case.
+                  กรุณาเพิ่มประเภทคดีอย่างน้อย 1 รายการก่อนสร้างคดี
                 </p>
                 <Link
                   href="/admin/case-types"
                   className="mt-3 inline-block font-medium text-brand-700 hover:underline"
                 >
-                  Go to Case Types settings →
+                  Go to Case Types settings / ไปที่ตั้งค่าประเภทคดี →
                 </Link>
               </div>
             ) : (
@@ -262,7 +264,7 @@ export default function NewCasePage() {
 
         {step === 1 && (
           <div className="space-y-4">
-            <h2 className="font-semibold">Basic Information</h2>
+            <h2 className="font-semibold">Basic Information / ข้อมูลพื้นฐาน</h2>
             <div>
               <label className="block text-sm font-medium text-slate-700">Own Ref</label>
               <div className="mt-1 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm">
@@ -317,7 +319,7 @@ export default function NewCasePage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Title *</label>
+              <label className="block text-sm font-medium text-slate-700">ชื่อคดี *</label>
               <input
                 required
                 value={form.title}
@@ -441,7 +443,7 @@ export default function NewCasePage() {
                 ))}
               </select>
               {courts.length === 0 && (
-                <p className="mt-1 text-xs text-slate-500">Loading courts...</p>
+                <p className="mt-1 text-xs text-slate-500">Loading courts... / กำลังโหลดข้อมูลศาล...</p>
               )}
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
@@ -498,13 +500,13 @@ export default function NewCasePage() {
                     onChange={(e) => setForm({ ...form, initialActivityDescription: e.target.value })}
                     rows={2}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm resize-none"
-                    placeholder="รายละเอียดเพิ่มเติม (optional)"
+                    placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"
                   />
                 </>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Description</label>
+              <label className="block text-sm font-medium text-slate-700">รายละเอียด</label>
               <textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -518,10 +520,10 @@ export default function NewCasePage() {
         {step === 2 && (
           <div className="space-y-4">
             <h2 className="font-semibold">
-              {selectedType?.name} — Specific Fields
+              {selectedType?.name} — Specific Fields / ข้อมูลเฉพาะประเภทคดี
             </h2>
             {fieldSchema.length === 0 ? (
-              <p className="text-sm text-slate-500">No additional fields for this case type.</p>
+              <p className="text-sm text-slate-500">ไม่มีข้อมูลเพิ่มเติมสำหรับประเภทคดีนี้</p>
             ) : (
               fieldSchema.map((field) => (
                 <div key={field.key}>
@@ -568,7 +570,7 @@ export default function NewCasePage() {
                 }
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="">Select case owner</option>
+                <option value="">Select case owner / เลือกเจ้าของเคส</option>
                 {lawyers.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.firstName} {l.lastName}
@@ -601,7 +603,7 @@ export default function NewCasePage() {
               </div>
             </div>
             <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
-              <p className="font-medium">Summary</p>
+              <p className="font-medium">Summary / สรุป</p>
               <p className="mt-1">{form.title} — {displayClientName()}</p>
               <p className="text-xs text-slate-400">
                 Own Ref {nextOwnRef || 'auto'}
@@ -614,9 +616,13 @@ export default function NewCasePage() {
                 {COURT_LEVEL_LABELS[form.courtLevel]} · {form.courtName}
               </p>
               {form.addInitialActivity && form.initialActivityTitle && (
-                <p className="text-xs text-slate-400">First activity: {form.initialActivityTitle}</p>
+                <p className="text-xs text-slate-400">
+                  First activity / กิจกรรมแรก: {form.initialActivityTitle}
+                </p>
               )}
-              <p className="mt-1 text-xs text-brand-600">Folder ID will be auto-generated on create</p>
+              <p className="mt-1 text-xs text-brand-600">
+                Folder ID will be auto-generated / ระบบจะสร้างเลขที่แฟ้มให้อัตโนมัติเมื่อสร้างคดี
+              </p>
             </div>
           </div>
         )}
@@ -631,15 +637,15 @@ export default function NewCasePage() {
 
         <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-between gap-3 border-t border-slate-200 bg-white px-6 py-4 pb-6 sm:-mx-6">
           <Button type="button" variant="outline" onClick={goBack}>
-            {step === 0 ? 'Cancel' : 'Back'}
+            {step === 0 ? 'ยกเลิก' : 'ย้อนกลับ'}
           </Button>
           {step < STEPS.length - 1 ? (
             <Button type="button" disabled={!canNext()} onClick={goNext}>
-              Next
+              ถัดไป
             </Button>
           ) : (
             <Button type="button" disabled={submitting || !canNext()} onClick={handleSubmit}>
-              {submitting ? 'Creating...' : 'Create Case'}
+              {submitting ? 'กำลังสร้าง...' : 'สร้างคดี'}
             </Button>
           )}
         </div>
