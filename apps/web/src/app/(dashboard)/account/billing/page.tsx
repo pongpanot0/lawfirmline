@@ -15,6 +15,12 @@ import { BillingPeriodToggle } from '@/components/billing/BillingPeriodToggle';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
 
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'รอชำระ',
+  PAID: 'ชำระแล้ว',
+  FAILED: 'ล้มเหลว',
+};
+
 export default function BillingPage() {
   const d = useDashboardT();
   return (
@@ -129,14 +135,14 @@ function BillingPageContent() {
             {user.trialEndAt && user.subscriptionStatus === SubscriptionStatus.TRIAL && (
               <p className="text-sm text-muted-foreground">
                 {fmt(d.billing.trialEnds, {
-                  date: new Date(user.trialEndAt).toLocaleDateString(loc),
+                  date: new Date(user.trialEndAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' }),
                 })}
               </p>
             )}
             {user.currentPeriodEnd && user.subscriptionStatus === SubscriptionStatus.ACTIVE && (
               <p className="text-sm text-muted-foreground">
                 {fmt(d.billing.renews, {
-                  date: new Date(user.currentPeriodEnd).toLocaleDateString(loc),
+                  date: new Date(user.currentPeriodEnd).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' }),
                 })}
               </p>
             )}
@@ -245,8 +251,8 @@ function BillingPageContent() {
                   <td className="px-4 py-3 font-medium">{inv.invoiceNumber}</td>
                   <td className="px-4 py-3">{inv.plan}</td>
                   <td className="px-4 py-3 text-right">{inv.amount.toLocaleString(loc)} THB</td>
-                  <td className="px-4 py-3"><Badge variant={inv.status === 'PAID' ? 'default' : 'muted'}>{inv.status}</Badge></td>
-                  <td className="px-4 py-3 text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString(loc)}</td>
+                  <td className="px-4 py-3"><Badge variant={inv.status === 'PAID' ? 'default' : 'muted'}>{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</Badge></td>
+                  <td className="px-4 py-3 text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                 </tr>
               ))}
               {history.length === 0 && (

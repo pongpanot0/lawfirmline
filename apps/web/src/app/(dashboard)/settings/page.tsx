@@ -60,7 +60,7 @@ export default function SettingsPage() {
       const res = await api.testLineIntegration(token);
       setLineTestResult(
         res.ok
-          ? `ส่งข้อความทดสอบสำเร็จ (${res.mode === 'push' ? 'Push' : 'Broadcast'})`
+          ? `ส่งข้อความทดสอบสำเร็จ (${res.mode === 'push' ? 'ส่งเฉพาะบุคคล' : 'ส่งเป็นวงกว้าง'})`
           : 'ส่งไม่สำเร็จ — ตรวจสอบ Channel ID/Secret และ webhook ใน LINE Console',
       );
     } catch {

@@ -84,7 +84,7 @@ export function PromptPayQrPanel({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qrImageUrl}
-              alt="PromptPay QR Code"
+              alt="PromptPay QR Code / คิวอาร์โค้ดพร้อมเพย์"
               className="h-52 w-52 object-contain"
             />
             {polling && !expired && (
@@ -102,13 +102,13 @@ export function PromptPayQrPanel({
               {expired ? d.payment.qrExpired : fmt(d.payment.expiresIn, { time: countdown })}
             </Badge>
             <span>•</span>
-            <span>{new Date(session.expiresAt).toLocaleString(loc)}</span>
+            <span>{new Date(session.expiresAt).toLocaleString(loc, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
           </div>
         </div>
 
         <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
           <p>{d.billing.invoice}: {session.invoiceId.slice(0, 8)}…</p>
-          <p>Charge: {session.chargeId}</p>
+          <p>Charge / รหัสการชำระ: {session.chargeId}</p>
         </div>
 
         <p className="text-center text-sm text-muted-foreground">

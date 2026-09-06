@@ -324,7 +324,7 @@ export function OmiseEmbeddedCheckout({
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">{d.payment.title}</h2>
-            <p className="font-medium">{plan.name} Plan</p>
+            <p className="font-medium">{plan.name}</p>
             <p className="text-sm text-muted-foreground">
               {chargeAmount.toLocaleString(loc)} {perLabel}
             </p>
