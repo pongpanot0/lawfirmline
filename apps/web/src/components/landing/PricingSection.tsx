@@ -145,7 +145,7 @@ export function PricingSection() {
     }));
 
   return (
-    <section id="pricing" className="lf-section">
+    <section id="pricing" className="lf-section lf-snap-tall">
       <div className="lf-shell">
         <div className="lf-section-head lf-section-head--center">
           <h2 className="lf-display-s text-2xl sm:text-3xl">{p.title}</h2>

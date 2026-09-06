@@ -31,11 +31,11 @@ export function LandingPage() {
   const scope = useLandingMotion();
 
   return (
-    <div className="lf-landing min-h-screen" ref={scope}>
+    <div className="lf-landing" ref={scope}>
       <LandingNavbar />
 
       {/* Hero — H2 split diptych: title/CTA left, illustrative notification stack right */}
-      <section className="lf-shell lf-section">
+      <section className="lf-shell lf-section lf-snap">
         <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-8">
           <div className="lg:col-span-7">
             <span className="lf-eyebrow" data-motion="hero-eyebrow">
@@ -120,7 +120,7 @@ export function LandingPage() {
 
       {/* Product tour — the real app, not a mockup. GSAP converges the two supporting
           screens onto the main dashboard shot as this section enters the viewport. */}
-      <section className="lf-shell">
+      <section className="lf-shell lf-snap">
         <div className="lf-section-head lf-section-head--center">
           <h2 className="lf-display-s text-2xl sm:text-3xl">{t.tour.title}</h2>
           <p className="lf-lede mt-3">{t.tour.subtitle}</p>
@@ -146,7 +146,7 @@ export function LandingPage() {
       </section>
 
       {/* Problems + features — one Bento block: pain points as small tiles, product tiles as the anchors */}
-      <section id="features" className="lf-section lf-section--paper2">
+      <section id="features" className="lf-section lf-section--paper2 lf-snap-tall">
         <div className="lf-shell">
           <div className="lf-section-head lf-section-head--center">
             <h2 className="lf-display-s text-2xl sm:text-3xl">{t.features.title}</h2>
@@ -212,7 +212,7 @@ export function LandingPage() {
       </section>
 
       {/* Audience — hairline chip row */}
-      <section className="lf-section--tight">
+      <section className="lf-section--tight lf-snap">
         <div className="lf-shell text-center">
           <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-2)' }}>
             {t.audience.title}
@@ -232,7 +232,7 @@ export function LandingPage() {
       {/* CTA — one visual anchor (trial), one supporting link (demo) */}
       <section
         id="trial"
-        className="lf-section--tight"
+        className="lf-section--tight lf-snap"
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >
         <div className="lf-shell text-center">
