@@ -473,6 +473,10 @@ export interface IntakeItem {
   id: string;
   receivedDate: string;
   title?: string | null;
+  relatedCaseId?: string | null;
+  isOngoingElsewhere?: boolean;
+  externalCaseNumber?: string | null;
+  currentStageNote?: string | null;
   referralType: string;
   referralChannel: string;
   referralName?: string | null;
@@ -498,6 +502,7 @@ export interface IntakeItem {
   assessor?: { id: string; firstName: string; lastName: string } | null;
   client?: { id: string; name: string } | null;
   case?: { id: string; ownRef: string; title: string } | null;
+  relatedCase?: { id: string; ownRef: string; title: string; status: string } | null;
   createdAt: string;
   updatedAt: string;
 }

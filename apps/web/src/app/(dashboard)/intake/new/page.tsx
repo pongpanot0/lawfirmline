@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, ClientItem, ApiError, IntakeItem } from '@/lib/api';
+import { api, ClientItem, ApiError, IntakeItem, CaseItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 
 const REFERRAL_TYPE_LABELS: Record<string, string> = {
@@ -56,7 +56,12 @@ export default function NewIntakePage() {
     description: '',
     estimatedDamage: '',
     receivedDate: today,
+    relatedCaseId: '',
+    isOngoingElsewhere: false,
+    externalCaseNumber: '',
+    currentStageNote: '',
   });
+  const [clientCases, setClientCases] = useState<CaseItem[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -69,7 +74,14 @@ export default function NewIntakePage() {
   const selectedContact = selectedClient?.contacts.find((c) => c.id === form.clientContactId) ?? null;
 
   const handleClientChange = (clientId: string) => {
-    setForm((f) => ({ ...f, clientId, clientContactId: '', referralName: '' }));
+    setForm((f) => ({ ...f, clientId, clientContactId: '', referralName: '', relatedCaseId: '' }));
+    setClientCases([]);
+    if (clientId && token) {
+      api
+        .getClient(token, clientId)
+        .then((full) => setClientCases((full as ClientItem & { cases?: CaseItem[] }).cases ?? []))
+        .catch(() => setClientCases([]));
+    }
   };
 
   const handleContactChange = (contactId: string) => {
@@ -96,6 +108,10 @@ export default function NewIntakePage() {
         description: form.description || undefined,
         estimatedDamage: form.estimatedDamage ? parseFloat(form.estimatedDamage) : undefined,
         receivedDate: form.receivedDate,
+        relatedCaseId: form.relatedCaseId || undefined,
+        isOngoingElsewhere: form.isOngoingElsewhere,
+        externalCaseNumber: form.isOngoingElsewhere ? (form.externalCaseNumber || undefined) : undefined,
+        currentStageNote: form.isOngoingElsewhere ? (form.currentStageNote || undefined) : undefined,
       };
       if (form.clientId) {
         payload.clientId = form.clientId;
@@ -217,6 +233,56 @@ export default function NewIntakePage() {
                 className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                 placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท"
               />
+            </div>
+          )}
+          {form.clientId && clientCases.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium">ผูกกับคดีที่มีอยู่แล้ว (ถ้าเรื่องนี้เกี่ยวกับคดีเดิม)</label>
+              <select
+                value={form.relatedCaseId}
+                onChange={(e) => set('relatedCaseId', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">-- ไม่ผูกกับคดีเดิม (เรื่องใหม่) --</option>
+                {clientCases.map((c) => (
+                  <option key={c.id} value={c.id}>{c.ownRef} — {c.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* คดีเดินอยู่แล้วที่อื่น */}
+        <div className="space-y-3">
+          <h2 className="font-semibold">คดีเดินอยู่แล้วที่อื่น (ถ้ามี)</h2>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.isOngoingElsewhere}
+              onChange={(e) => setForm((f) => ({ ...f, isOngoingElsewhere: e.target.checked }))}
+            />
+            คดีนี้กำลังดำเนินอยู่แล้วที่อื่น (ฟ้องไปแล้ว/ทนายอื่นดูแลอยู่) ก่อนเข้าสำนักงานเรา
+          </label>
+          {form.isOngoingElsewhere && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium">เลขคดี/หมายเลขดำ (ถ้าทราบ)</label>
+                <input
+                  value={form.externalCaseNumber}
+                  onChange={(e) => set('externalCaseNumber', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="เช่น ดำที่ 123/2569"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">สถานะปัจจุบัน</label>
+                <input
+                  value={form.currentStageNote}
+                  onChange={(e) => set('currentStageNote', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="เช่น นัดสืบพยาน 15 ต.ค."
+                />
+              </div>
             </div>
           )}
         </div>
