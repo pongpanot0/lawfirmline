@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart3, PieChart, TrendingUp, Download } from 'lucide-react';
+import { BarChart3, PieChart, TrendingUp } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ReportsSummary } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/misc';
 import { formatCurrency } from '@/lib/utils';
 
@@ -157,12 +156,6 @@ export default function ReportsPage() {
           data.scope === 'user'
             ? `Your analytics / ข้อมูลของคุณ · ${data.firmName}`
             : `Analytics and insights for / ข้อมูลวิเคราะห์ของ ${data.firmName}`
-        }
-        actions={
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4" />
-            Export All / ส่งออกทั้งหมด
-          </Button>
         }
       />
 

@@ -40,7 +40,7 @@ export class DocumentIntelligenceService {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       const preview = text.slice(0, 500).replace(/\s+/g, ' ').trim();
-      return `[Demo Summary — set OPENAI_API_KEY for GPT-4o]\n\nKey excerpt: ${preview}...\n\n• Parties: See document\n• Dates: Review full text\n• Issues: Configure OpenAI for detailed analysis`;
+      return `[ตัวอย่างสรุป — ตั้งค่า OPENAI_API_KEY เพื่อให้ AI วิเคราะห์จริง]\n\nข้อความบางส่วน: ${preview}...\n\n• คู่กรณี: โปรดดูในเอกสาร\n• วันที่: โปรดตรวจสอบเอกสารฉบับเต็ม\n• ประเด็นสำคัญ: ตั้งค่า OpenAI เพื่อวิเคราะห์โดยละเอียด`;
     }
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
