@@ -96,7 +96,7 @@ export class DocumentsService {
     const document = await this.verifyDocument(caseId, documentId);
 
     const newVersion = document.version + 1;
-    const uploadDir = path.join(this.getUploadDir(), document.caseId);
+    const uploadDir = path.join(this.getUploadDir(), caseId);
     fs.mkdirSync(uploadDir, { recursive: true });
 
     const ext = path.extname(file.originalname);
