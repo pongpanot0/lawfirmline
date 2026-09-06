@@ -52,12 +52,12 @@ const TASK_STATUS_LABELS: Record<string, string> = {
 };
 
 const ACTIVITY_LABELS: Record<string, string> = {
-  COURT_DATE: 'Court Date / นัดศาล',
-  CLIENT_MEETING: 'Client Meeting / นัดลูกค้า',
-  FILING: 'Filing / ยื่นคำร้อง',
-  DEADLINE: 'Deadline / กำหนดส่ง',
-  NOTE: 'Note / บันทึก',
-  OTHER: 'Other / อื่นๆ',
+  COURT_DATE: 'นัดศาล',
+  CLIENT_MEETING: 'นัดลูกค้า',
+  FILING: 'ยื่นคำร้อง',
+  DEADLINE: 'กำหนดส่ง',
+  NOTE: 'บันทึก',
+  OTHER: 'อื่นๆ',
 };
 
 const ACTIVITY_ICONS: Record<string, typeof Gavel> = {
@@ -79,7 +79,6 @@ export default function CaseDetailPage() {
   const [totalSpent, setTotalSpent] = useState(0);
   const [precedentAnalyses, setPrecedentAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('overview');
   const [note, setNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [showActivityForm, setShowActivityForm] = useState(false);
@@ -199,7 +198,7 @@ export default function CaseDetailPage() {
     }> = [
       {
         id: 'opened',
-        label: 'Case Opened / เปิดคดี',
+        label: 'เปิดคดี',
         date: legalCase?.openedAt ?? '',
         type: 'case',
         isOpened: true,
@@ -213,7 +212,7 @@ export default function CaseDetailPage() {
       ...(legalCase?.status === CaseStatus.CLOSED && legalCase.closedAt
         ? [{
             id: 'closed',
-            label: 'ปิดคดี / Case Closed',
+            label: 'ปิดคดี',
             date: legalCase.closedAt,
             type: 'closed',
             isOpened: false as const,
@@ -223,7 +222,7 @@ export default function CaseDetailPage() {
     return items.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
-  }, [legalCase?.openedAt, activities]);
+  }, [legalCase?.openedAt, legalCase?.status, legalCase?.closedAt, activities]);
 
   const openActivityForm = () => {
     const now = new Date();
@@ -396,17 +395,31 @@ export default function CaseDetailPage() {
     },
   ];
 
+  const pendingTasks = tasks.filter((task) => task.status !== 'DONE').sort(
+    (a, b) => (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) -
+      (b.dueDate ? new Date(b.dueDate).getTime() : Infinity),
+  );
+  const upcomingEvents = (legalCase.calendarEvents ?? [])
+    .filter((event) => new Date(event.startAt).getTime() >= Date.now())
+    .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+
+  // Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · existing LexFlow tokens
   return (
-    <div>
-      <div className="mb-6">
+    <div className="min-w-0 [overflow-wrap:anywhere]">
+      <div className="mb-5">
         <button type="button" onClick={() => router.push('/cases')} className="text-sm text-primary hover:underline">
-          ← Back to Cases / กลับไปหน้าคดี
+          ← กลับไปหน้าคดี
         </button>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">{legalCase.title}</h1>
+          <h1 className="min-w-0 text-2xl font-bold tracking-tight">{legalCase.title}</h1>
           <CaseStatusBadge status={legalCase.status} />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">{legalCase.ownRef} · {legalCase.folderId}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{legalCase.ownRef} · ลูกค้า {clientDisplay}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button onClick={() => router.push(`/cases/${id}/tasks`)}><CheckSquare className="h-4 w-4" />จัดการงาน</Button>
+          <Button variant="outline" onClick={() => router.push(`/cases/${id}/calendar`)}><CalendarDays className="h-4 w-4" />นัดหมาย</Button>
+          <Button variant="outline" onClick={() => router.push(`/cases/${id}/documents`)}><FileText className="h-4 w-4" />เอกสาร</Button>
+        </div>
         {legalCase.status !== CaseStatus.CLOSED ? (
           <Button
             variant="outline"
@@ -440,7 +453,7 @@ export default function CaseDetailPage() {
 
       {showCloseForm && (
         <Card className="mb-6 border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
-          <CardHeader className="flex-row items-center justify-between">
+          <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">ปิดคดี / Close Case</CardTitle>
             <button type="button" onClick={() => setShowCloseForm(false)}>
               <X className="h-4 w-4 text-muted-foreground" />
@@ -482,36 +495,29 @@ export default function CaseDetailPage() {
         </Card>
       )}
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
+      <nav aria-label="เมนูคดี" className="mb-6 flex flex-wrap gap-1 border-b border-border">
         {tabs.map((t) => (
           t.href ? (
             <Link
               key={t.id}
               href={t.href}
-              className="whitespace-nowrap px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              className="whitespace-nowrap rounded-t-md px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {t.label}
             </Link>
           ) : (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-                tab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
-              }`}
-            >
+            <span key={t.id} aria-current="page" className="whitespace-nowrap border-b-2 border-primary px-4 py-3 text-sm font-semibold text-primary">
               {t.label}
-            </button>
+            </span>
           )
         ))}
-      </div>
+      </nav>
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-3 space-y-4">
+      <div className="grid items-start gap-5 lg:grid-cols-12">
+        <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-1">
           <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm">Case Overview / ภาพรวมคดี</CardTitle>
+            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+              <CardTitle className="text-sm">ข้อมูลคดี</CardTitle>
               {!editingOverview && (
                 <Button
                   size="sm"
@@ -524,9 +530,9 @@ export default function CaseDetailPage() {
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
+            <CardContent className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               {editingOverview ? (
-                <form onSubmit={handleSaveOverview} className="space-y-3">
+                <form onSubmit={handleSaveOverview} className="col-span-full grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="text-xs text-muted-foreground">ชื่อคดี *</label>
                     <Input
@@ -537,11 +543,11 @@ export default function CaseDetailPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Own Ref / เลขอ้างอิงสำนักงาน</label>
+                    <label className="text-xs text-muted-foreground">เลขอ้างอิงสำนักงาน</label>
                     <p className="mt-1 font-medium">{legalCase.ownRef}</p>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Customer Ref / เลขอ้างอิงลูกค้า</label>
+                    <label className="text-xs text-muted-foreground">เลขอ้างอิงลูกค้า</label>
                     <Input
                       value={overviewForm.customerRef}
                       onChange={(e) => setOverviewForm({ ...overviewForm, customerRef: e.target.value })}
@@ -549,7 +555,7 @@ export default function CaseDetailPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Case Type / ประเภทคดี</label>
+                    <label className="text-xs text-muted-foreground">ประเภทคดี</label>
                     <select
                       value={overviewForm.caseTypeId}
                       onChange={(e) => setOverviewForm({ ...overviewForm, caseTypeId: e.target.value })}
@@ -593,7 +599,7 @@ export default function CaseDetailPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Court / ศาล</label>
+                    <label className="text-xs text-muted-foreground">ศาล</label>
                     <select
                       value={overviewForm.courtName}
                       onChange={(e) => setOverviewForm({ ...overviewForm, courtName: e.target.value })}
@@ -610,7 +616,7 @@ export default function CaseDetailPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">รายได้โดยประมาณ / Estimated Fee</label>
+                    <label className="text-xs text-muted-foreground">รายได้โดยประมาณ</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -622,11 +628,11 @@ export default function CaseDetailPage() {
                     />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Client / ลูกค้า</p>
+                    <p className="text-xs text-muted-foreground">ลูกค้า</p>
                     <p className="font-medium">{clientDisplay}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Case Owner / เจ้าของเคส</p>
+                    <p className="text-xs text-muted-foreground">ทนายผู้รับผิดชอบ</p>
                     <p className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</p>
                   </div>
                   {overviewError && <p className="text-sm text-destructive">{overviewError}</p>}
@@ -647,15 +653,16 @@ export default function CaseDetailPage() {
               ) : (
                 <>
               <div>
-                <p className="text-xs text-muted-foreground">Own Ref / เลขอ้างอิงสำนักงาน</p>
+                <p className="text-xs text-muted-foreground">เลขอ้างอิงสำนักงาน</p>
                 <p className="font-medium">{legalCase.ownRef}</p>
+                <p className="mt-1 text-xs text-muted-foreground">แฟ้ม {legalCase.folderId ?? '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Customer Ref / เลขอ้างอิงลูกค้า</p>
+                <p className="text-xs text-muted-foreground">เลขอ้างอิงลูกค้า</p>
                 <p className="font-medium">{legalCase.customerRef ?? '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Case Type / ประเภทคดี</p>
+                <p className="text-xs text-muted-foreground">ประเภทคดี</p>
                 <p className="font-medium">{legalCase.caseType?.name ?? '—'}</p>
               </div>
               <div>
@@ -673,11 +680,11 @@ export default function CaseDetailPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Court / ศาล</p>
+                <p className="text-xs text-muted-foreground">ศาล</p>
                 <p className="font-medium">{legalCase.courtName ?? '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Client / ลูกค้า</p>
+                <p className="text-xs text-muted-foreground">ลูกค้า</p>
                 <p className="font-medium">{clientDisplay}</p>
                 {legalCase.client?.contacts && legalCase.client.contacts.length > 0 && (
                   <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
@@ -687,7 +694,7 @@ export default function CaseDetailPage() {
                   </div>
                 )}
               </div>
-              <div className="rounded-lg border border-border p-3">
+              <div className="col-span-full rounded-lg border border-border bg-muted/30 p-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground">ทีมของคดี</p>
                   {!editingTeam && user?.firmRole === FirmRole.OWNER && (
@@ -701,14 +708,14 @@ export default function CaseDetailPage() {
                 {!editingTeam ? (
                   <>
                     <div className="mt-2">
-                      <p className="text-xs text-muted-foreground">Case Owner / เจ้าของเคส</p>
+                      <p className="text-xs text-muted-foreground">ทนายผู้รับผิดชอบ</p>
                       <p className="font-medium">
                         {legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}
                       </p>
                     </div>
                     {legalCase.assignments.length > 0 && (
                       <div className="mt-2">
-                        <p className="text-xs text-muted-foreground">Buddies / ผู้ช่วย</p>
+                        <p className="text-xs text-muted-foreground">ทนายผู้ช่วย</p>
                         <p className="font-medium">
                           {legalCase.assignments
                             .map((a) => `${a.user.firstName} ${a.user.lastName}`)
@@ -721,7 +728,7 @@ export default function CaseDetailPage() {
                   <div className="mt-2 space-y-3">
                     <div>
                       <label className="block text-xs font-medium text-muted-foreground">
-                        Case Owner / เจ้าของเคส
+                        ทนายผู้รับผิดชอบ
                       </label>
                       <select
                         value={teamForm.leadLawyerId}
@@ -744,7 +751,7 @@ export default function CaseDetailPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-muted-foreground">
-                        Buddies / ผู้ช่วย
+                        ทนายผู้ช่วย
                       </label>
                       <div className="mt-1 space-y-1">
                         {lawyers
@@ -787,7 +794,7 @@ export default function CaseDetailPage() {
                 )}
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">รายได้โดยประมาณ / Estimated Fee</p>
+                <p className="text-xs text-muted-foreground">รายได้โดยประมาณ</p>
                 <p className="font-medium text-green-600">
                   {legalCase.estimatedFee != null
                     ? formatCurrency(legalCase.estimatedFee)
@@ -795,7 +802,7 @@ export default function CaseDetailPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Approved Expenses / ค่าใช้จ่ายที่อนุมัติ</p>
+                <p className="text-xs text-muted-foreground">ค่าใช้จ่ายที่อนุมัติ</p>
                 <p className="font-medium text-primary">{formatCurrency(totalSpent)}</p>
               </div>
               {customFields && Object.entries(customFields).map(([k, v]) => (
@@ -810,33 +817,33 @@ export default function CaseDetailPage() {
           </Card>
         </div>
 
-        <div className="lg:col-span-5 space-y-4">
+        <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">
           <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-sm">Case Timeline / ไทม์ไลน์คดี</CardTitle>
+            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-sm">ความเคลื่อนไหวคดี</CardTitle>
               <Button variant="outline" size="sm" onClick={openActivityForm}>
-                <Plus className="h-3 w-3" />Add Activity / เพิ่มกิจกรรม
+                <Plus className="h-3 w-3" />เพิ่มกิจกรรม
               </Button>
             </CardHeader>
             <CardContent>
               {showActivityForm && (
                 <form onSubmit={handleAddActivity} className="mb-4 rounded-lg border border-border bg-muted/30 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">New Activity / เพิ่มกิจกรรม</p>
-                    <p className="text-xs text-muted-foreground">จะเพิ่มใน Case Timeline และ Calendar อัตโนมัติ</p>
-                    <button type="button" onClick={() => setShowActivityForm(false)}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium">เพิ่มกิจกรรม</p>
+                    <p className="text-xs text-muted-foreground">บันทึกลงความเคลื่อนไหวและปฏิทิน</p>
+                    <button type="button" aria-label="ยกเลิกเพิ่มกิจกรรม" onClick={() => setShowActivityForm(false)}>
                       <X className="h-4 w-4 text-muted-foreground" />
                     </button>
                   </div>
                   <Input
                     required
-                    placeholder="Title / หัวข้อ เช่น นัดสืบพยาน"
+                    placeholder="หัวข้อ เช่น นัดสืบพยาน"
                     value={activityForm.title}
                     onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
                   />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="text-xs text-muted-foreground">Type / ประเภท</label>
+                      <label className="text-xs text-muted-foreground">ประเภท</label>
                       <select
                         value={activityForm.type}
                         onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
@@ -848,7 +855,7 @@ export default function CaseDetailPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Date & Time / วันที่และเวลา</label>
+                      <label className="text-xs text-muted-foreground">วันที่และเวลา</label>
                       <Input
                         required
                         type="datetime-local"
@@ -859,14 +866,14 @@ export default function CaseDetailPage() {
                     </div>
                   </div>
                   <textarea
-                    placeholder="Description (optional) / รายละเอียด (ไม่บังคับ)"
+                    placeholder="รายละเอียด (ไม่บังคับ)"
                     value={activityForm.description}
                     onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
                     rows={2}
                     className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
                   />
                   <Button type="submit" size="sm" disabled={submitting}>
-                    {submitting ? 'Saving... / กำลังบันทึก...' : 'Save Activity / บันทึกกิจกรรม'}
+                    {submitting ? 'กำลังบันทึก...' : 'บันทึกกิจกรรม'}
                   </Button>
                 </form>
               )}
@@ -893,7 +900,7 @@ export default function CaseDetailPage() {
                   );
                 })}
                 {timeline.length <= 1 && (
-                  <p className="text-sm text-muted-foreground">No activities yet. Add the first appointment or filing. / ยังไม่มีกิจกรรม เพิ่มนัดหมายหรือการยื่นเอกสารแรกได้เลย</p>
+                  <p className="text-sm text-muted-foreground">ยังไม่มีกิจกรรม เพิ่มนัดหมายหรือบันทึกความคืบหน้าเพื่อเริ่มติดตามคดี</p>
                 )}
               </div>
             </CardContent>
@@ -906,7 +913,7 @@ export default function CaseDetailPage() {
 
           {legalCase.description && (
             <Card>
-              <CardHeader><CardTitle className="text-sm">Description / รายละเอียด</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">รายละเอียดคดี</CardTitle></CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">{legalCase.description}</p>
               </CardContent>
@@ -968,34 +975,37 @@ export default function CaseDetailPage() {
           )}
         </div>
 
-        <div className="lg:col-span-4 space-y-4">
+        <div className="min-w-0 space-y-4 row-start-1 lg:col-span-5 lg:col-start-8 lg:row-span-2">
           <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-sm">Upcoming Tasks / งานที่จะถึง</CardTitle>
+            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-sm">งานที่ต้องทำ</CardTitle>
               <Link href={`/cases/${id}/tasks`} className="text-xs text-primary hover:underline">ดูทั้งหมด</Link>
             </CardHeader>
             <CardContent className="space-y-2">
-              {tasks.slice(0, 4).map((t) => (
-                <div key={t.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                  <CheckSquare className="h-4 w-4 text-muted-foreground" />
-                  <span className="flex-1 truncate">{t.title}</span>
+              {pendingTasks.slice(0, 4).map((t) => (
+                <Link href={`/cases/${id}/tasks`} key={t.id} className="flex items-start gap-3 rounded-lg border border-border px-3 py-3 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">{t.title}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{t.dueDate ? `กำหนดส่ง ${formatDate(t.dueDate)}` : 'ยังไม่กำหนดวันส่ง'}</span>
+                  </span>
                   <span className="text-xs text-muted-foreground">{TASK_STATUS_LABELS[t.status] ?? t.status}</span>
-                </div>
+                </Link>
               ))}
-              {tasks.length === 0 && (
-                <p className="text-sm text-muted-foreground">ยังไม่มีงานที่มอบหมาย</p>
+              {pendingTasks.length === 0 && (
+                <p className="text-sm text-muted-foreground">ไม่มีงานค้าง</p>
               )}
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">Calendar / ปฏิทิน</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">นัดหมายถัดไป</CardTitle></CardHeader>
             <CardContent>
-              {(legalCase.calendarEvents ?? []).length > 0 ? (
-                (legalCase.calendarEvents ?? []).slice(0, 3).map((e) => (
+              {upcomingEvents.length > 0 ? (
+                upcomingEvents.slice(0, 3).map((e) => (
                   <div key={e.id} className="mb-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
                     <p className="font-medium">{e.title}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(e.startAt)}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTime(e.startAt)}</p>
                   </div>
                 ))
               ) : (
@@ -1008,13 +1018,14 @@ export default function CaseDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">Quick Notes / บันทึกย่อ</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">บันทึกย่อ</CardTitle></CardHeader>
             <CardContent>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="เพิ่มบันทึกย่อ..."
                 rows={3}
+                aria-label="บันทึกย่อ"
                 className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <Button
@@ -1025,17 +1036,17 @@ export default function CaseDetailPage() {
                 onClick={handleSaveNote}
               >
                 <StickyNote className="h-4 w-4" />
-                {savingNote ? 'กำลังบันทึก...' : 'Save Note / บันทึก'}
+                {savingNote ? 'กำลังบันทึก...' : 'บันทึก'}
               </Button>
             </CardContent>
           </Card>
 
           <div className="flex gap-2">
             <Button size="sm" variant="outline" className="flex-1" onClick={() => router.push(`/cases/${id}/documents`)}>
-              <Upload className="h-4 w-4" />Documents / เอกสาร
+              <Upload className="h-4 w-4" />เอกสาร
             </Button>
             <Button size="sm" variant="outline" className="flex-1" onClick={() => router.push(`/cases/${id}/billing`)}>
-              <FileText className="h-4 w-4" />Billing / ค่าใช้จ่าย
+              <FileText className="h-4 w-4" />ค่าใช้จ่าย
             </Button>
           </div>
         </div>
