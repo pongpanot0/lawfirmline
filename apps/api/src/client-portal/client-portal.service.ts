@@ -145,10 +145,14 @@ export class ClientPortalService {
 
     const pendingDocuments = recentPublications.filter((p) => p.publishedAt >= fourteenDaysAgo).length;
 
+    // The query above filters `document: { caseId: { in: caseIds } } }`, so
+    // every matched publication's document is guaranteed to have a non-null
+    // caseId — Document.caseId is nullable in the schema only to support
+    // documents attached directly to an Intake instead of a Case.
     const recentDocuments = recentPublications.slice(0, 5).map((p) => ({
       documentId: p.document.id,
-      caseId: p.document.caseId,
-      caseTitle: caseTitleById.get(p.document.caseId) ?? '',
+      caseId: p.document.caseId!,
+      caseTitle: caseTitleById.get(p.document.caseId!) ?? '',
       filename: p.documentVersion?.filename ?? '',
       mimeType: p.documentVersion?.mimeType ?? '',
       publishedAt: p.publishedAt,
@@ -158,8 +162,8 @@ export class ClientPortalService {
     const activity: ActivityItem[] = [
       ...recentPublications.slice(0, 6).map((p) => ({
         type: 'document',
-        caseId: p.document.caseId,
-        caseTitle: caseTitleById.get(p.document.caseId) ?? '',
+        caseId: p.document.caseId!,
+        caseTitle: caseTitleById.get(p.document.caseId!) ?? '',
         label: p.documentVersion?.filename ?? 'เอกสารใหม่',
         occurredAt: p.publishedAt,
       })),
