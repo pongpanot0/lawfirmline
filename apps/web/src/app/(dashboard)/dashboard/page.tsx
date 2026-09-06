@@ -154,10 +154,15 @@ export default function DashboardPage() {
                     <TableRow key={e.id}>
                       <TableCell className="font-medium">{formatDate(e.startAt)}</TableCell>
                       <TableCell>
-                        <Link href={`/cases`} className="text-primary hover:underline">{e.case.ownRef}</Link>
+                        <Link href={`/cases/${e.caseId}`} className="text-primary hover:underline">
+                          {e.case.ownRef}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">{e.case.title}</p>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{e.case.title}</TableCell>
-                      <TableCell className="text-muted-foreground">—</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {e.case.client?.name ?? e.case.clientName ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{e.case.courtName ?? '—'}</TableCell>
                       <TableCell><CaseStatusBadge status="COURT_DATE" /></TableCell>
                     </TableRow>
                   ))}

@@ -111,7 +111,15 @@ export class DashboardService {
       take: 5,
       orderBy: { startAt: 'asc' },
       include: {
-        case: { select: { ownRef: true, title: true } },
+        case: {
+          select: {
+            ownRef: true,
+            title: true,
+            courtName: true,
+            clientName: true,
+            client: { select: { name: true } },
+          },
+        },
       },
     });
 

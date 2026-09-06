@@ -152,7 +152,9 @@ function CasesPageContent() {
                         {c.estimatedFee != null ? formatCurrency(c.estimatedFee) : '—'}
                       </TableCell>
                       <TableCell><CaseStatusBadge status={c.status} /></TableCell>
-                      <TableCell className="text-muted-foreground text-xs">—</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">
+                        {c.updatedAt ? formatDate(c.updatedAt) : '—'}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

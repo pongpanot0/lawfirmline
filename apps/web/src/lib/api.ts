@@ -212,6 +212,7 @@ export interface CaseItem {
   estimatedFee?: number | null;
   closingSummary?: string | null;
   closedAt?: string | null;
+  updatedAt?: string;
   leadLawyer: { firstName: string; lastName: string };
   caseType?: { id: string; name: string; fieldSchema?: unknown } | null;
   client?: { id: string; name: string } | null;
@@ -389,7 +390,14 @@ export interface DashboardStats {
     id: string;
     title: string;
     startAt: string;
-    case: { ownRef: string; title: string };
+    caseId: string;
+    case: {
+      ownRef: string;
+      title: string;
+      courtName: string | null;
+      clientName: string | null;
+      client: { name: string } | null;
+    };
   }>;
   pendingReimbursements: ExpenseItem[];
 }
