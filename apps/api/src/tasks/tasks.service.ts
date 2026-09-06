@@ -216,13 +216,14 @@ export class TasksService {
     if (user.id === legalCase.leadLawyerId) {
       throw new BadRequestException('คุณเป็น Senior lawyer ของคดีนี้อยู่แล้ว ไม่ต้องส่งต่อ');
     }
-    if (task.assigneeId !== user.id) {
+    if (task.assigneeId && task.assigneeId !== user.id) {
       throw new ForbiddenException('คุณไม่ใช่ผู้รับผิดชอบงานนี้');
     }
     const allowedStatuses: TaskStatus[] = [
       TaskStatus.TODO,
       TaskStatus.IN_PROGRESS,
       TaskStatus.NEEDS_REVISION,
+      TaskStatus.DONE,
     ];
     if (!allowedStatuses.includes(task.status as TaskStatus)) {
       throw new BadRequestException('งานนี้ไม่อยู่ในสถานะที่ส่งต่อได้');
