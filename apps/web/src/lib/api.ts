@@ -1189,6 +1189,9 @@ export const api = {
   getPrecedentAnalysis: (token: string, intakeId: string, analysisId: string) =>
     request<IntakePrecedentAnalysisItem>(`/intake/${intakeId}/precedent-analysis/${analysisId}`, { token }),
 
+  listCasePrecedentAnalyses: (token: string, caseId: string) =>
+    request<IntakePrecedentAnalysisItem[]>(`/cases/${caseId}/precedent-analysis`, { token }),
+
   listPortalSubmissions: (token: string) =>
     request<PortalSubmissionStaffEntry[]>('/intake/portal-submissions', { token }),
 

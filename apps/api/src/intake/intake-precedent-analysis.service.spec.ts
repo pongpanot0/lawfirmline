@@ -207,4 +207,33 @@ describe('IntakePrecedentAnalysisService', () => {
       await expect(service.getOne(user, 'intake-1', 'analysis-1')).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('listForCase', () => {
+    it('queries analyses for the case, firm-scoped through the case relation, newest first', async () => {
+      mockPrisma.intakePrecedentAnalysis.findMany.mockResolvedValue([{ id: 'analysis-1' }]);
+
+      const result = await service.listForCase(user, 'case-1');
+
+      expect(mockPrisma.intakePrecedentAnalysis.findMany).toHaveBeenCalledWith({
+        where: { caseId: 'case-1', case: { firmId: 'firm-1' } },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result).toEqual([{ id: 'analysis-1' }]);
+    });
+
+    it('returns an empty list when the case belongs to another firm', async () => {
+      mockPrisma.intakePrecedentAnalysis.findMany.mockResolvedValue([]);
+
+      const result = await service.listForCase(
+        { id: 'user-2', firmId: 'firm-2' } as any,
+        'case-1',
+      );
+
+      expect(mockPrisma.intakePrecedentAnalysis.findMany).toHaveBeenCalledWith({
+        where: { caseId: 'case-1', case: { firmId: 'firm-2' } },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result).toEqual([]);
+    });
+  });
 });

@@ -196,3 +196,67 @@ describe('IntakeService draftNotice with analysisId', () => {
     expect(content).toContain('ข้อเท็จจริงที่เตรียมไว้แล้วจากการวิเคราะห์ฎีกา');
   });
 });
+
+describe('IntakeService convertToCase', () => {
+  let service: IntakeService;
+  const mockPrisma = {
+    intake: { findFirst: jest.fn(), update: jest.fn() },
+    firm: { findUnique: jest.fn() },
+    case: { findMany: jest.fn(), create: jest.fn() },
+    caseAssignment: { createMany: jest.fn() },
+    calendarEvent: { create: jest.fn() },
+    intakePrecedentAnalysis: { updateMany: jest.fn() },
+  };
+  const mockTasksService = { create: jest.fn() };
+  const mockConfig = { get: jest.fn() };
+  const mockAnalysisService = { getOne: jest.fn() };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockConfig.get.mockReturnValue(undefined);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IntakeService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: TasksService, useValue: mockTasksService },
+        { provide: ConfigService, useValue: mockConfig },
+        { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+      ],
+    }).compile();
+    service = module.get(IntakeService);
+  });
+
+  it('backfills caseId on every precedent-analysis row belonging to the intake', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      title: 'คดีทดสอบ',
+      clientName: 'คุณสมชาย',
+      matterType: 'แรงงาน',
+      description: 'รายละเอียด',
+      clientId: null,
+      referralName: null,
+      deadlineDate: null,
+      assignedUserIds: [],
+    });
+    mockPrisma.firm.findUnique.mockResolvedValue({ ownRefPrefix: 'TSBREF' });
+    mockPrisma.case.findMany.mockResolvedValue([]);
+    mockPrisma.case.create.mockResolvedValue({
+      id: 'case-1',
+      title: 'คดีทดสอบ',
+      leadLawyerId: 'user-1',
+    });
+    mockPrisma.intake.update.mockResolvedValue({});
+    mockPrisma.intakePrecedentAnalysis.updateMany.mockResolvedValue({ count: 2 });
+    mockTasksService.create.mockResolvedValue({});
+
+    const result = await service.convertToCase(user, 'intake-1', {} as any);
+
+    expect(result.id).toBe('case-1');
+    expect(mockPrisma.intakePrecedentAnalysis.updateMany).toHaveBeenCalledWith({
+      where: { intakeId: 'intake-1' },
+      data: { caseId: 'case-1' },
+    });
+  });
+});

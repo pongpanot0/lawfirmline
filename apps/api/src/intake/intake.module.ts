@@ -17,6 +17,6 @@ import { DocumentIntelligenceService } from '../intelligence/document-intelligen
     IappLegalClient,
     DocumentIntelligenceService,
   ],
-  exports: [IntakeService],
+  exports: [IntakeService, IntakePrecedentAnalysisService],
 })
 export class IntakeModule {}

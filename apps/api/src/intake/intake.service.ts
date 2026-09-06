@@ -347,6 +347,13 @@ export class IntakeService {
       },
     });
 
+    // Carry the intake's whole precedent-analysis history forward onto the case
+    // so it stays visible after conversion.
+    await this.prisma.intakePrecedentAnalysis.updateMany({
+      where: { intakeId: intake.id },
+      data: { caseId: newCase.id },
+    });
+
     await this.prisma.intake.update({
       where: { id },
       data: { status: 'CONVERTED' as any },

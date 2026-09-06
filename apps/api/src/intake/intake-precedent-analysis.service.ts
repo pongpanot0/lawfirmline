@@ -252,6 +252,13 @@ export class IntakePrecedentAnalysisService {
     });
   }
 
+  async listForCase(user: AuthUser, caseId: string) {
+    return this.prisma.intakePrecedentAnalysis.findMany({
+      where: { caseId, case: { firmId: user.firmId } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async getOne(user: AuthUser, intakeId: string, analysisId: string) {
     const analysis = await this.prisma.intakePrecedentAnalysis.findFirst({
       where: { id: analysisId, intakeId, intake: { firmId: user.firmId } },
