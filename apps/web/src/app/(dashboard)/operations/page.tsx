@@ -6,7 +6,7 @@ import { FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
-import { getCaseStatusDisplay } from '@/lib/case-status';
+import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -14,7 +14,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/misc';
-import { Users, Scale, AlarmClock, PauseCircle, Sparkles } from 'lucide-react';
+import { Users, Scale, AlarmClock, PauseCircle, Sparkles, SlidersHorizontal, MousePointerClick, ChevronRight } from 'lucide-react';
 
 function workloadLevel(total: number): { label: string; variant: 'success' | 'warning' | 'destructive' } {
   if (total <= 3) return { label: 'เบา', variant: 'success' };
@@ -22,14 +22,44 @@ function workloadLevel(total: number): { label: string; variant: 'success' | 'wa
   return { label: 'หนัก', variant: 'destructive' };
 }
 
+const AVATAR_COLORS = [
+  'bg-blue-100 text-blue-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-amber-100 text-amber-700',
+  'bg-violet-100 text-violet-700',
+  'bg-rose-100 text-rose-700',
+  'bg-cyan-100 text-cyan-700',
+];
+
+function avatarColor(seed: string) {
+  const code = seed.charCodeAt(0) || 0;
+  return AVATAR_COLORS[code % AVATAR_COLORS.length];
+}
+
+function LawyerAvatar({ firstName, lastName }: { firstName: string; lastName: string }) {
+  const initials = `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
+  return (
+    <span
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${avatarColor(firstName)}`}
+    >
+      {initials}
+    </span>
+  );
+}
+
 function WorkloadBar({ total, max }: { total: number; max: number }) {
   const pct = max > 0 ? Math.min(100, Math.round((total / max) * 100)) : 0;
-  const { variant } = workloadLevel(total);
+  const { label, variant } = workloadLevel(total);
   const barColor =
     variant === 'success' ? 'bg-emerald-500' : variant === 'warning' ? 'bg-amber-500' : 'bg-red-500';
+  const labelColor =
+    variant === 'success' ? 'text-emerald-600' : variant === 'warning' ? 'text-amber-600' : 'text-red-600';
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-      <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+    <div className="w-32">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className={`mt-1 text-xs font-medium ${labelColor}`}>{label}</p>
     </div>
   );
 }
@@ -172,9 +202,10 @@ export default function OperationsPage() {
             </div>
           )}
 
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
+            <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              ใกล้ deadline ภายใน
+              นับว่า &ldquo;ใกล้ deadline&rdquo; ถ้าเหลือไม่เกิน
               <Input
                 type="number"
                 min={1}
@@ -185,7 +216,7 @@ export default function OperationsPage() {
               วัน
             </label>
             <Button size="sm" variant="outline" onClick={() => setSortDesc((s) => !s)}>
-              {sortDesc ? 'เรียง: มากไปน้อย' : 'เรียง: น้อยไปมาก'}
+              เรียงตามภาระงาน: {sortDesc ? 'มากไปน้อย' : 'น้อยไปมาก'}
             </Button>
           </div>
 
@@ -202,23 +233,34 @@ export default function OperationsPage() {
                       <TableRow>
                         <TableHead>ทนาย</TableHead>
                         <TableHead>ภาระงาน</TableHead>
-                        <TableHead>Lead / Buddy</TableHead>
+                        <TableHead>บทบาทในคดี</TableHead>
                         <TableHead>ใกล้ deadline</TableHead>
+                        <TableHead className="w-8" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {sorted.map((s) => {
                         const isRecommended = s.userId === recommended?.userId;
+                        const isSelected = selectedUserId === s.userId;
                         return (
                           <TableRow
                             key={s.userId}
-                            className={`cursor-pointer ${isRecommended ? 'bg-primary/5' : ''}`}
+                            className={`group cursor-pointer border-l-2 transition-colors ${
+                              isSelected
+                                ? 'border-l-primary bg-primary/5'
+                                : isRecommended
+                                  ? 'border-l-transparent bg-primary/5'
+                                  : 'border-l-transparent hover:bg-muted/50'
+                            }`}
                             onClick={() => setSelectedUserId(s.userId)}
-                            data-state={selectedUserId === s.userId ? 'selected' : undefined}
+                            data-state={isSelected ? 'selected' : undefined}
                           >
                             <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                {s.firstName} {s.lastName}
+                              <div className="flex items-center gap-2.5">
+                                <LawyerAvatar firstName={s.firstName} lastName={s.lastName} />
+                                <span>
+                                  {s.firstName} {s.lastName}
+                                </span>
                                 {isRecommended && (
                                   <Badge variant="default" className="gap-1">
                                     <Sparkles className="h-3 w-3" />
@@ -228,22 +270,26 @@ export default function OperationsPage() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="flex min-w-[140px] items-center gap-2">
+                              <div className="mb-1">
                                 <span className="font-medium">{s.total} คดี</span>
                               </div>
-                              <div className="mt-1.5 w-32">
-                                <WorkloadBar total={s.total} max={maxTotal} />
-                              </div>
+                              <WorkloadBar total={s.total} max={maxTotal} />
                             </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {s.leadCount} / {s.buddyCount}
+                            <TableCell className="text-sm text-muted-foreground">
+                              หลัก {s.leadCount} · ช่วย {s.buddyCount}
                             </TableCell>
                             <TableCell>
                               {s.nearDeadlineCount > 0 ? (
-                                <Badge variant="warning">{s.nearDeadlineCount}</Badge>
+                                <Badge variant="warning" className="gap-1">
+                                  <AlarmClock className="h-3 w-3" />
+                                  {s.nearDeadlineCount}
+                                </Badge>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
                               )}
+                            </TableCell>
+                            <TableCell>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                             </TableCell>
                           </TableRow>
                         );
@@ -257,36 +303,52 @@ export default function OperationsPage() {
             <Card className="lg:col-span-5">
               <CardContent className="p-4">
                 {!selectedUserId ? (
-                  <p className="text-sm text-muted-foreground">เลือกทนายจากตารางเพื่อดูรายละเอียด</p>
+                  <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                    <MousePointerClick className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">คลิกชื่อทนายในตารางด้านซ้ายเพื่อดูรายการคดี</p>
+                  </div>
                 ) : detailLoading || !detail ? (
                   <p className="text-sm text-muted-foreground">กำลังโหลด...</p>
                 ) : (
                   <div className="space-y-3">
-                    <p className="font-semibold">
-                      {detail.firstName} {detail.lastName}
-                    </p>
+                    <div className="flex items-center gap-2.5">
+                      <LawyerAvatar firstName={detail.firstName} lastName={detail.lastName} />
+                      <p className="font-semibold">
+                        {detail.firstName} {detail.lastName}
+                      </p>
+                    </div>
                     {detail.cases.length === 0 ? (
                       <p className="text-sm text-muted-foreground">ไม่มีคดี active</p>
                     ) : (
                       <ul className="space-y-2">
                         {detail.cases.map((c) => (
                           <li key={c.caseId} className="rounded-lg border border-border p-3 text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium">{c.title}</span>
-                              <span className="rounded bg-muted px-2 py-0.5 text-xs">{c.role === 'LEAD' ? 'ผู้รับผิดชอบหลัก' : 'ผู้ช่วย'}</span>
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              สถานะ: {getCaseStatusDisplay(c.status).label} ·{' '}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">{c.title}</p>
+                                <div className="mt-1 flex items-center gap-1.5">
+                                  <CaseStatusBadge status={c.status} />
+                                  <span className="text-xs text-muted-foreground">
+                                    {c.role === 'LEAD' ? 'หลัก' : 'ช่วย'}
+                                  </span>
+                                </div>
+                              </div>
                               {c.nearestDeadlineDays === null ? (
-                                'ไม่มี deadline ใกล้ตัว'
+                                <span className="shrink-0 text-xs text-muted-foreground">ไม่มี deadline</span>
                               ) : c.nearestDeadlineDays < 0 ? (
-                                <span className="font-medium text-red-600">
-                                  เลยกำหนดมาแล้ว {Math.abs(c.nearestDeadlineDays)} วัน
-                                </span>
+                                <Badge variant="destructive" className="shrink-0">
+                                  เลยกำหนด {Math.abs(c.nearestDeadlineDays)} วัน
+                                </Badge>
+                              ) : c.nearestDeadlineDays <= nearDeadlineDays ? (
+                                <Badge variant="warning" className="shrink-0">
+                                  อีก {c.nearestDeadlineDays} วัน
+                                </Badge>
                               ) : (
-                                `อีก ${c.nearestDeadlineDays} วัน`
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                  อีก {c.nearestDeadlineDays} วัน
+                                </span>
                               )}
-                            </p>
+                            </div>
                           </li>
                         ))}
                       </ul>
