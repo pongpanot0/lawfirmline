@@ -1,17 +1,37 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/misc';
+import { Users, Scale, AlarmClock, PauseCircle } from 'lucide-react';
+
+function workloadLevel(total: number): { label: string; variant: 'success' | 'warning' | 'destructive' } {
+  if (total <= 3) return { label: 'เบา', variant: 'success' };
+  if (total <= 7) return { label: 'ปานกลาง', variant: 'warning' };
+  return { label: 'หนัก', variant: 'destructive' };
+}
+
+function WorkloadBar({ total, max }: { total: number; max: number }) {
+  const pct = max > 0 ? Math.min(100, Math.round((total / max) * 100)) : 0;
+  const { variant } = workloadLevel(total);
+  const barColor =
+    variant === 'success' ? 'bg-emerald-500' : variant === 'warning' ? 'bg-amber-500' : 'bg-red-500';
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+      <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
 
 export default function OperationsPage() {
   const { token, user } = useAuth();
@@ -20,7 +40,7 @@ export default function OperationsPage() {
   const [summary, setSummary] = useState<WorkloadSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [nearDeadlineDays, setNearDeadlineDays] = useState(7);
-  const [sortDesc, setSortDesc] = useState(false);
+  const [sortDesc, setSortDesc] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [detail, setDetail] = useState<WorkloadDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -70,10 +90,19 @@ export default function OperationsPage() {
 
   useEffect(loadOnHold, [token, isOwner]);
 
-  const sorted = [...summary].sort((a, b) => {
-    const diff = a.leadCount + a.buddyCount - (b.leadCount + b.buddyCount);
-    return sortDesc ? -diff : diff;
-  });
+  const enriched = useMemo(
+    () => summary.map((s) => ({ ...s, total: s.leadCount + s.buddyCount })),
+    [summary],
+  );
+  const maxTotal = useMemo(() => Math.max(1, ...enriched.map((s) => s.total)), [enriched]);
+  const sorted = useMemo(
+    () => [...enriched].sort((a, b) => (sortDesc ? b.total - a.total : a.total - b.total)),
+    [enriched, sortDesc],
+  );
+
+  const totalActiveCases = enriched.reduce((sum, s) => sum + s.total, 0);
+  const totalNearDeadline = enriched.reduce((sum, s) => sum + s.nearDeadlineCount, 0);
+  const overdueOnHoldCount = onHold.filter((o) => o.isOverdue).length;
 
   if (!isOwner) {
     return <p className="text-destructive">Owner access only / เฉพาะเจ้าของสำนักงานเท่านั้น</p>;
@@ -81,13 +110,34 @@ export default function OperationsPage() {
 
   return (
     <div>
-      <PageHeader title="Operations" description="ภาพรวมภาระงานและการจับคู่ทีมงาน" />
+      <PageHeader title="ภาระงานทีม" description="ภาพรวมภาระงาน การจับคู่ทีมงาน และงานที่พักไว้" />
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard label="ทนายในสำนักงาน" value={enriched.length} icon={Users} />
+        <KpiCard label="คดี active รวม" value={totalActiveCases} icon={Scale} />
+        <KpiCard
+          label={`ใกล้ deadline (${nearDeadlineDays} วัน)`}
+          value={totalNearDeadline}
+          icon={AlarmClock}
+          trend={totalNearDeadline > 0 ? 'down' : 'neutral'}
+          change={totalNearDeadline > 0 ? 'ต้องติดตาม' : undefined}
+        />
+        <KpiCard
+          label="งาน On Hold"
+          value={onHold.length}
+          icon={PauseCircle}
+          trend={overdueOnHoldCount > 0 ? 'down' : 'neutral'}
+          change={overdueOnHoldCount > 0 ? `${overdueOnHoldCount} เกินกำหนด` : undefined}
+        />
+      </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="workload">Workload</TabsTrigger>
           <TabsTrigger value="pairing">Pairing</TabsTrigger>
-          <TabsTrigger value="onhold">On Hold</TabsTrigger>
+          <TabsTrigger value="onhold">
+            On Hold{onHold.length > 0 ? ` (${onHold.length})` : ''}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="workload">
@@ -120,27 +170,46 @@ export default function OperationsPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>ทนาย</TableHead>
-                        <TableHead>Lead</TableHead>
-                        <TableHead>Buddy</TableHead>
+                        <TableHead>ภาระงาน</TableHead>
+                        <TableHead>Lead / Buddy</TableHead>
                         <TableHead>ใกล้ deadline</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sorted.map((s) => (
-                        <TableRow
-                          key={s.userId}
-                          className="cursor-pointer"
-                          onClick={() => setSelectedUserId(s.userId)}
-                          data-state={selectedUserId === s.userId ? 'selected' : undefined}
-                        >
-                          <TableCell className="font-medium">
-                            {s.firstName} {s.lastName}
-                          </TableCell>
-                          <TableCell>{s.leadCount}</TableCell>
-                          <TableCell>{s.buddyCount}</TableCell>
-                          <TableCell>{s.nearDeadlineCount}</TableCell>
-                        </TableRow>
-                      ))}
+                      {sorted.map((s) => {
+                        const level = workloadLevel(s.total);
+                        return (
+                          <TableRow
+                            key={s.userId}
+                            className="cursor-pointer"
+                            onClick={() => setSelectedUserId(s.userId)}
+                            data-state={selectedUserId === s.userId ? 'selected' : undefined}
+                          >
+                            <TableCell className="font-medium">
+                              {s.firstName} {s.lastName}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex min-w-[140px] items-center gap-2">
+                                <Badge variant={level.variant}>{level.label}</Badge>
+                                <span className="text-xs text-muted-foreground">{s.total} คดี</span>
+                              </div>
+                              <div className="mt-1.5 w-32">
+                                <WorkloadBar total={s.total} max={maxTotal} />
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {s.leadCount} / {s.buddyCount}
+                            </TableCell>
+                            <TableCell>
+                              {s.nearDeadlineCount > 0 ? (
+                                <Badge variant="warning">{s.nearDeadlineCount}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
@@ -170,11 +239,15 @@ export default function OperationsPage() {
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">
                               สถานะ: {c.status} ·{' '}
-                              {c.nearestDeadlineDays === null
-                                ? 'ไม่มี deadline ใกล้ตัว'
-                                : c.nearestDeadlineDays < 0
-                                  ? `เลยกำหนดมาแล้ว ${Math.abs(c.nearestDeadlineDays)} วัน`
-                                  : `อีก ${c.nearestDeadlineDays} วัน`}
+                              {c.nearestDeadlineDays === null ? (
+                                'ไม่มี deadline ใกล้ตัว'
+                              ) : c.nearestDeadlineDays < 0 ? (
+                                <span className="font-medium text-red-600">
+                                  เลยกำหนดมาแล้ว {Math.abs(c.nearestDeadlineDays)} วัน
+                                </span>
+                              ) : (
+                                `อีก ${c.nearestDeadlineDays} วัน`
+                              )}
                             </p>
                           </li>
                         ))}
@@ -241,7 +314,7 @@ export default function OperationsPage() {
                   </TableHeader>
                   <TableBody>
                     {onHold.map((item) => (
-                      <TableRow key={item.taskId}>
+                      <TableRow key={item.taskId} className={item.isOverdue ? 'bg-red-50/50 dark:bg-red-950/20' : undefined}>
                         <TableCell>{item.taskTitle}</TableCell>
                         <TableCell>
                           {item.caseOwnRef ?? '-'} {item.caseTitle ?? ''}
@@ -256,10 +329,10 @@ export default function OperationsPage() {
                         </TableCell>
                         <TableCell>
                           {item.dueDate ? (
-                            <span className={item.isOverdue ? 'text-red-600 font-medium' : ''}>
+                            <Badge variant={item.isOverdue ? 'destructive' : 'muted'}>
                               {new Date(item.dueDate).toLocaleDateString('th-TH')}
-                              {item.isOverdue ? ' (เกินกำหนด)' : ''}
-                            </span>
+                              {item.isOverdue ? ' เกินกำหนด' : ''}
+                            </Badge>
                           ) : (
                             '-'
                           )}

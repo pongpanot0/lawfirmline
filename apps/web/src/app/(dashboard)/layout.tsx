@@ -4,8 +4,6 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AppShell } from '@/components/layout/AppShell';
-import { TrialBanner } from '@/components/saas/TrialBanner';
-import { SubscriptionGate } from '@/components/saas/SubscriptionGate';
 import { LocaleProvider } from '@/components/landing/LocaleProvider';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
@@ -41,8 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             router.push('/login');
           }}
         >
-          <TrialBanner />
-          <SubscriptionGate>{children}</SubscriptionGate>
+          {children}
         </AppShell>
       )}
     </LocaleProvider>

@@ -14,7 +14,6 @@ import {
   Gauge,
   Settings,
   Bell,
-  CreditCard,
   Scale,
   ChevronLeft,
   ChevronRight,
@@ -38,6 +37,7 @@ import { useState } from 'react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false },
+  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true },
   { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false },
   { href: '/intake', labelKey: 'intake' as const, icon: ClipboardList, ownerOnly: false },
   { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false },
@@ -47,8 +47,6 @@ const NAV_ITEMS = [
   { href: '/expenses', labelKey: 'expenses' as const, icon: Receipt, ownerOnly: true },
   { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true },
   { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true },
-  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true },
-  { href: '/account/billing', labelKey: 'billing' as const, icon: CreditCard, ownerOnly: true },
   { href: '/admin/reimbursements', labelKey: 'reimbursements' as const, icon: Shield, ownerOnly: true },
   { href: '/admin/case-types', labelKey: 'caseTypes' as const, icon: Tags, ownerOnly: true },
   { href: '/admin/courts', labelKey: 'courts' as const, icon: Scale, ownerOnly: true },
