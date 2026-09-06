@@ -107,6 +107,11 @@ enum NotificationChannel {
   LINE
 }
 
+enum MessageSenderType {
+  STAFF
+  CONTACT
+}
+
 enum ParticipantRole {
   PLAINTIFF
   DEFENDANT
@@ -367,6 +372,7 @@ model User {
   revokedContactCaseAccess ContactCaseAccess[] @relation("ContactCaseAccessRevoked")
   publishedDocuments   DocumentPublication[] @relation("DocumentPublicationPublished")
   unpublishedDocuments DocumentPublication[] @relation("DocumentPublicationUnpublished")
+  caseMessages         CaseMessage[]
 }
 
 model CaseType {
@@ -427,6 +433,7 @@ model ClientContact {
   portalIntakeSubmissions PortalIntakeSubmission[]
   caseAccess  ContactCaseAccess[]
   notificationPreferences ContactNotificationPreference[]
+  caseMessages CaseMessage[]
 
   @@index([clientId])
 }
@@ -509,6 +516,7 @@ model Case {
   closingEmailDrafts ClosingEmailDraft[]
   insuranceClaim InsuranceClaim?
   contactAccess  ContactCaseAccess[]
+  messages       CaseMessage[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -949,6 +957,22 @@ model ContactCaseAccess {
   @@unique([clientContactId, caseId])
   @@index([clientContactId])
   @@index([startDate, endDate])
+}
+
+model CaseMessage {
+  id              String            @id @default(uuid())
+  caseId          String
+  senderType      MessageSenderType
+  senderUserId    String?
+  senderContactId String?
+  body            String            @db.Text
+  createdAt       DateTime          @default(now())
+
+  case          Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  senderUser    User?          @relation(fields: [senderUserId], references: [id])
+  senderContact ClientContact? @relation(fields: [senderContactId], references: [id])
+
+  @@index([caseId, createdAt])
 }
 
 model ContactNotificationPreference {
