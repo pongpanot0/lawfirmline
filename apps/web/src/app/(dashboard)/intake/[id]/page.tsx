@@ -312,13 +312,17 @@ export default function IntakeDetailPage() {
 
   const handleDownloadDocument = async (doc: DocumentItem) => {
     if (!token || !id) return;
-    const blob = await api.downloadIntakeDocument(token, id as string, doc.id);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = doc.filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const blob = await api.downloadIntakeDocument(token, id as string, doc.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+    }
   };
 
   const handleConvert = async () => {
