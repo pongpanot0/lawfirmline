@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -104,6 +104,11 @@ export default function IntakeDetailPage() {
   const [noticeReviewed, setNoticeReviewed] = useState(false);
   const [drafting, setDrafting] = useState(false);
 
+  // Attachments
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!token || !id) return;
     setLoading(true);
@@ -187,6 +192,32 @@ export default function IntakeDetailPage() {
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setDrafting(false);
+    }
+  };
+
+  const handleUploadAttachment = async (file: File) => {
+    if (!token || !intake) return;
+    setUploadingAttachment(true);
+    setAttachmentError(null);
+    try {
+      await api.uploadIntakeAttachment(token, intake.id, file);
+      const refreshed = await api.getIntake(token, intake.id);
+      setIntake(refreshed);
+    } catch {
+      setAttachmentError('แนบไฟล์ไม่สำเร็จ — รองรับเฉพาะ PDF ขนาดไม่เกิน 10MB');
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!token || !intake) return;
+    try {
+      await api.deleteIntakeAttachment(token, intake.id, attachmentId);
+      const refreshed = await api.getIntake(token, intake.id);
+      setIntake(refreshed);
+    } catch {
+      setAttachmentError('ลบไฟล์ไม่สำเร็จ');
     }
   };
 
@@ -298,6 +329,49 @@ export default function IntakeDetailPage() {
             <InfoRow label="วันเกิดเหตุ" value={formatDate(intake.incidentDate)} />
             <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
             <InfoRow label="รายละเอียด" value={intake.description} />
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">ไฟล์แนบ (PDF)</p>
+                <input
+                  ref={attachmentInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadAttachment(file);
+                    e.target.value = '';
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => attachmentInputRef.current?.click()}
+                  disabled={uploadingAttachment}
+                >
+                  {uploadingAttachment ? 'กำลังอัปโหลด...' : '+ แนบไฟล์ PDF'}
+                </Button>
+              </div>
+              {attachmentError && <p className="mt-1 text-sm text-destructive">{attachmentError}</p>}
+              {intake.attachments && intake.attachments.length > 0 ? (
+                <ul className="mt-2 space-y-1">
+                  {intake.attachments.map((att) => (
+                    <li key={att.id} className="flex items-center justify-between text-sm">
+                      <span className="truncate">{att.filename}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAttachment(att.id)}
+                        className="text-xs text-destructive hover:underline"
+                      >
+                        ลบ
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">ยังไม่มีไฟล์แนบ</p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
