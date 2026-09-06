@@ -1,11 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, UserItem, CaseTypeItem, ClientItem, CourtItem, ApiError, WorkloadSummary } from '@/lib/api';
-import { Stepper } from '@/components/ui/Stepper';
+import {
+  api,
+  UserItem,
+  CaseTypeItem,
+  ClientItem,
+  CourtItem,
+  ApiError,
+  WorkloadSummary,
+} from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import type { CaseFieldSchema } from '@lawfirm/shared';
 import {
@@ -19,22 +26,18 @@ import {
   FEE_MAX,
   FEE_MIN,
 } from '@lawfirm/shared';
-import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { fmt } from '@/lib/i18n/dashboard';
-
-const STEPS = [
-  { id: 'type', label: 'ประเภทคดี', description: 'Case Type' },
-  { id: 'basic', label: 'ข้อมูลพื้นฐาน', description: 'Basic Info' },
-  { id: 'custom', label: 'รายละเอียดเพิ่มเติม', description: 'Details' },
-  { id: 'team', label: 'ทีมงาน', description: 'Team' },
-];
 
 export default function NewCasePage() {
   const { token, user } = useAuth();
-  const d = useDashboardT();
-  const nf = d.cases.newForm;
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const submittingRef = useRef(false);
+  const [autoTitle, setAutoTitle] = useState(true);
+  const [clientSearch, setClientSearch] = useState('');
+  const [courtSearch, setCourtSearch] = useState('');
+  const [retry, setRetry] = useState(0);
+  const [lookupWarning, setLookupWarning] = useState('');
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [clients, setClients] = useState<ClientItem[]>([]);
@@ -57,7 +60,7 @@ export default function NewCasePage() {
     redCaseNumber: '',
     description: '',
     estimatedFee: '',
-    leadLawyerId: user?.id ?? '',
+    leadLawyerId: '',
     buddyIds: [] as string[],
     customFields: {} as Record<string, string>,
     addInitialActivity: false,
@@ -69,9 +72,9 @@ export default function NewCasePage() {
   const [nextOwnRef, setNextOwnRef] = useState<string>('');
 
   const selectedType = caseTypes.find((t) => t.id === form.caseTypeId);
-  const fieldSchema = (Array.isArray(selectedType?.fieldSchema)
-    ? selectedType.fieldSchema
-    : []) as CaseFieldSchema[];
+  const fieldSchema = (
+    Array.isArray(selectedType?.fieldSchema) ? selectedType.fieldSchema : []
+  ) as CaseFieldSchema[];
 
   const workloadLabel = (userId: string) => {
     const w = workload.find((x) => x.userId === userId);
@@ -82,31 +85,61 @@ export default function NewCasePage() {
   useEffect(() => {
     if (!token) return;
     setLoadingTypes(true);
+    setError('');
+    setLookupWarning('');
     Promise.all([
       api.getLawyers(token),
       api.getCaseTypes(token),
-      api.getClients(token).catch(() => [] as ClientItem[]),
-      api.getCourts(token).catch(() => [] as CourtItem[]),
+      api.getClients(token).catch(() => {
+        setLookupWarning(
+          'โหลดข้อมูลลูกค้าหรือศาลไม่สำเร็จ ลองโหลดใหม่ก่อนกรอกต่อ',
+        );
+        return [] as ClientItem[];
+      }),
+      api.getCourts(token).catch(() => {
+        setLookupWarning(
+          'โหลดข้อมูลลูกค้าหรือศาลไม่สำเร็จ ลองโหลดใหม่ก่อนกรอกต่อ',
+        );
+        return [] as CourtItem[];
+      }),
       api.getNextOwnRef(token).catch(() => ({ ownRef: '' })),
       api.getWorkloadSummary(token).catch(() => [] as WorkloadSummary[]),
     ])
-      .then(([lawyerList, types, clientList, courtList, nextRef, workloadList]) => {
-        setLawyers(lawyerList);
-        setCaseTypes(types);
-        setClients(clientList);
-        setCourts(courtList);
-        setNextOwnRef(nextRef.ownRef);
-        setWorkload(workloadList);
-      })
-      .catch(() => setError('Failed to load case form data / โหลดข้อมูลฟอร์มไม่สำเร็จ กรุณาลองใหม่'))
+      .then(
+        ([lawyerList, types, clientList, courtList, nextRef, workloadList]) => {
+          setLawyers(lawyerList);
+          setForm((f) => ({
+            ...f,
+            leadLawyerId: lawyerList.some((l) => l.id === f.leadLawyerId)
+              ? f.leadLawyerId
+              : (lawyerList.find((l) => l.id === user?.id)?.id ?? ''),
+            caseTypeId: f.caseTypeId || (types.length === 1 ? types[0].id : ''),
+          }));
+          setCaseTypes(types);
+          setClients(clientList);
+          setCourts(courtList);
+          setNextOwnRef(nextRef.ownRef);
+          setWorkload(workloadList);
+        },
+      )
+      .catch(() => setError('โหลดข้อมูลฟอร์มไม่สำเร็จ กรุณาลองใหม่'))
       .finally(() => setLoadingTypes(false));
-  }, [token]);
+  }, [token, user?.id, retry]);
 
+  const clientLabel = form.clientId
+    ? (clients.find((c) => c.id === form.clientId)?.name ?? '')
+    : form.useTmpClient
+      ? ''
+      : form.clientName.trim();
+  const suggestedTitle = [selectedType?.name, clientLabel]
+    .filter(Boolean)
+    .join(' — ');
   useEffect(() => {
-    if (user?.id && !form.leadLawyerId) {
-      setForm((f) => ({ ...f, leadLawyerId: user.id }));
-    }
-  }, [user, form.leadLawyerId]);
+    if (autoTitle) setForm((f) => ({ ...f, title: suggestedTitle }));
+  }, [autoTitle, suggestedTitle]);
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [step]);
 
   const toggleBuddy = (id: string) => {
     setForm((prev) => ({
@@ -125,26 +158,56 @@ export default function NewCasePage() {
     return form.clientName.trim() || TMP_CLIENT_PLACEHOLDER;
   };
 
-  const canNext = () => {
-    if (step === 0) return !!form.caseTypeId;
-    if (step === 1) {
-      const hasCourt = !!form.courtName && !!form.courtLevel;
-      const hasCaseNumbers =
-        CASE_NUMBER_REGEX.test(form.blackCaseNumber.trim()) &&
-        CASE_NUMBER_REGEX.test(form.redCaseNumber.trim());
-      const activityOk = !form.addInitialActivity || (form.initialActivityTitle && form.initialActivityAt);
-      return form.title && hasCourt && hasCaseNumbers && activityOk;
+  const validationMessage = (targetStep: number) => {
+    if (targetStep === 0 && !form.caseTypeId)
+      return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
+    if (targetStep === 1) {
+      if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
+      if (!form.courtName) return 'กรุณาเลือกศาล';
+      if (!CASE_NUMBER_REGEX.test(form.blackCaseNumber.trim()))
+        return `เลขดำ: ${CASE_NUMBER_HINT}`;
+      if (!CASE_NUMBER_REGEX.test(form.redCaseNumber.trim()))
+        return `เลขแดง: ${CASE_NUMBER_HINT}`;
+      if (
+        form.estimatedFee &&
+        (!Number.isFinite(Number(form.estimatedFee)) ||
+          Number(form.estimatedFee) < FEE_MIN ||
+          Number(form.estimatedFee) > FEE_MAX ||
+          !/^\d+(\.\d{1,2})?$/.test(form.estimatedFee))
+      )
+        return 'กรุณากรอกรายได้ในช่วงที่กำหนด และทศนิยมไม่เกิน 2 ตำแหน่ง';
+      if (
+        form.addInitialActivity &&
+        (!form.initialActivityTitle.trim() ||
+          !form.initialActivityAt ||
+          Number.isNaN(new Date(form.initialActivityAt).getTime()))
+      )
+        return 'กรุณากรอกหัวข้อและวันเวลานัดหมายแรก';
     }
-    if (step === 2) {
-      return fieldSchema
-        .filter((f) => f.required)
-        .every((f) => form.customFields[f.key]?.trim());
+    if (targetStep === 2) {
+      const missing = fieldSchema.find(
+        (f) => f.required && !form.customFields[f.key]?.trim(),
+      );
+      if (missing) return `กรุณากรอก${missing.label}`;
     }
-    if (step === 3) return !!form.leadLawyerId;
-    return true;
+    if (targetStep === 3 && !lawyers.some((l) => l.id === form.leadLawyerId))
+      return 'กรุณาเลือกทนายผู้รับผิดชอบ';
+    return '';
   };
+  const visibleSteps = [
+    { value: 0, label: 'ประเภทคดี' },
+    { value: 1, label: 'ข้อมูลคดี' },
+    ...(fieldSchema.length ? [{ value: 2, label: 'ข้อมูลเฉพาะ' }] : []),
+    { value: 3, label: 'ทีมและตรวจสอบ' },
+  ];
 
   const goNext = () => {
+    const message = validationMessage(step);
+    if (message) {
+      setError(message);
+      return;
+    }
+    setError('');
     if (step === 1 && fieldSchema.length === 0) {
       setStep(3);
       return;
@@ -153,32 +216,46 @@ export default function NewCasePage() {
   };
 
   const goBack = () => {
+    setError('');
     if (step === 3 && fieldSchema.length === 0) {
       setStep(1);
       return;
     }
     if (step > 0) setStep(step - 1);
-    else router.back();
+    else router.push('/cases');
   };
 
   const handleSubmit = async () => {
-    if (!token) return;
+    if (!token || submittingRef.current) return;
+    for (const target of visibleSteps) {
+      const message = validationMessage(target.value);
+      if (message) {
+        setStep(target.value);
+        setError(message);
+        return;
+      }
+    }
+    submittingRef.current = true;
     setSubmitting(true);
     setError('');
     try {
       const payload: Record<string, unknown> = {
         customerRef: form.customerRef.trim() || undefined,
-        title: form.title,
+        title: form.title.trim(),
         description: form.description || undefined,
         courtName: form.courtName,
         courtLevel: form.courtLevel,
         blackCaseNumber: form.blackCaseNumber.trim(),
         redCaseNumber: form.redCaseNumber.trim(),
-        estimatedFee: form.estimatedFee ? parseFloat(form.estimatedFee) : undefined,
+        estimatedFee: form.estimatedFee
+          ? parseFloat(form.estimatedFee)
+          : undefined,
         leadLawyerId: form.leadLawyerId,
         caseTypeId: form.caseTypeId,
-        buddyIds: form.buddyIds,
-        customFields: Object.keys(form.customFields).length ? form.customFields : undefined,
+        buddyIds: form.buddyIds.filter((id) => id !== form.leadLawyerId),
+        customFields: Object.keys(form.customFields).length
+          ? form.customFields
+          : undefined,
       };
       if (form.clientId) {
         payload.clientId = form.clientId;
@@ -189,7 +266,11 @@ export default function NewCasePage() {
           ? TMP_CLIENT_PLACEHOLDER
           : form.clientName.trim() || TMP_CLIENT_PLACEHOLDER;
       }
-      if (form.addInitialActivity && form.initialActivityTitle && form.initialActivityAt) {
+      if (
+        form.addInitialActivity &&
+        form.initialActivityTitle &&
+        form.initialActivityAt
+      ) {
         payload.initialActivity = {
           title: form.initialActivityTitle,
           description: form.initialActivityDescription || undefined,
@@ -203,453 +284,811 @@ export default function NewCasePage() {
       setError(
         err instanceof ApiError
           ? err.message
-          : 'Failed to create case / สร้างคดีไม่สำเร็จ กรุณาลองใหม่',
+          : 'สร้างคดีไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ กรุณาลองใหม่',
       );
-    } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
+  const inputClass =
+    'mt-1 min-w-0 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60';
+  const fieldLabel = 'block text-sm font-medium';
+  const selectedLawyer = lawyers.find((l) => l.id === form.leadLawyerId);
+  const currentIndex = visibleSteps.findIndex((item) => item.value === step);
+
+  // Hallmark · pre-emit critique: P4 H4 E4 S5 R5 V4 · existing LexFlow design tokens
   return (
-    <div className="w-full">
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">Create New Case / สร้างคดีใหม่</h1>
-      <p className="mb-6 text-sm text-slate-500">
-        Multi-step case intake / ขั้นตอนสร้างคดี พร้อมเลขที่แฟ้มอัตโนมัติ
+    <div className="mx-auto w-full max-w-4xl min-w-0 [overflow-wrap:anywhere]">
+      <Link href="/cases" className="text-sm text-primary hover:underline">
+        ← กลับไปหน้าคดี
+      </Link>
+      <h1 className="mt-3 text-2xl font-bold">สร้างคดีใหม่</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        เริ่มจากประเภทคดี แล้วกรอกข้อมูลที่มี
+        ระบบช่วยเตรียมชื่อคดีและเลขอ้างอิงให้
       </p>
-
-      <Stepper steps={STEPS} currentStep={step} onStepClick={(i) => i < step && setStep(i)} />
-
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        {step === 0 && (
-          <div className="space-y-3">
-            <h2 className="font-semibold">Select Case Type / เลือกประเภทคดี</h2>
-            {loadingTypes ? (
-              <p className="text-sm text-slate-500">Loading case types... / กำลังโหลดประเภทคดี...</p>
-            ) : caseTypes.length === 0 ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                <p className="font-medium">No case types available / ยังไม่มีประเภทคดี</p>
-                <p className="mt-1 text-amber-800">
-                  กรุณาเพิ่มประเภทคดีอย่างน้อย 1 รายการก่อนสร้างคดี
-                </p>
-                <Link
-                  href="/admin/case-types"
-                  className="mt-3 inline-block font-medium text-brand-700 hover:underline"
-                >
-                  Go to Case Types settings / ไปที่ตั้งค่าประเภทคดี →
-                </Link>
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {caseTypes.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setForm({ ...form, caseTypeId: t.id, customFields: {} })}
-                    className={`rounded-lg border p-4 text-left transition-colors ${
-                      form.caseTypeId === t.id
-                        ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200'
-                        : 'border-slate-200 hover:border-brand-300'
-                    }`}
-                  >
-                    <p className="font-medium">{t.name}</p>
-                    {t.description && (
-                      <p className="mt-1 text-xs text-slate-500">{t.description}</p>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="space-y-4">
-            <h2 className="font-semibold">Basic Information / ข้อมูลพื้นฐาน</h2>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Own Ref</label>
-              <div className="mt-1 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm">
-                <span className="font-mono font-medium text-slate-900">
-                  {nextOwnRef || 'TSBREFYYYY0001'}
-                </span>
-                <p className="mt-1 text-xs text-slate-500">
-                  สร้างอัตโนมัติ · รูปแบบ TSBREF + ปี + เลขรันต่อเนื่อง (รีเซ็ตทุกปี)
-                </p>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">
-                Customer Ref
-                <span className="ml-1 font-normal text-slate-500">(ไม่บังคับ)</span>
-              </label>
-              <input
-                value={form.customerRef}
-                onChange={(e) => setForm({ ...form, customerRef: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="เลขอ้างอิงจากลูกค้า / บริษัท"
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium text-slate-700">เลขดำ *</label>
-                <input
-                  required
-                  inputMode="numeric"
-                  pattern={CASE_NUMBER_HTML}
-                  title={CASE_NUMBER_HINT}
-                  value={form.blackCaseNumber}
-                  onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="เช่น 123/2567"
-                />
-                <p className="mt-1 text-xs text-slate-500">{CASE_NUMBER_HINT}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">เลขแดง *</label>
-                <input
-                  required
-                  inputMode="numeric"
-                  pattern={CASE_NUMBER_HTML}
-                  title={CASE_NUMBER_HINT}
-                  value={form.redCaseNumber}
-                  onChange={(e) => setForm({ ...form, redCaseNumber: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="เช่น 456/2567"
-                />
-                <p className="mt-1 text-xs text-slate-500">{CASE_NUMBER_HINT}</p>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">ชื่อคดี *</label>
-              <input
-                required
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">
-                {nf.clientLabel}{' '}
-                <span className="font-normal text-slate-500">({nf.clientOptional})</span>
-              </label>
-              <select
-                value={form.clientId}
-                disabled={form.useTmpClient}
-                onChange={(e) => {
-                  const client = clients.find((c) => c.id === e.target.value);
-                  setForm({
-                    ...form,
-                    clientId: e.target.value,
-                    clientName: client?.name ?? '',
-                    useTmpClient: false,
-                  });
+      <nav aria-label="ขั้นตอนสร้างคดี" className="my-6">
+        <ol className="grid grid-cols-2 gap-2 sm:flex">
+          {visibleSteps.map((item, index) => (
+            <li key={item.value} className="min-w-0 sm:flex-1">
+              <button
+                type="button"
+                disabled={item.value > step || submitting}
+                aria-current={item.value === step ? 'step' : undefined}
+                onClick={() => {
+                  setStep(item.value);
+                  setError('');
                 }}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${item.value === step ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-card text-muted-foreground disabled:opacity-60'}`}
               >
-                <option value="">{nf.selectClient}</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {clients.length === 0 && (
-                <p className="mt-1 text-xs text-slate-500">
-                  {nf.noClientsYet}{' '}
-                  <Link href="/clients/new" className="text-brand-700 hover:underline">
-                    {nf.createClient}
-                  </Link>
-                </p>
+                <span className="shrink-0">
+                  {item.value < step ? '✓' : index + 1}
+                </span>
+                <span className="whitespace-nowrap">{item.label}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </nav>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (step === 3) void handleSubmit();
+          else goNext();
+        }}
+        className="rounded-xl border border-border bg-card text-card-foreground shadow-soft"
+      >
+        <fieldset
+          disabled={submitting}
+          className="min-w-0 space-y-6 p-4 sm:p-6"
+        >
+          <div>
+            <p className="text-xs text-muted-foreground">
+              ขั้นตอน {currentIndex + 1} จาก {visibleSteps.length}
+            </p>
+            <h2
+              ref={headingRef}
+              tabIndex={-1}
+              className="mt-1 text-lg font-semibold focus:outline-none"
+            >
+              {visibleSteps[currentIndex]?.label}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {step === 0
+                ? 'เลือกประเภทที่ตรงกับคดี เพื่อแสดงเฉพาะข้อมูลที่เกี่ยวข้อง'
+                : step === 1
+                  ? 'ช่องที่มี * จำเป็นต้องกรอก ข้อมูลอื่นเพิ่มภายหลังได้'
+                  : step === 2
+                    ? 'รายละเอียดที่เกี่ยวข้องกับประเภทคดีที่เลือก'
+                    : 'ตรวจสอบข้อมูลก่อนสร้างคดี และเลือกทีมที่ดูแล'}
+            </p>
+          </div>
+
+          {(error || lookupWarning) && (
+            <div
+              role="alert"
+              className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+            >
+              <p>{error || lookupWarning}</p>
+              {((step === 0 && caseTypes.length === 0) || lookupWarning) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setRetry((value) => value + 1)}
+                >
+                  โหลดข้อมูลใหม่
+                </Button>
               )}
-              {!form.clientId && (
-                <div className="mt-2 space-y-2">
+            </div>
+          )}
+
+          {step === 0 && (
+            <div className="space-y-4">
+              {loadingTypes ? (
+                <p role="status" className="text-sm text-muted-foreground">
+                  กำลังเตรียมข้อมูล…
+                </p>
+              ) : caseTypes.length === 0 ? (
+                <p className="text-sm">
+                  ยังไม่มีประเภทคดี{' '}
+                  <Link
+                    href="/admin/case-types"
+                    className="text-primary underline"
+                  >
+                    เพิ่มประเภทคดี
+                  </Link>
+                  ก่อนเริ่ม
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {caseTypes.map((type) => (
+                    <button
+                      key={type.id}
+                      type="button"
+                      aria-pressed={form.caseTypeId === type.id}
+                      onClick={() =>
+                        setForm((f) =>
+                          f.caseTypeId === type.id
+                            ? f
+                            : { ...f, caseTypeId: type.id, customFields: {} },
+                        )
+                      }
+                      className={`rounded-lg border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.caseTypeId === type.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
+                    >
+                      <span className="flex items-center justify-between gap-2 font-medium">
+                        {type.name}
+                        <span aria-hidden="true">
+                          {form.caseTypeId === type.id ? '✓' : '○'}
+                        </span>
+                      </span>
+                      {type.description && (
+                        <span className="mt-2 block text-sm text-muted-foreground">
+                          {type.description}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="space-y-6">
+              <section className="space-y-4" aria-label="ลูกค้าและชื่อคดี">
+                <div>
+                  <label htmlFor="client-search" className={fieldLabel}>
+                    ลูกค้า{' '}
+                    <span className="font-normal text-muted-foreground">
+                      (เพิ่มภายหลังได้)
+                    </span>
+                  </label>
                   <input
-                    value={form.useTmpClient ? TMP_CLIENT_PLACEHOLDER : form.clientName}
+                    id="client-search"
+                    type="search"
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                    placeholder="ค้นหาลูกค้าในรายชื่อ"
+                    className={inputClass}
                     disabled={form.useTmpClient}
-                    onChange={(e) =>
+                  />
+                  <select
+                    aria-label="เลือกลูกค้า"
+                    value={form.clientId}
+                    disabled={form.useTmpClient}
+                    className={inputClass}
+                    onChange={(e) => {
+                      const client = clients.find(
+                        (c) => c.id === e.target.value,
+                      );
                       setForm({
                         ...form,
-                        clientName: e.target.value,
+                        clientId: e.target.value,
+                        clientName: client?.name ?? '',
                         useTmpClient: false,
-                      })
-                    }
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
-                    placeholder={nf.clientNamePlaceholder}
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant={form.useTmpClient ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() =>
+                      });
+                    }}
+                  >
+                    <option value="">เลือกลูกค้า หรือกรอกชื่อด้านล่าง</option>
+                    {clients
+                      .filter(
+                        (c) =>
+                          c.id === form.clientId ||
+                          c.name
+                            .toLowerCase()
+                            .includes(clientSearch.toLowerCase()),
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </select>
+                  {clientSearch &&
+                    !clients.some((c) =>
+                      c.name.toLowerCase().includes(clientSearch.toLowerCase()),
+                    ) && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        ไม่พบชื่อนี้ในรายชื่อ สามารถกรอกชื่อเองได้
+                      </p>
+                    )}
+                  {!form.clientId && !form.useTmpClient && (
+                    <div className="mt-3">
+                      <label htmlFor="client-name" className={fieldLabel}>
+                        ชื่อลูกค้าที่ไม่มีในรายชื่อ
+                      </label>
+                      <input
+                        id="client-name"
+                        value={form.clientName}
+                        onChange={(e) =>
+                          setForm({ ...form, clientName: e.target.value })
+                        }
+                        placeholder="ชื่อบุคคลหรือบริษัท"
+                        className={inputClass}
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        บันทึกชื่อในคดีนี้ โดยยังไม่สร้างทะเบียนลูกค้า
+                      </p>
+                    </div>
+                  )}
+                  <label className="mt-3 flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={form.useTmpClient}
+                      onChange={(e) =>
                         setForm({
                           ...form,
-                          clientId: '',
-                          clientName: TMP_CLIENT_PLACEHOLDER,
-                          useTmpClient: true,
+                          useTmpClient: e.target.checked,
+                          clientId: e.target.checked ? '' : form.clientId,
                         })
                       }
-                    >
-                      {nf.useTmpClient}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-slate-500">{nf.tmpClientHint}</p>
+                    />
+                    ยังไม่ทราบชื่อลูกค้า ระบุภายหลัง
+                  </label>
                   {form.useTmpClient && (
-                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      {fmt(nf.tmpClientActive, { name: TMP_CLIENT_PLACEHOLDER })}
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      จะใช้ชื่อ “{TMP_CLIENT_PLACEHOLDER}” ชั่วคราว
+                      ยกเลิกเครื่องหมายเพื่อกลับไปกรอกชื่อ
                     </p>
                   )}
                 </div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">
-                รายได้โดยประมาณ (บาท)
-                <span className="ml-1 font-normal text-slate-500">(ไม่บังคับ)</span>
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min={FEE_MIN}
-                max={FEE_MAX}
-                value={form.estimatedFee}
-                onChange={(e) => setForm({ ...form, estimatedFee: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="เช่น 50000"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">ระดับศาล *</label>
-              <select
-                required
-                value={form.courtLevel}
-                onChange={(e) => setForm({ ...form, courtLevel: e.target.value as CourtLevel })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                {Object.entries(COURT_LEVEL_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Court / ศาล *</label>
-              <select
-                required
-                value={form.courtName}
-                onChange={(e) => setForm({ ...form, courtName: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">Select court / เลือกศาล</option>
-                {courts.map((c) => (
-                  <option key={c.id} value={c.name}>{c.name}</option>
-                ))}
-              </select>
-              {courts.length === 0 && (
-                <p className="mt-1 text-xs text-slate-500">Loading courts... / กำลังโหลดข้อมูลศาล...</p>
-              )}
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={form.addInitialActivity}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    const now = new Date();
-                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-                    setForm({
-                      ...form,
-                      addInitialActivity: checked,
-                      initialActivityAt: checked && !form.initialActivityAt
-                        ? now.toISOString().slice(0, 16)
-                        : form.initialActivityAt,
-                    });
-                  }}
-                />
-                Add initial appointment / เพิ่มนัดหมายแรก
-              </label>
-              {form.addInitialActivity && (
-                <>
-                  <input
-                    required
-                    value={form.initialActivityTitle}
-                    onChange={(e) => setForm({ ...form, initialActivityTitle: e.target.value })}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="เช่น นัดสืบพยาน, นัดไกล่เกลี่ย, ยื่นฟ้อง"
-                  />
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <select
-                      value={form.initialActivityType}
-                      onChange={(e) => setForm({ ...form, initialActivityType: e.target.value })}
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    >
-                      <option value={ActivityType.COURT_DATE}>Court Date / นัดศาล</option>
-                      <option value={ActivityType.CLIENT_MEETING}>Client Meeting / นัดลูกค้า</option>
-                      <option value={ActivityType.FILING}>Filing / ยื่นคำร้อง</option>
-                      <option value={ActivityType.DEADLINE}>Deadline / กำหนดส่ง</option>
-                      <option value={ActivityType.OTHER}>Other / อื่นๆ</option>
-                    </select>
-                    <input
-                      required
-                      type="datetime-local"
-                      value={form.initialActivityAt}
-                      onChange={(e) => setForm({ ...form, initialActivityAt: e.target.value })}
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <textarea
-                    value={form.initialActivityDescription}
-                    onChange={(e) => setForm({ ...form, initialActivityDescription: e.target.value })}
-                    rows={2}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm resize-none"
-                    placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"
-                  />
-                </>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">รายละเอียด</label>
-              <textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                rows={3}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="space-y-4">
-            <h2 className="font-semibold">
-              {selectedType?.name} — Specific Fields / ข้อมูลเฉพาะประเภทคดี
-            </h2>
-            {fieldSchema.length === 0 ? (
-              <p className="text-sm text-slate-500">ไม่มีข้อมูลเพิ่มเติมสำหรับประเภทคดีนี้</p>
-            ) : (
-              fieldSchema.map((field) => (
-                <div key={field.key}>
-                  <label className="block text-sm font-medium text-slate-700">
-                    {field.label}{field.required ? ' *' : ''}
+                <div>
+                  <label htmlFor="case-title" className={fieldLabel}>
+                    ชื่อคดี *
                   </label>
                   <input
-                    type={field.type === 'number' ? 'number' : 'text'}
-                    required={field.required}
-                    value={form.customFields[field.key] ?? ''}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        customFields: { ...form.customFields, [field.key]: e.target.value },
-                      })
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    id="case-title"
+                    required
+                    value={form.title}
+                    onChange={(e) => {
+                      setAutoTitle(false);
+                      setForm({ ...form, title: e.target.value });
+                    }}
+                    className={inputClass}
+                    placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง"
                   />
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {autoTitle
+                        ? 'เติมจากประเภทคดีและลูกค้าให้อัตโนมัติ แก้ไขได้ตามต้องการ'
+                        : 'ใช้ชื่อที่คุณแก้ไขไว้'}
+                    </p>
+                    {!autoTitle && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setAutoTitle(true)}
+                      >
+                        ใช้ชื่อแนะนำ
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              ))
-            )}
-          </div>
-        )}
+              </section>
 
-        {step === 3 && (
-          <div className="space-y-4">
-            <h2 className="font-semibold">Assign Team / มอบหมายทีม</h2>
-            <p className="text-sm text-slate-500">
-              เลือกเจ้าของเคส 1 คน และ Buddy (ผู้ช่วย) ได้หลายคน — ทุกคนเป็นทนาย
-            </p>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">
-                Case Owner / เจ้าของเคส *
-              </label>
-              <select
-                required
-                value={form.leadLawyerId}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    leadLawyerId: e.target.value,
-                    buddyIds: form.buddyIds.filter((id) => id !== e.target.value),
-                  })
-                }
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              <section
+                className="space-y-4 border-t border-border pt-5"
+                aria-labelledby="court-heading"
               >
-                <option value="">Select case owner / เลือกเจ้าของเคส</option>
-                {lawyers.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.firstName} {l.lastName}
-                    {workloadLabel(l.id)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">
-                Buddies / ผู้ช่วย
-              </label>
-              <div className="mt-2 space-y-2">
-                {lawyers
-                  .filter((l) => l.id !== form.leadLawyerId)
-                  .map((l) => (
-                    <label key={l.id} className="flex items-center gap-2 text-sm">
+                <h3 id="court-heading" className="font-semibold">
+                  ข้อมูลศาลและหมายเลขคดี
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  ระบบปัจจุบันต้องใช้เลขดำและเลขแดงในการสร้างคดี
+                  กรุณาใช้หมายเลขจริงตามเอกสาร
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="court-level" className={fieldLabel}>
+                      ระดับศาล *
+                    </label>
+                    <select
+                      id="court-level"
+                      value={form.courtLevel}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          courtLevel: e.target.value as CourtLevel,
+                        })
+                      }
+                      className={inputClass}
+                    >
+                      {Object.entries(COURT_LEVEL_LABELS).map(
+                        ([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      เริ่มต้นที่ศาลชั้นต้น เปลี่ยนได้ตามคดี
+                    </p>
+                  </div>
+                  <div>
+                    <label htmlFor="court-search" className={fieldLabel}>
+                      ศาล *
+                    </label>
+                    <input
+                      id="court-search"
+                      type="search"
+                      value={courtSearch}
+                      onChange={(e) => setCourtSearch(e.target.value)}
+                      className={inputClass}
+                      placeholder="ค้นหาชื่อศาล"
+                    />
+                    <select
+                      aria-label="เลือกศาล"
+                      required
+                      value={form.courtName}
+                      onChange={(e) =>
+                        setForm({ ...form, courtName: e.target.value })
+                      }
+                      className={inputClass}
+                    >
+                      <option value="">เลือกศาล</option>
+                      {courts
+                        .filter(
+                          (c) =>
+                            c.name === form.courtName ||
+                            c.name.includes(courtSearch.trim()),
+                        )
+                        .map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                    </select>
+                    {!courts.length && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        ยังไม่มีข้อมูลศาล กรุณาโหลดใหม่หรือเพิ่มศาลในหน้าตั้งค่า
+                      </p>
+                    )}
+                  </div>
+                  {(['blackCaseNumber', 'redCaseNumber'] as const).map(
+                    (key) => (
+                      <div key={key}>
+                        <label htmlFor={key} className={fieldLabel}>
+                          {key === 'blackCaseNumber' ? 'เลขดำ' : 'เลขแดง'} *
+                        </label>
+                        <input
+                          id={key}
+                          required
+                          pattern={CASE_NUMBER_HTML}
+                          title={CASE_NUMBER_HINT}
+                          value={form[key]}
+                          onChange={(e) =>
+                            setForm({ ...form, [key]: e.target.value })
+                          }
+                          onBlur={() =>
+                            setForm((f) => ({
+                              ...f,
+                              [key]: f[key]
+                                .trim()
+                                .replace(/[๐-๙]/g, (digit) =>
+                                  String(digit.charCodeAt(0) - 3664),
+                                )
+                                .replace(/\s+/g, ''),
+                            }))
+                          }
+                          className={inputClass}
+                          placeholder="123/2569"
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          เลขที่/ปี พ.ศ. · แปลงเลขไทยและตัดช่องว่างให้อัตโนมัติ
+                        </p>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </section>
+
+              <details className="rounded-lg border border-border p-4">
+                <summary className="cursor-pointer text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  ข้อมูลเพิ่มเติม (ไม่บังคับ)
+                </summary>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="customer-ref" className={fieldLabel}>
+                      เลขอ้างอิงลูกค้า
+                    </label>
+                    <input
+                      id="customer-ref"
+                      value={form.customerRef}
+                      onChange={(e) =>
+                        setForm({ ...form, customerRef: e.target.value })
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="estimated-fee" className={fieldLabel}>
+                      รายได้โดยประมาณ (บาท)
+                    </label>
+                    <input
+                      id="estimated-fee"
+                      type="number"
+                      step="0.01"
+                      min={FEE_MIN}
+                      max={FEE_MAX}
+                      value={form.estimatedFee}
+                      onChange={(e) =>
+                        setForm({ ...form, estimatedFee: e.target.value })
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="description" className={fieldLabel}>
+                      รายละเอียดคดี
+                    </label>
+                    <textarea
+                      id="description"
+                      rows={3}
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              </details>
+
+              <section className="rounded-lg border border-border p-4">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={form.addInitialActivity}
+                    onChange={(e) =>
+                      setForm({ ...form, addInitialActivity: e.target.checked })
+                    }
+                  />
+                  เพิ่มนัดหมายแรกพร้อมสร้างคดี
+                </label>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  ถ้ายังไม่ทราบวันนัด เพิ่มภายหลังจากหน้าคดีได้
+                </p>
+                {form.addInitialActivity && (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label htmlFor="activity-title" className={fieldLabel}>
+                        หัวข้อนัดหมาย *
+                      </label>
                       <input
-                        type="checkbox"
-                        checked={form.buddyIds.includes(l.id)}
-                        onChange={() => toggleBuddy(l.id)}
+                        id="activity-title"
+                        required
+                        value={form.initialActivityTitle}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            initialActivityTitle: e.target.value,
+                          })
+                        }
+                        placeholder="เช่น นัดไกล่เกลี่ย"
+                        className={inputClass}
                       />
+                    </div>
+                    <div>
+                      <label htmlFor="activity-type" className={fieldLabel}>
+                        ประเภทนัดหมาย
+                      </label>
+                      <select
+                        id="activity-type"
+                        value={form.initialActivityType}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            initialActivityType: e.target.value,
+                          })
+                        }
+                        className={inputClass}
+                      >
+                        {[
+                          [ActivityType.COURT_DATE, 'นัดศาล'],
+                          [ActivityType.CLIENT_MEETING, 'นัดลูกค้า'],
+                          [ActivityType.FILING, 'ยื่นคำร้อง'],
+                          [ActivityType.DEADLINE, 'กำหนดส่ง'],
+                          [ActivityType.OTHER, 'อื่นๆ'],
+                        ].map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="activity-at" className={fieldLabel}>
+                        วันที่และเวลา *
+                      </label>
+                      <input
+                        id="activity-at"
+                        required
+                        type="datetime-local"
+                        value={form.initialActivityAt}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            initialActivityAt: e.target.value,
+                          })
+                        }
+                        className={inputClass}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label
+                        htmlFor="activity-description"
+                        className={fieldLabel}
+                      >
+                        รายละเอียดนัดหมาย (ไม่บังคับ)
+                      </label>
+                      <textarea
+                        id="activity-description"
+                        rows={2}
+                        value={form.initialActivityDescription}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            initialActivityDescription: e.target.value,
+                          })
+                        }
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+                )}
+              </section>
+              <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                เลขอ้างอิงสำนักงานและเลขแฟ้มสร้างอัตโนมัติเมื่อบันทึก
+                {nextOwnRef ? ` · เลขอ้างอิงคาดการณ์ ${nextOwnRef}` : ''}
+              </p>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {fieldSchema.map((field) => (
+                <div key={field.key}>
+                  <label htmlFor={`custom-${field.key}`} className={fieldLabel}>
+                    {field.label}
+                    {field.required ? ' *' : ' (ไม่บังคับ)'}
+                  </label>
+                  {field.type === 'select' ? (
+                    <select
+                      id={`custom-${field.key}`}
+                      required={field.required}
+                      value={form.customFields[field.key] ?? ''}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          customFields: {
+                            ...form.customFields,
+                            [field.key]: e.target.value,
+                          },
+                        })
+                      }
+                      className={inputClass}
+                    >
+                      <option value="">เลือก{field.label}</option>
+                      {field.options?.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      id={`custom-${field.key}`}
+                      type={field.type}
+                      step={field.type === 'number' ? 'any' : undefined}
+                      required={field.required}
+                      value={form.customFields[field.key] ?? ''}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          customFields: {
+                            ...form.customFields,
+                            [field.key]: e.target.value,
+                          },
+                        })
+                      }
+                      className={inputClass}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-6">
+              <div>
+                <label htmlFor="lead-lawyer" className={fieldLabel}>
+                  ทนายผู้รับผิดชอบ *
+                </label>
+                <select
+                  id="lead-lawyer"
+                  required
+                  value={form.leadLawyerId}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      leadLawyerId: e.target.value,
+                      buddyIds: form.buddyIds.filter(
+                        (id) => id !== e.target.value,
+                      ),
+                    })
+                  }
+                  className={inputClass}
+                >
+                  <option value="">เลือกทนายผู้รับผิดชอบ</option>
+                  {lawyers.map((l) => (
+                    <option key={l.id} value={l.id}>
                       {l.firstName} {l.lastName}
                       {workloadLabel(l.id)}
-                    </label>
+                    </option>
                   ))}
-                {lawyers.filter((l) => l.id !== form.leadLawyerId).length === 0 && (
-                  <p className="text-xs text-slate-400">ไม่มีทนายคนอื่นในสำนักงานให้เลือกเป็นผู้ช่วย</p>
-                )}
-              </div>
-            </div>
-            <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
-              <p className="font-medium">Summary / สรุป</p>
-              <p className="mt-1">{form.title} — {displayClientName()}</p>
-              <p className="text-xs text-slate-400">
-                Own Ref {nextOwnRef || 'auto'}
-                {form.customerRef ? ` · Customer Ref ${form.customerRef}` : ''}
-              </p>
-              <p className="text-xs text-slate-400">
-                เลขดำ {form.blackCaseNumber || '—'} · เลขแดง {form.redCaseNumber || '—'}
-              </p>
-              <p className="text-xs text-slate-400">
-                {COURT_LEVEL_LABELS[form.courtLevel]} · {form.courtName}
-              </p>
-              {form.addInitialActivity && form.initialActivityTitle && (
-                <p className="text-xs text-slate-400">
-                  First activity / กิจกรรมแรก: {form.initialActivityTitle}
+                </select>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {form.leadLawyerId === user?.id
+                    ? 'เลือกคุณเป็นผู้รับผิดชอบเริ่มต้น เปลี่ยนได้ก่อนสร้างคดี'
+                    : 'เลือกผู้รับผิดชอบหลัก 1 คน โดยดูภาระงานประกอบได้'}
                 </p>
-              )}
-              <p className="mt-1 text-xs text-brand-600">
-                Folder ID will be auto-generated / ระบบจะสร้างเลขที่แฟ้มให้อัตโนมัติเมื่อสร้างคดี
-              </p>
+              </div>
+              <details className="rounded-lg border border-border p-4">
+                <summary className="cursor-pointer text-sm font-medium">
+                  เพิ่มทนายผู้ช่วย (ไม่บังคับ)
+                  {form.buddyIds.length > 0
+                    ? ` · เลือก ${form.buddyIds.length} คน`
+                    : ''}
+                </summary>
+                <div className="mt-3 space-y-2">
+                  {lawyers
+                    .filter((l) => l.id !== form.leadLawyerId)
+                    .map((l) => (
+                      <label
+                        key={l.id}
+                        className="flex items-start gap-2 rounded-lg p-2 text-sm hover:bg-muted"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={form.buddyIds.includes(l.id)}
+                          onChange={() => toggleBuddy(l.id)}
+                        />
+                        <span>
+                          {l.firstName} {l.lastName}
+                          <span className="block text-xs text-muted-foreground">
+                            {workloadLabel(l.id)}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  {lawyers.filter((l) => l.id !== form.leadLawyerId).length ===
+                    0 && (
+                    <p className="text-sm text-muted-foreground">
+                      ไม่มีทนายคนอื่นให้เลือก
+                    </p>
+                  )}
+                </div>
+              </details>
+              <section
+                className="rounded-lg border border-border bg-muted/30 p-4"
+                aria-labelledby="review-heading"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 id="review-heading" className="font-semibold">
+                    ตรวจสอบก่อนสร้าง
+                  </h3>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setStep(1);
+                      setError('');
+                    }}
+                  >
+                    แก้ไขข้อมูล
+                  </Button>
+                </div>
+                <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+                  {[
+                    ['ชื่อคดี', form.title],
+                    ['ประเภทคดี', selectedType?.name],
+                    ['ลูกค้า', displayClientName()],
+                    [
+                      'ศาล',
+                      `${COURT_LEVEL_LABELS[form.courtLevel]} · ${form.courtName}`,
+                    ],
+                    ['เลขดำ', form.blackCaseNumber],
+                    ['เลขแดง', form.redCaseNumber],
+                    [
+                      'ผู้รับผิดชอบ',
+                      selectedLawyer
+                        ? `${selectedLawyer.firstName} ${selectedLawyer.lastName}`
+                        : 'ยังไม่ได้เลือก',
+                    ],
+                    [
+                      'ทนายผู้ช่วย',
+                      lawyers
+                        .filter((l) => form.buddyIds.includes(l.id))
+                        .map((l) => `${l.firstName} ${l.lastName}`)
+                        .join(', ') || 'ไม่มี',
+                    ],
+                    ...(form.customerRef
+                      ? [['เลขอ้างอิงลูกค้า', form.customerRef]]
+                      : []),
+                    ...(form.estimatedFee
+                      ? [
+                          [
+                            'รายได้โดยประมาณ',
+                            `${Number(form.estimatedFee).toLocaleString('th-TH')} บาท`,
+                          ],
+                        ]
+                      : []),
+                    ...(form.description
+                      ? [['รายละเอียดคดี', form.description]]
+                      : []),
+                    ...fieldSchema
+                      .filter((f) => form.customFields[f.key])
+                      .map((f) => [f.label, form.customFields[f.key]]),
+                    ...(form.addInitialActivity
+                      ? [
+                          [
+                            'นัดหมายแรก',
+                            `${form.initialActivityTitle} · ${form.initialActivityAt.replace('T', ' ')}`,
+                          ],
+                          ...(form.initialActivityDescription
+                            ? [
+                                [
+                                  'รายละเอียดนัดหมาย',
+                                  form.initialActivityDescription,
+                                ],
+                              ]
+                            : []),
+                        ]
+                      : []),
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-xs text-muted-foreground">{label}</dt>
+                      <dd className="mt-1 whitespace-pre-wrap font-medium">
+                        {value || '—'}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+                  เลขอ้างอิงสำนักงานและเลขแฟ้มจะสร้างอัตโนมัติเมื่อกด “สร้างคดี”
+                </p>
+              </section>
             </div>
-          </div>
-        )}
-
-        {error && (
-          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
-        )}
-
-        {!canNext() && step === 0 && !loadingTypes && caseTypes.length > 0 && (
-          <p className="mt-4 text-sm text-muted-foreground">เลือกประเภทคดีด้านบนเพื่อดำเนินการต่อ</p>
-        )}
-
-        <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-between gap-3 border-t border-slate-200 bg-white px-6 py-4 pb-6 sm:-mx-6">
-          <Button type="button" variant="outline" onClick={goBack}>
+          )}
+        </fieldset>
+        <div className="sticky bottom-20 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-border bg-card pl-4 pr-20 py-4 sm:px-6">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={submitting}
+            onClick={goBack}
+          >
             {step === 0 ? 'ยกเลิก' : 'ย้อนกลับ'}
           </Button>
-          {step < STEPS.length - 1 ? (
-            <Button type="button" disabled={!canNext()} onClick={goNext}>
-              ถัดไป
-            </Button>
-          ) : (
-            <Button type="button" disabled={submitting || !canNext()} onClick={handleSubmit}>
-              {submitting ? 'กำลังสร้าง...' : 'สร้างคดี'}
-            </Button>
-          )}
+          <Button
+            type="submit"
+            disabled={
+              submitting || loadingTypes || (step === 0 && !caseTypes.length)
+            }
+          >
+            {submitting ? 'กำลังสร้าง…' : step === 3 ? 'สร้างคดี' : 'ถัดไป'}
+          </Button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
