@@ -133,6 +133,12 @@ export enum EventType {
   OTHER = 'OTHER',
 }
 
+export enum DateSuggestionStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  DISMISSED = 'DISMISSED',
+}
+
 export enum ExpenseStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
