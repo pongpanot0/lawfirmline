@@ -525,11 +525,11 @@ export default function CaseDetailPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Own Ref</label>
+                    <label className="text-xs text-muted-foreground">Own Ref / เลขอ้างอิงสำนักงาน</label>
                     <p className="mt-1 font-medium">{legalCase.ownRef}</p>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Customer Ref</label>
+                    <label className="text-xs text-muted-foreground">Customer Ref / เลขอ้างอิงลูกค้า</label>
                     <Input
                       value={overviewForm.customerRef}
                       onChange={(e) => setOverviewForm({ ...overviewForm, customerRef: e.target.value })}
@@ -635,11 +635,11 @@ export default function CaseDetailPage() {
               ) : (
                 <>
               <div>
-                <p className="text-xs text-muted-foreground">Own Ref</p>
+                <p className="text-xs text-muted-foreground">Own Ref / เลขอ้างอิงสำนักงาน</p>
                 <p className="font-medium">{legalCase.ownRef}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Customer Ref</p>
+                <p className="text-xs text-muted-foreground">Customer Ref / เลขอ้างอิงลูกค้า</p>
                 <p className="font-medium">{legalCase.customerRef ?? '—'}</p>
               </div>
               <div>
@@ -854,7 +854,7 @@ export default function CaseDetailPage() {
                     className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
                   />
                   <Button type="submit" size="sm" disabled={submitting}>
-                    {submitting ? 'Saving...' : 'Save Activity'}
+                    {submitting ? 'Saving... / กำลังบันทึก...' : 'Save Activity / บันทึกกิจกรรม'}
                   </Button>
                 </form>
               )}
@@ -881,7 +881,7 @@ export default function CaseDetailPage() {
                   );
                 })}
                 {timeline.length <= 1 && (
-                  <p className="text-sm text-muted-foreground">No activities yet. Add the first appointment or filing.</p>
+                  <p className="text-sm text-muted-foreground">No activities yet. Add the first appointment or filing. / ยังไม่มีกิจกรรม เพิ่มนัดหมายหรือการยื่นเอกสารแรกได้เลย</p>
                 )}
               </div>
             </CardContent>
