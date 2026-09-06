@@ -140,6 +140,41 @@ describe('IntakePrecedentAnalysisService', () => {
       });
     });
 
+    it('re-throws the ORIGINAL pipeline error, not a secondary DB error, when persisting the FAILED audit record itself fails', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue(baseIntake);
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'คำค้น' } }] }),
+      });
+      mockIapp.searchPrecedents.mockRejectedValue(new Error('iApp deka/search failed'));
+      // The catch block's own audit-persisting create() call rejects (e.g. DB unavailable).
+      mockPrisma.intakePrecedentAnalysis.create.mockRejectedValueOnce(new Error('DB unavailable'));
+
+      await expect(service.analyze(user, 'intake-1')).rejects.toThrow('iApp deka/search failed');
+    });
+
+    it('persists a usable errorMessage string when the pipeline throws a non-Error value', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue(baseIntake);
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'คำค้น' } }] }),
+      });
+      // eslint-disable-next-line prefer-promise-reject-errors
+      mockIapp.searchPrecedents.mockRejectedValue('plain string failure');
+      mockPrisma.intakePrecedentAnalysis.create.mockResolvedValue({ id: 'analysis-failed' });
+
+      await expect(service.analyze(user, 'intake-1')).rejects.toBe('plain string failure');
+
+      expect(mockPrisma.intakePrecedentAnalysis.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          intakeId: 'intake-1',
+          status: 'FAILED',
+          errorMessage: 'plain string failure',
+          createdById: 'user-1',
+        }),
+      });
+    });
+
     it('falls back gracefully when a PDF attachment fails to extract, still completing the analysis', async () => {
       mockPrisma.intake.findFirst.mockResolvedValue({
         ...baseIntake,

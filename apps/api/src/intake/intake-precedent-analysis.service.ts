@@ -201,20 +201,32 @@ export class IntakePrecedentAnalysisService {
       // failed) — but re-throw so AiCreditsInterceptor, which only decrements
       // credit after a successful handler response, does not charge the user
       // for a run that produced nothing useful.
-      await this.prisma.intakePrecedentAnalysis.create({
-        data: {
-          intakeId,
-          status: 'FAILED' as any,
-          extractedFacts: facts as unknown as object,
-          searchQueries: {},
-          precedents: [],
-          summaryBullets: '',
-          noticeFacts: '',
-          creditsCost: 0,
-          createdById: user.id,
-          errorMessage: (err as Error).message,
-        },
-      });
+      //
+      // The audit write itself must never replace the original failure: if it
+      // throws (e.g. DB unavailable), log it separately and still re-throw the
+      // ORIGINAL error so the caller sees the real pipeline failure reason.
+      try {
+        await this.prisma.intakePrecedentAnalysis.create({
+          data: {
+            intakeId,
+            status: 'FAILED' as any,
+            extractedFacts: facts as unknown as object,
+            searchQueries: {},
+            precedents: [],
+            summaryBullets: '',
+            noticeFacts: '',
+            creditsCost: 0,
+            createdById: user.id,
+            errorMessage: err instanceof Error ? err.message : String(err),
+          },
+        });
+      } catch (auditErr) {
+        this.logger.error(
+          `Failed to persist FAILED precedent analysis audit record: ${
+            auditErr instanceof Error ? auditErr.message : String(auditErr)
+          }`,
+        );
+      }
       throw err;
     }
   }
