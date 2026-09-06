@@ -284,3 +284,92 @@ describe('IntakeService convertToCase', () => {
     });
   });
 });
+
+describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
+  let service: IntakeService;
+  const mockPrisma = {
+    intake: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
+    case: { findFirst: jest.fn() },
+  };
+  const mockTasksService = { create: jest.fn() };
+  const mockConfig = { get: jest.fn() };
+  const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IntakeService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: TasksService, useValue: mockTasksService },
+        { provide: ConfigService, useValue: mockConfig },
+        { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+      ],
+    }).compile();
+    service = module.get(IntakeService);
+  });
+
+  it('passes relatedCaseId, isOngoingElsewhere, externalCaseNumber, currentStageNote through on create', async () => {
+    mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', firmId: 'firm-1' });
+    mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
+
+    await service.create(user, {
+      receivedDate: '2026-09-06',
+      relatedCaseId: 'case-1',
+      isOngoingElsewhere: true,
+      externalCaseNumber: 'ดำที่ 123/2569',
+      currentStageNote: 'นัดสืบพยาน 15 ต.ค.',
+    } as any);
+
+    expect(mockPrisma.intake.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          relatedCaseId: 'case-1',
+          isOngoingElsewhere: true,
+          externalCaseNumber: 'ดำที่ 123/2569',
+          currentStageNote: 'นัดสืบพยาน 15 ต.ค.',
+        }),
+      }),
+    );
+  });
+
+  it('passes the same four fields through on update', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1' });
+    mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-2', firmId: 'firm-1' });
+    mockPrisma.intake.update.mockResolvedValue({ id: 'intake-1' });
+
+    await service.update(user, 'intake-1', {
+      relatedCaseId: 'case-2',
+      isOngoingElsewhere: false,
+      externalCaseNumber: 'ดำที่ 456/2569',
+      currentStageNote: 'อยู่ระหว่างอุทธรณ์',
+    } as any);
+
+    expect(mockPrisma.intake.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          relatedCaseId: 'case-2',
+          isOngoingElsewhere: false,
+          externalCaseNumber: 'ดำที่ 456/2569',
+          currentStageNote: 'อยู่ระหว่างอุทธรณ์',
+        }),
+      }),
+    );
+  });
+
+  it('rejects create() when relatedCaseId does not belong to the firm', async () => {
+    mockPrisma.case.findFirst.mockResolvedValue(null);
+    await expect(
+      service.create(user, { receivedDate: '2026-09-06', relatedCaseId: 'other-firm-case' } as any),
+    ).rejects.toThrow('ไม่พบคดีที่เลือกไว้ในสำนักงานนี้');
+    expect(mockPrisma.intake.create).not.toHaveBeenCalled();
+  });
+
+  it('allows create() when relatedCaseId is omitted', async () => {
+    mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
+    await service.create(user, { receivedDate: '2026-09-06' } as any);
+    expect(mockPrisma.case.findFirst).not.toHaveBeenCalled();
+    expect(mockPrisma.intake.create).toHaveBeenCalled();
+  });
+});

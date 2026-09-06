@@ -42,6 +42,7 @@ export class IntakeService {
     },
     client: { select: { id: true, name: true } },
     case: { select: { id: true, ownRef: true, title: true, status: true } },
+    relatedCase: { select: { id: true, ownRef: true, title: true, status: true } },
     attachments: {
       orderBy: { createdAt: 'desc' as const },
       select: { id: true, filename: true, mimeType: true, createdAt: true },
@@ -90,6 +91,14 @@ export class IntakeService {
   }
 
   async create(user: AuthUser, dto: CreateIntakeDto) {
+    if (dto.relatedCaseId) {
+      const relatedCase = await this.prisma.case.findFirst({
+        where: { id: dto.relatedCaseId, firmId: user.firmId },
+      });
+      if (!relatedCase) {
+        throw new BadRequestException('ไม่พบคดีที่เลือกไว้ในสำนักงานนี้');
+      }
+    }
     return this.prisma.intake.create({
       data: {
         firmId: user.firmId,
@@ -108,6 +117,10 @@ export class IntakeService {
         estimatedDamage: dto.estimatedDamage,
         assignedUserIds: dto.assignedUserIds ?? [],
         deadlineDate: dto.deadlineDate ? new Date(dto.deadlineDate) : undefined,
+        relatedCaseId: dto.relatedCaseId,
+        isOngoingElsewhere: dto.isOngoingElsewhere ?? false,
+        externalCaseNumber: dto.externalCaseNumber,
+        currentStageNote: dto.currentStageNote,
       },
       include: this.intakeInclude,
     });
@@ -115,6 +128,14 @@ export class IntakeService {
 
   async update(user: AuthUser, id: string, dto: UpdateIntakeDto) {
     await this.findOne(user, id);
+    if (dto.relatedCaseId) {
+      const relatedCase = await this.prisma.case.findFirst({
+        where: { id: dto.relatedCaseId, firmId: user.firmId },
+      });
+      if (!relatedCase) {
+        throw new BadRequestException('ไม่พบคดีที่เลือกไว้ในสำนักงานนี้');
+      }
+    }
     return this.prisma.intake.update({
       where: { id },
       data: {
@@ -138,6 +159,10 @@ export class IntakeService {
         noticeRecipient: dto.noticeRecipient,
         noticeDeadline: dto.noticeDeadline ? new Date(dto.noticeDeadline) : undefined,
         noticeResult: dto.noticeResult,
+        relatedCaseId: dto.relatedCaseId,
+        isOngoingElsewhere: dto.isOngoingElsewhere,
+        externalCaseNumber: dto.externalCaseNumber,
+        currentStageNote: dto.currentStageNote,
       },
       include: this.intakeInclude,
     });
