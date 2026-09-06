@@ -31,6 +31,12 @@ const REVENUE_SOURCE_LABEL: Record<string, string> = {
   none: '—',
 };
 
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'ร่าง',
+  SENT: 'ส่งแล้ว',
+  PAID: 'ชำระแล้ว',
+};
+
 export default function ExpensesPage() {
   const { token, user } = useAuth();
   const [cases, setCases] = useState<CaseItem[]>([]);
@@ -66,7 +72,7 @@ export default function ExpensesPage() {
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
-        setError(err instanceof Error ? err.message : 'Failed to load expenses');
+        setError(err instanceof Error ? err.message : 'Failed to load expenses / โหลดค่าใช้จ่ายไม่สำเร็จ');
       })
       .finally(() => setLoading(false));
   };
@@ -118,15 +124,15 @@ export default function ExpensesPage() {
   return (
     <div>
       <PageHeader
-        title="Expenses & Finance"
+        title="Expenses & Finance / ค่าใช้จ่ายและการเงิน"
         description={
           finance.scope === 'user'
-            ? `Your expenses · ${finance.firmName}`
-            : `Financial dashboard for ${finance.firmName}`
+            ? `ค่าใช้จ่ายของคุณ · ${finance.firmName}`
+            : `แดชบอร์ดการเงินของ ${finance.firmName}`
         }
         actions={
           <Button size="sm" onClick={() => setShowForm(!showForm)}>
-            <Plus className="h-4 w-4" />New Expense
+            <Plus className="h-4 w-4" />New Expense / เพิ่มค่าใช้จ่าย
           </Button>
         }
       />
@@ -202,7 +208,7 @@ export default function ExpensesPage() {
                   min={MONEY_MIN}
                   max={MONEY_MAX}
                   title={MONEY_HINT}
-                  placeholder="Amount (฿)"
+                  placeholder="Amount (฿) / จำนวนเงิน"
                   value={form.amount}
                   onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 />
@@ -211,13 +217,13 @@ export default function ExpensesPage() {
               <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="h-9 rounded-lg border border-input bg-card px-3 text-sm">
                 {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <Input required placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              <Input required placeholder="Description / รายละเอียด" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               <Input placeholder="Purpose / วัตถุประสงค์" value={form.expensePurpose} onChange={(e) => setForm({ ...form, expensePurpose: e.target.value })} />
               <select value={form.caseId} onChange={(e) => setForm({ ...form, caseId: e.target.value })} className="h-9 rounded-lg border border-input bg-card px-3 text-sm md:col-span-2">
-                <option value="">No case — general expense</option>
+                <option value="">No case — general expense / ไม่ระบุคดี</option>
                 {cases.map((c) => <option key={c.id} value={c.id}>{c.ownRef} — {c.title}</option>)}
               </select>
-              <Button type="submit" className="md:col-span-2 w-fit">Submit for Approval</Button>
+              <Button type="submit" className="md:col-span-2 w-fit">Submit for Approval / ส่งขออนุมัติ</Button>
             </form>
           </CardContent>
         </Card>
@@ -226,26 +232,26 @@ export default function ExpensesPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Expense Claims</CardTitle>
+            <CardTitle>Expense Claims / รายการค่าใช้จ่าย</CardTitle>
             {user?.firmRole === FirmRole.OWNER && (
-              <Link href="/admin/reimbursements"><Button variant="outline" size="sm">Approve</Button></Link>
+              <Link href="/admin/reimbursements"><Button variant="outline" size="sm">Approve / อนุมัติ</Button></Link>
             )}
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Case</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Description / รายละเอียด</TableHead>
+                  <TableHead>Case / คดี</TableHead>
+                  <TableHead>Amount / จำนวนเงิน</TableHead>
+                  <TableHead>Status / สถานะ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {expenses.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                      No expense claims yet
+                      No expense claims yet / ยังไม่มีรายการค่าใช้จ่าย
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -255,7 +261,7 @@ export default function ExpensesPage() {
                         <p className="font-medium text-sm">{e.description}</p>
                         <p className="text-xs text-muted-foreground">{e.category}</p>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{e.case?.ownRef ?? 'General'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{e.case?.ownRef ?? 'General / ทั่วไป'}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
                       <TableCell><ExpenseStatusBadge status={e.status} /></TableCell>
                     </TableRow>
@@ -267,23 +273,23 @@ export default function ExpensesPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Invoices</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Invoices / ใบแจ้งหนี้</CardTitle></CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Due</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Invoice # / เลขที่</TableHead>
+                  <TableHead>Client / ลูกความ</TableHead>
+                  <TableHead>Amount / จำนวนเงิน</TableHead>
+                  <TableHead>Due / กำหนดชำระ</TableHead>
+                  <TableHead>Status / สถานะ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {invoices.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                      No invoices yet
+                      No invoices yet / ยังไม่มีใบแจ้งหนี้
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -297,7 +303,7 @@ export default function ExpensesPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={inv.status === 'PAID' ? 'success' : inv.status === 'SENT' ? 'warning' : 'muted'}>
-                          {inv.status}
+                          {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
                         </Badge>
                       </TableCell>
                     </TableRow>

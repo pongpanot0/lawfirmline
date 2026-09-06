@@ -13,26 +13,26 @@ import { formatCurrency } from '@/lib/utils';
 const REPORT_META = [
   {
     key: 'caseVolumeByType' as const,
-    title: 'Case Volume by Type',
-    desc: 'Breakdown of cases by practice area',
+    title: 'Case Volume by Type / จำนวนคดีตามประเภท',
+    desc: 'Breakdown of cases by practice area / แยกตามประเภทคดี',
     icon: PieChart,
   },
   {
     key: 'revenueByLawyer' as const,
-    title: 'Revenue by Lawyer',
-    desc: 'Billable hours and revenue per attorney',
+    title: 'Revenue by Lawyer / รายได้ต่อทนายความ',
+    desc: 'Billable hours and revenue per attorney / ชั่วโมงคิดค่าบริการและรายได้ต่อคน',
     icon: BarChart3,
   },
   {
     key: 'courtAppearancesByMonth' as const,
-    title: 'Court Appearance Log',
-    desc: 'Hearings attended per month',
+    title: 'Court Appearance Log / บันทึกการขึ้นศาล',
+    desc: 'Hearings attended per month / จำนวนนัดศาลต่อเดือน',
     icon: TrendingUp,
   },
   {
     key: 'expenseSummary' as const,
-    title: 'Expense Summary',
-    desc: 'Reimbursements and petty cash usage',
+    title: 'Expense Summary / สรุปค่าใช้จ่าย',
+    desc: 'Reimbursements and petty cash usage / การเบิกจ่ายและเงินสดย่อย',
     icon: BarChart3,
   },
 ];
@@ -43,7 +43,7 @@ function MiniBarChart({ items }: { items: Array<{ label: string; value: number }
   if (items.length === 0) {
     return (
       <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-        No data yet
+        No data yet / ยังไม่มีข้อมูล
       </div>
     );
   }
@@ -116,7 +116,7 @@ export default function ReportsPage() {
       .then(setData)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
-        setError(err instanceof Error ? err.message : 'Failed to load reports');
+        setError(err instanceof Error ? err.message : 'Failed to load reports / โหลดรายงานไม่สำเร็จ');
       })
       .finally(() => setLoading(false));
   }, [token]);
@@ -146,44 +146,44 @@ export default function ReportsPage() {
 
   const changeLabel =
     data.kpis.casesClosedChange >= 0
-      ? `+${data.kpis.casesClosedChange} vs last year`
-      : `${data.kpis.casesClosedChange} vs last year`;
+      ? `+${data.kpis.casesClosedChange} vs last year / เทียบปีก่อน`
+      : `${data.kpis.casesClosedChange} vs last year / เทียบปีก่อน`;
 
   return (
     <div>
       <PageHeader
-        title="Reports"
+        title="Reports / รายงาน"
         description={
           data.scope === 'user'
-            ? `Your analytics · ${data.firmName}`
-            : `Analytics and insights for ${data.firmName}`
+            ? `Your analytics / ข้อมูลของคุณ · ${data.firmName}`
+            : `Analytics and insights for / ข้อมูลวิเคราะห์ของ ${data.firmName}`
         }
         actions={
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4" />
-            Export All
+            Export All / ส่งออกทั้งหมด
           </Button>
         }
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <KpiCard
-          label="Cases Closed (YTD)"
+          label="Cases Closed (YTD) / คดีปิดปีนี้"
           value={data.kpis.casesClosedYtd}
           trend={data.kpis.casesClosedChange >= 0 ? 'up' : 'down'}
           change={changeLabel}
         />
         <KpiCard
-          label="Completion Rate"
+          label="Completion Rate / อัตราปิดคดี"
           value={`${data.kpis.winRate}%`}
           trend="neutral"
-          change="Closed cases / total cases"
+          change="Closed cases / total cases / คดีปิด ÷ คดีทั้งหมด"
         />
         <KpiCard
-          label="Avg. Case Duration"
+          label="Avg. Case Duration / ระยะเวลาคดีเฉลี่ย"
           value={
             data.kpis.avgCaseDurationMonths != null
-              ? `${data.kpis.avgCaseDurationMonths} mo`
+              ? `${data.kpis.avgCaseDurationMonths} mo / เดือน`
               : '—'
           }
           trend="neutral"
@@ -211,9 +211,9 @@ export default function ReportsPage() {
                 <MiniBarChart items={chartItems} />
                 <p className="mt-3 text-lg font-bold">
                   {report.key === 'caseVolumeByType'
-                    ? `${total} cases`
+                    ? `${total} cases / คดี`
                     : report.key === 'courtAppearancesByMonth'
-                      ? `${total} hearings`
+                      ? `${total} hearings / นัด`
                       : formatCurrency(total)}
                 </p>
               </CardContent>
