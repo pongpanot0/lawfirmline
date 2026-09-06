@@ -371,6 +371,7 @@ model User {
 
   firmMembers                FirmMember[]
   sentInvitations            Invitation[]              @relation("SentInvitations")
+  sentPortalInvitations      ClientPortalInvite[]      @relation("SentPortalInvitations")
   passwordResetTokens        PasswordResetToken[]
   auditLogs                  AuditLog[]
   leadCases                  Case[]                    @relation("LeadLawyer")
@@ -458,12 +459,15 @@ model ClientContact {
   lineLinkCodeExpiresAt DateTime?
   lineConnectedAt       DateTime?
 
+  lastSeenMessagesAt DateTime?
+
   client                  Client                          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   loginTokens             ClientPortalLoginToken[]
   portalIntakeSubmissions PortalIntakeSubmission[]
   caseAccess              ContactCaseAccess[]
   notificationPreferences ContactNotificationPreference[]
   caseMessages            CaseMessage[]
+  portalInvites           ClientPortalInvite[]
 
   @@index([clientId])
 }
@@ -1054,13 +1058,43 @@ model PortalIntakeSubmission {
   intakeId            String?   @unique
   createdAt           DateTime  @default(now())
 
-  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
-  intake        Intake?       @relation(fields: [intakeId], references: [id])
+  client        Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientContact ClientContact            @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
+  intake        Intake?                  @relation(fields: [intakeId], references: [id])
+  attachments   PortalIntakeAttachment[]
 
   @@index([clientId, submittedAt])
   @@index([clientContactId, submittedAt])
   @@index([withdrawnByClient])
+}
+
+model PortalIntakeAttachment {
+  id                       String   @id @default(uuid())
+  portalIntakeSubmissionId String
+  filename                 String
+  storagePath              String
+  mimeType                 String
+  size                     Int
+  createdAt                DateTime @default(now())
+
+  submission PortalIntakeSubmission @relation(fields: [portalIntakeSubmissionId], references: [id], onDelete: Cascade)
+
+  @@index([portalIntakeSubmissionId])
+}
+
+model ClientPortalInvite {
+  id              String    @id @default(uuid())
+  clientContactId String
+  token           String    @unique
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  invitedById     String
+  createdAt       DateTime  @default(now())
+
+  clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
+  invitedBy     User          @relation("SentPortalInvitations", fields: [invitedById], references: [id])
+
+  @@index([clientContactId])
 }
 
 model ContactCaseAccess {

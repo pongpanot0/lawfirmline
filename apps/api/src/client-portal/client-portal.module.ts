@@ -10,6 +10,8 @@ import { ClientPortalIntakeService } from './client-portal-intake.service';
 import { ClientPortalJwtStrategy } from './client-portal-jwt.strategy';
 import { ClientPortalIntegrationsController } from './client-portal-integrations.controller';
 import { ClientPortalMessagesController } from './client-portal-messages.controller';
+import { ClientPortalInviteController } from './client-portal-invite.controller';
+import { ClientPortalInviteService } from './client-portal-invite.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { CasesModule } from '../cases/cases.module';
@@ -28,12 +30,14 @@ import { CasesModule } from '../cases/cases.module';
     ClientPortalIntakeController,
     ClientPortalIntegrationsController,
     ClientPortalMessagesController,
+    ClientPortalInviteController,
   ],
   providers: [
     ClientPortalAuthService,
     ClientPortalService,
     ClientPortalIntakeService,
     ClientPortalJwtStrategy,
+    ClientPortalInviteService,
   ],
 })
 export class ClientPortalModule {}

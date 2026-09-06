@@ -883,6 +883,13 @@ export const api = {
       { token },
     ),
 
+  sendPortalInvite: (token: string, clientContactId: string) =>
+    request<{ id: string; expiresAt: string }>('/client-portal/invites', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ clientContactId }),
+    }),
+
   getCourts: (token: string, activeOnly = true) =>
     request<CourtItem[]>(`/courts?activeOnly=${activeOnly}`, { token }),
 

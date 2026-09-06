@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LexFlow · Customer Portal — ชุดหน้าจอ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="portal-shared.css" />
+<style>
+  .index-shell { max-width: 880px; margin: 0 auto; padding: 56px 24px 80px; }
+  .index-head { margin-bottom: 32px; }
+  .index-head h1 { font-size: 26px; font-weight: 800; margin: 0 0 8px; }
+  .index-head p { color: hsl(var(--muted-foreground)); font-size: 14px; margin: 0; }
+  .group-label {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    color: hsl(var(--muted-foreground)); margin: 32px 0 12px;
+  }
+  .page-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .page-tile {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 18px; text-decoration: none;
+  }
+  .page-tile-name { font-size: 14px; font-weight: 700; margin: 0 0 3px; }
+  .page-tile-desc { font-size: 12px; color: hsl(var(--muted-foreground)); margin: 0; }
+  .page-tile:hover { border-color: hsl(var(--primary) / 0.4); }
+</style>
+</head>
+<body>
+
+<div class="index-shell">
+  <div class="index-head">
+    <h1>LexFlow Client Portal — ชุดออกแบบ HTML</h1>
+    <p>Mockup ทุกหน้าตาม flow จริงของระบบ (auth ฝั่งลูกความ, ภาพรวมคดี, รายละเอียดคดี, เรื่องที่ส่ง, ตั้งค่าแจ้งเตือน)</p>
+  </div>
+
+  <div class="group-label">1 · เข้าสู่ระบบ (Passwordless + Invite)</div>
+  <div class="page-grid">
+    <a class="card page-tile" href="invite-accept.html">
+      <div>
+        <p class="page-tile-name">คำเชิญเข้าใช้พอร์ทัล</p>
+        <p class="page-tile-desc">invite-accept.html — ผูก contact กับ customer id</p>
+      </div>
+      <span class="section-link">เปิด →</span>
+    </a>
+    <a class="card page-tile" href="login.html">
+      <div>
+        <p class="page-tile-name">เข้าสู่ระบบ</p>
+        <p class="page-tile-desc">login.html — ขอ magic link ด้วยอีเมล</p>
+      </div>
+      <span class="section-link">เปิด →</span>
+    </a>
+    <a class="card page-tile" href="check-email.html">
+      <div>
+        <p class="page-tile-name">ตรวจสอบอีเมล</p>
+        <p class="page-tile-desc">check-email.html — ยืนยันว่าส่งลิงก์แล้ว</p>
+      </div>
+      <span class="section-link">เปิด →</span>
+    </a>
+    <a class="card page-tile" href="verify.html">
+      <div>
+        <p class="page-tile-name">กำลังเข้าสู่ระบบ</p>
+        <p class="page-tile-desc">verify.html — loading + error state</p>
+      </div>
+      <span class="section-link">เปิด →</span>
+    </a>
+  </div>
+
+  <div class="group-label">2 · พอร์ทัลหลัก (หลังล็อกอิน)</div>
+  <div class="page-grid">
+    <a class="card page-tile" href="dashboard.html">
+      <div>
+        <p class="page-tile-name">ภาพรวม / คดีของฉัน</p>
+        <p class="page-tile-desc">dashboard.html — สถิติด่วน + รายการคดี</p>
+      </div>
+      <span class="section-link">เปิด →</span>
+    </a>
+    <a class="card page-tile" href="case-detail.html">
+      <div>
+        <p class="page-tile-name">รายละเอียดคดี</p>
+        <p class="page-tile-desc">case-detail.html — นัดศาล/เอกสาร/ใบแจ้งหนี้/แชท</p>
+      </div>
+      <span class="section-link">เปิด →</span>
+    </a>
+    <a class="card page-tile" href="intake-list.html">
+      <div>
+        <p class="page-tile-name">เรื่องที่ส่ง</p>
+        <p class="page-tile-desc">intake-list.html — สถานะคำร้อง/ปรึกษา</p>
+      </div>
+      <span class="section-link">เปิด →</span>
+    </a>
+    <a class="card page-tile" href="intake-new.html">
+      <div>
+        <p class="page-tile-name">ส่งเรื่องใหม่</p>
+        <p class="page-tile-desc">intake-new.html — ฟอร์ม + หน้าสำเร็จ</p>
+      </div>
+      <span class="section-link">เปิด →</span>
+    </a>
+    <a class="card page-tile" href="settings.html">
+      <div>
+        <p class="page-tile-name">ตั้งค่าการแจ้งเตือน</p>
+        <p class="page-tile-desc">settings.html — เชื่อมต่อ LINE + preference</p>
+      </div>
+      <span class="section-link">เปิด →</span>
+    </a>
+  </div>
+</div>
+
+</body>
+</html>

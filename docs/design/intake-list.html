@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LexFlow · เรื่องที่ส่ง</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="portal-shared.css" />
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">LF</div>
+      <div>
+        <div class="brand-name">LexFlow</div>
+        <div class="brand-sub">Client Portal</div>
+      </div>
+    </div>
+
+    <div class="nav-section-label">เมนูหลัก</div>
+    <a class="nav-item" href="dashboard.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      ภาพรวม
+    </a>
+    <a class="nav-item active" href="intake-list.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+      เรื่องที่ส่ง
+      <span class="badge-count">3</span>
+    </a>
+    <a class="nav-item" href="settings.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg>
+      ตั้งค่าการแจ้งเตือน
+    </a>
+    <a class="nav-item" href="login.html">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      ออกจากระบบ
+    </a>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">สธ</div>
+        <div>
+          <div class="user-name">สมชาย ธนโชติ</div>
+          <div class="user-role">บจก. ธนโชติ คอนสตรัคชั่น</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <h1 class="page-title">เรื่องที่ส่ง</h1>
+        <p class="page-sub">ติดตามสถานะคำร้อง/คำขอคำปรึกษาที่คุณส่งเข้ามา</p>
+      </div>
+      <div class="topbar-actions">
+        <a class="btn btn-primary" href="intake-new.html">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          ส่งเรื่องใหม่
+        </a>
+      </div>
+    </div>
+
+    <div class="stack">
+
+      <div class="card intake-row">
+        <div>
+          <p class="intake-ref">TNC-2026-034</p>
+          <p class="intake-title">ขอคำปรึกษากรณีข้อพิพาทค่าปรับล่าช้าจากผู้รับเหมาช่วง</p>
+          <p class="intake-meta">ส่งเมื่อ 28 ส.ค. 2569</p>
+        </div>
+        <span class="badge badge-warning">รอตกลงขอบเขต</span>
+      </div>
+
+      <div class="card intake-row">
+        <div>
+          <p class="intake-ref">TNC-2026-021</p>
+          <p class="intake-title">ข้อพิพาทค่าจ้างก่อสร้างค้างจ่าย</p>
+          <p class="intake-meta">ส่งเมื่อ 2 ก.ค. 2569</p>
+        </div>
+        <span class="badge badge-success">รับดำเนินการ</span>
+      </div>
+
+      <div class="card intake-row">
+        <div>
+          <p class="intake-ref">TNC-2026-011</p>
+          <p class="intake-title">สอบถามแนวทางร่างสัญญาว่าจ้างฉบับใหม่</p>
+          <p class="intake-meta">ส่งเมื่อ 14 พ.ค. 2569</p>
+        </div>
+        <span class="badge badge-muted">ให้คำปรึกษาเรียบร้อยแล้ว</span>
+      </div>
+
+      <div class="card intake-row" style="opacity:0.6;">
+        <div>
+          <p class="intake-ref">TNC-2026-006</p>
+          <p class="intake-title">ขอความช่วยเหลือกรณีลูกจ้างลาออกกะทันหัน</p>
+          <p class="intake-meta">ส่งเมื่อ 20 มี.ค. 2569 · ไม่ได้ใช้ (ยกเลิกโดยลูกความ)</p>
+        </div>
+        <span class="badge badge-destructive">ไม่รับดำเนินการ</span>
+      </div>
+
+    </div>
+
+    <!-- Empty state reference (not shown when there is data) -->
+    <!--
+    <div class="card">
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg class="icon" style="width:20px;height:20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+        </div>
+        <p class="empty-title">ยังไม่มีเรื่องที่ส่ง</p>
+        <p class="empty-sub">เมื่อคุณส่งคำร้องหรือขอคำปรึกษาใหม่ รายการจะแสดงที่นี่</p>
+      </div>
+    </div>
+    -->
+
+  </main>
+</div>
+
+</body>
+</html>
