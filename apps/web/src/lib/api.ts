@@ -493,12 +493,40 @@ export interface IntakeItem {
   noticeDeadline?: string | null;
   noticeResult?: string | null;
   noticeContent?: string | null;
+  attachments?: IntakeAttachmentItem[];
   receivedBy?: { id: string; firstName: string; lastName: string };
   assessor?: { id: string; firstName: string; lastName: string } | null;
   client?: { id: string; name: string } | null;
   case?: { id: string; ownRef: string; title: string } | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IntakeAttachmentItem {
+  id: string;
+  filename: string;
+  mimeType: string;
+  createdAt: string;
+}
+
+export interface IntakePrecedentItem {
+  dekaId: string;
+  headnote: string;
+  citedStatutes: string[];
+  courtLevel: string | null;
+  judgmentDate: string | null;
+  sourceUrl: string;
+}
+
+export interface IntakePrecedentAnalysisItem {
+  id: string;
+  status: 'PENDING' | 'COMPLETE' | 'FAILED';
+  precedents: IntakePrecedentItem[];
+  summaryBullets: string;
+  noticeFacts: string;
+  creditsCost: number;
+  createdAt: string;
+  errorMessage?: string | null;
 }
 
 export const api = {
@@ -1126,11 +1154,43 @@ export const api = {
   noticeIntake: (token: string, id: string, data: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/notice`, { method: 'POST', token, body: JSON.stringify(data) }),
 
-  draftNoticeIntake: (token: string, id: string) =>
-    request<{ content: string }>(`/intake/${id}/notice/draft`, { method: 'POST', token }),
+  draftNoticeIntake: (token: string, id: string, analysisId?: string) =>
+    request<{ content: string }>(`/intake/${id}/notice/draft`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(analysisId ? { analysisId } : {}),
+    }),
 
   convertIntake: (token: string, id: string, data?: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/convert`, { method: 'POST', token, body: JSON.stringify(data ?? {}) }),
+
+  uploadIntakeAttachment: (token: string, intakeId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<IntakeAttachmentItem>(`/intake/${intakeId}/attachments`, {
+      method: 'POST',
+      token,
+      body: form,
+    });
+  },
+
+  deleteIntakeAttachment: (token: string, intakeId: string, attachmentId: string) =>
+    request(`/intake/${intakeId}/attachments/${attachmentId}`, { method: 'DELETE', token }),
+
+  runPrecedentAnalysis: (token: string, intakeId: string) =>
+    request<IntakePrecedentAnalysisItem>(`/intake/${intakeId}/precedent-analysis`, {
+      method: 'POST',
+      token,
+    }),
+
+  listPrecedentAnalyses: (token: string, intakeId: string) =>
+    request<IntakePrecedentAnalysisItem[]>(`/intake/${intakeId}/precedent-analysis`, { token }),
+
+  getPrecedentAnalysis: (token: string, intakeId: string, analysisId: string) =>
+    request<IntakePrecedentAnalysisItem>(`/intake/${intakeId}/precedent-analysis/${analysisId}`, { token }),
+
+  listCasePrecedentAnalyses: (token: string, caseId: string) =>
+    request<IntakePrecedentAnalysisItem[]>(`/cases/${caseId}/precedent-analysis`, { token }),
 
   listPortalSubmissions: (token: string) =>
     request<PortalSubmissionStaffEntry[]>('/intake/portal-submissions', { token }),

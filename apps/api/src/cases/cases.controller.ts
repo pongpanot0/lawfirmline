@@ -21,11 +21,15 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser, Role } from '@lawfirm/shared';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 import { OwnerOnly } from '../saas/decorators/saas.decorators';
+import { IntakePrecedentAnalysisService } from '../intake/intake-precedent-analysis.service';
 
 @Controller('cases')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CasesController {
-  constructor(private casesService: CasesService) {}
+  constructor(
+    private casesService: CasesService,
+    private precedentAnalysisService: IntakePrecedentAnalysisService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: CaseQueryDto) {
@@ -41,6 +45,12 @@ export class CasesController {
   @UseGuards(CaseAccessGuard)
   findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.casesService.findOne(user, id);
+  }
+
+  @Get(':id/precedent-analysis')
+  @UseGuards(CaseAccessGuard)
+  listPrecedentAnalyses(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.precedentAnalysisService.listForCase(user, id);
   }
 
   @Post()

@@ -2008,6 +2008,140 @@ git commit -m "feat(web): add precedent-analysis button and result card to intak
 
 ---
 
+---
+
+## Task 10 (added post-final-review): Backfill `caseId` on conversion + show analysis on the case page
+
+**Why this task exists:** The spec requires that when an intake is converted to a case, its `IntakePrecedentAnalysis` records carry forward (`caseId` backfilled) and are visible on the case view. No task in the original 9-task plan implemented this — a plan gap caught by the final whole-branch review and confirmed with the user, who asked for it to be planned and executed now as a bounded addition.
+
+**Files:**
+- Modify: `apps/api/src/intake/intake.service.ts` (backfill in `convertToCase()`)
+- Modify: `apps/api/src/intake/intake-precedent-analysis.service.ts` (new `listForCase` method)
+- Modify: `apps/api/src/intake/intake.module.ts` (export `IntakePrecedentAnalysisService`)
+- Modify: `apps/api/src/cases/cases.module.ts` (import `IntakeModule`)
+- Modify: `apps/api/src/cases/cases.controller.ts` (new endpoint)
+- Modify: `apps/web/src/lib/api.ts` (new client method, reuses `IntakePrecedentAnalysisItem` from Task 7)
+- Modify: `apps/web/src/app/(dashboard)/cases/[id]/page.tsx` (new read-only result card in the "ภาพรวม" tab)
+- Test: `apps/api/src/intake/intake.service.spec.ts` (backfill test), `apps/api/src/intake/intake-precedent-analysis.service.spec.ts` (`listForCase` tests), `apps/api/src/cases/cases.controller.spec.ts` (new file or extend existing, controller delegation test)
+
+**Interfaces:**
+- Produces: `IntakePrecedentAnalysisService.listForCase(user: AuthUser, caseId: string): Promise<IntakePrecedentAnalysis[]>` — firm-scoped via the case relation, ordered newest-first.
+- Produces: `GET /cases/:id/precedent-analysis` — consumed by the case detail page.
+- Consumes (already merged): `IntakePrecedentAnalysisItem` type and `request<T>()` pattern from `apps/web/src/lib/api.ts` (Task 7).
+
+- [ ] **Step 1: Write the failing test for the backfill**
+
+Read the current `convertToCase()` in `apps/api/src/intake/intake.service.ts` first — it's grown across several merges. Find `intake.service.spec.ts`'s existing tests for `convertToCase` if any exist (there may not be any yet — check). Add a test (in a new or existing `describe('convertToCase', ...)` block) asserting that after conversion, `prisma.intakePrecedentAnalysis.updateMany` is called with `{ where: { intakeId: intake.id }, data: { caseId: newCase.id } }` (adapt the exact assertion to whatever mock shape `convertToCase`'s existing tests already use for `mockPrisma` — if there are no existing tests for this method, mock only what's needed: `prisma.firm.findUnique`, `prisma.case.findMany`, `prisma.case.create`, `prisma.intake.update`, `prisma.intakePrecedentAnalysis.updateMany`, `tasksService.create`, matching the method's actual current implementation).
+
+Run: `cd apps/api && npx jest src/intake/intake.service.spec.ts` — expect FAIL (the assertion on `updateMany` won't match since the call doesn't exist yet).
+
+- [ ] **Step 2: Implement the backfill**
+
+In `apps/api/src/intake/intake.service.ts`'s `convertToCase()`, after `const newCase = await this.prisma.case.create({...})` and before (or after — pick whichever reads cleaner given the method's real structure) the `await this.prisma.intake.update({... status: CONVERTED})` call, add:
+
+```typescript
+    await this.prisma.intakePrecedentAnalysis.updateMany({
+      where: { intakeId: intake.id },
+      data: { caseId: newCase.id },
+    });
+```
+
+This backfills every analysis run for this intake (not just the latest), matching the spec's "carries forward" intent for the full history.
+
+Run the test again: expect PASS.
+
+- [ ] **Step 3: Write the failing test for `listForCase`**
+
+In `apps/api/src/intake/intake-precedent-analysis.service.spec.ts`, add a new `describe('listForCase', ...)` block (matching the file's existing mock/test style — see the `getOne`/`listForIntake` blocks already in this file for the pattern) with at least:
+- A test that it queries `prisma.intakePrecedentAnalysis.findMany` with `where: { caseId, case: { firmId: user.firmId } }` (or equivalent firm-scoping — match whatever nested-relation-filter style `getOne` already uses in this file) and `orderBy: { createdAt: 'desc' }`.
+
+Run: expect FAIL (`listForCase` doesn't exist).
+
+- [ ] **Step 4: Implement `listForCase`**
+
+Add to `IntakePrecedentAnalysisService` (mirror `listForIntake`'s structure and firm-scoping style exactly, just keyed by `caseId` instead of `intakeId`):
+
+```typescript
+  async listForCase(user: AuthUser, caseId: string) {
+    return this.prisma.intakePrecedentAnalysis.findMany({
+      where: { caseId, case: { firmId: user.firmId } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+```
+
+Run: expect PASS.
+
+- [ ] **Step 5: Wire the module exports/imports**
+
+In `apps/api/src/intake/intake.module.ts`, add `IntakePrecedentAnalysisService` to the `exports` array (alongside the existing `IntakeService` export).
+
+In `apps/api/src/cases/cases.module.ts`, add an import for `IntakeModule` (from `'../intake/intake.module'`) to the `@Module({ imports: [...] })` array, alongside the existing `CalendarModule`/`NotificationsModule` imports.
+
+- [ ] **Step 6: Add the controller endpoint + its test**
+
+Read the current `apps/api/src/cases/cases.controller.ts` first (confirm the exact existing import list and guard pattern — it uses `@Controller('cases')` with class-level `@UseGuards(JwtAuthGuard, RolesGuard)`, and the existing `GET :id` route additionally applies `@UseGuards(CaseAccessGuard)` at the method level).
+
+Add the import:
+```typescript
+import { IntakePrecedentAnalysisService } from '../intake/intake-precedent-analysis.service';
+```
+
+Inject it in the constructor:
+```typescript
+  constructor(
+    private casesService: CasesService,
+    private precedentAnalysisService: IntakePrecedentAnalysisService,
+  ) {}
+```
+
+Add the endpoint (place it near the other `:id`-scoped routes):
+```typescript
+  @Get(':id/precedent-analysis')
+  @UseGuards(CaseAccessGuard)
+  listPrecedentAnalyses(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.precedentAnalysisService.listForCase(user, id);
+  }
+```
+
+Write (or extend, if one already exists) `apps/api/src/cases/cases.controller.spec.ts` with a test asserting this endpoint delegates to `precedentAnalysisService.listForCase(user, caseId)` — follow this codebase's controller-test pattern (see `apps/api/src/intake/intake.controller.spec.ts` from Task 5 for the exact style: `Test.createTestingModule` with `overrideGuard` for `JwtAuthGuard`/`RolesGuard`/`CaseAccessGuard`).
+
+Run: `cd apps/api && npx jest src/cases/cases.controller.spec.ts` and `cd apps/api && npx jest src/intake src/cases` — expect all PASS, no regressions.
+
+- [ ] **Step 7: Frontend — API client method**
+
+In `apps/web/src/lib/api.ts`, add (near the other `listPrecedentAnalyses`/`getPrecedentAnalysis` methods from Task 7):
+
+```typescript
+  listCasePrecedentAnalyses: (token: string, caseId: string) =>
+    request<IntakePrecedentAnalysisItem[]>(`/cases/${caseId}/precedent-analysis`, { token }),
+```
+
+- [ ] **Step 8: Frontend — read-only result card on the case page**
+
+Read the actual current `apps/web/src/app/(dashboard)/cases/[id]/page.tsx` first — it's a large, actively-changing file (979+ lines). Find the "ภาพรวม" (overview) tab's rendering block (the tab with `id: 'overview'` and no `href`, rendered inline in this component). Add:
+1. State: `const [precedentAnalyses, setPrecedentAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);` near the other `useState` declarations, and add `IntakePrecedentAnalysisItem` to the existing `@/lib/api` import.
+2. In the effect that loads the case (find where `setCase`/`legalCase` state is populated), add a call to fetch analyses: `api.listCasePrecedentAnalyses(token, id as string).then(setPrecedentAnalyses).catch(() => setPrecedentAnalyses([]));` — non-blocking, don't let a failure here break the rest of the page load.
+3. In the overview tab's JSX, only when `precedentAnalyses.length > 0`, render a read-only `Card` (reuse the same visual structure as the intake page's result card from Task 9 — precedent list with `sourceUrl` links, summary bullets, notice-facts block) showing the MOST RECENT `COMPLETE` analysis only (skip FAILED ones for this read-only view — no history dropdown, no re-run button, no draft-notice button here; this is intentionally simpler than the intake page's card since this view is read-only per the approved design). If none of the records are `COMPLETE`, render nothing (don't show a card for FAILED-only history on this page).
+
+- [ ] **Step 9: Verify**
+
+```bash
+cd apps/api && npx jest src/intake src/cases
+cd apps/web && npx tsc --noEmit
+```
+
+Expect all green / no errors. As with Tasks 8/9, live browser verification is optional given environment constraints — if not practical, rely on the above plus a careful diff read, and say so clearly in your report.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add apps/api/src/intake/intake.service.ts apps/api/src/intake/intake.service.spec.ts apps/api/src/intake/intake-precedent-analysis.service.ts apps/api/src/intake/intake-precedent-analysis.service.spec.ts apps/api/src/intake/intake.module.ts apps/api/src/cases/cases.module.ts apps/api/src/cases/cases.controller.ts apps/api/src/cases/cases.controller.spec.ts apps/web/src/lib/api.ts "apps/web/src/app/(dashboard)/cases/[id]/page.tsx"
+git commit -m "feat: backfill precedent-analysis caseId on conversion and show it on the case page"
+```
+
+---
+
 ## Post-implementation checklist
 
 - [ ] Run the full backend suite once more: `cd apps/api && npx jest` — all green.
