@@ -7,6 +7,7 @@ import { CurrentPortalUser } from './current-portal-user.decorator';
 import { PortalIdentity } from './client-portal-jwt.strategy';
 import { SkipSubscription } from '../saas/decorators/saas.decorators';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
+import { safeMimeType } from '../common/utils/safe-mime-type';
 
 @Controller('client-portal')
 @UseGuards(ClientPortalGuard)
@@ -37,7 +38,7 @@ export class ClientPortalController {
   ) {
     const fileInfo = await this.portalService.getVisibleDocumentFile(portalUser, documentId);
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Type', fileInfo.mimeType);
+    res.setHeader('Content-Type', safeMimeType(fileInfo.mimeType));
     res.setHeader('Content-Disposition', buildContentDispositionHeader(fileInfo.filename));
     fs.createReadStream(fileInfo.path).pipe(res);
   }

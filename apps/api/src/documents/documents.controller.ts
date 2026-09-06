@@ -22,6 +22,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
+import { safeMimeType } from '../common/utils/safe-mime-type';
 import { AuthUser, Role } from '@lawfirm/shared';
 
 @Controller('cases/:caseId/documents')
@@ -83,7 +84,7 @@ export class DocumentsController {
       version ? parseInt(version, 10) : undefined,
     );
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Type', fileInfo.mimeType);
+    res.setHeader('Content-Type', safeMimeType(fileInfo.mimeType));
     res.setHeader('Content-Disposition', buildContentDispositionHeader(fileInfo.filename));
     const stream = fs.createReadStream(fileInfo.path);
     stream.pipe(res);
