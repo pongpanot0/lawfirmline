@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Plus, Bell, Menu } from 'lucide-react';
+import { Search, Plus, Menu } from 'lucide-react';
 import { AuthUser } from '@lawfirm/shared';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -60,10 +60,6 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
             </Button>
           </>
         )}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive" />
-        </Button>
         <Link href="/settings">
           <Avatar fallback={`${user.firstName[0]}${user.lastName[0]}`} className="cursor-pointer" />
         </Link>
