@@ -30,6 +30,13 @@ export const landingCopy = {
         'ต้องคอยตอบคำถามเดิม ๆ ให้ลูกความ',
       ],
     },
+    tour: {
+      title: 'หน้าตาโปรแกรมจริง',
+      subtitle: 'ไม่ใช่ mockup — นี่คือหน้าจอที่ทีมสำนักงานใช้งานจริงทุกวัน',
+      dashboard: 'แดชบอร์ดภาพรวมสำนักงาน',
+      schedule: 'ตารางนัดศาล',
+      cases: 'รายการคดีทั้งหมด',
+    },
     features: {
       title: 'LexFlow ช่วยอะไรได้บ้าง',
       subtitle: 'ทุกอย่างที่สำนักงานกฎหมายต้องการ รวมไว้ในที่เดียว',
@@ -138,6 +145,13 @@ export const landingCopy = {
         'No visibility into lawyer availability',
         'Answering the same client questions over and over',
       ],
+    },
+    tour: {
+      title: 'The real product',
+      subtitle: 'Not a mockup — these are the actual screens your team uses every day.',
+      dashboard: 'Firm overview dashboard',
+      schedule: 'Court schedule',
+      cases: 'Case list',
     },
     features: {
       title: 'What LexFlow helps you do',
