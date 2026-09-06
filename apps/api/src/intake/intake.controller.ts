@@ -3,12 +3,15 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
   UseGuards,
   UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { IntakeService } from './intake.service';
 import {
   CreateIntakeDto,
@@ -111,5 +114,24 @@ export class IntakeController {
     @Body() dto: ConvertToCaseDto,
   ) {
     return this.intakeService.convertToCase(user, id, dto);
+  }
+
+  @Post(':id/attachments')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadAttachment(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.intakeService.uploadAttachment(user, id, file);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  deleteAttachment(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.intakeService.deleteAttachment(user, id, attachmentId);
   }
 }
