@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { api, IntakeItem, ApiError } from '@/lib/api';
+import { api, IntakeItem, IntakePrecedentAnalysisItem, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -109,11 +109,27 @@ export default function IntakeDetailPage() {
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
+  // Precedent analysis
+  const [analyses, setAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
+  const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
+
   useEffect(() => {
     if (!token || !id) return;
     setLoading(true);
     api.getIntake(token, id)
-      .then(setIntake)
+      .then((data) => {
+        setIntake(data);
+        api
+          .listPrecedentAnalyses(token, id as string)
+          .then((items) => {
+            setAnalyses(items);
+            if (items.length > 0) setSelectedAnalysisId(items[0].id);
+          })
+          .catch(() => setAnalyses([]));
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [token, id]);
@@ -190,6 +206,37 @@ export default function IntakeDetailPage() {
       setNoticeReviewed(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setDrafting(false);
+    }
+  };
+
+  const handleRunPrecedentAnalysis = async () => {
+    if (!token || !intake) return;
+    setAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      const result = await api.runPrecedentAnalysis(token, intake.id);
+      setAnalyses((prev) => [result, ...prev]);
+      setSelectedAnalysisId(result.id);
+      setShowAnalysisHistory(false);
+    } catch {
+      setAnalysisError('วิเคราะห์ไม่สำเร็จ — ลองใหม่อีกครั้ง หรือตรวจสอบว่ามีรายละเอียด/ไฟล์แนบเพียงพอ');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleDraftFromAnalysis = async (analysisId: string) => {
+    setModal('notice');
+    if (!token || !intake) return;
+    setDrafting(true);
+    try {
+      const { content } = await api.draftNoticeIntake(token, intake.id, analysisId);
+      setNoticeContent(content);
+      setNoticeReviewed(false);
+    } catch {
+      // handled the same way the existing handleDraftNotice already surfaces errors
     } finally {
       setDrafting(false);
     }
@@ -296,10 +343,104 @@ export default function IntakeDetailPage() {
             <Button variant="outline">ดูคดี {intake.case.ownRef}</Button>
           </Link>
         )}
+        <Button
+          variant="outline"
+          onClick={handleRunPrecedentAnalysis}
+          disabled={analyzing}
+        >
+          {analyzing ? 'กำลังวิเคราะห์...' : 'วิเคราะห์ฎีกา + เตรียมข้อมูล Notice'}
+        </Button>
       </div>
 
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+      )}
+
+      {analysisError && <p className="text-sm text-destructive">{analysisError}</p>}
+
+      {analyses.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm">
+              ผลวิเคราะห์ ({new Date(analyses[0].createdAt).toLocaleString('th-TH')})
+            </CardTitle>
+            {analyses.length > 1 && (
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() => setShowAnalysisHistory((v) => !v)}
+              >
+                {showAnalysisHistory ? 'ซ่อนประวัติ' : `ดูประวัติย้อนหลัง (${analyses.length})`}
+              </button>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {showAnalysisHistory && (
+              <select
+                value={selectedAnalysisId ?? ''}
+                onChange={(e) => setSelectedAnalysisId(e.target.value)}
+                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+              >
+                {analyses.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {new Date(a.createdAt).toLocaleString('th-TH')}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {(() => {
+              const current = analyses.find((a) => a.id === selectedAnalysisId) ?? analyses[0];
+              return (
+                <>
+                  <div>
+                    <p className="text-sm font-medium">📚 ฎีกาที่เกี่ยวข้อง</p>
+                    {current.precedents.length > 0 ? (
+                      <ul className="mt-2 space-y-2">
+                        {current.precedents.map((p) => (
+                          <li key={p.dekaId} className="text-sm">
+                            <a
+                              href={p.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-primary hover:underline"
+                            >
+                              ฎ. {p.dekaId}
+                            </a>{' '}
+                            — {p.headnote}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-sm text-muted-foreground">ไม่พบฎีกาที่เกี่ยวข้องโดยตรง</p>
+                    )}
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {current.summaryBullets}
+                    </p>
+                  </div>
+
+                  <div className="border-t border-border pt-3">
+                    <p className="text-sm font-medium">📄 ข้อมูลพร้อมร่าง Notice</p>
+                    <p className="mt-1 whitespace-pre-wrap rounded-lg bg-muted/40 p-2 text-xs text-muted-foreground">
+                      {current.noticeFacts}
+                    </p>
+                    <Button
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => handleDraftFromAnalysis(current.id)}
+                    >
+                      ร่างหนังสือแจ้งเลย
+                    </Button>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    ⚠️ ผลลัพธ์นี้เป็นการช่วยค้นเบื้องต้นด้วย AI โปรดตรวจสอบกับฉบับเต็มก่อนใช้อ้างอิงจริง
+                  </p>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
       )}
 
       {/* Info cards */}
