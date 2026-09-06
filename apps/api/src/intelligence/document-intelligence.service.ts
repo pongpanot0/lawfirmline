@@ -139,7 +139,7 @@ export class DocumentIntelligenceService {
       return [];
     }
 
-    const dates = (parsed as { dates?: unknown }).dates;
+    const dates = (parsed as { dates?: unknown } | null)?.dates;
     if (!Array.isArray(dates)) return [];
 
     const validEventTypes = new Set<string>(Object.values(EventType));

@@ -121,6 +121,17 @@ describe('DocumentIntelligenceService — date extraction', () => {
       expect(result).toEqual([]);
     });
 
+    it('returns [] when the AI response content is the JSON literal null', async () => {
+      mockConfig.get.mockReturnValue('test-key');
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'null' } }] }),
+      } as Response);
+
+      const result = await service.extractDatesWithAI('text');
+      expect(result).toEqual([]);
+    });
+
     it('returns [] when the OpenAI call itself fails', async () => {
       mockConfig.get.mockReturnValue('test-key');
       jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 500 } as Response);

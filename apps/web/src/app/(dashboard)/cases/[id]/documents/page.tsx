@@ -199,8 +199,12 @@ export default function CaseDocumentsPage() {
     setExtracting(true);
     setError('');
     try {
-      await api.extractDates(token, id, file);
-      loadSuggestions();
+      const created = await api.extractDates(token, id, file);
+      if (created.length === 0) {
+        setError(d.caseDocuments.noDateSuggestions);
+      } else {
+        loadSuggestions();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
     } finally {
