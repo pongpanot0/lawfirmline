@@ -177,7 +177,6 @@ export default function OperationsPage() {
                     </TableHeader>
                     <TableBody>
                       {sorted.map((s) => {
-                        const level = workloadLevel(s.total);
                         return (
                           <TableRow
                             key={s.userId}
@@ -190,8 +189,7 @@ export default function OperationsPage() {
                             </TableCell>
                             <TableCell>
                               <div className="flex min-w-[140px] items-center gap-2">
-                                <Badge variant={level.variant}>{level.label}</Badge>
-                                <span className="text-xs text-muted-foreground">{s.total} คดี</span>
+                                <span className="font-medium">{s.total} คดี</span>
                               </div>
                               <div className="mt-1.5 w-32">
                                 <WorkloadBar total={s.total} max={maxTotal} />
