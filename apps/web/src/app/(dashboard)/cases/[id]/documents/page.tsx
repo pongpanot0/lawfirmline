@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Upload, Eye, Download, ArrowLeft } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry } from '@/lib/api';
+import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry, DateSuggestionItem } from '@/lib/api';
 import { DocumentDropZone, DocumentDropZoneHandle } from '@/components/DocumentDropZone';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { Button } from '@/components/ui/button';
@@ -21,10 +21,15 @@ export default function CaseDocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [rendered, setRendered] = useState<{ name: string; content: string } | null>(null);
   const [error, setError] = useState('');
   const uploadRef = useRef<DocumentDropZoneHandle>(null);
   const analyzeRef = useRef<DocumentDropZoneHandle>(null);
+  const extractRef = useRef<DocumentDropZoneHandle>(null);
+  const [suggestions, setSuggestions] = useState<DateSuggestionItem[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, { label: string; date: string; eventType: string }>>({});
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [publications, setPublications] = useState<Record<string, DocumentPublicationEntry[]>>({});
@@ -54,6 +59,31 @@ export default function CaseDocumentsPage() {
   };
 
   useEffect(() => { load(); }, [token, id]);
+
+  const loadSuggestions = () => {
+    if (!token || !id) return;
+    api
+      .getDateSuggestions(token, id, 'PENDING')
+      .then((items) => {
+        setSuggestions(items);
+        setDrafts((prev) => {
+          const next = { ...prev };
+          items.forEach((s) => {
+            if (!next[s.id]) {
+              next[s.id] = {
+                label: s.label,
+                date: s.suggestedDate.slice(0, 10),
+                eventType: s.eventType,
+              };
+            }
+          });
+          return next;
+        });
+      })
+      .catch(console.error);
+  };
+
+  useEffect(() => { loadSuggestions(); }, [token, id]);
 
   useEffect(() => () => {
     if (preview?.url) URL.revokeObjectURL(preview.url);
@@ -164,6 +194,50 @@ export default function CaseDocumentsPage() {
     }
   };
 
+  const handleExtractDates = async (file: File) => {
+    if (!token || !id) return;
+    setExtracting(true);
+    setError('');
+    try {
+      await api.extractDates(token, id, file);
+      loadSuggestions();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleConfirmSuggestion = async (suggestionId: string) => {
+    if (!token || !id) return;
+    const draft = drafts[suggestionId];
+    setConfirmingId(suggestionId);
+    setError('');
+    try {
+      await api.confirmDateSuggestion(token, id, suggestionId, {
+        label: draft?.label,
+        date: draft?.date ? new Date(draft.date).toISOString() : undefined,
+        eventType: draft?.eventType,
+      });
+      setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
+  const handleDismissSuggestion = async (suggestionId: string) => {
+    if (!token || !id) return;
+    setError('');
+    try {
+      await api.dismissDateSuggestion(token, id, suggestionId);
+      setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
+    }
+  };
+
   const handleRender = async (templateId: string) => {
     if (!token || !id) return;
     const result = await api.renderTemplate(token, id, templateId);
@@ -180,7 +254,7 @@ export default function CaseDocumentsPage() {
       </Link>
       <h1 className="mt-2 mb-6 text-2xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h1>
 
-      <div className="mb-6 grid gap-6 lg:grid-cols-2">
+      <div className="mb-6 grid gap-6 lg:grid-cols-3">
         <div className="rounded-xl border bg-card p-6 shadow-soft">
           <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.uploadDocument}</h2>
           <DocumentDropZone
@@ -222,9 +296,101 @@ export default function CaseDocumentsPage() {
             {analyzing ? d.caseDocuments.analyzing : d.caseDocuments.chooseFileForAI}
           </Button>
         </div>
+        <div className="rounded-xl border bg-card p-6 shadow-soft">
+          <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.extractDates}</h2>
+          <DocumentDropZone
+            ref={extractRef}
+            onFile={handleExtractDates}
+            loading={extracting}
+            loadingLabel={d.caseDocuments.extracting}
+            label={d.documents.dropHint}
+            hint={d.documents.fileTypesHint}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={extracting}
+            onClick={() => extractRef.current?.open()}
+            className="mt-3 w-full"
+          >
+            <Upload className="h-4 w-4" />
+            {extracting ? d.caseDocuments.extracting : d.caseDocuments.chooseFileForDates}
+          </Button>
+        </div>
       </div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      {suggestions.length > 0 && (
+        <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
+          <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.pendingDateSuggestions}</h2>
+          <div className="space-y-3">
+            {suggestions.map((s) => {
+              const draft = drafts[s.id] ?? {
+                label: s.label,
+                date: s.suggestedDate.slice(0, 10),
+                eventType: s.eventType,
+              };
+              return (
+                <div key={s.id} className="rounded-lg border p-3">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <input
+                      type="text"
+                      value={draft.label}
+                      onChange={(e) =>
+                        setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, label: e.target.value } }))
+                      }
+                      className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+                    />
+                    <input
+                      type="date"
+                      value={draft.date}
+                      onChange={(e) =>
+                        setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, date: e.target.value } }))
+                      }
+                      className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+                    />
+                    <select
+                      value={draft.eventType}
+                      onChange={(e) =>
+                        setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, eventType: e.target.value } }))
+                      }
+                      className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+                    >
+                      <option value="COURT_DATE">{d.calendar.typeCourtDate}</option>
+                      <option value="CLIENT_MEETING">{d.calendar.typeClientMeeting}</option>
+                      <option value="DEADLINE">{d.calendar.typeDeadline}</option>
+                      <option value="OTHER">{d.calendar.typeOther}</option>
+                    </select>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {d.caseDocuments.sourceExcerpt}: &ldquo;{s.sourceExcerpt}&rdquo;
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={confirmingId === s.id}
+                      onClick={() => handleConfirmSuggestion(s.id)}
+                    >
+                      {confirmingId === s.id ? d.caseDocuments.confirming : d.caseDocuments.confirmDate}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={confirmingId === s.id}
+                      onClick={() => handleDismissSuggestion(s.id)}
+                    >
+                      {d.caseDocuments.dismissDate}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.templates}</h2>
