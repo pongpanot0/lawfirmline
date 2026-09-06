@@ -42,4 +42,16 @@ describe('CasesController precedent analysis', () => {
     expect(mockAnalysisService.listForCase).toHaveBeenCalledWith(user, 'case-1');
     expect(result).toEqual([{ id: 'analysis-1' }]);
   });
+
+  // The guards above are stubbed to always allow, so the delegation test cannot
+  // prove access control runs. Assert on the route's declared guard metadata
+  // instead — verifying CaseAccessGuard is actually wired to this handler.
+  // Known limitation: the guard's own logic is covered by its unit tests, not here.
+  it('declares CaseAccessGuard on the precedent-analysis route', () => {
+    const guards = Reflect.getMetadata(
+      '__guards__',
+      CasesController.prototype.listPrecedentAnalyses,
+    );
+    expect(guards).toContain(CaseAccessGuard);
+  });
 });

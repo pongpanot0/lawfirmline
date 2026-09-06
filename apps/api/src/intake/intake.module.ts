@@ -5,17 +5,16 @@ import { IntakeService } from './intake.service';
 import { IntakeController } from './intake.controller';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
-import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
+import { IntelligenceModule } from '../intelligence/intelligence.module';
 
 @Module({
-  imports: [TasksModule],
+  imports: [TasksModule, IntelligenceModule],
   controllers: [IntakeController],
   providers: [
     IntakeService,
     AiCreditsInterceptor,
     IntakePrecedentAnalysisService,
     IappLegalClient,
-    DocumentIntelligenceService,
   ],
   exports: [IntakeService, IntakePrecedentAnalysisService],
 })

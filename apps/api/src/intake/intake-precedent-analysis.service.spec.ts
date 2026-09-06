@@ -199,6 +199,30 @@ describe('IntakePrecedentAnalysisService', () => {
       const facts = result.extractedFacts as Record<string, unknown>;
       expect(facts.attachmentExtractionFailed).toBe(true);
     });
+
+    it('throws BadRequestException (charging nothing) when the only attachment fails to extract and there are no other facts', async () => {
+      // Passes the pre-gatherFacts guard (one attachment exists) but every fact
+      // field is empty and extraction fails, so factsText ends up blank — the
+      // second guard must stop the pipeline before any credit-worthy call.
+      mockPrisma.intake.findFirst.mockResolvedValue({
+        ...baseIntake,
+        description: null,
+        matterType: null,
+        opposingParty: null,
+        estimatedDamage: null,
+        incidentDate: null,
+        attachments: [
+          { id: 'att-1', storagePath: '/tmp/corrupt.pdf', mimeType: 'application/pdf', filename: 'corrupt.pdf' },
+        ],
+      });
+      mockDocIntel.extractText.mockRejectedValue(new Error('corrupt pdf'));
+
+      await expect(service.analyze(user, 'intake-1')).rejects.toThrow(BadRequestException);
+
+      expect(mockIapp.searchPrecedents).not.toHaveBeenCalled();
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(mockPrisma.intakePrecedentAnalysis.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('getOne', () => {
@@ -221,7 +245,11 @@ describe('IntakePrecedentAnalysisService', () => {
       expect(result).toEqual([{ id: 'analysis-1' }]);
     });
 
-    it('returns an empty list when the case belongs to another firm', async () => {
+    // The real value here is the `where` assertion: it proves the caller's own
+    // firmId (not the target case's) is what scopes the query. The empty result
+    // itself is mock-configured — known limitation; proving actual row filtering
+    // would need a real Prisma test double.
+    it('scopes the query by the CALLER firm when the case belongs to another firm', async () => {
       mockPrisma.intakePrecedentAnalysis.findMany.mockResolvedValue([]);
 
       const result = await service.listForCase(

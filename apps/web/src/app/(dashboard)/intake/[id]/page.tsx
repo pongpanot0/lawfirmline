@@ -223,8 +223,12 @@ export default function IntakeDetailPage() {
       setAnalyses((prev) => [result, ...prev]);
       setSelectedAnalysisId(result.id);
       setShowAnalysisHistory(false);
-    } catch {
-      setAnalysisError('วิเคราะห์ไม่สำเร็จ — ลองใหม่อีกครั้ง หรือตรวจสอบว่ามีรายละเอียด/ไฟล์แนบเพียงพอ');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 402) {
+        setAnalysisError('เครดิต AI ไม่เพียงพอ — กรุณาติดต่อผู้ดูแลระบบเพื่อเติมเครดิต');
+      } else {
+        setAnalysisError('วิเคราะห์ไม่สำเร็จ — ลองใหม่อีกครั้ง หรือตรวจสอบว่ามีรายละเอียด/ไฟล์แนบเพียงพอ');
+      }
     } finally {
       setAnalyzing(false);
     }
@@ -238,8 +242,8 @@ export default function IntakeDetailPage() {
       const { content } = await api.draftNoticeIntake(token, intake.id, analysisId);
       setNoticeContent(content);
       setNoticeReviewed(false);
-    } catch {
-      // handled the same way the existing handleDraftNotice already surfaces errors
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setDrafting(false);
     }

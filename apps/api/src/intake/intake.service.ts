@@ -465,6 +465,9 @@ export class IntakeService {
     if (file.mimetype !== 'application/pdf') {
       throw new BadRequestException('รองรับเฉพาะไฟล์ PDF เท่านั้น');
     }
+    // Unreachable via the HTTP route today — Multer's own `limits.fileSize` (see
+    // the controller's FileInterceptor config) rejects an oversized upload first.
+    // Kept as defense-in-depth for any future direct/non-HTTP caller of this method.
     if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
       throw new BadRequestException('ไฟล์มีขนาดใหญ่เกิน 10MB');
     }

@@ -177,6 +177,12 @@ export class IntakePrecedentAnalysisService {
     const facts = await this.gatherFacts(intake);
     const factsText = this.factsToText(facts);
 
+    if (!factsText.trim()) {
+      throw new BadRequestException(
+        'ไม่สามารถอ่านข้อมูลจากเอกสารแนบได้ และไม่มีรายละเอียดเพิ่มเติม — กรุณาตรวจสอบไฟล์แนบหรือกรอกรายละเอียด',
+      );
+    }
+
     try {
       const searchQuery = await this.extractSearchQuery(factsText);
 
