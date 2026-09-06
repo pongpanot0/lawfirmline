@@ -37,6 +37,27 @@ export class DocumentsService {
     });
   }
 
+  async findByIntake(intakeId: string) {
+    return this.prisma.document.findMany({
+      where: { intakeId },
+      include: {
+        uploadedBy: {
+          select: { id: true, firstName: true, lastName: true },
+        },
+        versions: { orderBy: { version: 'desc' } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  private async verifyIntakeDocument(intakeId: string, documentId: string) {
+    const document = await this.prisma.document.findFirst({
+      where: { id: documentId, intakeId },
+    });
+    if (!document) throw new NotFoundException('Document not found');
+    return document;
+  }
+
   private getFileBuffer(file: Express.Multer.File): Buffer {
     if (!file) {
       throw new BadRequestException('No file uploaded');
@@ -57,6 +78,48 @@ export class DocumentsService {
     const document = await this.prisma.document.create({
       data: {
         caseId,
+        filename: file.originalname,
+        storagePath: '',
+        mimeType: file.mimetype,
+        version: 1,
+        uploadedById: user.id,
+      },
+    });
+
+    const ext = path.extname(file.originalname);
+    const storagePath = path.join(uploadDir, `${document.id}_v1${ext}`);
+    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+
+    const updated = await this.prisma.document.update({
+      where: { id: document.id },
+      data: { storagePath },
+    });
+
+    await this.prisma.documentVersion.create({
+      data: {
+        documentId: document.id,
+        version: 1,
+        storagePath,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+      },
+    });
+
+    return updated;
+  }
+
+  async uploadForIntake(
+    user: AuthUser,
+    intakeId: string,
+    file: Express.Multer.File,
+  ) {
+    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId);
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    const document = await this.prisma.document.create({
+      data: {
+        caseId: undefined,
+        intakeId,
         filename: file.originalname,
         storagePath: '',
         mimeType: file.mimetype,
@@ -128,6 +191,47 @@ export class DocumentsService {
     });
   }
 
+  async uploadNewVersionForIntake(
+    user: AuthUser,
+    intakeId: string,
+    documentId: string,
+    file: Express.Multer.File,
+  ) {
+    const document = await this.verifyIntakeDocument(intakeId, documentId);
+
+    const newVersion = document.version + 1;
+    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId);
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    const ext = path.extname(file.originalname);
+    const storagePath = path.join(
+      uploadDir,
+      `${documentId}_v${newVersion}${ext}`,
+    );
+    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+
+    await this.prisma.documentVersion.create({
+      data: {
+        documentId,
+        version: newVersion,
+        storagePath,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+      },
+    });
+
+    return this.prisma.document.update({
+      where: { id: documentId },
+      data: {
+        version: newVersion,
+        filename: file.originalname,
+        storagePath,
+        mimeType: file.mimetype,
+        uploadedById: user.id,
+      },
+    });
+  }
+
   async getFilePath(caseId: string, documentId: string, version?: number) {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, caseId },
@@ -150,6 +254,34 @@ export class DocumentsService {
 
   async updateVisibility(caseId: string, documentId: string, visibleToClient: boolean) {
     await this.verifyDocument(caseId, documentId);
+    return this.prisma.document.update({
+      where: { id: documentId },
+      data: { visibleToClient },
+    });
+  }
+
+  async getFilePathForIntake(intakeId: string, documentId: string, version?: number) {
+    const document = await this.prisma.document.findFirst({
+      where: { id: documentId, intakeId },
+      include: { versions: true },
+    });
+    if (!document) throw new NotFoundException('Document not found');
+
+    if (version) {
+      const v = document.versions.find((ver) => ver.version === version);
+      if (!v) throw new NotFoundException('Version not found');
+      return { path: v.storagePath, filename: v.filename, mimeType: v.mimeType };
+    }
+
+    return {
+      path: document.storagePath,
+      filename: document.filename,
+      mimeType: document.mimeType,
+    };
+  }
+
+  async updateVisibilityForIntake(intakeId: string, documentId: string, visibleToClient: boolean) {
+    await this.verifyIntakeDocument(intakeId, documentId);
     return this.prisma.document.update({
       where: { id: documentId },
       data: { visibleToClient },
