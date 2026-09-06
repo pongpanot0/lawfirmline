@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Upload, Eye, Download, ArrowLeft } from 'lucide-react';
+import { Upload, Eye, Download, ArrowLeft, Sparkles, CalendarSearch } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry, DateSuggestionItem } from '@/lib/api';
@@ -20,13 +20,11 @@ export default function CaseDocumentsPage() {
   const [templates, setTemplates] = useState<DocumentTemplateItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [extracting, setExtracting] = useState(false);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [extractingId, setExtractingId] = useState<string | null>(null);
   const [rendered, setRendered] = useState<{ name: string; content: string } | null>(null);
   const [error, setError] = useState('');
-  const uploadRef = useRef<DocumentDropZoneHandle>(null);
-  const analyzeRef = useRef<DocumentDropZoneHandle>(null);
-  const extractRef = useRef<DocumentDropZoneHandle>(null);
+  const dropRef = useRef<DocumentDropZoneHandle>(null);
   const [suggestions, setSuggestions] = useState<DateSuggestionItem[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { label: string; date: string; eventType: string }>>({});
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -180,26 +178,26 @@ export default function CaseDocumentsPage() {
     }
   };
 
-  const handleAnalyze = async (file: File) => {
+  const handleAnalyzeDocument = async (doc: DocumentItem) => {
     if (!token || !id) return;
-    setAnalyzing(true);
+    setAnalyzingId(doc.id);
     setError('');
     try {
-      await api.analyzeDocument(token, id, file, file.name);
+      await api.analyzeExistingDocument(token, id, doc.id);
       alert(d.caseDocuments.analyzeSuccess);
     } catch (e) {
       setError(e instanceof Error ? e.message : d.caseDocuments.analyzeFailed);
     } finally {
-      setAnalyzing(false);
+      setAnalyzingId(null);
     }
   };
 
-  const handleExtractDates = async (file: File) => {
+  const handleExtractDatesFromDocument = async (doc: DocumentItem) => {
     if (!token || !id) return;
-    setExtracting(true);
+    setExtractingId(doc.id);
     setError('');
     try {
-      const created = await api.extractDates(token, id, file);
+      const created = await api.extractDatesFromDocument(token, id, doc.id);
       if (created.length === 0) {
         setError(d.caseDocuments.noDateSuggestions);
       } else {
@@ -208,7 +206,7 @@ export default function CaseDocumentsPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
     } finally {
-      setExtracting(false);
+      setExtractingId(null);
     }
   };
 
@@ -258,69 +256,25 @@ export default function CaseDocumentsPage() {
       </Link>
       <h1 className="mt-2 mb-6 text-2xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h1>
 
-      <div className="mb-6 grid gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border bg-card p-6 shadow-soft">
-          <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.uploadDocument}</h2>
-          <DocumentDropZone
-            ref={uploadRef}
-            onFile={handleUpload}
-            loading={uploading}
-            loadingLabel={d.caseDocuments.uploading}
-            label={d.documents.dropHint}
-            hint={d.documents.fileTypesHint}
-          />
-          <Button
-            type="button"
-            disabled={uploading}
-            onClick={() => uploadRef.current?.open()}
-            className="mt-3 w-full"
-          >
-            <Upload className="h-4 w-4" />
-            {uploading ? d.caseDocuments.uploading : d.caseDocuments.uploadDocument}
-          </Button>
-        </div>
-        <div className="rounded-xl border bg-card p-6 shadow-soft">
-          <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.aiAnalyzer}</h2>
-          <DocumentDropZone
-            ref={analyzeRef}
-            onFile={handleAnalyze}
-            loading={analyzing}
-            loadingLabel={d.caseDocuments.analyzing}
-            label={d.documents.dropHint}
-            hint={d.documents.fileTypesHint}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            disabled={analyzing}
-            onClick={() => analyzeRef.current?.open()}
-            className="mt-3 w-full"
-          >
-            <Upload className="h-4 w-4" />
-            {analyzing ? d.caseDocuments.analyzing : d.caseDocuments.chooseFileForAI}
-          </Button>
-        </div>
-        <div className="rounded-xl border bg-card p-6 shadow-soft">
-          <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.extractDates}</h2>
-          <DocumentDropZone
-            ref={extractRef}
-            onFile={handleExtractDates}
-            loading={extracting}
-            loadingLabel={d.caseDocuments.extracting}
-            label={d.documents.dropHint}
-            hint={d.documents.fileTypesHint}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            disabled={extracting}
-            onClick={() => extractRef.current?.open()}
-            className="mt-3 w-full"
-          >
-            <Upload className="h-4 w-4" />
-            {extracting ? d.caseDocuments.extracting : d.caseDocuments.chooseFileForDates}
-          </Button>
-        </div>
+      <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
+        <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.uploadDocument}</h2>
+        <DocumentDropZone
+          ref={dropRef}
+          onFile={handleUpload}
+          loading={uploading}
+          loadingLabel={d.caseDocuments.uploading}
+          label={d.documents.dropHint}
+          hint={d.documents.fileTypesHint}
+        />
+        <Button
+          type="button"
+          disabled={uploading}
+          onClick={() => dropRef.current?.open()}
+          className="mt-3 w-full"
+        >
+          <Upload className="h-4 w-4" />
+          {uploading ? d.caseDocuments.uploading : d.caseDocuments.uploadDocument}
+        </Button>
       </div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
@@ -435,8 +389,26 @@ export default function CaseDocumentsPage() {
                   v{doc.version} — {doc.uploadedBy.firstName} {doc.uploadedBy.lastName}
                 </p>
               </button>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <span className="hidden text-xs text-muted-foreground sm:inline">{doc.mimeType}</span>
+                <button
+                  type="button"
+                  onClick={() => handleAnalyzeDocument(doc)}
+                  disabled={analyzingId === doc.id}
+                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {analyzingId === doc.id ? d.caseDocuments.analyzing : d.caseDocuments.aiAnalyzer}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExtractDatesFromDocument(doc)}
+                  disabled={extractingId === doc.id}
+                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                >
+                  <CalendarSearch className="h-3.5 w-3.5" />
+                  {extractingId === doc.id ? d.caseDocuments.extracting : d.caseDocuments.extractDates}
+                </button>
                 <button
                   type="button"
                   onClick={() => handleToggleVisibility(doc)}

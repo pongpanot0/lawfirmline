@@ -8,9 +8,11 @@ import {
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
+import * as fs from 'fs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { KnowledgeCategory } from '@lawfirm/shared';
 import { DocumentIntelligenceService } from './document-intelligence.service';
+import { DocumentsService } from '../documents/documents.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -21,7 +23,10 @@ import { AuthUser } from '@lawfirm/shared';
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class IntelligenceController {
-  constructor(private intelligenceService: DocumentIntelligenceService) {}
+  constructor(
+    private intelligenceService: DocumentIntelligenceService,
+    private documentsService: DocumentsService,
+  ) {}
 
   @Get('knowledge')
   findKnowledge(
@@ -66,6 +71,47 @@ export class IntelligenceController {
     return this.intelligenceService.extractDates(
       file.buffer,
       file.mimetype,
+      caseId,
+      user.id,
+      documentId,
+    );
+  }
+
+  @Post('cases/:caseId/documents/:documentId/analyze')
+  @UseGuards(CaseAccessGuard)
+  @RequireCredits(5)
+  @UseInterceptors(AiCreditsInterceptor)
+  async analyzeExisting(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('documentId') documentId: string,
+  ) {
+    const file = await this.documentsService.getFilePath(caseId, documentId);
+    const buffer = fs.readFileSync(file.path);
+    return this.intelligenceService.analyzeDocument(
+      buffer,
+      file.mimeType,
+      caseId,
+      user.id,
+      documentId,
+      file.filename,
+    );
+  }
+
+  @Post('cases/:caseId/documents/:documentId/extract-dates')
+  @UseGuards(CaseAccessGuard)
+  @RequireCredits(5)
+  @UseInterceptors(AiCreditsInterceptor)
+  async extractDatesExisting(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('documentId') documentId: string,
+  ) {
+    const file = await this.documentsService.getFilePath(caseId, documentId);
+    const buffer = fs.readFileSync(file.path);
+    return this.intelligenceService.extractDates(
+      buffer,
+      file.mimeType,
       caseId,
       user.id,
       documentId,
