@@ -783,6 +783,30 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  handoffTodo: (
+    token: string,
+    taskId: string,
+    data: { reviewerId: string; note?: string; stageDueDate?: string },
+  ) =>
+    request<TaskItem>(`/todos/${taskId}/handoff`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  acceptTodo: (token: string, taskId: string) =>
+    request<TaskItem>(`/todos/${taskId}/accept`, {
+      method: 'POST',
+      token,
+    }),
+
+  rejectTodo: (token: string, taskId: string, data: { reason: string }) =>
+    request<TaskItem>(`/todos/${taskId}/reject`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
   createTask: (token: string, caseId: string, data: Record<string, unknown>) =>
     request(`/cases/${caseId}/tasks`, {
       method: 'POST',

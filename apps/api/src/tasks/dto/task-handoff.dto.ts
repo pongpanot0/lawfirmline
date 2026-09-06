@@ -24,3 +24,16 @@ export class ReassignTaskDto {
   @IsDateString()
   stageDueDate?: string;
 }
+
+export class HandoffStandaloneTaskDto {
+  @IsUUID()
+  reviewerId!: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @IsOptional()
+  @IsDateString()
+  stageDueDate?: string;
+}
