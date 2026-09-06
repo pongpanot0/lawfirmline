@@ -30,4 +30,10 @@ describe('mapInternalStatusToExternal', () => {
       'รับดำเนินการ',
     );
   });
+
+  it('maps CONSULTED to a distinct label from REJECTED', () => {
+    const label = mapInternalStatusToExternal({ status: 'CONSULTED', decision: 'CONSULTATION_ONLY' });
+    expect(label).toBe('ให้คำปรึกษาเรียบร้อยแล้ว');
+    expect(label).not.toBe('ไม่รับดำเนินการ');
+  });
 });

@@ -1,5 +1,5 @@
 export interface IntakeLike {
-  status: 'RECEIVED' | 'ASSESSING' | 'ACCEPTED' | 'REJECTED' | 'CONVERTED';
+  status: 'RECEIVED' | 'ASSESSING' | 'ACCEPTED' | 'REJECTED' | 'CONVERTED' | 'CONSULTED';
   decision:
     | 'FILE_SUIT'
     | 'DO_NOT_FILE'
@@ -7,6 +7,7 @@ export interface IntakeLike {
     | 'SEND_NOTICE'
     | 'COMPLAIN_TO_AUTHORITY'
     | 'PENDING'
+    | 'CONSULTATION_ONLY'
     | null;
 }
 
@@ -16,6 +17,7 @@ const STATUS_LABELS: Record<IntakeLike['status'], string> = {
   ACCEPTED: 'รับดำเนินการ',
   REJECTED: 'ไม่รับดำเนินการ',
   CONVERTED: 'รับดำเนินการ',
+  CONSULTED: 'ให้คำปรึกษาเรียบร้อยแล้ว',
 };
 
 export function mapInternalStatusToExternal(intake: IntakeLike): string {
