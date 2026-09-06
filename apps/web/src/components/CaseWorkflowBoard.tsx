@@ -59,7 +59,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                     <p className="mt-1 text-xs text-slate-500">🏛 {c.courtName}</p>
                   )}
                   {c.clientName && (
-                    <p className="text-xs text-slate-400">Client: {c.clientName}</p>
+                    <p className="text-xs text-slate-400">ลูกความ: {c.clientName}</p>
                   )}
                 </Link>
                 {canDrag && onStatusChange && (
@@ -71,7 +71,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                     {WORKFLOW_COLUMNS.map((w) => (
                       <option key={w.status} value={w.status}>{w.label}</option>
                     ))}
-                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="IN_PROGRESS">ยื่นฟ้องแล้ว</option>
                   </select>
                 )}
                 <div className="mt-2">
@@ -80,7 +80,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
               </div>
             ))}
             {getColumnCases(col.status).length === 0 && (
-              <p className="py-4 text-center text-xs text-slate-400">No cases</p>
+              <p className="py-4 text-center text-xs text-slate-400">ไม่มีคดี</p>
             )}
           </div>
         </div>

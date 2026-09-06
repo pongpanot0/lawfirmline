@@ -94,12 +94,12 @@ function CasesPageContent() {
             className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
           >
             <option value="">{d.cases.allStatuses}</option>
-            <option value="OPEN">New</option>
-            <option value="DRAFTING">Drafting</option>
-            <option value="IN_PROGRESS">Filed</option>
-            <option value="COURT_DATE">Hearing</option>
-            <option value="PENDING">Judgment Pending</option>
-            <option value="CLOSED">Closed</option>
+            <option value="OPEN">คดีใหม่</option>
+            <option value="DRAFTING">ร่างคำฟ้อง</option>
+            <option value="IN_PROGRESS">ยื่นฟ้องแล้ว</option>
+            <option value="COURT_DATE">นัดศาล</option>
+            <option value="PENDING">รอคำพิพากษา</option>
+            <option value="CLOSED">ปิดคดี</option>
           </select>
         </CardContent>
       </Card>

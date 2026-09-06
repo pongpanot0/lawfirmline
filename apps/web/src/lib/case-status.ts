@@ -5,12 +5,12 @@ import { badgeVariants } from '@/components/ui/badge';
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>['variant']>;
 
 const STATUS_MAP: Record<string, { label: string; variant: BadgeVariant }> = {
-  OPEN: { label: 'New', variant: 'new' },
-  DRAFTING: { label: 'Drafting', variant: 'drafting' },
-  IN_PROGRESS: { label: 'Filed', variant: 'filed' },
-  COURT_DATE: { label: 'Hearing', variant: 'hearing' },
-  PENDING: { label: 'Judgment Pending', variant: 'judgment' },
-  CLOSED: { label: 'Closed', variant: 'closed' },
+  OPEN: { label: 'คดีใหม่', variant: 'new' },
+  DRAFTING: { label: 'ร่างคำฟ้อง', variant: 'drafting' },
+  IN_PROGRESS: { label: 'ยื่นฟ้องแล้ว', variant: 'filed' },
+  COURT_DATE: { label: 'นัดศาล', variant: 'hearing' },
+  PENDING: { label: 'รอคำพิพากษา', variant: 'judgment' },
+  CLOSED: { label: 'ปิดคดี', variant: 'closed' },
 };
 
 export function getCaseStatusDisplay(status: CaseStatus | string) {

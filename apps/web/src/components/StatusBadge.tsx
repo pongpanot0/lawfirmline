@@ -10,12 +10,12 @@ const statusColors: Record<string, string> = {
 };
 
 const statusLabels: Record<string, string> = {
-  OPEN: 'Open',
-  DRAFTING: 'Drafting',
-  COURT_DATE: 'Court Date',
-  IN_PROGRESS: 'In Progress',
-  PENDING: 'Pending',
-  CLOSED: 'Closed',
+  OPEN: 'คดีใหม่',
+  DRAFTING: 'ร่างคำฟ้อง',
+  COURT_DATE: 'นัดศาล',
+  IN_PROGRESS: 'ยื่นฟ้องแล้ว',
+  PENDING: 'รอคำพิพากษา',
+  CLOSED: 'ปิดคดี',
 };
 
 export function StatusBadge({ status }: { status: CaseStatus | string }) {

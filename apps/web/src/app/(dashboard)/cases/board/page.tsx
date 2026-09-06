@@ -31,23 +31,23 @@ export default function CaseBoardPage() {
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Case Workflow Board</h1>
-          <p className="mt-1 text-sm text-slate-500">Kanban view — Open → Drafting → Court Date → Closed</p>
+          <h1 className="text-2xl font-bold text-slate-900">Case Workflow Board / บอร์ดสถานะคดี</h1>
+          <p className="mt-1 text-sm text-slate-500">Kanban view — เปิดคดี → ร่างเอกสาร → นัดศาล → ปิดคดี</p>
         </div>
         <div className="flex gap-2">
           <Link href="/cases" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">
-            List View
+            List View / มุมมองรายการ
           </Link>
           {canEdit && (
             <Link href="/cases/new" className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-              + New Case
+              + New Case / สร้างคดีใหม่
             </Link>
           )}
         </div>
       </div>
 
       {loading ? (
-        <p className="text-slate-500">Loading board...</p>
+        <p className="text-slate-500">Loading board... / กำลังโหลด...</p>
       ) : (
         <CaseWorkflowBoard
           cases={cases}
