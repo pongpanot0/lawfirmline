@@ -1,12 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
+import { PageHeader } from '@/components/lexflow/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 export default function TodosPage() {
+  const d = useDashboardT();
   const { token } = useAuth();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -55,57 +62,53 @@ export default function TodosPage() {
     loadTasks();
   };
 
-  if (loading) return <p className="text-slate-500">Loading todos...</p>;
+  if (loading) return <p className="text-muted-foreground">{d.todos.loading}</p>;
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Todos</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          + Add Todo
-        </button>
-      </div>
+      <PageHeader
+        title={d.todos.title}
+        actions={
+          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+            <Plus className="h-4 w-4" />
+            {d.todos.addTodo}
+          </Button>
+        }
+      />
 
       {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-        >
-          <input
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="Todo title..."
-            className="min-w-[200px] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            required
-          />
-          <select
-            value={newAssigneeId}
-            onChange={(e) => setNewAssigneeId(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          >
-            <option value="">Assign to me</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.firstName} {u.lastName}
-              </option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={newDueDate}
-            onChange={(e) => setNewDueDate(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <button
-            type="submit"
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700"
-          >
-            Create
-          </button>
-        </form>
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <form onSubmit={handleCreate} className="flex flex-wrap items-center gap-3">
+              <Input
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder={d.todos.titlePlaceholder}
+                className="min-w-[200px] flex-1"
+                required
+              />
+              <select
+                value={newAssigneeId}
+                onChange={(e) => setNewAssigneeId(e.target.value)}
+                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              >
+                <option value="">{d.todos.assignToMe}</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.firstName} {u.lastName}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                value={newDueDate}
+                onChange={(e) => setNewDueDate(e.target.value)}
+                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              />
+              <Button type="submit" size="sm">{d.todos.create}</Button>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       <KanbanBoard tasks={tasks} onStatusChange={handleStatusChange} />

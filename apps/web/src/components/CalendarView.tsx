@@ -1,5 +1,9 @@
 'use client';
 
+import { formatDateTime } from '@/lib/utils';
+import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
+import { dateLocale, fmt } from '@/lib/i18n/dashboard';
+
 export interface CalendarEventData {
   id: string;
   title: string;
@@ -19,10 +23,10 @@ interface CalendarViewProps {
 }
 
 const typeColors: Record<string, string> = {
-  COURT_DATE: 'bg-red-100 text-red-800 border-red-200',
-  CLIENT_MEETING: 'bg-blue-100 text-blue-800 border-blue-200',
-  DEADLINE: 'bg-amber-100 text-amber-800 border-amber-200',
-  OTHER: 'bg-slate-100 text-slate-700 border-slate-200',
+  COURT_DATE: 'bg-destructive/10 text-destructive border-destructive/20',
+  CLIENT_MEETING: 'bg-primary/10 text-primary border-primary/20',
+  DEADLINE: 'bg-warning/10 text-warning border-warning/20',
+  OTHER: 'bg-muted text-muted-foreground border-border',
 };
 
 export function CalendarView({
@@ -32,6 +36,15 @@ export function CalendarView({
   onDayClick,
   onEventClick,
 }: CalendarViewProps) {
+  const d = useDashboardT();
+  const { locale } = useLocale();
+  const loc = dateLocale(locale);
+  const typeLabels: Record<string, string> = {
+    COURT_DATE: d.calendar.typeCourtDate,
+    CLIENT_MEETING: d.calendar.typeClientMeeting,
+    DEADLINE: d.calendar.typeDeadline,
+    OTHER: d.calendar.typeOther,
+  };
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const firstDay = new Date(year, monthIndex, 1).getDay();
@@ -49,32 +62,35 @@ export function CalendarView({
   const getEventsForDay = (day: number) =>
     monthEvents.filter((e) => new Date(e.startAt).getDate() === day);
 
-  const monthName = month.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const monthName = month.toLocaleDateString(loc, { month: 'long', year: 'numeric' });
+  const weekdays = Array.from({ length: 7 }, (_, i) =>
+    new Date(2026, 0, 4 + i).toLocaleDateString(loc, { weekday: 'short' }),
+  );
 
   const prevMonth = () => onMonthChange(new Date(year, monthIndex - 1, 1));
   const nextMonth = () => onMonthChange(new Date(year, monthIndex + 1, 1));
   const goToday = () => onMonthChange(new Date());
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-        <h2 className="text-lg font-semibold text-slate-900">{monthName}</h2>
+    <div className="rounded-xl border bg-card shadow-soft">
+      <div className="flex items-center justify-between border-b px-6 py-4">
+        <h2 className="text-lg font-semibold text-foreground">{monthName}</h2>
         <div className="flex gap-2">
-          <button onClick={prevMonth} className="rounded-lg border border-slate-200 px-3 py-1 text-sm hover:bg-slate-50">
+          <button onClick={prevMonth} className="rounded-lg border px-3 py-1 text-sm hover:bg-accent">
             ←
           </button>
-          <button onClick={goToday} className="rounded-lg border border-slate-200 px-3 py-1 text-sm hover:bg-slate-50">
-            Today
+          <button onClick={goToday} className="rounded-lg border px-3 py-1 text-sm hover:bg-accent">
+            {d.calendar.today}
           </button>
-          <button onClick={nextMonth} className="rounded-lg border border-slate-200 px-3 py-1 text-sm hover:bg-slate-50">
+          <button onClick={nextMonth} className="rounded-lg border px-3 py-1 text-sm hover:bg-accent">
             →
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-px bg-slate-200 p-px">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-          <div key={d} className="bg-slate-50 px-2 py-2 text-center text-xs font-medium text-slate-500">
-            {d}
+      <div className="grid grid-cols-7 gap-px bg-border p-px">
+        {weekdays.map((w, i) => (
+          <div key={i} className="bg-muted px-2 py-2 text-center text-xs font-medium text-muted-foreground">
+            {w}
           </div>
         ))}
         {days.map((day, i) => {
@@ -88,12 +104,12 @@ export function CalendarView({
             <div
               key={i}
               onClick={() => day && onDayClick?.(new Date(year, monthIndex, day))}
-              className={`min-h-24 cursor-pointer bg-white p-1 transition hover:bg-brand-50/50 ${isToday ? 'ring-2 ring-inset ring-brand-500' : ''}`}
+              className={`min-h-24 cursor-pointer bg-card p-1 transition hover:bg-accent/50 ${isToday ? 'ring-2 ring-inset ring-primary' : ''}`}
             >
               {day && (
                 <>
                   <span
-                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${isToday ? 'bg-brand-600 font-bold text-white' : 'text-slate-700'}`}
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${isToday ? 'bg-primary font-bold text-primary-foreground' : 'text-foreground'}`}
                   >
                     {day}
                   </span>
@@ -112,7 +128,7 @@ export function CalendarView({
                       </button>
                     ))}
                     {dayEvents.length > 2 && (
-                      <p className="text-[10px] text-slate-400">+{dayEvents.length - 2} more</p>
+                      <p className="text-[10px] text-muted-foreground">{fmt(d.calendar.moreCount, { count: dayEvents.length - 2 })}</p>
                     )}
                   </div>
                 </>
@@ -122,34 +138,33 @@ export function CalendarView({
         })}
       </div>
 
-      <div className="border-t border-slate-200 p-4">
-        <h3 className="mb-3 text-sm font-semibold text-slate-700">Events this month</h3>
+      <div className="border-t p-4">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">{d.calendar.eventsThisMonth}</h3>
         <div className="space-y-2">
           {monthEvents.length === 0 ? (
-            <p className="text-sm text-slate-400">No events — click a day to add one</p>
+            <p className="text-sm text-muted-foreground">{d.calendar.noEvents}</p>
           ) : (
             monthEvents.map((e) => (
               <button
                 key={e.id}
                 type="button"
                 onClick={() => onEventClick?.(e)}
-                className="flex w-full items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-left hover:bg-slate-50"
+                className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left hover:bg-accent/50"
               >
                 <div>
                   <p className="text-sm font-medium">{e.title}</p>
                   {e.case && (
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       {e.case.ownRef} — {e.case.title}
                     </p>
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-slate-500">
-                    {new Date(e.startAt).toLocaleDateString()}{' '}
-                    {new Date(e.startAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateTime(e.startAt)}
                   </p>
-                  <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] ${typeColors[e.type] ?? typeColors.OTHER}`}>
-                    {e.type.replace('_', ' ')}
+                  <span className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-[10px] ${typeColors[e.type] ?? typeColors.OTHER}`}>
+                    {typeLabels[e.type] ?? typeLabels.OTHER}
                   </span>
                 </div>
               </button>

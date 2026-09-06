@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { formatDateTime } from '@/lib/utils';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const EVENT_COLORS: Record<string, string> = {
   COURT_DATE: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
@@ -22,6 +23,13 @@ const EVENT_COLORS: Record<string, string> = {
 };
 
 export default function CourtSchedulePage() {
+  const d = useDashboardT();
+  const EVENT_TYPE_LABELS: Record<string, string> = {
+    COURT_DATE: d.calendar.typeCourtDate,
+    CLIENT_MEETING: d.calendar.typeClientMeeting,
+    DEADLINE: d.calendar.typeDeadline,
+    OTHER: d.calendar.typeOther,
+  };
   const { token } = useAuth();
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
@@ -81,11 +89,11 @@ export default function CourtSchedulePage() {
   return (
     <div>
       <PageHeader
-        title="Court Schedule"
-        description="Manage hearings, mediations, and meetings"
+        title={d.calendar.title}
+        description={d.calendar.description}
         actions={
           <Button size="sm" onClick={() => openCreate(new Date())}>
-            <Plus className="h-4 w-4" />Add Event
+            <Plus className="h-4 w-4" />{d.calendar.addEvent}
           </Button>
         }
       />
@@ -93,9 +101,9 @@ export default function CourtSchedulePage() {
       <div className="mb-4">
         <Tabs value={viewMode} onValueChange={setViewMode}>
           <TabsList>
-            <TabsTrigger value="day">Day</TabsTrigger>
-            <TabsTrigger value="week">Week</TabsTrigger>
-            <TabsTrigger value="month">Month</TabsTrigger>
+            <TabsTrigger value="day">{d.calendar.day}</TabsTrigger>
+            <TabsTrigger value="week">{d.calendar.week}</TabsTrigger>
+            <TabsTrigger value="month">{d.calendar.month}</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -103,7 +111,7 @@ export default function CourtSchedulePage() {
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="lg:col-span-3">
           {loading ? (
-            <p className="text-muted-foreground">Loading calendar...</p>
+            <p className="text-muted-foreground">{d.calendar.loading}</p>
           ) : (
             <Card>
               <CardContent className="p-4">
@@ -120,7 +128,7 @@ export default function CourtSchedulePage() {
           <div className="mt-3 flex flex-wrap gap-3 text-xs">
             {Object.entries(EVENT_COLORS).map(([type, color]) => (
               <span key={type} className={`rounded-full px-2 py-0.5 font-medium ${color}`}>
-                {type.replace('_', ' ')}
+                {EVENT_TYPE_LABELS[type]}
               </span>
             ))}
           </div>
@@ -129,7 +137,7 @@ export default function CourtSchedulePage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <Bell className="h-4 w-4" />Upcoming Reminders
+              <Bell className="h-4 w-4" />{d.calendar.upcomingReminders}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -138,14 +146,14 @@ export default function CourtSchedulePage() {
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium">{e.title}</p>
                   <Badge className={EVENT_COLORS[e.type] ?? EVENT_COLORS.OTHER} variant="outline">
-                    {e.type.replace('_', ' ')}
+                    {EVENT_TYPE_LABELS[e.type] ?? EVENT_TYPE_LABELS.OTHER}
                   </Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(e.startAt)}</p>
                 {e.case && <p className="text-xs text-primary">{e.case.ownRef}</p>}
               </div>
             ))}
-            {upcoming.length === 0 && <p className="text-sm text-muted-foreground">No upcoming events</p>}
+            {upcoming.length === 0 && <p className="text-sm text-muted-foreground">{d.calendar.noUpcoming}</p>}
           </CardContent>
         </Card>
       </div>
@@ -153,30 +161,30 @@ export default function CourtSchedulePage() {
       {modal === 'create' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <form onSubmit={handleCreate} className="w-full max-w-md rounded-xl border bg-card p-6 shadow-card">
-            <h2 className="mb-4 text-lg font-semibold">New Event {selectedDate && `— ${selectedDate.toLocaleDateString('th-TH')}`}</h2>
+            <h2 className="mb-4 text-lg font-semibold">{d.calendar.newEvent} {selectedDate && `— ${formatDateTime(selectedDate.toISOString())}`}</h2>
             <div className="space-y-3">
               <select required value={form.caseId} onChange={(e) => {
                 const c = cases.find((x) => x.id === e.target.value);
                 setForm({ ...form, caseId: e.target.value, courtName: c?.courtName ?? form.courtName });
               }} className="w-full h-9 rounded-lg border border-input bg-card px-3 text-sm">
-                <option value="">Select case</option>
+                <option value="">{d.calendar.selectCase}</option>
                 {cases.map((c) => <option key={c.id} value={c.id}>{c.ownRef} — {c.title}</option>)}
               </select>
-              <Input required placeholder="Event title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              <Input required placeholder={d.calendar.eventTitle} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
               <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full h-9 rounded-lg border border-input bg-card px-3 text-sm">
-                <option value="COURT_DATE">Hearing</option>
-                <option value="CLIENT_MEETING">Meeting</option>
-                <option value="DEADLINE">Deadline</option>
-                <option value="OTHER">Other</option>
+                <option value="COURT_DATE">{d.calendar.typeCourtDate}</option>
+                <option value="CLIENT_MEETING">{d.calendar.typeClientMeeting}</option>
+                <option value="DEADLINE">{d.calendar.typeDeadline}</option>
+                <option value="OTHER">{d.calendar.typeOther}</option>
               </select>
               {form.type === 'COURT_DATE' && (
-                <Input placeholder="Court name / ศาล" value={form.courtName} onChange={(e) => setForm({ ...form, courtName: e.target.value })} />
+                <Input placeholder={d.calendar.courtName} value={form.courtName} onChange={(e) => setForm({ ...form, courtName: e.target.value })} />
               )}
               <Input required type="datetime-local" value={form.startAt} onChange={(e) => setForm({ ...form, startAt: e.target.value })} />
             </div>
             <div className="mt-4 flex gap-2">
-              <Button type="submit">Create</Button>
-              <Button type="button" variant="outline" onClick={() => setModal(null)}>Cancel</Button>
+              <Button type="submit">{d.common.create}</Button>
+              <Button type="button" variant="outline" onClick={() => setModal(null)}>{d.common.cancel}</Button>
             </div>
           </form>
         </div>
@@ -185,9 +193,9 @@ export default function CourtSchedulePage() {
       {travelPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl border bg-card p-6 shadow-card">
-            <h2 className="mb-4 text-lg font-semibold">Court Date Created</h2>
+            <h2 className="mb-4 text-lg font-semibold">{d.calendar.courtDateCreated}</h2>
             <TravelPreviewCard travel={travelPreview} />
-            <Button className="mt-4 w-full" onClick={() => { setTravelPreview(null); setModal(null); loadEvents(); }}>Done</Button>
+            <Button className="mt-4 w-full" onClick={() => { setTravelPreview(null); setModal(null); loadEvents(); }}>{d.common.done}</Button>
           </div>
         </div>
       )}
@@ -197,16 +205,16 @@ export default function CourtSchedulePage() {
           <div className="w-full max-w-md rounded-xl border bg-card p-6 shadow-card">
             <h2 className="text-lg font-semibold">{selectedEvent.title}</h2>
             <p className="mt-2 text-sm text-muted-foreground">{formatDateTime(selectedEvent.startAt)}</p>
-            <Badge className="mt-2">{selectedEvent.type.replace('_', ' ')}</Badge>
-            {selectedEvent.case && <p className="mt-2 text-sm">Case: {selectedEvent.case.ownRef}</p>}
+            <Badge className="mt-2">{EVENT_TYPE_LABELS[selectedEvent.type] ?? EVENT_TYPE_LABELS.OTHER}</Badge>
+            {selectedEvent.case && <p className="mt-2 text-sm">{d.calendar.caseLabel}: {selectedEvent.case.ownRef}</p>}
             <div className="mt-4 flex gap-2">
               <Button variant="destructive" size="sm" onClick={async () => {
                 if (!token || !selectedEvent) return;
-                if (!confirm('Delete?')) return;
+                if (!confirm(d.calendar.deleteConfirm)) return;
                 await api.deleteCalendarEvent(token, selectedEvent.id);
                 setModal(null); loadEvents();
-              }}>Delete</Button>
-              <Button variant="outline" size="sm" onClick={() => setModal(null)}>Close</Button>
+              }}>{d.common.delete}</Button>
+              <Button variant="outline" size="sm" onClick={() => setModal(null)}>{d.common.close}</Button>
             </div>
           </div>
         </div>

@@ -13,6 +13,7 @@ interface DocumentDropZoneProps {
   disabled?: boolean;
   label?: string;
   loadingLabel?: string;
+  hint?: string;
 }
 
 export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZoneProps>(
@@ -24,6 +25,7 @@ export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZ
       disabled,
       label = 'Drop a document here or click to upload',
       loadingLabel = 'Uploading...',
+      hint = 'PDF, DOCX, TXT, images',
     },
     ref,
   ) {
@@ -64,8 +66,8 @@ export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZ
         }}
         className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition-colors ${
           inactive
-            ? 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-60'
-            : `cursor-pointer ${dragOver ? 'border-brand-500 bg-brand-50' : 'border-slate-300 bg-slate-50 hover:border-brand-400'}`
+            ? 'cursor-not-allowed border-border bg-muted opacity-60'
+            : `cursor-pointer ${dragOver ? 'border-primary bg-primary/5' : 'border-border bg-muted/40 hover:border-primary/60'}`
         }`}
       >
         <input
@@ -81,10 +83,10 @@ export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZ
           }}
         />
         <span className="text-3xl">📄</span>
-        <p className="mt-2 text-sm font-medium text-slate-700">
+        <p className="mt-2 text-sm font-medium text-foreground">
           {loading ? loadingLabel : label}
         </p>
-        <p className="mt-1 text-xs text-slate-400">PDF, DOCX, TXT, images</p>
+        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
       </label>
     );
   },

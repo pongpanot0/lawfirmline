@@ -12,16 +12,18 @@ import { Button } from '@/components/ui/button';
 import { DocumentDropZone, DocumentDropZoneHandle } from '@/components/DocumentDropZone';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { Badge } from '@/components/ui/badge';
-
-const CATEGORIES = [
-  { id: 'complaint', label: 'Complaint', icon: Gavel },
-  { id: 'evidence', label: 'Evidence', icon: FileText },
-  { id: 'contracts', label: 'Contracts', icon: Scale },
-  { id: 'poa', label: 'Power of Attorney', icon: Shield },
-  { id: 'orders', label: 'Court Orders', icon: Gavel },
-];
+import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fmt } from '@/lib/i18n/dashboard';
 
 export default function DocumentsPage() {
+  const d = useDashboardT();
+  const CATEGORIES = [
+    { id: 'complaint', label: d.documents.catComplaint, icon: Gavel },
+    { id: 'evidence', label: d.documents.catEvidence, icon: FileText },
+    { id: 'contracts', label: d.documents.catContracts, icon: Scale },
+    { id: 'poa', label: d.documents.catPoa, icon: Shield },
+    { id: 'orders', label: d.documents.catOrders, icon: Gavel },
+  ];
   const { token } = useAuth();
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [search, setSearch] = useState('');
@@ -81,7 +83,7 @@ export default function DocumentsPage() {
 
   const handleUpload = async (file: File) => {
     if (!token || !selectedCase) {
-      setError('Please select a case first');
+      setError(d.documents.selectCaseFirst);
       return;
     }
     setUploading(true);
@@ -89,11 +91,11 @@ export default function DocumentsPage() {
     setSuccess('');
     try {
       await api.uploadDocument(token, selectedCase, file);
-      const caseLabel = cases.find((c) => c.id === selectedCase)?.ownRef ?? 'case';
-      setSuccess(`Uploaded "${file.name}" to ${caseLabel}`);
+      const caseLabel = cases.find((c) => c.id === selectedCase)?.ownRef ?? '';
+      setSuccess(fmt(d.documents.uploaded, { filename: file.name, caseLabel }));
       loadDocuments(selectedCase);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Upload failed');
+      setError(e instanceof ApiError ? e.message : d.documents.uploadFailed);
     } finally {
       setUploading(false);
     }
@@ -111,7 +113,7 @@ export default function DocumentsPage() {
         return { filename: doc.filename, mimeType: doc.mimeType, url };
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not open document');
+      setError(e instanceof ApiError ? e.message : d.documents.openFailed);
     } finally {
       setViewingId(null);
     }
@@ -126,7 +128,7 @@ export default function DocumentsPage() {
 
   return (
     <div>
-      <PageHeader title="Documents" description="Google Drive-inspired document management" />
+      <PageHeader title={d.documents.title} description={d.documents.description} />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-5">
         {CATEGORIES.map((cat) => {
@@ -148,7 +150,7 @@ export default function DocumentsPage() {
         <div className="lg:col-span-2 space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search documents..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder={d.documents.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
 
           <Card>
@@ -164,9 +166,9 @@ export default function DocumentsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium truncate">{c.title}</p>
-                    <p className="text-xs text-muted-foreground">{c.ownRef} · {c.folderId ?? 'Folder'}</p>
+                    <p className="text-xs text-muted-foreground">{c.ownRef} · {c.folderId ?? d.documents.folderFallback}</p>
                   </div>
-                  <Badge variant="muted">View</Badge>
+                  <Badge variant="muted">{d.documents.view}</Badge>
                 </Link>
               ))}
             </CardContent>
@@ -176,7 +178,7 @@ export default function DocumentsPage() {
         <div className="space-y-4">
           <Card>
             <CardContent className="p-4 space-y-3">
-              <p className="text-sm font-medium">Upload to Case</p>
+              <p className="text-sm font-medium">{d.documents.uploadToCase}</p>
               <select
                 value={selectedCase}
                 onChange={(e) => setSelectedCase(e.target.value)}
@@ -186,7 +188,9 @@ export default function DocumentsPage() {
               </select>
               <DocumentDropZone
                 ref={dropZoneRef}
-                label={selectedCase ? 'Drag & drop or click here' : 'Select a case first'}
+                label={selectedCase ? d.documents.dropHint : d.documents.selectCaseHint}
+                loadingLabel={d.documents.uploading}
+                hint={d.documents.fileTypesHint}
                 onFile={handleUpload}
                 loading={uploading}
                 disabled={!selectedCase}
@@ -198,19 +202,19 @@ export default function DocumentsPage() {
                 onClick={() => dropZoneRef.current?.open()}
               >
                 <Upload className="h-4 w-4" />
-                {uploading ? 'Uploading...' : 'Upload Document'}
+                {uploading ? d.documents.uploading : d.documents.uploadDocument}
               </Button>
               {error && <p className="text-sm text-destructive">{error}</p>}
               {success && <p className="text-sm text-emerald-600">{success}</p>}
               {selectedCase && (
                 <div className="space-y-2 border-t border-border pt-3">
                   <p className="text-sm font-medium">
-                    Recent files {docsLoading ? '' : `(${documents.length})`}
+                    {docsLoading ? d.documents.recentFilesPlain : fmt(d.documents.recentFiles, { count: documents.length })}
                   </p>
                   {docsLoading ? (
-                    <p className="text-xs text-muted-foreground">Loading...</p>
+                    <p className="text-xs text-muted-foreground">{d.documents.loading}</p>
                   ) : documents.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No files yet — upload to get started</p>
+                    <p className="text-xs text-muted-foreground">{d.documents.noFiles}</p>
                   ) : (
                     <div className="max-h-48 space-y-1 overflow-y-auto">
                       {documents.map((doc) => (
@@ -235,7 +239,7 @@ export default function DocumentsPage() {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
                 >
                   <Upload className="h-4 w-4" />
-                  View case documents
+                  {d.documents.viewCaseDocuments}
                 </Link>
               )}
             </CardContent>
@@ -243,15 +247,15 @@ export default function DocumentsPage() {
 
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm font-medium mb-2">Features</p>
+              <p className="text-sm font-medium mb-2">{d.documents.features}</p>
               <ul className="space-y-2 text-xs text-muted-foreground">
-                <li>✓ Folder structure per case</li>
-                <li>✓ Version history</li>
-                <li>✓ PDF preview</li>
-                <li>✓ AI document analysis</li>
+                <li>✓ {d.documents.featureFolders}</li>
+                <li>✓ {d.documents.featureVersions}</li>
+                <li>✓ {d.documents.featurePreview}</li>
+                <li>✓ {d.documents.featureAnalysis}</li>
               </ul>
               <Link href="/knowledge" className="mt-3 block text-sm text-primary hover:underline">
-                View Knowledge Base →
+                {d.documents.viewKnowledgeBase}
               </Link>
             </CardContent>
           </Card>
