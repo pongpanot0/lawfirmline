@@ -32,6 +32,7 @@ export default function CaseBillingPage() {
   const [caseProfit, setCaseProfit] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [expenseError, setExpenseError] = useState('');
   const [expenseForm, setExpenseForm] = useState({
     amount: '',
     description: '',
@@ -66,15 +67,20 @@ export default function CaseBillingPage() {
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !id) return;
-    await api.createExpense(token, id, {
-      amount: parseFloat(expenseForm.amount),
-      description: expenseForm.description,
-      category: expenseForm.category,
-      expensePurpose: expenseForm.expensePurpose || undefined,
-    });
-    setExpenseForm({ amount: '', description: '', category: EXPENSE_CATEGORIES[0], expensePurpose: '' });
-    setShowExpenseForm(false);
-    load();
+    setExpenseError('');
+    try {
+      await api.createExpense(token, id, {
+        amount: parseFloat(expenseForm.amount),
+        description: expenseForm.description,
+        category: expenseForm.category,
+        expensePurpose: expenseForm.expensePurpose || undefined,
+      });
+      setExpenseForm({ amount: '', description: '', category: EXPENSE_CATEGORIES[0], expensePurpose: '' });
+      setShowExpenseForm(false);
+      load();
+    } catch (err) {
+      setExpenseError(err instanceof Error ? err.message : 'บันทึกค่าใช้จ่ายไม่สำเร็จ กรุณาลองใหม่');
+    }
   };
 
   if (loading) return <p className="text-slate-500">Loading billing... / กำลังโหลด...</p>;
@@ -170,6 +176,7 @@ export default function CaseBillingPage() {
               onChange={(e) => setExpenseForm({ ...expenseForm, expensePurpose: e.target.value })}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
+            {expenseError && <p className="text-sm text-red-600">{expenseError}</p>}
             <button type="submit" className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">
               Submit for Approval / ส่งขออนุมัติ
             </button>
