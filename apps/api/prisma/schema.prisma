@@ -368,39 +368,39 @@ model User {
   updatedAt             DateTime  @updatedAt
 
   firmMembers                FirmMember[]
-  sentInvitations            Invitation[]             @relation("SentInvitations")
+  sentInvitations            Invitation[]              @relation("SentInvitations")
   passwordResetTokens        PasswordResetToken[]
   auditLogs                  AuditLog[]
-  leadCases                  Case[]                   @relation("LeadLawyer")
+  leadCases                  Case[]                    @relation("LeadLawyer")
   assignments                CaseAssignment[]
-  assignedTasks              Task[]                   @relation("TaskAssignee")
-  createdTasks               Task[]                   @relation("TaskCreator")
+  assignedTasks              Task[]                    @relation("TaskAssignee")
+  createdTasks               Task[]                    @relation("TaskCreator")
   documents                  Document[]
   timeEntries                TimeEntry[]
-  createdInvoices            Invoice[]                @relation("InvoiceCreator")
+  createdInvoices            Invoice[]                 @relation("InvoiceCreator")
   expenses                   Expense[]
-  paidExpenses               Expense[]                @relation("ExpensePaidBy")
+  paidExpenses               Expense[]                 @relation("ExpensePaidBy")
   knowledge                  CaseKnowledge[]
   intakeAttachments          IntakeAttachment[]
   intakePrecedentAnalyses    IntakePrecedentAnalysis[]
   caseActivities             CaseActivity[]
-  receivedIntakes            Intake[]                 @relation("IntakeReceiver")
-  assessedIntakes            Intake[]                 @relation("IntakeAssessor")
-  createdClosingEmailDrafts  ClosingEmailDraft[]      @relation("ClosingEmailDraftCreator")
-  approvedClosingEmailDrafts ClosingEmailDraft[]      @relation("ClosingEmailDraftApprover")
+  receivedIntakes            Intake[]                  @relation("IntakeReceiver")
+  assessedIntakes            Intake[]                  @relation("IntakeAssessor")
+  createdClosingEmailDrafts  ClosingEmailDraft[]       @relation("ClosingEmailDraftCreator")
+  approvedClosingEmailDrafts ClosingEmailDraft[]       @relation("ClosingEmailDraftApprover")
   insuranceClaims            InsuranceClaim[]
-  followedTaskOnHolds        TaskOnHold[]             @relation("TaskOnHoldFollower")
-  createdTaskOnHolds         TaskOnHold[]             @relation("TaskOnHoldCreator")
-  taskLogsFrom               TaskAssignmentLog[]      @relation("TaskLogFrom")
-  taskLogsTo                 TaskAssignmentLog[]      @relation("TaskLogTo")
-  taskLogsPerformed          TaskAssignmentLog[]      @relation("TaskLogPerformer")
-  grantedContactCaseAccess   ContactCaseAccess[]      @relation("ContactCaseAccessGranted")
-  revokedContactCaseAccess   ContactCaseAccess[]      @relation("ContactCaseAccessRevoked")
-  publishedDocuments         DocumentPublication[]    @relation("DocumentPublicationPublished")
-  unpublishedDocuments       DocumentPublication[]    @relation("DocumentPublicationUnpublished")
+  followedTaskOnHolds        TaskOnHold[]              @relation("TaskOnHoldFollower")
+  createdTaskOnHolds         TaskOnHold[]              @relation("TaskOnHoldCreator")
+  taskLogsFrom               TaskAssignmentLog[]       @relation("TaskLogFrom")
+  taskLogsTo                 TaskAssignmentLog[]       @relation("TaskLogTo")
+  taskLogsPerformed          TaskAssignmentLog[]       @relation("TaskLogPerformer")
+  grantedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessGranted")
+  revokedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessRevoked")
+  publishedDocuments         DocumentPublication[]     @relation("DocumentPublicationPublished")
+  unpublishedDocuments       DocumentPublication[]     @relation("DocumentPublicationUnpublished")
   caseMessages               CaseMessage[]
-  createdDateSuggestions     DocumentDateSuggestion[] @relation("DateSuggestionCreator")
-  reviewedDateSuggestions    DocumentDateSuggestion[] @relation("DateSuggestionReviewer")
+  createdDateSuggestions     DocumentDateSuggestion[]  @relation("DateSuggestionCreator")
+  reviewedDateSuggestions    DocumentDateSuggestion[]  @relation("DateSuggestionReviewer")
 }
 
 model CaseType {
@@ -526,11 +526,11 @@ model Case {
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
-  firm               Firm                     @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  client             Client?                  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  leadLawyer         User                     @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
-  caseType           CaseType?                @relation(fields: [caseTypeId], references: [id])
-  intake             Intake?                  @relation(fields: [intakeId], references: [id])
+  firm               Firm                      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client             Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  leadLawyer         User                      @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
+  caseType           CaseType?                 @relation(fields: [caseTypeId], references: [id])
+  intake             Intake?                   @relation(fields: [intakeId], references: [id])
   assignments        CaseAssignment[]
   participants       CaseParticipant[]
   tasks              Task[]
@@ -590,14 +590,14 @@ model Intake {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  firm                   Firm                    @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  receivedBy             User                    @relation("IntakeReceiver", fields: [receivedById], references: [id])
-  assessor               User?                   @relation("IntakeAssessor", fields: [assessorId], references: [id])
-  client                 Client?                 @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  firm                   Firm                      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  receivedBy             User                      @relation("IntakeReceiver", fields: [receivedById], references: [id])
+  assessor               User?                     @relation("IntakeAssessor", fields: [assessorId], references: [id])
+  client                 Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   case                   Case?
   portalIntakeSubmission PortalIntakeSubmission?
-  attachments        IntakeAttachment[]
-  precedentAnalyses  IntakePrecedentAnalysis[]
+  attachments            IntakeAttachment[]
+  precedentAnalyses      IntakePrecedentAnalysis[]
 
   @@index([firmId])
   @@index([clientId])
