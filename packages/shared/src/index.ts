@@ -114,6 +114,8 @@ export const COURT_LEVEL_LABELS: Record<CourtLevel, string> = {
 export enum TaskStatus {
   TODO = 'TODO',
   IN_PROGRESS = 'IN_PROGRESS',
+  PENDING_REVIEW = 'PENDING_REVIEW',
+  NEEDS_REVISION = 'NEEDS_REVISION',
   DONE = 'DONE',
 }
 
@@ -125,6 +127,13 @@ export enum AssignmentType {
 export const ASSIGNMENT_TYPE_LABELS: Record<AssignmentType, string> = {
   [AssignmentType.BUDDY]: 'Buddy / ผู้ช่วย',
 };
+
+/** History of who a Task was assigned to / handed off to / rejected back to, and when. */
+export enum TaskLogAction {
+  ASSIGNED = 'ASSIGNED',
+  HANDED_OFF = 'HANDED_OFF',
+  REJECTED = 'REJECTED',
+}
 
 export enum EventType {
   COURT_DATE = 'COURT_DATE',
@@ -160,6 +169,7 @@ export enum ActivityType {
   FILING = 'FILING',
   DEADLINE = 'DEADLINE',
   NOTE = 'NOTE',
+  TASK = 'TASK',
   OTHER = 'OTHER',
 }
 

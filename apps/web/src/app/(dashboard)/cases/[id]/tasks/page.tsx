@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Plus, ArrowLeft } from 'lucide-react';
-import { TaskStatus } from '@lawfirm/shared';
+import { FirmRole, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, TaskItem } from '@/lib/api';
+import { api, CaseDetail, TaskItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,8 +16,9 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 export default function CaseTasksPage() {
   const d = useDashboardT();
   const { id } = useParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [caseDetail, setCaseDetail] = useState<CaseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -35,9 +36,32 @@ export default function CaseTasksPage() {
     loadTasks();
   }, [token, id]);
 
+  useEffect(() => {
+    if (!token || !id) return;
+    api.getCase(token, id).then(setCaseDetail).catch(console.error);
+  }, [token, id]);
+
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
     if (!token || !id) return;
     await api.updateTask(token, id, taskId, { status });
+    loadTasks();
+  };
+
+  const handleHandoff = async (taskId: string, note: string) => {
+    if (!token || !id) return;
+    await api.handoffTask(token, id, taskId, { note: note || undefined });
+    loadTasks();
+  };
+
+  const handleAccept = async (taskId: string) => {
+    if (!token || !id) return;
+    await api.acceptTask(token, id, taskId);
+    loadTasks();
+  };
+
+  const handleReject = async (taskId: string, reason: string) => {
+    if (!token || !id) return;
+    await api.rejectTask(token, id, taskId, { reason });
     loadTasks();
   };
 
@@ -51,6 +75,9 @@ export default function CaseTasksPage() {
   };
 
   if (loading) return <p className="text-muted-foreground">{d.caseTasks.loading}</p>;
+
+  const isReviewer =
+    !!user && (user.firmRole === FirmRole.OWNER || user.id === caseDetail?.leadLawyer?.id);
 
   return (
     <div>
@@ -85,7 +112,16 @@ export default function CaseTasksPage() {
         </Card>
       )}
 
-      <KanbanBoard tasks={tasks} onStatusChange={handleStatusChange} />
+      <KanbanBoard
+        tasks={tasks}
+        onStatusChange={handleStatusChange}
+        currentUserId={user?.id ?? ''}
+        isReviewer={isReviewer}
+        enableHandoff
+        onHandoff={handleHandoff}
+        onAccept={handleAccept}
+        onReject={handleReject}
+      />
     </div>
   );
 }

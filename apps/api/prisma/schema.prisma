@@ -141,6 +141,8 @@ enum InsuranceClaimStage {
 enum TaskStatus {
   TODO
   IN_PROGRESS
+  PENDING_REVIEW
+  NEEDS_REVISION
   DONE
 }
 
@@ -151,6 +153,12 @@ enum TaskSource {
 
 enum AssignmentType {
   BUDDY
+}
+
+enum TaskLogAction {
+  ASSIGNED
+  HANDED_OFF
+  REJECTED
 }
 
 enum EventType {
@@ -187,6 +195,7 @@ enum ActivityType {
   FILING
   DEADLINE
   NOTE
+  TASK
   OTHER
 }
 
@@ -212,17 +221,17 @@ model Firm {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  members          FirmMember[]
-  invitations      Invitation[]
-  subscriptions    Subscription[]
-  billingInvoices  BillingInvoice[]
-  auditLogs        AuditLog[]
-  cases            Case[]
-  caseTypes        CaseType[]
-  clients          Client[]
-  courts           Court[]
-  pettyCashFund    PettyCashFund?
-  intakes          Intake[]
+  members         FirmMember[]
+  invitations     Invitation[]
+  subscriptions   Subscription[]
+  billingInvoices BillingInvoice[]
+  auditLogs       AuditLog[]
+  cases           Case[]
+  caseTypes       CaseType[]
+  clients         Client[]
+  courts          Court[]
+  pettyCashFund   PettyCashFund?
+  intakes         Intake[]
 }
 
 model FirmMember {
@@ -250,24 +259,24 @@ model Invitation {
   invitedById String
   createdAt   DateTime  @default(now())
 
-  firm    Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  firm      Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
   invitedBy User @relation("SentInvitations", fields: [invitedById], references: [id])
 
   @@unique([firmId, email])
 }
 
 model Subscription {
-  id                   String             @id @default(uuid())
-  firmId               String
-  plan                 SubscriptionPlan
-  billingPeriod        BillingPeriod      @default(MONTHLY)
-  status               SubscriptionStatus
-  omiseSubscriptionId  String?
-  currentPeriodStart   DateTime
-  currentPeriodEnd     DateTime
-  canceledAt           DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  id                  String             @id @default(uuid())
+  firmId              String
+  plan                SubscriptionPlan
+  billingPeriod       BillingPeriod      @default(MONTHLY)
+  status              SubscriptionStatus
+  omiseSubscriptionId String?
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
+  canceledAt          DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
 
@@ -346,33 +355,36 @@ model User {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  firmMembers         FirmMember[]
-  sentInvitations     Invitation[]         @relation("SentInvitations")
-  passwordResetTokens PasswordResetToken[]
-  auditLogs           AuditLog[]
-  leadCases           Case[]               @relation("LeadLawyer")
-  assignments         CaseAssignment[]
-  assignedTasks       Task[]               @relation("TaskAssignee")
-  createdTasks        Task[]               @relation("TaskCreator")
-  documents           Document[]
-  timeEntries         TimeEntry[]
-  createdInvoices     Invoice[]            @relation("InvoiceCreator")
-  expenses            Expense[]
-  paidExpenses        Expense[]            @relation("ExpensePaidBy")
-  knowledge           CaseKnowledge[]
-  caseActivities      CaseActivity[]
-  receivedIntakes     Intake[]             @relation("IntakeReceiver")
-  assessedIntakes     Intake[]             @relation("IntakeAssessor")
-  createdClosingEmailDrafts  ClosingEmailDraft[] @relation("ClosingEmailDraftCreator")
-  approvedClosingEmailDrafts ClosingEmailDraft[] @relation("ClosingEmailDraftApprover")
-  insuranceClaims     InsuranceClaim[]
-  followedTaskOnHolds TaskOnHold[] @relation("TaskOnHoldFollower")
-  createdTaskOnHolds  TaskOnHold[] @relation("TaskOnHoldCreator")
-  grantedContactCaseAccess ContactCaseAccess[] @relation("ContactCaseAccessGranted")
-  revokedContactCaseAccess ContactCaseAccess[] @relation("ContactCaseAccessRevoked")
-  publishedDocuments   DocumentPublication[] @relation("DocumentPublicationPublished")
-  unpublishedDocuments DocumentPublication[] @relation("DocumentPublicationUnpublished")
-  caseMessages         CaseMessage[]
+  firmMembers                FirmMember[]
+  sentInvitations            Invitation[]          @relation("SentInvitations")
+  passwordResetTokens        PasswordResetToken[]
+  auditLogs                  AuditLog[]
+  leadCases                  Case[]                @relation("LeadLawyer")
+  assignments                CaseAssignment[]
+  assignedTasks              Task[]                @relation("TaskAssignee")
+  createdTasks               Task[]                @relation("TaskCreator")
+  documents                  Document[]
+  timeEntries                TimeEntry[]
+  createdInvoices            Invoice[]             @relation("InvoiceCreator")
+  expenses                   Expense[]
+  paidExpenses               Expense[]             @relation("ExpensePaidBy")
+  knowledge                  CaseKnowledge[]
+  caseActivities             CaseActivity[]
+  receivedIntakes            Intake[]              @relation("IntakeReceiver")
+  assessedIntakes            Intake[]              @relation("IntakeAssessor")
+  createdClosingEmailDrafts  ClosingEmailDraft[]   @relation("ClosingEmailDraftCreator")
+  approvedClosingEmailDrafts ClosingEmailDraft[]   @relation("ClosingEmailDraftApprover")
+  insuranceClaims            InsuranceClaim[]
+  followedTaskOnHolds        TaskOnHold[]          @relation("TaskOnHoldFollower")
+  createdTaskOnHolds         TaskOnHold[]          @relation("TaskOnHoldCreator")
+  taskLogsFrom               TaskAssignmentLog[]   @relation("TaskLogFrom")
+  taskLogsTo                 TaskAssignmentLog[]   @relation("TaskLogTo")
+  taskLogsPerformed          TaskAssignmentLog[]   @relation("TaskLogPerformer")
+  grantedContactCaseAccess   ContactCaseAccess[]   @relation("ContactCaseAccessGranted")
+  revokedContactCaseAccess   ContactCaseAccess[]   @relation("ContactCaseAccessRevoked")
+  publishedDocuments         DocumentPublication[] @relation("DocumentPublicationPublished")
+  unpublishedDocuments       DocumentPublication[] @relation("DocumentPublicationUnpublished")
+  caseMessages               CaseMessage[]
 }
 
 model CaseType {
@@ -401,10 +413,10 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  firm     Firm            @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  contacts ClientContact[]
-  cases    Case[]
-  intakes  Intake[]
+  firm                    Firm                     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  contacts                ClientContact[]
+  cases                   Case[]
+  intakes                 Intake[]
   portalIntakeSubmissions PortalIntakeSubmission[]
 
   @@index([firmId])
@@ -428,12 +440,12 @@ model ClientContact {
   lineLinkCodeExpiresAt DateTime?
   lineConnectedAt       DateTime?
 
-  client      Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  loginTokens ClientPortalLoginToken[]
+  client                  Client                          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  loginTokens             ClientPortalLoginToken[]
   portalIntakeSubmissions PortalIntakeSubmission[]
-  caseAccess  ContactCaseAccess[]
+  caseAccess              ContactCaseAccess[]
   notificationPreferences ContactNotificationPreference[]
-  caseMessages CaseMessage[]
+  caseMessages            CaseMessage[]
 
   @@index([clientId])
 }
@@ -467,56 +479,56 @@ model Court {
 }
 
 model Case {
-  id              String      @id @default(uuid())
-  firmId          String
-  ownRef          String
-  customerRef     String?
-  folderId        String
-  title           String
-  description     String?
-  status          CaseStatus  @default(OPEN)
-  outcome         CaseOutcome @default(IN_PROGRESS)
-  clientId        String?
-  clientName      String?
-  courtName       String?
-  courtLevel      CourtLevel?
-  blackCaseNumber String?
-  redCaseNumber   String?
-  customFields    Json?
-  caseTypeId      String?
-  subType         String?
-  claimedAmount   Float?
-  estimatedFee    Float?
-  actualFee       Float?
+  id                 String      @id @default(uuid())
+  firmId             String
+  ownRef             String
+  customerRef        String?
+  folderId           String
+  title              String
+  description        String?
+  status             CaseStatus  @default(OPEN)
+  outcome            CaseOutcome @default(IN_PROGRESS)
+  clientId           String?
+  clientName         String?
+  courtName          String?
+  courtLevel         CourtLevel?
+  blackCaseNumber    String?
+  redCaseNumber      String?
+  customFields       Json?
+  caseTypeId         String?
+  subType            String?
+  claimedAmount      Float?
+  estimatedFee       Float?
+  actualFee          Float?
   limitationDeadline DateTime?
-  referralSource  String?
-  intakeId        String?     @unique
-  closingSummary  String?     @db.Text
-  leadLawyerId    String
-  openedAt        DateTime    @default(now())
-  closedAt        DateTime?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  referralSource     String?
+  intakeId           String?     @unique
+  closingSummary     String?     @db.Text
+  leadLawyerId       String
+  openedAt           DateTime    @default(now())
+  closedAt           DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
-  firm           Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  client         Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  leadLawyer     User             @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
-  caseType       CaseType?        @relation(fields: [caseTypeId], references: [id])
-  intake         Intake?          @relation(fields: [intakeId], references: [id])
-  assignments    CaseAssignment[]
-  participants   CaseParticipant[]
-  tasks          Task[]
-  documents      Document[]
-  calendarEvents CalendarEvent[]
-  activities     CaseActivity[]
-  timeEntries    TimeEntry[]
-  expenses       Expense[]
-  invoices       Invoice[]
-  knowledge      CaseKnowledge[]
+  firm               Firm                @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client             Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  leadLawyer         User                @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
+  caseType           CaseType?           @relation(fields: [caseTypeId], references: [id])
+  intake             Intake?             @relation(fields: [intakeId], references: [id])
+  assignments        CaseAssignment[]
+  participants       CaseParticipant[]
+  tasks              Task[]
+  documents          Document[]
+  calendarEvents     CalendarEvent[]
+  activities         CaseActivity[]
+  timeEntries        TimeEntry[]
+  expenses           Expense[]
+  invoices           Invoice[]
+  knowledge          CaseKnowledge[]
   closingEmailDrafts ClosingEmailDraft[]
-  insuranceClaim InsuranceClaim?
-  contactAccess  ContactCaseAccess[]
-  messages       CaseMessage[]
+  insuranceClaim     InsuranceClaim?
+  contactAccess      ContactCaseAccess[]
+  messages           CaseMessage[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -525,46 +537,46 @@ model Case {
 }
 
 model Intake {
-  id              String          @id @default(uuid())
-  firmId          String
-  receivedById    String
-  receivedDate    DateTime        @default(now())
-  title           String?
-  referralType    ReferralType    @default(INDIVIDUAL)
-  referralChannel ReferralChannel @default(WALK_IN)
-  referralName    String?
-  clientId        String?
-  clientName      String?
-  matterType      String?
-  opposingParty   String?
-  incidentDate    DateTime?
-  description     String?         @db.Text
-  estimatedDamage Float?
-  assignedUserIds String[]        @default([])
-  deadlineDate    DateTime?
-  portalSubmissionId String?       @unique
-  status          IntakeStatus    @default(RECEIVED)
-  assessorId      String?
-  assessedAt      DateTime?
-  assessmentNotes String?         @db.Text
-  caseStrength    String?
-  decision        IntakeDecision  @default(PENDING)
-  decisionNotes   String?         @db.Text
-  decidedAt       DateTime?
-  clientDecision  String?
-  noticeIssuedAt  DateTime?
-  noticeRecipient String?
-  noticeDeadline  DateTime?
-  noticeResult    String?
-  noticeContent   String?         @db.Text
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id                 String          @id @default(uuid())
+  firmId             String
+  receivedById       String
+  receivedDate       DateTime        @default(now())
+  title              String?
+  referralType       ReferralType    @default(INDIVIDUAL)
+  referralChannel    ReferralChannel @default(WALK_IN)
+  referralName       String?
+  clientId           String?
+  clientName         String?
+  matterType         String?
+  opposingParty      String?
+  incidentDate       DateTime?
+  description        String?         @db.Text
+  estimatedDamage    Float?
+  assignedUserIds    String[]        @default([])
+  deadlineDate       DateTime?
+  portalSubmissionId String?         @unique
+  status             IntakeStatus    @default(RECEIVED)
+  assessorId         String?
+  assessedAt         DateTime?
+  assessmentNotes    String?         @db.Text
+  caseStrength       String?
+  decision           IntakeDecision  @default(PENDING)
+  decisionNotes      String?         @db.Text
+  decidedAt          DateTime?
+  clientDecision     String?
+  noticeIssuedAt     DateTime?
+  noticeRecipient    String?
+  noticeDeadline     DateTime?
+  noticeResult       String?
+  noticeContent      String?         @db.Text
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
-  firm       Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  receivedBy User    @relation("IntakeReceiver", fields: [receivedById], references: [id])
-  assessor   User?   @relation("IntakeAssessor", fields: [assessorId], references: [id])
-  client     Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  case       Case?
+  firm                   Firm                    @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  receivedBy             User                    @relation("IntakeReceiver", fields: [receivedById], references: [id])
+  assessor               User?                   @relation("IntakeAssessor", fields: [assessorId], references: [id])
+  client                 Client?                 @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  case                   Case?
   portalIntakeSubmission PortalIntakeSubmission?
 
   @@index([firmId])
@@ -572,23 +584,23 @@ model Intake {
 }
 
 model CaseParticipant {
-  id                  String          @id @default(uuid())
-  caseId              String
-  name                String
-  nickname            String?
-  role                ParticipantRole @default(OTHER)
-  side                ParticipantSide @default(OPPONENT)
-  personType          String?
-  idNumber            String?
-  address             String?
-  phone               String?
-  email               String?
-  opposingLawyer      String?
-  opposingInsurer     String?
-  medicalLicenseNo    String?
-  notes               String?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  id               String          @id @default(uuid())
+  caseId           String
+  name             String
+  nickname         String?
+  role             ParticipantRole @default(OTHER)
+  side             ParticipantSide @default(OPPONENT)
+  personType       String?
+  idNumber         String?
+  address          String?
+  phone            String?
+  email            String?
+  opposingLawyer   String?
+  opposingInsurer  String?
+  medicalLicenseNo String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
@@ -637,10 +649,30 @@ model Task {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  case      Case?  @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  assignee  User?  @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  createdBy User   @relation("TaskCreator", fields: [createdById], references: [id])
-  onHold    TaskOnHold?
+  case           Case?               @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  assignee       User?               @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy      User                @relation("TaskCreator", fields: [createdById], references: [id])
+  onHold         TaskOnHold?
+  assignmentLogs TaskAssignmentLog[]
+}
+
+model TaskAssignmentLog {
+  id            String        @id @default(uuid())
+  taskId        String
+  action        TaskLogAction
+  fromUserId    String?
+  toUserId      String
+  performedById String
+  note          String?       @db.Text
+  stageDueDate  DateTime?
+  createdAt     DateTime      @default(now())
+
+  task        Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fromUser    User? @relation("TaskLogFrom", fields: [fromUserId], references: [id])
+  toUser      User  @relation("TaskLogTo", fields: [toUserId], references: [id])
+  performedBy User  @relation("TaskLogPerformer", fields: [performedById], references: [id])
+
+  @@index([taskId, createdAt])
 }
 
 model Document {
@@ -655,10 +687,10 @@ model Document {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  case       Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  uploadedBy User              @relation(fields: [uploadedById], references: [id])
-  versions   DocumentVersion[]
-  knowledge  CaseKnowledge[]
+  case         Case                  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  uploadedBy   User                  @relation(fields: [uploadedById], references: [id])
+  versions     DocumentVersion[]
+  knowledge    CaseKnowledge[]
   publications DocumentPublication[]
 }
 
@@ -671,7 +703,7 @@ model DocumentVersion {
   mimeType    String
   createdAt   DateTime @default(now())
 
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document     Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
   publications DocumentPublication[]
 
   @@unique([documentId, version])
@@ -844,22 +876,22 @@ model InvoiceLineItem {
 }
 
 model ClosingEmailDraft {
-  id                 String                  @id @default(uuid())
-  caseId             String
-  createdById        String
-  subject            String
-  bodyText           String                  @db.Text
-  selectedActivityIds String[]               @default([])
-  missingDataNotes   String[]                @default([])
-  status             ClosingEmailDraftStatus @default(DRAFT)
-  approvedById       String?
-  approvedAt         DateTime?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  id                  String                  @id @default(uuid())
+  caseId              String
+  createdById         String
+  subject             String
+  bodyText            String                  @db.Text
+  selectedActivityIds String[]                @default([])
+  missingDataNotes    String[]                @default([])
+  status              ClosingEmailDraftStatus @default(DRAFT)
+  approvedById        String?
+  approvedAt          DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
 
-  case        Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  createdBy   User  @relation("ClosingEmailDraftCreator", fields: [createdById], references: [id])
-  approvedBy  User? @relation("ClosingEmailDraftApprover", fields: [approvedById], references: [id])
+  case       Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdBy  User  @relation("ClosingEmailDraftCreator", fields: [createdById], references: [id])
+  approvedBy User? @relation("ClosingEmailDraftApprover", fields: [approvedById], references: [id])
 
   @@index([caseId, createdAt])
 }
@@ -928,9 +960,9 @@ model PortalIntakeSubmission {
   intakeId            String?   @unique
   createdAt           DateTime  @default(now())
 
-  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clientContact ClientContact  @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
-  intake        Intake?        @relation(fields: [intakeId], references: [id])
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
+  intake        Intake?       @relation(fields: [intakeId], references: [id])
 
   @@index([clientId, submittedAt])
   @@index([clientContactId, submittedAt])
@@ -938,16 +970,16 @@ model PortalIntakeSubmission {
 }
 
 model ContactCaseAccess {
-  id            String    @id @default(uuid())
+  id              String    @id @default(uuid())
   clientContactId String
-  caseId        String
-  grantedAt     DateTime  @default(now())
-  startDate     DateTime  @default(now())
-  endDate       DateTime?
-  grantedById   String
-  revokedAt     DateTime?
-  revokedById   String?
-  notes         String?
+  caseId          String
+  grantedAt       DateTime  @default(now())
+  startDate       DateTime  @default(now())
+  endDate         DateTime?
+  grantedById     String
+  revokedAt       DateTime?
+  revokedById     String?
+  notes           String?
 
   clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
   case          Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -976,10 +1008,10 @@ model CaseMessage {
 }
 
 model ContactNotificationPreference {
-  id              String  @id @default(uuid())
+  id              String              @id @default(uuid())
   clientContactId String
   channel         NotificationChannel
-  isEnabled       Boolean @default(true)
+  isEnabled       Boolean             @default(true)
 
   clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
 
