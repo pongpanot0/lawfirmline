@@ -9,10 +9,10 @@ export default function PortalCheckEmailPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Mail className="h-6 w-6 text-primary" />
           </div>
-          <h2 className="text-xl font-semibold">Check your email</h2>
+          <h2 className="text-xl font-semibold">ตรวจสอบอีเมลของคุณ</h2>
           <p className="text-sm text-muted-foreground">
-            If that email is registered for portal access, we&apos;ve sent a sign-in link. It expires in 15 minutes
-            and can only be used once.
+            หากอีเมลนี้ลงทะเบียนสำหรับเข้าใช้พอร์ทัลไว้แล้ว เราได้ส่งลิงก์เข้าสู่ระบบให้แล้ว
+            ลิงก์จะหมดอายุใน 15 นาทีและใช้ได้เพียงครั้งเดียว
           </p>
         </CardContent>
       </Card>

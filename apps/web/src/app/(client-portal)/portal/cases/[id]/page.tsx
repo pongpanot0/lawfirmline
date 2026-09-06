@@ -9,6 +9,13 @@ import { portalApi, PortalCaseDetail, CaseMessageEntry, PortalApiError } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatDate, formatDateTime } from '@/lib/utils';
+import { getCaseStatusDisplay } from '@/lib/case-status';
+
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'ร่าง',
+  SENT: 'ส่งแล้ว',
+  PAID: 'ชำระแล้ว',
+};
 
 export default function PortalCaseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -56,7 +63,7 @@ export default function PortalCaseDetailPage() {
       setMessageBody('');
       loadMessages();
     } catch (e) {
-      setMessageError(e instanceof PortalApiError ? e.message : 'Could not send message');
+      setMessageError(e instanceof PortalApiError ? e.message : 'ส่งข้อความไม่สำเร็จ');
     } finally {
       setSendingMessage(false);
     }
@@ -79,7 +86,7 @@ export default function PortalCaseDetailPage() {
     <div className="min-h-screen w-full bg-background p-6">
       <div className="w-full">
         <Link href="/portal" className="text-sm text-primary hover:underline">
-          ← All cases
+          ← คดีทั้งหมด
         </Link>
         <div className="mt-2 mb-6 flex items-center justify-between">
           <div>
@@ -89,27 +96,27 @@ export default function PortalCaseDetailPage() {
               {detail.courtName ? ` · ${detail.courtName}` : ''}
             </p>
           </div>
-          <Badge>{detail.status}</Badge>
+          <Badge>{getCaseStatusDisplay(detail.status).label}</Badge>
         </div>
 
         <Card className="mb-4">
           <CardContent className="p-5">
-            <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Next hearing</h2>
+            <h2 className="mb-2 text-sm font-semibold text-muted-foreground">นัดศาลถัดไป</h2>
             {detail.nextHearing ? (
               <p className="text-sm">
                 {detail.nextHearing.title} — {formatDateTime(detail.nextHearing.startAt)}
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">No upcoming hearing scheduled.</p>
+              <p className="text-sm text-muted-foreground">ยังไม่มีนัดศาล</p>
             )}
           </CardContent>
         </Card>
 
         <Card className="mb-4">
           <CardContent className="p-5">
-            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Documents</h2>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">เอกสาร</h2>
             {detail.documents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No documents shared yet.</p>
+              <p className="text-sm text-muted-foreground">ยังไม่มีเอกสารที่แชร์</p>
             ) : (
               <div className="space-y-2">
                 {detail.documents.map((d) => (
@@ -130,9 +137,9 @@ export default function PortalCaseDetailPage() {
 
         <Card>
           <CardContent className="p-5">
-            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Invoices</h2>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">ใบแจ้งหนี้</h2>
             {detail.invoices.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No invoices yet.</p>
+              <p className="text-sm text-muted-foreground">ยังไม่มีใบแจ้งหนี้</p>
             ) : (
               <div className="space-y-2">
                 {detail.invoices.map((inv) => (
@@ -143,12 +150,12 @@ export default function PortalCaseDetailPage() {
                     <div>
                       <p className="font-medium">{inv.invoiceNumber}</p>
                       <p className="text-xs text-muted-foreground">
-                        {inv.dueAt ? `Due ${formatDate(inv.dueAt)}` : ''}
+                        {inv.dueAt ? `กำหนดชำระ ${formatDate(inv.dueAt)}` : ''}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="font-medium">฿{inv.totalAmount.toLocaleString()}</p>
-                      <Badge variant={inv.status === 'PAID' ? 'success' : 'warning'}>{inv.status}</Badge>
+                      <Badge variant={inv.status === 'PAID' ? 'success' : 'warning'}>{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</Badge>
                     </div>
                   </div>
                 ))}
@@ -159,13 +166,13 @@ export default function PortalCaseDetailPage() {
 
         <Card className="mt-4">
           <CardContent className="p-5">
-            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Messages</h2>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">ข้อความ</h2>
 
             {messageError && <p className="mb-3 text-sm text-destructive">{messageError}</p>}
 
             <div className="mb-4 max-h-[50vh] space-y-3 overflow-y-auto rounded-lg border border-border bg-background p-3">
               {messages.length === 0 && (
-                <p className="text-sm text-muted-foreground">No messages yet.</p>
+                <p className="text-sm text-muted-foreground">ยังไม่มีข้อความ</p>
               )}
               {messages.map((m) => (
                 <div
@@ -195,7 +202,7 @@ export default function PortalCaseDetailPage() {
                 onChange={(e) => setMessageBody(e.target.value)}
                 rows={2}
                 className="flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm"
-                placeholder="Type a message..."
+                placeholder="พิมพ์ข้อความ..."
               />
               <button
                 type="button"
@@ -203,7 +210,7 @@ export default function PortalCaseDetailPage() {
                 disabled={sendingMessage || !messageBody.trim()}
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                {sendingMessage ? 'Sending...' : 'Send'}
+                {sendingMessage ? 'กำลังส่ง...' : 'ส่ง'}
               </button>
             </div>
           </CardContent>

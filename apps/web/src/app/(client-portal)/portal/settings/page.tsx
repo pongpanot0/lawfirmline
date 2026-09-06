@@ -150,7 +150,7 @@ export default function PortalSettingsPage() {
                     <p className="mt-2 text-2xl font-bold tracking-wide">{lineStatus.pendingLinkCode}</p>
                     {lineStatus.pendingLinkExpiresAt && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        รหัสหมดอายุ: {new Date(lineStatus.pendingLinkExpiresAt).toLocaleString('th-TH')}
+                        รหัสหมดอายุ: {new Date(lineStatus.pendingLinkExpiresAt).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     )}
                     <Button

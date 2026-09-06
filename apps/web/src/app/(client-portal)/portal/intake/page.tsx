@@ -34,7 +34,7 @@ export default function MyIntakeSubmissionsPage() {
               {item.referenceNumber} — {item.title}
             </p>
             <p className="text-sm text-muted-foreground">
-              {new Date(item.submittedAt).toLocaleDateString('th-TH')} · {item.externalStatus}
+              {new Date(item.submittedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })} · {item.externalStatus}
               {item.withdrawnByClient ? ' · ไม่ได้ใช้' : ''}
             </p>
           </CardContent>

@@ -22,7 +22,7 @@ export default function PortalLoginPage() {
       await portalApi.requestLink(email);
       router.push('/portal/check-email');
     } catch (err) {
-      setError(err instanceof PortalApiError ? err.message : 'Something went wrong. Please try again.');
+      setError(err instanceof PortalApiError ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
       setSubmitting(false);
     }
@@ -36,15 +36,15 @@ export default function PortalLoginPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Scale className="h-4 w-4" />
             </div>
-            <span className="text-lg font-bold">LexFlow — Client Portal</span>
+            <span className="text-lg font-bold">LexFlow — พอร์ทัลลูกความ</span>
           </div>
-          <h2 className="mb-1 text-xl font-semibold">Check your case online</h2>
+          <h2 className="mb-1 text-xl font-semibold">ตรวจสอบคดีของคุณออนไลน์</h2>
           <p className="mb-6 text-sm text-muted-foreground">
-            Enter the email your lawyer has on file. We&apos;ll send you a sign-in link — no password needed.
+            กรอกอีเมลที่ทนายความบันทึกไว้ ระบบจะส่งลิงก์เข้าสู่ระบบให้ — ไม่ต้องใช้รหัสผ่าน
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">อีเมล</label>
               <Input
                 type="email"
                 value={email}
@@ -56,7 +56,7 @@ export default function PortalLoginPage() {
             </div>
             {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? 'Sending link...' : 'Send me a sign-in link'}
+              {submitting ? 'กำลังส่งลิงก์...' : 'ส่งลิงก์เข้าสู่ระบบ'}
             </Button>
           </form>
         </CardContent>

@@ -16,7 +16,7 @@ function PortalVerifyContent() {
   useEffect(() => {
     const token = searchParams.get('token');
     if (!token) {
-      setError('Missing sign-in link. Please request a new one.');
+      setError('ไม่พบลิงก์เข้าสู่ระบบ กรุณาขอลิงก์ใหม่');
       return;
     }
     portalApi
@@ -24,7 +24,7 @@ function PortalVerifyContent() {
       .then((res) => setSession(res.accessToken))
       .then(() => router.replace('/portal'))
       .catch((err) => {
-        setError(err instanceof PortalApiError ? err.message : 'This link is invalid or has expired.');
+        setError(err instanceof PortalApiError ? err.message : 'ลิงก์นี้ไม่ถูกต้องหรือหมดอายุแล้ว');
       });
   }, [searchParams, setSession, router]);
 
@@ -36,11 +36,11 @@ function PortalVerifyContent() {
             <>
               <p className="mb-4 text-sm text-destructive">{error}</p>
               <Link href="/portal/login" className="text-sm text-primary hover:underline">
-                Request a new link
+                ขอลิงก์ใหม่
               </Link>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Signing you in...</p>
+            <p className="text-sm text-muted-foreground">กำลังเข้าสู่ระบบ...</p>
           )}
         </CardContent>
       </Card>

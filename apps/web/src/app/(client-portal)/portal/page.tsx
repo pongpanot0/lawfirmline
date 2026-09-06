@@ -8,6 +8,7 @@ import { portalApi, PortalCaseSummary } from '@/lib/portal-api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { getCaseStatusDisplay } from '@/lib/case-status';
 
 export default function PortalDashboardPage() {
   const { contact, token, loading, logout } = usePortalAuth();
@@ -36,7 +37,7 @@ export default function PortalDashboardPage() {
       <div className="w-full">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Welcome, {contact.name}</h1>
+            <h1 className="text-2xl font-bold">ยินดีต้อนรับ, {contact.name}</h1>
             <p className="text-sm text-muted-foreground">{contact.client?.name}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -50,15 +51,15 @@ export default function PortalDashboardPage() {
               ตั้งค่าการแจ้งเตือน
             </Link>
             <Button variant="ghost" size="sm" onClick={logout}>
-              Sign out
+              ออกจากระบบ
             </Button>
           </div>
         </div>
 
         {loadingCases ? (
-          <p className="text-muted-foreground">Loading your cases...</p>
+          <p className="text-muted-foreground">กำลังโหลดคดีของคุณ...</p>
         ) : cases.length === 0 ? (
-          <p className="text-muted-foreground">No cases to show yet.</p>
+          <p className="text-muted-foreground">ยังไม่มีคดี</p>
         ) : (
           <div className="space-y-3">
             {cases.map((c) => (
@@ -75,7 +76,7 @@ export default function PortalDashboardPage() {
                       {c.courtName ? ` · ${c.courtName}` : ''}
                     </p>
                   </div>
-                  <Badge>{c.status}</Badge>
+                  <Badge>{getCaseStatusDisplay(c.status).label}</Badge>
                 </CardContent>
               </Card>
             ))}
