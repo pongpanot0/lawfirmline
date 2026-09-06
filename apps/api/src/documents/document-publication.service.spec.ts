@@ -270,6 +270,24 @@ describe('DocumentPublicationService', () => {
       );
     });
 
+    it('does not send email when the contact has no ContactNotificationPreference row for EMAIL (default disabled)', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1', version: 2 });
+      mockPrisma.documentVersion.findFirst.mockResolvedValue({ id: 'ver-2', version: 2 });
+      mockPrisma.documentPublication.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.documentPublication.create.mockResolvedValue({ id: 'pub-1', title: 'x' });
+      mockPrisma.contactCaseAccess.findMany.mockResolvedValue([{ clientContactId: 'contact-1' }]);
+      mockPrisma.clientContact.findMany.mockResolvedValue([
+        { id: 'contact-1', lineUserId: null, email: 'client@example.com', name: 'คุณสมชาย' },
+      ]);
+      mockPrefs.getEnabledMap.mockImplementation((_ids: string[], channel: string) =>
+        Promise.resolve(channel === 'EMAIL' ? new Map() : new Map([['contact-1', true]])),
+      );
+
+      await service.publish(user, 'case-1', 'doc-1', {});
+
+      expect(mockEmail.sendDocumentPublishedEmail).not.toHaveBeenCalled();
+    });
+
     it('does not send email when the contact has no email address on file', async () => {
       mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1', version: 2 });
       mockPrisma.documentVersion.findFirst.mockResolvedValue({ id: 'ver-2', version: 2 });

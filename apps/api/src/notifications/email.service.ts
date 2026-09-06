@@ -3,6 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import * as sgMail from '@sendgrid/mail';
 import { maskEmail } from '@lawfirm/shared';
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export interface InvitationEmailParams {
   to: string;
   firmName: string;
@@ -152,8 +161,8 @@ export class EmailService {
 
     const html = `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;max-width:560px">
-        <h2 style="margin:0 0 12px">Sign in to ${params.firmName}</h2>
-        <p>Hi <strong>${params.contactName}</strong>, use the button below to view your case status, documents, and invoices.</p>
+        <h2 style="margin:0 0 12px">Sign in to ${escapeHtml(params.firmName)}</h2>
+        <p>Hi <strong>${escapeHtml(params.contactName)}</strong>, use the button below to view your case status, documents, and invoices.</p>
         <p style="margin:24px 0">
           <a href="${params.verifyUrl}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">
             Sign in to client portal
@@ -190,7 +199,7 @@ export class EmailService {
   async sendDocumentPublishedEmail(params: DocumentPublishedEmailParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `SendGrid not configured (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL); skipped document-published email to ${params.to}`,
+        `SendGrid not configured (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL); skipped document-published email to ${maskEmail(params.to)}`,
       );
       return;
     }
@@ -205,8 +214,8 @@ export class EmailService {
 
     const html = `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;max-width:560px">
-        <h2 style="margin:0 0 12px">New document from ${params.firmName}</h2>
-        <p>Hi <strong>${params.contactName}</strong>, a new document has been published for you: <strong>${params.documentTitle}</strong></p>
+        <h2 style="margin:0 0 12px">New document from ${escapeHtml(params.firmName)}</h2>
+        <p>Hi <strong>${escapeHtml(params.contactName)}</strong>, a new document has been published for you: <strong>${escapeHtml(params.documentTitle)}</strong></p>
         <p style="margin:24px 0">
           <a href="${params.portalUrl}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">
             View in client portal

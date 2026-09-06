@@ -111,6 +111,8 @@ export class DocumentPublicationService {
         select: { id: true, lineUserId: true, email: true, name: true },
       });
 
+      if (contacts.length === 0) return;
+
       const portalUrl = `${this.config.get<string>('APP_URL') ?? DEFAULT_APP_URL}/portal`;
 
       const contactIds = contacts.map((c) => c.id);
@@ -136,7 +138,7 @@ export class DocumentPublicationService {
 
         if (contact.email) {
           try {
-            const enabled = emailEnabled.get(contact.id) ?? true;
+            const enabled = emailEnabled.get(contact.id) ?? false;
             if (enabled) {
               await this.emailService.sendDocumentPublishedEmail({
                 to: contact.email,
