@@ -361,7 +361,16 @@ export interface TaskItem {
   description?: string | null;
   status: import('@lawfirm/shared').TaskStatus;
   dueDate?: string | null;
-  assignee?: { firstName: string; lastName: string } | null;
+  createdById?: string;
+  assignee?: { id: string; firstName: string; lastName: string } | null;
+  assignmentLogs?: Array<{
+    action: import('@lawfirm/shared').TaskLogAction;
+    note?: string | null;
+    stageDueDate?: string | null;
+    createdAt: string;
+    fromUser?: { firstName: string; lastName: string } | null;
+    toUser: { firstName: string; lastName: string };
+  }>;
 }
 
 export interface DashboardStats {
@@ -783,6 +792,43 @@ export const api = {
     data: Record<string, unknown>,
   ) =>
     request(`/cases/${caseId}/tasks/${taskId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  handoffTask: (
+    token: string,
+    caseId: string,
+    taskId: string,
+    data: { note?: string; stageDueDate?: string },
+  ) =>
+    request<TaskItem>(`/cases/${caseId}/tasks/${taskId}/handoff`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  acceptTask: (token: string, caseId: string, taskId: string) =>
+    request<TaskItem>(`/cases/${caseId}/tasks/${taskId}/accept`, {
+      method: 'POST',
+      token,
+    }),
+
+  rejectTask: (token: string, caseId: string, taskId: string, data: { reason: string }) =>
+    request<TaskItem>(`/cases/${caseId}/tasks/${taskId}/reject`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  reassignTask: (
+    token: string,
+    caseId: string,
+    taskId: string,
+    data: { assigneeId: string; stageDueDate?: string },
+  ) =>
+    request<TaskItem>(`/cases/${caseId}/tasks/${taskId}/reassign`, {
       method: 'PATCH',
       token,
       body: JSON.stringify(data),

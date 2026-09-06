@@ -27,7 +27,7 @@ export class TodosController {
     @Body() dto: UpdateTaskDto,
   ) {
     await this.tasksService.assertStandaloneOwnership(taskId, user);
-    return this.tasksService.update(taskId, dto);
+    return this.tasksService.update(taskId, dto, user);
   }
 
   @Delete(':taskId')
