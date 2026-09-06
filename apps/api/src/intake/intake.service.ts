@@ -1,9 +1,12 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '@lawfirm/shared';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AssignmentType, ReferralChannel } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
+import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 import {
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -17,6 +20,7 @@ import {
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 
 export const DRAFT_NOTICE_COST = 5;
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 @Injectable()
 export class IntakeService {
@@ -26,6 +30,7 @@ export class IntakeService {
     private prisma: PrismaService,
     private tasksService: TasksService,
     private config: ConfigService,
+    private precedentAnalysisService: IntakePrecedentAnalysisService,
   ) {}
 
   private intakeInclude = {
@@ -37,6 +42,10 @@ export class IntakeService {
     },
     client: { select: { id: true, name: true } },
     case: { select: { id: true, ownRef: true, title: true, status: true } },
+    attachments: {
+      orderBy: { createdAt: 'desc' as const },
+      select: { id: true, filename: true, mimeType: true, createdAt: true },
+    },
   };
 
   async findAll(user: AuthUser, query: IntakeQueryDto) {
@@ -207,21 +216,27 @@ export class IntakeService {
     return updated;
   }
 
-  async draftNotice(user: AuthUser, id: string) {
+  async draftNotice(user: AuthUser, id: string, analysisId?: string) {
     const intake = await this.findOne(user, id);
 
-    const facts = [
-      `ชื่อลูกความ (ผู้ส่งหนังสือ): ${intake.clientName || intake.client?.name || '(ไม่ระบุ)'}`,
-      `คู่กรณี (ผู้รับหนังสือ): ${intake.opposingParty || '(ไม่ระบุ)'}`,
-      `ประเภทเรื่อง: ${intake.matterType || '(ไม่ระบุ)'}`,
-      intake.description ? `รายละเอียดเหตุการณ์: ${intake.description}` : null,
-      intake.estimatedDamage ? `มูลค่าความเสียหายโดยประมาณ: ${intake.estimatedDamage} บาท` : null,
-      intake.deadlineDate
-        ? `กำหนดให้ตอบกลับ/ดำเนินการภายใน: ${intake.deadlineDate.toISOString().slice(0, 10)}`
-        : null,
-    ]
-      .filter(Boolean)
-      .join('\n');
+    let facts: string;
+    if (analysisId) {
+      const analysis = await this.precedentAnalysisService.getOne(user, id, analysisId);
+      facts = analysis.noticeFacts;
+    } else {
+      facts = [
+        `ชื่อลูกความ (ผู้ส่งหนังสือ): ${intake.clientName || intake.client?.name || '(ไม่ระบุ)'}`,
+        `คู่กรณี (ผู้รับหนังสือ): ${intake.opposingParty || '(ไม่ระบุ)'}`,
+        `ประเภทเรื่อง: ${intake.matterType || '(ไม่ระบุ)'}`,
+        intake.description ? `รายละเอียดเหตุการณ์: ${intake.description}` : null,
+        intake.estimatedDamage ? `มูลค่าความเสียหายโดยประมาณ: ${intake.estimatedDamage} บาท` : null,
+        intake.deadlineDate
+          ? `กำหนดให้ตอบกลับ/ดำเนินการภายใน: ${intake.deadlineDate.toISOString().slice(0, 10)}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
 
     const content = await this.generateNoticeDraft(facts);
 
@@ -230,7 +245,7 @@ export class IntakeService {
         firmId: user.firmId,
         userId: user.id,
         action: 'intake.notice.draft',
-        metadata: { intakeId: id },
+        metadata: { intakeId: id, analysisId: analysisId ?? null },
       },
     });
 
@@ -417,5 +432,68 @@ export class IntakeService {
     });
 
     return intake;
+  }
+
+  private getUploadDir() {
+    return this.config.get<string>('UPLOAD_DIR') ?? './uploads';
+  }
+
+  async uploadAttachment(user: AuthUser, intakeId: string, file: Express.Multer.File) {
+    const intake = await this.prisma.intake.findFirst({
+      where: { id: intakeId, firmId: user.firmId },
+    });
+    if (!intake) throw new NotFoundException('Intake not found');
+
+    if (!file) {
+      throw new BadRequestException('กรุณาแนบไฟล์');
+    }
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('รองรับเฉพาะไฟล์ PDF เท่านั้น');
+    }
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      throw new BadRequestException('ไฟล์มีขนาดใหญ่เกิน 10MB');
+    }
+
+    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId);
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const storagePath = path.join(uploadDir, `${fileId}.pdf`);
+    fs.writeFileSync(storagePath, file.buffer);
+
+    return this.prisma.intakeAttachment.create({
+      data: {
+        intakeId,
+        filename: file.originalname,
+        storagePath,
+        mimeType: file.mimetype,
+        uploadedById: user.id,
+      },
+    });
+  }
+
+  async deleteAttachment(user: AuthUser, intakeId: string, attachmentId: string) {
+    const attachment = await this.prisma.intakeAttachment.findFirst({
+      where: { id: attachmentId, intakeId },
+      include: { intake: { select: { firmId: true } } },
+    });
+    if (!attachment || attachment.intake.firmId !== user.firmId) {
+      throw new NotFoundException('Attachment not found');
+    }
+
+    // The file on disk may already be gone (manual cleanup, a prior partial
+    // failure, a DB restored without its files). Never let that block removing
+    // the DB row, or the attachment becomes permanently un-deletable.
+    try {
+      fs.unlinkSync(attachment.storagePath);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to remove attachment file ${attachment.storagePath}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+    await this.prisma.intakeAttachment.delete({ where: { id: attachmentId } });
+    return { deleted: true };
   }
 }
