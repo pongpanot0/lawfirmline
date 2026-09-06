@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { DocumentIntelligenceService } from './document-intelligence.service';
 import { DateSuggestionsService } from './date-suggestions.service';
 import { IntelligenceController } from './intelligence.controller';
@@ -8,7 +8,7 @@ import { CalendarModule } from '../calendar/calendar.module';
 import { DocumentsModule } from '../documents/documents.module';
 
 @Module({
-  imports: [CalendarModule, DocumentsModule],
+  imports: [CalendarModule, forwardRef(() => DocumentsModule)],
   providers: [DocumentIntelligenceService, DateSuggestionsService, AiCreditsInterceptor],
   controllers: [IntelligenceController, DateSuggestionsController],
   exports: [DocumentIntelligenceService, DateSuggestionsService],
