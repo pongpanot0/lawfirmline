@@ -12,10 +12,11 @@ import { CaseMessageRateLimiterService } from './case-message-rate-limiter.servi
 import { CaseMessageController } from './case-message.controller';
 import { CalendarModule } from '../calendar/calendar.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { IntakeModule } from '../intake/intake.module';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 
 @Module({
-  imports: [CalendarModule, forwardRef(() => NotificationsModule)],
+  imports: [CalendarModule, forwardRef(() => NotificationsModule), IntakeModule],
   controllers: [
     CasesController,
     CaseActivitiesController,

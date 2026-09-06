@@ -35,6 +35,7 @@ import {
   CaseTypeItem,
   CourtItem,
   ApiError,
+  IntakePrecedentAnalysisItem,
 } from '@/lib/api';
 import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
@@ -76,6 +77,7 @@ export default function CaseDetailPage() {
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [totalSpent, setTotalSpent] = useState(0);
+  const [precedentAnalyses, setPrecedentAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('overview');
   const [note, setNote] = useState('');
@@ -117,6 +119,11 @@ export default function CaseDetailPage() {
 
   const loadCase = () => {
     if (!token || !id) return;
+    // Non-blocking: a failure here must not break the rest of the case page.
+    api
+      .listCasePrecedentAnalyses(token, id)
+      .then(setPrecedentAnalyses)
+      .catch(() => setPrecedentAnalyses([]));
     Promise.all([
       api.getCase(token, id),
       api.getCaseActivities(token, id).catch(() => []),
@@ -369,6 +376,11 @@ export default function CaseDetailPage() {
 
   const customFields = legalCase.customFields as Record<string, string> | null;
   const clientDisplay = legalCase.client?.name ?? legalCase.clientName ?? '—';
+  // The API returns analyses newest-first, so the first COMPLETE row is the most
+  // recent successful run. FAILED/PENDING rows are intentionally not shown here —
+  // this case view is read-only and has no re-run action to offer.
+  const latestPrecedentAnalysis =
+    precedentAnalyses.find((a) => a.status === 'COMPLETE') ?? null;
   const tabs = [
     { id: 'overview', label: 'ภาพรวม' },
     { id: 'tasks', label: 'งาน', href: `/cases/${id}/tasks` },
@@ -897,6 +909,60 @@ export default function CaseDetailPage() {
               <CardHeader><CardTitle className="text-sm">Description / รายละเอียด</CardTitle></CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">{legalCase.description}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {latestPrecedentAnalysis && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">
+                  Precedent Analysis / ผลวิเคราะห์ฎีกา
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  วิเคราะห์เมื่อ {formatDateTime(latestPrecedentAnalysis.createdAt)}
+                </p>
+
+                <div>
+                  <p className="text-sm font-medium">📚 ฎีกาที่เกี่ยวข้อง</p>
+                  {latestPrecedentAnalysis.precedents.length > 0 ? (
+                    <ul className="mt-2 space-y-2">
+                      {latestPrecedentAnalysis.precedents.map((p) => (
+                        <li key={p.dekaId} className="text-sm">
+                          <a
+                            href={p.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-primary hover:underline"
+                          >
+                            ฎ. {p.dekaId}
+                          </a>{' '}
+                          — {p.headnote}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      ไม่พบฎีกาที่เกี่ยวข้องโดยตรง
+                    </p>
+                  )}
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                    {latestPrecedentAnalysis.summaryBullets}
+                  </p>
+                </div>
+
+                <div className="border-t border-border pt-3">
+                  <p className="text-sm font-medium">📄 ข้อมูลพร้อมร่าง Notice</p>
+                  <p className="mt-1 whitespace-pre-wrap rounded-lg bg-muted/40 p-2 text-xs text-muted-foreground">
+                    {latestPrecedentAnalysis.noticeFacts}
+                  </p>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ ผลลัพธ์นี้เป็นการช่วยค้นเบื้องต้นด้วย AI โปรดตรวจสอบกับฉบับเต็มก่อนใช้อ้างอิงจริง
+                </p>
               </CardContent>
             </Card>
           )}

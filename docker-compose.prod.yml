@@ -49,6 +49,7 @@ services:
       OMISE_SECRET_KEY: ${OMISE_SECRET_KEY:-}
       OMISE_MOCK: ${OMISE_MOCK:-false}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      IAPP_API_KEY: ${IAPP_API_KEY:-}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
     volumes:
       - uploads:/data/uploads
