@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   PhoneOff,
   FolderOpen,
@@ -15,139 +16,210 @@ import {
   ArrowRight,
   Scale,
 } from 'lucide-react';
-import { buttonVariants } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
 import { useLocale } from './LocaleProvider';
 import { LandingNavbar } from './LandingNavbar';
 import { PricingSection } from './PricingSection';
+import { useLandingMotion } from './useLandingMotion';
+import './landing-tokens.css';
 
 const problemIcons = [PhoneOff, FolderOpen, CalendarX, UserX, MessageCircle];
 const featureIcons = [Briefcase, Calendar, Users, Bell];
+const featureSpans = ['lf-tile--anchor', 'lf-tile--wide', 'lf-tile--wide', 'lf-tile--full'];
 
 export function LandingPage() {
   const { t } = useLocale();
+  const scope = useLandingMotion();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="lf-landing min-h-screen" ref={scope}>
       <LandingNavbar />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10" />
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl sm:-right-32 sm:-top-32 sm:h-96 sm:w-96" />
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-primary/5 blur-3xl sm:-bottom-32 sm:-left-32 sm:h-96 sm:w-96" />
-        <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24 md:py-32">
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs text-primary sm:mb-6 sm:px-4 sm:text-sm">
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+      {/* Hero — H2 split diptych: title/CTA left, illustrative notification stack right */}
+      <section className="lf-shell lf-section">
+        <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-8">
+          <div className="lg:col-span-7">
+            <span className="lf-eyebrow" data-motion="hero-eyebrow">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span
+                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-50"
+                  style={{ background: 'var(--color-accent)' }}
+                />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: 'var(--color-accent)' }} />
               </span>
-              <span className="truncate">{t.hero.badge}</span>
-            </div>
-            <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
+              {t.hero.badge}
+            </span>
+            <h1
+              className="lf-display mt-4 text-[2.25rem] sm:text-[2.75rem] md:text-[3.25rem]"
+              style={{ fontSize: 'var(--text-display)' }}
+              data-motion="hero-title"
+            >
               {t.hero.title}
-              <span className="mt-2 block text-primary">{t.hero.titleHighlight}</span>
+              <span className="block" style={{ color: 'var(--color-accent)' }}>
+                {t.hero.titleHighlight}
+              </span>
             </h1>
-            <p className="mt-4 text-base text-muted-foreground sm:mt-6 sm:text-lg md:text-xl">
+            <p className="lf-lede mt-5 max-w-lg text-base sm:text-lg" data-motion="hero-subtitle">
               {t.hero.subtitle}
             </p>
-            <div className="mt-8 flex w-full flex-col items-stretch justify-center gap-3 sm:mt-10 sm:flex-row sm:items-center sm:gap-4">
-              <Link
-                href="/login"
-                className={cn(buttonVariants({ size: 'lg' }), 'h-11 w-full sm:h-12 sm:w-auto sm:px-8')}
-              >
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center" data-motion="hero-cta">
+              <Link href="/login" className="lf-btn lf-btn--primary w-full sm:w-auto">
                 {t.hero.ctaPrimary}
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <a
-                href="#trial"
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'lg' }),
-                  'h-11 w-full sm:h-12 sm:w-auto sm:px-8',
-                )}
-              >
+              <a href="#trial" className="lf-btn lf-btn--outline w-full sm:w-auto">
                 {t.hero.ctaSecondary}
               </a>
             </div>
-            <p className="mt-4 text-xs text-muted-foreground sm:text-sm">{t.hero.note}</p>
+            <p className="mt-4 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }} data-motion="hero-note">
+              {t.hero.note}
+            </p>
+          </div>
+
+          <div className="lg:col-span-5">
+            <div className="relative mx-auto max-w-sm" data-motion="hero-card">
+              <div
+                className="absolute -right-3 top-6 w-full rotate-3 rounded-2xl border opacity-70 sm:-right-4"
+                style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-2)', aspectRatio: '4 / 3' }}
+                aria-hidden
+              />
+              <div
+                className="relative rounded-2xl border p-5"
+                style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)', boxShadow: '0 8px 24px oklch(23% 0.02 40 / 0.08)' }}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
+                  {t.features.items[0].title}
+                </p>
+                <ul className="mt-4 space-y-3">
+                  {[
+                    { icon: Calendar, label: t.features.items[1].highlights[0] },
+                    { icon: MessageCircle, label: t.features.items[2].highlights[0] },
+                    { icon: Bell, label: t.features.items[3].highlights[0] },
+                  ].map(({ icon: Icon, label }) => (
+                    <li
+                      key={label}
+                      className="flex items-center gap-3 rounded-xl border p-3"
+                      style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper)' }}
+                    >
+                      <span
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                        style={{ background: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+                        {label}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Problems */}
-      <section className="border-y border-border bg-muted/40 py-12 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-xl font-bold sm:text-2xl md:text-3xl">{t.problems.title}</h2>
-            <p className="mt-2 text-sm text-muted-foreground sm:mt-3 sm:text-base">{t.problems.subtitle}</p>
-          </div>
-          <div className="mt-8 grid gap-3 sm:mt-12 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {t.problems.items.map((text, i) => {
-              const Icon = problemIcons[i];
-              return (
-                <div
-                  key={text}
-                  className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 shadow-soft sm:gap-4 sm:p-5"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive sm:h-10 sm:w-10">
-                    <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </div>
-                  <p className="pt-1 text-sm font-medium leading-relaxed sm:pt-2">{text}</p>
-                </div>
-              );
-            })}
-          </div>
+      {/* Product tour — the real app, not a mockup. GSAP converges the two supporting
+          screens onto the main dashboard shot as this section enters the viewport. */}
+      <section className="lf-shell">
+        <div className="lf-section-head lf-section-head--center">
+          <h2 className="lf-display-s text-2xl sm:text-3xl">{t.tour.title}</h2>
+          <p className="lf-lede mt-3">{t.tour.subtitle}</p>
+        </div>
+        <div className="lf-tour-stage" data-motion="tour-stage">
+          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-a" data-motion="tour-aux-a">
+            <Image src="/marketing/court-schedule.png" alt={t.tour.schedule} width={2880} height={1800} sizes="46vw" />
+          </figure>
+          <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-b" data-motion="tour-aux-b">
+            <Image src="/marketing/cases-list.png" alt={t.tour.cases} width={2880} height={1800} sizes="46vw" />
+          </figure>
+          <figure className="lf-tour-frame lf-tour-frame--main" data-motion="tour-main">
+            <Image
+              src="/marketing/dashboard.png"
+              alt={t.tour.dashboard}
+              width={2880}
+              height={1800}
+              sizes="(min-width: 60rem) 56rem, 100vw"
+              priority={false}
+            />
+          </figure>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="py-12 sm:py-20 md:py-28">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-xl font-bold sm:text-2xl md:text-3xl">{t.features.title}</h2>
-            <p className="mt-2 text-sm text-muted-foreground sm:mt-3 sm:text-base">{t.features.subtitle}</p>
+      {/* Problems + features — one Bento block: pain points as small tiles, product tiles as the anchors */}
+      <section id="features" className="lf-section lf-section--paper2">
+        <div className="lf-shell">
+          <div className="lf-section-head lf-section-head--center">
+            <h2 className="lf-display-s text-2xl sm:text-3xl">{t.features.title}</h2>
+            <p className="lf-lede mt-3">{t.features.subtitle}</p>
           </div>
-          <div className="mt-8 grid gap-5 sm:mt-14 sm:gap-8 md:grid-cols-2">
+
+          <div className="lf-bento mt-10 sm:mt-14">
             {t.features.items.map((feature, i) => {
               const Icon = featureIcons[i];
               return (
-                <Card key={feature.title} className="border-border/80 shadow-card transition-shadow hover:shadow-lg">
-                  <CardContent className="p-5 sm:p-8">
-                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary sm:mb-5 sm:h-12 sm:w-12">
-                      <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
-                    </div>
-                    <h3 className="text-lg font-semibold sm:text-xl">{feature.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:mt-3">{feature.description}</p>
-                    <ul className="mt-4 space-y-2 sm:mt-5">
-                      {feature.highlights.map((item) => (
-                        <li key={item} className="flex items-start gap-2 text-sm">
-                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
+                <article
+                  key={feature.title}
+                  className={`lf-tile lf-tile--feature ${featureSpans[i]}`}
+                  data-motion="bento-tile"
+                >
+                  <span className="lf-tile-icon">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="mt-4 text-lg font-semibold" style={{ color: 'var(--color-ink)' }}>
+                    {feature.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--color-ink-2)' }}>
+                    {feature.description}
+                  </p>
+                  <ul className="mt-4 flex flex-wrap gap-2">
+                    {feature.highlights.map((item) => (
+                      <li
+                        key={item}
+                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+                        style={{ background: 'var(--color-paper-3)', color: 'var(--color-ink-2)' }}
+                      >
+                        <Check className="h-3 w-3" style={{ color: 'var(--color-success)' }} />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
               );
             })}
+
+            <div className="lf-tile--full">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
+                {t.problems.title}
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                {t.problems.items.map((text, i) => {
+                  const Icon = problemIcons[i];
+                  return (
+                    <div key={text} className="lf-tile !p-4" data-motion="bento-tile">
+                      <span className="lf-tile-icon !h-8 !w-8">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <p className="mt-3 text-sm font-medium leading-snug" style={{ color: 'var(--color-ink)' }}>
+                        {text}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Audience */}
-      <section className="bg-muted/40 py-12 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-xl font-bold sm:text-2xl md:text-3xl">{t.audience.title}</h2>
-          </div>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2 sm:mt-10 sm:gap-3">
+      {/* Audience — hairline chip row */}
+      <section className="lf-section--tight">
+        <div className="lf-shell text-center">
+          <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-2)' }}>
+            {t.audience.title}
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
             {t.audience.items.map((item) => (
-              <span
-                key={item}
-                className="rounded-full border border-border bg-card px-4 py-2 text-xs font-medium shadow-soft sm:px-5 sm:py-2.5 sm:text-sm"
-              >
+              <span key={item} className="lf-chip">
                 {item}
               </span>
             ))}
@@ -157,46 +229,47 @@ export function LandingPage() {
 
       <PricingSection />
 
-      {/* CTA */}
-      <section id="trial" className="border-t border-border bg-primary py-12 text-primary-foreground sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
-          <h2 className="text-xl font-bold sm:text-2xl md:text-3xl">{t.cta.title}</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm text-primary-foreground/80 sm:mt-4 sm:text-base">
+      {/* CTA — one visual anchor (trial), one supporting link (demo) */}
+      <section
+        id="trial"
+        className="lf-section--tight"
+        style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
+      >
+        <div className="lf-shell text-center">
+          <h2 className="lf-display-s text-2xl sm:text-3xl">{t.cta.title}</h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm sm:text-base" style={{ color: 'oklch(99% 0 0 / 0.85)' }}>
             {t.cta.subtitle}
           </p>
-          <div className="mt-8 flex w-full flex-col items-stretch justify-center gap-3 sm:mt-10 sm:flex-row sm:items-center sm:gap-4">
+          <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <Link href="/login" className="lf-btn lf-btn--on-accent w-full sm:w-auto">
+              {t.cta.tryFree}
+            </Link>
             <a
               href={`mailto:hello@lexflow.co?subject=${encodeURIComponent(t.cta.demoSubject)}`}
-              className={cn(
-                buttonVariants({ variant: 'secondary', size: 'lg' }),
-                'h-11 w-full sm:h-12 sm:w-auto sm:px-8',
-              )}
+              className="text-sm font-medium underline underline-offset-4"
+              style={{ color: 'oklch(99% 0 0 / 0.9)' }}
             >
               {t.cta.demo}
             </a>
-            <Link
-              href="/login"
-              className={cn(
-                buttonVariants({ variant: 'outline', size: 'lg' }),
-                'h-11 w-full border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground sm:h-12 sm:w-auto sm:px-8',
-              )}
-            >
-              {t.cta.tryFree}
-            </Link>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border py-8 sm:py-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-center sm:flex-row sm:px-6 sm:text-left">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+      {/* Footer — Ft2 inline single line */}
+      <footer className="border-t" style={{ borderColor: 'var(--color-rule)' }}>
+        <div className="lf-shell flex flex-col items-center justify-between gap-3 py-8 text-center sm:flex-row sm:text-left">
+          <Link href="/" className="flex items-center gap-2">
+            <span
+              className="flex h-7 w-7 items-center justify-center rounded-full"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
+            >
               <Scale className="h-3.5 w-3.5" />
-            </div>
-            <span className="font-semibold">LexFlow</span>
-          </div>
-          <p className="text-xs text-muted-foreground sm:text-sm">{t.footer}</p>
+            </span>
+            <span className="lf-display text-sm">LexFlow</span>
+          </Link>
+          <p className="text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
+            {t.footer}
+          </p>
         </div>
       </footer>
     </div>
