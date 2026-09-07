@@ -10,6 +10,11 @@ export class InviteUserDto {
   role?: FirmRole;
 }
 
+export class UpdateMemberRoleDto {
+  @IsEnum(FirmRole)
+  role!: FirmRole;
+}
+
 export class AcceptInviteDto {
   @IsString()
   token!: string;
