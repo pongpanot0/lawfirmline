@@ -18,6 +18,16 @@ import { dateLocale, fmt } from '@/lib/i18n/dashboard';
 type TeamMember = Awaited<ReturnType<typeof api.getTeamMembers>>[number];
 type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
 
+const ROLE_OPTIONS: Array<{
+  value: FirmRole;
+  labelKey: 'roleAssistant' | 'roleLawyer' | 'roleSeniorLawyer' | 'roleOwner';
+}> = [
+  { value: FirmRole.ASSISTANT, labelKey: 'roleAssistant' },
+  { value: FirmRole.LAWYER, labelKey: 'roleLawyer' },
+  { value: FirmRole.SENIOR_LAWYER, labelKey: 'roleSeniorLawyer' },
+  { value: FirmRole.OWNER, labelKey: 'roleOwner' },
+];
+
 export default function TeamPage() {
   const { token, user } = useAuth();
   const { locale } = useLocale();
@@ -207,10 +217,9 @@ export default function TeamPage() {
                 onChange={(e) => setInviteRole(e.target.value as FirmRole)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               >
-                <option value={FirmRole.ASSISTANT}>{d.team.roleAssistant}</option>
-                <option value={FirmRole.LAWYER}>{d.team.roleLawyer}</option>
-                <option value={FirmRole.SENIOR_LAWYER}>{d.team.roleSeniorLawyer}</option>
-                <option value={FirmRole.OWNER}>{d.team.roleOwner}</option>
+                {ROLE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
+                ))}
               </select>
               <Button type="submit" disabled={inviting}>
                 {inviting ? d.team.sending : d.team.sendInvite}
@@ -260,10 +269,9 @@ export default function TeamPage() {
                         className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
                         aria-label={d.team.changeRole}
                       >
-                        <option value={FirmRole.ASSISTANT}>{d.team.roleAssistant}</option>
-                        <option value={FirmRole.LAWYER}>{d.team.roleLawyer}</option>
-                        <option value={FirmRole.SENIOR_LAWYER}>{d.team.roleSeniorLawyer}</option>
-                        <option value={FirmRole.OWNER}>{d.team.roleOwner}</option>
+                        {ROLE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
+                        ))}
                       </select>
                     ) : (
                       <Badge variant={firmRoleBadgeVariant(m.firmRole)}>
@@ -314,10 +322,9 @@ export default function TeamPage() {
                             className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
                             aria-label={d.team.changeRole}
                           >
-                            <option value={FirmRole.ASSISTANT}>{d.team.roleAssistant}</option>
-                            <option value={FirmRole.LAWYER}>{d.team.roleLawyer}</option>
-                            <option value={FirmRole.SENIOR_LAWYER}>{d.team.roleSeniorLawyer}</option>
-                            <option value={FirmRole.OWNER}>{d.team.roleOwner}</option>
+                            {ROLE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
+                            ))}
                           </select>
                         ) : (
                           <Badge variant={firmRoleBadgeVariant(m.firmRole)}>
