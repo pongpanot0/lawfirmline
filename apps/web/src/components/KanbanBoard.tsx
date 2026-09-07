@@ -22,15 +22,19 @@ interface KanbanBoardProps {
   isReviewer?: boolean;
   /** Case-bound tasks only: the lawyer↔senior handoff/review pipeline. */
   enableHandoff?: boolean;
-  onHandoff?: (taskId: string, note: string) => void;
+  onHandoff?: (taskId: string, note: string, reviewerId?: string) => void;
   onAccept?: (taskId: string) => void;
   onReject?: (taskId: string, reason: string) => void;
+  /** Standalone tasks only: no fixed senior lawyer, so the sender picks a reviewer at handoff time. */
+  requireReviewerOnHandoff?: boolean;
+  reviewerOptions?: { id: string; firstName: string; lastName: string }[];
 }
 
 const HANDOFF_SOURCE_STATUSES: TaskStatus[] = [
   TaskStatus.TODO,
   TaskStatus.IN_PROGRESS,
   TaskStatus.NEEDS_REVISION,
+  TaskStatus.DONE,
 ];
 
 export function KanbanBoard({
@@ -42,10 +46,13 @@ export function KanbanBoard({
   onHandoff,
   onAccept,
   onReject,
+  requireReviewerOnHandoff = false,
+  reviewerOptions = [],
 }: KanbanBoardProps) {
   const d = useDashboardT();
   const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
   const [handoffNote, setHandoffNote] = useState('');
+  const [handoffReviewerId, setHandoffReviewerId] = useState('');
   const [rejectTaskId, setRejectTaskId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
@@ -91,9 +98,13 @@ export function KanbanBoard({
                 const isAssignee = task.assignee?.id === currentUserId;
                 const canSetPlainStatus = isAssignee || !task.assignee;
                 const canHandoff =
-                  enableHandoff && isAssignee && HANDOFF_SOURCE_STATUSES.includes(task.status);
+                  enableHandoff &&
+                  (isAssignee || !task.assignee) &&
+                  HANDOFF_SOURCE_STATUSES.includes(task.status);
                 const canReview =
-                  enableHandoff && isReviewer && task.status === TaskStatus.PENDING_REVIEW;
+                  enableHandoff &&
+                  task.status === TaskStatus.PENDING_REVIEW &&
+                  (isReviewer || isAssignee);
 
                 return (
                   <div
@@ -132,6 +143,7 @@ export function KanbanBoard({
                           onClick={() => {
                             setHandoffTaskId(task.id);
                             setHandoffNote('');
+                            setHandoffReviewerId('');
                           }}
                           className="rounded border border-sky-400 px-2 py-0.5 text-xs text-sky-600 hover:bg-sky-50"
                         >
@@ -161,6 +173,22 @@ export function KanbanBoard({
 
                     {handoffTaskId === task.id && onHandoff && (
                       <div className="mt-3 space-y-2 border-t pt-2">
+                        {requireReviewerOnHandoff && (
+                          <select
+                            value={handoffReviewerId}
+                            onChange={(e) => setHandoffReviewerId(e.target.value)}
+                            className="w-full rounded border px-2 py-1 text-xs"
+                          >
+                            <option value="">{d.todos.handoffReviewerPlaceholder}</option>
+                            {reviewerOptions
+                              .filter((u) => u.id !== currentUserId)
+                              .map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.firstName} {u.lastName}
+                                </option>
+                              ))}
+                          </select>
+                        )}
                         <input
                           value={handoffNote}
                           onChange={(e) => setHandoffNote(e.target.value)}
@@ -169,11 +197,16 @@ export function KanbanBoard({
                         />
                         <div className="flex gap-2">
                           <button
+                            disabled={requireReviewerOnHandoff && !handoffReviewerId}
                             onClick={() => {
-                              onHandoff(task.id, handoffNote);
+                              onHandoff(
+                                task.id,
+                                handoffNote,
+                                requireReviewerOnHandoff ? handoffReviewerId : undefined,
+                              );
                               setHandoffTaskId(null);
                             }}
-                            className="rounded bg-sky-500 px-2 py-1 text-xs text-white hover:bg-sky-600"
+                            className="rounded bg-sky-500 px-2 py-1 text-xs text-white hover:bg-sky-600 disabled:opacity-50"
                           >
                             {d.todos.handoffSubmit}
                           </button>

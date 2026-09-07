@@ -18,6 +18,16 @@ import { dateLocale, fmt } from '@/lib/i18n/dashboard';
 type TeamMember = Awaited<ReturnType<typeof api.getTeamMembers>>[number];
 type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
 
+const ROLE_OPTIONS: Array<{
+  value: FirmRole;
+  labelKey: 'roleAssistant' | 'roleLawyer' | 'roleSeniorLawyer' | 'roleOwner';
+}> = [
+  { value: FirmRole.ASSISTANT, labelKey: 'roleAssistant' },
+  { value: FirmRole.LAWYER, labelKey: 'roleLawyer' },
+  { value: FirmRole.SENIOR_LAWYER, labelKey: 'roleSeniorLawyer' },
+  { value: FirmRole.OWNER, labelKey: 'roleOwner' },
+];
+
 export default function TeamPage() {
   const { token, user } = useAuth();
   const { locale } = useLocale();
@@ -36,6 +46,7 @@ export default function TeamPage() {
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
 
   const loadTeam = useCallback(async () => {
     if (!token || !isOwner) {
@@ -65,8 +76,31 @@ export default function TeamPage() {
     return <p className="text-destructive">{d.team.accessDenied}</p>;
   }
 
-  const firmRoleLabel = (role: string) =>
-    role === FirmRole.OWNER ? d.team.roleOwner : d.team.roleAssistant;
+  const firmRoleLabel = (role: string) => {
+    switch (role) {
+      case FirmRole.OWNER:
+        return d.team.roleOwner;
+      case FirmRole.SENIOR_LAWYER:
+        return d.team.roleSeniorLawyer;
+      case FirmRole.LAWYER:
+        return d.team.roleLawyer;
+      default:
+        return d.team.roleAssistant;
+    }
+  };
+
+  const firmRoleBadgeVariant = (role: string) => {
+    switch (role) {
+      case FirmRole.OWNER:
+        return 'default' as const;
+      case FirmRole.SENIOR_LAWYER:
+        return 'success' as const;
+      case FirmRole.LAWYER:
+        return 'secondary' as const;
+      default:
+        return 'muted' as const;
+    }
+  };
 
   const canRemoveMember = (member: TeamMember) => {
     if (member.id === user?.id) return false;
@@ -90,6 +124,28 @@ export default function TeamPage() {
       alert(err instanceof Error ? err.message : d.team.removeFailed);
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  const canChangeRole = (member: TeamMember) => {
+    if (member.id === user?.id) return false;
+    if (member.firmRole === FirmRole.OWNER) {
+      const ownerCount = members.filter((m) => m.firmRole === FirmRole.OWNER).length;
+      if (ownerCount <= 1) return false;
+    }
+    return true;
+  };
+
+  const handleRoleChange = async (member: TeamMember, role: FirmRole) => {
+    if (!token || role === member.firmRole) return;
+    setChangingRoleId(member.id);
+    try {
+      await api.updateMemberRole(token, member.id, role);
+      await loadTeam();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : d.team.roleChangeFailed);
+    } finally {
+      setChangingRoleId(null);
     }
   };
 
@@ -161,7 +217,9 @@ export default function TeamPage() {
                 onChange={(e) => setInviteRole(e.target.value as FirmRole)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               >
-                <option value={FirmRole.ASSISTANT}>{d.team.roleAssistant}</option>
+                {ROLE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
+                ))}
               </select>
               <Button type="submit" disabled={inviting}>
                 {inviting ? d.team.sending : d.team.sendInvite}
@@ -203,9 +261,23 @@ export default function TeamPage() {
                         {m.email}
                       </p>
                     </div>
-                    <Badge variant={m.firmRole === FirmRole.OWNER ? 'default' : 'muted'}>
-                      {firmRoleLabel(m.firmRole)}
-                    </Badge>
+                    {canChangeRole(m) ? (
+                      <select
+                        value={m.firmRole}
+                        disabled={changingRoleId === m.id}
+                        onChange={(e) => handleRoleChange(m, e.target.value as FirmRole)}
+                        className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
+                        aria-label={d.team.changeRole}
+                      >
+                        {ROLE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Badge variant={firmRoleBadgeVariant(m.firmRole)}>
+                        {firmRoleLabel(m.firmRole)}
+                      </Badge>
+                    )}
                     {canRemoveMember(m) && (
                       <Button
                         type="button"
@@ -242,9 +314,23 @@ export default function TeamPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{m.email}</TableCell>
                       <TableCell>
-                        <Badge variant={m.firmRole === FirmRole.OWNER ? 'default' : 'muted'}>
-                          {firmRoleLabel(m.firmRole)}
-                        </Badge>
+                        {canChangeRole(m) ? (
+                          <select
+                            value={m.firmRole}
+                            disabled={changingRoleId === m.id}
+                            onChange={(e) => handleRoleChange(m, e.target.value as FirmRole)}
+                            className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
+                            aria-label={d.team.changeRole}
+                          >
+                            {ROLE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <Badge variant={firmRoleBadgeVariant(m.firmRole)}>
+                            {firmRoleLabel(m.firmRole)}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(m.joinedAt).toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' })}

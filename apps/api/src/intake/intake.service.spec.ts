@@ -230,6 +230,7 @@ describe('IntakeService convertToCase', () => {
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    document: { updateMany: jest.fn() },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
@@ -424,6 +425,7 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
     intakePrecedentAnalysis: { updateMany: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
+    document: { updateMany: jest.fn() },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
@@ -518,5 +520,80 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
     expect(createArg.data.description).toContain('คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน');
     expect(createArg.data.description).toContain('ดำที่ 123/2569');
     expect(createArg.data.description).toContain('นัดสืบพยาน 15 ต.ค.');
+  });
+});
+
+describe('IntakeService.convertToCase — re-points intake documents', () => {
+  let service: IntakeService;
+  const mockPrisma = {
+    intake: { findFirst: jest.fn(), update: jest.fn() },
+    firm: { findUnique: jest.fn() },
+    case: { findMany: jest.fn(), create: jest.fn() },
+    caseAssignment: { createMany: jest.fn() },
+    calendarEvent: { create: jest.fn() },
+    document: { updateMany: jest.fn() },
+    intakePrecedentAnalysis: { updateMany: jest.fn() },
+  };
+  const mockTasksService = { create: jest.fn() };
+  const mockConfig = { get: jest.fn() };
+  const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IntakeService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: TasksService, useValue: mockTasksService },
+        { provide: ConfigService, useValue: mockConfig },
+        { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+      ],
+    }).compile();
+    service = module.get(IntakeService);
+  });
+
+  it('re-points every Document row from the intake to the new case', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: null,
+      assignedUserIds: [],
+      deadlineDate: null,
+      title: null,
+      clientName: null,
+      matterType: null,
+      description: null,
+    });
+    mockPrisma.firm.findUnique.mockResolvedValue({ ownRefPrefix: 'TSBREF' });
+    mockPrisma.case.findMany.mockResolvedValue([]);
+    mockPrisma.case.create.mockResolvedValue({ id: 'case-new', leadLawyerId: 'user-1', title: 'คดีจาก Intake' });
+
+    await service.convertToCase(user, 'intake-1', {});
+
+    expect(mockPrisma.document.updateMany).toHaveBeenCalledWith({
+      where: { intakeId: 'intake-1' },
+      data: { caseId: 'case-new', intakeId: null },
+    });
+  });
+
+  it('re-points intake documents to the existing related case when relatedCaseId is set', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: 'case-1',
+      assignedUserIds: [],
+      deadlineDate: null,
+    });
+    (mockPrisma as any).case.findFirst = jest.fn().mockResolvedValue({ id: 'case-1', firmId: 'firm-1', title: 'คดีเดิม' });
+    (mockPrisma as any).case.update = jest.fn().mockResolvedValue({ id: 'case-1', title: 'คดีเดิม' });
+    (mockPrisma as any).intakePrecedentAnalysis = { updateMany: jest.fn() };
+
+    await service.convertToCase(user, 'intake-1', {});
+
+    expect(mockPrisma.document.updateMany).toHaveBeenCalledWith({
+      where: { intakeId: 'intake-1' },
+      data: { caseId: 'case-1', intakeId: null },
+    });
   });
 });

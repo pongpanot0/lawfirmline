@@ -14,7 +14,7 @@ describe('CaseMessageService', () => {
     case: { findFirst: jest.fn() },
     caseMessage: { findMany: jest.fn(), create: jest.fn() },
     contactCaseAccess: { findMany: jest.fn() },
-    clientContact: { findMany: jest.fn() },
+    clientContact: { findMany: jest.fn(), update: jest.fn() },
     auditLog: { create: jest.fn() },
   };
   const mockCaseAccess = { canAccessCase: jest.fn() };

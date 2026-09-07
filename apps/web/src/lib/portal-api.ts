@@ -50,11 +50,33 @@ async function requestBlob(path: string, token: string): Promise<Blob> {
   return res.blob();
 }
 
+// No Content-Type header here on purpose — the browser sets the multipart
+// boundary itself when the body is a FormData instance.
+async function requestMultipart<T>(path: string, formData: FormData, token: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new PortalApiError(res.status, parseApiErrorMessage(body, res.statusText));
+  }
+  return res.json();
+}
+
 export interface PortalContact {
   id: string;
   name: string;
   email: string | null;
   client: { id: string; name: string } | null;
+}
+
+export interface PortalHearing {
+  id: string;
+  title: string;
+  startAt: string;
 }
 
 export interface PortalCaseSummary {
@@ -64,6 +86,7 @@ export interface PortalCaseSummary {
   status: string;
   courtName: string | null;
   openedAt: string;
+  nextHearing: PortalHearing | null;
 }
 
 export interface PortalCaseDetail extends PortalCaseSummary {
@@ -96,6 +119,41 @@ export interface PortalIntakeSubmissionEntry {
   submittedAt: string;
   withdrawnByClient: boolean;
   externalStatus: string;
+  attachments: Array<{ id: string; filename: string; size: number }>;
+}
+
+export interface PortalDashboardActivityItem {
+  type: 'document' | 'message' | 'hearing';
+  caseId: string;
+  caseTitle: string;
+  label: string;
+  occurredAt: string;
+}
+
+export interface PortalDashboardDocument {
+  documentId: string;
+  caseId: string;
+  caseTitle: string;
+  filename: string;
+  mimeType: string;
+  publishedAt: string;
+}
+
+export interface PortalDashboardSummary {
+  activeCases: number;
+  totalCases: number;
+  nextHearing: (PortalHearing & { caseId: string; courtName: string | null }) | null;
+  pendingDocuments: number;
+  unreadMessages: number;
+  recentActivity: PortalDashboardActivityItem[];
+  recentDocuments: PortalDashboardDocument[];
+}
+
+export interface PortalInvitePreview {
+  contactName: string;
+  contactEmail: string | null;
+  clientName: string;
+  expiresAt: string;
 }
 
 export interface PortalLineStatus {
@@ -133,7 +191,19 @@ export const portalApi = {
 
   getMe: (token: string) => request<PortalContact>('/client-portal/me', { token }),
 
+  getDashboardSummary: (token: string) =>
+    request<PortalDashboardSummary>('/client-portal/dashboard', { token }),
+
   getCases: (token: string) => request<PortalCaseSummary[]>('/client-portal/cases', { token }),
+
+  getInvite: (token: string) => request<PortalInvitePreview>(`/client-portal/invites/${token}`),
+
+  acceptInvite: (token: string) =>
+    request<{
+      accessToken: string;
+      contact: { id: string; name: string; email: string | null };
+      client: { id: string; name: string };
+    }>(`/client-portal/invites/${token}/accept`, { method: 'POST' }),
 
   getCase: (token: string, id: string) =>
     request<PortalCaseDetail>(`/client-portal/cases/${id}`, { token }),
@@ -154,15 +224,23 @@ export const portalApi = {
   submitIntake: (
     token: string,
     dto: { title: string; detail: string; clientRequestedDate?: string; urgencyFlag?: boolean },
-  ) =>
-    request<PortalIntakeSubmissionEntry>('/client-portal/intake', {
-      method: 'POST',
-      body: JSON.stringify(dto),
-      token,
-    }),
+    files: File[] = [],
+  ) => {
+    const formData = new FormData();
+    formData.append('title', dto.title);
+    formData.append('detail', dto.detail);
+    if (dto.clientRequestedDate) formData.append('clientRequestedDate', dto.clientRequestedDate);
+    if (dto.urgencyFlag !== undefined) formData.append('urgencyFlag', String(dto.urgencyFlag));
+    for (const file of files) formData.append('files', file);
+
+    return requestMultipart<PortalIntakeSubmissionEntry>('/client-portal/intake', formData, token);
+  },
 
   getMyIntakeSubmissions: (token: string) =>
     request<PortalIntakeSubmissionEntry[]>('/client-portal/intake', { token }),
+
+  downloadIntakeAttachment: (token: string, submissionId: string, attachmentId: string) =>
+    requestBlob(`/client-portal/intake/${submissionId}/attachments/${attachmentId}/download`, token),
 
   getLineStatus: (token: string) =>
     request<PortalLineStatus>('/client-portal/integrations/line/me', { token }),

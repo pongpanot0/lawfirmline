@@ -38,6 +38,7 @@ export class DocumentPublicationService {
       where: { documentId, version: document.version },
     });
     if (!documentVersion) throw new NotFoundException('Document version not found');
+    if (!document.caseId) throw new NotFoundException('Case not found');
 
     if (dto.recipientContacts && dto.recipientContacts.length > 0) {
       const legalCase = await this.prisma.case.findUnique({

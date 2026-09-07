@@ -93,6 +93,24 @@ export default function ClientsPage() {
     setSelected(updated);
   };
 
+  const [invitingContactId, setInvitingContactId] = useState<string | null>(null);
+  const [inviteSentFor, setInviteSentFor] = useState<Record<string, boolean>>({});
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const sendPortalInvite = async (contactId: string) => {
+    if (!token) return;
+    setInvitingContactId(contactId);
+    setInviteError(null);
+    try {
+      await api.sendPortalInvite(token, contactId);
+      setInviteSentFor((prev) => ({ ...prev, [contactId]: true }));
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'ส่งคำเชิญไม่สำเร็จ');
+    } finally {
+      setInvitingContactId(null);
+    }
+  };
+
   const [lineStatus, setLineStatus] = useState<Record<string, { connected: boolean }>>({});
 
   const [caseAccess, setCaseAccess] = useState<Record<string, ContactCaseAccessEntry[]>>({});
@@ -276,6 +294,8 @@ export default function ClientsPage() {
                 </Card>
               )}
 
+              {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
+
               {/* Contact list */}
               {selected.contacts.map((c, i) => (
                 <Card key={c.id ?? i}>
@@ -300,6 +320,21 @@ export default function ClientsPage() {
                       {c.id && c.email && (
                         <Button size="sm" variant={c.portalEnabled ? 'default' : 'outline'} onClick={() => togglePortalAccess(c.id!, !c.portalEnabled)} className="text-xs h-7">
                           {c.portalEnabled ? 'เปิดพอร์ทัลแล้ว' : 'เปิดพอร์ทัล'}
+                        </Button>
+                      )}
+                      {c.id && c.email && !c.portalEnabled && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={invitingContactId === c.id}
+                          onClick={() => sendPortalInvite(c.id!)}
+                        >
+                          {invitingContactId === c.id
+                            ? 'กำลังส่ง...'
+                            : inviteSentFor[c.id]
+                              ? 'ส่งคำเชิญแล้ว'
+                              : 'ส่งคำเชิญเข้าใช้พอร์ทัล'}
                         </Button>
                       )}
                       {c.id && lineStatus[c.id] && (

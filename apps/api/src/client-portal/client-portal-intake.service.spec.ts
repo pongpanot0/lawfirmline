@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { ClientPortalIntakeService } from './client-portal-intake.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -10,7 +11,13 @@ describe('ClientPortalIntakeService', () => {
       findMany: jest.fn(),
       count: jest.fn(),
     },
+    portalIntakeAttachment: {
+      create: jest.fn(),
+      update: jest.fn(),
+      findFirst: jest.fn(),
+    },
   };
+  const mockConfig = { get: jest.fn() };
   const portalUser = {
     clientContactId: 'contact-1',
     clientId: 'client-1',
@@ -25,6 +32,7 @@ describe('ClientPortalIntakeService', () => {
       providers: [
         ClientPortalIntakeService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: ConfigService, useValue: mockConfig },
       ],
     }).compile();
     service = module.get(ClientPortalIntakeService);

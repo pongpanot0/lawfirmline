@@ -20,6 +20,11 @@ export class ClientPortalController {
     return this.portalService.getMe(portalUser);
   }
 
+  @Get('dashboard')
+  getDashboardSummary(@CurrentPortalUser() portalUser: PortalIdentity) {
+    return this.portalService.getDashboardSummary(portalUser);
+  }
+
   @Get('cases')
   getCases(@CurrentPortalUser() portalUser: PortalIdentity) {
     return this.portalService.getCases(portalUser);

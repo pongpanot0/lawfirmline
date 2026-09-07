@@ -14,15 +14,24 @@ import {
   TaskStatus,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
-import { HandoffTaskDto, ReassignTaskDto, RejectTaskDto } from './dto/task-handoff.dto';
+import {
+  HandoffStandaloneTaskDto,
+  HandoffTaskDto,
+  ReassignTaskDto,
+  RejectTaskDto,
+} from './dto/task-handoff.dto';
 
 type CaseForAccess = { id: string; leadLawyerId: string };
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private caseAccess: CaseAccessService,
+  ) {}
 
   private taskInclude = {
     assignee: {
@@ -45,7 +54,7 @@ export class TasksService {
   private assertLeadOrOwner(user: AuthUser, legalCase: CaseForAccess) {
     if (user.firmRole === FirmRole.OWNER) return;
     if (legalCase.leadLawyerId === user.id) return;
-    throw new ForbiddenException('เฉพาะ Senior lawyer (Lead) หรือ Owner เท่านั้นที่ทำรายการนี้ได้');
+    throw new ForbiddenException('เฉพาะทนายความหลักของคดี (Lead) หรือ Owner เท่านั้นที่ทำรายการนี้ได้');
   }
 
   private async ensureCaseMembership(caseId: string, userId: string) {
@@ -94,9 +103,9 @@ export class TasksService {
     });
   }
 
-  async findByCase(caseId: string) {
+  async findByCase(caseId: string, user: AuthUser) {
     return this.prisma.task.findMany({
-      where: { caseId },
+      where: { caseId, ...this.caseAccess.getTaskFilterForUser(user) },
       include: this.taskInclude,
       orderBy: { createdAt: 'desc' },
     });
@@ -104,7 +113,11 @@ export class TasksService {
 
   async findMine(user: AuthUser) {
     return this.prisma.task.findMany({
-      where: { caseId: null, assigneeId: user.id },
+      where: {
+        caseId: null,
+        assignee: { firmMembers: { some: { firmId: user.firmId } } },
+        ...this.caseAccess.getTaskFilterForUser(user),
+      },
       include: this.taskInclude,
       orderBy: { createdAt: 'desc' },
     });
@@ -216,13 +229,14 @@ export class TasksService {
     if (user.id === legalCase.leadLawyerId) {
       throw new BadRequestException('คุณเป็น Senior lawyer ของคดีนี้อยู่แล้ว ไม่ต้องส่งต่อ');
     }
-    if (task.assigneeId !== user.id) {
+    if (task.assigneeId && task.assigneeId !== user.id) {
       throw new ForbiddenException('คุณไม่ใช่ผู้รับผิดชอบงานนี้');
     }
     const allowedStatuses: TaskStatus[] = [
       TaskStatus.TODO,
       TaskStatus.IN_PROGRESS,
       TaskStatus.NEEDS_REVISION,
+      TaskStatus.DONE,
     ];
     if (!allowedStatuses.includes(task.status as TaskStatus)) {
       throw new BadRequestException('งานนี้ไม่อยู่ในสถานะที่ส่งต่อได้');
@@ -328,6 +342,96 @@ export class TasksService {
       stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
     });
     await this.logActivity(caseId, `มอบหมายงาน "${task.title}" ใหม่`, user.id);
+
+    return this.findOne(taskId);
+  }
+
+  async handoffStandalone(taskId: string, user: AuthUser, dto: HandoffStandaloneTaskDto) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId: null } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    if (task.assigneeId !== user.id) {
+      throw new ForbiddenException('คุณไม่ใช่ผู้รับผิดชอบงานนี้');
+    }
+    if (dto.reviewerId === user.id) {
+      throw new BadRequestException('ไม่สามารถส่งงานให้ตัวเองตรวจได้');
+    }
+    const allowedStatuses: TaskStatus[] = [
+      TaskStatus.TODO,
+      TaskStatus.IN_PROGRESS,
+      TaskStatus.NEEDS_REVISION,
+    ];
+    if (!allowedStatuses.includes(task.status as TaskStatus)) {
+      throw new BadRequestException('งานนี้ไม่อยู่ในสถานะที่ส่งต่อได้');
+    }
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.PENDING_REVIEW, assigneeId: dto.reviewerId },
+    });
+
+    await this.logAssignment({
+      taskId,
+      action: TaskLogAction.HANDED_OFF,
+      fromUserId: user.id,
+      toUserId: dto.reviewerId,
+      performedById: user.id,
+      note: dto.note,
+      stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
+    });
+
+    return this.findOne(taskId);
+  }
+
+  async acceptStandalone(taskId: string, user: AuthUser) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId: null } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    if (task.assigneeId !== user.id) {
+      throw new ForbiddenException('คุณไม่ใช่ผู้ตรวจงานนี้');
+    }
+    if (task.status !== TaskStatus.PENDING_REVIEW) {
+      throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
+    }
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.DONE },
+    });
+
+    return this.findOne(taskId);
+  }
+
+  async rejectStandalone(taskId: string, user: AuthUser, dto: RejectTaskDto) {
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId: null } });
+    if (!task) throw new NotFoundException('ไม่พบงานนี้');
+
+    if (task.assigneeId !== user.id) {
+      throw new ForbiddenException('คุณไม่ใช่ผู้ตรวจงานนี้');
+    }
+    if (task.status !== TaskStatus.PENDING_REVIEW) {
+      throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
+    }
+
+    const lastHandoff = await this.prisma.taskAssignmentLog.findFirst({
+      where: { taskId, action: TaskLogAction.HANDED_OFF },
+      orderBy: { createdAt: 'desc' },
+    });
+    const returnToUserId = lastHandoff?.fromUserId ?? task.createdById;
+
+    await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId },
+    });
+
+    await this.logAssignment({
+      taskId,
+      action: TaskLogAction.REJECTED,
+      fromUserId: user.id,
+      toUserId: returnToUserId,
+      performedById: user.id,
+      note: dto.reason,
+    });
 
     return this.findOne(taskId);
   }

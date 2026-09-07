@@ -22,6 +22,7 @@ export default function TodosPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
+  const [error, setError] = useState('');
 
   const loadTasks = () => {
     if (!token) return;
@@ -43,8 +44,46 @@ export default function TodosPage() {
 
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
     if (!token) return;
-    await api.updateTodo(token, taskId, { status });
-    loadTasks();
+    setError('');
+    try {
+      await api.updateTodo(token, taskId, { status });
+      loadTasks();
+    } catch {
+      setError(d.todos.actionFailed);
+    }
+  };
+
+  const handleHandoff = async (taskId: string, note: string, reviewerId?: string) => {
+    if (!token || !reviewerId) return;
+    setError('');
+    try {
+      await api.handoffTodo(token, taskId, { reviewerId, note: note || undefined });
+      loadTasks();
+    } catch {
+      setError(d.todos.actionFailed);
+    }
+  };
+
+  const handleAccept = async (taskId: string) => {
+    if (!token) return;
+    setError('');
+    try {
+      await api.acceptTodo(token, taskId);
+      loadTasks();
+    } catch {
+      setError(d.todos.actionFailed);
+    }
+  };
+
+  const handleReject = async (taskId: string, reason: string) => {
+    if (!token) return;
+    setError('');
+    try {
+      await api.rejectTodo(token, taskId, { reason });
+      loadTasks();
+    } catch {
+      setError(d.todos.actionFailed);
+    }
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -75,6 +114,8 @@ export default function TodosPage() {
           </Button>
         }
       />
+
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
       {showForm && (
         <Card className="mb-6">
@@ -111,7 +152,17 @@ export default function TodosPage() {
         </Card>
       )}
 
-      <KanbanBoard tasks={tasks} onStatusChange={handleStatusChange} currentUserId={user?.id ?? ''} />
+      <KanbanBoard
+        tasks={tasks}
+        onStatusChange={handleStatusChange}
+        currentUserId={user?.id ?? ''}
+        enableHandoff
+        requireReviewerOnHandoff
+        reviewerOptions={users}
+        onHandoff={handleHandoff}
+        onAccept={handleAccept}
+        onReject={handleReject}
+      />
     </div>
   );
 }

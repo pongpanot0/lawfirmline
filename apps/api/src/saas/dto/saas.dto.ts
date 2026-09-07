@@ -1,5 +1,6 @@
 import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { BillingPeriod, FirmRole, SubscriptionPlan } from '../../generated/prisma';
+import { FirmRole } from '@lawfirm/shared';
+import { BillingPeriod, SubscriptionPlan } from '../../generated/prisma';
 
 export class InviteUserDto {
   @IsEmail()
@@ -8,6 +9,11 @@ export class InviteUserDto {
   @IsOptional()
   @IsEnum(FirmRole)
   role?: FirmRole;
+}
+
+export class UpdateMemberRoleDto {
+  @IsEnum(FirmRole)
+  role!: FirmRole;
 }
 
 export class AcceptInviteDto {

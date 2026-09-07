@@ -576,55 +576,6 @@ export default function CaseDetailPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">เลขดำ</label>
-                    <Input
-                      value={overviewForm.blackCaseNumber}
-                      onChange={(e) => setOverviewForm({ ...overviewForm, blackCaseNumber: e.target.value })}
-                      placeholder={CASE_NUMBER_HINT}
-                      className="mt-1 h-8 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">เลขแดง</label>
-                    <Input
-                      value={overviewForm.redCaseNumber}
-                      onChange={(e) => setOverviewForm({ ...overviewForm, redCaseNumber: e.target.value })}
-                      placeholder={CASE_NUMBER_HINT}
-                      className="mt-1 h-8 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">ระดับศาล</label>
-                    <select
-                      value={overviewForm.courtLevel}
-                      onChange={(e) => setOverviewForm({ ...overviewForm, courtLevel: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
-                    >
-                      <option value="">—</option>
-                      {Object.values(CourtLevel).map((level) => (
-                        <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">ศาล</label>
-                    <select
-                      value={overviewForm.courtName}
-                      onChange={(e) => setOverviewForm({ ...overviewForm, courtName: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
-                    >
-                      <option value="">—</option>
-                      {courts.map((c) => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
-                      ))}
-                      {overviewForm.courtName &&
-                        !courts.some((c) => c.name === overviewForm.courtName) && (
-                          <option value={overviewForm.courtName}>{overviewForm.courtName}</option>
-                        )}
-                    </select>
-                  </div>
-                  <div><label className="text-xs text-muted-foreground">ทุนทรัพย์ (บาท)</label><Input type="number" min="0" step="0.01" value={overviewForm.claimedAmount} onChange={(e) => setOverviewForm({ ...overviewForm, claimedAmount: e.target.value })} /></div>
-                  <div>
                     <label className="text-xs text-muted-foreground">รายได้โดยประมาณ</label>
                     <Input
                       type="number"
@@ -644,6 +595,71 @@ export default function CaseDetailPage() {
                     <p className="text-xs text-muted-foreground">ทนายผู้รับผิดชอบ</p>
                     <p className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</p>
                   </div>
+
+                  <details
+                    className="col-span-full rounded-lg border border-border p-3"
+                    open={Boolean(
+                      overviewForm.blackCaseNumber ||
+                        overviewForm.redCaseNumber ||
+                        overviewForm.courtLevel ||
+                        overviewForm.courtName,
+                    )}
+                  >
+                    <summary className="cursor-pointer text-xs font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      ข้อมูลศาล / เลขคดี (ไม่บังคับ)
+                    </summary>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">เลขดำ</label>
+                        <Input
+                          value={overviewForm.blackCaseNumber}
+                          onChange={(e) => setOverviewForm({ ...overviewForm, blackCaseNumber: e.target.value })}
+                          placeholder={CASE_NUMBER_HINT}
+                          className="mt-1 h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">เลขแดง</label>
+                        <Input
+                          value={overviewForm.redCaseNumber}
+                          onChange={(e) => setOverviewForm({ ...overviewForm, redCaseNumber: e.target.value })}
+                          placeholder={CASE_NUMBER_HINT}
+                          className="mt-1 h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">ระดับศาล</label>
+                        <select
+                          value={overviewForm.courtLevel}
+                          onChange={(e) => setOverviewForm({ ...overviewForm, courtLevel: e.target.value })}
+                          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                        >
+                          <option value="">—</option>
+                          {Object.values(CourtLevel).map((level) => (
+                            <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">ศาล</label>
+                        <select
+                          value={overviewForm.courtName}
+                          onChange={(e) => setOverviewForm({ ...overviewForm, courtName: e.target.value })}
+                          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                        >
+                          <option value="">—</option>
+                          {courts.map((c) => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                          {overviewForm.courtName &&
+                            !courts.some((c) => c.name === overviewForm.courtName) && (
+                              <option value={overviewForm.courtName}>{overviewForm.courtName}</option>
+                            )}
+                        </select>
+                      </div>
+                    </div>
+                  </details>
+
                   {overviewError && <p className="text-sm text-destructive">{overviewError}</p>}
                   <div className="flex gap-2 pt-1">
                     <Button type="submit" size="sm" disabled={savingOverview}>

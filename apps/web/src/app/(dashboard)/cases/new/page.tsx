@@ -662,6 +662,23 @@ export default function NewCasePage() {
                     onChange={setCostLines}
                     disabled={submitting || analysisBusy || !!createdCaseId}
                   />
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {autoTitle
+                        ? 'เติมจากประเภทคดีและลูกค้าให้อัตโนมัติ แก้ไขได้ตามต้องการ'
+                        : 'ใช้ชื่อที่คุณแก้ไขไว้'}
+                    </p>
+                    {!autoTitle && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setAutoTitle(true)}
+                      >
+                        ใช้ชื่อแนะนำ
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </details>
               <section

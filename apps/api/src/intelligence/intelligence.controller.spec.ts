@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { IntelligenceController } from './intelligence.controller';
 import { DocumentIntelligenceService } from './document-intelligence.service';
+import { DocumentsService } from '../documents/documents.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { PrismaService } from '../prisma/prisma.module';
@@ -16,6 +17,7 @@ describe('IntelligenceController', () => {
       controllers: [IntelligenceController],
       providers: [
         { provide: DocumentIntelligenceService, useValue: {} },
+        { provide: DocumentsService, useValue: {} },
         { provide: PrismaService, useValue: {} },
         Reflector,
       ],

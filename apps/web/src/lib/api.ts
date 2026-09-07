@@ -641,6 +641,13 @@ export const api = {
   removeTeamMember: (token: string, userId: string) =>
     request<{ success: boolean }>(`/saas/members/${userId}`, { method: 'DELETE', token }),
 
+  updateMemberRole: (token: string, userId: string, role: string) =>
+    request<{ success: boolean }>(`/saas/members/${userId}/role`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ role }),
+    }),
+
   cancelInvitation: (token: string, invitationId: string) =>
     request<{ success: boolean }>(`/saas/invitations/${invitationId}`, {
       method: 'DELETE',
@@ -785,6 +792,30 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  handoffTodo: (
+    token: string,
+    taskId: string,
+    data: { reviewerId: string; note?: string; stageDueDate?: string },
+  ) =>
+    request<TaskItem>(`/todos/${taskId}/handoff`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  acceptTodo: (token: string, taskId: string) =>
+    request<TaskItem>(`/todos/${taskId}/accept`, {
+      method: 'POST',
+      token,
+    }),
+
+  rejectTodo: (token: string, taskId: string, data: { reason: string }) =>
+    request<TaskItem>(`/todos/${taskId}/reject`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
   createTask: (token: string, caseId: string, data: Record<string, unknown>) =>
     request(`/cases/${caseId}/tasks`, {
       method: 'POST',
@@ -884,6 +915,13 @@ export const api = {
       `/clients/contacts/${contactId}/line-status`,
       { token },
     ),
+
+  sendPortalInvite: (token: string, clientContactId: string) =>
+    request<{ id: string; expiresAt: string }>('/client-portal/invites', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ clientContactId }),
+    }),
 
   getCourts: (token: string, activeOnly = true) =>
     request<CourtItem[]>(`/courts?activeOnly=${activeOnly}`, { token }),
@@ -1081,6 +1119,31 @@ export const api = {
       body: form,
     });
   },
+
+  getIntakeDocuments: (token: string, intakeId: string) =>
+    request<DocumentItem[]>(`/intake/${intakeId}/documents`, { token }),
+
+  uploadIntakeDocument: (token: string, intakeId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<DocumentItem>(`/intake/${intakeId}/documents`, {
+      method: 'POST',
+      token,
+      body: form,
+    });
+  },
+
+  downloadIntakeDocument: (token: string, intakeId: string, documentId: string, version?: number) => {
+    const qs = version ? `?version=${version}` : '';
+    return fetchBlob(`/intake/${intakeId}/documents/${documentId}/download${qs}`, { token });
+  },
+
+  updateIntakeDocumentVisibility: (token: string, intakeId: string, documentId: string, visibleToClient: boolean) =>
+    request<DocumentItem>(`/intake/${intakeId}/documents/${documentId}/visibility`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ visibleToClient }),
+    }),
 
   downloadDocument: (
     token: string,

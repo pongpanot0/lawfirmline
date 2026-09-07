@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LexFlow · Customer Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --font-sans: "Inter", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+    --radius: 0.625rem;
+
+    --background: 220 20% 98%;
+    --foreground: 224 30% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 30% 12%;
+
+    --primary: 224 76% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 224 20% 30%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
+
+    --accent: 220 14% 94%;
+    --accent-foreground: 224 30% 12%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 224 76% 48%;
+
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 224 20% 30%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-border: 220 13% 93%;
+
+    --success: 152 60% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    /* status accent colors, matching case-status.ts variants */
+    --new: 224 76% 48%;
+    --drafting: 262 52% 47%;
+    --filed: 199 89% 42%;
+    --hearing: 38 92% 45%;
+    --judgment: 280 40% 45%;
+    --closed: 220 10% 46%;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 264px 1fr;
+    min-height: 100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: hsl(var(--sidebar));
+    border-right: 1px solid hsl(var(--sidebar-border));
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 12px 24px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: -0.02em;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-weight: 700;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    font-weight: 500;
+  }
+
+  .nav-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: hsl(var(--muted-foreground));
+    padding: 14px 12px 6px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: hsl(var(--sidebar-foreground));
+  }
+
+  .nav-item:hover { background: hsl(var(--sidebar-accent)); }
+
+  .nav-item.active {
+    background: hsl(var(--primary) / 0.08);
+    color: hsl(var(--primary));
+    font-weight: 600;
+  }
+
+  .nav-item .icon { width: 18px; height: 18px; flex-shrink: 0; }
+  .nav-item .badge-count {
+    margin-left: auto;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid hsl(var(--sidebar-border));
+  }
+
+  .user-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+  }
+
+  .user-chip:hover { background: hsl(var(--sidebar-accent)); }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12.5px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .user-name { font-size: 13px; font-weight: 600; line-height: 1.3; }
+  .user-role { font-size: 11.5px; color: hsl(var(--muted-foreground)); }
+
+  /* ---------- Main ---------- */
+  .main {
+    min-width: 0;
+    padding: 28px 40px 64px;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 28px;
+  }
+
+  .greeting-eyebrow {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: hsl(var(--primary));
+    margin: 0 0 4px;
+  }
+
+  h1.page-title {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+
+  .page-sub {
+    font-size: 13.5px;
+    color: hsl(var(--muted-foreground));
+    margin: 0;
+  }
+
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .icon-btn .dot {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: hsl(var(--destructive));
+    border: 1.5px solid hsl(var(--card));
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 9px;
+    font-size: 13.5px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+
+  .btn-outline {
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--border));
+  }
+
+  /* ---------- Stat cards ---------- */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  }
+
+  .stat-card { padding: 18px 20px; }
+
+  .stat-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .stat-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .stat-meta { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .stat-meta.up { color: hsl(var(--success)); font-weight: 600; }
+  .stat-meta.warn { color: hsl(var(--warning)); font-weight: 600; }
+
+  /* ---------- Content grid ---------- */
+  .content-grid {
+    display: grid;
+    grid-template-columns: 1fr 336px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-size: 15.5px;
+    font-weight: 700;
+  }
+
+  .section-link {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: hsl(var(--primary));
+  }
+
+  .case-list { display: flex; flex-direction: column; gap: 12px; }
+
+  .case-card {
+    padding: 18px 20px;
+    cursor: pointer;
+    transition: border-color .15s ease;
+  }
+
+  .case-card:hover { border-color: hsl(var(--primary) / 0.4); }
+
+  .case-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .case-title { font-size: 14.5px; font-weight: 700; margin: 0 0 3px; }
+  .case-ref { font-size: 12.5px; color: hsl(var(--muted-foreground)); margin: 0; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+  .badge-new { background: hsl(var(--new) / 0.1); color: hsl(var(--new)); }
+  .badge-drafting { background: hsl(var(--drafting) / 0.1); color: hsl(var(--drafting)); }
+  .badge-filed { background: hsl(var(--filed) / 0.1); color: hsl(var(--filed)); }
+  .badge-hearing { background: hsl(var(--hearing) / 0.12); color: hsl(var(--hearing)); }
+  .badge-judgment { background: hsl(var(--judgment) / 0.1); color: hsl(var(--judgment)); }
+  .badge-closed { background: hsl(var(--closed) / 0.1); color: hsl(var(--closed)); }
+
+  /* stage tracker */
+  .stage-track {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 4px 0 12px;
+  }
+
+  .stage-seg {
+    height: 4px;
+    flex: 1;
+    background: hsl(var(--accent));
+    border-radius: 2px;
+    margin-right: 4px;
+  }
+  .stage-seg:last-child { margin-right: 0; }
+  .stage-seg.done { background: hsl(var(--primary)); }
+  .stage-seg.current { background: hsl(var(--primary) / 0.4); }
+
+  .case-card-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12.5px;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .case-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .case-meta-item.alert { color: hsl(var(--warning)); font-weight: 600; }
+
+  .icon {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+
+  /* ---------- Sidebar-right panels ---------- */
+  .panel { padding: 18px 18px 8px; margin-bottom: 20px; }
+  .panel:last-child { margin-bottom: 0; }
+
+  .panel .section-title { font-size: 14px; }
+
+  .activity-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid hsl(var(--border));
+  }
+  .activity-item:last-child { border-bottom: none; }
+
+  .activity-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: hsl(var(--accent));
+    color: hsl(var(--foreground));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .activity-text { font-size: 12.5px; line-height: 1.5; }
+  .activity-text b { font-weight: 600; }
+  .activity-time { font-size: 11.5px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+
+  .doc-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid hsl(var(--border));
+  }
+  .doc-item:last-child { border-bottom: none; }
+
+  .doc-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 7px;
+    background: hsl(var(--destructive) / 0.08);
+    color: hsl(var(--destructive));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .doc-name { font-size: 12.5px; font-weight: 600; margin: 0; }
+  .doc-meta { font-size: 11.5px; color: hsl(var(--muted-foreground)); margin: 1px 0 0; }
+
+  .doc-action {
+    margin-left: auto;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+  }
+  .doc-action:hover { background: hsl(var(--accent)); }
+
+  .cta-panel {
+    background: linear-gradient(155deg, hsl(var(--primary)), hsl(224 70% 38%));
+    color: hsl(var(--primary-foreground));
+    padding: 20px;
+    border: none;
+  }
+  .cta-panel .section-title { color: hsl(var(--primary-foreground)); }
+  .cta-panel p {
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: hsl(0 0% 100% / 0.85);
+    margin: 6px 0 14px;
+  }
+  .cta-panel .btn {
+    background: hsl(0 0% 100%);
+    color: hsl(var(--primary));
+    width: 100%;
+    justify-content: center;
+  }
+
+  @media (max-width: 1100px) {
+    .content-grid { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .main { padding: 20px; }
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">LF</div>
+      <div>
+        <div class="brand-name">LexFlow</div>
+        <div class="brand-sub">Client Portal</div>
+      </div>
+    </div>
+
+    <div class="nav-section-label">เมนูหลัก</div>
+    <a class="nav-item active" href="#">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      ภาพรวม
+    </a>
+    <a class="nav-item" href="#">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+      คดีของฉัน
+      <span class="badge-count">4</span>
+    </a>
+    <a class="nav-item" href="#">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+      เอกสาร
+    </a>
+    <a class="nav-item" href="#">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+      ข้อความ
+      <span class="badge-count">2</span>
+    </a>
+    <a class="nav-item" href="#">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+      นัดหมาย
+    </a>
+
+    <div class="nav-section-label">บัญชี</div>
+    <a class="nav-item" href="#">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg>
+      ตั้งค่าการแจ้งเตือน
+    </a>
+    <a class="nav-item" href="#">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      ออกจากระบบ
+    </a>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">สธ</div>
+        <div>
+          <div class="user-name">สมชาย ธนโชติ</div>
+          <div class="user-role">บจก. ธนโชติ คอนสตรัคชั่น</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <p class="greeting-eyebrow">สวัสดีตอนบ่าย</p>
+        <h1 class="page-title">ยินดีต้อนรับกลับ, คุณสมชาย</h1>
+        <p class="page-sub">นี่คือภาพรวมคดีและเอกสารล่าสุดของ บจก. ธนโชติ คอนสตรัคชั่น</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" aria-label="การแจ้งเตือน">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="dot"></span>
+        </button>
+        <a class="btn btn-outline" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+          เรื่องที่ส่ง
+        </a>
+        <a class="btn btn-primary" href="#">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          ส่งเรื่องใหม่
+        </a>
+      </div>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="stat-grid">
+      <div class="card stat-card">
+        <div class="stat-top">
+          <span class="stat-label">คดีที่กำลังดำเนินการ</span>
+          <div class="stat-icon" style="background:hsl(var(--primary)/0.1); color:hsl(var(--primary));">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+          </div>
+        </div>
+        <div class="stat-value">4</div>
+        <div class="stat-meta">จากทั้งหมด 6 คดี</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-top">
+          <span class="stat-label">นัดศาลถัดไป</span>
+          <div class="stat-icon" style="background:hsl(var(--warning)/0.12); color:hsl(var(--warning));">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          </div>
+        </div>
+        <div class="stat-value">18 ก.ย.</div>
+        <div class="stat-meta warn">อีก 12 วัน · ศาลแพ่งกรุงเทพใต้</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-top">
+          <span class="stat-label">เอกสารรอลงนาม</span>
+          <div class="stat-icon" style="background:hsl(var(--destructive)/0.1); color:hsl(var(--destructive));">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+          </div>
+        </div>
+        <div class="stat-value">2</div>
+        <div class="stat-meta">ต้องดำเนินการภายใน 3 วัน</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-top">
+          <span class="stat-label">ข้อความใหม่</span>
+          <div class="stat-icon" style="background:hsl(var(--success)/0.12); color:hsl(var(--success));">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+          </div>
+        </div>
+        <div class="stat-value">2</div>
+        <div class="stat-meta up">จากทนายความผู้รับผิดชอบ</div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content-grid">
+
+      <!-- Left: case list -->
+      <div>
+        <div class="section-head">
+          <span class="section-title">คดีของฉัน</span>
+          <a class="section-link" href="#">ดูทั้งหมด →</a>
+        </div>
+
+        <div class="case-list">
+
+          <div class="card case-card">
+            <div class="case-card-top">
+              <div>
+                <p class="case-title">คดีผิดสัญญาก่อสร้าง — บจก. ธนโชติ ปะทะ บจก. สร้างเสริม</p>
+                <p class="case-ref">เลขที่อ้างอิง TNC-2026-014 · ศาลแพ่งกรุงเทพใต้</p>
+              </div>
+              <span class="badge badge-hearing">นัดศาล</span>
+            </div>
+            <div class="stage-track">
+              <div class="stage-seg done"></div>
+              <div class="stage-seg done"></div>
+              <div class="stage-seg done"></div>
+              <div class="stage-seg current"></div>
+              <div class="stage-seg"></div>
+            </div>
+            <div class="case-card-bottom">
+              <div class="case-meta-item alert">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                นัดถัดไป 18 ก.ย. 2569
+              </div>
+              <div class="case-meta-item">ทนายความ: อ.ปิยะดา วงศ์ธนกิจ</div>
+            </div>
+          </div>
+
+          <div class="card case-card">
+            <div class="case-card-top">
+              <div>
+                <p class="case-title">ข้อพิพาทค่าจ้างก่อสร้างค้างจ่าย</p>
+                <p class="case-ref">เลขที่อ้างอิง TNC-2026-021 · อยู่ระหว่างร่างคำฟ้อง</p>
+              </div>
+              <span class="badge badge-drafting">ร่างคำฟ้อง</span>
+            </div>
+            <div class="stage-track">
+              <div class="stage-seg done"></div>
+              <div class="stage-seg current"></div>
+              <div class="stage-seg"></div>
+              <div class="stage-seg"></div>
+              <div class="stage-seg"></div>
+            </div>
+            <div class="case-card-bottom">
+              <div class="case-meta-item">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+                รอเอกสารเพิ่มเติมจากคุณ
+              </div>
+              <div class="case-meta-item">ทนายความ: อ.ปิยะดา วงศ์ธนกิจ</div>
+            </div>
+          </div>
+
+          <div class="card case-card">
+            <div class="case-card-top">
+              <div>
+                <p class="case-title">คดีแรงงาน — พนักงานเดิมฟ้องเลิกจ้างไม่เป็นธรรม</p>
+                <p class="case-ref">เลขที่อ้างอิง TNC-2025-198 · ยื่นฟ้องแล้ว</p>
+              </div>
+              <span class="badge badge-filed">ยื่นฟ้องแล้ว</span>
+            </div>
+            <div class="stage-track">
+              <div class="stage-seg done"></div>
+              <div class="stage-seg done"></div>
+              <div class="stage-seg current"></div>
+              <div class="stage-seg"></div>
+              <div class="stage-seg"></div>
+            </div>
+            <div class="case-card-bottom">
+              <div class="case-meta-item">รอนัดพิจารณาคดีครั้งแรก</div>
+              <div class="case-meta-item">ทนายความ: อ.กิตติ เรืองศรี</div>
+            </div>
+          </div>
+
+          <div class="card case-card">
+            <div class="case-card-top">
+              <div>
+                <p class="case-title">คดีเช่าพื้นที่คลังสินค้า</p>
+                <p class="case-ref">เลขที่อ้างอิง TNC-2025-087 · ปิดคดีแล้ว</p>
+              </div>
+              <span class="badge badge-closed">ปิดคดี</span>
+            </div>
+            <div class="stage-track">
+              <div class="stage-seg done"></div>
+              <div class="stage-seg done"></div>
+              <div class="stage-seg done"></div>
+              <div class="stage-seg done"></div>
+              <div class="stage-seg done"></div>
+            </div>
+            <div class="case-card-bottom">
+              <div class="case-meta-item">ปิดคดีเมื่อ 2 ส.ค. 2569</div>
+              <div class="case-meta-item">ทนายความ: อ.กิตติ เรืองศรี</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Right: activity + documents + cta -->
+      <div>
+        <div class="card panel">
+          <div class="section-head">
+            <span class="section-title">กิจกรรมล่าสุด</span>
+          </div>
+
+          <div class="activity-item">
+            <div class="activity-icon" style="color:hsl(var(--warning));">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </div>
+            <div>
+              <p class="activity-text">ศาลนัด <b>ไต่สวนพยาน</b> คดี TNC-2026-014</p>
+              <p class="activity-time">2 ชั่วโมงที่แล้ว</p>
+            </div>
+          </div>
+
+          <div class="activity-item">
+            <div class="activity-icon" style="color:hsl(var(--primary));">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div>
+              <p class="activity-text">อ.ปิยะดา อัปโหลด <b>ร่างคำฟ้อง v2</b></p>
+              <p class="activity-time">เมื่อวาน · 16:42</p>
+            </div>
+          </div>
+
+          <div class="activity-item">
+            <div class="activity-icon" style="color:hsl(var(--success));">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+            </div>
+            <div>
+              <p class="activity-text">ข้อความใหม่จาก <b>อ.กิตติ เรืองศรี</b></p>
+              <p class="activity-time">2 วันที่แล้ว</p>
+            </div>
+          </div>
+
+          <div class="activity-item">
+            <div class="activity-icon">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+            </div>
+            <div>
+              <p class="activity-text">คดีเช่าพื้นที่คลังสินค้าถูก <b>ปิดคดี</b></p>
+              <p class="activity-time">2 ส.ค. 2569</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card panel">
+          <div class="section-head">
+            <span class="section-title">เอกสารล่าสุด</span>
+            <a class="section-link" href="#">ทั้งหมด</a>
+          </div>
+
+          <div class="doc-item">
+            <div class="doc-icon">PDF</div>
+            <div>
+              <p class="doc-name">ร่างคำฟ้อง_v2.pdf</p>
+              <p class="doc-meta">TNC-2026-021 · 1.2 MB</p>
+            </div>
+            <div class="doc-action">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            </div>
+          </div>
+
+          <div class="doc-item">
+            <div class="doc-icon">PDF</div>
+            <div>
+              <p class="doc-name">หนังสือมอบอำนาจ.pdf</p>
+              <p class="doc-meta">TNC-2026-014 · 340 KB</p>
+            </div>
+            <div class="doc-action">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            </div>
+          </div>
+
+          <div class="doc-item">
+            <div class="doc-icon">PDF</div>
+            <div>
+              <p class="doc-name">สัญญาว่าจ้าง_ต้นฉบับ.pdf</p>
+              <p class="doc-meta">TNC-2025-198 · 890 KB</p>
+            </div>
+            <div class="doc-action">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="card panel cta-panel">
+          <span class="section-title">มีเรื่องใหม่ที่ต้องการคำปรึกษา?</span>
+          <p>ส่งรายละเอียดเบื้องต้นให้ทีมกฎหมายของเรา เราจะติดต่อกลับภายใน 1 วันทำการ</p>
+          <a class="btn" href="#">ส่งเรื่องใหม่</a>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

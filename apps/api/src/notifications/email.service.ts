@@ -29,6 +29,15 @@ export interface ClientPortalMagicLinkParams {
   expiresAt: Date;
 }
 
+export interface ClientPortalInviteEmailParams {
+  to: string;
+  contactName: string;
+  clientName: string;
+  firmName: string;
+  inviteUrl: string;
+  expiresAt: Date;
+}
+
 export interface DocumentPublishedEmailParams {
   to: string;
   contactName: string;
@@ -192,6 +201,63 @@ export class EmailService {
       this.logger.error(
         `Failed to send client portal magic link email to ${maskEmail(params.to)}: ${message}`,
       );
+      throw error;
+    }
+  }
+
+  async sendClientPortalInviteEmail(params: ClientPortalInviteEmailParams): Promise<void> {
+    if (!this.isConfigured()) {
+      this.logger.warn(
+        `SendGrid not configured (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL); skipped portal invite email to ${params.to}`,
+      );
+      return;
+    }
+
+    const fromEmail = this.getFromEmail()!;
+    const expiresLabel = params.expiresAt.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    const text = [
+      `${params.firmName} has invited you to use the client portal for ${params.clientName}.`,
+      `Hi ${params.contactName}, accept the invitation to track your case status, documents, and invoices online:`,
+      params.inviteUrl,
+      `This invitation expires on ${expiresLabel}.`,
+    ].join('\n\n');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;max-width:560px">
+        <h2 style="margin:0 0 12px">You're invited to the ${escapeHtml(params.firmName)} client portal</h2>
+        <p>Hi <strong>${escapeHtml(params.contactName)}</strong>, ${escapeHtml(params.firmName)} has enabled portal access for <strong>${escapeHtml(params.clientName)}</strong>.</p>
+        <p style="margin:24px 0">
+          <a href="${params.inviteUrl}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">
+            Accept invitation
+          </a>
+        </p>
+        <p style="font-size:14px;color:#6b7280">Or copy this link:<br><a href="${params.inviteUrl}">${params.inviteUrl}</a></p>
+        <p style="font-size:14px;color:#6b7280">This invitation expires on ${expiresLabel}.</p>
+      </div>
+    `.trim();
+
+    try {
+      await sgMail.send({
+        to: params.to,
+        from: { email: fromEmail, name: this.getFromName() },
+        subject: `You're invited to the ${params.firmName} client portal`,
+        text,
+        html,
+      });
+      this.logger.log(`Client portal invite email sent to ${maskEmail(params.to)}`);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error && 'response' in error
+            ? JSON.stringify((error as { response?: { body?: unknown } }).response?.body)
+            : 'Unknown SendGrid error';
+      this.logger.error(`Failed to send client portal invite email to ${maskEmail(params.to)}: ${message}`);
       throw error;
     }
   }

@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   StreamableFile,
   UseGuards,
@@ -16,7 +17,7 @@ import { SubscriptionService } from './subscription.service';
 import { OmiseService } from './omise.service';
 import { TenantService } from './tenant.service';
 import { AuthService } from '../auth/auth.service';
-import { AcceptInviteDto, CheckoutDto, InviteUserDto, PromptPayCheckoutDto } from './dto/saas.dto';
+import { AcceptInviteDto, CheckoutDto, InviteUserDto, PromptPayCheckoutDto, UpdateMemberRoleDto } from './dto/saas.dto';
 import { FirmRoleGuard } from './guards/firm-role.guard';
 import { OwnerOnly, SkipSubscription } from './decorators/saas.decorators';
 import { BillingPeriod, SubscriptionPlan } from '@lawfirm/shared';
@@ -145,6 +146,18 @@ export class SaasController {
   @SkipSubscription()
   removeMember(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
     return this.tenant.removeMember(user, userId);
+  }
+
+  @Patch('members/:userId/role')
+  @UseGuards(JwtAuthGuard, FirmRoleGuard)
+  @OwnerOnly()
+  @SkipSubscription()
+  updateMemberRole(
+    @CurrentUser() user: AuthUser,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateMemberRoleDto,
+  ) {
+    return this.tenant.updateMemberRole(user, userId, dto.role);
   }
 
   @Delete('invitations/:id')

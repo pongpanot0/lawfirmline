@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
+import { HandoffStandaloneTaskDto, RejectTaskDto } from './dto/task-handoff.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '@lawfirm/shared';
@@ -34,5 +35,28 @@ export class TodosController {
   async remove(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string) {
     await this.tasksService.assertStandaloneOwnership(taskId, user);
     return this.tasksService.remove(taskId);
+  }
+
+  @Patch(':taskId/handoff')
+  handoff(
+    @CurrentUser() user: AuthUser,
+    @Param('taskId') taskId: string,
+    @Body() dto: HandoffStandaloneTaskDto,
+  ) {
+    return this.tasksService.handoffStandalone(taskId, user, dto);
+  }
+
+  @Post(':taskId/accept')
+  accept(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string) {
+    return this.tasksService.acceptStandalone(taskId, user);
+  }
+
+  @Post(':taskId/reject')
+  reject(
+    @CurrentUser() user: AuthUser,
+    @Param('taskId') taskId: string,
+    @Body() dto: RejectTaskDto,
+  ) {
+    return this.tasksService.rejectStandalone(taskId, user, dto);
   }
 }

@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { Plus, ArrowLeft } from 'lucide-react';
 import { FirmRole, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CaseDetail, TaskItem } from '@/lib/api';
+import { api, CaseDetail, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,8 +19,10 @@ export default function CaseTasksPage() {
   const { token, user } = useAuth();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [caseDetail, setCaseDetail] = useState<CaseDetail | null>(null);
+  const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState('');
+  const [newAssigneeId, setNewAssigneeId] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
 
@@ -41,6 +43,11 @@ export default function CaseTasksPage() {
     if (!token || !id) return;
     api.getCase(token, id).then(setCaseDetail).catch(console.error);
   }, [token, id]);
+
+  useEffect(() => {
+    if (!token) return;
+    api.getUsers(token).then(setUsers).catch(console.error);
+  }, [token]);
 
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
     if (!token || !id) return;
@@ -76,8 +83,12 @@ export default function CaseTasksPage() {
     if (!token || !id || !newTitle) return;
     setError('');
     try {
-      await api.createTask(token, id, { title: newTitle });
+      await api.createTask(token, id, {
+        title: newTitle,
+        assigneeId: newAssigneeId || undefined,
+      });
       setNewTitle('');
+      setNewAssigneeId('');
       setShowForm(false);
       loadTasks();
     } catch {
@@ -111,14 +122,26 @@ export default function CaseTasksPage() {
       {showForm && (
         <Card className="mb-6">
           <CardContent className="p-4">
-            <form onSubmit={handleCreate} className="flex gap-3">
+            <form onSubmit={handleCreate} className="flex flex-wrap items-center gap-3">
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder={d.caseTasks.titlePlaceholder}
-                className="flex-1"
+                className="min-w-[200px] flex-1"
                 required
               />
+              <select
+                value={newAssigneeId}
+                onChange={(e) => setNewAssigneeId(e.target.value)}
+                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              >
+                <option value="">{d.caseTasks.assignToMe}</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.firstName} {u.lastName}
+                  </option>
+                ))}
+              </select>
               <Button type="submit" size="sm">{d.caseTasks.create}</Button>
             </form>
           </CardContent>
