@@ -113,6 +113,12 @@ export class CreateCaseDto {
   estimatedFee?: number;
 
   @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(FEE_MAX)
+  claimedAmount?: number;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => InitialActivityDto)
   initialActivity?: InitialActivityDto;
@@ -192,6 +198,12 @@ export class UpdateCaseDto {
   @Min(FEE_MIN)
   @Max(FEE_MAX)
   estimatedFee?: number | null;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(FEE_MAX)
+  claimedAmount?: number | null;
 
   @IsOptional()
   @IsString()

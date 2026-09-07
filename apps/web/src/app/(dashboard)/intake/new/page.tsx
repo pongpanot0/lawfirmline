@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { api, ClientItem, ApiError, IntakeItem, CaseItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { getCaseStatusDisplay } from '@/lib/case-status';
+import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 
 const REFERRAL_TYPE_LABELS: Record<string, string> = {
   INDIVIDUAL: 'บุคคลทั่วไป',
@@ -41,7 +42,18 @@ export default function NewIntakePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const today = new Date().toISOString().slice(0, 10);
+  const clientRequest = useRef(0);
+  const submitLock = useRef(false);
+  const [clientsError, setClientsError] = useState(false);
+  const [clientsLoading, setClientsLoading] = useState(true);
+  const [clientsRetry, setClientsRetry] = useState(0);
+  const [casesLoading, setCasesLoading] = useState(false);
+  const [casesError, setCasesError] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [createdIntakeId, setCreatedIntakeId] = useState<string | null>(null);
+  const now = new Date();
+  const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
 
   const [form, setForm] = useState({
     title: '',
@@ -66,22 +78,31 @@ export default function NewIntakePage() {
 
   useEffect(() => {
     if (!token) return;
-    api.getClients(token).catch(() => [] as ClientItem[]).then(setClients);
-  }, [token]);
+    let active = true;
+    setClientsLoading(true);
+    setClientsError(false);
+    api.getClients(token).then((items) => { if (active) setClients(items); })
+      .catch(() => { if (active) setClientsError(true); })
+      .finally(() => { if (active) setClientsLoading(false); });
+    return () => { active = false; };
+  }, [token, clientsRetry]);
 
   const set = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
-
   const selectedClient = clients.find((c) => c.id === form.clientId) ?? null;
-  const selectedContact = selectedClient?.contacts.find((c) => c.id === form.clientContactId) ?? null;
 
   const handleClientChange = (clientId: string) => {
-    setForm((f) => ({ ...f, clientId, clientContactId: '', referralName: '', relatedCaseId: '' }));
+    const request = ++clientRequest.current;
+    const client = clients.find((item) => item.id === clientId);
+    const contact = client?.contacts.find((item) => item.isPrimary) ?? (client?.contacts.length === 1 ? client.contacts[0] : undefined);
+    setForm((f) => ({ ...f, clientId, clientContactId: contact?.id ?? '', referralName: contact?.name ?? '', relatedCaseId: '' }));
     setClientCases([]);
+    setCasesError(false);
+    setCasesLoading(!!clientId);
     if (clientId && token) {
-      api
-        .getClient(token, clientId)
-        .then((full) => setClientCases(full.cases ?? []))
-        .catch(() => setClientCases([]));
+      api.getClient(token, clientId)
+        .then((full) => { if (request === clientRequest.current) setClientCases(full.cases ?? []); })
+        .catch(() => { if (request === clientRequest.current) setCasesError(true); })
+        .finally(() => { if (request === clientRequest.current) setCasesLoading(false); });
     }
   };
 
@@ -94,12 +115,18 @@ export default function NewIntakePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
+    if (!token || submitLock.current) return;
+    if (!form.title.trim()) {
+      setError('กรุณาระบุชื่อเรื่องสั้นๆ ก่อนบันทึก');
+      document.getElementById('intake-title')?.focus();
+      return;
+    }
+    submitLock.current = true;
     setSubmitting(true);
     setError('');
     try {
       const payload: Record<string, unknown> = {
-        title: form.title,
+        title: form.title.trim(),
         referralType: form.referralType,
         referralChannel: form.referralChannel,
         referralName: form.referralName || undefined,
@@ -116,102 +143,101 @@ export default function NewIntakePage() {
       };
       if (form.clientId) {
         payload.clientId = form.clientId;
-      } else if (form.clientName) {
-        payload.clientName = form.clientName;
+      } else if (form.clientName.trim()) {
+        payload.clientName = form.clientName.trim();
       }
-      const created = await api.createIntake(token, payload) as IntakeItem;
+      const created = createdIntakeId
+        ? { id: createdIntakeId }
+        : ((await api.createIntake(token, payload)) as IntakeItem);
+      setCreatedIntakeId(created.id);
+      const failedFiles: File[] = [];
+      for (const file of files) {
+        try {
+          await api.uploadIntakeAttachment(token, created.id, file);
+        } catch {
+          failedFiles.push(file);
+        }
+      }
+      setFiles(failedFiles);
+      if (failedFiles.length) {
+        setError(`บันทึกเรื่องแล้ว แต่แนบไฟล์ไม่สำเร็จ ${failedFiles.length} ไฟล์ (รองรับเฉพาะ PDF) กดอีกครั้งเพื่อแนบไฟล์ที่เหลือ โดยไม่บันทึกซ้ำ`);
+        submitLock.current = false;
+        setSubmitting(false);
+        return;
+      }
       router.push(`/intake/${created.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="w-full">
+    <div className="mx-auto w-full max-w-4xl pb-20">
       <h1 className="mb-1 text-2xl font-bold">รับเรื่องใหม่</h1>
-      <p className="mb-6 text-sm text-muted-foreground">บันทึกข้อมูลเรื่องที่รับเข้ามา</p>
+      <p className="mb-6 text-sm text-muted-foreground">เริ่มจากชื่อเรื่อง ข้อมูลอื่นเติมภายหลังได้ แนบไฟล์ที่ลูกค้าส่งมาแล้ววิเคราะห์ร่วมกันได้เลย</p>
 
-      <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border bg-card p-6 shadow-sm">
-        {/* ชื่อคดี */}
+      <div className="mb-5">
+        <BatchAnalysisPanel
+          files={files}
+          onFilesChange={setFiles}
+          onBusyChange={setAnalysisBusy}
+          entityLabel="เรื่อง"
+          disabled={submitting || !!createdIntakeId}
+          onUseSummary={(summary) =>
+            setForm((previous) => ({
+              ...previous,
+              description: [previous.description, summary].filter(Boolean).join('\n\n'),
+            }))
+          }
+        />
+      </div>
+
+      <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-4 sm:p-6 shadow-sm">
+        <fieldset disabled={submitting} className="min-w-0 space-y-6">
+        {/* ชื่อเรื่อง */}
         <div>
-          <label className="block text-sm font-medium">ชื่อคดี *</label>
-          <input
+          <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
+          <input id="intake-title"
             required
             value={form.title}
             onChange={(e) => set('title', e.target.value)}
             className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            placeholder="เช่น คดีแพ่งโรงพยาบาล X กับ นาย ก."
+            placeholder="เช่น เรียกเงินคืนจากผู้รับเหมา"
           />
-        </div>
-
-        {/* ผู้ส่งเรื่อง */}
-        <div className="space-y-3">
-          <h2 className="font-semibold">ผู้ส่งเรื่อง</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium">ประเภทผู้ส่ง</label>
-              <select
-                value={form.referralType}
-                onChange={(e) => set('referralType', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              >
-                {Object.entries(REFERRAL_TYPE_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium">ช่องทาง</label>
-              <select
-                value={form.referralChannel}
-                onChange={(e) => set('referralChannel', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              >
-                {Object.entries(REFERRAL_CHANNEL_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium">ชื่อผู้ส่งเรื่อง</label>
-            <input
-              value={form.referralName}
-              onChange={(e) => set('referralName', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              placeholder="ชื่อ-นามสกุล หรือชื่อองค์กร"
-            />
-          </div>
         </div>
 
         {/* ลูกค้า */}
         <div className="space-y-3">
           <h2 className="font-semibold">ลูกค้า</h2>
           <div>
-            <label className="block text-sm font-medium">ลูกค้าในระบบ (ถ้ามี)</label>
-            <select
+            <label htmlFor="intake-clientId" className="block text-sm font-medium">ลูกค้าในระบบ (ถ้ามี)</label>
+            <select id="intake-clientId"
               value={form.clientId}
               onChange={(e) => handleClientChange(e.target.value)}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="">-- ไม่เลือก --</option>
+              <option value="">ลูกค้าใหม่ / ยังไม่ระบุ</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
+          {clientsLoading && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดรายชื่อลูกค้า…</p>}
+          {clientsError && <p role="alert" className="text-sm text-destructive">โหลดลูกค้าไม่สำเร็จ <button type="button" className="underline" onClick={() => setClientsRetry((value) => value + 1)}>ลองใหม่</button></p>}
+          {casesLoading && <p role="status" className="text-sm text-muted-foreground">กำลังค้นหาคดีเดิมของลูกค้า…</p>}
+          {casesError && <p role="alert" className="text-sm text-destructive">โหลดคดีเดิมไม่สำเร็จ <button type="button" className="underline" onClick={() => handleClientChange(form.clientId)}>ลองใหม่</button></p>}
           {form.clientId && selectedClient && (
             <div>
-              <label className="block text-sm font-medium">บุคคลติดต่อ / ผู้ส่งเรื่อง *</label>
-              <select
+              <label htmlFor="intake-clientContactId" className="block text-sm font-medium">บุคคลติดต่อ / ผู้ส่งเรื่อง (ถ้ามี)</label>
+              <select id="intake-clientContactId"
                 value={form.clientContactId}
                 onChange={(e) => handleContactChange(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                required
               >
-                <option value="">-- เลือกบุคคลติดต่อ --</option>
+                <option value="">กรอกชื่อผู้ส่งเอง / ยังไม่ทราบ</option>
                 {selectedClient.contacts.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}{(c as any).nickname ? ` (${(c as any).nickname})` : ''}{c.isPrimary ? ' ★' : ''}
@@ -227,8 +253,8 @@ export default function NewIntakePage() {
           )}
           {!form.clientId && (
             <div>
-              <label className="block text-sm font-medium">ชื่อลูกค้า (ถ้ายังไม่มีในระบบ)</label>
-              <input
+              <label htmlFor="intake-clientName" className="block text-sm font-medium">ชื่อลูกค้า (ถ้ายังไม่มีในระบบ)</label>
+              <input id="intake-clientName"
                 value={form.clientName}
                 onChange={(e) => set('clientName', e.target.value)}
                 className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -238,8 +264,8 @@ export default function NewIntakePage() {
           )}
           {form.clientId && clientCases.length > 0 && (
             <div>
-              <label className="block text-sm font-medium">ผูกกับคดีที่มีอยู่แล้ว (ถ้าเรื่องนี้เกี่ยวกับคดีเดิม)</label>
-              <select
+              <label htmlFor="intake-relatedCaseId" className="block text-sm font-medium">ผูกกับคดีที่มีอยู่แล้ว (ถ้าเรื่องนี้เกี่ยวกับคดีเดิม)</label>
+              <select id="intake-relatedCaseId"
                 value={form.relatedCaseId}
                 onChange={(e) => set('relatedCaseId', e.target.value)}
                 className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -253,9 +279,111 @@ export default function NewIntakePage() {
           )}
         </div>
 
-        {/* คดีเดินอยู่แล้วที่อื่น */}
+        {/* รายละเอียดเรื่อง */}
         <div className="space-y-3">
-          <h2 className="font-semibold">คดีเดินอยู่แล้วที่อื่น (ถ้ามี)</h2>
+          <h2 className="font-semibold">รายละเอียดเรื่อง</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="intake-matterType" className="block text-sm font-medium">ประเภทเรื่อง</label>
+              <select id="intake-matterType"
+                value={form.matterType}
+                onChange={(e) => set('matterType', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">ยังไม่ทราบประเภทเรื่อง</option>
+                {Object.entries(MATTER_TYPE_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="intake-opposingParty" className="block text-sm font-medium">คู่กรณี</label>
+              <input id="intake-opposingParty"
+                value={form.opposingParty}
+                onChange={(e) => set('opposingParty', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                placeholder="ชื่อคู่กรณี"
+              />
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="intake-incidentDate" className="block text-sm font-medium">วันเกิดเหตุ</label>
+              <input id="intake-incidentDate"
+                type="date"
+                value={form.incidentDate}
+                onChange={(e) => set('incidentDate', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="intake-estimatedDamage" className="block text-sm font-medium">ความเสียหายโดยประมาณ (บาท)</label>
+              <input id="intake-estimatedDamage"
+                type="number"
+                value={form.estimatedDamage}
+                onChange={(e) => set('estimatedDamage', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                placeholder="เช่น 500000"
+                min={0}
+                step="0.01"
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="intake-description" className="block text-sm font-medium">รายละเอียด</label>
+            <textarea id="intake-description"
+              value={form.description}
+              onChange={(e) => set('description', e.target.value)}
+              rows={4}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
+              placeholder="เกิดอะไรขึ้น เมื่อไหร่ ใครเกี่ยวข้อง และต้องการให้สำนักงานช่วยเรื่องใด"
+            />
+          </div>
+        </div>
+
+        {/* ผู้ส่งเรื่อง */}
+        <details className="space-y-3 rounded-lg border p-4">
+          <summary className="cursor-pointer font-semibold">ช่องทางและผู้ส่งเรื่อง <span className="text-sm font-normal text-muted-foreground">· {REFERRAL_CHANNEL_LABELS[form.referralChannel]} · {form.referralName || REFERRAL_TYPE_LABELS[form.referralType]}</span></summary>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="intake-referralType" className="block text-sm font-medium">ประเภทผู้ส่ง</label>
+              <select id="intake-referralType"
+                value={form.referralType}
+                onChange={(e) => set('referralType', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                {Object.entries(REFERRAL_TYPE_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="intake-referralChannel" className="block text-sm font-medium">ช่องทาง</label>
+              <select id="intake-referralChannel"
+                value={form.referralChannel}
+                onChange={(e) => set('referralChannel', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                {Object.entries(REFERRAL_CHANNEL_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="intake-referralName" className="block text-sm font-medium">ชื่อผู้ส่งเรื่อง</label>
+            <input id="intake-referralName"
+              value={form.referralName}
+              onChange={(e) => set('referralName', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              placeholder="ชื่อ-นามสกุล หรือชื่อองค์กร"
+            />
+          </div>
+        </details>
+
+        {/* คดีเดินอยู่แล้วที่อื่น */}
+        <details className="space-y-3 rounded-lg border p-4">
+          <summary className="cursor-pointer font-semibold">มีคดีที่ดำเนินอยู่กับทนายหรือสำนักงานอื่น</summary>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -267,8 +395,8 @@ export default function NewIntakePage() {
           {form.isOngoingElsewhere && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium">เลขคดี/หมายเลขดำ (ถ้าทราบ)</label>
-                <input
+                <label htmlFor="intake-externalCaseNumber" className="block text-sm font-medium">เลขคดี/หมายเลขดำ (ถ้าทราบ)</label>
+                <input id="intake-externalCaseNumber"
                   value={form.externalCaseNumber}
                   onChange={(e) => set('externalCaseNumber', e.target.value)}
                   className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -276,8 +404,8 @@ export default function NewIntakePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium">สถานะปัจจุบัน</label>
-                <input
+                <label htmlFor="intake-currentStageNote" className="block text-sm font-medium">สถานะปัจจุบัน</label>
+                <input id="intake-currentStageNote"
                   value={form.currentStageNote}
                   onChange={(e) => set('currentStageNote', e.target.value)}
                   className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -286,73 +414,12 @@ export default function NewIntakePage() {
               </div>
             </div>
           )}
-        </div>
-
-        {/* รายละเอียดเรื่อง */}
-        <div className="space-y-3">
-          <h2 className="font-semibold">รายละเอียดเรื่อง</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium">ประเภทเรื่อง</label>
-              <select
-                value={form.matterType}
-                onChange={(e) => set('matterType', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">-- เลือก --</option>
-                {Object.entries(MATTER_TYPE_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium">คู่กรณี</label>
-              <input
-                value={form.opposingParty}
-                onChange={(e) => set('opposingParty', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                placeholder="ชื่อคู่กรณี"
-              />
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium">วันเกิดเหตุ</label>
-              <input
-                type="date"
-                value={form.incidentDate}
-                onChange={(e) => set('incidentDate', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">ความเสียหายโดยประมาณ (บาท)</label>
-              <input
-                type="number"
-                value={form.estimatedDamage}
-                onChange={(e) => set('estimatedDamage', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                placeholder="เช่น 500000"
-                min={0}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium">รายละเอียด</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => set('description', e.target.value)}
-              rows={4}
-              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
-              placeholder="อธิบายเรื่องที่รับโดยย่อ"
-            />
-          </div>
-        </div>
+        </details>
 
         {/* วันที่รับเรื่อง */}
         <div>
-          <label className="block text-sm font-medium">วันที่รับเรื่อง *</label>
-          <input
+          <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
+          <input id="intake-receivedDate"
             type="date"
             required
             value={form.receivedDate}
@@ -362,17 +429,22 @@ export default function NewIntakePage() {
         </div>
 
         {error && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
         )}
 
         <div className="flex items-center justify-between border-t pt-4">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
+          <Button type="button" variant="outline" disabled={submitting || !!createdIntakeId} onClick={() => router.push('/intake')}>
             ยกเลิก
           </Button>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'กำลังบันทึก...' : 'บันทึกเรื่อง'}
+          <Button type="submit" disabled={submitting || analysisBusy}>
+            {submitting
+              ? 'กำลังบันทึก...'
+              : createdIntakeId
+                ? 'แนบไฟล์ที่เหลืออีกครั้ง'
+                : 'บันทึกและไปเพิ่มเอกสาร'}
           </Button>
         </div>
+        </fieldset>
       </form>
     </div>
   );

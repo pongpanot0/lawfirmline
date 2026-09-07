@@ -42,7 +42,7 @@ export class DocumentPublicationService {
 
     if (dto.recipientContacts && dto.recipientContacts.length > 0) {
       const legalCase = await this.prisma.case.findUnique({
-        where: { id: document.caseId },
+        where: { id: caseId },
         select: { clientId: true },
       });
       if (!legalCase || !legalCase.clientId) throw new NotFoundException('Case not found');
@@ -71,7 +71,7 @@ export class DocumentPublicationService {
       },
     });
 
-    await this.notifyPublication(document.caseId, dto.recipientContacts ?? [], publication.title ?? 'เอกสารใหม่');
+    await this.notifyPublication(caseId, dto.recipientContacts ?? [], publication.title ?? 'เอกสารใหม่');
 
     return publication;
   }

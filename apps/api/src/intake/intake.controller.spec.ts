@@ -41,8 +41,8 @@ describe('IntakeController precedent analysis', () => {
 
   it('delegates precedent-analysis creation to the service', async () => {
     mockAnalysisService.analyze.mockResolvedValue({ id: 'analysis-1', status: 'COMPLETE' });
-    const result = await controller.runPrecedentAnalysis(user, 'intake-1');
-    expect(mockAnalysisService.analyze).toHaveBeenCalledWith(user, 'intake-1');
+    const result = await controller.runPrecedentAnalysis(user, 'intake-1', { attachmentIds: [] });
+    expect(mockAnalysisService.analyze).toHaveBeenCalledWith(user, 'intake-1', []);
     expect(result).toEqual({ id: 'analysis-1', status: 'COMPLETE' });
   });
 

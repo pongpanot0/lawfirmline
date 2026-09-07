@@ -22,6 +22,7 @@ interface ExtractedFacts {
   incidentDate: string | null;
   attachmentText: string | null;
   attachmentExtractionFailed: boolean;
+  attachmentWarnings: string[];
 }
 
 @Injectable()
@@ -41,10 +42,11 @@ export class IntakePrecedentAnalysisService {
     opposingParty: string | null;
     estimatedDamage: number | null;
     incidentDate: Date | null;
-    attachments: Array<{ storagePath: string; mimeType: string }>;
+    attachments: Array<{ storagePath: string; mimeType: string; filename?: string }>;
   }): Promise<ExtractedFacts> {
     let attachmentText: string | null = null;
     let attachmentExtractionFailed = false;
+    const attachmentWarnings: string[] = [];
 
     if (intake.attachments.length > 0) {
       const texts: string[] = [];
@@ -53,10 +55,13 @@ export class IntakePrecedentAnalysisService {
           const fs = await import('fs');
           const buffer = fs.readFileSync(attachment.storagePath);
           const text = await this.docIntelligence.extractText(buffer, attachment.mimeType);
-          texts.push(text);
+          if (!text.trim()) throw new Error('ไม่พบข้อความในเอกสาร');
+          if (text.length > Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / intake.attachments.length) - 150) attachmentWarnings.push(`อ่านเฉพาะบางส่วน: ${attachment.filename ?? 'เอกสาร'}`);
+          texts.push(`[ไฟล์: ${(attachment.filename ?? 'เอกสาร').slice(0, 80)}]\n${text.slice(0, Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / intake.attachments.length) - 150)}`);
         } catch (err) {
           this.logger.warn(`Failed to extract attachment text: ${(err as Error).message}`);
           attachmentExtractionFailed = true;
+          attachmentWarnings.push(`อ่านไม่สำเร็จ: ${attachment.filename ?? 'เอกสาร'}`);
         }
       }
       attachmentText =
@@ -71,6 +76,7 @@ export class IntakePrecedentAnalysisService {
       incidentDate: intake.incidentDate ? intake.incidentDate.toISOString().slice(0, 10) : null,
       attachmentText,
       attachmentExtractionFailed,
+      attachmentWarnings,
     };
   }
 
@@ -90,6 +96,7 @@ export class IntakePrecedentAnalysisService {
   private async callOpenAI(
     systemPrompt: string,
     userContent: string,
+    options?: { json?: boolean },
   ): Promise<string> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
@@ -109,6 +116,7 @@ export class IntakePrecedentAnalysisService {
           { role: 'user', content: userContent },
         ],
         temperature: 0.3,
+        ...(options?.json ? { response_format: { type: 'json_object' } } : {}),
       }),
     });
 
@@ -121,6 +129,24 @@ export class IntakePrecedentAnalysisService {
       choices?: Array<{ message?: { content?: string } }>;
     };
     return data.choices?.[0]?.message?.content ?? '';
+  }
+
+  /** Strip optional ``` / ```json fences before JSON.parse. */
+  private stripJsonFences(raw: string): string {
+    const trimmed = raw.trim();
+    const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    return fenced ? fenced[1].trim() : trimmed;
+  }
+
+  private coerceSummaryText(value: unknown, fallback: string): string {
+    if (typeof value === 'string' && value.trim()) return value;
+    if (Array.isArray(value)) {
+      const lines = value
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean);
+      if (lines.length > 0) return lines.join('\n');
+    }
+    return fallback;
   }
 
   private async extractSearchQuery(factsText: string): Promise<string> {
@@ -146,35 +172,51 @@ export class IntakePrecedentAnalysisService {
         'คุณเป็นผู้ช่วยทนายความไทย งานของคุณคือสรุปฎีกาที่เกี่ยวข้องที่ให้มาเป็นข้อๆ สั้นๆ ให้ทนายอ่านเร็วๆ',
         'และเตรียมข้อเท็จจริงในรูปแบบสำหรับใช้ร่างหนังสือบอกกล่าว',
         'ห้ามอ้างอิงฎีกาที่ไม่ได้อยู่ในรายการที่ให้มา ห้ามแต่งเลขฎีกาขึ้นเอง',
-        'ตอบเป็น JSON เท่านั้นในรูปแบบ {"summaryBullets": string, "noticeFacts": string} ไม่ต้องมีข้อความอื่นนอกเหนือจาก JSON',
+        'ตอบเป็น JSON object เท่านั้นในรูปแบบ {"summaryBullets": string, "noticeFacts": string}',
+        'summaryBullets และ noticeFacts ต้องเป็น string (ไม่ใช่ array) — ใช้ \\n คั่นแต่ละข้อใน summaryBullets',
       ].join(' '),
       `ข้อเท็จจริงของเรื่อง:\n${factsText}\n\nฎีกาที่ค้นพบ:\n${precedentsText}`,
+      { json: true },
     );
 
     try {
-      const parsed = JSON.parse(content) as { summaryBullets?: string; noticeFacts?: string };
+      const parsed = JSON.parse(this.stripJsonFences(content)) as {
+        summaryBullets?: unknown;
+        noticeFacts?: unknown;
+      };
       return {
-        summaryBullets: parsed.summaryBullets ?? '(ไม่สามารถสรุปได้)',
-        noticeFacts: parsed.noticeFacts ?? factsText,
+        summaryBullets: this.coerceSummaryText(parsed.summaryBullets, '(ไม่สามารถสรุปได้)'),
+        noticeFacts: this.coerceSummaryText(parsed.noticeFacts, factsText),
       };
     } catch {
-      this.logger.error('Failed to parse OpenAI JSON response for precedent summary');
+      this.logger.error(
+        `Failed to parse OpenAI JSON response for precedent summary: ${content.slice(0, 200)}`,
+      );
       return { summaryBullets: content || '(ไม่สามารถสรุปได้)', noticeFacts: factsText };
     }
   }
 
-  async analyze(user: AuthUser, intakeId: string) {
+  async analyze(user: AuthUser, intakeId: string, attachmentIds?: string[]) {
     const intake = await this.prisma.intake.findFirst({
       where: { id: intakeId, firmId: user.firmId },
       include: { attachments: true },
     });
     if (!intake) throw new NotFoundException('Intake not found');
 
+    if (attachmentIds !== undefined) {
+      if (attachmentIds.some((id) => !intake.attachments.some((file) => file.id === id))) {
+        throw new BadRequestException('ไฟล์ที่เลือกไม่อยู่ในเรื่องนี้ กรุณาโหลดรายการใหม่');
+      }
+      intake.attachments = intake.attachments.filter((file) => attachmentIds.includes(file.id));
+    }
+    if (intake.attachments.length > 10) throw new BadRequestException('เลือกได้ไม่เกิน 10 ไฟล์ต่อครั้ง');
+
+
     if (!intake.description && intake.attachments.length === 0) {
       throw new BadRequestException('ไม่มีข้อมูลเพียงพอสำหรับวิเคราะห์ — กรุณากรอกรายละเอียดหรือแนบไฟล์ก่อน');
     }
 
-    const facts = await this.gatherFacts(intake);
+    const facts = { ...await this.gatherFacts(intake), selectedAttachments: intake.attachments.map((file) => ({ id: file.id, filename: file.filename })) };
     const factsText = this.factsToText(facts);
 
     if (!factsText.trim()) {

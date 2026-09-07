@@ -92,7 +92,7 @@ export default function KnowledgePage() {
                 <div>
                   <h3 className="font-semibold">{item.title}</h3>
                   <p className="mt-1 text-xs text-slate-400">
-                    <Link href={`/cases/${item.case.id}`} className="text-brand-600 hover:underline">
+                    <Link href={`/cases/${item.case.id}#case-analyses`} className="text-brand-600 hover:underline">
                       {item.case.ownRef}
                     </Link>
                     {' — '}{item.createdBy.firstName} {item.createdBy.lastName}

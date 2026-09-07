@@ -1,5 +1,6 @@
 'use client';
 
+import { CaseKnowledgePanel } from '@/components/documents/CaseKnowledgePanel';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Upload, Eye, Download, ArrowLeft, Sparkles, CalendarSearch } from 'lucide-react';
@@ -16,6 +17,7 @@ export default function CaseDocumentsPage() {
   const d = useDashboardT();
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
+  const [analysisRevision, setAnalysisRevision] = useState(0);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [templates, setTemplates] = useState<DocumentTemplateItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,7 +186,7 @@ export default function CaseDocumentsPage() {
     setError('');
     try {
       await api.analyzeExistingDocument(token, id, doc.id);
-      alert(d.caseDocuments.analyzeSuccess);
+      setAnalysisRevision((value) => value + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : d.caseDocuments.analyzeFailed);
     } finally {
@@ -466,6 +468,7 @@ export default function CaseDocumentsPage() {
         </div>
       </div>
 
+      <CaseKnowledgePanel caseId={id} refreshKey={analysisRevision} />
       {preview && (
         <DocumentPreviewModal
           filename={preview.filename}
