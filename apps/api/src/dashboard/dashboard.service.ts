@@ -48,16 +48,14 @@ export class DashboardService {
             case: caseFilter,
             status: { not: 'DONE' },
             dueDate: { lt: now },
+            ...this.caseAccess.getTaskFilterForUser(user),
           },
         }),
         this.prisma.task.count({
           where: {
             case: caseFilter,
             status: { not: 'DONE' },
-            OR: [
-              { assigneeId: user.id },
-              ...(isOwner ? [{}] : []),
-            ],
+            ...this.caseAccess.getTaskFilterForUser(user),
           },
         }),
       ]);
