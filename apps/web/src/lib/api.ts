@@ -378,6 +378,12 @@ export type MyDayResponse = import('@lawfirm/shared').MyDayResponse;
 export type AgendaItem = import('@lawfirm/shared').AgendaItem;
 export type DeadlineRuleItem = import('@lawfirm/shared').DeadlineRuleItem;
 
+export interface PublicHolidayItem {
+  id: string;
+  date: string;
+  name: string;
+}
+
 export interface DashboardStats {
   firmId: string;
   firmName: string;
@@ -803,6 +809,29 @@ export const api = {
 
   deleteDeadlineRule: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/deadline-rules/${id}`, { method: 'DELETE', token }),
+
+  getPublicHolidays: (token: string, year?: number) =>
+    request<PublicHolidayItem[]>(`/public-holidays${year ? `?year=${year}` : ''}`, { token }),
+
+  addPublicHoliday: (token: string, data: { date: string; name: string }) =>
+    request<{ created: number }>('/public-holidays', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  replacePublicHolidayYear: (
+    token: string,
+    data: { year: number; holidays: Array<{ date: string; name: string }> },
+  ) =>
+    request<{ replaced: number }>('/public-holidays', {
+      method: 'PUT',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  deletePublicHoliday: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/public-holidays/${id}`, { method: 'DELETE', token }),
 
   createTodo: (token: string, data: Record<string, unknown>) =>
     request<TaskItem>('/todos', {

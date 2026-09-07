@@ -31,6 +31,7 @@ import { OperationsModule } from './operations/operations.module';
 import { ClosingEmailModule } from './closing-email/closing-email.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { DeadlinesModule } from './deadlines/deadlines.module';
+import { HolidaysModule } from './holidays/holidays.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { DeadlinesModule } from './deadlines/deadlines.module';
     ClosingEmailModule,
     AgendaModule,
     DeadlinesModule,
+    HolidaysModule,
   ],
   providers: [
     {

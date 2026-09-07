@@ -25,6 +25,7 @@ import {
   ListTodo,
   Timer,
   CalendarCheck,
+  CalendarOff,
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
   { href: '/admin/reimbursements', labelKey: 'reimbursements' as const, icon: Shield, ownerOnly: true },
   { href: '/admin/case-types', labelKey: 'caseTypes' as const, icon: Tags, ownerOnly: true },
   { href: '/admin/deadline-rules', labelKey: 'deadlineRules' as const, icon: Timer, ownerOnly: true },
+  { href: '/admin/holidays', labelKey: 'holidays' as const, icon: CalendarOff, ownerOnly: true },
   { href: '/admin/courts', labelKey: 'courts' as const, icon: Scale, ownerOnly: true },
   { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false },
 ] as const;

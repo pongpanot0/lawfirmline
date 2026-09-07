@@ -42,6 +42,7 @@ export const dashboardCopy = {
       reimbursements: 'เบิกจ่าย',
       caseTypes: 'ประเภทคดี',
       deadlineRules: 'กฎวันครบกำหนด',
+      holidays: 'วันหยุดราชการ',
       courts: 'ศาล',
       settings: 'ตั้งค่า',
       lightMode: 'โหมดสว่าง',
@@ -95,6 +96,20 @@ export const dashboardCopy = {
         CALENDAR: 'วันตามปฏิทิน',
         BUSINESS: 'วันทำการ',
       },
+    },
+    holidays: {
+      title: 'วันหยุดราชการ',
+      description:
+        'ใช้ตอนคำนวณวันครบกำหนด — ถ้ากำหนดตกวันหยุดหรือเสาร์อาทิตย์ ระบบจะเลื่อนเป็นวันทำการถัดไป',
+      reviewNotice:
+        'รายการปี 2569 เป็นค่าตั้งต้น กรุณาตรวจกับประกาศวันหยุดราชการของมติ ครม. ก่อนใช้จริง',
+      year: 'ปี',
+      date: 'วันที่',
+      name: 'ชื่อวันหยุด',
+      add: 'เพิ่มวันหยุด',
+      empty: 'ยังไม่มีวันหยุดในปีนี้',
+      saveFailed: 'บันทึกไม่สำเร็จ',
+      confirmDelete: 'ลบวันหยุดนี้?',
     },
     topbar: {
       searchPlaceholder: 'ค้นหาคดี ลูกค้า...',
@@ -518,6 +533,7 @@ export const dashboardCopy = {
       reimbursements: 'Reimbursements',
       caseTypes: 'Case Types',
       deadlineRules: 'Deadline Rules',
+      holidays: 'Public Holidays',
       courts: 'Courts',
       settings: 'Settings',
       lightMode: 'Light Mode',
@@ -571,6 +587,20 @@ export const dashboardCopy = {
         CALENDAR: 'Calendar days',
         BUSINESS: 'Business days',
       },
+    },
+    holidays: {
+      title: 'Public Holidays',
+      description:
+        'Used when computing deadlines — a deadline landing on a holiday or weekend runs to the next working day.',
+      reviewNotice:
+        'The 2569 list is a starting point. Check it against the cabinet holiday announcement before relying on it.',
+      year: 'Year',
+      date: 'Date',
+      name: 'Holiday',
+      add: 'Add holiday',
+      empty: 'No holidays for this year yet',
+      saveFailed: 'Could not save',
+      confirmDelete: 'Delete this holiday?',
     },
     topbar: {
       searchPlaceholder: 'Search cases, clients...',

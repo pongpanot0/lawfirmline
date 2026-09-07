@@ -96,6 +96,45 @@ describe('DeadlineRulesService', () => {
     });
   });
 
+  describe('computeDueDate with the seeded 2569 calendar', () => {
+    // The dates the 20260907190000 migration inserts, as the engine sees them.
+    const holidays2569 = new Set([
+      '2026-01-01', '2026-03-03', '2026-04-06', '2026-04-13', '2026-04-14', '2026-04-15',
+      '2026-05-04', '2026-05-13', '2026-05-31', '2026-06-01', '2026-06-03', '2026-07-28',
+      '2026-07-29', '2026-07-30', '2026-08-12', '2026-10-13', '2026-10-23', '2026-12-05',
+      '2026-12-07', '2026-12-10', '2026-12-31',
+    ]);
+    const at = (day: string) => new Date(`${day}T03:00:00Z`);
+
+    it('pushes a deadline that would land inside Songkran to the first working day after', () => {
+      // 30 Mar + 15 calendar days = 14 Apr, inside the 13–15 Apr holiday.
+      expect(
+        service.computeDueDate(at('2026-03-30'), 15, DeadlineDayBasis.CALENDAR, holidays2569),
+      ).toBe('2026-04-16');
+    });
+
+    it('does not spend Songkran or a weekend when counting business days', () => {
+      // From Fri 10 Apr the next working days are 16, 17 and 20 Apr.
+      expect(
+        service.computeDueDate(at('2026-04-10'), 3, DeadlineDayBasis.BUSINESS, holidays2569),
+      ).toBe('2026-04-20');
+    });
+
+    it('clears a holiday, its weekend and the substitute day in one run', () => {
+      // 5 Nov + 30 = Sat 5 Dec (holiday), Sun 6th, substitute Mon 7th → Tue 8th.
+      expect(
+        service.computeDueDate(at('2026-11-05'), 30, DeadlineDayBasis.CALENDAR, holidays2569),
+      ).toBe('2026-12-08');
+    });
+
+    it('clears a Sunday holiday and its Monday substitute', () => {
+      // 1 May + 30 = Sun 31 May (Visakha Bucha), substitute Mon 1 Jun → Tue 2 Jun.
+      expect(
+        service.computeDueDate(at('2026-05-01'), 30, DeadlineDayBasis.CALENDAR, holidays2569),
+      ).toBe('2026-06-02');
+    });
+  });
+
   describe('applyTrigger', () => {
     const context = {
       caseId: 'case-1',
