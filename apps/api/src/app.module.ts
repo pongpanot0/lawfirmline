@@ -29,6 +29,8 @@ import { TemplatesModule } from './templates/templates.module';
 import { HealthModule } from './health/health.module';
 import { OperationsModule } from './operations/operations.module';
 import { ClosingEmailModule } from './closing-email/closing-email.module';
+import { AgendaModule } from './agenda/agenda.module';
+import { DeadlinesModule } from './deadlines/deadlines.module';
 
 @Module({
   imports: [
@@ -62,6 +64,8 @@ import { ClosingEmailModule } from './closing-email/closing-email.module';
     TemplatesModule,
     OperationsModule,
     ClosingEmailModule,
+    AgendaModule,
+    DeadlinesModule,
   ],
   providers: [
     {

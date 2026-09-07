@@ -43,7 +43,7 @@ export class DateSuggestionsService {
       startAt: overrides.date ?? suggestion.suggestedDate.toISOString(),
       type: (overrides.eventType ?? suggestion.eventType) as EventType,
       reminderMinutes: overrides.reminderMinutes,
-    });
+    }, userId);
 
     return this.prisma.documentDateSuggestion.update({
       where: { id },

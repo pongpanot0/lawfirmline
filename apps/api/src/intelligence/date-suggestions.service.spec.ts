@@ -65,7 +65,7 @@ describe('DateSuggestionsService', () => {
         startAt: pending.suggestedDate.toISOString(),
         type: EventType.COURT_DATE,
         reminderMinutes: undefined,
-      });
+      }, 'user-1');
     });
 
     it('applies overrides on top of the stored values', async () => {
@@ -85,7 +85,7 @@ describe('DateSuggestionsService', () => {
         startAt: '2026-11-01T00:00:00.000Z',
         type: EventType.DEADLINE,
         reminderMinutes: undefined,
-      });
+      }, 'user-1');
     });
 
     it('marks the suggestion CONFIRMED, storing the created event id and reviewer', async () => {

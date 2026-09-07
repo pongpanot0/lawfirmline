@@ -178,6 +178,23 @@ enum DateSuggestionStatus {
   DISMISSED
 }
 
+enum DateSuggestionSource {
+  DOCUMENT
+  RULE
+}
+
+enum DeadlineTrigger {
+  COURT_DATE
+  JUDGMENT
+  ORDER_RECEIVED
+  COMPLAINT_SERVED
+}
+
+enum DeadlineDayBasis {
+  CALENDAR
+  BUSINESS
+}
+
 enum ExpenseStatus {
   PENDING
   APPROVED
@@ -248,6 +265,7 @@ model Firm {
   courts          Court[]
   pettyCashFund   PettyCashFund?
   intakes         Intake[]
+  deadlineRules   DeadlineRule[]
 }
 
 model FirmMember {
@@ -406,6 +424,7 @@ model User {
   caseMessages               CaseMessage[]
   createdDateSuggestions     DocumentDateSuggestion[]  @relation("DateSuggestionCreator")
   reviewedDateSuggestions    DocumentDateSuggestion[]  @relation("DateSuggestionReviewer")
+  dailyDigestLogs            DailyDigestLog[]
 }
 
 model CaseType {
@@ -418,9 +437,10 @@ model CaseType {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  firm      Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  cases     Case[]
-  templates DocumentTemplate[]
+  firm          Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  cases         Case[]
+  templates     DocumentTemplate[]
+  deadlineRules DeadlineRule[]
 
   @@unique([firmId, name])
 }
@@ -728,6 +748,9 @@ model Task {
   createdBy      User                @relation("TaskCreator", fields: [createdById], references: [id])
   onHold         TaskOnHold?
   assignmentLogs TaskAssignmentLog[]
+
+  @@index([dueDate])
+  @@index([assigneeId, status, dueDate])
 }
 
 model TaskAssignmentLog {
@@ -824,10 +847,13 @@ model CalendarEvent {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  case           Case                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  travelLog      TravelLog?              @relation(fields: [travelLogId], references: [id])
-  reminderLogs   ReminderLog[]
-  dateSuggestion DocumentDateSuggestion?
+  case               Case                     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  travelLog          TravelLog?               @relation(fields: [travelLogId], references: [id])
+  reminderLogs       ReminderLog[]
+  dateSuggestion     DocumentDateSuggestion?
+  triggeredDeadlines DocumentDateSuggestion[] @relation("DateSuggestionTrigger")
+
+  @@index([startAt])
 }
 
 model ReminderLog {
@@ -923,7 +949,12 @@ model DocumentDateSuggestion {
   label           String
   suggestedDate   DateTime
   eventType       EventType            @default(DEADLINE)
-  sourceExcerpt   String               @db.Text
+  /// Only present for DOCUMENT suggestions — a rule-derived date has no quote.
+  sourceExcerpt   String?              @db.Text
+  source          DateSuggestionSource @default(DOCUMENT)
+  /// For RULE suggestions: the rule and the event that started the clock.
+  deadlineRuleId  String?
+  triggerEventId  String?
   status          DateSuggestionStatus @default(PENDING)
   calendarEventId String?              @unique
   createdById     String
@@ -937,8 +968,58 @@ model DocumentDateSuggestion {
   calendarEvent CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
   createdBy     User           @relation("DateSuggestionCreator", fields: [createdById], references: [id])
   reviewedBy    User?          @relation("DateSuggestionReviewer", fields: [reviewedById], references: [id])
+  deadlineRule  DeadlineRule?  @relation(fields: [deadlineRuleId], references: [id], onDelete: SetNull)
+  triggerEvent  CalendarEvent? @relation("DateSuggestionTrigger", fields: [triggerEventId], references: [id], onDelete: Cascade)
 
+  @@unique([triggerEventId, deadlineRuleId])
   @@index([caseId, status])
+}
+
+/// A procedural clock: "<offsetDays> days from <trigger>".
+/// Rules never write to the calendar directly — they raise a
+/// DocumentDateSuggestion for a lawyer to confirm.
+model DeadlineRule {
+  id         String           @id @default(uuid())
+  firmId     String
+  /// Null applies the rule to every case type in the firm.
+  caseTypeId String?
+  trigger    DeadlineTrigger
+  label      String
+  offsetDays Int
+  dayBasis   DeadlineDayBasis @default(CALENDAR)
+  isActive   Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  firm        Firm                     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  caseType    CaseType?                @relation(fields: [caseTypeId], references: [id], onDelete: Cascade)
+  suggestions DocumentDateSuggestion[]
+
+  @@index([firmId, trigger, isActive])
+}
+
+/// Thai public holidays, used when a rule counts business days.
+model PublicHoliday {
+  id   String   @id @default(uuid())
+  date DateTime @db.Date
+  name String
+
+  @@unique([date])
+}
+
+/// One row per user per Bangkok day, so a digest is never sent twice.
+model DailyDigestLog {
+  id         String   @id @default(uuid())
+  userId     String
+  /// The Bangkok calendar day the digest covered.
+  digestDate DateTime @db.Date
+  channel    String   @default("line")
+  itemCount  Int      @default(0)
+  sentAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, digestDate, channel])
 }
 
 model DocumentTemplate {

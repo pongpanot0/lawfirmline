@@ -19,6 +19,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { CaseTypesService } from '../case-types/case-types.service';
+import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 
 @Injectable()
 export class SaasAuthService {
@@ -26,6 +27,7 @@ export class SaasAuthService {
     private prisma: PrismaService,
     private tenant: TenantService,
     private caseTypes: CaseTypesService,
+    private deadlineRules: DeadlineRulesService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthUser> {
@@ -73,6 +75,7 @@ export class SaasAuthService {
       });
 
       await this.caseTypes.provisionDefaults(firm.id, tx);
+      await this.deadlineRules.provisionDefaults(firm.id, tx);
 
       await tx.auditLog.create({
         data: {

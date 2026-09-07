@@ -1,21 +1,25 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser, EventType } from '@lawfirm/shared';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { AuthUser, DeadlineTrigger, EventType } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { LineLinkService } from '../notifications/line-link.service';
 import { TravelService } from '../travel/travel.service';
+import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { CreateEventDto, UpdateEventDto } from './dto/calendar.dto';
 import { Prisma } from '../generated/prisma';
 
 @Injectable()
 export class CalendarService {
+  private readonly logger = new Logger(CalendarService.name);
+
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
     private lineMessaging: LineMessagingService,
     private lineLink: LineLinkService,
     private travelService: TravelService,
+    private deadlineRules: DeadlineRulesService,
   ) {}
 
   private eventInclude = {
@@ -59,7 +63,12 @@ export class CalendarService {
     return event;
   }
 
-  async create(dto: CreateEventDto) {
+  /**
+   * @param actorId who created the event. A court date starts procedural
+   *   clocks, and the resulting deadline suggestions need an author; without an
+   *   actor the event is still created, just without them.
+   */
+  async create(dto: CreateEventDto, actorId?: string) {
     const legalCase = await this.prisma.case.findUnique({
       where: { id: dto.caseId },
       include: { leadLawyer: true },
@@ -94,7 +103,7 @@ export class CalendarService {
       });
     }
 
-    return this.prisma.calendarEvent.create({
+    const event = await this.prisma.calendarEvent.create({
       data: {
         caseId: dto.caseId,
         title: dto.title,
@@ -108,6 +117,28 @@ export class CalendarService {
       },
       include: this.eventInclude,
     });
+
+    if (dto.type === EventType.COURT_DATE && actorId) {
+      // Suggestions are a convenience: a rule engine failure must not lose the
+      // court date the lawyer just entered.
+      try {
+        await this.deadlineRules.applyTrigger({
+          caseId: dto.caseId,
+          firmId: legalCase.firmId,
+          caseTypeId: legalCase.caseTypeId,
+          trigger: DeadlineTrigger.COURT_DATE,
+          triggerDate: event.startAt,
+          triggerEventId: event.id,
+          createdById: actorId,
+        });
+      } catch (err) {
+        this.logger.error(
+          `Deadline rules failed for event ${event.id}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    return event;
   }
 
   async update(id: string, dto: UpdateEventDto) {

@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { LineController } from './line.controller';
 import { ReminderScheduler } from './reminder.scheduler';
+import { DailyDigestScheduler } from './daily-digest.scheduler';
 import { LineMessagingService } from './line-messaging.service';
 import { LineLinkService } from './line-link.service';
 import { LinkCodeAttemptLimiterService } from './link-code-attempt-limiter.service';
@@ -20,6 +21,7 @@ import { ClientsModule } from '../clients/clients.module';
 import { CasesModule } from '../cases/cases.module';
 import { UsersModule } from '../users/users.module';
 import { SaasModule } from '../saas/saas.module';
+import { AgendaModule } from '../agenda/agenda.module';
 
 @Module({
   imports: [
@@ -29,10 +31,12 @@ import { SaasModule } from '../saas/saas.module';
     forwardRef(() => CasesModule),
     UsersModule,
     forwardRef(() => SaasModule),
+    AgendaModule,
   ],
   controllers: [LineController],
   providers: [
     ReminderScheduler,
+    DailyDigestScheduler,
     LineMessagingService,
     LineLinkService,
     LinkCodeAttemptLimiterService,

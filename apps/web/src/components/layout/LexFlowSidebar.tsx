@@ -23,6 +23,8 @@ import {
   Tags,
   ClipboardList,
   ListTodo,
+  Timer,
+  CalendarCheck,
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
@@ -37,6 +39,7 @@ import { useState } from 'react';
 const NAV_ITEMS = [
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false },
   { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true },
+  { href: '/my-day', labelKey: 'myDay' as const, icon: CalendarCheck, ownerOnly: false },
   { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false },
   { href: '/intake', labelKey: 'intake' as const, icon: ClipboardList, ownerOnly: false },
   { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false },
@@ -48,6 +51,7 @@ const NAV_ITEMS = [
   { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true },
   { href: '/admin/reimbursements', labelKey: 'reimbursements' as const, icon: Shield, ownerOnly: true },
   { href: '/admin/case-types', labelKey: 'caseTypes' as const, icon: Tags, ownerOnly: true },
+  { href: '/admin/deadline-rules', labelKey: 'deadlineRules' as const, icon: Timer, ownerOnly: true },
   { href: '/admin/courts', labelKey: 'courts' as const, icon: Scale, ownerOnly: true },
   { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false },
 ] as const;

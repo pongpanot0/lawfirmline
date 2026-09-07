@@ -9,10 +9,11 @@ import { FirmRoleGuard } from './guards/firm-role.guard';
 import { SubscriptionGuard } from './guards/subscription.guard';
 import { AuthModule } from '../auth/auth.module';
 import { CaseTypesModule } from '../case-types/case-types.module';
+import { DeadlinesModule } from '../deadlines/deadlines.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [forwardRef(() => AuthModule), CaseTypesModule, NotificationsModule],
+  imports: [forwardRef(() => AuthModule), CaseTypesModule, NotificationsModule, DeadlinesModule],
   controllers: [SaasController, PublicInviteController],
   providers: [
     TenantService,

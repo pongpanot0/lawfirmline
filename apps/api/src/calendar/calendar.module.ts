@@ -3,9 +3,10 @@ import { CalendarService } from './calendar.service';
 import { CalendarController } from './calendar.controller';
 import { TravelModule } from '../travel/travel.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { DeadlinesModule } from '../deadlines/deadlines.module';
 
 @Module({
-  imports: [TravelModule, forwardRef(() => NotificationsModule)],
+  imports: [TravelModule, forwardRef(() => NotificationsModule), DeadlinesModule],
   controllers: [CalendarController],
   providers: [CalendarService],
   exports: [CalendarService],

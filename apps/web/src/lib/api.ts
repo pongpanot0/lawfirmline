@@ -373,6 +373,10 @@ export interface TaskItem {
   }>;
 }
 
+export type MyDayResponse = import('@lawfirm/shared').MyDayResponse;
+export type AgendaItem = import('@lawfirm/shared').AgendaItem;
+export type DeadlineRuleItem = import('@lawfirm/shared').DeadlineRuleItem;
+
 export interface DashboardStats {
   firmId: string;
   firmName: string;
@@ -775,6 +779,28 @@ export const api = {
     request<TaskItem[]>(`/cases/${caseId}/tasks`, { token }),
 
   getMyTodos: (token: string) => request<TaskItem[]>('/todos', { token }),
+
+  getMyDay: (token: string) => request<MyDayResponse>('/agenda/my-day', { token }),
+
+  getDeadlineRules: (token: string) =>
+    request<DeadlineRuleItem[]>('/deadline-rules', { token }),
+
+  createDeadlineRule: (token: string, data: Record<string, unknown>) =>
+    request<DeadlineRuleItem>('/deadline-rules', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  updateDeadlineRule: (token: string, id: string, data: Record<string, unknown>) =>
+    request<{ updated: boolean }>(`/deadline-rules/${id}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  deleteDeadlineRule: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/deadline-rules/${id}`, { method: 'DELETE', token }),
 
   createTodo: (token: string, data: Record<string, unknown>) =>
     request<TaskItem>('/todos', {

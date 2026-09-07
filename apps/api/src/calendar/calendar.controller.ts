@@ -35,8 +35,8 @@ export class CalendarController {
   }
 
   @Post()
-  create(@Body() dto: CreateEventDto) {
-    return this.calendarService.create(dto);
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateEventDto) {
+    return this.calendarService.create(dto, user.id);
   }
 
   @Patch(':id')
