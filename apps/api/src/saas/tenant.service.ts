@@ -210,9 +210,21 @@ export class TenantService {
       }
     }
 
-    await this.prisma.firmMember.update({
-      where: { firmId_userId: { firmId: owner.firmId, userId: targetUserId } },
-      data: { role },
+    const previousRole = membership.role;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.firmMember.update({
+        where: { firmId_userId: { firmId: owner.firmId, userId: targetUserId } },
+        data: { role },
+      });
+      await tx.auditLog.create({
+        data: {
+          firmId: owner.firmId,
+          userId: owner.id,
+          action: 'MEMBER_ROLE_CHANGED',
+          metadata: { targetUserId, previousRole, newRole: role },
+        },
+      });
     });
 
     return { success: true };

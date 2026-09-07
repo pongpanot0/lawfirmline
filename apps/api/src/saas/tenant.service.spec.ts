@@ -6,13 +6,21 @@ import { PrismaService } from '../prisma/prisma.service';
 
 describe('TenantService.updateMemberRole', () => {
   let service: TenantService;
+  const mockTx = {
+    firmMember: { update: jest.fn() },
+    auditLog: { create: jest.fn() },
+  };
   const mockPrisma = {
     firmMember: { findUnique: jest.fn(), count: jest.fn(), update: jest.fn() },
+    $transaction: jest.fn(async (cb: (tx: typeof mockTx) => unknown) => cb(mockTx)),
   };
   const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: typeof mockTx) => unknown) =>
+      cb(mockTx),
+    );
     const module: TestingModule = await Test.createTestingModule({
       providers: [TenantService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
@@ -53,12 +61,13 @@ describe('TenantService.updateMemberRole', () => {
       role: FirmRole.OWNER,
     });
     mockPrisma.firmMember.count.mockResolvedValue(2);
-    mockPrisma.firmMember.update.mockResolvedValue({});
+    mockTx.firmMember.update.mockResolvedValue({});
+    mockTx.auditLog.create.mockResolvedValue({});
 
     const result = await service.updateMemberRole(owner, 'owner-2', FirmRole.SENIOR_LAWYER);
 
     expect(result).toEqual({ success: true });
-    expect(mockPrisma.firmMember.update).toHaveBeenCalledWith({
+    expect(mockTx.firmMember.update).toHaveBeenCalledWith({
       where: { firmId_userId: { firmId: 'firm-1', userId: 'owner-2' } },
       data: { role: FirmRole.SENIOR_LAWYER },
     });
@@ -70,11 +79,37 @@ describe('TenantService.updateMemberRole', () => {
       userId: 'lawyer-1',
       role: FirmRole.LAWYER,
     });
-    mockPrisma.firmMember.update.mockResolvedValue({});
+    mockTx.firmMember.update.mockResolvedValue({});
+    mockTx.auditLog.create.mockResolvedValue({});
 
     const result = await service.updateMemberRole(owner, 'lawyer-1', FirmRole.SENIOR_LAWYER);
 
     expect(result).toEqual({ success: true });
     expect(mockPrisma.firmMember.count).not.toHaveBeenCalled();
+  });
+
+  it('writes a MEMBER_ROLE_CHANGED audit log entry on a successful role change', async () => {
+    mockPrisma.firmMember.findUnique.mockResolvedValue({
+      firmId: 'firm-1',
+      userId: 'lawyer-1',
+      role: FirmRole.LAWYER,
+    });
+    mockTx.firmMember.update.mockResolvedValue({});
+    mockTx.auditLog.create.mockResolvedValue({});
+
+    await service.updateMemberRole(owner, 'lawyer-1', FirmRole.SENIOR_LAWYER);
+
+    expect(mockTx.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        firmId: 'firm-1',
+        userId: 'owner-1',
+        action: 'MEMBER_ROLE_CHANGED',
+        metadata: {
+          targetUserId: 'lawyer-1',
+          previousRole: FirmRole.LAWYER,
+          newRole: FirmRole.SENIOR_LAWYER,
+        },
+      },
+    });
   });
 });

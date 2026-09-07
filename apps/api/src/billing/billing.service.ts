@@ -88,7 +88,7 @@ export class BillingService {
   }
 
   async getCaseProfits(user: AuthUser) {
-    const caseFilter = this.caseAccess.getCaseFilterForUser(user);
+    const caseFilter = this.caseAccess.getCaseFilterForFinancials(user);
     const cases = await this.prisma.case.findMany({
       where: caseFilter,
       select: {
@@ -264,7 +264,7 @@ export class BillingService {
   async getFinanceSummary(user: AuthUser) {
     const { firmId } = user;
     const isOwner = user.firmRole === FirmRole.OWNER;
-    const caseFilter = this.caseAccess.getCaseFilterForUser(user);
+    const caseFilter = this.caseAccess.getCaseFilterForFinancials(user);
     const expenseFilter = isOwner
       ? this.getFirmExpenseFilter(firmId)
       : { userId: user.id, ...this.getFirmExpenseFilter(firmId) };
@@ -312,7 +312,7 @@ export class BillingService {
   }
 
   async getFirmInvoices(user: AuthUser) {
-    const caseFilter = this.caseAccess.getCaseFilterForUser(user);
+    const caseFilter = this.caseAccess.getCaseFilterForFinancials(user);
     const invoices = await this.prisma.invoice.findMany({
       where: { case: caseFilter },
       include: {
