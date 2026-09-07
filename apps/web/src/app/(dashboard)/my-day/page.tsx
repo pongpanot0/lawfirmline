@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CalendarClock, Car, Gavel, ListTodo, Users } from 'lucide-react';
-import { AgendaItemKind } from '@lawfirm/shared';
+import { AlertTriangle, CalendarClock, Car, Check, Gavel, ListTodo, Users } from 'lucide-react';
+import { AgendaItemKind, TaskStatus } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, AgendaItem, MyDayResponse } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
@@ -42,17 +43,22 @@ function bangkokDayLabel(dayKey: string, locale: string) {
   }).format(new Date(`${dayKey}T00:00:00Z`));
 }
 
-function AgendaRow({ item }: { item: AgendaItem }) {
+function AgendaRow({
+  item,
+  onComplete,
+  completing,
+}: {
+  item: AgendaItem;
+  onComplete: (item: AgendaItem) => void;
+  completing: boolean;
+}) {
   const d = useDashboardT();
   const Icon = KIND_ICON[item.kind] ?? CalendarClock;
 
   return (
-    <Link
-      href={item.url}
-      className="flex items-start gap-3 rounded-lg border border-transparent px-3 py-2.5 transition hover:border-border hover:bg-muted/50"
-    >
+    <div className="flex items-start gap-3 rounded-lg border border-transparent px-3 py-2.5 transition hover:border-border hover:bg-muted/50">
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <div className="min-w-0 flex-1">
+      <Link href={item.url} className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="font-mono text-sm tabular-nums text-muted-foreground">
             {item.allDay ? d.myDay.allDay : bangkokTime(item.at)}
@@ -72,8 +78,22 @@ function AgendaRow({ item }: { item: AgendaItem }) {
             </span>
           )}
         </div>
-      </div>
-    </Link>
+      </Link>
+
+      {item.kind === AgendaItemKind.TASK && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="shrink-0"
+          disabled={completing}
+          onClick={() => onComplete(item)}
+        >
+          <Check className="size-3.5" aria-hidden />
+          {d.myDay.markDone}
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -81,10 +101,14 @@ function Section({
   title,
   items,
   tone = 'default',
+  onComplete,
+  completingId,
 }: {
   title: string;
   items: AgendaItem[];
   tone?: 'default' | 'danger';
+  onComplete: (item: AgendaItem) => void;
+  completingId: string | null;
 }) {
   const d = useDashboardT();
   return (
@@ -103,7 +127,12 @@ function Section({
         ) : (
           <div className="-mx-1 divide-y divide-border/60">
             {items.map((item) => (
-              <AgendaRow key={item.id} item={item} />
+              <AgendaRow
+                key={item.id}
+                item={item}
+                onComplete={onComplete}
+                completing={completingId === item.id}
+              />
             ))}
           </div>
         )}
@@ -118,8 +147,9 @@ export default function MyDayPage() {
   const [data, setData] = useState<MyDayResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     const authToken = token ?? getStoredToken();
     if (!authToken) {
       setLoading(false);
@@ -135,6 +165,31 @@ export default function MyDayPage() {
       })
       .finally(() => setLoading(false));
   }, [token, d.common.loadFailed]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleComplete = async (item: AgendaItem) => {
+    const authToken = token ?? getStoredToken();
+    if (!authToken) return;
+    setCompletingId(item.id);
+    setError('');
+    try {
+      // A task on a case and a standalone todo are the same record behind two
+      // routes; `caseId` is what says which one to call.
+      if (item.caseId) {
+        await api.updateTask(authToken, item.caseId, item.entityId, { status: TaskStatus.DONE });
+      } else {
+        await api.updateTodo(authToken, item.entityId, { status: TaskStatus.DONE });
+      }
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : d.myDay.markDoneFailed);
+    } finally {
+      setCompletingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -181,10 +236,26 @@ export default function MyDayPage() {
       )}
 
       {data.overdue.length > 0 && (
-        <Section title={d.myDay.overdue} items={data.overdue} tone="danger" />
+        <Section
+          title={d.myDay.overdue}
+          items={data.overdue}
+          tone="danger"
+          onComplete={handleComplete}
+          completingId={completingId}
+        />
       )}
-      <Section title={d.myDay.today} items={data.todayItems} />
-      <Section title={d.myDay.tomorrow} items={data.tomorrow} />
+      <Section
+        title={d.myDay.today}
+        items={data.todayItems}
+        onComplete={handleComplete}
+        completingId={completingId}
+      />
+      <Section
+        title={d.myDay.tomorrow}
+        items={data.tomorrow}
+        onComplete={handleComplete}
+        completingId={completingId}
+      />
 
       {data.upcoming.length > 0 && (
         <Card>
@@ -199,7 +270,12 @@ export default function MyDayPage() {
                 </p>
                 <div className="-mx-1 divide-y divide-border/60">
                   {day.items.map((item) => (
-                    <AgendaRow key={item.id} item={item} />
+                    <AgendaRow
+                      key={item.id}
+                      item={item}
+                      onComplete={handleComplete}
+                      completing={completingId === item.id}
+                    />
                   ))}
                 </div>
               </div>

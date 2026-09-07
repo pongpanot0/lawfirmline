@@ -60,6 +60,8 @@ export const dashboardCopy = {
       upcoming: 'วันถัดไป',
       empty: 'ไม่มีงานในช่วงนี้',
       allDay: 'ทั้งวัน',
+      markDone: 'เสร็จแล้ว',
+      markDoneFailed: 'อัปเดตงานไม่สำเร็จ',
       departBy: 'ออกจากสำนักงาน {time}',
       conflicts: 'ตารางมีปัญหา',
       kind: {
@@ -69,6 +71,14 @@ export const dashboardCopy = {
         TASK: 'งาน',
         OTHER: 'นัดหมาย',
       },
+    },
+    digest: {
+      title: 'สรุปงานพรุ่งนี้',
+      description: 'ส่งทุกเย็น 18:00 เฉพาะวันที่มีงาน',
+      enabled: 'รับสรุปงาน',
+      viaLine: 'ส่งทาง LINE',
+      viaEmail: 'ส่งทางอีเมล {email}',
+      saveFailed: 'บันทึกไม่สำเร็จ',
     },
     deadlineRules: {
       title: 'กฎวันครบกำหนด',
@@ -110,6 +120,14 @@ export const dashboardCopy = {
       empty: 'ยังไม่มีวันหยุดในปีนี้',
       saveFailed: 'บันทึกไม่สำเร็จ',
       confirmDelete: 'ลบวันหยุดนี้?',
+      incomplete:
+        'ปีนี้มีวันหยุดเพียง {count} วัน ดูไม่ครบ — วันครบกำหนดอาจถูกคำนวณลงวันที่ศาลปิด กรุณาใส่ให้ครบก่อนใช้กฎที่นับข้ามปีนี้',
+      bulkTitle: 'ใส่ทั้งปีทีเดียว',
+      bulkHint: 'วางบรรทัดละหนึ่งวัน รูปแบบ "2027-01-01 วันขึ้นปีใหม่" — จะแทนที่ทั้งปีที่เลือก',
+      bulkApply: 'แทนที่ทั้งปี',
+      bulkConfirm: 'แทนที่วันหยุดทั้งปี {year} ด้วยรายการนี้?',
+      bulkDone: 'บันทึกแล้ว {count} วัน',
+      bulkBadLine: 'บรรทัดไม่ถูกต้อง: {line}',
     },
     dateSuggestions: {
       documentTitle: 'วันสำคัญจากเอกสาร รอยืนยัน',
@@ -564,6 +582,8 @@ export const dashboardCopy = {
       upcoming: 'Coming up',
       empty: 'Nothing scheduled',
       allDay: 'All day',
+      markDone: 'Done',
+      markDoneFailed: 'Could not update the task',
       departBy: 'Leave the office by {time}',
       conflicts: 'Schedule problems',
       kind: {
@@ -573,6 +593,14 @@ export const dashboardCopy = {
         TASK: 'Task',
         OTHER: 'Appointment',
       },
+    },
+    digest: {
+      title: 'Tomorrow\u2019s agenda digest',
+      description: 'Sent every evening at 18:00, only on days you have work.',
+      enabled: 'Receive the digest',
+      viaLine: 'Delivered over LINE',
+      viaEmail: 'Delivered by email to {email}',
+      saveFailed: 'Could not save',
     },
     deadlineRules: {
       title: 'Deadline Rules',
@@ -614,6 +642,14 @@ export const dashboardCopy = {
       empty: 'No holidays for this year yet',
       saveFailed: 'Could not save',
       confirmDelete: 'Delete this holiday?',
+      incomplete:
+        'Only {count} holidays for this year — that looks incomplete, so a deadline could be computed onto a day the courts are closed.',
+      bulkTitle: 'Import a whole year',
+      bulkHint: 'One per line, as "2027-01-01 New Year\u2019s Day". This replaces the selected year.',
+      bulkApply: 'Replace the year',
+      bulkConfirm: 'Replace every holiday in {year} with this list?',
+      bulkDone: '{count} saved',
+      bulkBadLine: 'Malformed line: {line}',
     },
     dateSuggestions: {
       documentTitle: 'Dates found in documents',

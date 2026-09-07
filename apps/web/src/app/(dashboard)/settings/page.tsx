@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Moon, Sun, Bell, Key, Building2, Sparkles, Copy, ExternalLink } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
-import { api, LineIntegrationStatus, LinePersonalStatus } from '@/lib/api';
+import { api, LineIntegrationStatus, LinePersonalStatus, NotificationPreferences } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,9 @@ export default function SettingsPage() {
   const [linkExpiresAt, setLinkExpiresAt] = useState<string | null>(null);
   const [oaUrl, setOaUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [prefsError, setPrefsError] = useState('');
 
   const loadLineData = useCallback(async () => {
     const token = getStoredToken();
@@ -50,6 +53,26 @@ export default function SettingsPage() {
   useEffect(() => {
     loadLineData();
   }, [loadLineData]);
+
+  useEffect(() => {
+    const token = getStoredToken();
+    if (!token) return;
+    api.getMyPreferences(token).then(setPrefs).catch(() => setPrefs(null));
+  }, []);
+
+  const handleDigestToggle = async () => {
+    const token = getStoredToken();
+    if (!token || !prefs) return;
+    setPrefsSaving(true);
+    setPrefsError('');
+    try {
+      setPrefs(await api.updateMyPreferences(token, { dailyDigestEnabled: !prefs.dailyDigestEnabled }));
+    } catch {
+      setPrefsError(d.digest.saveFailed);
+    } finally {
+      setPrefsSaving(false);
+    }
+  };
 
   const handleLineTest = async () => {
     const token = getStoredToken();
@@ -156,6 +179,37 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {prefs && (
+          <Card>
+            <CardHeader><CardTitle>{d.digest.title}</CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Bell className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">{d.digest.enabled}</p>
+                    <p className="text-xs text-muted-foreground">{d.digest.description}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {prefs.digestChannel === 'line'
+                        ? d.digest.viaLine
+                        : fmt(d.digest.viaEmail, { email: prefs.digestEmail })}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant={prefs.dailyDigestEnabled ? 'secondary' : 'outline'}
+                  disabled={prefsSaving}
+                  onClick={handleDigestToggle}
+                >
+                  {prefs.dailyDigestEnabled ? d.deadlineRules.active : d.deadlineRules.inactive}
+                </Button>
+              </div>
+              {prefsError && <p className="mt-3 text-sm text-destructive">{prefsError}</p>}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>{d.settings.integrations}</CardTitle></CardHeader>

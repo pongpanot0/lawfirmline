@@ -376,6 +376,12 @@ export interface TaskItem {
 
 export type MyDayResponse = import('@lawfirm/shared').MyDayResponse;
 export type AgendaItem = import('@lawfirm/shared').AgendaItem;
+
+export interface NotificationPreferences {
+  dailyDigestEnabled: boolean;
+  digestChannel: 'line' | 'email';
+  digestEmail: string;
+}
 export type DeadlineRuleItem = import('@lawfirm/shared').DeadlineRuleItem;
 
 export interface PublicHolidayItem {
@@ -789,6 +795,16 @@ export const api = {
   getMyTodos: (token: string) => request<TaskItem[]>('/todos', { token }),
 
   getMyDay: (token: string) => request<MyDayResponse>('/agenda/my-day', { token }),
+
+  getMyPreferences: (token: string) =>
+    request<NotificationPreferences>('/users/me/preferences', { token }),
+
+  updateMyPreferences: (token: string, data: { dailyDigestEnabled?: boolean }) =>
+    request<NotificationPreferences>('/users/me/preferences', {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
 
   getDeadlineRules: (token: string) =>
     request<DeadlineRuleItem[]>('/deadline-rules', { token }),

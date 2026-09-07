@@ -10,9 +10,31 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fmt } from '@/lib/i18n/dashboard';
 
 /** Buddhist-era label for a Gregorian year. */
 const toBE = (year: number) => year + 543;
+
+/**
+ * Thailand has around twenty government holidays a year. Well under that means
+ * the calendar was never filled in — worth saying out loud, because the
+ * deadline engine will quietly count through the missing days.
+ */
+const EXPECTED_MIN_HOLIDAYS = 12;
+
+const BULK_LINE = /^(\d{4}-\d{2}-\d{2})[\s,\t]+(.+)$/;
+
+function parseBulk(text: string) {
+  const holidays: Array<{ date: string; name: string }> = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    const match = BULK_LINE.exec(line);
+    if (!match) return { error: line, holidays: [] };
+    holidays.push({ date: match[1], name: match[2].trim() });
+  }
+  return { error: null as string | null, holidays };
+}
 
 function weekdayLabel(date: string) {
   return new Intl.DateTimeFormat('th-TH', { timeZone: 'UTC', weekday: 'short' }).format(
@@ -27,6 +49,9 @@ export default function HolidaysPage() {
   const [year, setYear] = useState(thisYear);
   const [holidays, setHolidays] = useState<PublicHolidayItem[]>([]);
   const [form, setForm] = useState({ date: '', name: '' });
+  const [bulk, setBulk] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
   const load = useCallback(
@@ -58,6 +83,32 @@ export default function HolidaysPage() {
     }
   };
 
+  const handleBulk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setError('');
+    setNotice('');
+
+    const { error: badLine, holidays: parsed } = parseBulk(bulk);
+    if (badLine) {
+      setError(fmt(d.holidays.bulkBadLine, { line: badLine }));
+      return;
+    }
+    if (!window.confirm(fmt(d.holidays.bulkConfirm, { year: toBE(year) }))) return;
+
+    setBulkBusy(true);
+    try {
+      const result = await api.replacePublicHolidayYear(token, { year, holidays: parsed });
+      setNotice(fmt(d.holidays.bulkDone, { count: result.replaced }));
+      setBulk('');
+      load(year);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : d.holidays.saveFailed);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const handleDelete = async (holiday: PublicHolidayItem) => {
     if (!token || !window.confirm(d.holidays.confirmDelete)) return;
     setError('');
@@ -80,7 +131,17 @@ export default function HolidaysPage() {
         </CardContent>
       </Card>
 
+      {holidays.length > 0 && holidays.length < EXPECTED_MIN_HOLIDAYS && (
+        <Card className="mb-4 border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-start gap-2 py-3 text-sm">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+            <span>{fmt(d.holidays.incomplete, { count: holidays.length })}</span>
+          </CardContent>
+        </Card>
+      )}
+
       {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+      {notice && <p className="mb-3 text-sm text-muted-foreground">{notice}</p>}
 
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
@@ -120,6 +181,26 @@ export default function HolidaysPage() {
             <Button type="submit" size="sm">
               <Plus className="size-4" />
               {d.holidays.add}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-4">
+        <CardContent className="pt-6">
+          <h2 className="font-semibold text-foreground">{d.holidays.bulkTitle}</h2>
+          <p className="mb-3 mt-1 text-sm text-muted-foreground">{d.holidays.bulkHint}</p>
+          <form onSubmit={handleBulk} className="space-y-3">
+            <textarea
+              rows={6}
+              value={bulk}
+              onChange={(e) => setBulk(e.target.value)}
+              aria-label={d.holidays.bulkTitle}
+              placeholder={`${year + 1}-01-01 วันขึ้นปีใหม่`}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 font-mono text-sm"
+            />
+            <Button type="submit" size="sm" variant="outline" disabled={bulkBusy || !bulk.trim()}>
+              {d.holidays.bulkApply}
             </Button>
           </form>
         </CardContent>

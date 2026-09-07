@@ -4,6 +4,7 @@ import { DailyDigestScheduler } from './daily-digest.scheduler';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgendaService } from '../agenda/agenda.service';
 import { LineMessagingService } from './line-messaging.service';
+import { EmailService } from './email.service';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 
 const NOW = new Date('2026-09-07T11:00:00Z'); // Mon 7 Sep 2026, 18:00 Bangkok
@@ -35,12 +36,16 @@ describe('DailyDigestScheduler', () => {
   };
   const mockAgenda = { getDayBrief: jest.fn() };
   const mockLine = { sendText: jest.fn().mockResolvedValue(true) };
+  const mockEmail = {
+    sendDailyDigestEmail: jest.fn().mockResolvedValue(true),
+    getAppUrl: jest.fn().mockReturnValue('https://app.example'),
+  };
 
   const member = {
     firmId: 'firm-1',
     role: FirmRole.LAWYER,
     firm: { id: 'firm-1', name: 'Firm' },
-    user: { id: 'user-1', lineUserId: 'L1', firstName: 'A', lastName: 'B' },
+    user: { id: 'user-1', email: 'a@example.com', lineUserId: 'L1', firstName: 'A', lastName: 'B' },
   };
 
   beforeEach(async () => {
@@ -50,6 +55,8 @@ describe('DailyDigestScheduler', () => {
     mockPrisma.dailyDigestLog.findMany.mockResolvedValue([]);
     mockPrisma.dailyDigestLog.create.mockResolvedValue({});
     mockLine.sendText.mockResolvedValue(true);
+    mockEmail.sendDailyDigestEmail.mockResolvedValue(true);
+    mockEmail.getAppUrl.mockReturnValue('https://app.example');
     mockAgenda.getDayBrief.mockResolvedValue({
       date: '2026-09-08',
       items: [item()],
@@ -62,6 +69,7 @@ describe('DailyDigestScheduler', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AgendaService, useValue: mockAgenda },
         { provide: LineMessagingService, useValue: mockLine },
+        { provide: EmailService, useValue: mockEmail },
       ],
     }).compile();
     scheduler = module.get(DailyDigestScheduler);
@@ -117,6 +125,41 @@ describe('DailyDigestScheduler', () => {
 
     expect(mockAgenda.getDayBrief).not.toHaveBeenCalled();
     expect(mockLine.sendText).not.toHaveBeenCalled();
+  });
+
+  it('only considers members who have not opted out', async () => {
+    await scheduler.sendDigests();
+
+    expect(mockPrisma.firmMember.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { user: { dailyDigestEnabled: true } } }),
+    );
+  });
+
+  it('emails a member who has not linked LINE', async () => {
+    mockPrisma.firmMember.findMany.mockResolvedValue([
+      { ...member, user: { ...member.user, lineUserId: null } },
+    ]);
+
+    await scheduler.sendDigests();
+
+    expect(mockLine.sendText).not.toHaveBeenCalled();
+    const [params] = mockEmail.sendDailyDigestEmail.mock.calls[0];
+    expect(params).toMatchObject({ to: 'a@example.com', dayLabel: 'อ. 8 ก.ย. 2569' });
+    expect(params.lines[0]).toContain('สืบพยานโจทก์');
+    expect(mockPrisma.dailyDigestLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ channel: 'email' }),
+    });
+  });
+
+  it('does not re-send over email once the day went out on LINE', async () => {
+    mockPrisma.dailyDigestLog.findMany.mockResolvedValue([{ userId: 'user-1' }]);
+    mockPrisma.firmMember.findMany.mockResolvedValue([
+      { ...member, user: { ...member.user, lineUserId: null } },
+    ]);
+
+    await scheduler.sendDigests();
+
+    expect(mockEmail.sendDailyDigestEmail).not.toHaveBeenCalled();
   });
 
   it('records the digest only when LINE accepted it', async () => {

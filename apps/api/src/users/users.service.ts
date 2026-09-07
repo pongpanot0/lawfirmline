@@ -95,4 +95,27 @@ export class UsersService {
       hasMore,
     };
   }
+
+  /**
+   * Delivery is chosen from the LINE link, so the preference is only whether to
+   * receive the digest at all.
+   */
+  async getPreferences(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { dailyDigestEnabled: true, lineUserId: true, email: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return {
+      dailyDigestEnabled: user.dailyDigestEnabled,
+      digestChannel: user.lineUserId ? 'line' : 'email',
+      digestEmail: user.email,
+    };
+  }
+
+  async updatePreferences(userId: string, dto: { dailyDigestEnabled?: boolean }) {
+    await this.prisma.user.update({ where: { id: userId }, data: { ...dto } });
+    return this.getPreferences(userId);
+  }
+
 }

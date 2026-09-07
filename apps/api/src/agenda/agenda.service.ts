@@ -201,6 +201,7 @@ export class AgendaService {
     const allDay = kind === AgendaItemKind.DEADLINE;
     return {
       id: `event:${row.id}`,
+      entityId: row.id,
       kind,
       title: row.title,
       at: row.startAt.toISOString(),
@@ -224,6 +225,7 @@ export class AgendaService {
     const due = row.dueDate as Date;
     return {
       id: `task:${row.id}`,
+      entityId: row.id,
       kind: AgendaItemKind.TASK,
       title: row.title,
       at: due.toISOString(),

@@ -153,6 +153,7 @@ describe('AgendaService', () => {
 
     expect(result.todayItems.map((i) => i.id)).toEqual(['task:task-solo']);
     expect(result.todayItems[0].caseId).toBeNull();
+    expect(result.todayItems[0].entityId).toBe('task-solo');
     expect(result.todayItems[0].url).toBe('/todos');
   });
 

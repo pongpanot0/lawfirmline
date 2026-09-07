@@ -40,6 +40,8 @@ export interface AgendaWarning {
 export interface AgendaItem {
   /** Unique within an agenda response: `event:<id>` or `task:<id>`. */
   id: string;
+  /** The underlying record's id, for acting on it without parsing `id`. */
+  entityId: string;
   kind: AgendaItemKind;
   title: string;
   /** ISO instant. For all-day items this is 00:00 Asia/Bangkok of that day. */

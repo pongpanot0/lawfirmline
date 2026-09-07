@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { UpdatePreferencesDto } from './dto/user-preferences.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -30,6 +31,17 @@ export class UsersController {
   @Get('lawyers')
   findLawyers(@CurrentUser() user: AuthUser) {
     return this.usersService.findLawyers(user.firmId);
+  }
+
+  /** The caller's own notification preferences — no admin role needed. */
+  @Get('me/preferences')
+  getMyPreferences(@CurrentUser() user: AuthUser) {
+    return this.usersService.getPreferences(user.id);
+  }
+
+  @Patch('me/preferences')
+  updateMyPreferences(@CurrentUser() user: AuthUser, @Body() dto: UpdatePreferencesDto) {
+    return this.usersService.updatePreferences(user.id, dto);
   }
 
   @Get(':id')

@@ -38,6 +38,18 @@ export interface ClientPortalInviteEmailParams {
   expiresAt: Date;
 }
 
+export interface DailyDigestEmailParams {
+  to: string;
+  recipientName: string;
+  /** Human-readable Bangkok date the digest covers, e.g. `อ. 8 ก.ย. 2569`. */
+  dayLabel: string;
+  /** One line per agenda item, already formatted. */
+  lines: string[];
+  /** Schedule conflicts to call out above the list. */
+  warnings: string[];
+  appUrl: string;
+}
+
 export interface DocumentPublishedEmailParams {
   to: string;
   contactName: string;
@@ -259,6 +271,68 @@ export class EmailService {
             : 'Unknown SendGrid error';
       this.logger.error(`Failed to send client portal invite email to ${maskEmail(params.to)}: ${message}`);
       throw error;
+    }
+  }
+
+  /** Fallback for members who have not linked LINE. */
+  async sendDailyDigestEmail(params: DailyDigestEmailParams): Promise<boolean> {
+    if (!this.isConfigured()) {
+      this.logger.warn(
+        `SendGrid not configured; skipped daily digest email to ${maskEmail(params.to)}`,
+      );
+      return false;
+    }
+
+    const fromEmail = this.getFromEmail()!;
+    const subject = `งานพรุ่งนี้ (${params.dayLabel})`;
+
+    const text = [
+      `${subject}`,
+      '',
+      ...params.lines,
+      ...(params.warnings.length ? ['', ...params.warnings] : []),
+      '',
+      params.appUrl,
+    ].join('\n');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;max-width:560px">
+        <h2 style="margin:0 0 12px">${escapeHtml(subject)}</h2>
+        <p style="margin:0 0 12px">สวัสดี ${escapeHtml(params.recipientName)}</p>
+        <ul style="padding-left:18px;margin:0 0 16px">
+          ${params.lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}
+        </ul>
+        ${
+          params.warnings.length
+            ? `<div style="background:#fef3c7;border-radius:8px;padding:12px;margin:0 0 16px">
+                 ${params.warnings.map((w) => `<div>⚠️ ${escapeHtml(w)}</div>`).join('')}
+               </div>`
+            : ''
+        }
+        <p style="margin:24px 0">
+          <a href="${params.appUrl}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">
+            เปิดวันของฉัน
+          </a>
+        </p>
+      </div>
+    `.trim();
+
+    try {
+      await sgMail.send({
+        to: params.to,
+        from: { email: fromEmail, name: this.getFromName() },
+        subject,
+        text,
+        html,
+      });
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to send daily digest email to ${maskEmail(params.to)}: ${
+          error instanceof Error ? error.message : 'Unknown SendGrid error'
+        }`,
+      );
+      return false;
     }
   }
 

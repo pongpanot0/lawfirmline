@@ -386,6 +386,8 @@ model User {
   lineLinkCode          String?   @unique
   lineLinkCodeExpiresAt DateTime?
   lineConnectedAt       DateTime?
+  /// Opt out of the evening "what do I have tomorrow" digest.
+  dailyDigestEnabled    Boolean   @default(true)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

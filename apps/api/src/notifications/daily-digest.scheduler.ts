@@ -1,15 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import {
-  AgendaItem,
-  AgendaItemKind,
-  AgendaWarning,
-  AuthUser,
-  FirmRole,
-} from '@lawfirm/shared';
+import { AgendaItem, AgendaItemKind, AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { AgendaService } from '../agenda/agenda.service';
 import { LineMessagingService } from './line-messaging.service';
+import { EmailService } from './email.service';
 import {
   addBangkokDays,
   bangkokDateOnly,
@@ -18,7 +13,7 @@ import {
   formatBangkokTime,
 } from '../common/utils/bangkok-time';
 
-const CHANNEL = 'line';
+type Channel = 'line' | 'email';
 
 const KIND_LABEL: Record<AgendaItemKind, string> = {
   [AgendaItemKind.COURT_DATE]: 'นัดศาล',
@@ -44,6 +39,7 @@ export class DailyDigestScheduler {
     private prisma: PrismaService,
     private agenda: AgendaService,
     private line: LineMessagingService,
+    private email: EmailService,
   ) {}
 
   /** 18:00 Asia/Bangkok — pinned, because the server may run anywhere. */
@@ -53,22 +49,28 @@ export class DailyDigestScheduler {
     const digestDate = bangkokDateOnly(target);
 
     const members = await this.prisma.firmMember.findMany({
-      where: { user: { lineUserId: { not: null } } },
+      where: { user: { dailyDigestEnabled: true } },
       select: {
         firmId: true,
         role: true,
         firm: { select: { id: true, name: true } },
-        user: { select: { id: true, lineUserId: true, firstName: true, lastName: true } },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            lineUserId: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
     if (members.length === 0) return;
 
+    // Deliberately not filtered by channel: a member who already got the day's
+    // digest over LINE must not get it again by email if they unlink.
     const alreadySent = await this.prisma.dailyDigestLog.findMany({
-      where: {
-        digestDate,
-        channel: CHANNEL,
-        userId: { in: members.map((m) => m.user.id) },
-      },
+      where: { digestDate, userId: { in: members.map((m) => m.user.id) } },
       select: { userId: true },
     });
     const sentUserIds = new Set(alreadySent.map((log) => log.userId));
@@ -93,7 +95,13 @@ export class DailyDigestScheduler {
       // assignable to the shared TS enum; narrow it once, below.
       role: string;
       firm: { id: string; name: string };
-      user: { id: string; lineUserId: string | null; firstName: string; lastName: string };
+      user: {
+        id: string;
+        email: string;
+        lineUserId: string | null;
+        firstName: string;
+        lastName: string;
+      };
     },
     target: Date,
     digestDate: Date,
@@ -110,12 +118,26 @@ export class DailyDigestScheduler {
     // how a digest gets muted.
     if (brief.items.length === 0) return;
 
-    const sent = await this.line.sendText(
-      this.buildMessage(target, brief.items, brief.warnings),
-      [member.user.lineUserId as string],
-    );
+    const lines = this.buildLines(brief.items);
+    const warnings = brief.warnings.map((w) => w.message);
+    const channel: Channel = member.user.lineUserId ? 'line' : 'email';
+
+    const sent =
+      channel === 'line'
+        ? await this.line.sendText(this.buildMessage(target, lines, warnings), [
+            member.user.lineUserId as string,
+          ])
+        : await this.email.sendDailyDigestEmail({
+            to: member.user.email,
+            recipientName: `${member.user.firstName} ${member.user.lastName}`.trim(),
+            dayLabel: formatBangkokDateThai(target),
+            lines,
+            warnings,
+            appUrl: `${this.email.getAppUrl()}/my-day`,
+          });
+
     if (!sent) {
-      this.logger.warn(`LINE digest not delivered for user ${member.user.id}`);
+      this.logger.warn(`Digest not delivered to user ${member.user.id} over ${channel}`);
       return;
     }
 
@@ -123,33 +145,37 @@ export class DailyDigestScheduler {
       data: {
         userId: member.user.id,
         digestDate,
-        channel: CHANNEL,
+        channel,
         itemCount: brief.items.length,
       },
     });
   }
 
-  private buildMessage(day: Date, items: AgendaItem[], warnings: AgendaWarning[]): string {
-    const lines = [`📋 งานพรุ่งนี้ (${formatBangkokDateThai(day)})`, ''];
-
+  /** One line per item, shared by both channels so they never drift apart. */
+  private buildLines(items: AgendaItem[]): string[] {
+    const lines: string[] = [];
     for (const item of items) {
       const when = item.allDay ? 'ทั้งวัน' : formatBangkokTime(new Date(item.at));
       const ref = item.caseRef ? ` [${item.caseRef}]` : '';
-      lines.push(`• ${when} ${KIND_LABEL[item.kind]} — ${item.title}${ref}`);
-
       const detail: string[] = [];
       if (item.location) detail.push(item.location);
       if (item.departBy) {
         detail.push(`ออกจากสำนักงาน ${formatBangkokTime(new Date(item.departBy))}`);
       }
-      if (detail.length) lines.push(`   ${detail.join(' · ')}`);
+      lines.push(
+        `${when} ${KIND_LABEL[item.kind]} — ${item.title}${ref}` +
+          (detail.length ? ` (${detail.join(' · ')})` : ''),
+      );
     }
+    return lines;
+  }
 
-    if (warnings.length) {
-      lines.push('');
-      for (const warning of warnings) lines.push(`⚠️ ${warning.message}`);
-    }
-
-    return lines.join('\n');
+  private buildMessage(day: Date, lines: string[], warnings: string[]): string {
+    return [
+      `📋 งานพรุ่งนี้ (${formatBangkokDateThai(day)})`,
+      '',
+      ...lines.map((line) => `• ${line}`),
+      ...(warnings.length ? ['', ...warnings.map((w) => `⚠️ ${w}`)] : []),
+    ].join('\n');
   }
 }
