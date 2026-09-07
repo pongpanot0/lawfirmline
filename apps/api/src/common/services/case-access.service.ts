@@ -54,6 +54,21 @@ export class CaseAccessService {
     return { ...tenantFilter, OR: staffedOrAssigned };
   }
 
+  getCaseFilterForFinancials(user: AuthUser): Prisma.CaseWhereInput {
+    if (user.firmRole === FirmRole.OWNER) {
+      return { firmId: user.firmId };
+    }
+
+    return {
+      firmId: user.firmId,
+      OR: [
+        { leadLawyerId: user.id },
+        { assignments: { some: { userId: user.id } } },
+        { tasks: { some: { assigneeId: user.id } } },
+      ],
+    };
+  }
+
   getTaskFilterForUser(user: AuthUser): Prisma.TaskWhereInput {
     if (user.firmRole === FirmRole.OWNER) {
       return {};
@@ -68,10 +83,11 @@ export class CaseAccessService {
               firmMembers: { some: { firmId: user.firmId, role: FirmRole.LAWYER } },
             },
           },
+          { assigneeId: null },
         ],
       };
     }
 
-    return { assigneeId: user.id };
+    return { OR: [{ assigneeId: user.id }, { assigneeId: null }] };
   }
 }
