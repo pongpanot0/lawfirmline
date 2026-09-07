@@ -151,7 +151,13 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
           <div className={cn('min-w-0 flex-1', collapsed && 'md:hidden')}>
             <p className="truncate text-sm font-medium">{user.firstName} {user.lastName}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {user.firmRole === FirmRole.OWNER ? d.team.roleOwner : d.team.roleAssistant}
+              {user.firmRole === FirmRole.OWNER
+                ? d.team.roleOwner
+                : user.firmRole === FirmRole.SENIOR_LAWYER
+                  ? d.team.roleSeniorLawyer
+                  : user.firmRole === FirmRole.LAWYER
+                    ? d.team.roleLawyer
+                    : d.team.roleAssistant}
             </p>
           </div>
         </div>
