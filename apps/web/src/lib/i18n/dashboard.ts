@@ -111,6 +111,19 @@ export const dashboardCopy = {
       saveFailed: 'บันทึกไม่สำเร็จ',
       confirmDelete: 'ลบวันหยุดนี้?',
     },
+    dateSuggestions: {
+      documentTitle: 'วันสำคัญจากเอกสาร รอยืนยัน',
+      ruleTitle: 'วันครบกำหนดจากกฎ รอยืนยัน',
+      fromRule: 'จากกฎ',
+      empty: 'ไม่มีรายการรอยืนยัน',
+      applyTrigger: 'บันทึกเหตุตั้งต้น',
+      applyTriggerHint:
+        'บันทึกว่าเกิดเหตุอะไรและวันไหน ระบบจะเสนอวันครบกำหนดตามกฎที่ตั้งไว้ ให้ตรวจแล้วยืนยัน',
+      applyTriggerDate: 'วันที่เกิดเหตุ',
+      applied: 'เสนอวันครบกำหนด {count} รายการ',
+      appliedNone: 'ไม่มีกฎที่ตรงกับเหตุนี้',
+      applyFailed: 'บันทึกไม่สำเร็จ',
+    },
     topbar: {
       searchPlaceholder: 'ค้นหาคดี ลูกค้า...',
       newCase: 'สร้างคดีใหม่',
@@ -601,6 +614,19 @@ export const dashboardCopy = {
       empty: 'No holidays for this year yet',
       saveFailed: 'Could not save',
       confirmDelete: 'Delete this holiday?',
+    },
+    dateSuggestions: {
+      documentTitle: 'Dates found in documents',
+      ruleTitle: 'Deadlines from rules',
+      fromRule: 'From rule',
+      empty: 'Nothing awaiting confirmation',
+      applyTrigger: 'Record a triggering event',
+      applyTriggerHint:
+        'Record what happened and when; the system proposes the deadlines your rules define for you to confirm.',
+      applyTriggerDate: 'Date it happened',
+      applied: '{count} deadline(s) proposed',
+      appliedNone: 'No rule matches this trigger',
+      applyFailed: 'Could not save',
     },
     topbar: {
       searchPlaceholder: 'Search cases, clients...',

@@ -91,7 +91,11 @@ export class DeadlineRulesService {
     });
   }
 
-  list(user: AuthUser) {
+  async list(user: AuthUser) {
+    // Firms created before deadline rules existed have none; provision on read,
+    // the same way case types do, so the admin screen is never blank.
+    await this.provisionDefaults(user.firmId);
+
     return this.prisma.deadlineRule.findMany({
       where: { firmId: user.firmId },
       orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],

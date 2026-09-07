@@ -218,6 +218,26 @@ describe('DeadlineRulesService', () => {
     });
   });
 
+  describe('list', () => {
+    it('provisions the starter rules for a firm that predates the feature', async () => {
+      await service.list(user);
+
+      expect(mockPrisma.deadlineRule.createMany).toHaveBeenCalled();
+      expect(mockPrisma.deadlineRule.findMany).toHaveBeenCalledWith({
+        where: { firmId: 'firm-1' },
+        orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
+      });
+    });
+
+    it('does not re-seed a firm that already has rules', async () => {
+      mockPrisma.deadlineRule.count.mockResolvedValue(4);
+
+      await service.list(user);
+
+      expect(mockPrisma.deadlineRule.createMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('rule management', () => {
     it('scopes a rule update to the caller firm', async () => {
       mockPrisma.deadlineRule.updateMany.mockResolvedValue({ count: 1 });

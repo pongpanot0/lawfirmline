@@ -14,6 +14,9 @@ export class DateSuggestionsService {
   async listForCase(caseId: string, status: DateSuggestionStatus = DateSuggestionStatus.PENDING) {
     return this.prisma.documentDateSuggestion.findMany({
       where: { caseId, status },
+      // A rule-derived suggestion has no source excerpt to show; the rule it
+      // came from is what tells the lawyer where the date is from.
+      include: { deadlineRule: { select: { label: true, trigger: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }

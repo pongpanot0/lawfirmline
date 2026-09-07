@@ -830,6 +830,17 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  applyDeadlineTrigger: (
+    token: string,
+    caseId: string,
+    data: { trigger: DeadlineTriggerValue; triggerDate: string },
+  ) =>
+    request<{ created: number }>(`/cases/${caseId}/deadlines/apply`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
   deletePublicHoliday: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/public-holidays/${id}`, { method: 'DELETE', token }),
 
@@ -1474,11 +1485,16 @@ export interface DateSuggestionItem {
   label: string;
   suggestedDate: string;
   eventType: 'COURT_DATE' | 'CLIENT_MEETING' | 'DEADLINE' | 'OTHER';
-  sourceExcerpt: string;
+  /** Only DOCUMENT suggestions quote a source; a rule-derived date has none. */
+  sourceExcerpt: string | null;
+  source: 'DOCUMENT' | 'RULE';
+  deadlineRule?: { label: string; trigger: DeadlineTriggerValue } | null;
   status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
   calendarEventId?: string | null;
   createdAt: string;
 }
+
+export type DeadlineTriggerValue = import('@lawfirm/shared').DeadlineTrigger;
 
 export interface DocumentItem {
   id: string;

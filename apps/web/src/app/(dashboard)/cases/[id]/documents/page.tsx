@@ -6,10 +6,11 @@ import Link from 'next/link';
 import { Upload, Eye, Download, ArrowLeft, Sparkles, CalendarSearch } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry, DateSuggestionItem } from '@/lib/api';
+import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry } from '@/lib/api';
 import { DocumentDropZone, DocumentDropZoneHandle } from '@/components/DocumentDropZone';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { Button } from '@/components/ui/button';
+import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 
@@ -27,9 +28,7 @@ export default function CaseDocumentsPage() {
   const [rendered, setRendered] = useState<{ name: string; content: string } | null>(null);
   const [error, setError] = useState('');
   const dropRef = useRef<DocumentDropZoneHandle>(null);
-  const [suggestions, setSuggestions] = useState<DateSuggestionItem[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, { label: string; date: string; eventType: string }>>({});
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [suggestionsKey, setSuggestionsKey] = useState(0);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [publications, setPublications] = useState<Record<string, DocumentPublicationEntry[]>>({});
@@ -60,30 +59,6 @@ export default function CaseDocumentsPage() {
 
   useEffect(() => { load(); }, [token, id]);
 
-  const loadSuggestions = () => {
-    if (!token || !id) return;
-    api
-      .getDateSuggestions(token, id, 'PENDING')
-      .then((items) => {
-        setSuggestions(items);
-        setDrafts((prev) => {
-          const next = { ...prev };
-          items.forEach((s) => {
-            if (!next[s.id]) {
-              next[s.id] = {
-                label: s.label,
-                date: s.suggestedDate.slice(0, 10),
-                eventType: s.eventType,
-              };
-            }
-          });
-          return next;
-        });
-      })
-      .catch(console.error);
-  };
-
-  useEffect(() => { loadSuggestions(); }, [token, id]);
 
   useEffect(() => () => {
     if (preview?.url) URL.revokeObjectURL(preview.url);
@@ -203,42 +178,12 @@ export default function CaseDocumentsPage() {
       if (created.length === 0) {
         setError(d.caseDocuments.noDateSuggestions);
       } else {
-        loadSuggestions();
+        setSuggestionsKey((n) => n + 1);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
     } finally {
       setExtractingId(null);
-    }
-  };
-
-  const handleConfirmSuggestion = async (suggestionId: string) => {
-    if (!token || !id) return;
-    const draft = drafts[suggestionId];
-    setConfirmingId(suggestionId);
-    setError('');
-    try {
-      await api.confirmDateSuggestion(token, id, suggestionId, {
-        label: draft?.label,
-        date: draft?.date ? new Date(draft.date).toISOString() : undefined,
-        eventType: draft?.eventType,
-      });
-      setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
-    } finally {
-      setConfirmingId(null);
-    }
-  };
-
-  const handleDismissSuggestion = async (suggestionId: string) => {
-    if (!token || !id) return;
-    setError('');
-    try {
-      await api.dismissDateSuggestion(token, id, suggestionId);
-      setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
     }
   };
 
@@ -281,76 +226,12 @@ export default function CaseDocumentsPage() {
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-      {suggestions.length > 0 && (
-        <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
-          <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.pendingDateSuggestions}</h2>
-          <div className="space-y-3">
-            {suggestions.map((s) => {
-              const draft = drafts[s.id] ?? {
-                label: s.label,
-                date: s.suggestedDate.slice(0, 10),
-                eventType: s.eventType,
-              };
-              return (
-                <div key={s.id} className="rounded-lg border p-3">
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <input
-                      type="text"
-                      value={draft.label}
-                      onChange={(e) =>
-                        setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, label: e.target.value } }))
-                      }
-                      className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-                    />
-                    <input
-                      type="date"
-                      value={draft.date}
-                      onChange={(e) =>
-                        setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, date: e.target.value } }))
-                      }
-                      className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-                    />
-                    <select
-                      value={draft.eventType}
-                      onChange={(e) =>
-                        setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, eventType: e.target.value } }))
-                      }
-                      className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-                    >
-                      <option value="COURT_DATE">{d.calendar.typeCourtDate}</option>
-                      <option value="CLIENT_MEETING">{d.calendar.typeClientMeeting}</option>
-                      <option value="DEADLINE">{d.calendar.typeDeadline}</option>
-                      <option value="OTHER">{d.calendar.typeOther}</option>
-                    </select>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {d.caseDocuments.sourceExcerpt}: &ldquo;{s.sourceExcerpt}&rdquo;
-                  </p>
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={confirmingId === s.id}
-                      onClick={() => handleConfirmSuggestion(s.id)}
-                    >
-                      {confirmingId === s.id ? d.caseDocuments.confirming : d.caseDocuments.confirmDate}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={confirmingId === s.id}
-                      onClick={() => handleDismissSuggestion(s.id)}
-                    >
-                      {d.caseDocuments.dismissDate}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <DateSuggestionsPanel
+        caseId={id}
+        source="DOCUMENT"
+        title={d.dateSuggestions.documentTitle}
+        reloadKey={suggestionsKey}
+      />
 
       <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.templates}</h2>

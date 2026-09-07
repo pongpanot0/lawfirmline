@@ -34,6 +34,7 @@ describe('DateSuggestionsService', () => {
       await service.listForCase('case-1');
       expect(mockPrisma.documentDateSuggestion.findMany).toHaveBeenCalledWith({
         where: { caseId: 'case-1', status: DateSuggestionStatus.PENDING },
+        include: { deadlineRule: { select: { label: true, trigger: true } } },
         orderBy: { createdAt: 'desc' },
       });
     });
