@@ -83,6 +83,7 @@ export class CasesService {
       include: {
         ...this.caseInclude,
         tasks: {
+          where: this.caseAccess.getTaskFilterForUser(user),
           include: {
             assignee: {
               select: { id: true, firstName: true, lastName: true },
