@@ -5,6 +5,8 @@ export enum Role {
 
 export enum FirmRole {
   OWNER = 'OWNER',
+  SENIOR_LAWYER = 'SENIOR_LAWYER',
+  LAWYER = 'LAWYER',
   ASSISTANT = 'ASSISTANT',
 }
 
