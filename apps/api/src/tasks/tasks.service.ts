@@ -54,7 +54,7 @@ export class TasksService {
   private assertLeadOrOwner(user: AuthUser, legalCase: CaseForAccess) {
     if (user.firmRole === FirmRole.OWNER) return;
     if (legalCase.leadLawyerId === user.id) return;
-    throw new ForbiddenException('เฉพาะ Senior lawyer (Lead) หรือ Owner เท่านั้นที่ทำรายการนี้ได้');
+    throw new ForbiddenException('เฉพาะทนายความหลักของคดี (Lead) หรือ Owner เท่านั้นที่ทำรายการนี้ได้');
   }
 
   private async ensureCaseMembership(caseId: string, userId: string) {

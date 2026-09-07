@@ -416,6 +416,33 @@ describe('TasksService on-hold', () => {
         }),
       );
     });
+
+    it('composes the real SENIOR_LAWYER filter (including the unassigned-task branch) into the query', async () => {
+      const realCaseAccess = new CaseAccessService({} as any);
+      const seniorUser = { id: 'user-2', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
+      const realFilter = realCaseAccess.getTaskFilterForUser(seniorUser);
+      mockCaseAccess.getTaskFilterForUser.mockReturnValue(realFilter);
+      mockPrisma.task.findMany.mockResolvedValue([]);
+
+      await service.findByCase('case-1', seniorUser);
+
+      expect(realFilter).toEqual({
+        OR: [
+          { assigneeId: 'user-2' },
+          {
+            assignee: {
+              firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
+            },
+          },
+          { assigneeId: null },
+        ],
+      });
+      expect(mockPrisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { caseId: 'case-1', ...realFilter },
+        }),
+      );
+    });
   });
 
   describe('findMine', () => {
