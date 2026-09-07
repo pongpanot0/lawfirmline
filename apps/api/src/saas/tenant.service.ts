@@ -189,6 +189,47 @@ export class TenantService {
     return { success: true };
   }
 
+  async updateMemberRole(owner: AuthUser, targetUserId: string, role: FirmRole) {
+    if (!this.isOwner(owner)) {
+      throw new ForbiddenException('Only owners can change member roles');
+    }
+
+    const membership = await this.prisma.firmMember.findUnique({
+      where: { firmId_userId: { firmId: owner.firmId, userId: targetUserId } },
+    });
+    if (!membership) {
+      throw new NotFoundException('Member not found');
+    }
+
+    if (membership.role === FirmRole.OWNER && role !== FirmRole.OWNER) {
+      const ownerCount = await this.prisma.firmMember.count({
+        where: { firmId: owner.firmId, role: FirmRole.OWNER },
+      });
+      if (ownerCount <= 1) {
+        throw new BadRequestException('Cannot demote the only owner');
+      }
+    }
+
+    const previousRole = membership.role;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.firmMember.update({
+        where: { firmId_userId: { firmId: owner.firmId, userId: targetUserId } },
+        data: { role },
+      });
+      await tx.auditLog.create({
+        data: {
+          firmId: owner.firmId,
+          userId: owner.id,
+          action: 'MEMBER_ROLE_CHANGED',
+          metadata: { targetUserId, previousRole, newRole: role },
+        },
+      });
+    });
+
+    return { success: true };
+  }
+
   slugify(name: string): string {
     const base = name
       .toLowerCase()

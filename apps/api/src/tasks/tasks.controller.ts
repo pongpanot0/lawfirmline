@@ -23,8 +23,8 @@ export class TasksController {
   constructor(private tasksService: TasksService) {}
 
   @Get()
-  findByCase(@Param('caseId') caseId: string) {
-    return this.tasksService.findByCase(caseId);
+  findByCase(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
+    return this.tasksService.findByCase(caseId, user);
   }
 
   @Post()

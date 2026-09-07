@@ -639,6 +639,13 @@ export const api = {
   removeTeamMember: (token: string, userId: string) =>
     request<{ success: boolean }>(`/saas/members/${userId}`, { method: 'DELETE', token }),
 
+  updateMemberRole: (token: string, userId: string, role: string) =>
+    request<{ success: boolean }>(`/saas/members/${userId}/role`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ role }),
+    }),
+
   cancelInvitation: (token: string, invitationId: string) =>
     request<{ success: boolean }>(`/saas/invitations/${invitationId}`, {
       method: 'DELETE',

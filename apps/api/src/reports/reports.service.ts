@@ -27,7 +27,7 @@ export class ReportsService {
 
   async getSummary(user: AuthUser) {
     const { firmId } = user;
-    const caseFilter = this.caseAccess.getCaseFilterForUser(user);
+    const caseFilter = this.caseAccess.getCaseFilterForFinancials(user);
     const expenseFilter = this.getExpenseFilter(firmId, user);
     const now = new Date();
     const year = now.getFullYear();

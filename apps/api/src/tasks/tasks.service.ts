@@ -14,6 +14,7 @@ import {
   TaskStatus,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
 import {
@@ -27,7 +28,10 @@ type CaseForAccess = { id: string; leadLawyerId: string };
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private caseAccess: CaseAccessService,
+  ) {}
 
   private taskInclude = {
     assignee: {
@@ -50,7 +54,7 @@ export class TasksService {
   private assertLeadOrOwner(user: AuthUser, legalCase: CaseForAccess) {
     if (user.firmRole === FirmRole.OWNER) return;
     if (legalCase.leadLawyerId === user.id) return;
-    throw new ForbiddenException('เฉพาะ Senior lawyer (Lead) หรือ Owner เท่านั้นที่ทำรายการนี้ได้');
+    throw new ForbiddenException('เฉพาะทนายความหลักของคดี (Lead) หรือ Owner เท่านั้นที่ทำรายการนี้ได้');
   }
 
   private async ensureCaseMembership(caseId: string, userId: string) {
@@ -99,9 +103,9 @@ export class TasksService {
     });
   }
 
-  async findByCase(caseId: string) {
+  async findByCase(caseId: string, user: AuthUser) {
     return this.prisma.task.findMany({
-      where: { caseId },
+      where: { caseId, ...this.caseAccess.getTaskFilterForUser(user) },
       include: this.taskInclude,
       orderBy: { createdAt: 'desc' },
     });
@@ -109,7 +113,11 @@ export class TasksService {
 
   async findMine(user: AuthUser) {
     return this.prisma.task.findMany({
-      where: { caseId: null, assigneeId: user.id },
+      where: {
+        caseId: null,
+        assignee: { firmMembers: { some: { firmId: user.firmId } } },
+        ...this.caseAccess.getTaskFilterForUser(user),
+      },
       include: this.taskInclude,
       orderBy: { createdAt: 'desc' },
     });

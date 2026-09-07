@@ -3,11 +3,12 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { FirmRole, TaskLogAction, TaskStatus } from '@lawfirm/shared';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 
 describe('TasksService on-hold', () => {
   let service: TasksService;
   const mockPrisma = {
-    task: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    task: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
     caseActivity: { create: jest.fn() },
@@ -18,12 +19,17 @@ describe('TasksService on-hold', () => {
       findFirst: jest.fn(),
     },
   };
+  const mockCaseAccess = { getTaskFilterForUser: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [TasksService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        TasksService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: mockCaseAccess },
+      ],
     }).compile();
     service = module.get(TasksService);
   });
@@ -393,6 +399,68 @@ describe('TasksService on-hold', () => {
           note: 'แก้คำผิด',
         }),
       });
+    });
+  });
+
+  describe('findByCase', () => {
+    it('merges the role-based task filter into the case task query', async () => {
+      mockCaseAccess.getTaskFilterForUser.mockReturnValue({ assigneeId: 'user-1' });
+      mockPrisma.task.findMany.mockResolvedValue([]);
+
+      await service.findByCase('case-1', user);
+
+      expect(mockCaseAccess.getTaskFilterForUser).toHaveBeenCalledWith(user);
+      expect(mockPrisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { caseId: 'case-1', assigneeId: 'user-1' },
+        }),
+      );
+    });
+
+    it('composes the real SENIOR_LAWYER filter (including the unassigned-task branch) into the query', async () => {
+      const realCaseAccess = new CaseAccessService({} as any);
+      const seniorUser = { id: 'user-2', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
+      const realFilter = realCaseAccess.getTaskFilterForUser(seniorUser);
+      mockCaseAccess.getTaskFilterForUser.mockReturnValue(realFilter);
+      mockPrisma.task.findMany.mockResolvedValue([]);
+
+      await service.findByCase('case-1', seniorUser);
+
+      expect(realFilter).toEqual({
+        OR: [
+          { assigneeId: 'user-2' },
+          {
+            assignee: {
+              firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
+            },
+          },
+          { assigneeId: null },
+        ],
+      });
+      expect(mockPrisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { caseId: 'case-1', ...realFilter },
+        }),
+      );
+    });
+  });
+
+  describe('findMine', () => {
+    it('scopes standalone tasks to caseId null, the firm, and the role-based filter', async () => {
+      mockCaseAccess.getTaskFilterForUser.mockReturnValue({ assigneeId: 'user-1' });
+      mockPrisma.task.findMany.mockResolvedValue([]);
+
+      await service.findMine(user);
+
+      expect(mockPrisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            caseId: null,
+            assignee: { firmMembers: { some: { firmId: 'firm-1' } } },
+            assigneeId: 'user-1',
+          },
+        }),
+      );
     });
   });
 });
