@@ -13,6 +13,7 @@ export function BatchAnalysisPanel({
   onUseSummary,
   disabled = false,
   onBusyChange,
+  entityLabel = 'คดี',
 }: {
   caseId?: string;
   files?: File[];
@@ -20,6 +21,8 @@ export function BatchAnalysisPanel({
   onUseSummary?: (summary: string) => void;
   disabled?: boolean;
   onBusyChange?: (busy: boolean) => void;
+  /** Noun to use in draft-mode copy ("บันทึกลง{entityLabel}") — defaults to "คดี" for case creation. */
+  entityLabel?: string;
 }) {
   const { token } = useAuth();
   const input = useRef<HTMLInputElement>(null);
@@ -164,7 +167,7 @@ export function BatchAnalysisPanel({
       </p>
       {!caseId && (
         <p className="text-xs text-muted-foreground">
-          ไฟล์จะบันทึกลงคดีเมื่อสร้างคดีสำเร็จ หากออกจากหน้านี้ก่อน
+          ไฟล์จะถูกเก็บเมื่อบันทึกข้อมูลสำเร็จ หากออกจากหน้านี้ก่อน
           ไฟล์ที่เลือกจะไม่ถูกเก็บ
         </p>
       )}
@@ -295,7 +298,7 @@ export function BatchAnalysisPanel({
               variant="outline"
               onClick={() => onUseSummary(summary)}
             >
-              เพิ่มผลสรุปในรายละเอียดคดี
+              เพิ่มผลสรุปในรายละเอียด{entityLabel}
             </Button>
           )}
           <p className="text-xs text-muted-foreground">

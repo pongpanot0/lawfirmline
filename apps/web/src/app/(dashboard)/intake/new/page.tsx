@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { api, ClientItem, ApiError, IntakeItem, CaseItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { getCaseStatusDisplay } from '@/lib/case-status';
+import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 
 const REFERRAL_TYPE_LABELS: Record<string, string> = {
   INDIVIDUAL: 'บุคคลทั่วไป',
@@ -48,6 +49,9 @@ export default function NewIntakePage() {
   const [clientsRetry, setClientsRetry] = useState(0);
   const [casesLoading, setCasesLoading] = useState(false);
   const [casesError, setCasesError] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [createdIntakeId, setCreatedIntakeId] = useState<string | null>(null);
   const now = new Date();
   const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
 
@@ -142,7 +146,25 @@ export default function NewIntakePage() {
       } else if (form.clientName.trim()) {
         payload.clientName = form.clientName.trim();
       }
-      const created = await api.createIntake(token, payload) as IntakeItem;
+      const created = createdIntakeId
+        ? { id: createdIntakeId }
+        : ((await api.createIntake(token, payload)) as IntakeItem);
+      setCreatedIntakeId(created.id);
+      const failedFiles: File[] = [];
+      for (const file of files) {
+        try {
+          await api.uploadIntakeAttachment(token, created.id, file);
+        } catch {
+          failedFiles.push(file);
+        }
+      }
+      setFiles(failedFiles);
+      if (failedFiles.length) {
+        setError(`บันทึกเรื่องแล้ว แต่แนบไฟล์ไม่สำเร็จ ${failedFiles.length} ไฟล์ (รองรับเฉพาะ PDF) กดอีกครั้งเพื่อแนบไฟล์ที่เหลือ โดยไม่บันทึกซ้ำ`);
+        submitLock.current = false;
+        setSubmitting(false);
+        return;
+      }
       router.push(`/intake/${created.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
@@ -155,7 +177,23 @@ export default function NewIntakePage() {
   return (
     <div className="mx-auto w-full max-w-4xl pb-20">
       <h1 className="mb-1 text-2xl font-bold">รับเรื่องใหม่</h1>
-      <p className="mb-6 text-sm text-muted-foreground">เริ่มจากชื่อเรื่อง ข้อมูลอื่นเติมภายหลังได้ เมื่อบันทึกแล้วจะเพิ่มหลายไฟล์และเลือกวิเคราะห์ร่วมกันได้</p>
+      <p className="mb-6 text-sm text-muted-foreground">เริ่มจากชื่อเรื่อง ข้อมูลอื่นเติมภายหลังได้ แนบไฟล์ที่ลูกค้าส่งมาแล้ววิเคราะห์ร่วมกันได้เลย</p>
+
+      <div className="mb-5">
+        <BatchAnalysisPanel
+          files={files}
+          onFilesChange={setFiles}
+          onBusyChange={setAnalysisBusy}
+          entityLabel="เรื่อง"
+          disabled={submitting || !!createdIntakeId}
+          onUseSummary={(summary) =>
+            setForm((previous) => ({
+              ...previous,
+              description: [previous.description, summary].filter(Boolean).join('\n\n'),
+            }))
+          }
+        />
+      </div>
 
       <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-4 sm:p-6 shadow-sm">
         <fieldset disabled={submitting} className="min-w-0 space-y-6">
@@ -395,11 +433,15 @@ export default function NewIntakePage() {
         )}
 
         <div className="flex items-center justify-between border-t pt-4">
-          <Button type="button" variant="outline" onClick={() => router.push('/intake')}>
+          <Button type="button" variant="outline" disabled={submitting || !!createdIntakeId} onClick={() => router.push('/intake')}>
             ยกเลิก
           </Button>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'กำลังบันทึก...' : 'บันทึกและไปเพิ่มเอกสาร'}
+          <Button type="submit" disabled={submitting || analysisBusy}>
+            {submitting
+              ? 'กำลังบันทึก...'
+              : createdIntakeId
+                ? 'แนบไฟล์ที่เหลืออีกครั้ง'
+                : 'บันทึกและไปเพิ่มเอกสาร'}
           </Button>
         </div>
         </fieldset>
