@@ -56,7 +56,7 @@ export const dashboardCopy = {
     },
     myDay: {
       title: 'วันของฉัน',
-      description: 'นัดหมาย งาน และวันครบกำหนดทั้งหมดของคุณ รวมไว้ที่เดียว',
+      description: 'นัดหมาย งาน และวันครบกำหนดที่คุณรับผิดชอบหรือดูแลอยู่ รวมไว้ที่เดียว',
       overdue: 'เลยกำหนด',
       today: 'วันนี้',
       tomorrow: 'พรุ่งนี้',
@@ -802,7 +802,7 @@ export const dashboardCopy = {
     },
     myDay: {
       title: 'My Day',
-      description: 'Every appointment, task and deadline you own, in one place.',
+      description: 'Every appointment, task and deadline you own or oversee, in one place.',
       overdue: 'Overdue',
       today: 'Today',
       tomorrow: 'Tomorrow',

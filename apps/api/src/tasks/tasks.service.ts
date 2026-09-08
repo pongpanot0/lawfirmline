@@ -186,6 +186,21 @@ export class TasksService {
       );
     }
 
+    // Hiding the button is not what keeps someone else's work out of reach.
+    // A standalone todo already refuses a stranger; a case task did not, so
+    // anyone with access to the case could close another lawyer's work.
+    // The rule matches what the board offers: your own, or nobody's — and the
+    // lead lawyer or owner, who may reassign it in the first place.
+    if (dto.status !== undefined && task.assigneeId && task.assigneeId !== user.id) {
+      const legalCase = task.caseId
+        ? await this.prisma.case.findUnique({ where: { id: task.caseId } })
+        : null;
+      if (!legalCase) {
+        throw new ForbiddenException('เปลี่ยนสถานะได้เฉพาะงานของตัวเอง');
+      }
+      this.assertLeadOrOwner(user, legalCase);
+    }
+
     if (dto.assigneeId && task.caseId) {
       const legalCase = await this.prisma.case.findUnique({ where: { id: task.caseId } });
       if (!legalCase) throw new NotFoundException('Case not found');
