@@ -1446,7 +1446,12 @@ export const api = {
   listDocumentPublications: (token: string, caseId: string, documentId: string) =>
     request<DocumentPublicationEntry[]>(`/cases/${caseId}/documents/${documentId}/publications`, { token }),
 
-  publishDocument: (token: string, caseId: string, documentId: string, data: { title?: string; summary?: string }) =>
+  publishDocument: (
+    token: string,
+    caseId: string,
+    documentId: string,
+    data: { title?: string; summary?: string; recipientContacts?: string[] },
+  ) =>
     request<DocumentPublicationEntry>(`/cases/${caseId}/documents/${documentId}/publications`, {
       method: 'POST',
       token,
