@@ -8,6 +8,7 @@ import { FirmRole, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseDetail, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
+import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,14 +25,20 @@ export default function CaseTasksPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [newDueDate, setNewDueDate] = useState('');
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [layout, setLayout] = useTaskLayout();
 
   const loadTasks = () => {
     if (!token || !id) return;
+    setLoadError('');
     api
       .getTasks(token, id)
       .then(setTasks)
-      .catch(console.error)
+      // A failed load must not read as "nothing to do".
+      .catch(() => setLoadError(d.todos.loadFailed))
       .finally(() => setLoading(false));
   };
 
@@ -80,19 +87,25 @@ export default function CaseTasksPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !id || !newTitle) return;
+    if (!token || !id || !newTitle.trim() || creating) return;
+    setCreating(true);
     setError('');
     try {
       await api.createTask(token, id, {
-        title: newTitle,
+        title: newTitle.trim(),
         assigneeId: newAssigneeId || undefined,
+        dueDate: newDueDate || undefined,
       });
       setNewTitle('');
       setNewAssigneeId('');
+      setNewDueDate('');
       setShowForm(false);
       loadTasks();
     } catch {
+      // What was typed stays, so the retry is one click.
       setError(d.caseTasks.createFailed);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -100,6 +113,20 @@ export default function CaseTasksPage() {
 
   const isReviewer =
     !!user && (user.firmRole === FirmRole.OWNER || user.id === caseDetail?.leadLawyer?.id);
+
+  /**
+   * The people already on this case come first: a task on a case is nearly
+   * always for someone working it, and the whole firm is a long list to read
+   * past. Everyone else stays reachable underneath.
+   */
+  const caseTeamIds = new Set(
+    [
+      caseDetail?.leadLawyer?.id,
+      ...(caseDetail?.assignments ?? []).map((assignment) => assignment.user.id),
+    ].filter(Boolean) as string[],
+  );
+  const caseTeam = users.filter((member) => caseTeamIds.has(member.id));
+  const others = users.filter((member) => !caseTeamIds.has(member.id));
 
   return (
     <div>
@@ -111,10 +138,13 @@ export default function CaseTasksPage() {
           </Link>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-foreground">{d.caseTasks.title}</h1>
         </div>
-        <Button size="sm" onClick={() => setShowForm(!showForm)}>
-          <Plus className="h-4 w-4" />
-          {d.caseTasks.addTask}
-        </Button>
+        <div className="flex items-center gap-2">
+          <TaskViewToggle layout={layout} onChange={setLayout} />
+          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+            <Plus className="h-4 w-4" />
+            {d.caseTasks.addTask}
+          </Button>
+        </div>
       </div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
@@ -136,19 +166,48 @@ export default function CaseTasksPage() {
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               >
                 <option value="">{d.caseTasks.assignToMe}</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.firstName} {u.lastName}
-                  </option>
-                ))}
+                {caseTeam.length > 0 && (
+                  <optgroup label={d.caseTasks.caseTeam}>
+                    {caseTeam.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {others.length > 0 && (
+                  <optgroup label={d.caseTasks.otherMembers}>
+                    {others.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
-              <Button type="submit" size="sm">{d.caseTasks.create}</Button>
+              <input
+                type="date"
+                aria-label={d.caseTasks.dueDate}
+                value={newDueDate}
+                onChange={(e) => setNewDueDate(e.target.value)}
+                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              />
+              <Button type="submit" size="sm" disabled={creating}>{d.caseTasks.create}</Button>
             </form>
           </CardContent>
         </Card>
       )}
 
+      {loadError ? (
+        <div className="rounded-xl border bg-card p-6 shadow-soft">
+          <p role="alert" className="text-sm text-destructive">{loadError}</p>
+          <Button size="sm" variant="outline" className="mt-3" onClick={loadTasks}>
+            {d.common.retry}
+          </Button>
+        </div>
+      ) : (
       <KanbanBoard
+        layout={layout}
         tasks={tasks}
         onStatusChange={handleStatusChange}
         currentUserId={user?.id ?? ''}
@@ -158,6 +217,7 @@ export default function CaseTasksPage() {
         onAccept={handleAccept}
         onReject={handleReject}
       />
+      )}
     </div>
   );
 }
