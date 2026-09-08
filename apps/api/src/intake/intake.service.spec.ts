@@ -6,6 +6,7 @@ import { IntakeService } from './intake.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
+import { DocumentsService } from '../documents/documents.service';
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -23,6 +24,7 @@ describe('IntakeService attachments', () => {
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -35,6 +37,7 @@ describe('IntakeService attachments', () => {
         { provide: TasksService, useValue: mockTasksService },
         { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -138,6 +141,7 @@ describe('IntakeService draftNotice with analysisId', () => {
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -150,6 +154,7 @@ describe('IntakeService draftNotice with analysisId', () => {
         { provide: TasksService, useValue: mockTasksService },
         { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -230,11 +235,18 @@ describe('IntakeService convertToCase', () => {
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
-    document: { updateMany: jest.fn() },
+    document: {
+      updateMany: jest.fn(),
+      createMany: jest.fn(),
+      // No document yet claims an attachment's file, in the common case.
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -247,6 +259,7 @@ describe('IntakeService convertToCase', () => {
         { provide: TasksService, useValue: mockTasksService },
         { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -295,6 +308,7 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -306,6 +320,7 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
         { provide: TasksService, useValue: mockTasksService },
         { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -383,6 +398,7 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -394,6 +410,7 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
         { provide: TasksService, useValue: mockTasksService },
         { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -425,11 +442,18 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
     intakePrecedentAnalysis: { updateMany: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
-    document: { updateMany: jest.fn() },
+    document: {
+      updateMany: jest.fn(),
+      createMany: jest.fn(),
+      // No document yet claims an attachment's file, in the common case.
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -441,6 +465,7 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
         { provide: TasksService, useValue: mockTasksService },
         { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -471,6 +496,31 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
       expect.objectContaining({ where: { id: 'intake-1' }, data: { status: 'CONVERTED' } }),
     );
     expect(result).toEqual(expect.objectContaining({ id: 'case-1' }));
+  });
+
+  it('adopts the intake attachments onto the case before re-pointing documents', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: 'case-1',
+      assignedUserIds: [],
+      deadlineDate: null,
+    });
+    mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', firmId: 'firm-1', title: 'คดีเดิม' });
+    mockPrisma.case.update.mockResolvedValue({ id: 'case-1', title: 'คดีเดิม' });
+
+    await service.convertToCase(user, 'intake-1', {});
+
+    // Files uploaded for the AI to read live in the older attachment store and
+    // have no link to a case; without this they vanish at conversion.
+    expect(mockDocumentsService.adoptIntakeAttachments).toHaveBeenCalledWith(
+      'intake-1',
+      'case-1',
+    );
+    expect(mockPrisma.document.updateMany).toHaveBeenCalledWith({
+      where: { intakeId: 'intake-1' },
+      data: { caseId: 'case-1', intakeId: null },
+    });
   });
 
   it('rejects conversion when relatedCaseId no longer belongs to the firm', async () => {
@@ -531,12 +581,19 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
     case: { findMany: jest.fn(), create: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
-    document: { updateMany: jest.fn() },
+    document: {
+      updateMany: jest.fn(),
+      createMany: jest.fn(),
+      // No document yet claims an attachment's file, in the common case.
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -548,6 +605,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
         { provide: TasksService, useValue: mockTasksService },
         { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
       ],
     }).compile();
     service = module.get(IntakeService);

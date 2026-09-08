@@ -153,7 +153,7 @@ export default function NewIntakePage() {
       const failedFiles: File[] = [];
       for (const file of files) {
         try {
-          await api.uploadIntakeAttachment(token, created.id, file);
+          await api.uploadIntakeDocument(token, created.id, file);
         } catch {
           failedFiles.push(file);
         }

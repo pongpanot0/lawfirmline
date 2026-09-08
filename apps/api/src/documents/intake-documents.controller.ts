@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   UseGuards,
@@ -62,6 +63,15 @@ export class IntakeDocumentsController {
     @Body() dto: UpdateDocumentVisibilityDto,
   ) {
     return this.documentsService.updateVisibilityForIntake(user, intakeId, documentId, dto.visibleToClient);
+  }
+
+  @Delete(':documentId')
+  remove(
+    @CurrentUser() user: AuthUser,
+    @Param('intakeId') intakeId: string,
+    @Param('documentId') documentId: string,
+  ) {
+    return this.documentsService.removeFromIntake(user, intakeId, documentId);
   }
 
   @Get(':documentId/download')

@@ -10,6 +10,7 @@ jest.mock('fs', () => ({
   mkdirSync: jest.fn(),
   writeFileSync: jest.fn(),
   readFileSync: jest.fn(),
+  unlinkSync: jest.fn(),
 }));
 
 describe('DocumentsService', () => {
@@ -20,9 +21,12 @@ describe('DocumentsService', () => {
       findMany: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
+      createMany: jest.fn(),
       update: jest.fn(),
     },
     documentVersion: { create: jest.fn() },
+    intake: { findFirst: jest.fn() },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
   const mockConfig = { get: jest.fn().mockReturnValue('./uploads') };
 
@@ -82,6 +86,7 @@ describe('DocumentsService — intake-scoped methods', () => {
       update: jest.fn(),
     },
     documentVersion: { create: jest.fn() },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
     intake: { findFirst: jest.fn() },
   };
   const mockConfig = { get: jest.fn().mockReturnValue('./uploads') };
@@ -152,5 +157,152 @@ describe('DocumentsService — intake-scoped methods', () => {
       );
       expect(mockPrisma.document.findFirst).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('DocumentsService.adoptIntakeAttachments', () => {
+  let service: DocumentsService;
+  const mockPrisma = {
+    document: {
+      findMany: jest.fn().mockResolvedValue([]),
+      createMany: jest.fn(),
+    },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
+  };
+  const mockConfig = { get: jest.fn().mockReturnValue('./uploads') };
+
+  const attachment = {
+    id: 'att-1',
+    intakeId: 'intake-1',
+    filename: 'ใบเสร็จ.pdf',
+    storagePath: './uploads/intake/intake-1/att-1.pdf',
+    mimeType: 'application/pdf',
+    uploadedById: 'user-9',
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockPrisma.document.findMany.mockResolvedValue([]);
+    mockPrisma.intakeAttachment.findMany.mockResolvedValue([]);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        DocumentsService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: ConfigService, useValue: mockConfig },
+      ],
+    }).compile();
+    service = module.get(DocumentsService);
+  });
+
+  it('adopts an attachment as a document pointing at the file already on disk', async () => {
+    mockPrisma.intakeAttachment.findMany.mockResolvedValue([attachment]);
+
+    await service.adoptIntakeAttachments('intake-1');
+
+    expect(mockPrisma.document.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          caseId: null,
+          intakeId: 'intake-1',
+          filename: 'ใบเสร็จ.pdf',
+          // Not copied, not moved: the row points where the file already is,
+          // so a failure part-way cannot lose it.
+          storagePath: './uploads/intake/intake-1/att-1.pdf',
+          mimeType: 'application/pdf',
+          version: 1,
+          uploadedById: 'user-9',
+        },
+      ],
+    });
+  });
+
+  it('adopts straight onto the case when the intake is becoming one', async () => {
+    mockPrisma.intakeAttachment.findMany.mockResolvedValue([attachment]);
+
+    await service.adoptIntakeAttachments('intake-1', 'case-1');
+
+    expect(mockPrisma.document.findMany).toHaveBeenCalledWith({
+      where: { OR: [{ intakeId: 'intake-1' }, { caseId: 'case-1' }] },
+      select: { storagePath: true },
+    });
+    expect(mockPrisma.document.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ caseId: 'case-1', intakeId: null })],
+    });
+  });
+
+  it('adds nothing the second time, so a retried conversion cannot duplicate a file', async () => {
+    mockPrisma.intakeAttachment.findMany.mockResolvedValue([attachment]);
+    mockPrisma.document.findMany.mockResolvedValue([
+      { storagePath: './uploads/intake/intake-1/att-1.pdf' },
+    ]);
+
+    await service.adoptIntakeAttachments('intake-1', 'case-1');
+
+    expect(mockPrisma.document.createMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('DocumentsService.removeFromIntake', () => {
+  let service: DocumentsService;
+  const mockPrisma = {
+    intake: { findFirst: jest.fn() },
+    document: {
+      findFirst: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn(),
+    },
+    documentVersion: { findMany: jest.fn(), count: jest.fn() },
+    intakeAttachment: { deleteMany: jest.fn() },
+  };
+  const mockConfig = { get: jest.fn().mockReturnValue('./uploads') };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1' });
+    mockPrisma.document.findFirst.mockResolvedValue({
+      id: 'doc-1',
+      storagePath: './uploads/intake/intake-1/doc-1_v1.pdf',
+    });
+    mockPrisma.documentVersion.findMany.mockResolvedValue([]);
+    mockPrisma.document.count.mockResolvedValue(0);
+    mockPrisma.documentVersion.count.mockResolvedValue(0);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        DocumentsService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: ConfigService, useValue: mockConfig },
+      ],
+    }).compile();
+    service = module.get(DocumentsService);
+  });
+
+  it('also removes the attachment row, so the file is not re-listed on the next load', async () => {
+    await service.removeFromIntake(user, 'intake-1', 'doc-1');
+
+    expect(mockPrisma.intakeAttachment.deleteMany).toHaveBeenCalledWith({
+      where: {
+        intakeId: 'intake-1',
+        storagePath: { in: ['./uploads/intake/intake-1/doc-1_v1.pdf'] },
+      },
+    });
+    expect(fs.unlinkSync).toHaveBeenCalledWith('./uploads/intake/intake-1/doc-1_v1.pdf');
+  });
+
+  it('leaves the file alone while another document still points at it', async () => {
+    mockPrisma.document.count.mockResolvedValue(1);
+
+    await service.removeFromIntake(user, 'intake-1', 'doc-1');
+
+    expect(fs.unlinkSync).not.toHaveBeenCalled();
+  });
+
+  it('refuses a document that belongs to a different intake', async () => {
+    mockPrisma.document.findFirst.mockResolvedValue(null);
+
+    await expect(service.removeFromIntake(user, 'intake-1', 'doc-1')).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(mockPrisma.document.delete).not.toHaveBeenCalled();
   });
 });

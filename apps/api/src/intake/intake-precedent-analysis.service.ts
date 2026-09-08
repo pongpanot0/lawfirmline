@@ -218,18 +218,50 @@ export class IntakePrecedentAnalysisService {
     }
   }
 
+  /**
+   * Every file on the intake that can be read for analysis.
+   *
+   * The page grew two stores: `IntakeAttachment`, which only the analyser could
+   * see, and `Document`, which is the repository that follows the case. A
+   * lawyer therefore had to upload the same PDF twice — once to have it read,
+   * once for it to survive becoming a case. `Document` is now the store the
+   * page writes to; attachments already on disk stay selectable here, and are
+   * carried over as documents when the intake becomes a case.
+   *
+   * A carried-over attachment has a document pointing at the same file, so the
+   * list is deduped by storage path to keep it out of the analysis twice.
+   */
+  private async selectableFiles(intakeId: string) {
+    const [documents, attachments] = await Promise.all([
+      this.prisma.document.findMany({
+        where: { intakeId },
+        select: { id: true, filename: true, mimeType: true, storagePath: true },
+      }),
+      this.prisma.intakeAttachment.findMany({
+        where: { intakeId },
+        select: { id: true, filename: true, mimeType: true, storagePath: true },
+      }),
+    ]);
+
+    const seen = new Set(documents.map((file) => file.storagePath));
+    return [...documents, ...attachments.filter((file) => !seen.has(file.storagePath))];
+  }
+
   async analyze(user: AuthUser, intakeId: string, attachmentIds?: string[]) {
-    const intake = await this.prisma.intake.findFirst({
+    const found = await this.prisma.intake.findFirst({
       where: { id: intakeId, firmId: user.firmId },
       include: { attachments: true },
     });
-    if (!intake) throw new NotFoundException('Intake not found');
+    if (!found) throw new NotFoundException('Intake not found');
+
+    const available = await this.selectableFiles(intakeId);
+    const intake = { ...found, attachments: available };
 
     if (attachmentIds !== undefined) {
-      if (attachmentIds.some((id) => !intake.attachments.some((file) => file.id === id))) {
+      if (attachmentIds.some((id) => !available.some((file) => file.id === id))) {
         throw new BadRequestException('ไฟล์ที่เลือกไม่อยู่ในเรื่องนี้ กรุณาโหลดรายการใหม่');
       }
-      intake.attachments = intake.attachments.filter((file) => attachmentIds.includes(file.id));
+      intake.attachments = available.filter((file) => attachmentIds.includes(file.id));
     }
     if (intake.attachments.length > 10) throw new BadRequestException('เลือกได้ไม่เกิน 10 ไฟล์ต่อครั้ง');
 

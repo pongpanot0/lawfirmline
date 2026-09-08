@@ -1233,6 +1233,9 @@ export const api = {
     return fetchBlob(`/intake/${intakeId}/documents/${documentId}/download${qs}`, { token });
   },
 
+  deleteIntakeDocument: (token: string, intakeId: string, documentId: string) =>
+    request(`/intake/${intakeId}/documents/${documentId}`, { method: 'DELETE', token }),
+
   updateIntakeDocumentVisibility: (token: string, intakeId: string, documentId: string, visibleToClient: boolean) =>
     request<DocumentItem>(`/intake/${intakeId}/documents/${documentId}/visibility`, {
       method: 'PATCH',

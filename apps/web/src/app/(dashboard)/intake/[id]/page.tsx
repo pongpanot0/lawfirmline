@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/auth';
 import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DocumentDropZone } from '@/components/DocumentDropZone';
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -110,10 +109,10 @@ export default function IntakeDetailPage() {
 
   const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([]);
 
-  // Attachments
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  // Files. One list: the AI reads from it and it follows the case.
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Precedent analysis
   const [analyses, setAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
@@ -122,9 +121,13 @@ export default function IntakeDetailPage() {
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
   const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
 
-  // Documents (intake document repository — distinct from the AI-input PDF attachments above)
+  /**
+   * The intake's files. The page used to keep two stores side by side — one the
+   * AI could read, one that followed the case — so the same PDF had to be
+   * uploaded twice. The API now adopts the older store into this one, so this
+   * single list is everything.
+   */
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
 
   const loadDocuments = useCallback(async () => {
@@ -133,6 +136,13 @@ export default function IntakeDetailPage() {
       const docs = await api.getIntakeDocuments(token, id as string);
       setDocuments(docs);
       setDocumentsError(null);
+      // Keep only picks that still exist; a lawyer's own selection is never
+      // widened by a reload.
+      setSelectedAttachmentIds((previous) => {
+        const available = new Set(docs.map((doc) => doc.id));
+        const kept = previous.filter((docId) => available.has(docId));
+        return kept.length === previous.length ? previous : kept;
+      });
     } catch (err) {
       setDocuments([]);
       setDocumentsError(err instanceof ApiError ? err.message : 'โหลดรายการเอกสารไม่สำเร็จ');
@@ -149,7 +159,6 @@ export default function IntakeDetailPage() {
     api.getIntake(token, id)
       .then((data) => {
         setIntake(data);
-        setSelectedAttachmentIds((data.attachments ?? []).slice(0, 10).map((file) => file.id));
         api
           .listPrecedentAnalyses(token, id as string)
           .then((items) => {
@@ -277,50 +286,38 @@ export default function IntakeDetailPage() {
     }
   };
 
-  const handleUploadAttachment = async (files: File[]) => {
-    if (!token || !intake || uploadingAttachment) return;
-    if (files.length > 10) { setAttachmentError('อัปโหลดได้ครั้งละไม่เกิน 10 ไฟล์'); return; }
-    setUploadingAttachment(true); setAttachmentError(null);
+  const handleUploadFiles = async (files: File[]) => {
+    if (!token || !intake || uploadingFiles) return;
+    if (files.length > 10) { setFileError('อัปโหลดได้ครั้งละไม่เกิน 10 ไฟล์'); return; }
+    setUploadingFiles(true); setFileError(null);
     const failures: string[] = [];
     const uploadedIds: string[] = [];
+    // One at a time so a rejected file leaves the rest uploaded: the retry then
+    // only has to cover what actually failed.
     for (const file of files) {
       try {
-        const uploaded = await api.uploadIntakeAttachment(token, intake.id, file);
+        const uploaded = await api.uploadIntakeDocument(token, intake.id, file);
         uploadedIds.push(uploaded.id);
       } catch { failures.push(file.name); }
     }
     try {
-      const refreshed = await api.getIntake(token, intake.id);
-      setIntake(refreshed);
+      await loadDocuments();
       setSelectedAttachmentIds((previous) => [...new Set([...previous, ...uploadedIds])].slice(0, 10));
     } catch { failures.push('โหลดรายการล่าสุดไม่สำเร็จ กรุณาโหลดหน้าใหม่ก่อนอัปโหลดซ้ำ'); }
-    if (failures.length) setAttachmentError(`ไฟล์ที่ไม่สำเร็จ: ${failures.join(', ')} · รองรับ PDF ไม่เกิน 10MB ต่อไฟล์`);
-    setUploadingAttachment(false);
+    if (failures.length) setFileError(`ไฟล์ที่ไม่สำเร็จ: ${failures.join(', ')} · รองรับ PDF ไม่เกิน 10MB ต่อไฟล์`);
+    setUploadingFiles(false);
   };
 
-  const handleDeleteAttachment = async (attachmentId: string) => {
+  const handleDeleteFile = async (documentId: string, filename: string) => {
     if (!token || !intake) return;
+    if (!confirm(`ลบ ${filename}? ไฟล์จะหายจากเรื่องนี้ถาวร`)) return;
+    setFileError(null);
     try {
-      await api.deleteIntakeAttachment(token, intake.id, attachmentId);
-      setSelectedAttachmentIds((previous) => previous.filter((id) => id !== attachmentId));
-      const refreshed = await api.getIntake(token, intake.id);
-      setIntake(refreshed);
-    } catch {
-      setAttachmentError('ลบไฟล์ไม่สำเร็จ');
-    }
-  };
-
-  const handleUploadDocument = async (file: File) => {
-    if (!token || !id) return;
-    setUploadingDoc(true);
-    setDocumentsError(null);
-    try {
-      await api.uploadIntakeDocument(token, id as string, file);
+      await api.deleteIntakeDocument(token, intake.id, documentId);
+      setSelectedAttachmentIds((previous) => previous.filter((id) => id !== documentId));
       await loadDocuments();
     } catch (err) {
-      setDocumentsError(err instanceof ApiError ? err.message : 'อัปโหลดไฟล์ไม่สำเร็จ');
-    } finally {
-      setUploadingDoc(false);
+      setFileError(err instanceof ApiError ? err.message : 'ลบไฟล์ไม่สำเร็จ');
     }
   };
 
@@ -428,7 +425,7 @@ export default function IntakeDetailPage() {
             <Button
               variant="outline"
               onClick={handleRunPrecedentAnalysis}
-              disabled={analyzing || uploadingAttachment}
+              disabled={analyzing || uploadingFiles}
             >
               {analyzing ? 'กำลังวิเคราะห์...' : `วิเคราะห์เรื่อง + ไฟล์ที่เลือก (${selectedAttachmentIds.length})`}
             </Button>
@@ -445,50 +442,95 @@ export default function IntakeDetailPage() {
 
       <Card id="intake-files"><CardContent className="pt-5">
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">เลือกไฟล์เพื่อวิเคราะห์รวม</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">ไฟล์ของเรื่องนี้</p>
                 <input
-                  ref={attachmentInputRef}
+                  ref={fileInputRef}
                   type="file"
                   multiple
                   accept=".pdf,application/pdf"
                   className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files ?? []);
-                    if (files.length) handleUploadAttachment(files);
+                    if (files.length) handleUploadFiles(files);
                     e.target.value = '';
                   }}
                 />
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => attachmentInputRef.current?.click()}
-                  disabled={uploadingAttachment || analyzing}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingFiles || analyzing}
                 >
-                  {uploadingAttachment ? 'กำลังอัปโหลด...' : '+ เพิ่มหลายไฟล์ PDF'}
+                  {uploadingFiles ? 'กำลังอัปโหลด...' : '+ เพิ่มไฟล์'}
                 </Button>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">PDF ไม่เกิน 10MB ต่อไฟล์ · เลือกสูงสุด 10 ไฟล์ · วิเคราะห์ร่วมกับรายละเอียดเรื่อง · 10 เครดิตต่อครั้ง</p>
-              <div className="my-3 flex flex-wrap gap-2"><Button type="button" size="sm" variant="ghost" disabled={analyzing || uploadingAttachment} onClick={() => setSelectedAttachmentIds(selectedAttachmentIds.length ? [] : (intake.attachments ?? []).slice(0, 10).map((file) => file.id))}>{selectedAttachmentIds.length ? 'ยกเลิกเลือกทั้งหมด' : 'เลือกทั้งหมด (สูงสุด 10)'}</Button><Button type="button" size="sm" disabled={analyzing || uploadingAttachment || !selectedAttachmentIds.length} onClick={handleRunPrecedentAnalysis}>{analyzing ? 'กำลังวิเคราะห์รวม…' : `วิเคราะห์รวม ${selectedAttachmentIds.length} ไฟล์`}</Button></div>
-              {attachmentError && <p className="mt-1 text-sm text-destructive">{attachmentError}</p>}
-              {intake.attachments && intake.attachments.length > 0 ? (
+              <p className="text-xs text-muted-foreground">ไฟล์เดียวกันนี้ใช้วิเคราะห์และตามไปกับคดีเมื่อเปิดคดี · PDF ไม่เกิน 10MB ต่อไฟล์ · เลือกวิเคราะห์ได้สูงสุด 10 ไฟล์ · 10 เครดิตต่อครั้ง</p>
+              <div className="my-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={analyzing || uploadingFiles || documents.length === 0}
+                  onClick={() => setSelectedAttachmentIds(selectedAttachmentIds.length ? [] : documents.slice(0, 10).map((file) => file.id))}
+                >
+                  {selectedAttachmentIds.length ? 'ยกเลิกเลือกทั้งหมด' : 'เลือกทั้งหมด (สูงสุด 10)'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={analyzing || uploadingFiles || !selectedAttachmentIds.length}
+                  onClick={handleRunPrecedentAnalysis}
+                >
+                  {analyzing ? 'กำลังวิเคราะห์รวม…' : `วิเคราะห์ ${selectedAttachmentIds.length} ไฟล์ที่เลือก`}
+                </Button>
+              </div>
+              {fileError && <p className="mt-1 text-sm text-destructive" role="alert">{fileError}</p>}
+              {documentsError && (
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <p className="text-sm text-destructive" role="alert">{documentsError}</p>
+                  <Button type="button" size="sm" variant="outline" onClick={loadDocuments}>ลองใหม่</Button>
+                </div>
+              )}
+              {documents.length > 0 ? (
                 <ul className="mt-2 space-y-1">
-                  {intake.attachments.map((att) => (
-                    <li key={att.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-sm">
-                      <label className="flex min-w-0 items-start gap-2"><input type="checkbox" className="mt-1" checked={selectedAttachmentIds.includes(att.id)} disabled={analyzing || uploadingAttachment || (!selectedAttachmentIds.includes(att.id) && selectedAttachmentIds.length >= 10)} onChange={() => setSelectedAttachmentIds((previous) => previous.includes(att.id) ? previous.filter((id) => id !== att.id) : [...previous, att.id])} /><span className="min-w-0 break-words">{att.filename}</span></label>
-                      <button
-                        type="button"
-                        disabled={analyzing || uploadingAttachment}
-                        onClick={() => handleDeleteAttachment(att.id)}
-                        className="text-xs text-destructive hover:underline"
-                      >
-                        ลบ
-                      </button>
-                    </li>
-                  ))}
+                  {documents.map((doc) => {
+                    const selected = selectedAttachmentIds.includes(doc.id);
+                    return (
+                      <li key={doc.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                        <label className="flex min-w-0 flex-1 items-start gap-2">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={selected}
+                            disabled={analyzing || uploadingFiles || (!selected && selectedAttachmentIds.length >= 10)}
+                            onChange={() => setSelectedAttachmentIds((previous) => previous.includes(doc.id) ? previous.filter((id) => id !== doc.id) : [...previous, doc.id])}
+                          />
+                          <span className="min-w-0 break-words">{doc.filename}</span>
+                        </label>
+                        <div className="flex shrink-0 items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            ดาวน์โหลด
+                          </button>
+                          <button
+                            type="button"
+                            disabled={analyzing || uploadingFiles}
+                            onClick={() => handleDeleteFile(doc.id, doc.filename)}
+                            className="text-xs text-destructive hover:underline disabled:opacity-50"
+                          >
+                            ลบ
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
-                <p className="mt-2 text-sm text-muted-foreground">ยังไม่มีไฟล์แนบ</p>
+                !documentsError && <p className="mt-2 text-sm text-muted-foreground">ยังไม่มีไฟล์ — กด “เพิ่มไฟล์” เพื่ออัปโหลด</p>
               )}
             </div>
       </CardContent></Card>
@@ -637,23 +679,13 @@ export default function IntakeDetailPage() {
 
         <Card className="sm:col-span-2">
           <CardHeader><CardTitle className="text-base">เอกสารประกอบ</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <DocumentDropZone onFile={handleUploadDocument} loading={uploadingDoc} />
-            {documentsError && <p className="mt-1 text-sm text-destructive">{documentsError}</p>}
-            {documents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">ยังไม่มีเอกสาร</p>
-            ) : (
-              <ul className="divide-y">
-                {documents.map((doc) => (
-                  <li key={doc.id} className="flex items-center justify-between py-2 text-sm">
-                    <span>{doc.filename}</span>
-                    <Button variant="outline" size="sm" onClick={() => handleDownloadDocument(doc)}>
-                      ดาวน์โหลด
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              ไฟล์ทั้งหมดของเรื่องนี้อยู่ในรายการเดียวด้านบน{' '}
+              <a href="#intake-files" className="text-primary hover:underline">
+                ไปที่รายการไฟล์ ({documents.length})
+              </a>
+            </p>
           </CardContent>
         </Card>
 
