@@ -42,7 +42,7 @@ export default function DeadlineRulesPage() {
   }, [token]);
 
   if (user?.firmRole !== FirmRole.OWNER) {
-    return <p className="text-destructive">Access denied. Admin only. / ไม่มีสิทธิ์เข้าถึง เฉพาะ Admin</p>;
+    return <p className="text-destructive">{d.admin.accessDenied}</p>;
   }
 
   const handleCreate = async (e: React.FormEvent) => {

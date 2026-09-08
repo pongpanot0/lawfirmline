@@ -266,7 +266,7 @@ export default function DashboardPage() {
                   <div key={e.id} className="flex items-center justify-between text-sm">
                     <div>
                       <p className="font-medium truncate max-w-[140px]">{e.description}</p>
-                      <p className="text-xs text-muted-foreground">{e.case?.ownRef ?? 'General / ทั่วไป'}</p>
+                      <p className="text-xs text-muted-foreground">{e.case?.ownRef ?? d.admin.generalCase}</p>
                     </div>
                     <p className="font-semibold">{formatCurrency(e.amount)}</p>
                   </div>

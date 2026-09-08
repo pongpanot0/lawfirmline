@@ -8,41 +8,25 @@ import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
 import { formatCurrency } from '@/lib/utils';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fmt } from '@/lib/i18n/dashboard';
 
+/** Copy lives in the dictionary; this only fixes the order and the icons. */
 const REPORT_META = [
-  {
-    key: 'caseVolumeByType' as const,
-    title: 'Case Volume by Type / จำนวนคดีตามประเภท',
-    desc: 'Breakdown of cases by practice area / แยกตามประเภทคดี',
-    icon: PieChart,
-  },
-  {
-    key: 'revenueByLawyer' as const,
-    title: 'Revenue by Lawyer / รายได้ต่อทนายความ',
-    desc: 'Billable hours and revenue per attorney / ชั่วโมงคิดค่าบริการและรายได้ต่อคน',
-    icon: BarChart3,
-  },
-  {
-    key: 'courtAppearancesByMonth' as const,
-    title: 'Court Appearance Log / บันทึกการขึ้นศาล',
-    desc: 'Hearings attended per month / จำนวนนัดศาลต่อเดือน',
-    icon: TrendingUp,
-  },
-  {
-    key: 'expenseSummary' as const,
-    title: 'Expense Summary / สรุปค่าใช้จ่าย',
-    desc: 'Reimbursements and petty cash usage / การเบิกจ่ายและเงินสดย่อย',
-    icon: BarChart3,
-  },
+  { key: 'caseVolumeByType' as const, titleKey: 'caseVolumeByType' as const, descKey: 'caseVolumeHint' as const, icon: PieChart },
+  { key: 'revenueByLawyer' as const, titleKey: 'revenueByLawyer' as const, descKey: 'revenueByLawyerHint' as const, icon: BarChart3 },
+  { key: 'courtAppearancesByMonth' as const, titleKey: 'courtAppearanceLog' as const, descKey: 'courtAppearanceHint' as const, icon: TrendingUp },
+  { key: 'expenseSummary' as const, titleKey: 'expenseSummary' as const, descKey: 'expenseSummaryHint' as const, icon: BarChart3 },
 ];
 
 function MiniBarChart({ items }: { items: Array<{ label: string; value: number }> }) {
+  const d = useDashboardT();
   const max = Math.max(...items.map((i) => i.value), 1);
 
   if (items.length === 0) {
     return (
       <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-        No data yet / ยังไม่มีข้อมูล
+        {d.reports.noData}
       </div>
     );
   }
@@ -98,6 +82,7 @@ function reportChartItems(data: ReportsSummary, key: (typeof REPORT_META)[number
 }
 
 export default function ReportsPage() {
+  const d = useDashboardT();
   const { user, token } = useAuth();
   const [data, setData] = useState<ReportsSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +100,7 @@ export default function ReportsPage() {
       .then(setData)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
-        setError(err instanceof Error ? err.message : 'Failed to load reports / โหลดรายงานไม่สำเร็จ');
+        setError(err instanceof Error ? err.message : d.reports.loadFailed);
       })
       .finally(() => setLoading(false));
   }, [token]);
@@ -145,38 +130,38 @@ export default function ReportsPage() {
 
   const changeLabel =
     data.kpis.casesClosedChange >= 0
-      ? `+${data.kpis.casesClosedChange} vs last year / เทียบปีก่อน`
-      : `${data.kpis.casesClosedChange} vs last year / เทียบปีก่อน`;
+      ? `+${data.kpis.casesClosedChange} ${d.reports.vsLastYear}`
+      : `${data.kpis.casesClosedChange} ${d.reports.vsLastYear}`;
 
   return (
     <div>
       <PageHeader
-        title="Reports / รายงาน"
+        title={d.reports.title}
         description={
           data.scope === 'user'
-            ? `Your analytics / ข้อมูลของคุณ · ${data.firmName}`
-            : `Analytics and insights for / ข้อมูลวิเคราะห์ของ ${data.firmName}`
+            ? fmt(d.reports.descriptionMine, { firm: data.firmName })
+            : fmt(d.reports.descriptionOwner, { firm: data.firmName })
         }
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <KpiCard
-          label="Cases Closed (YTD) / คดีปิดปีนี้"
+          label={d.reports.casesClosedYtd}
           value={data.kpis.casesClosedYtd}
           trend={data.kpis.casesClosedChange >= 0 ? 'up' : 'down'}
           change={changeLabel}
         />
         <KpiCard
-          label="Completion Rate / อัตราปิดคดี"
+          label={d.reports.completionRate}
           value={`${data.kpis.winRate}%`}
           trend="neutral"
-          change="Closed cases / total cases / คดีปิด ÷ คดีทั้งหมด"
+          change={d.reports.completionRateHint}
         />
         <KpiCard
-          label="Avg. Case Duration / ระยะเวลาคดีเฉลี่ย"
+          label={d.reports.avgCaseDuration}
           value={
             data.kpis.avgCaseDurationMonths != null
-              ? `${data.kpis.avgCaseDurationMonths} mo / เดือน`
+              ? fmt(d.reports.months, { count: data.kpis.avgCaseDurationMonths })
               : '—'
           }
           trend="neutral"
@@ -196,17 +181,17 @@ export default function ReportsPage() {
                   <Icon className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-base">{report.title}</CardTitle>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{report.desc}</p>
+                  <CardTitle className="text-base">{d.reports[report.titleKey]}</CardTitle>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{d.reports[report.descKey]}</p>
                 </div>
               </CardHeader>
               <CardContent>
                 <MiniBarChart items={chartItems} />
                 <p className="mt-3 text-lg font-bold">
                   {report.key === 'caseVolumeByType'
-                    ? `${total} cases / คดี`
+                    ? fmt(d.reports.caseCount, { count: total })
                     : report.key === 'courtAppearancesByMonth'
-                      ? `${total} hearings / นัด`
+                      ? fmt(d.reports.hearingCount, { count: total })
                       : formatCurrency(total)}
                 </p>
               </CardContent>

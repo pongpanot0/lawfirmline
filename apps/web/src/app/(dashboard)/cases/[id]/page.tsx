@@ -29,6 +29,7 @@ import {
   FirmRole,
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 import {
   api,
   CaseDetail,
@@ -74,6 +75,7 @@ const ACTIVITY_ICONS: Record<string, typeof Gavel> = {
 };
 
 export default function CaseDetailPage() {
+  const d = useDashboardT();
   const { id } = useParams<{ id: string }>();
   const { token, user } = useAuth();
   const router = useRouter();
@@ -379,7 +381,7 @@ export default function CaseDetailPage() {
   };
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (!legalCase) return <p className="text-destructive">Case not found / ไม่พบคดี</p>;
+  if (!legalCase) return <p className="text-destructive">{d.admin.caseNotFound}</p>;
 
   const customFields = legalCase.customFields as Record<string, string> | null;
   const clientDisplay = legalCase.client?.name ?? legalCase.clientName ?? '—';
@@ -956,7 +958,7 @@ export default function CaseDetailPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">
-                  Precedent Analysis / ผลวิเคราะห์ฎีกา
+                  {d.admin.precedentAnalysis}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
