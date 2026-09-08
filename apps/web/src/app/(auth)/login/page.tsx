@@ -8,8 +8,11 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { LanguageSwitcher } from '@/components/landing/LanguageSwitcher';
 
 export default function LoginPage() {
+  const d = useDashboardT();
   const { login, user, loading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -35,7 +38,7 @@ export default function LoginPage() {
       await login(email, password);
       router.push('/dashboard');
     } catch {
-      setError('Invalid email or password');
+      setError(d.auth.invalidCredentials);
     } finally {
       setSubmitting(false);
     }
@@ -52,11 +55,9 @@ export default function LoginPage() {
         </div>
         <div>
           <h1 className="text-4xl font-bold leading-tight">
-            Modern case management for Thai law firms
+            {d.auth.brandTagline}
           </h1>
-          <p className="mt-4 text-lg text-primary-foreground/80">
-            Manage cases, court schedules, documents, and expenses — all in one place.
-          </p>
+          <p className="mt-4 text-lg text-primary-foreground/80">{d.auth.brandBlurb}</p>
         </div>
         <p className="text-sm text-primary-foreground/60">© 2025 LexFlow Legal SaaS</p>
       </div>
@@ -64,6 +65,15 @@ export default function LoginPage() {
       <div className="flex flex-1 items-center justify-center p-6 bg-background">
         <Card className="w-full max-w-md border-0 shadow-card">
           <CardContent className="p-8">
+            {/*
+              The switcher lives here because this is the first screen anyone
+              sees: a Thai reader arriving at an English form otherwise has no
+              way to change it until after they are signed in.
+            */}
+            <div className="mb-4 flex justify-end">
+              <LanguageSwitcher />
+            </div>
+
             <div className="mb-8 text-center lg:text-left">
               <div className="mb-4 flex items-center justify-center gap-2 lg:justify-start">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -71,38 +81,38 @@ export default function LoginPage() {
                 </div>
                 <span className="text-lg font-bold">LexFlow</span>
               </div>
-              <h2 className="text-xl font-semibold">Sign in to your account</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Enter your credentials to continue</p>
+              <h2 className="text-xl font-semibold">{d.auth.signInTitle}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{d.auth.signInSubtitle}</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-sm font-medium">Email</label>
+                <label className="text-sm font-medium">{d.auth.email}</label>
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@lawfirm.com" className="mt-1" required />
               </div>
               <div>
-                <label className="text-sm font-medium">Password</label>
+                <label className="text-sm font-medium">{d.auth.password}</label>
                 <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="mt-1" required />
               </div>
               <div className="text-right">
-                <Link href="/forgot-password" className="text-xs text-primary hover:underline">Forgot password?</Link>
+                <Link href="/forgot-password" className="text-xs text-primary hover:underline">{d.auth.forgotPassword}</Link>
               </div>
               {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
               <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? 'Signing in...' : 'Sign in'}
+                {submitting ? d.auth.signingIn : d.auth.signIn}
               </Button>
             </form>
 
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              Need access? Contact your firm administrator to be invited.
+              {d.auth.needAccess}
             </p>
 
             <div className="mt-6 rounded-lg bg-muted p-4 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">Demo accounts (password: password123)</p>
+              <p className="font-medium text-foreground">{d.auth.demoAccounts}</p>
               <ul className="mt-2 space-y-1">
-                <li>Admin: admin@lawfirm.com</li>
-                <li>Lawyer: lawyer1@lawfirm.com</li>
-                <li>Clerk: clerk1@lawfirm.com</li>
+                <li>{d.team.roleOwner}: admin@lawfirm.com</li>
+                <li>{d.team.roleLawyer}: lawyer1@lawfirm.com</li>
+                <li>{d.team.roleAssistant}: clerk1@lawfirm.com</li>
               </ul>
             </div>
           </CardContent>

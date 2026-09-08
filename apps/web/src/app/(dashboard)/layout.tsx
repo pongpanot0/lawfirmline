@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { AppShell } from '@/components/layout/AppShell';
-import { LocaleProvider } from '@/components/landing/LocaleProvider';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 function DashboardLoading() {
@@ -28,7 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [user, loading, router]);
 
   return (
-    <LocaleProvider>
+    <>
       {loading || !user ? (
         <DashboardLoading />
       ) : (
@@ -42,6 +41,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </AppShell>
       )}
-    </LocaleProvider>
+    </>
   );
 }
