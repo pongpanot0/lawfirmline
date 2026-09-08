@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -23,6 +24,8 @@ export default function KnowledgePage() {
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [filters, setFilters] = useState({ caseId: '', category: '', search: '' });
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -34,6 +37,7 @@ export default function KnowledgePage() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
+    setLoadError(false);
     api
       .getKnowledge(token, {
         caseId: filters.caseId || undefined,
@@ -41,9 +45,9 @@ export default function KnowledgePage() {
         search: filters.search || undefined,
       })
       .then(setItems)
-      .catch(console.error)
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [token, filters]);
+  }, [token, filters, reloadKey]);
 
   return (
     <div>
@@ -79,7 +83,9 @@ export default function KnowledgePage() {
         </select>
       </div>
 
-      {loading ? (
+      {loadError ? (
+        <LoadFailed onRetry={() => setReloadKey((k) => k + 1)} />
+      ) : loading ? (
         <p className="text-slate-500">{d.knowledge.loading}</p>
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center">

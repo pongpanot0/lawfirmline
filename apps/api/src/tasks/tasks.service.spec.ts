@@ -11,6 +11,7 @@ describe('TasksService on-hold', () => {
     task: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
+    firmMember: { count: jest.fn() },
     caseActivity: { create: jest.fn() },
     taskAssignmentLog: { create: jest.fn(), findFirst: jest.fn() },
     taskOnHold: {
@@ -24,6 +25,8 @@ describe('TasksService on-hold', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // Default: the chosen reviewer belongs to the caller's firm.
+    mockPrisma.firmMember.count.mockResolvedValue(1);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TasksService,
@@ -293,6 +296,24 @@ describe('TasksService on-hold', () => {
       await expect(
         service.handoffStandalone('task-1', user, { reviewerId: 'user-1' }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the chosen reviewer is not in the caller\'s firm', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({
+        id: 'task-1',
+        caseId: null,
+        assigneeId: 'user-1',
+        status: TaskStatus.IN_PROGRESS,
+      });
+      mockPrisma.firmMember.count.mockResolvedValue(0);
+
+      await expect(
+        service.handoffStandalone('task-1', user, { reviewerId: 'outsider-1' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.firmMember.count).toHaveBeenCalledWith({
+        where: { firmId: 'firm-1', userId: 'outsider-1' },
+      });
+      expect(mockPrisma.task.update).not.toHaveBeenCalled();
     });
 
     it('moves the task to PENDING_REVIEW, reassigns to the chosen reviewer, and logs the handoff', async () => {

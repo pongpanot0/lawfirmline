@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { FirmRole } from '@lawfirm/shared';
+import { CaseStatus, FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
@@ -69,6 +69,13 @@ export default function OperationsPage() {
   const isOwner = user?.firmRole === FirmRole.OWNER;
   const [tab, setTab] = useState('workload');
   const [summary, setSummary] = useState<WorkloadSummary[]>([]);
+  /**
+   * Distinct open cases. The per-lawyer figures count assignments, and one
+   * case with a lead and two buddies is three of those — summing them is
+   * not a case count, so the firm-wide number is taken from the cases
+   * themselves.
+   */
+  const [activeCaseCount, setActiveCaseCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [nearDeadlineDays, setNearDeadlineDays] = useState(7);
   const [sortDesc, setSortDesc] = useState(true);
@@ -89,6 +96,14 @@ export default function OperationsPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [token, isOwner, nearDeadlineDays]);
+
+  useEffect(() => {
+    if (!token || !isOwner) return;
+    api
+      .getCases(token)
+      .then((cases) => setActiveCaseCount(cases.filter((c) => c.status !== CaseStatus.CLOSED).length))
+      .catch(() => setActiveCaseCount(null));
+  }, [token, isOwner]);
 
   useEffect(() => {
     if (!token || !isOwner || !selectedUserId) {
@@ -131,7 +146,7 @@ export default function OperationsPage() {
     [enriched, sortDesc],
   );
 
-  const totalActiveCases = enriched.reduce((sum, s) => sum + s.total, 0);
+  const totalAssignments = enriched.reduce((sum, s) => sum + s.total, 0);
   const totalNearDeadline = enriched.reduce((sum, s) => sum + s.nearDeadlineCount, 0);
   const overdueOnHoldCount = onHold.filter((o) => o.isOverdue).length;
 
@@ -153,7 +168,7 @@ export default function OperationsPage() {
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="ทนายในสำนักงาน" value={enriched.length} icon={Users} />
-        <KpiCard label="คดี active รวม" value={totalActiveCases} icon={Scale} />
+        <KpiCard label="คดี active (ไม่นับซ้ำ)" value={activeCaseCount ?? '—'} icon={Scale} change={`การมอบหมายรวม ${totalAssignments}`} trend="neutral" />
         <KpiCard
           label={`ใกล้ deadline (${nearDeadlineDays} วัน)`}
           value={totalNearDeadline}

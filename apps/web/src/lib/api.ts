@@ -404,6 +404,8 @@ export interface DashboardStats {
     overdueTasks: number;
     myTasks: number;
     pendingExpenses: number;
+    /** Approved but not yet paid out — kept apart from "awaiting approval". */
+    approvedExpenses: number;
     monthlyRevenue: number;
     totalNetProfit: number;
   };

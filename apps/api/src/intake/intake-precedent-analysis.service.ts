@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser, RedactionCounts, redactForAi } from '@lawfirm/shared';
+import { AI_CREDIT_COST, AuthUser, RedactionCounts, redactForAi } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
 
-export const PRECEDENT_ANALYSIS_COST = 10;
+export const PRECEDENT_ANALYSIS_COST = AI_CREDIT_COST.PRECEDENT_ANALYSIS;
 
 /**
  * Cap on extracted attachment text — applied both when storing `extractedFacts`

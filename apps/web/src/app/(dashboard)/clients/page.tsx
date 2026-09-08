@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Avatar } from '@/components/ui/avatar';
 import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
 import { EmptyState } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 
@@ -27,6 +28,7 @@ export default function ClientsPage() {
   const [selected, setSelected] = useState<ClientItem | null>(null);
   const [tab, setTab] = useState('information');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const emptyContact = { name: '', nickname: '', email: '', phone: '', position: '', isPrimary: false, notes: '' };
   const [showContactForm, setShowContactForm] = useState(false);
@@ -36,9 +38,10 @@ export default function ClientsPage() {
 
   const load = () => {
     if (!token) return;
+    setLoadError(false);
     api.getClients(token, search || undefined)
       .then(setClients)
-      .catch(console.error)
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   };
 
@@ -484,7 +487,9 @@ export default function ClientsPage() {
         <Input placeholder={d.clients.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      {loading ? (
+      {loadError ? (
+        <LoadFailed onRetry={load} />
+      ) : loading ? (
         <p className="text-muted-foreground">{d.clients.loading}</p>
       ) : clients.length === 0 ? (
         <EmptyState

@@ -53,7 +53,8 @@ export default function CaseTasksPage() {
 
   useEffect(() => {
     if (!token) return;
-    api.getUsers(token).then(setUsers).catch(console.error);
+    // The firm's lawyers, not the admin-only user directory.
+    api.getLawyers(token).then(setUsers).catch(console.error);
   }, [token]);
 
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
@@ -111,8 +112,10 @@ export default function CaseTasksPage() {
 
   if (loading) return <p className="text-muted-foreground">{d.caseTasks.loading}</p>;
 
-  const isReviewer =
-    !!user && (user.firmRole === FirmRole.OWNER || user.id === caseDetail?.leadLawyer?.id);
+  const isLeadLawyer = !!user && user.id === caseDetail?.leadLawyer?.id;
+  const isReviewer = !!user && (user.firmRole === FirmRole.OWNER || isLeadLawyer);
+  const leadLawyer = caseDetail?.leadLawyer;
+  const reviewerName = leadLawyer ? `${leadLawyer.firstName} ${leadLawyer.lastName}` : undefined;
 
   /**
    * The people already on this case come first: a task on a case is nearly
@@ -213,6 +216,8 @@ export default function CaseTasksPage() {
         currentUserId={user?.id ?? ''}
         isReviewer={isReviewer}
         enableHandoff
+        handoffAllowed={!isLeadLawyer}
+        reviewerName={reviewerName}
         onHandoff={handleHandoff}
         onAccept={handleAccept}
         onReject={handleReject}

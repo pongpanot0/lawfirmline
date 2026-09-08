@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import Link from 'next/link';
 import { Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
@@ -14,10 +15,12 @@ export default function CaseBoardPage() {
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState(false);
 
   const load = () => {
     if (!token) return;
-    api.getCases(token).then(setCases).catch(console.error).finally(() => setLoading(false));
+    setLoadError(false);
+    api.getCases(token).then(setCases).catch(() => setLoadError(true)).finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, [token]);
@@ -56,7 +59,9 @@ export default function CaseBoardPage() {
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
-      {loading ? (
+      {loadError ? (
+        <LoadFailed onRetry={load} />
+      ) : loading ? (
         <p className="text-slate-500">{d.admin.loadingBoard}</p>
       ) : (
         <CaseWorkflowBoard

@@ -191,9 +191,17 @@ export default function NewCasePage() {
         return 'กรุณากรอกทุนทรัพย์เป็นจำนวนเงินตั้งแต่ 0 และทศนิยมไม่เกิน 2 ตำแหน่ง';
       if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
       if (!form.courtName) return 'กรุณาเลือกศาล';
-      if (!CASE_NUMBER_REGEX.test(form.blackCaseNumber.trim()))
+      // Court numbers arrive after the case is opened; only a filled-in
+      // value has to fit the format.
+      if (
+        form.blackCaseNumber.trim() &&
+        !CASE_NUMBER_REGEX.test(form.blackCaseNumber.trim())
+      )
         return `เลขดำ: ${CASE_NUMBER_HINT}`;
-      if (!CASE_NUMBER_REGEX.test(form.redCaseNumber.trim()))
+      if (
+        form.redCaseNumber.trim() &&
+        !CASE_NUMBER_REGEX.test(form.redCaseNumber.trim())
+      )
         return `เลขแดง: ${CASE_NUMBER_HINT}`;
       if (
         form.estimatedFee &&
@@ -272,8 +280,8 @@ export default function NewCasePage() {
         description: form.description || undefined,
         courtName: form.courtName,
         courtLevel: form.courtLevel,
-        blackCaseNumber: form.blackCaseNumber.trim(),
-        redCaseNumber: form.redCaseNumber.trim(),
+        blackCaseNumber: form.blackCaseNumber.trim() || undefined,
+        redCaseNumber: form.redCaseNumber.trim() || undefined,
         claimedAmount: form.claimedAmount
           ? Number(form.claimedAmount)
           : undefined,
@@ -713,8 +721,9 @@ export default function NewCasePage() {
                   ข้อมูลศาลและหมายเลขคดี
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  ระบบปัจจุบันต้องใช้เลขดำและเลขแดงในการสร้างคดี
-                  กรุณาใช้หมายเลขจริงตามเอกสาร
+                  ยังไม่มีเลขดำ/เลขแดงก็เปิดคดีได้
+                  ระบบใช้เลขอ้างอิงสำนักงานติดตามไปก่อน
+                  แล้วมาเติมเลขจากศาลในหน้าคดีเมื่อได้รับ
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
@@ -788,11 +797,13 @@ export default function NewCasePage() {
                     (key) => (
                       <div key={key}>
                         <label htmlFor={key} className={fieldLabel}>
-                          {key === 'blackCaseNumber' ? 'เลขดำ' : 'เลขแดง'} *
+                          {key === 'blackCaseNumber' ? 'เลขดำ' : 'เลขแดง'}{' '}
+                          <span className="font-normal text-muted-foreground">
+                            (ถ้ามี)
+                          </span>
                         </label>
                         <input
                           id={key}
-                          required
                           pattern={CASE_NUMBER_HTML}
                           title={CASE_NUMBER_HINT}
                           value={form[key]}
@@ -1150,8 +1161,8 @@ export default function NewCasePage() {
                       'ศาล',
                       `${COURT_LEVEL_LABELS[form.courtLevel]} · ${form.courtName}`,
                     ],
-                    ['เลขดำ', form.blackCaseNumber],
-                    ['เลขแดง', form.redCaseNumber],
+                    ['เลขดำ', form.blackCaseNumber || 'ยังไม่มี'],
+                    ['เลขแดง', form.redCaseNumber || 'ยังไม่มี'],
                     [
                       'ผู้รับผิดชอบ',
                       selectedLawyer

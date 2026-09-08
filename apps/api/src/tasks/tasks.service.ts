@@ -356,6 +356,14 @@ export class TasksService {
     if (dto.reviewerId === user.id) {
       throw new BadRequestException('ไม่สามารถส่งงานให้ตัวเองตรวจได้');
     }
+    // A reviewer id comes straight from the client; only someone in the
+    // caller's own firm may be handed one of its tasks.
+    const reviewerInFirm = await this.prisma.firmMember.count({
+      where: { firmId: user.firmId, userId: dto.reviewerId },
+    });
+    if (reviewerInFirm === 0) {
+      throw new BadRequestException('ผู้ตรวจที่เลือกไม่ได้อยู่ในสำนักงานของคุณ');
+    }
     const allowedStatuses: TaskStatus[] = [
       TaskStatus.TODO,
       TaskStatus.IN_PROGRESS,

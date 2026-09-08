@@ -76,15 +76,22 @@ export class CreateCaseDto {
   @IsEnum(CourtLevel)
   courtLevel!: CourtLevel;
 
+  // A case is often opened before the court has issued its numbers. Both may
+  // be left out (or sent empty) and added later; a value that is present
+  // must fit the court format.
+  @IsOptional()
   @Trim()
   @IsString()
+  @ValidateIf((_, value) => value !== '')
   @Matches(CASE_NUMBER_REGEX, { message: `เลขดำ: ${CASE_NUMBER_HINT}` })
-  blackCaseNumber!: string;
+  blackCaseNumber?: string;
 
+  @IsOptional()
   @Trim()
   @IsString()
+  @ValidateIf((_, value) => value !== '')
   @Matches(CASE_NUMBER_REGEX, { message: `เลขแดง: ${CASE_NUMBER_HINT}` })
-  redCaseNumber!: string;
+  redCaseNumber?: string;
 
   @IsOptional()
   @IsObject()

@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
+import { formatDateTime } from '@/lib/utils';
 import { api, CalendarEventItem, CaseItem, TravelResult, UserItem } from '@/lib/api';
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
 import { Button } from '@/components/ui/button';
@@ -60,10 +62,17 @@ export function CalendarEventDialog({
    * event instead of adding a second one to the calendar.
    */
   const [savedId, setSavedId] = useState<string | null>(event?.id ?? null);
+  /**
+   * An existing event opens read-only: most clicks on a hearing are to see
+   * when and where, not to change it. Editing is one deliberate step away,
+   * and the delete button only appears there.
+   */
+  const [mode, setMode] = useState<'view' | 'edit'>(event ? 'view' : 'edit');
 
   useEffect(() => {
     setForm(initialForm(event, caseId, caseCourtName, defaultDate));
     setSavedId(event?.id ?? null);
+    setMode(event ? 'view' : 'edit');
     setError('');
     setTravelPreview(null);
   }, [event, caseId, caseCourtName, defaultDate]);
@@ -143,6 +152,55 @@ export function CalendarEventDialog({
   }
 
   const selectedCase = cases?.find((c) => c.id === form.caseId);
+
+  if (event && mode === 'view') {
+    const typeLabels: Record<string, string> = {
+      COURT_DATE: d.calendar.typeCourtDate,
+      CLIENT_MEETING: d.calendar.typeClientMeeting,
+      DEADLINE: d.calendar.typeDeadline,
+      OTHER: d.calendar.typeOther,
+    };
+    const assignee = users.find((u) => u.id === event.assigneeId);
+    const courtName = event.type === 'COURT_DATE' ? event.courtName || event.case?.courtName : null;
+    const rows: { label: string; value: React.ReactNode }[] = [
+      { label: d.calendar.eventType, value: typeLabels[event.type] ?? event.type },
+      { label: d.calendar.timeHint, value: formatDateTime(event.startAt) },
+      ...(courtName ? [{ label: d.calendar.courtName, value: courtName }] : []),
+      ...(event.case
+        ? [{
+            label: d.calendar.caseLabel,
+            value: (
+              <Link href={`/cases/${event.case.id}`} className="text-primary hover:underline">
+                {event.case.ownRef} — {event.case.title}
+              </Link>
+            ),
+          }]
+        : []),
+      {
+        label: d.calendar.assignee,
+        value: assignee ? `${assignee.firstName} ${assignee.lastName}` : d.calendar.assigneeLead,
+      },
+      ...(event.description ? [{ label: d.calendar.eventDescription, value: event.description }] : []),
+    ];
+    return (
+      <Modal open onClose={onClose}>
+        <h2 className="mb-1 text-lg font-semibold">{event.title}</h2>
+        <p className="mb-4 text-xs text-muted-foreground">{d.calendar.eventDetails}</p>
+        <dl className="space-y-2 text-sm">
+          {rows.map((row) => (
+            <div key={row.label} className="flex gap-3">
+              <dt className="w-28 shrink-0 text-muted-foreground">{row.label}</dt>
+              <dd className="min-w-0 flex-1">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button type="button" onClick={() => setMode('edit')}>{d.common.edit}</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{d.common.close}</Button>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal open onClose={onClose}>
@@ -271,8 +329,8 @@ export function CalendarEventDialog({
           <Button type="submit" disabled={saving}>
             {saving ? d.calendar.saving : d.common.save}
           </Button>
-          <Button type="button" variant="outline" onClick={onClose}>
-            {d.common.close}
+          <Button type="button" variant="outline" onClick={() => (event ? setMode('view') : onClose())}>
+            {event ? d.common.cancel : d.common.close}
           </Button>
           {savedId && (
             <Button
