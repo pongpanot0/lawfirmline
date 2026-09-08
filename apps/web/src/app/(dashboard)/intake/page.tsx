@@ -8,6 +8,7 @@ import { api, IntakeItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -36,17 +37,20 @@ export default function IntakePage() {
   const router = useRouter();
   const [intakes, setIntakes] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
     if (!token) return;
     setLoading(true);
+    setLoadError(false);
     api
       .getIntakes(token, statusFilter ? { status: statusFilter } : undefined)
       .then((res) => setIntakes(res.items))
-      .catch(console.error)
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [token, statusFilter]);
+  }, [token, statusFilter, reloadKey]);
 
   return (
     <div>
@@ -78,7 +82,9 @@ export default function IntakePage() {
 
       <Card>
         <CardContent className="p-0">
-          {loading ? (
+          {loadError ? (
+            <div className="p-4"><LoadFailed onRetry={() => setReloadKey((k) => k + 1)} /></div>
+          ) : loading ? (
             <p className="p-8 text-center text-muted-foreground">กำลังโหลด...</p>
           ) : intakes.length === 0 ? (
             <EmptyState
