@@ -10,13 +10,26 @@ import { Card, CardContent } from '@/components/ui/card';
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
   const [resetToken, setResetToken] = useState<string | undefined>();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await api.forgotPassword(email);
-    setSent(true);
-    setResetToken(res.resetToken);
+    if (sending) return;
+    setSending(true);
+    setError('');
+    try {
+      const res = await api.forgotPassword(email);
+      setSent(true);
+      setResetToken(res.resetToken);
+    } catch (err) {
+      // Without this the button simply did nothing on failure, and someone
+      // locked out of their account had no way to tell.
+      setError(err instanceof Error ? err.message : 'Could not send the reset link. Please try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -39,7 +52,14 @@ export default function ForgotPasswordPage() {
                 <label className="text-sm font-medium">Email</label>
                 <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1" />
               </div>
-              <Button type="submit" className="w-full">Send reset link</Button>
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" className="w-full" disabled={sending}>
+                {sending ? 'Sending...' : 'Send reset link'}
+              </Button>
             </form>
           )}
           <Link href="/login" className="mt-4 block text-center text-sm text-primary hover:underline">Back to sign in</Link>
