@@ -25,6 +25,7 @@ export default function TodosPage() {
   const [newDueDate, setNewDueDate] = useState('');
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [usersLoadError, setUsersLoadError] = useState('');
   const [creating, setCreating] = useState(false);
   const [layout, setLayout] = useTaskLayout();
 
@@ -44,9 +45,22 @@ export default function TodosPage() {
     loadTasks();
   }, [token]);
 
-  useEffect(() => {
+  /**
+   * The firm's lawyers, not the admin-only user directory: every member may
+   * pick a reviewer or assignee from their own firm. A failed load is kept
+   * apart from "nobody to pick" so an empty dropdown never goes unexplained.
+   */
+  const loadUsers = () => {
     if (!token) return;
-    api.getUsers(token).then(setUsers).catch(console.error);
+    setUsersLoadError('');
+    api
+      .getLawyers(token)
+      .then(setUsers)
+      .catch(() => setUsersLoadError(d.todos.reviewersLoadFailed));
+  };
+
+  useEffect(() => {
+    loadUsers();
   }, [token]);
 
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
@@ -60,37 +74,24 @@ export default function TodosPage() {
     }
   };
 
+  // Handoff/review failures are reported by the board on the task itself,
+  // where the form that failed still is; so these rethrow rather than catch.
   const handleHandoff = async (taskId: string, note: string, reviewerId?: string) => {
     if (!token || !reviewerId) return;
-    setError('');
-    try {
-      await api.handoffTodo(token, taskId, { reviewerId, note: note || undefined });
-      loadTasks();
-    } catch {
-      setError(d.todos.actionFailed);
-    }
+    await api.handoffTodo(token, taskId, { reviewerId, note: note || undefined });
+    loadTasks();
   };
 
   const handleAccept = async (taskId: string) => {
     if (!token) return;
-    setError('');
-    try {
-      await api.acceptTodo(token, taskId);
-      loadTasks();
-    } catch {
-      setError(d.todos.actionFailed);
-    }
+    await api.acceptTodo(token, taskId);
+    loadTasks();
   };
 
   const handleReject = async (taskId: string, reason: string) => {
     if (!token) return;
-    setError('');
-    try {
-      await api.rejectTodo(token, taskId, { reason });
-      loadTasks();
-    } catch {
-      setError(d.todos.actionFailed);
-    }
+    await api.rejectTodo(token, taskId, { reason });
+    loadTasks();
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -187,6 +188,8 @@ export default function TodosPage() {
         enableHandoff
         requireReviewerOnHandoff
         reviewerOptions={users}
+        reviewerLoadError={usersLoadError}
+        onRetryReviewers={loadUsers}
         onHandoff={handleHandoff}
         onAccept={handleAccept}
         onReject={handleReject}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { TaskStatus } from '@lawfirm/shared';
+import { ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -22,12 +23,26 @@ interface KanbanBoardProps {
   isReviewer?: boolean;
   /** Case-bound tasks only: the lawyer↔senior handoff/review pipeline. */
   enableHandoff?: boolean;
-  onHandoff?: (taskId: string, note: string, reviewerId?: string) => void;
-  onAccept?: (taskId: string) => void;
-  onReject?: (taskId: string, reason: string) => void;
+  /**
+   * Handoff/review actions may reject; a rejection keeps the form open and is
+   * shown beside the buttons, so the sender sees why and can fix it.
+   */
+  onHandoff?: (taskId: string, note: string, reviewerId?: string) => void | Promise<void>;
+  onAccept?: (taskId: string) => void | Promise<void>;
+  onReject?: (taskId: string, reason: string) => void | Promise<void>;
+  /**
+   * Case-bound tasks: whether this viewer may hand tasks off at all. The
+   * case's own reviewer has nobody to hand to, so the button is not offered.
+   */
+  handoffAllowed?: boolean;
+  /** Case-bound tasks: who a handoff goes to, named on the button. */
+  reviewerName?: string;
   /** Standalone tasks only: no fixed senior lawyer, so the sender picks a reviewer at handoff time. */
   requireReviewerOnHandoff?: boolean;
   reviewerOptions?: { id: string; firstName: string; lastName: string }[];
+  /** Set when the reviewer list could not be loaded — distinct from "nobody to pick". */
+  reviewerLoadError?: string;
+  onRetryReviewers?: () => void;
   /**
    * `list` orders every task by how soon it is due and states its status on the
    * row. It is what a lawyer opening the page needs: the board answers "where
@@ -53,11 +68,16 @@ export function KanbanBoard({
   onHandoff,
   onAccept,
   onReject,
+  handoffAllowed = true,
+  reviewerName,
   requireReviewerOnHandoff = false,
   reviewerOptions = [],
+  reviewerLoadError,
+  onRetryReviewers,
   layout = 'board',
 }: KanbanBoardProps) {
   const d = useDashboardT();
+  const [actionError, setActionError] = useState<{ taskId: string; message: string } | null>(null);
   const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
   const [handoffNote, setHandoffNote] = useState('');
   const [handoffReviewerId, setHandoffReviewerId] = useState('');
@@ -76,6 +96,30 @@ export function KanbanBoard({
     { status: TaskStatus.DONE, label: d.todos.columnDone, color: 'border-t-emerald-400' },
   ];
 
+  /**
+   * Runs a handoff/review action and reports its outcome on the task card.
+   * The server's own reason is shown when it gave one (it says things like
+   * "you are already this case's reviewer"), otherwise a generic line.
+   */
+  const runAction = async (taskId: string, action: () => void | Promise<void>, onDone: () => void) => {
+    setActionError(null);
+    try {
+      await action();
+      onDone();
+    } catch (err) {
+      const message = err instanceof ApiError && err.message ? err.message : d.todos.actionFailed;
+      setActionError({ taskId, message });
+    }
+  };
+
+  const reviewerChoices = reviewerOptions.filter((u) => u.id !== currentUserId);
+
+  // A finished case task may still be sent for review; a finished personal
+  // task may not (the server refuses it), so the button is not offered.
+  const handoffSourceStatuses = requireReviewerOnHandoff
+    ? HANDOFF_SOURCE_STATUSES.filter((status) => status !== TaskStatus.DONE)
+    : HANDOFF_SOURCE_STATUSES;
+
   const plainStatusTargets: { status: TaskStatus; label: string }[] = [
     { status: TaskStatus.TODO, label: d.todos.columnTodo },
     { status: TaskStatus.IN_PROGRESS, label: d.todos.columnInProgress },
@@ -87,8 +131,9 @@ export function KanbanBoard({
         const canSetPlainStatus = isAssignee || !task.assignee;
         const canHandoff =
           enableHandoff &&
+          handoffAllowed &&
           (isAssignee || !task.assignee) &&
-          HANDOFF_SOURCE_STATUSES.includes(task.status);
+          handoffSourceStatuses.includes(task.status);
         const canReview =
           enableHandoff &&
           task.status === TaskStatus.PENDING_REVIEW &&
@@ -135,12 +180,14 @@ export function KanbanBoard({
                   }}
                   className="rounded border border-sky-400 px-2 py-0.5 text-xs text-sky-600 hover:bg-sky-50"
                 >
-                  {d.todos.handoffToSenior}
+                  {reviewerName
+                    ? fmt(d.todos.handoffToReviewer, { name: reviewerName })
+                    : d.todos.handoffToSenior}
                 </button>
               )}
               {canReview && onAccept && (
                 <button
-                  onClick={() => onAccept(task.id)}
+                  onClick={() => runAction(task.id, () => onAccept(task.id), () => undefined)}
                   className="rounded border border-emerald-400 px-2 py-0.5 text-xs text-emerald-600 hover:bg-emerald-50"
                 >
                   {d.todos.accept}
@@ -161,20 +208,35 @@ export function KanbanBoard({
 
             {handoffTaskId === task.id && onHandoff && (
               <div className="mt-3 space-y-2 border-t pt-2">
-                {requireReviewerOnHandoff && (
+                {requireReviewerOnHandoff && reviewerLoadError && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p role="alert" className="text-xs text-destructive">{reviewerLoadError}</p>
+                    {onRetryReviewers && (
+                      <button
+                        type="button"
+                        onClick={onRetryReviewers}
+                        className="rounded border px-2 py-0.5 text-xs text-muted-foreground"
+                      >
+                        {d.common.retry}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {requireReviewerOnHandoff && !reviewerLoadError && reviewerChoices.length === 0 && (
+                  <p className="text-xs text-muted-foreground">{d.todos.noReviewers}</p>
+                )}
+                {requireReviewerOnHandoff && !reviewerLoadError && reviewerChoices.length > 0 && (
                   <select
                     value={handoffReviewerId}
                     onChange={(e) => setHandoffReviewerId(e.target.value)}
                     className="w-full rounded border px-2 py-1 text-xs"
                   >
                     <option value="">{d.todos.handoffReviewerPlaceholder}</option>
-                    {reviewerOptions
-                      .filter((u) => u.id !== currentUserId)
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.firstName} {u.lastName}
-                        </option>
-                      ))}
+                    {reviewerChoices.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName}
+                      </option>
+                    ))}
                   </select>
                 )}
                 <input
@@ -186,14 +248,18 @@ export function KanbanBoard({
                 <div className="flex gap-2">
                   <button
                     disabled={requireReviewerOnHandoff && !handoffReviewerId}
-                    onClick={() => {
-                      onHandoff(
+                    onClick={() =>
+                      runAction(
                         task.id,
-                        handoffNote,
-                        requireReviewerOnHandoff ? handoffReviewerId : undefined,
-                      );
-                      setHandoffTaskId(null);
-                    }}
+                        () =>
+                          onHandoff(
+                            task.id,
+                            handoffNote,
+                            requireReviewerOnHandoff ? handoffReviewerId : undefined,
+                          ),
+                        () => setHandoffTaskId(null),
+                      )
+                    }
                     className="rounded bg-sky-500 px-2 py-1 text-xs text-white hover:bg-sky-600 disabled:opacity-50"
                   >
                     {d.todos.handoffSubmit}
@@ -221,8 +287,11 @@ export function KanbanBoard({
                     disabled={!rejectReason.trim()}
                     onClick={() => {
                       if (!rejectReason.trim()) return;
-                      onReject(task.id, rejectReason.trim());
-                      setRejectTaskId(null);
+                      runAction(
+                        task.id,
+                        () => onReject(task.id, rejectReason.trim()),
+                        () => setRejectTaskId(null),
+                      );
                     }}
                     className="rounded bg-rose-500 px-2 py-1 text-xs text-white hover:bg-rose-600 disabled:opacity-50"
                   >
@@ -236,6 +305,9 @@ export function KanbanBoard({
                   </button>
                 </div>
               </div>
+            )}
+            {actionError?.taskId === task.id && (
+              <p role="alert" className="mt-2 text-xs text-destructive">{actionError.message}</p>
             )}
           </div>
         );
