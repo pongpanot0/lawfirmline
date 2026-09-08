@@ -7,6 +7,7 @@ import {
   caseCostTotal,
 } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
+import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,6 +20,7 @@ import {
   CourtItem,
   ApiError,
   WorkloadSummary,
+  FieldSuggestion,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import type { CaseFieldSchema } from '@lawfirm/shared';
@@ -82,6 +84,11 @@ export default function NewCasePage() {
     initialActivityDescription: '',
   });
   const [nextOwnRef, setNextOwnRef] = useState<string>('');
+  /**
+   * Values the documents state. Re-analysing replaces these, never the form —
+   * what a lawyer typed or accepted stays put.
+   */
+  const [suggestions, setSuggestions] = useState<FieldSuggestion[]>([]);
 
   const selectedType = caseTypes.find((t) => t.id === form.caseTypeId);
   const fieldSchema = (
@@ -380,6 +387,7 @@ export default function NewCasePage() {
           files={files}
           onFilesChange={setFiles}
           onBusyChange={setAnalysisBusy}
+          onFieldSuggestions={setSuggestions}
           disabled={submitting || !!createdCaseId}
           onUseSummary={(summary) =>
             setForm((previous) => ({
@@ -391,6 +399,22 @@ export default function NewCasePage() {
           }
         />
       </div>
+      {suggestions.length > 0 && (
+        <div className="mb-5">
+          <SuggestedFieldsPanel
+            suggestions={suggestions}
+            accepts={['title', 'courtName', 'claimedAmount']}
+            current={{
+              title: form.title,
+              courtName: form.courtName,
+              claimedAmount: form.claimedAmount,
+            }}
+            onApply={(field, value) =>
+              setForm((previous) => ({ ...previous, [field]: value }))
+            }
+          />
+        </div>
+      )}
       <form
         onSubmit={(event) => {
           event.preventDefault();

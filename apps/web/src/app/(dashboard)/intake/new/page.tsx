@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, ClientItem, ApiError, IntakeItem, CaseItem } from '@/lib/api';
+import { api, ClientItem, ApiError, IntakeItem, CaseItem, FieldSuggestion } from '@/lib/api';
+import { bangkokDateInputValue } from '@/lib/bangkok';
 import { Button } from '@/components/ui/button';
 import { getCaseStatusDisplay } from '@/lib/case-status';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
+import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 
 const REFERRAL_TYPE_LABELS: Record<string, string> = {
   INDIVIDUAL: 'บุคคลทั่วไป',
@@ -75,6 +77,11 @@ export default function NewIntakePage() {
     currentStageNote: '',
   });
   const [clientCases, setClientCases] = useState<CaseItem[]>([]);
+  /**
+   * Values the documents state. Re-analysing replaces these, never the form —
+   * what a lawyer typed or accepted stays put.
+   */
+  const [suggestions, setSuggestions] = useState<FieldSuggestion[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -184,6 +191,7 @@ export default function NewIntakePage() {
           files={files}
           onFilesChange={setFiles}
           onBusyChange={setAnalysisBusy}
+          onFieldSuggestions={setSuggestions}
           entityLabel="เรื่อง"
           disabled={submitting || !!createdIntakeId}
           onUseSummary={(summary) =>
@@ -194,6 +202,28 @@ export default function NewIntakePage() {
           }
         />
       </div>
+
+      {suggestions.length > 0 && (
+        <div className="mb-5">
+          <SuggestedFieldsPanel
+            suggestions={suggestions}
+            accepts={['title', 'opposingParty', 'incidentDate', 'estimatedDamage']}
+            current={{
+              title: form.title,
+              opposingParty: form.opposingParty,
+              incidentDate: form.incidentDate,
+              estimatedDamage: form.estimatedDamage,
+            }}
+            onApply={(field, value) =>
+              setForm((previous) => ({
+                ...previous,
+                [field]:
+                  field === 'incidentDate' ? bangkokDateInputValue(value) : value,
+              }))
+            }
+          />
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-4 sm:p-6 shadow-sm">
         <fieldset disabled={submitting} className="min-w-0 space-y-6">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { api, ApiError, DocumentItem } from '@/lib/api';
+import { api, ApiError, DocumentItem, FieldSuggestion } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CaseKnowledgePanel } from './CaseKnowledgePanel';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ export function BatchAnalysisPanel({
   files = [],
   onFilesChange,
   onUseSummary,
+  onFieldSuggestions,
   disabled = false,
   onBusyChange,
   entityLabel = 'คดี',
@@ -19,6 +20,8 @@ export function BatchAnalysisPanel({
   files?: File[];
   onFilesChange?: (files: File[]) => void;
   onUseSummary?: (summary: string) => void;
+  /** Values the documents state, for the form to offer — never to apply itself. */
+  onFieldSuggestions?: (suggestions: FieldSuggestion[]) => void;
   disabled?: boolean;
   onBusyChange?: (busy: boolean) => void;
   /** Noun to use in draft-mode copy ("บันทึกลง{entityLabel}") — defaults to "คดี" for case creation. */
@@ -141,6 +144,7 @@ export function BatchAnalysisPanel({
             files.filter((file) => selected.includes(fileKey(file))),
           );
       setSummary(result.summary);
+      onFieldSuggestions?.(result.fieldSuggestions ?? []);
       if (caseId) setAnalysisRevision((value) => value + 1);
     } catch (err) {
       setError(

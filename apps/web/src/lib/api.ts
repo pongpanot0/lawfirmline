@@ -1160,14 +1160,14 @@ export const api = {
     request<Array<{ id: string; summary: string; createdAt: string }>>(`/cases/${caseId}/documents/batch-analyses`, { token }),
 
   analyzeSelectedDocuments: (token: string, caseId: string, documentIds: string[]) =>
-    request<{ summary: string; sources: string[]; truncatedFiles: string[] }>(`/cases/${caseId}/documents/analyze-batch`, {
+    request<BatchAnalysisResult>(`/cases/${caseId}/documents/analyze-batch`, {
       method: 'POST', token, body: JSON.stringify({ documentIds }),
     }),
 
   analyzeDraftFiles: (token: string, files: File[]) => {
     const body = new FormData();
     files.forEach((file) => body.append('files', file));
-    return request<{ summary: string; sources: string[]; truncatedFiles: string[] }>('/documents/analyze-batch', { method: 'POST', token, body });
+    return request<BatchAnalysisResult>('/documents/analyze-batch', { method: 'POST', token, body });
   },
 
   analyzeExistingDocument: (token: string, caseId: string, documentId: string) =>
@@ -1489,6 +1489,35 @@ export interface LineLinkCodeResponse {
   code: string;
   expiresAt: string;
   officialAccountUrl: string | null;
+}
+
+
+/** A case field the document analysis can offer a value for. */
+export type SuggestibleField =
+  | 'title'
+  | 'opposingParty'
+  | 'courtName'
+  | 'incidentDate'
+  | 'claimedAmount'
+  | 'estimatedDamage';
+
+/**
+ * A value read out of the uploaded documents, with the sentence it came from.
+ * Never applied on its own — the excerpt is what a lawyer checks it against.
+ */
+export interface FieldSuggestion {
+  field: SuggestibleField;
+  /** ISO instant for dates, a plain decimal for amounts, otherwise the text. */
+  value: string;
+  sourceFilename: string | null;
+  sourceExcerpt: string;
+}
+
+export interface BatchAnalysisResult {
+  summary: string;
+  sources: string[];
+  truncatedFiles: string[];
+  fieldSuggestions?: FieldSuggestion[];
 }
 
 export interface TravelResult {
