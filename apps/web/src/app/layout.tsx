@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { AuthProvider } from '@/lib/auth';
 import { ThemeProvider } from '@/lib/theme';
+import { LocaleProvider } from '@/components/landing/LocaleProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -23,7 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans">
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <LocaleProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </LocaleProvider>
         </ThemeProvider>
       </body>
     </html>

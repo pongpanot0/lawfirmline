@@ -16,8 +16,10 @@ import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 export default function NewExpensePage() {
+  const d = useDashboardT();
   const { token } = useAuth();
   const router = useRouter();
   const [cases, setCases] = useState<CaseItem[]>([]);
@@ -54,7 +56,7 @@ export default function NewExpensePage() {
       setError(
         err instanceof ApiError
           ? err.message
-          : 'Failed to create expense / บันทึกค่าใช้จ่ายไม่สำเร็จ กรุณาลองใหม่',
+          : d.expenses.createFailed,
       );
     } finally {
       setSubmitting(false);
@@ -64,18 +66,18 @@ export default function NewExpensePage() {
   return (
     <div className="w-full">
       <Link href="/expenses" className="text-sm text-primary hover:underline">
-        ← Back to Expenses / กลับไปหน้าค่าใช้จ่าย
+        {d.expenses.back}
       </Link>
       <PageHeader
-        title="New Expense / เพิ่มค่าใช้จ่าย"
-        description="Submit an expense claim for approval / ส่งรายการค่าใช้จ่ายเพื่อขออนุมัติ"
+        title={d.expenses.newTitle}
+        description={d.expenses.newDescription}
       />
 
       <Card>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="text-sm font-medium">Amount / จำนวนเงิน *</label>
+              <label className="text-sm font-medium">{d.expenses.amount} *</label>
               <Input
                 required
                 type="number"
@@ -83,7 +85,7 @@ export default function NewExpensePage() {
                 min={MONEY_MIN}
                 max={MONEY_MAX}
                 title={MONEY_HINT}
-                placeholder="Amount (฿) / จำนวนเงิน"
+                placeholder={d.expenses.amount}
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 className="mt-1"
@@ -92,7 +94,7 @@ export default function NewExpensePage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Category / ประเภท</label>
+              <label className="text-sm font-medium">{d.expenses.category}</label>
               <select
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -107,7 +109,7 @@ export default function NewExpensePage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Description / รายละเอียด *</label>
+              <label className="text-sm font-medium">{d.expenses.descriptionField} *</label>
               <Input
                 required
                 value={form.description}
@@ -117,7 +119,7 @@ export default function NewExpensePage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Purpose / วัตถุประสงค์</label>
+              <label className="text-sm font-medium">{d.expenses.purpose}</label>
               <Input
                 value={form.expensePurpose}
                 onChange={(e) => setForm({ ...form, expensePurpose: e.target.value })}
@@ -126,13 +128,13 @@ export default function NewExpensePage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-sm font-medium">Case / คดี</label>
+              <label className="text-sm font-medium">{d.expenses.caseField}</label>
               <select
                 value={form.caseId}
                 onChange={(e) => setForm({ ...form, caseId: e.target.value })}
                 className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
               >
-                <option value="">No case — general expense / ไม่ระบุคดี</option>
+                <option value="">{d.expenses.noCase}</option>
                 {cases.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.ownRef} — {c.title}
@@ -145,10 +147,10 @@ export default function NewExpensePage() {
 
             <div className="flex gap-3 md:col-span-2">
               <Button type="button" variant="outline" onClick={() => router.push('/expenses')}>
-                Cancel / ยกเลิก
+                {d.common.cancel}
               </Button>
               <Button type="submit" disabled={submitting || !form.amount || !form.description.trim()}>
-                {submitting ? 'Submitting... / กำลังส่ง...' : 'Submit for Approval / ส่งขออนุมัติ'}
+                {submitting ? d.expenses.submitting : d.expenses.submit}
               </Button>
             </div>
           </form>

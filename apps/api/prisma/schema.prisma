@@ -196,6 +196,8 @@ enum DeadlineDayBasis {
 }
 
 enum ExpenseStatus {
+  /// Saved by its author and not yet claimed — no money is committed.
+  DRAFT
   PENDING
   APPROVED
   PAID
@@ -859,6 +861,7 @@ model CalendarEvent {
   reminderLogs       ReminderLog[]
   dateSuggestion     DocumentDateSuggestion?
   triggeredDeadlines DocumentDateSuggestion[] @relation("DateSuggestionTrigger")
+  expenses           Expense[]
 
   @@index([startAt])
   @@index([assigneeId])
@@ -902,14 +905,20 @@ model Expense {
   expensePurpose String?
   status         ExpenseStatus @default(PENDING)
   date           DateTime      @default(now())
+  /// The hearing this cost came from, when it was drafted off one — so a
+  /// reimbursement can be traced back to the trip that caused it.
+  sourceEventId  String?
   paidAt         DateTime?
   paidById       String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  case   Case? @relation(fields: [caseId], references: [id], onDelete: SetNull)
-  user   User  @relation(fields: [userId], references: [id])
-  paidBy User? @relation("ExpensePaidBy", fields: [paidById], references: [id])
+  case        Case?          @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  user        User           @relation(fields: [userId], references: [id])
+  paidBy      User?          @relation("ExpensePaidBy", fields: [paidById], references: [id])
+  sourceEvent CalendarEvent? @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
+
+  @@index([sourceEventId])
 }
 
 model PettyCashFund {

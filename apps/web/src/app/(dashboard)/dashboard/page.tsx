@@ -25,6 +25,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { MyDayPanel } from '@/components/agenda/MyDayPanel';
+import { FirmRole } from '@lawfirm/shared';
 import { fmt } from '@/lib/i18n/dashboard';
 
 export default function DashboardPage() {
@@ -73,6 +75,29 @@ export default function DashboardPage() {
 
   if (!data || !user) return null;
 
+  /**
+   * The firm's money is the owner's question. A lawyer opening the app wants
+   * what is overdue, what is on today and what is waiting on them — so that is
+   * what they land on, with the case list one click away.
+   */
+  if (user.firmRole !== FirmRole.OWNER) {
+    return (
+      <div className="space-y-4">
+        <PageHeader
+          title={fmt(d.home.welcome, { name: user.firstName })}
+          description={data.firmName}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <QuickActionButton icon={Briefcase} label={d.nav.cases} onClick={() => router.push('/cases')} />
+              <QuickActionButton icon={Plus} label={d.nav.intake} onClick={() => router.push('/intake/new')} />
+            </div>
+          }
+        />
+        <MyDayPanel showHeader={false} />
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -81,10 +106,15 @@ export default function DashboardPage() {
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label={d.home.totalCases} value={data.stats.totalCases} icon={Briefcase} change={d.home.changeThisMonth} trend="up" />
+        {/*
+          No `change`/`trend` here: nothing computes a comparison, and the
+          arrow this used to show was hardcoded — an owner reading "+12% vs
+          last month" off a constant is worse served than by no figure at all.
+        */}
+        <KpiCard label={d.home.totalCases} value={data.stats.totalCases} icon={Briefcase} />
         <KpiCard label={d.home.activeCases} value={data.stats.openCases} icon={Activity} change={d.home.inProgress} trend="neutral" />
         <KpiCard label={d.home.upcomingHearings} value={data.stats.upcomingEvents} icon={CalendarDays} change={d.home.next30Days} trend="neutral" />
-        <KpiCard label={d.home.monthlyRevenue} value={formatCurrency(data.stats.monthlyRevenue)} icon={Banknote} change={d.home.revenueChange} trend="up" />
+        <KpiCard label={d.home.monthlyRevenue} value={formatCurrency(data.stats.monthlyRevenue)} icon={Banknote} change={d.home.thisMonth} trend="neutral" />
         <KpiCard label={d.home.totalNetProfit} value={formatCurrency(data.stats.totalNetProfit)} icon={TrendingUp} change={d.home.profitHint} trend={data.stats.totalNetProfit >= 0 ? 'up' : 'down'} />
       </div>
 
@@ -236,7 +266,7 @@ export default function DashboardPage() {
                   <div key={e.id} className="flex items-center justify-between text-sm">
                     <div>
                       <p className="font-medium truncate max-w-[140px]">{e.description}</p>
-                      <p className="text-xs text-muted-foreground">{e.case?.ownRef ?? 'General / ทั่วไป'}</p>
+                      <p className="text-xs text-muted-foreground">{e.case?.ownRef ?? d.admin.generalCase}</p>
                     </div>
                     <p className="font-semibold">{formatCurrency(e.amount)}</p>
                   </div>

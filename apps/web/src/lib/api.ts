@@ -189,10 +189,13 @@ export interface OnHoldTaskEntry {
 export interface CalendarEventItem {
   id: string;
   title: string;
+  description?: string | null;
+  courtName?: string | null;
   startAt: string;
   endAt?: string | null;
   type: string;
-  case?: { id: string; ownRef: string; title: string };
+  assigneeId?: string | null;
+  case?: { id: string; ownRef: string; title: string; courtName?: string | null };
 }
 
 export interface CaseItem {
@@ -504,6 +507,8 @@ export interface IntakeItem {
   incidentDate?: string | null;
   description?: string | null;
   estimatedDamage?: number | null;
+  assignedUserIds?: string[];
+  deadlineDate?: string | null;
   status: string;
   decision: string;
   caseStrength?: string | null;
@@ -965,9 +970,19 @@ export const api = {
     return request<CalendarEventItem[]>(`/calendar/events${qs ? `?${qs}` : ''}`, { token });
   },
 
+  getCalendarEvent: (token: string, id: string) =>
+    request<CalendarEventItem>(`/calendar/events/${id}`, { token }),
+
   createCalendarEvent: (token: string, data: Record<string, unknown>) =>
-    request('/calendar/events', {
+    request<CalendarEventItem>('/calendar/events', {
       method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  updateCalendarEvent: (token: string, id: string, data: Record<string, unknown>) =>
+    request<CalendarEventItem>(`/calendar/events/${id}`, {
+      method: 'PATCH',
       token,
       body: JSON.stringify(data),
     }),
@@ -1147,14 +1162,14 @@ export const api = {
     request<Array<{ id: string; summary: string; createdAt: string }>>(`/cases/${caseId}/documents/batch-analyses`, { token }),
 
   analyzeSelectedDocuments: (token: string, caseId: string, documentIds: string[]) =>
-    request<{ summary: string; sources: string[]; truncatedFiles: string[] }>(`/cases/${caseId}/documents/analyze-batch`, {
+    request<BatchAnalysisResult>(`/cases/${caseId}/documents/analyze-batch`, {
       method: 'POST', token, body: JSON.stringify({ documentIds }),
     }),
 
   analyzeDraftFiles: (token: string, files: File[]) => {
     const body = new FormData();
     files.forEach((file) => body.append('files', file));
-    return request<{ summary: string; sources: string[]; truncatedFiles: string[] }>('/documents/analyze-batch', { method: 'POST', token, body });
+    return request<BatchAnalysisResult>('/documents/analyze-batch', { method: 'POST', token, body });
   },
 
   analyzeExistingDocument: (token: string, caseId: string, documentId: string) =>
@@ -1219,6 +1234,9 @@ export const api = {
     const qs = version ? `?version=${version}` : '';
     return fetchBlob(`/intake/${intakeId}/documents/${documentId}/download${qs}`, { token });
   },
+
+  deleteIntakeDocument: (token: string, intakeId: string, documentId: string) =>
+    request(`/intake/${intakeId}/documents/${documentId}`, { method: 'DELETE', token }),
 
   updateIntakeDocumentVisibility: (token: string, intakeId: string, documentId: string, visibleToClient: boolean) =>
     request<DocumentItem>(`/intake/${intakeId}/documents/${documentId}/visibility`, {
@@ -1428,7 +1446,12 @@ export const api = {
   listDocumentPublications: (token: string, caseId: string, documentId: string) =>
     request<DocumentPublicationEntry[]>(`/cases/${caseId}/documents/${documentId}/publications`, { token }),
 
-  publishDocument: (token: string, caseId: string, documentId: string, data: { title?: string; summary?: string }) =>
+  publishDocument: (
+    token: string,
+    caseId: string,
+    documentId: string,
+    data: { title?: string; summary?: string; recipientContacts?: string[] },
+  ) =>
     request<DocumentPublicationEntry>(`/cases/${caseId}/documents/${documentId}/publications`, {
       method: 'POST',
       token,
@@ -1473,6 +1496,35 @@ export interface LineLinkCodeResponse {
   code: string;
   expiresAt: string;
   officialAccountUrl: string | null;
+}
+
+
+/** A case field the document analysis can offer a value for. */
+export type SuggestibleField =
+  | 'title'
+  | 'opposingParty'
+  | 'courtName'
+  | 'incidentDate'
+  | 'claimedAmount'
+  | 'estimatedDamage';
+
+/**
+ * A value read out of the uploaded documents, with the sentence it came from.
+ * Never applied on its own — the excerpt is what a lawyer checks it against.
+ */
+export interface FieldSuggestion {
+  field: SuggestibleField;
+  /** ISO instant for dates, a plain decimal for amounts, otherwise the text. */
+  value: string;
+  sourceFilename: string | null;
+  sourceExcerpt: string;
+}
+
+export interface BatchAnalysisResult {
+  summary: string;
+  sources: string[];
+  truncatedFiles: string[];
+  fieldSuggestions?: FieldSuggestion[];
 }
 
 export interface TravelResult {

@@ -28,6 +28,13 @@ interface KanbanBoardProps {
   /** Standalone tasks only: no fixed senior lawyer, so the sender picks a reviewer at handoff time. */
   requireReviewerOnHandoff?: boolean;
   reviewerOptions?: { id: string; firstName: string; lastName: string }[];
+  /**
+   * `list` orders every task by how soon it is due and states its status on the
+   * row. It is what a lawyer opening the page needs: the board answers "where
+   * does everything stand", which is a question for a review meeting, not for
+   * deciding what to do next.
+   */
+  layout?: 'board' | 'list';
 }
 
 const HANDOFF_SOURCE_STATUSES: TaskStatus[] = [
@@ -48,6 +55,7 @@ export function KanbanBoard({
   onReject,
   requireReviewerOnHandoff = false,
   reviewerOptions = [],
+  layout = 'board',
 }: KanbanBoardProps) {
   const d = useDashboardT();
   const [handoffTaskId, setHandoffTaskId] = useState<string | null>(null);
@@ -74,6 +82,220 @@ export function KanbanBoard({
     { status: TaskStatus.DONE, label: d.todos.columnDone },
   ];
 
+  const renderTask = (task: Task) => {
+        const isAssignee = task.assignee?.id === currentUserId;
+        const canSetPlainStatus = isAssignee || !task.assignee;
+        const canHandoff =
+          enableHandoff &&
+          (isAssignee || !task.assignee) &&
+          HANDOFF_SOURCE_STATUSES.includes(task.status);
+        const canReview =
+          enableHandoff &&
+          task.status === TaskStatus.PENDING_REVIEW &&
+          (isReviewer || isAssignee);
+
+        return (
+          <div
+            key={task.id}
+            className="rounded-lg border bg-card p-3 shadow-soft"
+          >
+            <p className="text-sm font-medium text-foreground">{task.title}</p>
+            {task.description && (
+              <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>
+            )}
+            {task.assignee && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {task.assignee.firstName} {task.assignee.lastName}
+              </p>
+            )}
+            {task.dueDate && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {fmt(d.todos.due, { date: formatDate(task.dueDate) })}
+              </p>
+            )}
+            <div className="mt-3 flex flex-wrap gap-1">
+              {canSetPlainStatus &&
+                plainStatusTargets
+                  .filter((c) => c.status !== task.status)
+                  .map((c) => (
+                    <button
+                      key={c.status}
+                      onClick={() => onStatusChange(task.id, c.status)}
+                      className="rounded border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      → {c.label}
+                    </button>
+                  ))}
+              {canHandoff && onHandoff && (
+                <button
+                  onClick={() => {
+                    setHandoffTaskId(task.id);
+                    setHandoffNote('');
+                    setHandoffReviewerId('');
+                  }}
+                  className="rounded border border-sky-400 px-2 py-0.5 text-xs text-sky-600 hover:bg-sky-50"
+                >
+                  {d.todos.handoffToSenior}
+                </button>
+              )}
+              {canReview && onAccept && (
+                <button
+                  onClick={() => onAccept(task.id)}
+                  className="rounded border border-emerald-400 px-2 py-0.5 text-xs text-emerald-600 hover:bg-emerald-50"
+                >
+                  {d.todos.accept}
+                </button>
+              )}
+              {canReview && onReject && (
+                <button
+                  onClick={() => {
+                    setRejectTaskId(task.id);
+                    setRejectReason('');
+                  }}
+                  className="rounded border border-rose-400 px-2 py-0.5 text-xs text-rose-600 hover:bg-rose-50"
+                >
+                  {d.todos.reject}
+                </button>
+              )}
+            </div>
+
+            {handoffTaskId === task.id && onHandoff && (
+              <div className="mt-3 space-y-2 border-t pt-2">
+                {requireReviewerOnHandoff && (
+                  <select
+                    value={handoffReviewerId}
+                    onChange={(e) => setHandoffReviewerId(e.target.value)}
+                    className="w-full rounded border px-2 py-1 text-xs"
+                  >
+                    <option value="">{d.todos.handoffReviewerPlaceholder}</option>
+                    {reviewerOptions
+                      .filter((u) => u.id !== currentUserId)
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.firstName} {u.lastName}
+                        </option>
+                      ))}
+                  </select>
+                )}
+                <input
+                  value={handoffNote}
+                  onChange={(e) => setHandoffNote(e.target.value)}
+                  placeholder={d.todos.handoffNotePlaceholder}
+                  className="w-full rounded border px-2 py-1 text-xs"
+                />
+                <div className="flex gap-2">
+                  <button
+                    disabled={requireReviewerOnHandoff && !handoffReviewerId}
+                    onClick={() => {
+                      onHandoff(
+                        task.id,
+                        handoffNote,
+                        requireReviewerOnHandoff ? handoffReviewerId : undefined,
+                      );
+                      setHandoffTaskId(null);
+                    }}
+                    className="rounded bg-sky-500 px-2 py-1 text-xs text-white hover:bg-sky-600 disabled:opacity-50"
+                  >
+                    {d.todos.handoffSubmit}
+                  </button>
+                  <button
+                    onClick={() => setHandoffTaskId(null)}
+                    className="rounded border px-2 py-1 text-xs text-muted-foreground"
+                  >
+                    {d.todos.cancel}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {rejectTaskId === task.id && onReject && (
+              <div className="mt-3 space-y-2 border-t pt-2">
+                <input
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder={d.todos.rejectReasonPlaceholder}
+                  className="w-full rounded border px-2 py-1 text-xs"
+                />
+                <div className="flex gap-2">
+                  <button
+                    disabled={!rejectReason.trim()}
+                    onClick={() => {
+                      if (!rejectReason.trim()) return;
+                      onReject(task.id, rejectReason.trim());
+                      setRejectTaskId(null);
+                    }}
+                    className="rounded bg-rose-500 px-2 py-1 text-xs text-white hover:bg-rose-600 disabled:opacity-50"
+                  >
+                    {d.todos.rejectSubmit}
+                  </button>
+                  <button
+                    onClick={() => setRejectTaskId(null)}
+                    className="rounded border px-2 py-1 text-xs text-muted-foreground"
+                  >
+                    {d.todos.cancel}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+  };
+
+  /**
+   * Overdue first, then by how soon it is due; anything undated sinks to the
+   * bottom. Done tasks sort last whatever their date — they are history.
+   */
+  const byUrgency = (a: Task, b: Task) => {
+    const done = (task: Task) => (task.status === TaskStatus.DONE ? 1 : 0);
+    if (done(a) !== done(b)) return done(a) - done(b);
+    const due = (task: Task) =>
+      task.dueDate ? new Date(task.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    return due(a) - due(b);
+  };
+
+  const statusLabels: Record<string, string> = {
+    [TaskStatus.TODO]: d.todos.columnTodo,
+    [TaskStatus.IN_PROGRESS]: d.todos.columnInProgress,
+    [TaskStatus.PENDING_REVIEW]: d.todos.columnPendingReview,
+    [TaskStatus.NEEDS_REVISION]: d.todos.columnNeedsRevision,
+    [TaskStatus.DONE]: d.todos.columnDone,
+  };
+
+  if (layout === 'list') {
+    const ordered = [...tasks].sort(byUrgency);
+    if (ordered.length === 0) {
+      return <p className="py-8 text-center text-sm text-muted-foreground">{d.todos.noTasks}</p>;
+    }
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    return (
+      <ul className="space-y-3">
+        {ordered.map((task) => {
+          const overdue =
+            !!task.dueDate &&
+            task.status !== TaskStatus.DONE &&
+            new Date(task.dueDate) < startOfToday;
+          return (
+            <li key={task.id}>
+              <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                  {statusLabels[task.status] ?? task.status}
+                </span>
+                {overdue && (
+                  <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">
+                    {d.todos.overdue}
+                  </span>
+                )}
+              </div>
+              {renderTask(task)}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
   return (
     <div
       className={`grid grid-cols-1 gap-4 md:grid-cols-3 ${enableHandoff ? 'xl:grid-cols-5' : ''}`}
@@ -94,164 +316,7 @@ export function KanbanBoard({
               </h3>
             </div>
             <div className="space-y-3 p-3">
-              {colTasks.map((task) => {
-                const isAssignee = task.assignee?.id === currentUserId;
-                const canSetPlainStatus = isAssignee || !task.assignee;
-                const canHandoff =
-                  enableHandoff &&
-                  (isAssignee || !task.assignee) &&
-                  HANDOFF_SOURCE_STATUSES.includes(task.status);
-                const canReview =
-                  enableHandoff &&
-                  task.status === TaskStatus.PENDING_REVIEW &&
-                  (isReviewer || isAssignee);
-
-                return (
-                  <div
-                    key={task.id}
-                    className="rounded-lg border bg-card p-3 shadow-soft"
-                  >
-                    <p className="text-sm font-medium text-foreground">{task.title}</p>
-                    {task.description && (
-                      <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>
-                    )}
-                    {task.assignee && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {task.assignee.firstName} {task.assignee.lastName}
-                      </p>
-                    )}
-                    {task.dueDate && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {fmt(d.todos.due, { date: formatDate(task.dueDate) })}
-                      </p>
-                    )}
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {canSetPlainStatus &&
-                        plainStatusTargets
-                          .filter((c) => c.status !== task.status)
-                          .map((c) => (
-                            <button
-                              key={c.status}
-                              onClick={() => onStatusChange(task.id, c.status)}
-                              className="rounded border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                            >
-                              → {c.label}
-                            </button>
-                          ))}
-                      {canHandoff && onHandoff && (
-                        <button
-                          onClick={() => {
-                            setHandoffTaskId(task.id);
-                            setHandoffNote('');
-                            setHandoffReviewerId('');
-                          }}
-                          className="rounded border border-sky-400 px-2 py-0.5 text-xs text-sky-600 hover:bg-sky-50"
-                        >
-                          {d.todos.handoffToSenior}
-                        </button>
-                      )}
-                      {canReview && onAccept && (
-                        <button
-                          onClick={() => onAccept(task.id)}
-                          className="rounded border border-emerald-400 px-2 py-0.5 text-xs text-emerald-600 hover:bg-emerald-50"
-                        >
-                          {d.todos.accept}
-                        </button>
-                      )}
-                      {canReview && onReject && (
-                        <button
-                          onClick={() => {
-                            setRejectTaskId(task.id);
-                            setRejectReason('');
-                          }}
-                          className="rounded border border-rose-400 px-2 py-0.5 text-xs text-rose-600 hover:bg-rose-50"
-                        >
-                          {d.todos.reject}
-                        </button>
-                      )}
-                    </div>
-
-                    {handoffTaskId === task.id && onHandoff && (
-                      <div className="mt-3 space-y-2 border-t pt-2">
-                        {requireReviewerOnHandoff && (
-                          <select
-                            value={handoffReviewerId}
-                            onChange={(e) => setHandoffReviewerId(e.target.value)}
-                            className="w-full rounded border px-2 py-1 text-xs"
-                          >
-                            <option value="">{d.todos.handoffReviewerPlaceholder}</option>
-                            {reviewerOptions
-                              .filter((u) => u.id !== currentUserId)
-                              .map((u) => (
-                                <option key={u.id} value={u.id}>
-                                  {u.firstName} {u.lastName}
-                                </option>
-                              ))}
-                          </select>
-                        )}
-                        <input
-                          value={handoffNote}
-                          onChange={(e) => setHandoffNote(e.target.value)}
-                          placeholder={d.todos.handoffNotePlaceholder}
-                          className="w-full rounded border px-2 py-1 text-xs"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            disabled={requireReviewerOnHandoff && !handoffReviewerId}
-                            onClick={() => {
-                              onHandoff(
-                                task.id,
-                                handoffNote,
-                                requireReviewerOnHandoff ? handoffReviewerId : undefined,
-                              );
-                              setHandoffTaskId(null);
-                            }}
-                            className="rounded bg-sky-500 px-2 py-1 text-xs text-white hover:bg-sky-600 disabled:opacity-50"
-                          >
-                            {d.todos.handoffSubmit}
-                          </button>
-                          <button
-                            onClick={() => setHandoffTaskId(null)}
-                            className="rounded border px-2 py-1 text-xs text-muted-foreground"
-                          >
-                            {d.todos.cancel}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {rejectTaskId === task.id && onReject && (
-                      <div className="mt-3 space-y-2 border-t pt-2">
-                        <input
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder={d.todos.rejectReasonPlaceholder}
-                          className="w-full rounded border px-2 py-1 text-xs"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            disabled={!rejectReason.trim()}
-                            onClick={() => {
-                              if (!rejectReason.trim()) return;
-                              onReject(task.id, rejectReason.trim());
-                              setRejectTaskId(null);
-                            }}
-                            className="rounded bg-rose-500 px-2 py-1 text-xs text-white hover:bg-rose-600 disabled:opacity-50"
-                          >
-                            {d.todos.rejectSubmit}
-                          </button>
-                          <button
-                            onClick={() => setRejectTaskId(null)}
-                            className="rounded border px-2 py-1 text-xs text-muted-foreground"
-                          >
-                            {d.todos.cancel}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {colTasks.map(renderTask)}
               {colTasks.length === 0 && (
                 <p className="py-4 text-center text-xs text-muted-foreground">{d.todos.noTasks}</p>
               )}

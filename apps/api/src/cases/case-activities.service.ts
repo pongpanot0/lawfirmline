@@ -53,7 +53,7 @@ export class CaseActivitiesService {
       },
     });
 
-    await this.calendarService.create({
+    await this.calendarService.createInternal({
       caseId,
       title: dto.title,
       description: dto.description,

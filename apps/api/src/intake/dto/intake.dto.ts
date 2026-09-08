@@ -307,6 +307,20 @@ export class ConvertToCaseDto {
   @IsOptional()
   @IsString()
   title?: string;
+
+  @IsOptional()
+  @IsUUID()
+  caseTypeId?: string;
+
+  /**
+   * What is being claimed in the suit. The intake's estimated damage is a
+   * different figure and is never copied here on its own: a lawyer confirms
+   * the amount, or the case opens without one.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  claimedAmount?: number;
 }
 
 export class IntakeQueryDto {

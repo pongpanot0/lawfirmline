@@ -4,14 +4,50 @@
     {
       "name": "design-preview",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "4173", "--directory", "docs/design"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4173",
+        "--directory",
+        "docs/design"
+      ],
       "port": 4173
     },
     {
       "name": "portal-web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "web", "run", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "web",
+        "run",
+        "dev"
+      ],
       "port": 3005
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "api",
+        "run",
+        "dev"
+      ],
+      "port": 3011
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "web",
+        "exec",
+        "next",
+        "dev",
+        "--port",
+        "3015"
+      ],
+      "port": 3015
     }
   ]
 }

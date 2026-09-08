@@ -151,6 +151,8 @@ export enum DateSuggestionStatus {
 }
 
 export enum ExpenseStatus {
+  /** Saved by its author and not yet claimed — no money is committed. */
+  DRAFT = 'DRAFT',
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   PAID = 'PAID',

@@ -7,6 +7,7 @@ import {
   IsDateString,
   IsArray,
   IsEnum,
+  IsIn,
   IsUUID,
   Max,
   MaxLength,
@@ -81,6 +82,22 @@ export class CreateExpenseDto {
   @IsOptional()
   @IsDateString()
   date?: string;
+
+  /**
+   * The hearing this cost came from, so a reimbursement can be traced back to
+   * the trip that caused it.
+   */
+  @IsOptional()
+  @IsUUID()
+  sourceEventId?: string;
+
+  /**
+   * `DRAFT` records the cost without claiming it. Omitted means `PENDING`,
+   * which is a claim — the existing behaviour of every caller.
+   */
+  @IsOptional()
+  @IsIn([ExpenseStatus.DRAFT, ExpenseStatus.PENDING])
+  status?: ExpenseStatus.DRAFT | ExpenseStatus.PENDING;
 }
 
 export class CreateStandaloneExpenseDto extends CreateExpenseDto {

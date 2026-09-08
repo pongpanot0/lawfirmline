@@ -6,6 +6,7 @@ import { TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
+import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,13 +24,19 @@ export default function TodosPage() {
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [layout, setLayout] = useTaskLayout();
 
   const loadTasks = () => {
     if (!token) return;
+    setLoadError('');
     api
       .getMyTodos(token)
-      .then(setTasks)
-      .catch(console.error)
+      .then((items) => setTasks(items))
+      // A failed load must not read as "nothing to do" — that is the one
+      // wrong answer a task list can give.
+      .catch(() => setLoadError(d.todos.loadFailed))
       .finally(() => setLoading(false));
   };
 
@@ -88,17 +95,26 @@ export default function TodosPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !newTitle) return;
-    await api.createTodo(token, {
-      title: newTitle,
-      assigneeId: newAssigneeId || undefined,
-      dueDate: newDueDate || undefined,
-    });
-    setNewTitle('');
-    setNewAssigneeId('');
-    setNewDueDate('');
-    setShowForm(false);
-    loadTasks();
+    if (!token || !newTitle.trim() || creating) return;
+    setCreating(true);
+    setError('');
+    try {
+      await api.createTodo(token, {
+        title: newTitle.trim(),
+        assigneeId: newAssigneeId || undefined,
+        dueDate: newDueDate || undefined,
+      });
+      setNewTitle('');
+      setNewAssigneeId('');
+      setNewDueDate('');
+      setShowForm(false);
+      loadTasks();
+    } catch {
+      // Keep what was typed: the retry should not start from a blank field.
+      setError(d.todos.createFailed);
+    } finally {
+      setCreating(false);
+    }
   };
 
   if (loading) return <p className="text-muted-foreground">{d.todos.loading}</p>;
@@ -108,10 +124,13 @@ export default function TodosPage() {
       <PageHeader
         title={d.todos.title}
         actions={
-          <Button size="sm" onClick={() => setShowForm(!showForm)}>
-            <Plus className="h-4 w-4" />
-            {d.todos.addTodo}
-          </Button>
+          <div className="flex items-center gap-2">
+            <TaskViewToggle layout={layout} onChange={setLayout} />
+            <Button size="sm" onClick={() => setShowForm(!showForm)}>
+              <Plus className="h-4 w-4" />
+              {d.todos.addTodo}
+            </Button>
+          </div>
         }
       />
 
@@ -146,13 +165,22 @@ export default function TodosPage() {
                 onChange={(e) => setNewDueDate(e.target.value)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               />
-              <Button type="submit" size="sm">{d.todos.create}</Button>
+              <Button type="submit" size="sm" disabled={creating}>{d.todos.create}</Button>
             </form>
           </CardContent>
         </Card>
       )}
 
+      {loadError ? (
+        <div className="rounded-xl border bg-card p-6 shadow-soft">
+          <p role="alert" className="text-sm text-destructive">{loadError}</p>
+          <Button size="sm" variant="outline" className="mt-3" onClick={loadTasks}>
+            {d.common.retry}
+          </Button>
+        </div>
+      ) : (
       <KanbanBoard
+        layout={layout}
         tasks={tasks}
         onStatusChange={handleStatusChange}
         currentUserId={user?.id ?? ''}
@@ -163,6 +191,7 @@ export default function TodosPage() {
         onAccept={handleAccept}
         onReject={handleReject}
       />
+      )}
     </div>
   );
 }

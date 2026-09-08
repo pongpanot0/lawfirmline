@@ -11,6 +11,8 @@ describe('IntakePrecedentAnalysisService', () => {
   const mockPrisma = {
     intake: { findFirst: jest.fn() },
     intakePrecedentAnalysis: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
+    document: { findMany: jest.fn() },
+    intakeAttachment: { findMany: jest.fn() },
   };
   const mockIapp = { searchPrecedents: jest.fn(), getPrecedentDetail: jest.fn() };
   const mockDocIntel = { extractText: jest.fn() };
@@ -31,6 +33,14 @@ describe('IntakePrecedentAnalysisService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockConfig.get.mockReturnValue('test-openai-key');
+    // The analysable files come from the two stores, not from the intake row;
+    // each test that needs files points intakeAttachment.findMany at them.
+    mockPrisma.document.findMany.mockResolvedValue([]);
+    mockPrisma.intakeAttachment.findMany.mockImplementation(async () => {
+      const intake = await mockPrisma.intake.findFirst.mock.results
+        .at(-1)?.value;
+      return intake?.attachments ?? [];
+    });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakePrecedentAnalysisService,

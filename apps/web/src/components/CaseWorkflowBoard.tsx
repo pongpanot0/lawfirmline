@@ -1,5 +1,7 @@
 'use client';
 
+import { getCaseStatusDisplay } from '@/lib/case-status';
+
 import Link from 'next/link';
 import type { CaseStatus } from '@lawfirm/shared';
 import { StatusBadge } from './StatusBadge';
@@ -15,11 +17,13 @@ export interface WorkflowCase {
   leadLawyer: { firstName: string; lastName: string };
 }
 
-const WORKFLOW_COLUMNS: { status: string; label: string; color: string }[] = [
-  { status: 'OPEN', label: 'Open / เปิดคดี', color: 'border-sky-200 bg-sky-50' },
-  { status: 'DRAFTING', label: 'Drafting / ร่างเอกสาร', color: 'border-amber-200 bg-amber-50' },
-  { status: 'COURT_DATE', label: 'Court Date / นัดศาล', color: 'border-violet-200 bg-violet-50' },
-  { status: 'CLOSED', label: 'Closed / ปิดคดี', color: 'border-slate-200 bg-slate-50' },
+const WORKFLOW_COLUMNS: { status: string; color: string }[] = [
+  // Labels come from the one status map the rest of the app reads, so a column
+  // and a badge can never disagree about what a status is called.
+  { status: 'OPEN', color: 'border-sky-200 bg-sky-50' },
+  { status: 'DRAFTING', color: 'border-amber-200 bg-amber-50' },
+  { status: 'COURT_DATE', color: 'border-violet-200 bg-violet-50' },
+  { status: 'CLOSED', color: 'border-slate-200 bg-slate-50' },
 ];
 
 interface CaseWorkflowBoardProps {
@@ -41,7 +45,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
       {WORKFLOW_COLUMNS.map((col) => (
         <div key={col.status} className={`rounded-xl border-2 p-4 ${col.color}`}>
           <h3 className="mb-3 text-sm font-semibold text-slate-700">
-            {col.label}
+            {getCaseStatusDisplay(col.status).label}
             <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-slate-500">
               {getColumnCases(col.status).length}
             </span>
@@ -69,7 +73,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                     className="mt-2 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                   >
                     {WORKFLOW_COLUMNS.map((w) => (
-                      <option key={w.status} value={w.status}>{w.label}</option>
+                      <option key={w.status} value={w.status}>{getCaseStatusDisplay(w.status).label}</option>
                     ))}
                     <option value="IN_PROGRESS">ยื่นฟ้องแล้ว</option>
                   </select>

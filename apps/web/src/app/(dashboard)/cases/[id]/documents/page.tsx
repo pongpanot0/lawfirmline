@@ -7,6 +7,7 @@ import { Upload, Eye, Download, ArrowLeft, Sparkles, CalendarSearch } from 'luci
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry } from '@/lib/api';
+import { PublishDocumentDialog } from '@/components/documents/PublishDocumentDialog';
 import { DocumentDropZone, DocumentDropZoneHandle } from '@/components/DocumentDropZone';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,9 @@ export default function CaseDocumentsPage() {
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [publications, setPublications] = useState<Record<string, DocumentPublicationEntry[]>>({});
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  // Publishing reaches the client portal, so the recipients are reviewed first
+  // rather than inferred from whoever happens to hold access.
+  const [publishTarget, setPublishTarget] = useState<DocumentItem | null>(null);
 
   const loadPublications = (documentId: string) => {
     if (!token || !id) return;
@@ -108,18 +112,6 @@ export default function CaseDocumentsPage() {
     }
   };
 
-  const handlePublish = async (doc: DocumentItem) => {
-    if (!token || !id) return;
-    setPublishingId(doc.id);
-    try {
-      await api.publishDocument(token, id, doc.id, { title: doc.filename });
-      loadPublications(doc.id);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : d.caseDocuments.publishFailed);
-    } finally {
-      setPublishingId(null);
-    }
-  };
 
   const handleUnpublish = async (doc: DocumentItem, publicationId: string) => {
     if (!token || !id) return;
@@ -317,11 +309,11 @@ export default function CaseDocumentsPage() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => handlePublish(doc)}
+                      onClick={() => setPublishTarget(doc)}
                       disabled={publishingId === doc.id}
                       className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
                     >
-                      {publishingId === doc.id ? 'กำลังเผยแพร่...' : 'เผยแพร่ให้ลูกความ'}
+                      เผยแพร่ให้ลูกความ...
                     </button>
                   );
                 })()}
@@ -356,6 +348,15 @@ export default function CaseDocumentsPage() {
           mimeType={preview.mimeType}
           url={preview.url}
           onClose={closePreview}
+        />
+      )}
+
+      {publishTarget && (
+        <PublishDocumentDialog
+          caseId={id}
+          document={publishTarget}
+          onClose={() => setPublishTarget(null)}
+          onPublished={() => loadPublications(publishTarget.id)}
         />
       )}
     </div>

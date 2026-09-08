@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, CaseItem } from '@/lib/api';
 import { CaseWorkflowBoard } from '@/components/CaseWorkflowBoard';
 
 export default function CaseBoardPage() {
+  const d = useDashboardT();
   const { token, user } = useAuth();
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,16 +39,16 @@ export default function CaseBoardPage() {
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Case Workflow Board / บอร์ดสถานะคดี</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{d.admin.boardTitle}</h1>
           <p className="mt-1 text-sm text-slate-500">Kanban view — เปิดคดี → ร่างเอกสาร → นัดศาล → ปิดคดี</p>
         </div>
         <div className="flex gap-2">
           <Link href="/cases" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">
-            List View / มุมมองรายการ
+            {d.admin.listView}
           </Link>
           {canEdit && (
             <Link href="/cases/new" className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-              + New Case / สร้างคดีใหม่
+              + {d.admin.newCase}
             </Link>
           )}
         </div>
@@ -55,7 +57,7 @@ export default function CaseBoardPage() {
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       {loading ? (
-        <p className="text-slate-500">Loading board... / กำลังโหลด...</p>
+        <p className="text-slate-500">{d.admin.loadingBoard}</p>
       ) : (
         <CaseWorkflowBoard
           cases={cases}

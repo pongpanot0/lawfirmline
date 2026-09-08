@@ -1,41 +1,80 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
 import { api, type ClosingEmailDraft, type CaseActivityItem } from '@/lib/api';
+import { formatDate, formatDateTime } from '@/lib/utils';
 
 export default function ClosingReportPage() {
   const { id: caseId } = useParams<{ id: string }>();
   const { token } = useAuth();
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
+  const [drafts, setDrafts] = useState<ClosingEmailDraft[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<ClosingEmailDraft | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [busy, setBusy] = useState<'generate' | 'save' | 'approve' | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!token || !caseId) return;
-    api.getCaseActivities(token, caseId).then(setActivities);
+    setLoading(true);
+    setLoadError('');
+    try {
+      const [caseActivities, existing] = await Promise.all([
+        api.getCaseActivities(token, caseId),
+        api.listClosingEmailDrafts(token, caseId),
+      ]);
+      setActivities(caseActivities);
+      setDrafts(existing);
+      // Come back to this page and the draft is here waiting, not a blank
+      // panel inviting a second one.
+      const latest = existing[0];
+      if (latest) {
+        setDraft(latest);
+        setSelectedIds(latest.selectedActivityIds ?? []);
+      }
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ');
+    } finally {
+      setLoading(false);
+    }
   }, [token, caseId]);
 
-  const toggleActivity = (activityId: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(activityId)
-        ? prev.filter((activityIdInList) => activityIdInList !== activityId)
-        : [...prev, activityId],
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const toggleActivity = (activityId: string) =>
+    setSelectedIds((previous) =>
+      previous.includes(activityId)
+        ? previous.filter((id) => id !== activityId)
+        : [...previous, activityId],
     );
-  };
 
   const handleGenerate = async () => {
-    if (!token || !caseId) return;
+    if (!token || !caseId || busy) return;
+    setBusy('generate');
     setError('');
+    setNotice('');
     try {
       const created = await api.createClosingEmailDraft(token, caseId, selectedIds);
       setDraft(created);
+      setDrafts((previous) => [created, ...previous]);
+      setDirty(false);
+      setNotice('สร้างร่างใหม่แล้ว — ยังไม่ได้ส่งให้ใคร');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'สร้างร่างไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -47,59 +86,108 @@ export default function ClosingReportPage() {
   };
 
   const handleSaveDraft = async () => {
-    if (!token || !caseId || !draft) return;
+    if (!token || !caseId || !draft || busy) return;
+    setBusy('save');
     setError('');
+    setNotice('');
     try {
       const saved = await api.updateClosingEmailDraft(token, caseId, draft.id, {
         subject: draft.subject,
         bodyText: draft.bodyText,
       });
       setDraft(saved);
+      setDrafts((previous) => previous.map((item) => (item.id === saved.id ? saved : item)));
+      setDirty(false);
+      setNotice('บันทึกร่างแล้ว');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'บันทึกร่างไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setBusy(null);
     }
   };
 
   const handleApprove = async () => {
-    if (!token || !caseId || !draft) return;
+    if (!token || !caseId || !draft || busy) return;
     setError('');
+    setNotice('');
+    setBusy('approve');
     try {
       const approved = await api.approveClosingEmailDraft(token, caseId, draft.id);
       setDraft(approved);
+      setDrafts((previous) => previous.map((item) => (item.id === approved.id ? approved : item)));
+      setNotice('อนุมัติแล้ว — ยังไม่ได้ส่ง คัดลอกไปส่งเองได้เลย');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'อนุมัติไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setBusy(null);
     }
   };
 
+  if (loading) return <p className="text-muted-foreground">กำลังโหลด...</p>;
+
+  if (loadError) {
+    return (
+      <div className="rounded-xl border bg-card p-6 shadow-soft">
+        <p role="alert" className="text-sm text-destructive">{loadError}</p>
+        <Button size="sm" variant="outline" className="mt-3" onClick={() => void load()}>
+          ลองใหม่
+        </Button>
+      </div>
+    );
+  }
+
+  const approved = draft?.status === 'APPROVED';
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {error && (
-        <p className="md:col-span-2 text-sm text-red-600">{error}</p>
+        <p role="alert" className="text-sm text-destructive md:col-span-2">{error}</p>
       )}
+      {notice && <p className="text-sm text-muted-foreground md:col-span-2">{notice}</p>}
+
       <Card>
         <CardHeader>
           <CardTitle>เหตุการณ์ที่จะนำมาใช้</CardTitle>
         </CardHeader>
         <CardContent>
-          {activities.map((activity) => (
-            <label key={activity.id} className="flex items-start gap-2 py-1">
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(activity.id)}
-                onChange={() => toggleActivity(activity.id)}
-              />
-              <span>
-                {new Date(activity.activityAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })} —{' '}
-                {activity.title}
-              </span>
-            </label>
-          ))}
-          <button
-            className="mt-4 rounded bg-blue-600 px-4 py-2 text-white"
+          <p className="mb-3 text-sm text-muted-foreground">
+            ติ๊กเหตุการณ์ที่ควรอยู่ในหนังสือปิดคดี แล้วกดสร้างร่าง
+          </p>
+          {activities.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              ยังไม่มีความเคลื่อนไหวของคดี — บันทึกผลนัดในหน้าคดีก่อน
+            </p>
+          ) : (
+            activities.map((activity) => (
+              <label key={activity.id} className="flex items-start gap-2 py-1 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={selectedIds.includes(activity.id)}
+                  onChange={() => toggleActivity(activity.id)}
+                />
+                <span>
+                  {formatDate(activity.activityAt)} — {activity.title}
+                </span>
+              </label>
+            ))
+          )}
+          <Button
+            className="mt-4"
             onClick={handleGenerate}
+            disabled={busy !== null || activities.length === 0}
           >
-            สร้างร่าง
-          </button>
+            {busy === 'generate'
+              ? 'กำลังสร้าง...'
+              : draft
+                ? 'สร้างร่างใหม่จากที่เลือก'
+                : 'สร้างร่าง'}
+          </Button>
+          {draft && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              ร่างเดิมยังอยู่ในรายการด้านขวา การสร้างใหม่ไม่ลบของเดิม
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -110,53 +198,65 @@ export default function ClosingReportPage() {
         <CardContent>
           {draft ? (
             <>
+              <p className="mb-2 text-xs text-muted-foreground">
+                ร่างเมื่อ {formatDateTime(draft.createdAt)} ·{' '}
+                {approved ? 'อนุมัติแล้ว' : 'ยังเป็นร่าง'}
+                {drafts.length > 1 && ` · มีร่างทั้งหมด ${drafts.length} ฉบับ`}
+              </p>
               {draft.missingDataNotes.length > 0 && (
-                <div className="mb-2 rounded bg-yellow-50 p-2 text-sm text-yellow-800">
+                <div className="mb-2 rounded-lg border border-warning/40 bg-warning/10 p-2 text-sm">
                   {draft.missingDataNotes.map((note) => (
                     <div key={note}>⚠ {note}</div>
                   ))}
                 </div>
               )}
-              <input
-                className="mb-2 w-full border p-2"
+              <Input
+                className="mb-2"
+                aria-label="หัวข้ออีเมล"
                 value={draft.subject}
-                onChange={(e) =>
-                  setDraft({ ...draft, subject: e.target.value })
-                }
+                readOnly={approved}
+                onChange={(e) => {
+                  setDraft({ ...draft, subject: e.target.value });
+                  setDirty(true);
+                }}
               />
               <textarea
-                className="h-64 w-full border p-2"
+                aria-label="เนื้อหาอีเมล"
+                className="h-64 w-full rounded-lg border border-input bg-card p-2 text-sm"
                 value={draft.bodyText}
-                onChange={(e) =>
-                  setDraft({ ...draft, bodyText: e.target.value })
-                }
+                readOnly={approved}
+                onChange={(e) => {
+                  setDraft({ ...draft, bodyText: e.target.value });
+                  setDirty(true);
+                }}
               />
-              <div className="mt-2 flex gap-2">
-                {draft.status !== 'APPROVED' && (
-                  <button
-                    className="rounded bg-blue-600 px-4 py-2 text-white"
-                    onClick={handleSaveDraft}
-                  >
-                    บันทึกร่าง
-                  </button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {!approved && (
+                  <Button onClick={handleSaveDraft} disabled={busy !== null || !dirty}>
+                    {busy === 'save' ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
+                  </Button>
                 )}
-                <button
-                  className="rounded bg-gray-600 px-4 py-2 text-white"
-                  onClick={handleCopy}
-                >
+                <Button variant="outline" onClick={handleCopy}>
                   {copied ? 'คัดลอกแล้ว' : 'คัดลอกไปคลิปบอร์ด'}
-                </button>
-                <button
-                  className="rounded bg-green-600 px-4 py-2 text-white"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={handleApprove}
-                  disabled={draft.status === 'APPROVED'}
+                  disabled={busy !== null || approved || dirty}
                 >
-                  {draft.status === 'APPROVED' ? 'อนุมัติแล้ว' : 'อนุมัติ'}
-                </button>
+                  {approved ? 'อนุมัติแล้ว' : busy === 'approve' ? 'กำลังอนุมัติ...' : 'อนุมัติ'}
+                </Button>
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {dirty
+                  ? 'บันทึกร่างก่อนจึงจะอนุมัติได้'
+                  : 'อนุมัติคือการยืนยันข้อความ ระบบไม่ส่งอีเมลให้ — คัดลอกไปส่งเอง'}
+              </p>
             </>
           ) : (
-            <p className="text-gray-500">เลือกเหตุการณ์แล้วกด &quot;สร้างร่าง&quot;</p>
+            <p className="text-sm text-muted-foreground">
+              เลือกเหตุการณ์แล้วกด &quot;สร้างร่าง&quot;
+            </p>
           )}
         </CardContent>
       </Card>

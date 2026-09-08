@@ -7,6 +7,7 @@ import { AssignmentType, ReferralChannel } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
+import { DocumentsService } from '../documents/documents.service';
 import {
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -31,6 +32,7 @@ export class IntakeService {
     private tasksService: TasksService,
     private config: ConfigService,
     private precedentAnalysisService: IntakePrecedentAnalysisService,
+    private documentsService: DocumentsService,
   ) {}
 
   private intakeInclude = {
@@ -334,6 +336,16 @@ export class IntakeService {
   async convertToCase(user: AuthUser, id: string, dto: ConvertToCaseDto) {
     const intake = await this.findOne(user, id);
 
+    // A second press — or a retry after a response was lost — must not open a
+    // second case, nor add the deadline event and the intake task twice. The
+    // case this intake already reached is the answer.
+    if (intake.case) {
+      return this.prisma.case.findUnique({ where: { id: intake.case.id } });
+    }
+    if (intake.status === 'CONVERTED' && intake.relatedCaseId) {
+      return this.prisma.case.findUnique({ where: { id: intake.relatedCaseId } });
+    }
+
     if (intake.relatedCaseId) {
       return this.attachToExistingCase(user, intake, dto);
     }
@@ -390,6 +402,10 @@ export class IntakeService {
         leadLawyerId: dto.leadLawyerId ?? user.id,
         intakeId: intake.id,
         limitationDeadline: intake.deadlineDate ?? undefined,
+        caseTypeId: dto.caseTypeId ?? undefined,
+        // Only what the lawyer confirmed. The intake's estimated damage is a
+        // different figure and never becomes the amount claimed by itself.
+        claimedAmount: dto.claimedAmount ?? undefined,
       },
     });
 
@@ -400,10 +416,7 @@ export class IntakeService {
       data: { caseId: newCase.id },
     });
 
-    await this.prisma.document.updateMany({
-      where: { intakeId: intake.id },
-      data: { caseId: newCase.id, intakeId: null },
-    });
+    await this.carryFilesOntoCase(intake.id, newCase.id);
 
     await this.prisma.intake.update({
       where: { id },
@@ -498,10 +511,7 @@ export class IntakeService {
       data: { caseId: relatedCase.id },
     });
 
-    await this.prisma.document.updateMany({
-      where: { intakeId: intake.id },
-      data: { caseId: relatedCase.id, intakeId: null },
-    });
+    await this.carryFilesOntoCase(intake.id, relatedCase.id);
 
     await this.prisma.intake.update({
       where: { id: intake.id },
@@ -540,6 +550,22 @@ export class IntakeService {
     });
 
     return updatedCase;
+  }
+
+  /**
+   * Move the intake's files onto the case.
+   *
+   * Files the lawyer uploaded for the AI to read live in the older
+   * `IntakeAttachment` store, which has no link to a case — so they used to
+   * disappear from view the moment the intake became one. They are adopted as
+   * documents first, then every document is re-pointed at the case.
+   */
+  private async carryFilesOntoCase(intakeId: string, caseId: string) {
+    await this.documentsService.adoptIntakeAttachments(intakeId, caseId);
+    await this.prisma.document.updateMany({
+      where: { intakeId },
+      data: { caseId, intakeId: null },
+    });
   }
 
   async listPortalSubmissions(user: AuthUser) {
