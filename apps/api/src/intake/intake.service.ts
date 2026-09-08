@@ -336,6 +336,16 @@ export class IntakeService {
   async convertToCase(user: AuthUser, id: string, dto: ConvertToCaseDto) {
     const intake = await this.findOne(user, id);
 
+    // A second press — or a retry after a response was lost — must not open a
+    // second case, nor add the deadline event and the intake task twice. The
+    // case this intake already reached is the answer.
+    if (intake.case) {
+      return this.prisma.case.findUnique({ where: { id: intake.case.id } });
+    }
+    if (intake.status === 'CONVERTED' && intake.relatedCaseId) {
+      return this.prisma.case.findUnique({ where: { id: intake.relatedCaseId } });
+    }
+
     if (intake.relatedCaseId) {
       return this.attachToExistingCase(user, intake, dto);
     }
@@ -392,6 +402,10 @@ export class IntakeService {
         leadLawyerId: dto.leadLawyerId ?? user.id,
         intakeId: intake.id,
         limitationDeadline: intake.deadlineDate ?? undefined,
+        caseTypeId: dto.caseTypeId ?? undefined,
+        // Only what the lawyer confirmed. The intake's estimated damage is a
+        // different figure and never becomes the amount claimed by itself.
+        claimedAmount: dto.claimedAmount ?? undefined,
       },
     });
 

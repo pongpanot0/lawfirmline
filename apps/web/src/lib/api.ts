@@ -507,6 +507,8 @@ export interface IntakeItem {
   incidentDate?: string | null;
   description?: string | null;
   estimatedDamage?: number | null;
+  assignedUserIds?: string[];
+  deadlineDate?: string | null;
   status: string;
   decision: string;
   caseStrength?: string | null;

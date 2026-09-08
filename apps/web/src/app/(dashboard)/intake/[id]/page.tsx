@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, ApiError } from '@/lib/api';
+import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, UserItem, ApiError } from '@/lib/api';
+import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -130,6 +131,11 @@ export default function IntakeDetailPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
 
+  // Opening a case: reviewed once, in context, rather than a bare confirm box.
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState('');
+  const [lawyers, setLawyers] = useState<UserItem[]>([]);
+
   const loadDocuments = useCallback(async () => {
     if (!token || !id) return;
     try {
@@ -152,6 +158,11 @@ export default function IntakeDetailPage() {
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  useEffect(() => {
+    if (!token) return;
+    api.getLawyers(token).then(setLawyers).catch(console.error);
+  }, [token]);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -337,20 +348,32 @@ export default function IntakeDetailPage() {
     }
   };
 
-  const handleConvert = async () => {
-    if (!token || !id) return;
-    if (!confirm('แปลงเรื่องนี้เป็นคดีใหม่?')) return;
+  const handleConvert = async (payload: {
+    title: string;
+    leadLawyerId?: string;
+    claimedAmount?: number;
+  }) => {
+    if (!token || !id || submitting) return;
     setSubmitting(true);
-    setError('');
+    setConvertError('');
     try {
-      const result = await api.convertIntake(token, id) as IntakeItem;
-      if (result.case?.id) {
-        router.push(`/cases/${result.case.id}`);
-      } else {
-        await reload();
+      const result = (await api.convertIntake(token, id, {
+        title: payload.title || undefined,
+        leadLawyerId: payload.leadLawyerId,
+        claimedAmount: payload.claimedAmount,
+      })) as { id?: string; ownRef?: string } & IntakeItem;
+      // A new case comes back as the case itself; attaching to an existing one
+      // returns that case. Either way the lawyer lands where the work now is.
+      const caseId = result.case?.id ?? result.id ?? intake?.relatedCase?.id;
+      if (caseId) {
+        router.push(`/cases/${caseId}`);
+        return;
       }
+      setConverting(false);
+      await reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      setConvertError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
       setSubmitting(false);
     }
   };
@@ -406,7 +429,9 @@ export default function IntakeDetailPage() {
         {intake.status === 'ACCEPTED' && (
           <>
             <Button variant="outline" onClick={() => setModal('notice')}>ออก Notice</Button>
-            <Button onClick={handleConvert} disabled={submitting}>แปลงเป็นคดี</Button>
+            <Button onClick={() => setConverting(true)} disabled={submitting}>
+              {intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}
+            </Button>
           </>
         )}
         {intake.status === 'CONVERTED' && intake.case && (
@@ -896,6 +921,19 @@ export default function IntakeDetailPage() {
             )}
           </div>
         </div>
+      )}
+
+      {converting && (
+        <ConvertToCaseDialog
+          intake={intake}
+          documents={documents}
+          lawyers={lawyers}
+          analysisCount={analyses.length}
+          submitting={submitting}
+          error={convertError}
+          onClose={() => { setConverting(false); setConvertError(''); }}
+          onConfirm={handleConvert}
+        />
       )}
     </div>
   );

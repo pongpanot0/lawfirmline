@@ -291,7 +291,7 @@ describe('IntakeService convertToCase', () => {
 
     const result = await service.convertToCase(user, 'intake-1', {} as any);
 
-    expect(result.id).toBe('case-1');
+    expect(result?.id).toBe('case-1');
     expect(mockPrisma.intakePrecedentAnalysis.updateMany).toHaveBeenCalledWith({
       where: { intakeId: 'intake-1' },
       data: { caseId: 'case-1' },
@@ -438,7 +438,13 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
   const mockPrisma = {
     intake: { findFirst: jest.fn(), update: jest.fn() },
     firm: { findUnique: jest.fn() },
-    case: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    case: {
+      findMany: jest.fn(),
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
@@ -521,6 +527,69 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
       where: { intakeId: 'intake-1' },
       data: { caseId: 'case-1', intakeId: null },
     });
+  });
+
+  it('returns the case it already opened instead of opening a second one', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: null,
+      case: { id: 'case-existing' },
+      assignedUserIds: [],
+      deadlineDate: null,
+    });
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'case-existing' });
+
+    const result = await service.convertToCase(user, 'intake-1', {});
+
+    expect(result).toEqual({ id: 'case-existing' });
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+  });
+
+  it('does not add the deadline event and intake task twice on a repeated attach', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: 'case-1',
+      status: 'CONVERTED',
+      assignedUserIds: [],
+      deadlineDate: new Date('2026-10-01'),
+    });
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'case-1' });
+
+    const result = await service.convertToCase(user, 'intake-1', {});
+
+    expect(result).toEqual({ id: 'case-1' });
+    expect(mockPrisma.calendarEvent.create).not.toHaveBeenCalled();
+    expect(mockTasksService.create).not.toHaveBeenCalled();
+  });
+
+  it('opens the case without a claimed amount unless the lawyer confirmed one', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: null,
+      // The intake's own estimate is a different figure and must not become
+      // the amount claimed on its own.
+      estimatedDamage: 900000,
+      assignedUserIds: [],
+      deadlineDate: null,
+      clientName: 'นายทดสอบ',
+      matterType: null,
+      title: null,
+      description: null,
+    });
+    mockPrisma.firm.findUnique.mockResolvedValue({ ownRefPrefix: 'TSBREF' });
+    mockPrisma.case.findMany.mockResolvedValue([]);
+    mockPrisma.case.create.mockResolvedValue({ id: 'case-new', leadLawyerId: 'user-1' });
+
+    await service.convertToCase(user, 'intake-1', {});
+
+    expect(mockPrisma.case.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ claimedAmount: undefined }),
+      }),
+    );
   });
 
   it('rejects conversion when relatedCaseId no longer belongs to the firm', async () => {
