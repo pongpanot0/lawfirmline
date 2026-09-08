@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { caseCostTotal, readCaseCosts } from './case-costs';
+import { caseCostTotal, readCaseCosts } from './case-costs.ts';
 
 test('adds court visits and other charges using integer satang', () => {
   const result = caseCostTotal([

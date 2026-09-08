@@ -6,7 +6,8 @@
     "dev": "next dev --port 3005",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 -p ${PORT:-3005}",
-    "clean": "rm -rf .next"
+    "clean": "rm -rf .next",
+    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

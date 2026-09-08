@@ -33,6 +33,7 @@ export class CalendarService {
       },
     },
     travelLog: true,
+    assignee: { select: { id: true, firstName: true, lastName: true } },
   };
 
   async findAll(user: AuthUser, from?: string, to?: string) {
@@ -113,6 +114,7 @@ export class CalendarService {
         endAt: dto.endAt ? new Date(dto.endAt) : undefined,
         type: dto.type,
         reminderMinutes: dto.reminderMinutes ?? [4320, 1440, 60],
+        assigneeId: dto.assigneeId ?? null,
         travelLogId,
       },
       include: this.eventInclude,

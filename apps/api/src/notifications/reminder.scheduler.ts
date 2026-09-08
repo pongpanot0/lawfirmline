@@ -66,7 +66,7 @@ export class ReminderScheduler {
             `[REMINDER] ${minutesBefore}min before: "${event.title}" for case ${event.case.ownRef}`,
           );
 
-          const lineUserIds = await this.lineLink.getLineUserIdsForCase(event.caseId);
+          const lineUserIds = await this.lineLink.getLineUserIdsForEvent(event);
           const lineSent = await this.lineMessaging.sendText(message, lineUserIds);
 
           await this.prisma.reminderLog.create({

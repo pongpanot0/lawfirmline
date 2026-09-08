@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { parseHolidayLines } from '@/lib/holidays';
 
 /** Buddhist-era label for a Gregorian year. */
 const toBE = (year: number) => year + 543;
@@ -22,19 +23,6 @@ const toBE = (year: number) => year + 543;
  */
 const EXPECTED_MIN_HOLIDAYS = 12;
 
-const BULK_LINE = /^(\d{4}-\d{2}-\d{2})[\s,\t]+(.+)$/;
-
-function parseBulk(text: string) {
-  const holidays: Array<{ date: string; name: string }> = [];
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line) continue;
-    const match = BULK_LINE.exec(line);
-    if (!match) return { error: line, holidays: [] };
-    holidays.push({ date: match[1], name: match[2].trim() });
-  }
-  return { error: null as string | null, holidays };
-}
 
 function weekdayLabel(date: string) {
   return new Intl.DateTimeFormat('th-TH', { timeZone: 'UTC', weekday: 'short' }).format(
@@ -89,7 +77,7 @@ export default function HolidaysPage() {
     setError('');
     setNotice('');
 
-    const { error: badLine, holidays: parsed } = parseBulk(bulk);
+    const { error: badLine, holidays: parsed } = parseHolidayLines(bulk);
     if (badLine) {
       setError(fmt(d.holidays.bulkBadLine, { line: badLine }));
       return;

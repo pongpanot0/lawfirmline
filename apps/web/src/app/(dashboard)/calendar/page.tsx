@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Bell } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, CalendarEventItem, CaseItem, TravelResult } from '@/lib/api';
+import { api, CalendarEventItem, CaseItem, TravelResult, UserItem } from '@/lib/api';
 import { CalendarView, CalendarEventData } from '@/components/CalendarView';
 import { TravelPreviewCard } from '@/components/TravelPreviewCard';
 import { PageHeader } from '@/components/lexflow/PageHeader';
@@ -39,8 +39,16 @@ export default function CourtSchedulePage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [form, setForm] = useState({
     caseId: '', title: '', description: '', courtName: '', startAt: '', type: 'COURT_DATE' as string,
+    assigneeId: '',
   });
+  const [users, setUsers] = useState<UserItem[]>([]);
   const [travelPreview, setTravelPreview] = useState<TravelResult | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    // Lawyers only: the picker names who is attending a hearing.
+    api.getLawyers(token).then(setUsers).catch(console.error);
+  }, [token]);
 
   const loadEvents = useCallback(() => {
     if (!token) return;
@@ -67,6 +75,7 @@ export default function CourtSchedulePage() {
     setForm({
       caseId: cases[0]?.id ?? '', title: '', description: '',
       courtName: cases[0]?.courtName ?? '', startAt: d.toISOString().slice(0, 16), type: 'COURT_DATE',
+      assigneeId: '',
     });
     setTravelPreview(null);
     setModal('create');
@@ -75,7 +84,12 @@ export default function CourtSchedulePage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-    await api.createCalendarEvent(token, { ...form, startAt: new Date(form.startAt).toISOString() });
+    await api.createCalendarEvent(token, {
+      ...form,
+      // An empty pick means "nobody named", which the API reads as the lead lawyer.
+      assigneeId: form.assigneeId || undefined,
+      startAt: new Date(form.startAt).toISOString(),
+    });
     if (form.type === 'COURT_DATE' && form.courtName) {
       setTravelPreview(await api.calculateTravel(token, form.courtName));
     } else {
@@ -169,6 +183,22 @@ export default function CourtSchedulePage() {
                 <Input placeholder={d.calendar.courtName} value={form.courtName} onChange={(e) => setForm({ ...form, courtName: e.target.value })} />
               )}
               <Input required type="datetime-local" value={form.startAt} onChange={(e) => setForm({ ...form, startAt: e.target.value })} />
+              <div>
+                <select
+                  aria-label={d.calendar.assignee}
+                  value={form.assigneeId}
+                  onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}
+                  className="w-full h-9 rounded-lg border border-input bg-card px-3 text-sm"
+                >
+                  <option value="">{d.calendar.assigneeLead}</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.firstName} {u.lastName}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">{d.calendar.assigneeHint}</p>
+              </div>
             </div>
             <div className="mt-4 flex gap-2">
               <Button type="submit">{d.common.create}</Button>

@@ -39,6 +39,11 @@ export class CreateEventDto {
   @IsArray()
   @IsInt({ each: true })
   reminderMinutes?: number[];
+
+  /** Who is attending. Reminders go to them; omit to fall back to the lead lawyer. */
+  @IsOptional()
+  @IsUUID()
+  assigneeId?: string;
 }
 
 export class UpdateEventDto {
@@ -70,4 +75,8 @@ export class UpdateEventDto {
   @IsArray()
   @IsInt({ each: true })
   reminderMinutes?: number[];
+
+  @IsOptional()
+  @IsUUID()
+  assigneeId?: string;
 }

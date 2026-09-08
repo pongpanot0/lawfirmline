@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
+import { bangkokDayLabel, bangkokTime } from '@/lib/bangkok';
 import { cn } from '@/lib/utils';
 
 const KIND_ICON = {
@@ -21,27 +22,6 @@ const KIND_ICON = {
   [AgendaItemKind.TASK]: ListTodo,
   [AgendaItemKind.OTHER]: CalendarClock,
 } as const;
-
-/**
- * The API returns instants; the firm reads them in Bangkok time, so the zone is
- * pinned here too rather than following the viewer's device.
- */
-function bangkokTime(iso: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Bangkok',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso));
-}
-
-function bangkokDayLabel(dayKey: string, locale: string) {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone: 'UTC',
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }).format(new Date(`${dayKey}T00:00:00Z`));
-}
 
 function AgendaRow({
   item,

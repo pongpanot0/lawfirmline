@@ -13,7 +13,7 @@ describe('ReminderScheduler', () => {
     reminderLog: { create: jest.fn().mockResolvedValue({}) },
   };
   const mockLine = { sendText: jest.fn().mockResolvedValue(true) };
-  const mockLink = { getLineUserIdsForCase: jest.fn().mockResolvedValue(['L1']) };
+  const mockLink = { getLineUserIdsForEvent: jest.fn().mockResolvedValue(['L1']) };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -21,7 +21,7 @@ describe('ReminderScheduler', () => {
     mockPrisma.calendarEvent.findMany.mockResolvedValue([]);
     mockPrisma.reminderLog.create.mockResolvedValue({});
     mockLine.sendText.mockResolvedValue(true);
-    mockLink.getLineUserIdsForCase.mockResolvedValue(['L1']);
+    mockLink.getLineUserIdsForEvent.mockResolvedValue(['L1']);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -64,21 +64,23 @@ describe('ReminderScheduler', () => {
     expect(mockPrisma.reminderLog.create).not.toHaveBeenCalled();
   });
 
-  it('sends a due reminder once and logs it', async () => {
-    mockPrisma.calendarEvent.findMany.mockResolvedValue([
-      {
-        id: 'evt-1',
-        title: 'สืบพยาน',
-        startAt: new Date('2026-09-07T03:30:00Z'),
-        caseId: 'case-1',
-        reminderMinutes: [60],
-        reminderLogs: [],
-        case: { ownRef: 'C-001' },
-      },
-    ]);
+  it('sends a due reminder once, to the event\'s own recipients', async () => {
+    const event = {
+      id: 'evt-1',
+      title: 'สืบพยาน',
+      startAt: new Date('2026-09-07T03:30:00Z'),
+      caseId: 'case-1',
+      assigneeId: 'user-attending',
+      reminderMinutes: [60],
+      reminderLogs: [],
+      case: { ownRef: 'C-001' },
+    };
+    mockPrisma.calendarEvent.findMany.mockResolvedValue([event]);
 
     await scheduler.processReminders();
 
+    // Resolved per event, so a buddy on the case is not pulled in.
+    expect(mockLink.getLineUserIdsForEvent).toHaveBeenCalledWith(event);
     expect(mockLine.sendText).toHaveBeenCalledTimes(1);
     expect(mockPrisma.reminderLog.create).toHaveBeenCalledWith({
       data: { eventId: 'evt-1', channel: 'line', minutesBefore: 60 },
