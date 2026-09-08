@@ -28,6 +28,7 @@ export default function TodosPage() {
   const [usersLoadError, setUsersLoadError] = useState('');
   const [creating, setCreating] = useState(false);
   const [layout, setLayout] = useTaskLayout();
+  const [scope, setScope] = useState<'mine' | 'team' | 'review'>('mine');
 
   const loadTasks = () => {
     if (!token) return;
@@ -120,12 +121,47 @@ export default function TodosPage() {
 
   if (loading) return <p className="text-muted-foreground">{d.todos.loading}</p>;
 
+  /**
+   * An owner or senior is served the team's personal tasks too. The page then
+   * says which set is on screen instead of calling everything "mine".
+   */
+  const seesOthers = tasks.some((t) => t.assignee && t.assignee.id !== user?.id);
+  const visibleTasks = !seesOthers
+    ? tasks
+    : scope === 'team'
+      ? tasks
+      : scope === 'review'
+        ? tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW && t.assignee?.id === user?.id)
+        : tasks.filter((t) => !t.assignee || t.assignee.id === user?.id);
+  const scopes: { key: typeof scope; label: string }[] = [
+    { key: 'mine', label: d.todos.scopeMine },
+    { key: 'team', label: d.todos.scopeTeam },
+    { key: 'review', label: d.todos.scopeReview },
+  ];
+
   return (
     <div>
       <PageHeader
-        title={d.todos.title}
+        title={seesOthers && scope === 'team' ? d.todos.titleTeam : d.todos.title}
+        description={d.todos.description}
         actions={
           <div className="flex items-center gap-2">
+            {seesOthers && (
+              <div role="tablist" aria-label={d.todos.title} className="flex rounded-lg border border-border p-0.5">
+                {scopes.map((s) => (
+                  <button
+                    key={s.key}
+                    role="tab"
+                    type="button"
+                    aria-selected={scope === s.key}
+                    onClick={() => setScope(s.key)}
+                    className={`rounded-md px-2.5 py-1 text-xs ${scope === s.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <TaskViewToggle layout={layout} onChange={setLayout} />
             <Button size="sm" onClick={() => setShowForm(!showForm)}>
               <Plus className="h-4 w-4" />
@@ -182,7 +218,7 @@ export default function TodosPage() {
       ) : (
       <KanbanBoard
         layout={layout}
-        tasks={tasks}
+        tasks={visibleTasks}
         onStatusChange={handleStatusChange}
         currentUserId={user?.id ?? ''}
         enableHandoff

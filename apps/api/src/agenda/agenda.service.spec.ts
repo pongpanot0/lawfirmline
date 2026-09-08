@@ -28,6 +28,7 @@ function makeTask(over: Record<string, unknown> = {}) {
     dueDate: new Date('2026-09-08T05:00:00Z'), // tomorrow Bangkok
     caseId: 'case-1',
     case: { id: 'case-1', ownRef: 'C-001', title: 'คดีทดสอบ' },
+    assignee: { id: 'user-2', firstName: 'สมหญิง', lastName: 'รักงาน' },
     ...over,
   };
 }
@@ -142,6 +143,15 @@ describe('AgendaService', () => {
     expect(result.overdue.map((i) => i.id)).toEqual(['event:evt-past']);
     expect(result.overdue[0].urgency).toBe(AgendaUrgency.OVERDUE);
     expect(result.todayItems.map((i) => i.id)).toEqual(['event:evt-earlier']);
+  });
+
+  it('names the assignee on a task so a reviewer can tell whose work it is', async () => {
+    setTasks([makeTask({ dueDate: new Date('2026-09-07T05:00:00Z') })]);
+
+    const result = await service.getMyDay(user);
+
+    expect(result.todayItems[0].assigneeId).toBe('user-2');
+    expect(result.todayItems[0].assigneeName).toBe('สมหญิง รักงาน');
   });
 
   it('includes standalone todos assigned to the user alongside case work', async () => {

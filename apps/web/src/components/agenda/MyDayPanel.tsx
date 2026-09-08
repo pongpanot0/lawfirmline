@@ -27,13 +27,18 @@ function AgendaRow({
   item,
   onComplete,
   completing,
+  viewerId,
 }: {
   item: AgendaItem;
   onComplete: (item: AgendaItem) => void;
   completing: boolean;
+  viewerId: string | undefined;
 }) {
   const d = useDashboardT();
   const Icon = KIND_ICON[item.kind] ?? CalendarClock;
+  // An owner or senior sees the team's tasks here; the row says whose it is
+  // so "done" is never pressed on someone else's work by mistake.
+  const someoneElses = !!item.assigneeId && item.assigneeId !== viewerId;
 
   return (
     <div className="flex items-start gap-3 rounded-lg border border-transparent px-3 py-2.5 transition hover:border-border hover:bg-muted/50">
@@ -46,6 +51,11 @@ function AgendaRow({
           <span className="truncate font-medium text-foreground">{item.title}</span>
           {item.caseRef && (
             <span className="font-mono text-xs text-muted-foreground">{item.caseRef}</span>
+          )}
+          {someoneElses && item.assigneeName && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {fmt(d.myDay.assignedTo, { name: item.assigneeName })}
+            </span>
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
@@ -83,12 +93,14 @@ function Section({
   tone = 'default',
   onComplete,
   completingId,
+  viewerId,
 }: {
   title: string;
   items: AgendaItem[];
   tone?: 'default' | 'danger';
   onComplete: (item: AgendaItem) => void;
   completingId: string | null;
+  viewerId: string | undefined;
 }) {
   const d = useDashboardT();
   return (
@@ -108,6 +120,7 @@ function Section({
           <div className="-mx-1 divide-y divide-border/60">
             {items.map((item) => (
               <AgendaRow
+                viewerId={viewerId}
                 key={item.id}
                 item={item}
                 onComplete={onComplete}
@@ -127,7 +140,8 @@ function Section({
  * its own page, or the home screen for anyone who is not the firm owner.
  */
 export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const viewerId = user?.id;
   const { locale, d } = useLocale();
   const [data, setData] = useState<MyDayResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -230,6 +244,7 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
           tone="danger"
           onComplete={handleComplete}
           completingId={completingId}
+          viewerId={viewerId}
         />
       )}
       <Section
@@ -237,12 +252,14 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
         items={data.todayItems}
         onComplete={handleComplete}
         completingId={completingId}
+        viewerId={viewerId}
       />
       <Section
         title={d.myDay.tomorrow}
         items={data.tomorrow}
         onComplete={handleComplete}
         completingId={completingId}
+        viewerId={viewerId}
       />
 
       {data.upcoming.length > 0 && (
@@ -259,6 +276,7 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
                 <div className="-mx-1 divide-y divide-border/60">
                   {day.items.map((item) => (
                     <AgendaRow
+                      viewerId={viewerId}
                       key={item.id}
                       item={item}
                       onComplete={handleComplete}
