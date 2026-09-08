@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/misc';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
 
@@ -31,6 +32,7 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 };
 
 export default function ExpensesPage() {
+  const d = useDashboardT();
   const { token, user } = useAuth();
   const router = useRouter();
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
@@ -60,7 +62,7 @@ export default function ExpensesPage() {
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
-        setError(err instanceof Error ? err.message : 'Failed to load expenses / โหลดค่าใช้จ่ายไม่สำเร็จ');
+        setError(err instanceof Error ? err.message : d.expenses.loadFailed);
       })
       .finally(() => setLoading(false));
   }, [token, reloadKey]);
@@ -75,7 +77,7 @@ export default function ExpensesPage() {
       await api.updateExpenseStatus(authToken, expenseId, 'PENDING');
       setReloadKey((n) => n + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ส่งขออนุมัติไม่สำเร็จ');
+      setError(err instanceof Error ? err.message : d.expenses.submitDraftFailed);
     } finally {
       setSubmittingId('');
     }
@@ -107,7 +109,7 @@ export default function ExpensesPage() {
   return (
     <div>
       <PageHeader
-        title="Expenses & Finance / ค่าใช้จ่ายและการเงิน"
+        title={d.expenses.title}
         description={
           finance.scope === 'user'
             ? `ค่าใช้จ่ายของคุณ · ${finance.firmName}`
@@ -115,7 +117,7 @@ export default function ExpensesPage() {
         }
         actions={
           <Button size="sm" onClick={() => router.push('/expenses/new')}>
-            <Plus className="h-4 w-4" />New Expense / เพิ่มค่าใช้จ่าย
+            <Plus className="h-4 w-4" />{d.expenses.newTitle}
           </Button>
         }
       />
@@ -182,19 +184,19 @@ export default function ExpensesPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Expense Claims / รายการค่าใช้จ่าย</CardTitle>
+            <CardTitle>{d.expenses.claims}</CardTitle>
             {user?.firmRole === FirmRole.OWNER && (
-              <Link href="/admin/reimbursements"><Button variant="outline" size="sm">Approve / อนุมัติ</Button></Link>
+              <Link href="/admin/reimbursements"><Button variant="outline" size="sm">{d.expenses.approve}</Button></Link>
             )}
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Description / รายละเอียด</TableHead>
-                  <TableHead>Case / คดี</TableHead>
-                  <TableHead>Amount / จำนวนเงิน</TableHead>
-                  <TableHead>Status / สถานะ</TableHead>
+                  <TableHead>{d.expenses.descriptionField}</TableHead>
+                  <TableHead>{d.expenses.caseField}</TableHead>
+                  <TableHead>{d.expenses.amount}</TableHead>
+                  <TableHead>{d.expenses.status}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -202,7 +204,7 @@ export default function ExpensesPage() {
                 {expenses.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                      No expense claims yet / ยังไม่มีรายการค่าใช้จ่าย
+                      {d.expenses.empty}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -212,7 +214,7 @@ export default function ExpensesPage() {
                         <p className="font-medium text-sm">{e.description}</p>
                         <p className="text-xs text-muted-foreground">{e.category}</p>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{e.case?.ownRef ?? 'General / ทั่วไป'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{e.case?.ownRef ?? d.expenses.general}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
                       <TableCell><ExpenseStatusBadge status={e.status} /></TableCell>
                       <TableCell className="text-right">
@@ -223,7 +225,7 @@ export default function ExpensesPage() {
                             disabled={submittingId === e.id}
                             onClick={() => submitForApproval(e.id)}
                           >
-                            {submittingId === e.id ? 'กำลังส่ง...' : 'ส่งขออนุมัติ'}
+                            {submittingId === e.id ? d.expenses.submitting : d.expenses.submitDraft}
                           </Button>
                         )}
                       </TableCell>
@@ -236,16 +238,16 @@ export default function ExpensesPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Invoices / ใบแจ้งหนี้</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{d.expenses.invoices}</CardTitle></CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Invoice # / เลขที่</TableHead>
-                  <TableHead>Client / ลูกความ</TableHead>
-                  <TableHead>Amount / จำนวนเงิน</TableHead>
-                  <TableHead>Due / กำหนดชำระ</TableHead>
-                  <TableHead>Status / สถานะ</TableHead>
+                  <TableHead>{d.expenses.invoiceNumber}</TableHead>
+                  <TableHead>{d.expenses.client}</TableHead>
+                  <TableHead>{d.expenses.amount}</TableHead>
+                  <TableHead>{d.expenses.due}</TableHead>
+                  <TableHead>{d.expenses.status}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -253,7 +255,7 @@ export default function ExpensesPage() {
                 {invoices.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                      No invoices yet / ยังไม่มีใบแจ้งหนี้
+                      {d.expenses.noInvoices}
                     </TableCell>
                   </TableRow>
                 ) : (
