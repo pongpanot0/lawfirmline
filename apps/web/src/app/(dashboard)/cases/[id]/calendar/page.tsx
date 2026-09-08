@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Gavel } from 'lucide-react';
+import { ArrowLeft, Gavel, Plus } from 'lucide-react';
 import { DeadlineTrigger } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CalendarEventItem } from '@/lib/api';
+import { api, CalendarEventItem, CaseItem, UserItem } from '@/lib/api';
 import { CalendarView } from '@/components/CalendarView';
+import { CalendarEventDialog } from '@/components/calendar/CalendarEventDialog';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,8 +31,15 @@ export default function CaseCalendarPage() {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
+  const [legalCase, setLegalCase] = useState<CaseItem | null>(null);
+  const [users, setUsers] = useState<UserItem[]>([]);
   const [month, setMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+  const [dialog, setDialog] = useState<
+    { event: CalendarEventItem | null; defaultDate?: Date } | null
+  >(null);
 
   const [trigger, setTrigger] = useState<DeadlineTrigger>(DeadlineTrigger.JUDGMENT);
   const [triggerDate, setTriggerDate] = useState('');
@@ -41,18 +49,30 @@ export default function CaseCalendarPage() {
   const [suggestionsKey, setSuggestionsKey] = useState(0);
 
   useEffect(() => {
+    if (!token) return;
+    // Lawyers only: the picker names who is attending a hearing.
+    api.getLawyers(token).then(setUsers).catch(console.error);
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !id) return;
+    api.getCase(token, id).then(setLegalCase).catch(console.error);
+  }, [token, id]);
+
+  useEffect(() => {
     if (!token || !id) return;
     const from = new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
     const to = new Date(month.getFullYear(), month.getMonth() + 2, 0).toISOString();
     setLoading(true);
+    setLoadError('');
     api
       .getCalendarEvents(token, { from, to })
       .then((all) => {
         setEvents(all.filter((e) => e.case?.id === id));
       })
-      .catch(console.error)
+      .catch((err) => setLoadError(err instanceof Error ? err.message : d.common.loadFailed))
       .finally(() => setLoading(false));
-  }, [token, id, month]);
+  }, [token, id, month, reloadKey, d.common.loadFailed]);
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +106,13 @@ export default function CaseCalendarPage() {
         <ArrowLeft className="h-4 w-4" />
         {d.messages.backToCase.replace('← ', '')}
       </Link>
-      <h1 className="mt-2 mb-6 text-2xl font-bold tracking-tight text-foreground">{d.caseCalendar.title}</h1>
+      <div className="mt-2 mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{d.caseCalendar.title}</h1>
+        <Button size="sm" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
+          <Plus className="h-4 w-4" />
+          {d.calendar.addEventForCase}
+        </Button>
+      </div>
 
       <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="flex items-center gap-2 font-semibold text-foreground">
@@ -139,12 +165,39 @@ export default function CaseCalendarPage() {
         reloadKey={suggestionsKey}
       />
 
-      <CalendarView
-        events={events}
-        month={month}
-        onMonthChange={setMonth}
-        onEventClick={() => {}}
-      />
+      {loadError ? (
+        <div className="rounded-xl border bg-card p-6 shadow-soft">
+          <p role="alert" className="text-sm text-destructive">{loadError}</p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3"
+            onClick={() => setReloadKey((n) => n + 1)}
+          >
+            {d.common.retry}
+          </Button>
+        </div>
+      ) : (
+        <CalendarView
+          events={events}
+          month={month}
+          onMonthChange={setMonth}
+          onDayClick={(date) => setDialog({ event: null, defaultDate: date })}
+          onEventClick={(ev) => setDialog({ event: events.find((e) => e.id === ev.id) ?? null })}
+        />
+      )}
+
+      {dialog && (
+        <CalendarEventDialog
+          caseId={id}
+          caseCourtName={legalCase?.courtName}
+          users={users}
+          event={dialog.event}
+          defaultDate={dialog.defaultDate}
+          onClose={() => setDialog(null)}
+          onSaved={() => setReloadKey((n) => n + 1)}
+        />
+      )}
     </div>
   );
 }

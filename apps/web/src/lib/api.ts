@@ -189,10 +189,13 @@ export interface OnHoldTaskEntry {
 export interface CalendarEventItem {
   id: string;
   title: string;
+  description?: string | null;
+  courtName?: string | null;
   startAt: string;
   endAt?: string | null;
   type: string;
-  case?: { id: string; ownRef: string; title: string };
+  assigneeId?: string | null;
+  case?: { id: string; ownRef: string; title: string; courtName?: string | null };
 }
 
 export interface CaseItem {
@@ -965,9 +968,19 @@ export const api = {
     return request<CalendarEventItem[]>(`/calendar/events${qs ? `?${qs}` : ''}`, { token });
   },
 
+  getCalendarEvent: (token: string, id: string) =>
+    request<CalendarEventItem>(`/calendar/events/${id}`, { token }),
+
   createCalendarEvent: (token: string, data: Record<string, unknown>) =>
-    request('/calendar/events', {
+    request<CalendarEventItem>('/calendar/events', {
       method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  updateCalendarEvent: (token: string, id: string, data: Record<string, unknown>) =>
+    request<CalendarEventItem>(`/calendar/events/${id}`, {
+      method: 'PATCH',
       token,
       body: JSON.stringify(data),
     }),
