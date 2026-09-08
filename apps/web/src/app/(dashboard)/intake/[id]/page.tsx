@@ -1,5 +1,7 @@
 'use client';
 
+import { AI_CREDIT_COST, AI_UPLOAD_MAX_FILES } from '@lawfirm/shared';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -27,7 +29,7 @@ const STATUS_COLOR: Record<string, string> = {
   CONSULTED: 'bg-slate-100 text-slate-700',
 };
 
-const DRAFT_NOTICE_COST = 5;
+const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
 
 const DECISION_LABELS: Record<string, string> = {
   FILE_SUIT: 'ฟ้อง',
@@ -490,7 +492,7 @@ export default function IntakeDetailPage() {
                   {uploadingFiles ? 'กำลังอัปโหลด...' : '+ เพิ่มไฟล์'}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">ไฟล์เดียวกันนี้ใช้วิเคราะห์และตามไปกับคดีเมื่อเปิดคดี · PDF ไม่เกิน 10MB ต่อไฟล์ · เลือกวิเคราะห์ได้สูงสุด 10 ไฟล์ · 10 เครดิตต่อครั้ง</p>
+              <p className="text-xs text-muted-foreground">ประเมินเรื่องพร้อมค้นแนวคำพิพากษา (คนละบริการกับการวิเคราะห์เนื้อหาไฟล์) · ไฟล์แนบตามไปกับคดีเมื่อเปิดคดี · แนบได้เฉพาะ PDF ไม่เกิน 10MB ต่อไฟล์ · เลือกได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์ · {AI_CREDIT_COST.PRECEDENT_ANALYSIS} เครดิตต่อครั้ง</p>
               <div className="my-3 flex flex-wrap gap-2">
                 <Button
                   type="button"

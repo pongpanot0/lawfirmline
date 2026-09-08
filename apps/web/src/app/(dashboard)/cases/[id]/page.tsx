@@ -10,7 +10,6 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Gavel,
   FileText,
-  Upload,
   CalendarDays,
   Plus,
   StickyNote,
@@ -425,10 +424,34 @@ export default function CaseDetailPage() {
           <CaseStatusBadge status={legalCase.status} />
         </div>
         <p className="mt-2 text-sm text-muted-foreground">{legalCase.ownRef} · ลูกค้า {clientDisplay}</p>
+        {/*
+          What a lawyer opens the case to learn, before anything else: who
+          holds it, what is next in court, and what is due soonest. The tabs
+          below are the way into each area, so no second set of links here.
+        */}
+        <dl className="mt-4 grid gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-muted-foreground">ผู้รับผิดชอบ</dt>
+            <dd className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">นัดถัดไป</dt>
+            <dd className="font-medium">
+              {upcomingEvents[0]
+                ? <Link href={`/cases/${id}/calendar`} className="hover:underline">{formatDateTime(upcomingEvents[0].startAt)} · {upcomingEvents[0].title}</Link>
+                : <span className="text-muted-foreground">ไม่มีนัดที่จะถึง</span>}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">งานใกล้ครบกำหนด</dt>
+            <dd className="font-medium">
+              {pendingTasks[0]
+                ? <Link href={`/cases/${id}/tasks`} className="hover:underline">{pendingTasks[0].title}{pendingTasks[0].dueDate ? ` · ${formatDate(pendingTasks[0].dueDate)}` : ''}</Link>
+                : <span className="text-muted-foreground">ไม่มีงานค้าง</span>}
+            </dd>
+          </div>
+        </dl>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={() => router.push(`/cases/${id}/tasks`)}><CheckSquare className="h-4 w-4" />จัดการงาน</Button>
-          <Button variant="outline" onClick={() => router.push(`/cases/${id}/calendar`)}><CalendarDays className="h-4 w-4" />นัดหมาย</Button>
-          <Button variant="outline" onClick={() => router.push(`/cases/${id}/documents`)}><FileText className="h-4 w-4" />เอกสาร</Button>
           <Button variant="outline" onClick={() => setRecordingOutcome(true)}>
             <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
           </Button>
@@ -525,8 +548,6 @@ export default function CaseDetailPage() {
           )
         ))}
       </nav>
-
-      <div className="mb-5"><BatchAnalysisPanel caseId={id} /></div>
 
       <div className="grid items-start gap-5 lg:grid-cols-12">
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-1">
@@ -1075,16 +1096,17 @@ export default function CaseDetailPage() {
             </CardContent>
           </Card>
 
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => router.push(`/cases/${id}/documents`)}>
-              <Upload className="h-4 w-4" />เอกสาร
-            </Button>
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => router.push(`/cases/${id}/billing`)}>
-              <FileText className="h-4 w-4" />ค่าใช้จ่าย
-            </Button>
-          </div>
         </div>
       </div>
+
+      {/* AI reads the files; it is a helper, not the case, so it sits after
+          the work and stays folded until asked for. */}
+      <details className="mt-5 rounded-xl border border-border bg-card p-4 shadow-soft">
+        <summary className="cursor-pointer text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          วิเคราะห์เนื้อหาไฟล์ด้วย AI
+        </summary>
+        <div className="mt-4"><BatchAnalysisPanel caseId={id} /></div>
+      </details>
 
       {recordingOutcome && (
         <RecordHearingOutcomeDialog

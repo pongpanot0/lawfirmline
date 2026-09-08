@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { KnowledgeCategory, EventType, redactForAi } from '@lawfirm/shared';
+import { AI_CREDIT_COST, KnowledgeCategory, EventType, redactForAi } from '@lawfirm/shared';
 import { PDFParse } from 'pdf-parse';
 import { PrismaService } from '../prisma/prisma.module';
 
-const ANALYZE_COST = 5;
+const ANALYZE_COST = AI_CREDIT_COST.DOCUMENT_ANALYSIS;
 
 interface ExtractedDateCandidate {
   label: string;

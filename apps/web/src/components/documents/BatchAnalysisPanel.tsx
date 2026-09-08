@@ -1,5 +1,7 @@
 'use client';
 
+import { AI_CREDIT_COST, AI_UPLOAD_MAX_FILES } from '@lawfirm/shared';
+
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError, DocumentItem, FieldSuggestion } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -164,9 +166,9 @@ export function BatchAnalysisPanel({
       className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5"
       aria-label="เอกสารสำหรับวิเคราะห์รวม"
     >
-      <h2 className="font-semibold">เอกสารและการวิเคราะห์รวม</h2>
+      <h2 className="font-semibold">วิเคราะห์เนื้อหาไฟล์ด้วย AI</h2>
       <p className="text-sm text-muted-foreground">
-        เพิ่มหลายไฟล์ เลือกไฟล์ที่ต้องการ แล้ววิเคราะห์พร้อมกันในครั้งเดียว ·
+        อ่านไฟล์ที่เลือกแล้วสรุปเนื้อหาและดึงวันสำคัญ (คนละบริการกับการประเมินเรื่องในหน้ารับเรื่อง) ·
         PDF/TXT ไม่เกิน 10MB ต่อไฟล์
       </p>
       {!caseId && (
@@ -276,7 +278,7 @@ export function BatchAnalysisPanel({
           วิเคราะห์รวม {selected.length} ไฟล์
         </Button>
         <span className="text-xs text-muted-foreground">
-          5 เครดิตต่อครั้ง · เลือกได้ 1–10 ไฟล์
+          {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิตต่อครั้ง · เลือกได้ 1–{AI_UPLOAD_MAX_FILES} ไฟล์
         </span>
       </div>
       {progress && (

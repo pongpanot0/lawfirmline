@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser, redactForAi } from '@lawfirm/shared';
+import { AuthUser, redactForAi, AI_CREDIT_COST, AI_UPLOAD_MAX_BYTES } from '@lawfirm/shared';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AssignmentType, ReferralChannel } from '../generated/prisma';
@@ -20,8 +20,8 @@ import {
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 
-export const DRAFT_NOTICE_COST = 5;
-const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
+const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
 
 @Injectable()
 export class IntakeService {
