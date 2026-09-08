@@ -3,6 +3,7 @@
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CASE_COSTS_KEY } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
+import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutcomeDialog';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -103,6 +104,7 @@ export default function CaseDetailPage() {
     estimatedFee: '',
   });
   const [showCloseForm, setShowCloseForm] = useState(false);
+  const [recordingOutcome, setRecordingOutcome] = useState(false);
   const [closingSummary, setClosingSummary] = useState('');
   const [closingCase, setClosingCase] = useState(false);
   const [reopeningCase, setReopeningCase] = useState(false);
@@ -425,6 +427,9 @@ export default function CaseDetailPage() {
           <Button onClick={() => router.push(`/cases/${id}/tasks`)}><CheckSquare className="h-4 w-4" />จัดการงาน</Button>
           <Button variant="outline" onClick={() => router.push(`/cases/${id}/calendar`)}><CalendarDays className="h-4 w-4" />นัดหมาย</Button>
           <Button variant="outline" onClick={() => router.push(`/cases/${id}/documents`)}><FileText className="h-4 w-4" />เอกสาร</Button>
+          <Button variant="outline" onClick={() => setRecordingOutcome(true)}>
+            <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
+          </Button>
         </div>
         {legalCase.status !== CaseStatus.CLOSED ? (
           <Button
@@ -1078,6 +1083,14 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </div>
+
+      {recordingOutcome && (
+        <RecordHearingOutcomeDialog
+          legalCase={legalCase}
+          onClose={() => setRecordingOutcome(false)}
+          onSaved={loadCase}
+        />
+      )}
     </div>
   );
 }

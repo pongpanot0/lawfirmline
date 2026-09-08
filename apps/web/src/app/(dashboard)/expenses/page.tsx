@@ -38,6 +38,8 @@ export default function ExpensesPage() {
   const [invoices, setInvoices] = useState<FirmInvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+  const [submittingId, setSubmittingId] = useState('');
 
   useEffect(() => {
     const authToken = token ?? getStoredToken();
@@ -61,7 +63,23 @@ export default function ExpensesPage() {
         setError(err instanceof Error ? err.message : 'Failed to load expenses / โหลดค่าใช้จ่ายไม่สำเร็จ');
       })
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, reloadKey]);
+
+  /** A draft is only a record until its author claims it. */
+  const submitForApproval = async (expenseId: string) => {
+    const authToken = token ?? getStoredToken();
+    if (!authToken || submittingId) return;
+    setSubmittingId(expenseId);
+    setError('');
+    try {
+      await api.updateExpenseStatus(authToken, expenseId, 'PENDING');
+      setReloadKey((n) => n + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ส่งขออนุมัติไม่สำเร็จ');
+    } finally {
+      setSubmittingId('');
+    }
+  };
 
   if (loading) {
     return (
@@ -177,12 +195,13 @@ export default function ExpensesPage() {
                   <TableHead>Case / คดี</TableHead>
                   <TableHead>Amount / จำนวนเงิน</TableHead>
                   <TableHead>Status / สถานะ</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {expenses.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                       No expense claims yet / ยังไม่มีรายการค่าใช้จ่าย
                     </TableCell>
                   </TableRow>
@@ -196,6 +215,18 @@ export default function ExpensesPage() {
                       <TableCell className="text-sm text-muted-foreground">{e.case?.ownRef ?? 'General / ทั่วไป'}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
                       <TableCell><ExpenseStatusBadge status={e.status} /></TableCell>
+                      <TableCell className="text-right">
+                        {e.status === 'DRAFT' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={submittingId === e.id}
+                            onClick={() => submitForApproval(e.id)}
+                          >
+                            {submittingId === e.id ? 'กำลังส่ง...' : 'ส่งขออนุมัติ'}
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -215,6 +246,7 @@ export default function ExpensesPage() {
                   <TableHead>Amount / จำนวนเงิน</TableHead>
                   <TableHead>Due / กำหนดชำระ</TableHead>
                   <TableHead>Status / สถานะ</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>

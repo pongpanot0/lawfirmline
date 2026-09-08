@@ -205,6 +205,7 @@ export class BillingService {
   }
 
   async createExpense(user: AuthUser, caseId: string, dto: CreateExpenseDto) {
+    await this.assertSourceEventOnCase(dto.sourceEventId, caseId);
     return this.prisma.expense.create({
       data: {
         caseId,
@@ -214,10 +215,28 @@ export class BillingService {
         category: dto.category,
         expensePurpose: dto.expensePurpose,
         date: dto.date ? new Date(dto.date) : new Date(),
-        status: ExpenseStatus.PENDING,
+        sourceEventId: dto.sourceEventId ?? null,
+        // Omitted means a claim, which is what every existing caller sends.
+        status: dto.status ?? ExpenseStatus.PENDING,
       },
       include: this.expenseInclude,
     });
+  }
+
+  /** A cost may only name a hearing on the case it is being charged to. */
+  private async assertSourceEventOnCase(
+    sourceEventId: string | undefined,
+    caseId: string | null | undefined,
+  ) {
+    if (!sourceEventId) return;
+    if (!caseId) {
+      throw new BadRequestException('ค่าใช้จ่ายที่อ้างถึงนัดต้องระบุคดีด้วย');
+    }
+    const event = await this.prisma.calendarEvent.findFirst({
+      where: { id: sourceEventId, caseId },
+      select: { id: true },
+    });
+    if (!event) throw new NotFoundException('ไม่พบนัดที่อ้างถึงในคดีนี้');
   }
 
   async createStandaloneExpense(user: AuthUser, dto: CreateStandaloneExpenseDto) {
@@ -227,6 +246,7 @@ export class BillingService {
       });
       if (!legalCase) throw new NotFoundException('Case not found');
     }
+    await this.assertSourceEventOnCase(dto.sourceEventId, dto.caseId);
     return this.prisma.expense.create({
       data: {
         caseId: dto.caseId ?? null,
@@ -236,7 +256,8 @@ export class BillingService {
         category: dto.category,
         expensePurpose: dto.expensePurpose,
         date: dto.date ? new Date(dto.date) : new Date(),
-        status: ExpenseStatus.PENDING,
+        sourceEventId: dto.sourceEventId ?? null,
+        status: dto.status ?? ExpenseStatus.PENDING,
       },
       include: this.expenseInclude,
     });
@@ -345,7 +366,10 @@ export class BillingService {
     expenseId: string,
     dto: UpdateExpenseStatusDto,
   ) {
-    if (user.firmRole !== FirmRole.OWNER) {
+    // Submitting a draft is the author's own move, not the owner's: a draft is
+    // the author's note to themselves until they claim it.
+    const submitting = dto.status === ExpenseStatus.PENDING;
+    if (!submitting && user.firmRole !== FirmRole.OWNER) {
       throw new ForbiddenException('Only owner can update expense status');
     }
 
@@ -353,6 +377,25 @@ export class BillingService {
       where: { id: expenseId, ...this.getFirmExpenseFilter(user.firmId) },
     });
     if (!expense) throw new NotFoundException('Expense not found');
+
+    if (submitting) {
+      if (expense.status !== ExpenseStatus.DRAFT) {
+        throw new BadRequestException('เบิกได้เฉพาะรายการที่ยังเป็นร่าง');
+      }
+      if (expense.userId !== user.id && user.firmRole !== FirmRole.OWNER) {
+        throw new ForbiddenException('ส่งเบิกได้เฉพาะรายการของตัวเอง');
+      }
+    }
+
+    // A draft was never claimed, so approving it directly would skip the petty
+    // cash deduction that approval is supposed to make. It has to be submitted
+    // first.
+    if (
+      expense.status === ExpenseStatus.DRAFT &&
+      (dto.status === ExpenseStatus.APPROVED || dto.status === ExpenseStatus.PAID)
+    ) {
+      throw new BadRequestException('ต้องส่งขออนุมัติก่อนจึงจะอนุมัติหรือจ่ายได้');
+    }
 
     const data: {
       status: ExpenseStatus;
