@@ -60,15 +60,25 @@ export class DashboardService {
         }),
       ]);
 
-    const [pendingExpenseCount, pendingReimbursementList, timeEntries, caseProfits] =
+    // "Awaiting approval" means status PENDING everywhere — the count, the
+    // list below it, and the expense pages all use the same definition.
+    // Approved-but-unpaid is a separate figure, not folded into it.
+    const [
+      pendingExpenseCount,
+      approvedExpenseCount,
+      pendingReimbursementList,
+      timeEntries,
+      caseProfits,
+    ] =
       await Promise.all([
         this.prisma.expense.count({
           where: { ...expenseScope, status: 'PENDING' },
         }),
+        this.prisma.expense.count({
+          where: { ...expenseScope, status: 'APPROVED' },
+        }),
         this.prisma.expense.findMany({
-          where: isOwner
-            ? { ...firmExpenseFilter, status: { in: ['PENDING', 'APPROVED'] } }
-            : { userId: user.id, ...firmExpenseFilter },
+          where: { ...expenseScope, status: 'PENDING' },
           take: 5,
           orderBy: { createdAt: 'desc' },
           include: {
@@ -132,6 +142,7 @@ export class DashboardService {
         overdueTasks,
         myTasks,
         pendingExpenses: pendingExpenseCount,
+        approvedExpenses: approvedExpenseCount,
         monthlyRevenue,
         totalNetProfit,
       },

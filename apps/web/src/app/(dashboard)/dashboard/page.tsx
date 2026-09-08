@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const { token, user } = useAuth();
   const d = useDashboardT();
   const router = useRouter();
+  const isOwner = user?.firmRole === FirmRole.OWNER;
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -253,12 +254,13 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {data.pendingReimbursements.length > 0 && (
+          {(data.stats.pendingExpenses > 0 || data.stats.approvedExpenses > 0) && (
             <Card>
               <CardHeader className="flex-row items-center justify-between">
                 <CardTitle>{d.home.pendingExpenses}</CardTitle>
+                {/* The badge and the list share one definition: status PENDING. */}
                 <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
-                  {data.pendingReimbursements.length}
+                  {data.stats.pendingExpenses}
                 </span>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -271,6 +273,17 @@ export default function DashboardPage() {
                     <p className="font-semibold">{formatCurrency(e.amount)}</p>
                   </div>
                 ))}
+                {data.stats.approvedExpenses > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {fmt(d.home.approvedAwaitingPayment, { count: data.stats.approvedExpenses })}
+                  </p>
+                )}
+                <Link
+                  href={isOwner ? '/admin/reimbursements?status=PENDING' : '/expenses'}
+                  className="block text-sm text-primary hover:underline"
+                >
+                  {d.common.viewAll}
+                </Link>
               </CardContent>
             </Card>
           )}

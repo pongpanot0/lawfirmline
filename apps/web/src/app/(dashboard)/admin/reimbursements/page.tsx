@@ -29,7 +29,13 @@ export default function ReimbursementsPage() {
   const d = useDashboardT();
   const { token, user } = useAuth();
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
-  const [filter, setFilter] = useState('');
+  // The dashboard links here with the filter it was counting, so the two
+  // pages show the same rows. Read once on mount; the buttons take over after.
+  const [filter, setFilter] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const status = new URLSearchParams(window.location.search).get('status') ?? '';
+    return (FILTERS as readonly string[]).includes(status) ? status : '';
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
