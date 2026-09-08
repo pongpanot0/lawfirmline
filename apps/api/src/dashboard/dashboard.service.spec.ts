@@ -10,7 +10,7 @@ describe('DashboardService', () => {
   const mockPrisma = {
     case: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
     calendarEvent: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
-    task: { count: jest.fn().mockResolvedValue(0) },
+    task: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
     expense: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
     timeEntry: { findMany: jest.fn().mockResolvedValue([]) },
   };
@@ -32,6 +32,7 @@ describe('DashboardService', () => {
     mockPrisma.case.count.mockResolvedValue(0);
     mockPrisma.calendarEvent.count.mockResolvedValue(0);
     mockPrisma.task.count.mockResolvedValue(0);
+    mockPrisma.task.findMany.mockResolvedValue([]);
     mockPrisma.expense.count.mockResolvedValue(0);
     mockPrisma.case.findMany.mockResolvedValue([]);
     mockPrisma.calendarEvent.findMany.mockResolvedValue([]);
@@ -69,5 +70,67 @@ describe('DashboardService', () => {
         assigneeId: 'user-1',
       },
     });
+  });
+
+  it('lists only the work the caller is personally carrying, standalone todos included', async () => {
+    await service.getStats(user);
+
+    expect(mockPrisma.task.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          assigneeId: 'user-1',
+          status: { in: ['IN_PROGRESS', 'PENDING_REVIEW', 'NEEDS_REVISION'] },
+          OR: [{ caseId: null }, { case: { firmId: 'firm-1' } }],
+        },
+      }),
+    );
+  });
+
+  it('reports a task as on hold only while the hold is still open', async () => {
+    mockPrisma.task.findMany.mockResolvedValue([
+      {
+        id: 'task-waiting',
+        title: 'Waiting on the court',
+        status: 'IN_PROGRESS',
+        dueDate: null,
+        caseId: 'case-1',
+        case: { id: 'case-1', ownRef: 'A-1', title: 'Case one' },
+        onHold: { reason: 'Waiting for the clerk', nextFollowUpAt: null, endedAt: null },
+      },
+      {
+        id: 'task-resumed',
+        title: 'Back in motion',
+        status: 'IN_PROGRESS',
+        dueDate: null,
+        caseId: null,
+        case: null,
+        onHold: { reason: 'Was waiting', nextFollowUpAt: null, endedAt: new Date() },
+      },
+    ]);
+
+    const result = await service.getStats(user);
+
+    expect(result.activeTasks).toEqual([
+      {
+        id: 'task-waiting',
+        title: 'Waiting on the court',
+        status: 'IN_PROGRESS',
+        dueDate: null,
+        caseId: 'case-1',
+        caseRef: 'A-1',
+        caseTitle: 'Case one',
+        onHold: { reason: 'Waiting for the clerk', nextFollowUpAt: null },
+      },
+      {
+        id: 'task-resumed',
+        title: 'Back in motion',
+        status: 'IN_PROGRESS',
+        dueDate: null,
+        caseId: null,
+        caseRef: null,
+        caseTitle: null,
+        onHold: null,
+      },
+    ]);
   });
 });

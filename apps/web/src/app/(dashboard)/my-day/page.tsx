@@ -2,28 +2,22 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CalendarClock, Car, Check, Gavel, ListTodo, Users } from 'lucide-react';
+import { AlertTriangle, Check } from 'lucide-react';
 import { AgendaItemKind, TaskStatus } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, AgendaItem, MyDayResponse } from '@/lib/api';
+import { AgendaRow } from '@/components/lexflow/AgendaRow';
 import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
-import { dateLocale, fmt } from '@/lib/i18n/dashboard';
-import { bangkokDayLabel, bangkokTime } from '@/lib/bangkok';
+import { dateLocale } from '@/lib/i18n/dashboard';
+import { bangkokDayLabel } from '@/lib/bangkok';
 import { cn } from '@/lib/utils';
 
-const KIND_ICON = {
-  [AgendaItemKind.COURT_DATE]: Gavel,
-  [AgendaItemKind.CLIENT_MEETING]: Users,
-  [AgendaItemKind.DEADLINE]: CalendarClock,
-  [AgendaItemKind.TASK]: ListTodo,
-  [AgendaItemKind.OTHER]: CalendarClock,
-} as const;
-
-function AgendaRow({
+/** Only a task can be finished from the agenda; events are not the lawyer's to close. */
+function MarkDoneButton({
   item,
   onComplete,
   completing,
@@ -33,47 +27,20 @@ function AgendaRow({
   completing: boolean;
 }) {
   const d = useDashboardT();
-  const Icon = KIND_ICON[item.kind] ?? CalendarClock;
+  if (item.kind !== AgendaItemKind.TASK) return null;
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-transparent px-3 py-2.5 transition hover:border-border hover:bg-muted/50">
-      <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <Link href={item.url} className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="font-mono text-sm tabular-nums text-muted-foreground">
-            {item.allDay ? d.myDay.allDay : bangkokTime(item.at)}
-          </span>
-          <span className="truncate font-medium text-foreground">{item.title}</span>
-          {item.caseRef && (
-            <span className="font-mono text-xs text-muted-foreground">{item.caseRef}</span>
-          )}
-        </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-          <span>{d.myDay.kind[item.kind]}</span>
-          {item.location && <span>· {item.location}</span>}
-          {item.departBy && (
-            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-500">
-              <Car className="size-3" aria-hidden />
-              {fmt(d.myDay.departBy, { time: bangkokTime(item.departBy) })}
-            </span>
-          )}
-        </div>
-      </Link>
-
-      {item.kind === AgendaItemKind.TASK && (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="shrink-0"
-          disabled={completing}
-          onClick={() => onComplete(item)}
-        >
-          <Check className="size-3.5" aria-hidden />
-          {d.myDay.markDone}
-        </Button>
-      )}
-    </div>
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="shrink-0"
+      disabled={completing}
+      onClick={() => onComplete(item)}
+    >
+      <Check className="size-3.5" aria-hidden />
+      {d.myDay.markDone}
+    </Button>
   );
 }
 
@@ -110,8 +77,13 @@ function Section({
               <AgendaRow
                 key={item.id}
                 item={item}
-                onComplete={onComplete}
-                completing={completingId === item.id}
+                action={
+                  <MarkDoneButton
+                    item={item}
+                    onComplete={onComplete}
+                    completing={completingId === item.id}
+                  />
+                }
               />
             ))}
           </div>
@@ -253,8 +225,13 @@ export default function MyDayPage() {
                     <AgendaRow
                       key={item.id}
                       item={item}
-                      onComplete={handleComplete}
-                      completing={completingId === item.id}
+                      action={
+                        <MarkDoneButton
+                          item={item}
+                          onComplete={handleComplete}
+                          completing={completingId === item.id}
+                        />
+                      }
                     />
                   ))}
                 </div>
