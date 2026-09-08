@@ -70,7 +70,12 @@ function AgendaRow({
         </div>
       </Link>
 
-      {item.kind === AgendaItemKind.TASK && (
+      {/*
+        Seeing the team's work is the point of this list; finishing it is not.
+        A standalone todo belonging to someone else is refused by the API
+        anyway, so the button was a dead end as well as a hazard.
+      */}
+      {item.kind === AgendaItemKind.TASK && !someoneElses && (
         <Button
           type="button"
           size="sm"
