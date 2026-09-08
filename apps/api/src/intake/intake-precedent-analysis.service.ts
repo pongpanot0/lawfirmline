@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser } from '@lawfirm/shared';
+import { AuthUser, RedactionCounts, redactForAi } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
@@ -15,14 +15,27 @@ export const PRECEDENT_ANALYSIS_COST = 10;
 const MAX_ATTACHMENT_TEXT_LENGTH = 6000;
 
 interface ExtractedFacts {
+  /** Redacted, like every other free-form field here. */
   description: string | null;
   matterType: string | null;
   opposingParty: string | null;
   estimatedDamage: number | null;
   incidentDate: string | null;
+  /** Redacted before it is stored or put in a prompt. */
   attachmentText: string | null;
   attachmentExtractionFailed: boolean;
   attachmentWarnings: string[];
+  /** What redaction removed, per kind — evidence for the audit trail. */
+  redaction: RedactionCounts;
+}
+
+/** Sums two redaction tallies, so one figure covers the whole intake. */
+function mergeCounts(a: RedactionCounts, b: RedactionCounts): RedactionCounts {
+  const merged: RedactionCounts = { ...a };
+  for (const [kind, count] of Object.entries(b) as Array<[keyof RedactionCounts, number]>) {
+    merged[kind] = (merged[kind] ?? 0) + count;
+  }
+  return merged;
 }
 
 @Injectable()
@@ -68,15 +81,24 @@ export class IntakePrecedentAnalysisService {
         texts.length > 0 ? texts.join('\n\n').slice(0, MAX_ATTACHMENT_TEXT_LENGTH) : null;
     }
 
+    // Direct identifiers come out here, before the text is either stored or put
+    // in a prompt. An attachment is a scan of the client's own paperwork — an
+    // ID card, a medical record — and none of what identifies a person helps
+    // find a precedent, so it neither lands in a row that every API response
+    // carries nor leaves the country with the prompt.
+    const redactedAttachment = redactForAi(attachmentText);
+    const redactedDescription = redactForAi(intake.description);
+
     return {
-      description: intake.description,
+      description: intake.description ? redactedDescription.text : null,
       matterType: intake.matterType,
       opposingParty: intake.opposingParty,
       estimatedDamage: intake.estimatedDamage,
       incidentDate: intake.incidentDate ? intake.incidentDate.toISOString().slice(0, 10) : null,
-      attachmentText,
+      attachmentText: attachmentText ? redactedAttachment.text : null,
       attachmentExtractionFailed,
       attachmentWarnings,
+      redaction: mergeCounts(redactedDescription.counts, redactedAttachment.counts),
     };
   }
 

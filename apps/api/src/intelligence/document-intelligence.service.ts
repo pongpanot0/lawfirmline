@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { KnowledgeCategory, EventType } from '@lawfirm/shared';
+import { KnowledgeCategory, EventType, redactForAi } from '@lawfirm/shared';
 import { PDFParse } from 'pdf-parse';
 import { PrismaService } from '../prisma/prisma.module';
 
@@ -53,7 +53,12 @@ export class DocumentIntelligenceService {
     throw new Error(`Unsupported file type: ${mimeType}`);
   }
 
-  async summarizeWithAI(text: string): Promise<string> {
+  async summarizeWithAI(rawText: string): Promise<string> {
+    // Every caller feeds this the contents of a client's document, so the
+    // identifiers come out at the one place they all pass through, before the
+    // text can reach a third-party model abroad. Dates, amounts and case
+    // numbers are left alone — they are what the summary is for.
+    const text = redactForAi(rawText).text;
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       const preview = text.slice(0, 500).replace(/\s+/g, ' ').trim();

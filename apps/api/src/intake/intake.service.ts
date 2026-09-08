@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser } from '@lawfirm/shared';
+import { AuthUser, redactForAi } from '@lawfirm/shared';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AssignmentType, ReferralChannel } from '../generated/prisma';
@@ -290,7 +290,11 @@ export class IntakeService {
     return { content };
   }
 
-  private async generateNoticeDraft(facts: string): Promise<string> {
+  private async generateNoticeDraft(rawFacts: string): Promise<string> {
+    // The fallback branch above builds these facts straight from the intake, so
+    // an ID or phone typed into the description would otherwise travel with the
+    // prompt. The lawyer fills the real details into the letter afterwards.
+    const facts = redactForAi(rawFacts).text;
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       return `[ร่างตัวอย่าง — ตั้งค่า OPENAI_API_KEY เพื่อให้ AI ร่างจริง]\n\nหนังสือบอกกล่าว\n\n${facts}\n\n(โปรดตรวจสอบและแก้ไขก่อนส่ง)`;

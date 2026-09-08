@@ -300,4 +300,69 @@ describe('IntakePrecedentAnalysisService', () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe('redaction before anything leaves the firm', () => {
+    /** Both OpenAI round trips: the search query, then the summary JSON. */
+    function stubOpenAi() {
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ choices: [{ message: { content: 'เลิกจ้างไม่เป็นธรรม' } }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({ summaryBullets: '- ฎ. 1/2565', noticeFacts: 'x' }),
+                },
+              },
+            ],
+          }),
+        });
+    }
+
+    it('strips identifiers from the prompt and from the stored facts, keeping the dates', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue({
+        ...baseIntake,
+        description:
+          'ลูกความเลขบัตร 1234567890123 โทร 081-234-5678 ถูกเลิกจ้างวันที่ 2026-03-30 ค่าชดเชย 250000 บาท',
+        attachments: [],
+      });
+      stubOpenAi();
+
+      const result = await service.analyze(user, 'intake-1');
+
+      const facts = result.extractedFacts as Record<string, unknown>;
+      const stored = facts.description as string;
+      // Nothing identifying is kept in the row every API response carries.
+      expect(stored).not.toContain('1234567890123');
+      expect(stored).not.toContain('081-234-5678');
+      // The facts the analysis turns on survive intact.
+      expect(stored).toContain('2026-03-30');
+      expect(stored).toContain('250000');
+      expect(facts.redaction).toEqual({ nationalId: 1, phone: 1 });
+
+      // And the same is true of every prompt sent out of the country.
+      const prompts = (global.fetch as jest.Mock).mock.calls.map(
+        (call: [string, { body: string }]) => call[1].body,
+      );
+      expect(prompts.length).toBeGreaterThan(0);
+      for (const body of prompts) {
+        expect(body).not.toContain('1234567890123');
+        expect(body).not.toContain('081-234-5678');
+      }
+    });
+
+    it('records an empty tally when there was nothing to remove', async () => {
+      mockPrisma.intake.findFirst.mockResolvedValue(baseIntake);
+      stubOpenAi();
+
+      const result = await service.analyze(user, 'intake-1');
+
+      expect((result.extractedFacts as Record<string, unknown>).redaction).toEqual({});
+    });
+  });
+
 });

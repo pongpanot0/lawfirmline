@@ -195,4 +195,26 @@ describe('DocumentIntelligenceService — date extraction', () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe('redaction before the summary leaves the firm', () => {
+    it('never sends a client identifier to the model, but keeps the dates', async () => {
+      mockConfig.get.mockReturnValue('test-key');
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'สรุป' } }] }),
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      await service.summarizeWithAI(
+        'ผู้ป่วย HN 6512345 บัตร 1234567890123 โทร 081-234-5678 ผ่าตัดวันที่ 2026-03-30',
+      );
+
+      const body = fetchMock.mock.calls[0][1].body as string;
+      expect(body).not.toContain('6512345');
+      expect(body).not.toContain('1234567890123');
+      expect(body).not.toContain('081-234-5678');
+      expect(body).toContain('2026-03-30');
+    });
+  });
+
 });
