@@ -72,7 +72,9 @@ export default function DashboardPage() {
   const d = useDashboardT();
   const router = useRouter();
   const [data, setData] = useState<DashboardStats | null>(null);
-  const [myDay, setMyDay] = useState<MyDayResponse | null>(null);
+  // `null` while in flight, `'error'` when the agenda alone failed. Kept apart
+  // from `data` so a broken agenda costs the lawyer one card, not the page.
+  const [agenda, setAgenda] = useState<MyDayResponse | 'error' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -83,11 +85,17 @@ export default function DashboardPage() {
       return;
     }
     setError('');
-    Promise.all([api.getDashboardStats(authToken), api.getMyDay(authToken)])
-      .then(([stats, day]) => {
-        setData(stats);
-        setMyDay(day);
-      })
+    setAgenda(null);
+    api
+      .getMyDay(authToken)
+      .then(setAgenda)
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) return;
+        setAgenda('error');
+      });
+    api
+      .getDashboardStats(authToken)
+      .then(setData)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
         setError(err instanceof Error ? err.message : d.common.loadFailed);
@@ -116,6 +124,8 @@ export default function DashboardPage() {
 
   if (!data || !user) return null;
 
+  const agendaReady = agenda !== null && agenda !== 'error';
+
   return (
     <div>
       <PageHeader
@@ -138,9 +148,9 @@ export default function DashboardPage() {
               <CardTitle className="flex items-center gap-2">
                 <CalendarDaysIcon className="size-4 text-muted-foreground" aria-hidden />
                 {d.home.todayAgenda}
-                {myDay && myDay.overdue.length > 0 && (
+                {agendaReady && agenda.overdue.length > 0 && (
                   <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                    {fmt(d.home.overdueBadge, { count: myDay.overdue.length })}
+                    {fmt(d.home.overdueBadge, { count: agenda.overdue.length })}
                   </span>
                 )}
               </CardTitle>
@@ -149,11 +159,15 @@ export default function DashboardPage() {
               </Link>
             </CardHeader>
             <CardContent className="pt-0">
-              {!myDay || myDay.todayItems.length === 0 ? (
+              {agenda === null ? (
+                <Skeleton className="mx-3 h-10" />
+              ) : agenda === 'error' ? (
+                <p className="px-3 py-2 text-sm text-destructive">{d.common.loadFailed}</p>
+              ) : agenda.todayItems.length === 0 ? (
                 <p className="px-3 py-2 text-sm text-muted-foreground">{d.home.noAgendaToday}</p>
               ) : (
                 <div className="-mx-1 divide-y divide-border/60">
-                  {myDay.todayItems.map((item) => (
+                  {agenda.todayItems.map((item) => (
                     <AgendaRow key={item.id} item={item} />
                   ))}
                 </div>
