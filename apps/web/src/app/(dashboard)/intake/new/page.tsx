@@ -37,6 +37,18 @@ const MATTER_TYPE_LABELS: Record<string, string> = {
   OTHER: 'อื่นๆ',
 };
 
+const PRE_LITIGATION_TYPE_LABELS: Record<string, string> = {
+  GENERAL: 'ทั่วไป',
+  MEDICAL_CLAIM: 'แพทย์ / ค่าสินไหม',
+  TRANSPORT: 'ขนส่ง',
+};
+
+const DEFAULT_PRE_LITIGATION_STATUS: Record<string, string> = {
+  GENERAL: 'NOTICE_TO_SEND',
+  MEDICAL_CLAIM: 'NOTICE_TO_SEND',
+  TRANSPORT: 'NOTICE_TO_SEND',
+};
+
 export default function NewIntakePage() {
   const { token } = useAuth();
   const router = useRouter();
@@ -75,6 +87,9 @@ export default function NewIntakePage() {
     isOngoingElsewhere: false,
     externalCaseNumber: '',
     currentStageNote: '',
+    preLitigationType: 'GENERAL',
+    preLitigationStatus: 'NOTICE_TO_SEND',
+    preLitigationNotes: '',
   });
   const [clientCases, setClientCases] = useState<CaseItem[]>([]);
   /**
@@ -147,6 +162,9 @@ export default function NewIntakePage() {
         isOngoingElsewhere: form.isOngoingElsewhere,
         externalCaseNumber: form.isOngoingElsewhere ? (form.externalCaseNumber || undefined) : undefined,
         currentStageNote: form.isOngoingElsewhere ? (form.currentStageNote || undefined) : undefined,
+        preLitigationType: form.preLitigationType,
+        preLitigationStatus: form.preLitigationStatus,
+        preLitigationNotes: form.preLitigationNotes || undefined,
       };
       if (form.clientId) {
         payload.clientId = form.clientId;
@@ -445,6 +463,60 @@ export default function NewIntakePage() {
             </div>
           )}
         </details>
+
+        {/* งานก่อนฟ้อง */}
+        <div className="space-y-3 rounded-lg border p-4">
+          <h2 className="font-semibold">งานก่อนฟ้อง</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="intake-preLitigationType" className="block text-sm font-medium">ลักษณะ flow</label>
+              <select
+                id="intake-preLitigationType"
+                value={form.preLitigationType}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  setForm((previous) => ({
+                    ...previous,
+                    preLitigationType: nextType,
+                    matterType: nextType === 'MEDICAL_CLAIM' ? 'MEDICAL' : previous.matterType,
+                    preLitigationStatus: DEFAULT_PRE_LITIGATION_STATUS[nextType] ?? previous.preLitigationStatus,
+                  }));
+                }}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                {Object.entries(PRE_LITIGATION_TYPE_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="intake-preLitigationStatus" className="block text-sm font-medium">สถานะเริ่มต้น</label>
+              <select
+                id="intake-preLitigationStatus"
+                value={form.preLitigationStatus}
+                onChange={(e) => set('preLitigationStatus', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="NOTICE_TO_SEND">เตรียมส่ง Notice</option>
+                <option value="NOTICE_SENT">ส่ง Notice แล้ว</option>
+                <option value="UNDER_REVIEW">รอพิจารณา/ตรวจเอกสาร</option>
+                <option value="NEGOTIATING">เจรจาก่อนฟ้อง</option>
+                <option value="NOT_STARTED">ยังไม่เริ่ม</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="intake-preLitigationNotes" className="block text-sm font-medium">บันทึกก่อนฟ้อง</label>
+            <textarea
+              id="intake-preLitigationNotes"
+              value={form.preLitigationNotes}
+              onChange={(e) => set('preLitigationNotes', e.target.value)}
+              rows={3}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
+              placeholder="เช่น แพทย์: notice > review > สรุปรายงาน > offer/อุทธรณ์ความเห็น หรือ ขนส่ง: notice > เจรจา > ฟ้อง/ไม่ฟ้อง"
+            />
+          </div>
+        </div>
 
         {/* วันที่รับเรื่อง */}
         <div>

@@ -69,6 +69,32 @@ const MATTER_TYPE_LABELS: Record<string, string> = {
   OTHER: 'อื่นๆ',
 };
 
+const PRE_LITIGATION_TYPE_LABELS: Record<string, string> = {
+  GENERAL: 'ทั่วไป',
+  MEDICAL_CLAIM: 'แพทย์ / ค่าสินไหม',
+  TRANSPORT: 'ขนส่ง',
+};
+
+const PRE_LITIGATION_STATUS_LABELS: Record<string, string> = {
+  NOT_STARTED: 'ยังไม่เริ่ม',
+  NOTICE_TO_SEND: 'เตรียมส่ง Notice',
+  NOTICE_SENT: 'ส่ง Notice แล้ว',
+  UNDER_REVIEW: 'รอพิจารณา/ตรวจเอกสาร',
+  REPORT_PREPARED: 'ทำสรุปรายงานแล้ว',
+  OFFER_RECEIVED: 'ได้รับข้อเสนอจ่าย',
+  NEGOTIATING: 'เจรจาก่อนฟ้อง',
+  APPEAL_REVIEW: 'อุทธรณ์/ขอทบทวนความเห็น',
+  READY_TO_FILE: 'พร้อมพิจารณาฟ้อง',
+  CLOSED_SETTLED: 'จบด้วยการตกลง',
+  CLOSED_NO_FILE: 'ปิดเรื่องโดยไม่ฟ้อง',
+};
+
+const PRE_LITIGATION_GUIDE: Record<string, string[]> = {
+  MEDICAL_CLAIM: ['Notice', 'พิจารณาเอกสาร/ความเห็นแพทย์', 'ทำสรุปรายงาน', 'เสนอจ่าย/ไม่จ่าย', 'เจรจาหรืออุทธรณ์ความเห็น', 'ไม่จบจึงฟ้อง'],
+  TRANSPORT: ['Notice', 'ตอบรับ/ปฏิเสธ/ไม่ตอบ', 'เจรจา', 'ตัดสินใจฟ้องหรือไม่ฟ้อง'],
+  GENERAL: ['Notice', 'ติดตามคำตอบ', 'เจรจา', 'ตัดสินใจฟ้องหรือไม่ฟ้อง'],
+};
+
 function formatDate(date: string | null | undefined) {
   if (!date) return '—';
   return new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -83,7 +109,7 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
   );
 }
 
-type ModalType = 'assess' | 'decide' | 'notice' | null;
+type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | null;
 
 export default function IntakeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -102,6 +128,12 @@ export default function IntakeDetailPage() {
   // Decide form
   const [decision, setDecision] = useState('PENDING');
   const [decisionNotes, setDecisionNotes] = useState('');
+
+  // Pre-litigation form
+  const [preLitigationType, setPreLitigationType] = useState('GENERAL');
+  const [preLitigationStatus, setPreLitigationStatus] = useState('NOT_STARTED');
+  const [preLitigationNotes, setPreLitigationNotes] = useState('');
+  const [settlementOfferAmount, setSettlementOfferAmount] = useState('');
 
   // Notice form
   const [noticeRecipient, setNoticeRecipient] = useState('');
@@ -240,6 +272,37 @@ export default function IntakeDetailPage() {
         noticeResult: noticeResult || undefined,
         noticeContent: noticeContent || undefined,
         noticeContentReviewed: noticeContent ? noticeReviewed : undefined,
+      });
+      await reload();
+      setModal(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openPreLitigationModal = () => {
+    if (!intake) return;
+    setPreLitigationType(intake.preLitigationType || 'GENERAL');
+    setPreLitigationStatus(intake.preLitigationStatus || 'NOT_STARTED');
+    setPreLitigationNotes(intake.preLitigationNotes || '');
+    setSettlementOfferAmount(
+      intake.settlementOfferAmount != null ? String(intake.settlementOfferAmount) : '',
+    );
+    setModal('prelitigation');
+  };
+
+  const handlePreLitigationUpdate = async () => {
+    if (!token || !id) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await api.updateIntake(token, id, {
+        preLitigationType,
+        preLitigationStatus,
+        preLitigationNotes: preLitigationNotes || undefined,
+        settlementOfferAmount: settlementOfferAmount ? Number(settlementOfferAmount) : null,
       });
       await reload();
       setModal(null);
@@ -432,6 +495,7 @@ export default function IntakeDetailPage() {
         {intake.status === 'ACCEPTED' && (
           <>
             <Button variant="outline" onClick={() => setModal('notice')}>ออก Notice</Button>
+            <Button variant="outline" onClick={openPreLitigationModal}>อัปเดตงานก่อนฟ้อง</Button>
             <Button onClick={() => setConverting(true)} disabled={submitting}>
               {intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}
             </Button>
@@ -728,6 +792,36 @@ export default function IntakeDetailPage() {
           </Card>
         )}
 
+        <Card className="sm:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-base">งานก่อนฟ้อง</CardTitle>
+            {intake.status !== 'CONVERTED' && (
+              <Button size="sm" variant="outline" onClick={openPreLitigationModal}>
+                อัปเดต
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <InfoRow label="Flow" value={PRE_LITIGATION_TYPE_LABELS[intake.preLitigationType] ?? intake.preLitigationType} />
+              <InfoRow label="สถานะ" value={PRE_LITIGATION_STATUS_LABELS[intake.preLitigationStatus] ?? intake.preLitigationStatus} />
+              <InfoRow label="ข้อเสนอจ่าย" value={intake.settlementOfferAmount != null ? `${intake.settlementOfferAmount.toLocaleString('th-TH')} บาท` : undefined} />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(PRE_LITIGATION_GUIDE[intake.preLitigationType] ?? PRE_LITIGATION_GUIDE.GENERAL).map((step) => (
+                <span key={step} className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                  {step}
+                </span>
+              ))}
+            </div>
+            {intake.preLitigationNotes && (
+              <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
+                {intake.preLitigationNotes}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
         {(intake.decision !== 'PENDING' || intake.decisionNotes) && (
           <Card>
             <CardHeader><CardTitle className="text-base">การตัดสินใจ</CardTitle></CardHeader>
@@ -825,6 +919,66 @@ export default function IntakeDetailPage() {
                 <div className="mt-4 flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setModal(null)}>ยกเลิก</Button>
                   <Button onClick={handleDecide} disabled={submitting}>
+                    {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {modal === 'prelitigation' && (
+              <>
+                <h2 className="mb-4 text-lg font-semibold">อัปเดตงานก่อนฟ้อง</h2>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium">ลักษณะ flow</label>
+                    <select
+                      value={preLitigationType}
+                      onChange={(e) => setPreLitigationType(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      {Object.entries(PRE_LITIGATION_TYPE_LABELS).map(([key, label]) => (
+                        <option key={key} value={key}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">สถานะก่อนฟ้อง</label>
+                    <select
+                      value={preLitigationStatus}
+                      onChange={(e) => setPreLitigationStatus(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      {Object.entries(PRE_LITIGATION_STATUS_LABELS).map(([key, label]) => (
+                        <option key={key} value={key}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">ข้อเสนอจ่าย/ค่าสินไหม (บาท)</label>
+                    <input
+                      type="number"
+                      value={settlementOfferAmount}
+                      onChange={(e) => setSettlementOfferAmount(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      min={0}
+                      step="0.01"
+                      placeholder="ถ้ามี"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">บันทึก</label>
+                    <textarea
+                      value={preLitigationNotes}
+                      onChange={(e) => setPreLitigationNotes(e.target.value)}
+                      rows={4}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
+                      placeholder="เช่น จ่ายน้อยไป ลูกความยังไม่รับ / ยื่นขอทบทวนความเห็นแล้ว / ขนส่งไม่ตอบ notice"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setModal(null)}>ยกเลิก</Button>
+                  <Button onClick={handlePreLitigationUpdate} disabled={submitting}>
                     {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
                   </Button>
                 </div>

@@ -106,8 +106,7 @@ export default function LoginPage() {
               <p className="font-medium text-foreground">{d.auth.demoAccounts}</p>
               <ul className="mt-2 space-y-1">
                 <li>{d.team.roleOwner}: admin@lawfirm.com</li>
-                <li>{d.team.roleLawyer}: lawyer1@lawfirm.com</li>
-                <li>{d.team.roleAssistant}: clerk1@lawfirm.com</li>
+                <li>{d.team.roleLawyer}: lawyer1@lawfirm.com … lawyer4@lawfirm.com</li>
               </ul>
             </div>
           </CardContent>

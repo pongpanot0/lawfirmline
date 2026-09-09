@@ -515,6 +515,10 @@ export interface IntakeItem {
   deadlineDate?: string | null;
   status: string;
   decision: string;
+  preLitigationType: string;
+  preLitigationStatus: string;
+  preLitigationNotes?: string | null;
+  settlementOfferAmount?: number | null;
   caseStrength?: string | null;
   assessmentNotes?: string | null;
   decisionNotes?: string | null;

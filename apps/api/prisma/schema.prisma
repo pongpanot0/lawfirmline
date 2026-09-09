@@ -87,6 +87,26 @@ enum IntakeDecision {
   PENDING
 }
 
+enum PreLitigationType {
+  GENERAL
+  MEDICAL_CLAIM
+  TRANSPORT
+}
+
+enum PreLitigationStatus {
+  NOT_STARTED
+  NOTICE_TO_SEND
+  NOTICE_SENT
+  UNDER_REVIEW
+  REPORT_PREPARED
+  OFFER_RECEIVED
+  NEGOTIATING
+  APPEAL_REVIEW
+  READY_TO_FILE
+  CLOSED_SETTLED
+  CLOSED_NO_FILE
+}
+
 enum ReferralType {
   INDIVIDUAL
   LAWYER
@@ -256,19 +276,19 @@ model Firm {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  members         FirmMember[]
-  invitations     Invitation[]
-  subscriptions   Subscription[]
-  billingInvoices BillingInvoice[]
-  auditLogs       AuditLog[]
-  cases           Case[]
-  caseTypes       CaseType[]
-  clients         Client[]
-  courts          Court[]
-  pettyCashFund   PettyCashFund?
-  intakes         Intake[]
-  deadlineRules   DeadlineRule[]
-  emailThreads    EmailThread[]
+  members            FirmMember[]
+  invitations        Invitation[]
+  subscriptions      Subscription[]
+  billingInvoices    BillingInvoice[]
+  auditLogs          AuditLog[]
+  cases              Case[]
+  caseTypes          CaseType[]
+  clients            Client[]
+  courts             Court[]
+  pettyCashFund      PettyCashFund?
+  intakes            Intake[]
+  deadlineRules      DeadlineRule[]
+  emailThreads       EmailThread[]
   mailboxConnections MailboxConnection[]
 }
 
@@ -591,46 +611,50 @@ model Case {
 }
 
 model Intake {
-  id                 String          @id @default(uuid())
-  firmId             String
-  receivedById       String
-  receivedDate       DateTime        @default(now())
-  title              String?
-  referralType       ReferralType    @default(INDIVIDUAL)
-  referralChannel    ReferralChannel @default(WALK_IN)
-  referralName       String?
-  clientId           String?
-  clientName         String?
-  matterType         String?
-  opposingParty      String?
-  incidentDate       DateTime?
-  description        String?         @db.Text
-  estimatedDamage    Float?
-  contactName        String?
+  id                    String              @id @default(uuid())
+  firmId                String
+  receivedById          String
+  receivedDate          DateTime            @default(now())
+  title                 String?
+  referralType          ReferralType        @default(INDIVIDUAL)
+  referralChannel       ReferralChannel     @default(WALK_IN)
+  referralName          String?
+  clientId              String?
+  clientName            String?
+  matterType            String?
+  opposingParty         String?
+  incidentDate          DateTime?
+  description           String?             @db.Text
+  estimatedDamage       Float?
+  contactName           String?
   requestedResponseDate DateTime?
-  assignedUserIds    String[]        @default([])
-  deadlineDate       DateTime?
-  portalSubmissionId String?         @unique
-  status             IntakeStatus    @default(RECEIVED)
-  assessorId         String?
-  assessedAt         DateTime?
-  assessmentNotes    String?         @db.Text
-  caseStrength       String?
-  decision           IntakeDecision  @default(PENDING)
-  decisionNotes      String?         @db.Text
-  decidedAt          DateTime?
-  clientDecision     String?
-  noticeIssuedAt     DateTime?
-  noticeRecipient    String?
-  noticeDeadline     DateTime?
-  noticeResult       String?
-  noticeContent      String?         @db.Text
-  relatedCaseId      String?
-  isOngoingElsewhere Boolean         @default(false)
-  externalCaseNumber String?
-  currentStageNote   String?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  assignedUserIds       String[]            @default([])
+  deadlineDate          DateTime?
+  portalSubmissionId    String?             @unique
+  status                IntakeStatus        @default(RECEIVED)
+  assessorId            String?
+  assessedAt            DateTime?
+  assessmentNotes       String?             @db.Text
+  caseStrength          String?
+  decision              IntakeDecision      @default(PENDING)
+  decisionNotes         String?             @db.Text
+  decidedAt             DateTime?
+  clientDecision        String?
+  preLitigationType     PreLitigationType   @default(GENERAL)
+  preLitigationStatus   PreLitigationStatus @default(NOT_STARTED)
+  preLitigationNotes    String?             @db.Text
+  settlementOfferAmount Float?
+  noticeIssuedAt        DateTime?
+  noticeRecipient       String?
+  noticeDeadline        DateTime?
+  noticeResult          String?
+  noticeContent         String?             @db.Text
+  relatedCaseId         String?
+  isOngoingElsewhere    Boolean             @default(false)
+  externalCaseNumber    String?
+  currentStageNote      String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
   firm                   Firm                      @relation(fields: [firmId], references: [id], onDelete: Cascade)
   receivedBy             User                      @relation("IntakeReceiver", fields: [receivedById], references: [id])
@@ -808,17 +832,17 @@ model Document {
 }
 
 model DocumentVersion {
-  id           String                @id @default(uuid())
-  documentId   String
-  version      Int
-  storagePath  String
-  filename     String
-  mimeType     String
-  status       DocumentVersionStatus @default(DRAFT)
-  notes        String?               @db.Text
-  contentHash  String?
-  createdById  String?
-  createdAt    DateTime              @default(now())
+  id          String                @id @default(uuid())
+  documentId  String
+  version     Int
+  storagePath String
+  filename    String
+  mimeType    String
+  status      DocumentVersionStatus @default(DRAFT)
+  notes       String?               @db.Text
+  contentHash String?
+  createdById String?
+  createdAt   DateTime              @default(now())
 
   document     Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
   publications DocumentPublication[]

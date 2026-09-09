@@ -17,6 +17,7 @@ import {
   ConvertToCaseDto,
   IntakeQueryDto,
   IntakeDecision,
+  PreLitigationStatus,
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 
@@ -129,6 +130,10 @@ export class IntakeService {
         isOngoingElsewhere: dto.isOngoingElsewhere ?? false,
         externalCaseNumber: dto.externalCaseNumber,
         currentStageNote: dto.currentStageNote,
+        preLitigationType: dto.preLitigationType as any,
+        preLitigationStatus: dto.preLitigationStatus as any,
+        preLitigationNotes: dto.preLitigationNotes,
+        settlementOfferAmount: dto.settlementOfferAmount,
       },
       include: this.intakeInclude,
     });
@@ -191,6 +196,10 @@ export class IntakeService {
         isOngoingElsewhere: dto.isOngoingElsewhere,
         externalCaseNumber: dto.externalCaseNumber,
         currentStageNote: dto.currentStageNote,
+        preLitigationType: dto.preLitigationType as any,
+        preLitigationStatus: dto.preLitigationStatus as any,
+        preLitigationNotes: dto.preLitigationNotes,
+        settlementOfferAmount: dto.settlementOfferAmount,
       },
       include: this.intakeInclude,
     });
@@ -273,6 +282,10 @@ export class IntakeService {
         noticeDeadline: dto.noticeDeadline ? new Date(dto.noticeDeadline) : undefined,
         noticeResult: dto.noticeResult,
         noticeContent: dto.noticeContent,
+        preLitigationStatus:
+          existing.preLitigationStatus === PreLitigationStatus.NOT_STARTED
+            ? (PreLitigationStatus.NOTICE_SENT as any)
+            : undefined,
       },
       include: this.intakeInclude,
     });

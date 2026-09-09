@@ -32,6 +32,26 @@ export enum IntakeDecision {
   PENDING = 'PENDING',
 }
 
+export enum PreLitigationType {
+  GENERAL = 'GENERAL',
+  MEDICAL_CLAIM = 'MEDICAL_CLAIM',
+  TRANSPORT = 'TRANSPORT',
+}
+
+export enum PreLitigationStatus {
+  NOT_STARTED = 'NOT_STARTED',
+  NOTICE_TO_SEND = 'NOTICE_TO_SEND',
+  NOTICE_SENT = 'NOTICE_SENT',
+  UNDER_REVIEW = 'UNDER_REVIEW',
+  REPORT_PREPARED = 'REPORT_PREPARED',
+  OFFER_RECEIVED = 'OFFER_RECEIVED',
+  NEGOTIATING = 'NEGOTIATING',
+  APPEAL_REVIEW = 'APPEAL_REVIEW',
+  READY_TO_FILE = 'READY_TO_FILE',
+  CLOSED_SETTLED = 'CLOSED_SETTLED',
+  CLOSED_NO_FILE = 'CLOSED_NO_FILE',
+}
+
 export enum ReferralType {
   INDIVIDUAL = 'INDIVIDUAL',
   LAWYER = 'LAWYER',
@@ -133,6 +153,24 @@ export class CreateIntakeDto {
   @IsOptional()
   @IsString()
   currentStageNote?: string;
+
+  @IsOptional()
+  @IsEnum(PreLitigationType)
+  preLitigationType?: PreLitigationType;
+
+  @IsOptional()
+  @IsEnum(PreLitigationStatus)
+  preLitigationStatus?: PreLitigationStatus;
+
+  @IsOptional()
+  @IsString()
+  preLitigationNotes?: string;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000_000)
+  settlementOfferAmount?: number;
 }
 
 export class UpdateIntakeDto {
@@ -253,6 +291,25 @@ export class UpdateIntakeDto {
   @IsOptional()
   @IsString()
   currentStageNote?: string;
+
+  @IsOptional()
+  @IsEnum(PreLitigationType)
+  preLitigationType?: PreLitigationType;
+
+  @IsOptional()
+  @IsEnum(PreLitigationStatus)
+  preLitigationStatus?: PreLitigationStatus;
+
+  @IsOptional()
+  @IsString()
+  preLitigationNotes?: string;
+
+  @ValidateIf((o) => o.settlementOfferAmount !== null)
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000_000)
+  settlementOfferAmount?: number | null;
 }
 
 export class AssessIntakeDto {
