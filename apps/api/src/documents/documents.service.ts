@@ -155,6 +155,7 @@ export class DocumentsService {
         storagePath,
         filename: file.originalname,
         mimeType: file.mimetype,
+        createdById: user.id,
       },
     });
 
@@ -199,6 +200,7 @@ export class DocumentsService {
         storagePath,
         filename: file.originalname,
         mimeType: file.mimetype,
+        createdById: user.id,
       },
     });
 
@@ -210,6 +212,7 @@ export class DocumentsService {
     caseId: string,
     documentId: string,
     file: Express.Multer.File,
+    notes?: string,
   ) {
     const document = await this.verifyDocument(caseId, documentId);
 
@@ -224,6 +227,13 @@ export class DocumentsService {
     );
     fs.writeFileSync(storagePath, this.getFileBuffer(file));
 
+    // A fresh version was uploaded — any earlier version's approval no
+    // longer applies to what's on disk now.
+    await this.prisma.documentVersion.updateMany({
+      where: { documentId, status: 'APPROVED' as any },
+      data: { status: 'SUPERSEDED' as any },
+    });
+
     await this.prisma.documentVersion.create({
       data: {
         documentId,
@@ -231,6 +241,8 @@ export class DocumentsService {
         storagePath,
         filename: file.originalname,
         mimeType: file.mimetype,
+        createdById: user.id,
+        notes,
       },
     });
 

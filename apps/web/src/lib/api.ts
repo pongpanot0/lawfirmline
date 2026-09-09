@@ -504,11 +504,13 @@ export interface IntakeItem {
   referralName?: string | null;
   clientId?: string | null;
   clientName?: string | null;
+  contactName?: string | null;
   matterType?: string | null;
   opposingParty?: string | null;
   incidentDate?: string | null;
   description?: string | null;
   estimatedDamage?: number | null;
+  requestedResponseDate?: string | null;
   assignedUserIds?: string[];
   deadlineDate?: string | null;
   status: string;
@@ -522,6 +524,8 @@ export interface IntakeItem {
   noticeResult?: string | null;
   noticeContent?: string | null;
   attachments?: IntakeAttachmentItem[];
+  fieldProposals?: IntakeFieldProposalItem[];
+  emailThreads?: { id: string; subject: string; fromName: string | null; fromAddress: string | null; lastMessageAt: string }[];
   receivedBy?: { id: string; firstName: string; lastName: string };
   assessor?: { id: string; firstName: string; lastName: string } | null;
   client?: { id: string; name: string } | null;
@@ -536,6 +540,86 @@ export interface IntakeAttachmentItem {
   filename: string;
   mimeType: string;
   createdAt: string;
+}
+
+export interface IntakeFieldProposalItem {
+  id: string;
+  intakeId: string;
+  field: string;
+  proposedValue: string | null;
+  previousValue: string | null;
+  sourceType: 'EMAIL_BODY' | 'ATTACHMENT' | 'EXISTING_CLIENT' | 'MANUAL';
+  sourceDetail: string | null;
+  status: 'SUGGESTED' | 'REQUIRES_CONFIRMATION' | 'CONFIRMED' | 'REJECTED' | 'CONFLICT';
+  confirmedById: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+}
+
+export interface EmailThreadListItem {
+  id: string;
+  subject: string;
+  fromName: string | null;
+  fromAddress: string | null;
+  lastMessageAt: string;
+  status: 'PENDING_INTAKE' | 'LINKED' | 'ARCHIVED';
+  messageCount: number;
+  attachmentCount: number;
+  bodyExcerpt: string;
+  linkedIntake: { id: string; status: string } | null;
+}
+
+export interface EmailAttachmentItem {
+  id: string;
+  filename: string;
+  mimeType: string;
+  createdAt: string;
+}
+
+export interface EmailMessageItem {
+  id: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  fromName: string | null;
+  fromAddress: string | null;
+  bodyText: string | null;
+  receivedAt: string;
+  attachments: EmailAttachmentItem[];
+}
+
+export interface EmailThreadDetail {
+  thread: EmailThreadListItem & { messages: EmailMessageItem[]; intake: { id: string; status: string; title: string | null } | null };
+  proposals: IntakeFieldProposalItem[];
+}
+
+export interface ReviewDecisionItem {
+  reviewerId: string;
+  decision: 'APPROVED' | 'RETURNED';
+  reason: string | null;
+  decidedAt: string;
+}
+
+export interface ReviewRoundItem {
+  id: string;
+  documentVersionId: string;
+  reviewerIds: string[];
+  editorIds: string[];
+  approvalRule: 'ALL' | 'ANY_ONE';
+  scope: string | null;
+  dueAt: string | null;
+  status: 'WAITING_REVIEW' | 'RETURNED' | 'APPROVED' | 'CANCELLED';
+  createdById: string;
+  createdAt: string;
+  decisions: ReviewDecisionItem[];
+  documentVersion: {
+    id: string;
+    documentId: string;
+    version: number;
+    filename: string;
+    status: 'DRAFT' | 'WAITING_REVIEW' | 'RETURNED_FOR_CHANGES' | 'APPROVED' | 'SUPERSEDED';
+    notes: string | null;
+    createdById: string | null;
+    createdAt: string;
+  };
 }
 
 export interface IntakePrecedentItem {
@@ -1219,6 +1303,17 @@ export const api = {
     });
   },
 
+  uploadDocumentVersion: (token: string, caseId: string, documentId: string, file: File, notes?: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (notes) form.append('notes', notes);
+    return request<DocumentItem>(`/cases/${caseId}/documents/${documentId}/versions`, {
+      method: 'POST',
+      token,
+      body: form,
+    });
+  },
+
   getIntakeDocuments: (token: string, intakeId: string) =>
     request<DocumentItem[]>(`/intake/${intakeId}/documents`, { token }),
 
@@ -1364,6 +1459,76 @@ export const api = {
 
   convertIntake: (token: string, id: string, data?: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/convert`, { method: 'POST', token, body: JSON.stringify(data ?? {}) }),
+
+  // --- Email intake ---
+  getEmailThreads: (token: string) => request<EmailThreadListItem[]>('/email-intake/threads', { token }),
+
+  getEmailThread: (token: string, threadId: string) =>
+    request<EmailThreadDetail>(`/email-intake/threads/${threadId}`, { token }),
+
+  acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
+    request<IntakeItem>(`/email-intake/threads/${threadId}/accept`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data ?? {}),
+    }),
+
+  mockReplyEmailThread: (token: string, threadId: string, data: { bodyText: string; fromName?: string; fromAddress?: string }) =>
+    request<EmailMessageItem>(`/email-intake/threads/${threadId}/mock-reply`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  resolveFieldProposal: (
+    token: string,
+    intakeId: string,
+    proposalId: string,
+    data: { action: 'confirm' | 'reject'; overrideValue?: string },
+  ) =>
+    request<IntakeFieldProposalItem>(`/email-intake/intakes/${intakeId}/field-proposals/${proposalId}`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  // --- Document review rounds ---
+  getReviewEligibleMembers: (token: string, caseId: string, documentId: string) =>
+    request<{ id: string; firstName: string; lastName: string; email: string }[]>(
+      `/cases/${caseId}/documents/${documentId}/review-rounds/eligible-members`,
+      { token },
+    ),
+
+  getReviewRounds: (token: string, caseId: string, documentId: string) =>
+    request<ReviewRoundItem[]>(`/cases/${caseId}/documents/${documentId}/review-rounds`, { token }),
+
+  getReviewRound: (token: string, caseId: string, documentId: string, roundId: string) =>
+    request<ReviewRoundItem>(`/cases/${caseId}/documents/${documentId}/review-rounds/${roundId}`, { token }),
+
+  createReviewRound: (
+    token: string,
+    caseId: string,
+    documentId: string,
+    data: { documentVersionId: string; reviewerIds: string[]; editorIds?: string[]; approvalRule?: 'ALL' | 'ANY_ONE'; scope?: string; dueAt?: string },
+  ) =>
+    request<ReviewRoundItem>(`/cases/${caseId}/documents/${documentId}/review-rounds`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  recordReviewDecision: (
+    token: string,
+    caseId: string,
+    documentId: string,
+    roundId: string,
+    data: { action: 'approve' | 'return'; reason?: string; reviewedDocumentVersionId: string },
+  ) =>
+    request<ReviewRoundItem>(`/cases/${caseId}/documents/${documentId}/review-rounds/${roundId}/decision`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
 
   uploadIntakeAttachment: (token: string, intakeId: string, file: File) => {
     const form = new FormData();
@@ -1566,6 +1731,17 @@ export interface DateSuggestionItem {
 
 export type DeadlineTriggerValue = import('@lawfirm/shared').DeadlineTrigger;
 
+export interface DocumentVersionItem {
+  id: string;
+  version: number;
+  filename: string;
+  mimeType: string;
+  status: 'DRAFT' | 'WAITING_REVIEW' | 'RETURNED_FOR_CHANGES' | 'APPROVED' | 'SUPERSEDED';
+  notes: string | null;
+  createdById: string | null;
+  createdAt: string;
+}
+
 export interface DocumentItem {
   id: string;
   filename: string;
@@ -1574,6 +1750,7 @@ export interface DocumentItem {
   visibleToClient: boolean;
   createdAt: string;
   uploadedBy: { firstName: string; lastName: string };
+  versions?: DocumentVersionItem[];
 }
 
 export interface DocumentPublicationEntry {

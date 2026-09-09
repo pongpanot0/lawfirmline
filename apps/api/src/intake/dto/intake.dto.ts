@@ -191,6 +191,16 @@ export class UpdateIntakeDto {
   @Max(1_000_000_000)
   estimatedDamage?: number;
 
+  @IsOptional()
+  @Trim()
+  @IsString()
+  contactName?: string;
+
+  /** Date the client asked for a reply by — NOT a legal deadline. */
+  @IsOptional()
+  @IsDateString()
+  requestedResponseDate?: string;
+
   // Assessment fields
   @IsOptional()
   @IsString()

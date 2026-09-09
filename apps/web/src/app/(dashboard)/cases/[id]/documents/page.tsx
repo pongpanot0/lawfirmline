@@ -3,7 +3,7 @@
 import { CaseKnowledgePanel } from '@/components/documents/CaseKnowledgePanel';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Upload, Eye, Download, ArrowLeft, Sparkles, CalendarSearch } from 'lucide-react';
+import { Upload, Eye, Download, ArrowLeft, Sparkles, CalendarSearch, ClipboardCheck } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry } from '@/lib/api';
@@ -266,6 +266,13 @@ export default function CaseDocumentsPage() {
               </button>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <span className="hidden text-xs text-muted-foreground sm:inline">{doc.mimeType}</span>
+                <Link
+                  href={`/cases/${id}/documents/${doc.id}/review`}
+                  className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                >
+                  <ClipboardCheck className="h-3.5 w-3.5" />
+                  ส่งตรวจ/ผลตรวจ
+                </Link>
                 <button
                   type="button"
                   onClick={() => handleAnalyzeDocument(doc)}
