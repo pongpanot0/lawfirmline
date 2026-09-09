@@ -66,6 +66,10 @@ export default function PortalDashboardPage() {
           >
             <Bell className="h-4 w-4" />
           </button>
+          <Link href="/portal/operations" className={buttonVariants({ variant: 'outline' })}>
+            <Briefcase className="h-4 w-4" />
+            งานดำเนินการ
+          </Link>
           <Link href="/portal/intake" className={buttonVariants({ variant: 'outline' })}>
             <Inbox className="h-4 w-4" />
             เรื่องที่ส่ง
@@ -114,15 +118,23 @@ export default function PortalDashboardPage() {
 
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_336px]">
         <div>
-          <h2 className="mb-3 text-[15.5px] font-bold">คดีของฉัน</h2>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[15.5px] font-bold">งานดำเนินการ</h2>
+              <p className="text-[12px] text-muted-foreground">คดีที่สำนักงานรับดูแลแล้ว</p>
+            </div>
+            <Link href="/portal/operations" className="text-[12.5px] font-semibold text-primary">
+              ดูทั้งหมด
+            </Link>
+          </div>
 
           {loadingData ? (
             <p className="text-sm text-muted-foreground">กำลังโหลดคดีของคุณ...</p>
           ) : cases.length === 0 ? (
-            <p className="text-sm text-muted-foreground">ยังไม่มีคดี</p>
+            <p className="text-sm text-muted-foreground">ยังไม่มีคดี — เรื่องที่ส่งใหม่ดูได้ที่เมนูเรื่องที่ส่ง</p>
           ) : (
             <div className="flex flex-col gap-3">
-              {cases.map((c) => {
+              {cases.slice(0, 3).map((c) => {
                 const status = getCaseStatusDisplay(c.status);
                 return (
                   <Card

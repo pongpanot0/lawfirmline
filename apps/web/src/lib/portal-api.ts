@@ -70,6 +70,7 @@ export interface PortalContact {
   id: string;
   name: string;
   email: string | null;
+  hasPassword: boolean;
   client: { id: string; name: string } | null;
 }
 
@@ -119,7 +120,14 @@ export interface PortalIntakeSubmissionEntry {
   submittedAt: string;
   withdrawnByClient: boolean;
   externalStatus: string;
-  attachments: Array<{ id: string; filename: string; size: number }>;
+  attachments: Array<{ id: string; filename: string; size: number; createdAt?: string }>;
+  firmDocuments: Array<{ id: string; filename: string; mimeType: string; createdAt: string }>;
+}
+
+export interface PortalIntakeSubmissionDetail extends PortalIntakeSubmissionEntry {
+  detail: string;
+  urgencyFlag: boolean;
+  clientRequestedDate: string | null;
 }
 
 export interface PortalDashboardActivityItem {
@@ -182,10 +190,27 @@ export const portalApi = {
       body: JSON.stringify({ email }),
     }),
 
+  loginWithPassword: (email: string, password: string) =>
+    request<{
+      accessToken: string;
+      contact: { id: string; name: string; email: string | null; hasPassword: boolean };
+      client: { id: string; name: string };
+    }>('/client-portal/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  setPassword: (token: string, password: string) =>
+    request<{ hasPassword: true }>('/client-portal/auth/set-password', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ password }),
+    }),
+
   verify: (token: string) =>
     request<{
       accessToken: string;
-      contact: { id: string; name: string; email: string | null };
+      contact: { id: string; name: string; email: string | null; hasPassword: boolean };
       client: { id: string; name: string };
     }>('/client-portal/auth/verify', { method: 'POST', body: JSON.stringify({ token }) }),
 
@@ -201,7 +226,7 @@ export const portalApi = {
   acceptInvite: (token: string) =>
     request<{
       accessToken: string;
-      contact: { id: string; name: string; email: string | null };
+      contact: { id: string; name: string; email: string | null; hasPassword: boolean };
       client: { id: string; name: string };
     }>(`/client-portal/invites/${token}/accept`, { method: 'POST' }),
 
@@ -239,8 +264,14 @@ export const portalApi = {
   getMyIntakeSubmissions: (token: string) =>
     request<PortalIntakeSubmissionEntry[]>('/client-portal/intake', { token }),
 
+  getMyIntakeSubmission: (token: string, submissionId: string) =>
+    request<PortalIntakeSubmissionDetail>(`/client-portal/intake/${submissionId}`, { token }),
+
   downloadIntakeAttachment: (token: string, submissionId: string, attachmentId: string) =>
     requestBlob(`/client-portal/intake/${submissionId}/attachments/${attachmentId}/download`, token),
+
+  downloadIntakeFirmDocument: (token: string, submissionId: string, documentId: string) =>
+    requestBlob(`/client-portal/intake/${submissionId}/firm-documents/${documentId}/download`, token),
 
   getLineStatus: (token: string) =>
     request<PortalLineStatus>('/client-portal/integrations/line/me', { token }),

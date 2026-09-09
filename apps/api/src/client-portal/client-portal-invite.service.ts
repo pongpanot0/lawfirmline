@@ -86,7 +86,7 @@ export class ClientPortalInviteService {
 
   async acceptInvite(token: string): Promise<{
     accessToken: string;
-    contact: { id: string; name: string; email: string | null };
+    contact: { id: string; name: string; email: string | null; hasPassword: boolean };
     client: { id: string; name: string };
   }> {
     const invite = await this.prisma.clientPortalInvite.findUnique({
@@ -128,7 +128,12 @@ export class ClientPortalInviteService {
 
     return {
       accessToken,
-      contact: { id: contact.id, name: contact.name, email: contact.email },
+      contact: {
+        id: contact.id,
+        name: contact.name,
+        email: contact.email,
+        hasPassword: Boolean(contact.passwordHash),
+      },
       client: { id: contact.client.id, name: contact.client.name },
     };
   }

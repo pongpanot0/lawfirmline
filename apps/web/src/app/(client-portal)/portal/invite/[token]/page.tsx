@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Users } from 'lucide-react';
 import { portalApi, PortalApiError, PortalInvitePreview } from '@/lib/portal-api';
-import { usePortalAuth } from '@/lib/portal-auth';
+import { portalHomeFor, usePortalAuth } from '@/lib/portal-auth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils';
@@ -29,8 +29,8 @@ export default function PortalInviteAcceptPage() {
     setError('');
     try {
       const res = await portalApi.acceptInvite(token);
-      await setSession(res.accessToken);
-      router.replace('/portal');
+      const contact = await setSession(res.accessToken);
+      router.replace(portalHomeFor(contact));
     } catch (err) {
       setError(err instanceof PortalApiError ? err.message : 'ไม่สามารถยืนยันคำเชิญได้');
       setAccepting(false);
@@ -66,8 +66,8 @@ export default function PortalInviteAcceptPage() {
               </div>
 
               <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
-                กดยืนยันเพื่อเปิดใช้งานพอร์ทัล — ระบบจะผูกบัญชีนี้กับอีเมลข้างต้นโดยอัตโนมัติ
-                ไม่ต้องตั้งรหัสผ่าน ครั้งต่อไปเข้าสู่ระบบด้วยลิงก์ทางอีเมลได้ทันที
+                กดยืนยันเพื่อเปิดใช้งานพอร์ทัล จากนั้นตั้งรหัสผ่านของคุณเอง
+                ครั้งถัดไปเข้าด้วยอีเมลและรหัสผ่านได้เลย (หรือขอลิงก์ทางอีเมลเมื่อลืมรหัส)
               </p>
 
               {error && <p className="mb-4 w-full rounded-lg bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">{error}</p>}

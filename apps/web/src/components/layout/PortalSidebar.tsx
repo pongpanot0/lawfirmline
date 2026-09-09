@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Inbox, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Inbox, Settings, LogOut, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
 import { PortalContact } from '@/lib/portal-api';
@@ -10,6 +10,7 @@ import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 
 const NAV_ITEMS = [
   { href: '/portal', label: 'ภาพรวม', icon: LayoutDashboard },
+  { href: '/portal/operations', label: 'งานดำเนินการ', icon: Briefcase },
   { href: '/portal/intake', label: 'เรื่องที่ส่ง', icon: Inbox },
   { href: '/portal/settings', label: 'ตั้งค่าการแจ้งเตือน', icon: Settings },
 ] as const;

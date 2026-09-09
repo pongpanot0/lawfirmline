@@ -5,6 +5,7 @@ import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { PortalIdentity } from './client-portal-jwt.strategy';
 import { SubmitPortalIntakeDto } from './dto/portal-intake.dto';
+import { mapInternalStatusToExternal } from '../intake/intake-status-mapping';
 
 @Injectable()
 export class ClientPortalIntakeService {
@@ -79,7 +80,7 @@ export class ClientPortalIntakeService {
   }
 
   async listMine(portalUser: PortalIdentity) {
-    return this.prisma.portalIntakeSubmission.findMany({
+    const submissions = await this.prisma.portalIntakeSubmission.findMany({
       where: { clientContactId: portalUser.clientContactId },
       include: {
         intake: { select: { id: true, status: true, decision: true } },
@@ -87,6 +88,40 @@ export class ClientPortalIntakeService {
       },
       orderBy: { submittedAt: 'desc' },
     });
+
+    const intakeIds = submissions.map((s) => s.intake?.id).filter((id): id is string => Boolean(id));
+    const firmDocsByIntake = await this.loadFirmDocumentsByIntake(intakeIds);
+
+    return submissions.map((s) => this.toPortalEntry(s, firmDocsByIntake.get(s.intake?.id ?? '') ?? []));
+  }
+
+  async getMine(portalUser: PortalIdentity, submissionId: string) {
+    const submission = await this.prisma.portalIntakeSubmission.findFirst({
+      where: { id: submissionId, clientContactId: portalUser.clientContactId },
+      include: {
+        intake: { select: { id: true, status: true, decision: true } },
+        attachments: {
+          select: { id: true, filename: true, size: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!submission) throw new NotFoundException('Submission not found');
+
+    const firmDocuments = submission.intake
+      ? await this.prisma.document.findMany({
+          where: { intakeId: submission.intake.id, visibleToClient: true },
+          select: { id: true, filename: true, mimeType: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+
+    return {
+      ...this.toPortalEntry(submission, firmDocuments),
+      detail: submission.detail,
+      urgencyFlag: submission.urgencyFlag,
+      clientRequestedDate: submission.clientRequestedDate,
+    };
   }
 
   async getAttachmentFile(portalUser: PortalIdentity, submissionId: string, attachmentId: string) {
@@ -99,5 +134,87 @@ export class ClientPortalIntakeService {
     });
     if (!attachment) throw new NotFoundException('Attachment not found');
     return { path: attachment.storagePath, filename: attachment.filename, mimeType: attachment.mimeType };
+  }
+
+  async getFirmDocumentFile(portalUser: PortalIdentity, submissionId: string, documentId: string) {
+    const submission = await this.prisma.portalIntakeSubmission.findFirst({
+      where: { id: submissionId, clientContactId: portalUser.clientContactId },
+      include: { intake: { select: { id: true } } },
+    });
+    if (!submission?.intake) throw new NotFoundException('Document not found');
+
+    const document = await this.prisma.document.findFirst({
+      where: {
+        id: documentId,
+        intakeId: submission.intake.id,
+        visibleToClient: true,
+      },
+    });
+    if (!document) throw new NotFoundException('Document not found');
+
+    return {
+      path: document.storagePath,
+      filename: document.filename,
+      mimeType: document.mimeType,
+    };
+  }
+
+  private async loadFirmDocumentsByIntake(intakeIds: string[]) {
+    const map = new Map<string, Array<{ id: string; filename: string; mimeType: string; createdAt: Date }>>();
+    if (intakeIds.length === 0) return map;
+
+    const docs = await this.prisma.document.findMany({
+      where: { intakeId: { in: intakeIds }, visibleToClient: true },
+      select: { id: true, filename: true, mimeType: true, createdAt: true, intakeId: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    for (const doc of docs) {
+      if (!doc.intakeId) continue;
+      const list = map.get(doc.intakeId) ?? [];
+      list.push({
+        id: doc.id,
+        filename: doc.filename,
+        mimeType: doc.mimeType,
+        createdAt: doc.createdAt,
+      });
+      map.set(doc.intakeId, list);
+    }
+    return map;
+  }
+
+  private toPortalEntry(
+    submission: {
+      id: string;
+      referenceNumber: string;
+      title: string;
+      submittedAt: Date;
+      withdrawnByClient: boolean;
+      intake: { id: string; status: string; decision: string | null } | null;
+      attachments: Array<{ id: string; filename: string; size: number; createdAt?: Date }>;
+    },
+    firmDocuments: Array<{ id: string; filename: string; mimeType: string; createdAt: Date }>,
+  ) {
+    return {
+      id: submission.id,
+      referenceNumber: submission.referenceNumber,
+      title: submission.title,
+      submittedAt: submission.submittedAt,
+      withdrawnByClient: submission.withdrawnByClient,
+      externalStatus: submission.intake
+        ? mapInternalStatusToExternal(submission.intake as never)
+        : 'ส่งแล้ว',
+      attachments: submission.attachments.map((a) => ({
+        id: a.id,
+        filename: a.filename,
+        size: a.size,
+        createdAt: a.createdAt,
+      })),
+      firmDocuments: firmDocuments.map((d) => ({
+        id: d.id,
+        filename: d.filename,
+        mimeType: d.mimeType,
+        createdAt: d.createdAt,
+      })),
+    };
   }
 }

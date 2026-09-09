@@ -121,6 +121,7 @@ describe('ClientPortalInviteService', () => {
       );
       expect(result.accessToken).toBe('signed-jwt');
       expect(result.client).toEqual({ id: 'client-1', name: 'Acme' });
+      expect(result.contact.hasPassword).toBe(false);
     });
   });
 });

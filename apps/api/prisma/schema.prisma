@@ -500,6 +500,8 @@ model ClientContact {
   position      String?
   isPrimary     Boolean  @default(false)
   portalEnabled Boolean  @default(false)
+  /// Set by the contact after magic-link login; null means passwordless-only so far.
+  passwordHash  String?
   dateAdded     DateTime @default(now())
   notes         String?
 

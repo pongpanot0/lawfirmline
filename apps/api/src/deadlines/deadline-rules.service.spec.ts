@@ -15,7 +15,7 @@ describe('DeadlineRulesService', () => {
       deleteMany: jest.fn(),
     },
     publicHoliday: { findMany: jest.fn() },
-    documentDateSuggestion: { createMany: jest.fn() },
+    documentDateSuggestion: { findMany: jest.fn(), createMany: jest.fn() },
   };
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
 
@@ -36,6 +36,7 @@ describe('DeadlineRulesService', () => {
     mockPrisma.deadlineRule.count.mockResolvedValue(0);
     mockPrisma.deadlineRule.createMany.mockResolvedValue({ count: 0 });
     mockPrisma.publicHoliday.findMany.mockResolvedValue([]);
+    mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([]);
     mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 0 });
 
     const module: TestingModule = await Test.createTestingModule({
@@ -194,6 +195,37 @@ describe('DeadlineRulesService', () => {
 
       expect(created).toBe(0);
       expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
+    });
+
+    it('skips rules that already have a PENDING suggestion for a manual trigger', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([{ deadlineRuleId: 'rule-1' }]);
+
+      const created = await service.applyTrigger({ ...context, triggerEventId: null });
+
+      expect(created).toBe(0);
+      expect(mockPrisma.documentDateSuggestion.findMany).toHaveBeenCalledWith({
+        where: {
+          caseId: 'case-1',
+          status: 'PENDING',
+          source: 'RULE',
+          deadlineRuleId: { in: ['rule-1'] },
+          triggerEventId: null,
+        },
+        select: { deadlineRuleId: true },
+      });
+      expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
+    });
+
+    it('still creates when a prior suggestion was dismissed', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      const created = await service.applyTrigger({ ...context, triggerEventId: null });
+
+      expect(created).toBe(1);
+      expect(mockPrisma.documentDateSuggestion.createMany).toHaveBeenCalled();
     });
   });
 

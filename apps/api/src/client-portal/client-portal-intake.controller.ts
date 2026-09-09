@@ -8,7 +8,6 @@ import { PortalIdentity } from './client-portal-jwt.strategy';
 import { SkipSubscription } from '../saas/decorators/saas.decorators';
 import { ClientPortalIntakeService } from './client-portal-intake.service';
 import { SubmitPortalIntakeDto } from './dto/portal-intake.dto';
-import { mapInternalStatusToExternal } from '../intake/intake-status-mapping';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
 
@@ -29,17 +28,13 @@ export class ClientPortalIntakeController {
   }
 
   @Get()
-  async listMine(@CurrentPortalUser() user: PortalIdentity) {
-    const submissions = await this.intakeService.listMine(user);
-    return submissions.map((s) => ({
-      id: s.id,
-      referenceNumber: s.referenceNumber,
-      title: s.title,
-      submittedAt: s.submittedAt,
-      withdrawnByClient: s.withdrawnByClient,
-      externalStatus: s.intake ? mapInternalStatusToExternal(s.intake) : 'ส่งแล้ว',
-      attachments: s.attachments.map((a) => ({ id: a.id, filename: a.filename, size: a.size })),
-    }));
+  listMine(@CurrentPortalUser() user: PortalIdentity) {
+    return this.intakeService.listMine(user);
+  }
+
+  @Get(':submissionId')
+  getMine(@CurrentPortalUser() user: PortalIdentity, @Param('submissionId') submissionId: string) {
+    return this.intakeService.getMine(user, submissionId);
   }
 
   @Get(':submissionId/attachments/:attachmentId/download')
@@ -50,6 +45,20 @@ export class ClientPortalIntakeController {
     @Res() res: Response,
   ) {
     const file = await this.intakeService.getAttachmentFile(user, submissionId, attachmentId);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Type', safeMimeType(file.mimeType));
+    res.setHeader('Content-Disposition', buildContentDispositionHeader(file.filename));
+    fs.createReadStream(file.path).pipe(res);
+  }
+
+  @Get(':submissionId/firm-documents/:documentId/download')
+  async downloadFirmDocument(
+    @CurrentPortalUser() user: PortalIdentity,
+    @Param('submissionId') submissionId: string,
+    @Param('documentId') documentId: string,
+    @Res() res: Response,
+  ) {
+    const file = await this.intakeService.getFirmDocumentFile(user, submissionId, documentId);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', safeMimeType(file.mimeType));
     res.setHeader('Content-Disposition', buildContentDispositionHeader(file.filename));

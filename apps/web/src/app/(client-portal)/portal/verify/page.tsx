@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { portalApi, PortalApiError } from '@/lib/portal-api';
-import { usePortalAuth } from '@/lib/portal-auth';
+import { portalHomeFor, usePortalAuth } from '@/lib/portal-auth';
 import { Card, CardContent } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 
@@ -24,7 +24,7 @@ function PortalVerifyContent() {
     portalApi
       .verify(token)
       .then((res) => setSession(res.accessToken))
-      .then(() => router.replace('/portal'))
+      .then((contact) => router.replace(portalHomeFor(contact)))
       .catch((err) => {
         setError(err instanceof PortalApiError ? err.message : 'ลิงก์นี้ไม่ถูกต้องหรือหมดอายุแล้ว');
       });
