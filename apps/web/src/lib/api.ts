@@ -591,6 +591,17 @@ export interface EmailThreadDetail {
   proposals: IntakeFieldProposalItem[];
 }
 
+export interface MailboxConnectionItem {
+  id: string;
+  mailboxAddress: string;
+  connectedByUserId: string;
+  status: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'ERROR';
+  lastError: string | null;
+  lastSyncedAt: string | null;
+  subscriptionExpiresAt: string | null;
+  createdAt: string;
+}
+
 export interface ReviewDecisionItem {
   reviewerId: string;
   decision: 'APPROVED' | 'RETURNED';
@@ -1375,6 +1386,19 @@ export const api = {
     if (origin) query.set('origin', origin);
     return request<TravelResult>(`/travel/calculate?${query}`, { token });
   },
+
+  // --- Outlook / Microsoft Graph (self-service mailbox connect) ---
+  getOutlookConnections: (token: string) =>
+    request<MailboxConnectionItem[]>('/outlook/connections', { token }),
+
+  getOutlookConnectUrl: (token: string) =>
+    request<{ url: string }>('/outlook/connect', { token }),
+
+  disconnectOutlook: (token: string, id: string) =>
+    request<{ revoked: boolean }>(`/outlook/connections/${id}`, { method: 'DELETE', token }),
+
+  syncOutlookNow: (token: string, id: string) =>
+    request<{ messagesSynced: number }>(`/outlook/connections/${id}/sync`, { method: 'POST', token }),
 
   getLineStatus: (token: string) =>
     request<LineIntegrationStatus>('/integrations/line/status', { token }),

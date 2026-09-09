@@ -269,6 +269,7 @@ model Firm {
   intakes         Intake[]
   deadlineRules   DeadlineRule[]
   emailThreads    EmailThread[]
+  mailboxConnections MailboxConnection[]
 }
 
 model FirmMember {
@@ -1426,4 +1427,39 @@ model ReviewDecision {
 
   @@unique([reviewRoundId, reviewerId])
   @@index([reviewRoundId])
+}
+
+// --- Outlook / Microsoft Graph mailbox connections (self-service OAuth) ---
+
+enum MailboxConnectionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  ERROR
+}
+
+model MailboxConnection {
+  id                    String                  @id @default(uuid())
+  firmId                String
+  mailboxAddress        String
+  connectedByUserId     String
+  provider              String                  @default("microsoft")
+  accessTokenEnc        String                  @db.Text
+  refreshTokenEnc       String                  @db.Text
+  tokenExpiresAt        DateTime
+  webhookSecret         String
+  graphSubscriptionId   String?
+  subscriptionExpiresAt DateTime?
+  deltaLink             String?                 @db.Text
+  status                MailboxConnectionStatus @default(ACTIVE)
+  lastError             String?                 @db.Text
+  lastSyncedAt          DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@unique([firmId, mailboxAddress])
+  @@index([firmId])
+  @@index([graphSubscriptionId])
 }

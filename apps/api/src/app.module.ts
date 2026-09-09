@@ -34,6 +34,7 @@ import { DeadlinesModule } from './deadlines/deadlines.module';
 import { HolidaysModule } from './holidays/holidays.module';
 import { EmailIntakeModule } from './email-intake/email-intake.module';
 import { DocumentReviewModule } from './document-review/document-review.module';
+import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { DocumentReviewModule } from './document-review/document-review.module';
     HolidaysModule,
     EmailIntakeModule,
     DocumentReviewModule,
+    OutlookIntegrationModule,
   ],
   providers: [
     {
