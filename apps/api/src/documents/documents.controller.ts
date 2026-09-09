@@ -56,8 +56,9 @@ export class DocumentsController {
     @Param('caseId') caseId: string,
     @Param('documentId') documentId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body('notes') notes?: string,
   ) {
-    return this.documentsService.uploadNewVersion(user, caseId, documentId, file);
+    return this.documentsService.uploadNewVersion(user, caseId, documentId, file, notes);
   }
 
   @Patch(':documentId/visibility')

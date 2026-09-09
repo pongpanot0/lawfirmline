@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Moon, Sun, Bell, Key, Building2, Sparkles, Copy, ExternalLink } from 'lucide-react';
+import { Moon, Sun, Bell, Key, Building2, Sparkles, Copy, ExternalLink, Mail } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
-import { api, LineIntegrationStatus, LinePersonalStatus, NotificationPreferences } from '@/lib/api';
+import { api, ApiError, LineIntegrationStatus, LinePersonalStatus, MailboxConnectionItem, NotificationPreferences } from '@/lib/api';
 import { PageHeader } from '@/components/lexflow/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatDateTime } from '@/lib/utils';
 
 export default function SettingsPage() {
   const d = useDashboardT();
@@ -31,6 +32,84 @@ export default function SettingsPage() {
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [prefsSaving, setPrefsSaving] = useState(false);
   const [prefsError, setPrefsError] = useState('');
+  const searchParams = useSearchParams();
+  const [mailboxConnections, setMailboxConnections] = useState<MailboxConnectionItem[]>([]);
+  const [outlookConnecting, setOutlookConnecting] = useState(false);
+  const [outlookActionId, setOutlookActionId] = useState<string | null>(null);
+  const [outlookNotice, setOutlookNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const loadOutlookConnections = useCallback(async () => {
+    const token = getStoredToken();
+    if (!token) return;
+    api
+      .getOutlookConnections(token)
+      .then(setMailboxConnections)
+      .catch(() => setMailboxConnections([]));
+  }, []);
+
+  useEffect(() => {
+    loadOutlookConnections();
+  }, [loadOutlookConnections]);
+
+  useEffect(() => {
+    const outlookResult = searchParams.get('outlook');
+    if (outlookResult === 'connected') {
+      setOutlookNotice({ type: 'success', text: 'เชื่อมต่อ Outlook สำเร็จ' });
+      loadOutlookConnections();
+    } else if (outlookResult === 'error') {
+      setOutlookNotice({ type: 'error', text: searchParams.get('message') || 'เชื่อมต่อ Outlook ไม่สำเร็จ' });
+    }
+  }, [searchParams, loadOutlookConnections]);
+
+  const handleConnectOutlook = async () => {
+    const token = getStoredToken();
+    if (!token) return;
+    setOutlookConnecting(true);
+    setOutlookNotice(null);
+    try {
+      const { url } = await api.getOutlookConnectUrl(token);
+      window.location.href = url;
+    } catch (e) {
+      setOutlookNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'เริ่มการเชื่อมต่อไม่สำเร็จ' });
+      setOutlookConnecting(false);
+    }
+  };
+
+  const handleDisconnectOutlook = async (id: string) => {
+    const token = getStoredToken();
+    if (!token) return;
+    setOutlookActionId(id);
+    try {
+      await api.disconnectOutlook(token, id);
+      await loadOutlookConnections();
+    } catch (e) {
+      setOutlookNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ยกเลิกการเชื่อมต่อไม่สำเร็จ' });
+    } finally {
+      setOutlookActionId(null);
+    }
+  };
+
+  const handleSyncOutlookNow = async (id: string) => {
+    const token = getStoredToken();
+    if (!token) return;
+    setOutlookActionId(id);
+    try {
+      const result = await api.syncOutlookNow(token, id);
+      setOutlookNotice({ type: 'success', text: `ซิงก์แล้ว — พบอีเมลใหม่ ${result.messagesSynced} ฉบับ` });
+      await loadOutlookConnections();
+    } catch (e) {
+      setOutlookNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ซิงก์ไม่สำเร็จ' });
+    } finally {
+      setOutlookActionId(null);
+    }
+  };
+
+  const OUTLOOK_STATUS_LABEL: Record<string, string> = {
+    ACTIVE: 'เชื่อมต่ออยู่',
+    EXPIRED: 'หมดอายุ — ต้องเชื่อมต่อใหม่',
+    REVOKED: 'ยกเลิกการเชื่อมต่อแล้ว',
+    ERROR: 'มีปัญหา',
+  };
 
   const loadLineData = useCallback(async () => {
     const token = getStoredToken();
@@ -319,6 +398,69 @@ export default function SettingsPage() {
                   </div>
                 )}
               </div>
+
+              <Separator className="mt-4" />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Outlook / Microsoft 365</p>
+                    <p className="text-xs text-muted-foreground">
+                      เชื่อมกล่องอีเมลของตัวเองหรือกล่องกลาง (เช่น intake@) เพื่อรับอีเมลลูกค้าเข้าคิวรับเรื่องอัตโนมัติ
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {outlookNotice && (
+                <p className={`mt-3 rounded-lg p-2 text-xs ${outlookNotice.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-destructive/10 text-destructive'}`}>
+                  {outlookNotice.text}
+                </p>
+              )}
+
+              <div className="mt-3 space-y-2">
+                {mailboxConnections.map((connection) => (
+                  <div key={connection.id} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{connection.mailboxAddress}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {OUTLOOK_STATUS_LABEL[connection.status] ?? connection.status}
+                        {connection.lastSyncedAt && ` · ซิงก์ล่าสุด ${formatDateTime(connection.lastSyncedAt)}`}
+                      </p>
+                      {connection.lastError && connection.status !== 'ACTIVE' && (
+                        <p className="mt-0.5 text-xs text-destructive">{connection.lastError}</p>
+                      )}
+                    </div>
+                    {connection.status !== 'REVOKED' && (
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={outlookActionId === connection.id}
+                          onClick={() => handleSyncOutlookNow(connection.id)}
+                        >
+                          ซิงก์ตอนนี้
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={outlookActionId === connection.id}
+                          onClick={() => handleDisconnectOutlook(connection.id)}
+                        >
+                          ยกเลิกการเชื่อมต่อ
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <Button size="sm" className="mt-3" onClick={handleConnectOutlook} disabled={outlookConnecting}>
+                {outlookConnecting ? 'กำลังเปิด Microsoft...' : 'เชื่อม Outlook เพิ่ม'}
+              </Button>
 
               <Separator className="mt-4" />
             </div>

@@ -26,6 +26,7 @@ import {
   Timer,
   CalendarCheck,
   CalendarOff,
+  Mail,
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
   { href: '/my-day', labelKey: 'myDay' as const, icon: CalendarCheck, ownerOnly: false, group: 'work' },
   { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work' },
   { href: '/intake', labelKey: 'intake' as const, icon: ClipboardList, ownerOnly: false, group: 'work' },
+  { href: '/email-intake', labelKey: 'emailIntake' as const, icon: Mail, ownerOnly: false, group: 'work' },
   { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false, group: 'work' },
   { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work' },
   { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false, group: 'work' },

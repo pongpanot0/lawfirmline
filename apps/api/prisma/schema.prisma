@@ -268,6 +268,8 @@ model Firm {
   pettyCashFund   PettyCashFund?
   intakes         Intake[]
   deadlineRules   DeadlineRule[]
+  emailThreads    EmailThread[]
+  mailboxConnections MailboxConnection[]
 }
 
 model FirmMember {
@@ -604,6 +606,8 @@ model Intake {
   incidentDate       DateTime?
   description        String?         @db.Text
   estimatedDamage    Float?
+  contactName        String?
+  requestedResponseDate DateTime?
   assignedUserIds    String[]        @default([])
   deadlineDate       DateTime?
   portalSubmissionId String?         @unique
@@ -638,6 +642,8 @@ model Intake {
   precedentAnalyses      IntakePrecedentAnalysis[]
   relatedCase            Case?                     @relation("CaseRelatedIntakes", fields: [relatedCaseId], references: [id])
   documents              Document[]
+  emailThreads           EmailThread[]
+  fieldProposals         IntakeFieldProposal[]
 
   @@index([firmId])
   @@index([clientId])
@@ -802,18 +808,31 @@ model Document {
 }
 
 model DocumentVersion {
-  id          String   @id @default(uuid())
-  documentId  String
-  version     Int
-  storagePath String
-  filename    String
-  mimeType    String
-  createdAt   DateTime @default(now())
+  id           String                @id @default(uuid())
+  documentId   String
+  version      Int
+  storagePath  String
+  filename     String
+  mimeType     String
+  status       DocumentVersionStatus @default(DRAFT)
+  notes        String?               @db.Text
+  contentHash  String?
+  createdById  String?
+  createdAt    DateTime              @default(now())
 
   document     Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
   publications DocumentPublication[]
+  reviewRounds ReviewRound[]
 
   @@unique([documentId, version])
+}
+
+enum DocumentVersionStatus {
+  DRAFT
+  WAITING_REVIEW
+  RETURNED_FOR_CHANGES
+  APPROVED
+  SUPERSEDED
 }
 
 model DocumentPublication {
@@ -1249,4 +1268,198 @@ model ContactNotificationPreference {
   clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
 
   @@unique([clientContactId, channel])
+}
+
+// --- Email intake (mock-provider adapter) ---
+
+enum EmailThreadStatus {
+  PENDING_INTAKE
+  LINKED
+  ARCHIVED
+}
+
+enum EmailDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum FieldProposalSourceType {
+  EMAIL_BODY
+  ATTACHMENT
+  EXISTING_CLIENT
+  MANUAL
+}
+
+enum FieldProposalStatus {
+  SUGGESTED
+  REQUIRES_CONFIRMATION
+  CONFIRMED
+  REJECTED
+  CONFLICT
+}
+
+model EmailThread {
+  id            String            @id @default(uuid())
+  firmId        String
+  provider      String            @default("mock")
+  threadKey     String
+  subject       String
+  fromName      String?
+  fromAddress   String?
+  lastMessageAt DateTime          @default(now())
+  intakeId      String?
+  status        EmailThreadStatus @default(PENDING_INTAKE)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  firm     Firm           @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  intake   Intake?        @relation(fields: [intakeId], references: [id], onDelete: SetNull)
+  messages EmailMessage[]
+
+  @@unique([firmId, provider, threadKey])
+  @@index([firmId])
+  @@index([intakeId])
+}
+
+model EmailMessage {
+  id          String         @id @default(uuid())
+  threadId    String
+  provider    String         @default("mock")
+  messageKey  String
+  direction   EmailDirection @default(INBOUND)
+  fromName    String?
+  fromAddress String?
+  bodyText    String?        @db.Text
+  receivedAt  DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+
+  thread         EmailThread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  attachments    EmailAttachment[]
+  fieldProposals IntakeFieldProposal[]
+
+  @@unique([threadId, messageKey])
+  @@index([threadId])
+}
+
+model EmailAttachment {
+  id          String   @id @default(uuid())
+  messageId   String
+  filename    String
+  storagePath String
+  mimeType    String
+  contentHash String?
+  createdAt   DateTime @default(now())
+
+  message EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+model IntakeFieldProposal {
+  id                   String                  @id @default(uuid())
+  intakeId             String
+  field                String
+  proposedValue        String?                 @db.Text
+  previousValue        String?                 @db.Text
+  sourceType           FieldProposalSourceType @default(EMAIL_BODY)
+  sourceDetail         String?
+  sourceEmailMessageId String?
+  status               FieldProposalStatus     @default(SUGGESTED)
+  confirmedById        String?
+  confirmedAt          DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  intake             Intake        @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  sourceEmailMessage EmailMessage? @relation(fields: [sourceEmailMessageId], references: [id], onDelete: SetNull)
+
+  @@index([intakeId])
+  @@index([sourceEmailMessageId])
+}
+
+// --- Document review rounds ---
+
+enum ReviewApprovalRule {
+  ALL
+  ANY_ONE
+}
+
+enum ReviewRoundStatus {
+  WAITING_REVIEW
+  RETURNED
+  APPROVED
+  CANCELLED
+}
+
+enum ReviewDecisionType {
+  APPROVED
+  RETURNED
+}
+
+model ReviewRound {
+  id                String             @id @default(uuid())
+  documentVersionId String
+  reviewerIds       String[]           @default([])
+  editorIds         String[]           @default([])
+  approvalRule      ReviewApprovalRule @default(ALL)
+  scope             String?
+  dueAt             DateTime?
+  status            ReviewRoundStatus  @default(WAITING_REVIEW)
+  createdById       String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  documentVersion DocumentVersion  @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  decisions       ReviewDecision[]
+
+  @@index([documentVersionId])
+}
+
+model ReviewDecision {
+  id            String             @id @default(uuid())
+  reviewRoundId String
+  reviewerId    String
+  decision      ReviewDecisionType
+  reason        String?            @db.Text
+  decidedAt     DateTime           @default(now())
+
+  reviewRound ReviewRound @relation(fields: [reviewRoundId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewRoundId, reviewerId])
+  @@index([reviewRoundId])
+}
+
+// --- Outlook / Microsoft Graph mailbox connections (self-service OAuth) ---
+
+enum MailboxConnectionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  ERROR
+}
+
+model MailboxConnection {
+  id                    String                  @id @default(uuid())
+  firmId                String
+  mailboxAddress        String
+  connectedByUserId     String
+  provider              String                  @default("microsoft")
+  accessTokenEnc        String                  @db.Text
+  refreshTokenEnc       String                  @db.Text
+  tokenExpiresAt        DateTime
+  webhookSecret         String
+  graphSubscriptionId   String?
+  subscriptionExpiresAt DateTime?
+  deltaLink             String?                 @db.Text
+  status                MailboxConnectionStatus @default(ACTIVE)
+  lastError             String?                 @db.Text
+  lastSyncedAt          DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@unique([firmId, mailboxAddress])
+  @@index([firmId])
+  @@index([graphSubscriptionId])
 }

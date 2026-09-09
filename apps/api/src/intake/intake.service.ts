@@ -49,6 +49,12 @@ export class IntakeService {
       orderBy: { createdAt: 'desc' as const },
       select: { id: true, filename: true, mimeType: true, createdAt: true },
     },
+    fieldProposals: {
+      orderBy: { createdAt: 'desc' as const },
+    },
+    emailThreads: {
+      select: { id: true, subject: true, fromName: true, fromAddress: true, lastMessageAt: true },
+    },
   };
 
   async findAll(user: AuthUser, query: IntakeQueryDto) {
@@ -128,6 +134,23 @@ export class IntakeService {
     });
   }
 
+  /**
+   * Editing a field the intake pipeline proposed and the lawyer already
+   * confirmed resets that confirmation — a stale amount or date must be
+   * re-confirmed before the intake can be accepted again.
+   */
+  private async resetConfirmationForEditedFields(id: string, dto: UpdateIntakeDto) {
+    const editedFields: string[] = [];
+    if (dto.estimatedDamage !== undefined) editedFields.push('estimatedDamage');
+    if (dto.requestedResponseDate !== undefined) editedFields.push('requestedResponseDate');
+    if (editedFields.length === 0) return;
+
+    await this.prisma.intakeFieldProposal.updateMany({
+      where: { intakeId: id, field: { in: editedFields }, status: 'CONFIRMED' as any },
+      data: { status: 'REQUIRES_CONFIRMATION' as any, confirmedById: null, confirmedAt: null },
+    });
+  }
+
   async update(user: AuthUser, id: string, dto: UpdateIntakeDto) {
     await this.findOne(user, id);
     if (dto.relatedCaseId) {
@@ -138,6 +161,7 @@ export class IntakeService {
         throw new BadRequestException('ไม่พบคดีที่เลือกไว้ในสำนักงานนี้');
       }
     }
+    await this.resetConfirmationForEditedFields(id, dto);
     return this.prisma.intake.update({
       where: { id },
       data: {
@@ -148,11 +172,13 @@ export class IntakeService {
         referralName: dto.referralName,
         clientId: dto.clientId,
         clientName: dto.clientName,
+        contactName: dto.contactName,
         matterType: dto.matterType,
         opposingParty: dto.opposingParty,
         incidentDate: dto.incidentDate ? new Date(dto.incidentDate) : undefined,
         description: dto.description,
         estimatedDamage: dto.estimatedDamage,
+        requestedResponseDate: dto.requestedResponseDate ? new Date(dto.requestedResponseDate) : undefined,
         assessmentNotes: dto.assessmentNotes,
         caseStrength: dto.caseStrength,
         decision: dto.decision as any,
@@ -170,8 +196,24 @@ export class IntakeService {
     });
   }
 
+  /**
+   * "ยืนยันข้อมูลและรับเข้าพิจารณา" — accepting an email-sourced intake for
+   * assessment is not a decision to litigate. It is blocked while any
+   * system-proposed field (amount, requested response date, client/matter
+   * match) still needs the lawyer's confirmation, per the email-intake spec.
+   */
+  private async assertFieldProposalsResolved(id: string) {
+    const outstanding = await this.prisma.intakeFieldProposal.count({
+      where: { intakeId: id, status: 'REQUIRES_CONFIRMATION' as any },
+    });
+    if (outstanding > 0) {
+      throw new BadRequestException('ยังมีข้อมูลที่ระบบเสนอซึ่งต้องยืนยันก่อนรับเรื่องเข้าพิจารณา');
+    }
+  }
+
   async assess(user: AuthUser, id: string, dto: AssessIntakeDto) {
     await this.findOne(user, id);
+    await this.assertFieldProposalsResolved(id);
     return this.prisma.intake.update({
       where: { id },
       data: {

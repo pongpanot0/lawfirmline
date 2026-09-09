@@ -32,6 +32,9 @@ import { ClosingEmailModule } from './closing-email/closing-email.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { DeadlinesModule } from './deadlines/deadlines.module';
 import { HolidaysModule } from './holidays/holidays.module';
+import { EmailIntakeModule } from './email-intake/email-intake.module';
+import { DocumentReviewModule } from './document-review/document-review.module';
+import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
 
 @Module({
   imports: [
@@ -68,6 +71,9 @@ import { HolidaysModule } from './holidays/holidays.module';
     AgendaModule,
     DeadlinesModule,
     HolidaysModule,
+    EmailIntakeModule,
+    DocumentReviewModule,
+    OutlookIntegrationModule,
   ],
   providers: [
     {
