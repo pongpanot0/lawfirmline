@@ -125,6 +125,15 @@ function matchesDocument(filename: string, hints: string[]) {
   return hints.some((hint) => normalized.includes(hint.toLowerCase()));
 }
 
+/** Marked received by hand (no uploaded file linked). */
+const CHECKLIST_MANUAL = '__manual__';
+/** Explicitly unmarked — overrides filename auto-match. */
+const CHECKLIST_SKIPPED = '__skipped__';
+
+function isChecklistDocId(value: string | undefined): value is string {
+  return !!value && value !== CHECKLIST_MANUAL && value !== CHECKLIST_SKIPPED;
+}
+
 function checklistConfirmStorageKey(intakeId: string) {
   return `intake-checklist-confirm:${intakeId}`;
 }
@@ -535,11 +544,12 @@ export default function IntakeDetailPage() {
     try {
       const suggestions = await api.classifyIntakeChecklist(token, intake.id, documentIds, labels);
       setChecklistSuggestions((previous) => {
-        const confirmedDocs = new Set(Object.values(confirmed));
+        const confirmedDocs = new Set(Object.values(confirmed).filter(isChecklistDocId));
         const byDoc = new Map(previous.map((item) => [item.documentId, item]));
         for (const suggestion of suggestions) {
           if (confirmedDocs.has(suggestion.documentId)) continue;
-          if (confirmed[suggestion.label]) continue;
+          const existingMark = confirmed[suggestion.label];
+          if (isChecklistDocId(existingMark) || existingMark === CHECKLIST_MANUAL) continue;
           byDoc.set(suggestion.documentId, suggestion);
         }
         return [...byDoc.values()];
@@ -567,6 +577,32 @@ export default function IntakeDetailPage() {
 
   const dismissChecklistSuggestion = (documentId: string) => {
     setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== documentId));
+  };
+
+  const toggleChecklistReceived = (item: { label: string; hints: string[] }) => {
+    if (!id) return;
+    if (intake?.status === 'REJECTED' || intake?.status === 'CONVERTED' || intake?.status === 'CONSULTED') {
+      return;
+    }
+    setConfirmedChecklist((previous) => {
+      const current = previous[item.label];
+      const filenameMatched = documents.some((doc) => matchesDocument(doc.filename, item.hints));
+      const isReceived =
+        (current !== undefined && current !== CHECKLIST_SKIPPED) ||
+        (current !== CHECKLIST_SKIPPED && filenameMatched);
+      const next = { ...previous };
+      if (isReceived) {
+        if (filenameMatched) {
+          next[item.label] = CHECKLIST_SKIPPED;
+        } else {
+          delete next[item.label];
+        }
+      } else {
+        next[item.label] = isChecklistDocId(current) ? current : CHECKLIST_MANUAL;
+      }
+      saveChecklistConfirmations(id, next);
+      return next;
+    });
   };
 
   const handleDeleteFile = async (documentId: string, filename: string) => {
@@ -647,15 +683,19 @@ export default function IntakeDetailPage() {
     analyses.find((a) => a.id === selectedAnalysisId) ?? analyses[0];
   const expectedDocuments =
     PRE_LITIGATION_DOCUMENTS[intake.preLitigationType] ?? PRE_LITIGATION_DOCUMENTS.GENERAL;
-  const isChecklistMatched = (item: { label: string; hints: string[] }) =>
-    !!confirmedChecklist[item.label] ||
-    documents.some((doc) => matchesDocument(doc.filename, item.hints));
+  const isChecklistMatched = (item: { label: string; hints: string[] }) => {
+    const mark = confirmedChecklist[item.label];
+    if (mark === CHECKLIST_SKIPPED) return false;
+    if (mark) return true;
+    return documents.some((doc) => matchesDocument(doc.filename, item.hints));
+  };
   const matchedExpectedDocuments = expectedDocuments.filter(isChecklistMatched);
   const missingExpectedDocuments = expectedDocuments.length - matchedExpectedDocuments.length;
   const pendingSuggestions = checklistSuggestions.filter(
     (suggestion) =>
-      !confirmedChecklist[suggestion.label] &&
-      !Object.values(confirmedChecklist).includes(suggestion.documentId),
+      !isChecklistDocId(confirmedChecklist[suggestion.label]) &&
+      confirmedChecklist[suggestion.label] !== CHECKLIST_MANUAL &&
+      !Object.values(confirmedChecklist).filter(isChecklistDocId).includes(suggestion.documentId),
   );
 
   return (
@@ -849,14 +889,33 @@ export default function IntakeDetailPage() {
               {expectedDocuments.map((item) => {
                 const matched = isChecklistMatched(item);
                 const confirmedDocId = confirmedChecklist[item.label];
-                const confirmedDoc = confirmedDocId
+                const confirmedDoc = isChecklistDocId(confirmedDocId)
                   ? documents.find((doc) => doc.id === confirmedDocId)
                   : undefined;
                 const pending = pendingSuggestions.find((suggestion) => suggestion.label === item.label);
+                const canToggle =
+                  intake.status !== 'REJECTED' &&
+                  intake.status !== 'CONVERTED' &&
+                  intake.status !== 'CONSULTED';
                 return (
-                  <div key={item.label} className="rounded-lg border border-transparent px-1 py-0.5 text-sm">
+                  <button
+                    key={item.label}
+                    type="button"
+                    disabled={!canToggle}
+                    onClick={() => toggleChecklistReceived(item)}
+                    aria-pressed={matched}
+                    className="rounded-lg border border-transparent px-1 py-0.5 text-left text-sm enabled:hover:bg-muted/50 disabled:cursor-default"
+                  >
                     <div className="flex items-start gap-2">
-                      <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${matched ? 'bg-green-100 text-green-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-muted text-muted-foreground'}`}>
+                      <span
+                        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${
+                          matched
+                            ? 'bg-green-100 text-green-700'
+                            : pending
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
                         {matched ? '✓' : pending ? '?' : '○'}
                       </span>
                       <div className="min-w-0">
@@ -866,16 +925,19 @@ export default function IntakeDetailPage() {
                         {confirmedDoc && (
                           <p className="mt-0.5 text-xs text-muted-foreground">ยืนยันแล้ว: {confirmedDoc.filename}</p>
                         )}
+                        {matched && confirmedDocId === CHECKLIST_MANUAL && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">ติ๊กเองว่าได้รับแล้ว</p>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
               พร้อม {matchedExpectedDocuments.length}/{expectedDocuments.length}
               {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตาม checklist'}
-              {' · '}จับคู่ชื่อไฟล์อัตโนมัติ หรือกด「ให้ AI แนะนำประเภท」แล้วยืนยัน
+              {' · '}ติ๊กเองได้ · จับคู่ชื่อไฟล์อัตโนมัติ · หรือกด「ให้ AI แนะนำประเภท」แล้วยืนยัน
               {' · '}แนบได้เฉพาะ PDF ไม่เกิน 10MB · เลือกวิเคราะห์ได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์ · แนะนำประเภท {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิต
             </p>
             {classifyError && (
