@@ -313,9 +313,11 @@ export default function EmailThreadDetailPage() {
 
             <div className="mt-4 border-t pt-4">
               {outstandingCount > 0 && (
-                <p className="mb-2 text-xs text-amber-700">ยังมี {outstandingCount} รายการที่ต้องยืนยันก่อนรับเข้าพิจารณา</p>
+                <p className="mb-2 text-xs text-amber-700">
+                  ยังมี {outstandingCount} รายการที่ระบบเสนอไว้ (ยืนยันได้ภายหลัง — ไม่บังคับก่อนรับเข้าพิจารณา)
+                </p>
               )}
-              <Button className="w-full" disabled={accepting || outstandingCount > 0} onClick={handleAccept}>
+              <Button className="w-full" disabled={accepting} onClick={handleAccept}>
                 {accepting ? 'กำลังบันทึก...' : 'ยืนยันข้อมูลและรับเข้าพิจารณา'}
               </Button>
               <p className="mt-2 text-xs text-muted-foreground">

@@ -1,4 +1,5 @@
 import { BatchAnalysisDto } from './dto/batch-analysis.dto';
+import { ClassifyChecklistDto } from './dto/classify-checklist.dto';
 import {
   Controller,
   Get,
@@ -13,7 +14,7 @@ import {
 } from '@nestjs/common';
 import * as fs from 'fs';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { KnowledgeCategory } from '@lawfirm/shared';
+import { AI_CREDIT_COST, KnowledgeCategory } from '@lawfirm/shared';
 import { DocumentIntelligenceService } from './document-intelligence.service';
 import { DocumentsService } from '../documents/documents.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -68,6 +69,28 @@ export class IntelligenceController {
     const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePath(caseId, id)));
     const files = await Promise.all(paths.map(async (file) => ({ buffer: await fs.promises.readFile(file.path), mimeType: file.mimeType, filename: file.filename })));
     return this.intelligenceService.analyzeBatch(files, user.id, caseId);
+  }
+
+  @Post('intake/:intakeId/documents/classify-checklist')
+  @RequireCredits(AI_CREDIT_COST.DOCUMENT_ANALYSIS)
+  @UseInterceptors(AiCreditsInterceptor)
+  async classifyIntakeChecklist(
+    @CurrentUser() user: AuthUser,
+    @Param('intakeId') intakeId: string,
+    @Body() dto: ClassifyChecklistDto,
+  ) {
+    const files = await Promise.all(
+      dto.documentIds.map(async (documentId) => {
+        const file = await this.documentsService.getFilePathForIntake(user, intakeId, documentId);
+        return {
+          documentId,
+          filename: file.filename,
+          mimeType: file.mimeType,
+          buffer: await fs.promises.readFile(file.path),
+        };
+      }),
+    );
+    return this.intelligenceService.classifyChecklistDocuments(files, dto.labels);
   }
 
   @Post('cases/:caseId/documents/analyze')

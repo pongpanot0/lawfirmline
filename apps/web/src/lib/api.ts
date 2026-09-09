@@ -1342,6 +1342,21 @@ export const api = {
     });
   },
 
+  classifyIntakeChecklist: (
+    token: string,
+    intakeId: string,
+    documentIds: string[],
+    labels: string[],
+  ) =>
+    request<ChecklistClassificationSuggestion[]>(
+      `/intake/${intakeId}/documents/classify-checklist`,
+      {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ documentIds, labels }),
+      },
+    ),
+
   downloadIntakeDocument: (token: string, intakeId: string, documentId: string, version?: number) => {
     const qs = version ? `?version=${version}` : '';
     return fetchBlob(`/intake/${intakeId}/documents/${documentId}/download${qs}`, { token });
@@ -1779,6 +1794,15 @@ export interface DocumentItem {
   createdAt: string;
   uploadedBy: { firstName: string; lastName: string };
   versions?: DocumentVersionItem[];
+}
+
+/** AI suggestion that an intake file matches an expected-document checklist label. */
+export interface ChecklistClassificationSuggestion {
+  documentId: string;
+  filename: string;
+  label: string;
+  source: 'ai';
+  sourceExcerpt: string;
 }
 
 export interface DocumentPublicationEntry {

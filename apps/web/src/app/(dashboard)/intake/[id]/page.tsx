@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, UserItem, ApiError } from '@/lib/api';
+import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, UserItem, ApiError, ChecklistClassificationSuggestion } from '@/lib/api';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,7 @@ import { EmptyState, PageLoading } from '@/components/ui/misc';
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
   ASSESSING: 'กำลังประเมิน',
-  ACCEPTED: 'รับเป็นคดี',
+  ACCEPTED: 'รับดำเนินการ',
   REJECTED: 'ปฏิเสธ',
   CONVERTED: 'แปลงเป็นคดีแล้ว',
   CONSULTED: 'ให้คำปรึกษาเรียบร้อยแล้ว',
@@ -95,9 +95,60 @@ const PRE_LITIGATION_GUIDE: Record<string, string[]> = {
   GENERAL: ['Notice', 'ติดตามคำตอบ', 'เจรจา', 'ตัดสินใจฟ้องหรือไม่ฟ้อง'],
 };
 
+const PRE_LITIGATION_DOCUMENTS: Record<string, Array<{ label: string; hints: string[] }>> = {
+  MEDICAL_CLAIM: [
+    { label: 'กรมธรรม์ประกันภัย', hints: ['กรมธรรม์', 'policy', 'insurance'] },
+    { label: 'แบบฟอร์มเรียกร้องค่าสินไหม', hints: ['สินไหม', 'claim form', 'claim'] },
+    { label: 'เวชระเบียน', hints: ['เวชระเบียน', 'medical record', 'record'] },
+    { label: 'Peer review / ความเห็นแพทย์ผู้ทบทวน', hints: ['peer review', 'review', 'ความเห็นแพทย์'] },
+    { label: 'เอกสารสรุปโดยย่อเหตุการณ์', hints: ['สรุป', 'summary', 'เหตุการณ์', 'incident'] },
+  ],
+  TRANSPORT: [
+    { label: 'เอกสารรับขน / ใบตราส่ง', hints: ['ใบตราส่ง', 'bill of lading', 'waybill'] },
+    { label: 'หลักฐานความเสียหายหรือสูญหาย', hints: ['เสียหาย', 'damage', 'สูญหาย', 'loss'] },
+    { label: 'สรุปเหตุการณ์และมูลค่าความเสียหาย', hints: ['สรุป', 'summary', 'เหตุการณ์', 'damage'] },
+  ],
+  GENERAL: [
+    { label: 'เอกสารแสดงสิทธิหรือสัญญา', hints: ['สัญญา', 'contract', 'agreement'] },
+    { label: 'หลักฐานความเสียหาย', hints: ['เสียหาย', 'damage'] },
+    { label: 'สรุปโดยย่อเหตุการณ์', hints: ['สรุป', 'summary', 'เหตุการณ์'] },
+  ],
+};
+
 function formatDate(date: string | null | undefined) {
   if (!date) return '—';
   return new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function matchesDocument(filename: string, hints: string[]) {
+  const normalized = filename.toLowerCase();
+  return hints.some((hint) => normalized.includes(hint.toLowerCase()));
+}
+
+function checklistConfirmStorageKey(intakeId: string) {
+  return `intake-checklist-confirm:${intakeId}`;
+}
+
+function loadChecklistConfirmations(intakeId: string): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = sessionStorage.getItem(checklistConfirmStorageKey(intakeId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string',
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function saveChecklistConfirmations(intakeId: string, value: Record<string, string>) {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(checklistConfirmStorageKey(intakeId), JSON.stringify(value));
 }
 
 function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
@@ -109,7 +160,7 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
   );
 }
 
-type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | null;
+type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | 'details' | null;
 
 export default function IntakeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -120,6 +171,7 @@ export default function IntakeDetailPage() {
   const [modal, setModal] = useState<ModalType>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [quoteExportNotice, setQuoteExportNotice] = useState('');
 
   // Assess form
   const [assessNotes, setAssessNotes] = useState('');
@@ -134,6 +186,21 @@ export default function IntakeDetailPage() {
   const [preLitigationStatus, setPreLitigationStatus] = useState('NOT_STARTED');
   const [preLitigationNotes, setPreLitigationNotes] = useState('');
   const [settlementOfferAmount, setSettlementOfferAmount] = useState('');
+
+  // Matter / referral details (filled on detail after quick create)
+  const [editTitle, setEditTitle] = useState('');
+  const [editClientName, setEditClientName] = useState('');
+  const [editMatterType, setEditMatterType] = useState('');
+  const [editOpposingParty, setEditOpposingParty] = useState('');
+  const [editIncidentDate, setEditIncidentDate] = useState('');
+  const [editEstimatedDamage, setEditEstimatedDamage] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editReferralType, setEditReferralType] = useState('INDIVIDUAL');
+  const [editReferralChannel, setEditReferralChannel] = useState('WALK_IN');
+  const [editReferralName, setEditReferralName] = useState('');
+  const [editIsOngoingElsewhere, setEditIsOngoingElsewhere] = useState(false);
+  const [editExternalCaseNumber, setEditExternalCaseNumber] = useState('');
+  const [editCurrentStageNote, setEditCurrentStageNote] = useState('');
 
   // Notice form
   const [noticeRecipient, setNoticeRecipient] = useState('');
@@ -165,6 +232,10 @@ export default function IntakeDetailPage() {
    */
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [checklistSuggestions, setChecklistSuggestions] = useState<ChecklistClassificationSuggestion[]>([]);
+  const [confirmedChecklist, setConfirmedChecklist] = useState<Record<string, string>>({});
+  const [classifyingChecklist, setClassifyingChecklist] = useState(false);
+  const [classifyError, setClassifyError] = useState<string | null>(null);
 
   // Opening a case: reviewed once, in context, rather than a bare confirm box.
   const [converting, setConverting] = useState(false);
@@ -193,6 +264,13 @@ export default function IntakeDetailPage() {
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  useEffect(() => {
+    if (!id) return;
+    setConfirmedChecklist(loadChecklistConfirmations(id));
+    setChecklistSuggestions([]);
+    setClassifyError(null);
+  }, [id]);
 
   useEffect(() => {
     if (!token) return;
@@ -293,6 +371,24 @@ export default function IntakeDetailPage() {
     setModal('prelitigation');
   };
 
+  const openDetailsModal = () => {
+    if (!intake) return;
+    setEditTitle(intake.title || '');
+    setEditClientName(intake.clientName || '');
+    setEditMatterType(intake.matterType || '');
+    setEditOpposingParty(intake.opposingParty || '');
+    setEditIncidentDate(intake.incidentDate ? intake.incidentDate.slice(0, 10) : '');
+    setEditEstimatedDamage(intake.estimatedDamage != null ? String(intake.estimatedDamage) : '');
+    setEditDescription(intake.description || '');
+    setEditReferralType(intake.referralType || 'INDIVIDUAL');
+    setEditReferralChannel(intake.referralChannel || 'WALK_IN');
+    setEditReferralName(intake.referralName || '');
+    setEditIsOngoingElsewhere(!!intake.isOngoingElsewhere);
+    setEditExternalCaseNumber(intake.externalCaseNumber || '');
+    setEditCurrentStageNote(intake.currentStageNote || '');
+    setModal('details');
+  };
+
   const handlePreLitigationUpdate = async () => {
     if (!token || !id) return;
     setSubmitting(true);
@@ -313,12 +409,65 @@ export default function IntakeDetailPage() {
     }
   };
 
+  const handleDetailsUpdate = async () => {
+    if (!token || !id) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const payload: Record<string, unknown> = {
+        title: editTitle.trim() || undefined,
+        matterType: editMatterType || undefined,
+        opposingParty: editOpposingParty || undefined,
+        incidentDate: editIncidentDate || undefined,
+        description: editDescription || undefined,
+        estimatedDamage: editEstimatedDamage ? Number(editEstimatedDamage) : undefined,
+        referralType: editReferralType,
+        referralChannel: editReferralChannel,
+        referralName: editReferralName || undefined,
+        isOngoingElsewhere: editIsOngoingElsewhere,
+        externalCaseNumber: editIsOngoingElsewhere ? (editExternalCaseNumber || undefined) : undefined,
+        currentStageNote: editIsOngoingElsewhere ? (editCurrentStageNote || undefined) : undefined,
+      };
+      if (!intake?.clientId && editClientName.trim()) {
+        payload.clientName = editClientName.trim();
+      }
+      await api.updateIntake(token, id, payload);
+      await reload();
+      setModal(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleQuotePdfExport = () => {
+    setQuoteExportNotice(
+      'เตรียมใบเสนอราคา PDF แล้ว ขั้นนี้ยังไม่ดาวน์โหลดไฟล์ รอต่อ backend/export จริง',
+    );
+  };
+
+  const openNoticeModal = (analysisId?: string) => {
+    if (analysisId) setSelectedAnalysisId(analysisId);
+    setNoticeRecipient('');
+    setNoticeDeadline('');
+    setNoticeResult('');
+    setNoticeContent('');
+    setNoticeReviewed(false);
+    setError('');
+    setModal('notice');
+  };
+
   const handleDraftNotice = async () => {
     if (!token || !id) return;
     setDrafting(true);
     setError('');
     try {
-      const { content } = await api.draftNoticeIntake(token, id);
+      const { content } = await api.draftNoticeIntake(
+        token,
+        id,
+        selectedAnalysisId ?? undefined,
+      );
       setNoticeContent(content);
       setNoticeReviewed(false);
     } catch (err) {
@@ -348,19 +497,9 @@ export default function IntakeDetailPage() {
     }
   };
 
-  const handleDraftFromAnalysis = async (analysisId: string) => {
-    setModal('notice');
-    if (!token || !intake) return;
-    setDrafting(true);
-    try {
-      const { content } = await api.draftNoticeIntake(token, intake.id, analysisId);
-      setNoticeContent(content);
-      setNoticeReviewed(false);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
-    } finally {
-      setDrafting(false);
-    }
+  const handleDraftFromAnalysis = (analysisId: string) => {
+    // Open the form only — AI draft waits for the explicit button in the modal.
+    openNoticeModal(analysisId);
   };
 
   const handleUploadFiles = async (files: File[]) => {
@@ -385,13 +524,68 @@ export default function IntakeDetailPage() {
     setUploadingFiles(false);
   };
 
+  const requestChecklistSuggestions = async (documentIds: string[]) => {
+    if (!token || !intake || !documentIds.length) return;
+    const labels = (
+      PRE_LITIGATION_DOCUMENTS[intake.preLitigationType] ?? PRE_LITIGATION_DOCUMENTS.GENERAL
+    ).map((item) => item.label);
+    const confirmed = loadChecklistConfirmations(intake.id);
+    setClassifyingChecklist(true);
+    setClassifyError(null);
+    try {
+      const suggestions = await api.classifyIntakeChecklist(token, intake.id, documentIds, labels);
+      setChecklistSuggestions((previous) => {
+        const confirmedDocs = new Set(Object.values(confirmed));
+        const byDoc = new Map(previous.map((item) => [item.documentId, item]));
+        for (const suggestion of suggestions) {
+          if (confirmedDocs.has(suggestion.documentId)) continue;
+          if (confirmed[suggestion.label]) continue;
+          byDoc.set(suggestion.documentId, suggestion);
+        }
+        return [...byDoc.values()];
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 402) {
+        setClassifyError('เครดิต AI ไม่เพียงพอสำหรับแนะนำประเภทเอกสาร');
+      } else {
+        setClassifyError(err instanceof ApiError ? err.message : 'AI แนะนำประเภทเอกสารไม่สำเร็จ');
+      }
+    } finally {
+      setClassifyingChecklist(false);
+    }
+  };
+
+  const confirmChecklistSuggestion = (suggestion: ChecklistClassificationSuggestion) => {
+    if (!id) return;
+    setConfirmedChecklist((previous) => {
+      const next = { ...previous, [suggestion.label]: suggestion.documentId };
+      saveChecklistConfirmations(id, next);
+      return next;
+    });
+    setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== suggestion.documentId));
+  };
+
+  const dismissChecklistSuggestion = (documentId: string) => {
+    setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== documentId));
+  };
+
   const handleDeleteFile = async (documentId: string, filename: string) => {
     if (!token || !intake) return;
     if (!confirm(`ลบ ${filename}? ไฟล์จะหายจากเรื่องนี้ถาวร`)) return;
     setFileError(null);
     try {
       await api.deleteIntakeDocument(token, intake.id, documentId);
-      setSelectedAttachmentIds((previous) => previous.filter((id) => id !== documentId));
+      setSelectedAttachmentIds((previous) => previous.filter((docId) => docId !== documentId));
+      setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== documentId));
+      if (id) {
+        setConfirmedChecklist((previous) => {
+          const next = Object.fromEntries(
+            Object.entries(previous).filter(([, docId]) => docId !== documentId),
+          );
+          saveChecklistConfirmations(id, next);
+          return next;
+        });
+      }
       await loadDocuments();
     } catch (err) {
       setFileError(err instanceof ApiError ? err.message : 'ลบไฟล์ไม่สำเร็จ');
@@ -451,6 +645,18 @@ export default function IntakeDetailPage() {
   const currentStep = STEPS.indexOf(intake.status);
   const currentAnalysis =
     analyses.find((a) => a.id === selectedAnalysisId) ?? analyses[0];
+  const expectedDocuments =
+    PRE_LITIGATION_DOCUMENTS[intake.preLitigationType] ?? PRE_LITIGATION_DOCUMENTS.GENERAL;
+  const isChecklistMatched = (item: { label: string; hints: string[] }) =>
+    !!confirmedChecklist[item.label] ||
+    documents.some((doc) => matchesDocument(doc.filename, item.hints));
+  const matchedExpectedDocuments = expectedDocuments.filter(isChecklistMatched);
+  const missingExpectedDocuments = expectedDocuments.length - matchedExpectedDocuments.length;
+  const pendingSuggestions = checklistSuggestions.filter(
+    (suggestion) =>
+      !confirmedChecklist[suggestion.label] &&
+      !Object.values(confirmedChecklist).includes(suggestion.documentId),
+  );
 
   return (
     <div className="w-full space-y-6">
@@ -484,58 +690,112 @@ export default function IntakeDetailPage() {
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex flex-wrap gap-2">
-        {intake.status === 'RECEIVED' && (
-          <Button onClick={() => setModal('assess')}>บันทึกผลการประเมิน</Button>
-        )}
-        {intake.status === 'ASSESSING' && (
-          <Button onClick={() => setModal('decide')}>บันทึกการตัดสินใจ</Button>
-        )}
-        {intake.status === 'ACCEPTED' && (
-          <>
-            <Button variant="outline" onClick={() => setModal('notice')}>ออก Notice</Button>
-            <Button variant="outline" onClick={openPreLitigationModal}>อัปเดตงานก่อนฟ้อง</Button>
-            <Button onClick={() => setConverting(true)} disabled={submitting}>
-              {intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}
-            </Button>
-          </>
-        )}
-        {intake.status === 'CONVERTED' && intake.case && (
-          <Link href={`/cases/${intake.case.id}`}>
-            <Button variant="outline">ดูคดี {intake.case.ownRef}</Button>
-          </Link>
-        )}
-        {!intake.case && intake.relatedCase && (
-          <Link href={`/cases/${intake.relatedCase.id}`}>
-            <Button variant="outline">ดูคดีที่เกี่ยวข้อง {intake.relatedCase.ownRef}</Button>
-          </Link>
-        )}
-        {intake.status !== 'REJECTED' &&
-          intake.status !== 'CONVERTED' &&
-          intake.status !== 'CONSULTED' && (
-            <Button
-              variant="outline"
-              onClick={handleRunPrecedentAnalysis}
-              disabled={analyzing || uploadingFiles}
-            >
-              {analyzing ? 'กำลังวิเคราะห์...' : `วิเคราะห์เรื่อง + ไฟล์ที่เลือก (${selectedAttachmentIds.length})`}
-            </Button>
-          )}
-      </div>
-
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
       )}
+      {quoteExportNotice && (
+        <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
+          {quoteExportNotice}
+        </p>
+      )}
+
+      <Card>
+        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-base">สถานะรับเรื่องก่อนฟ้อง</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {PRE_LITIGATION_TYPE_LABELS[intake.preLitigationType] ?? intake.preLitigationType} · {PRE_LITIGATION_STATUS_LABELS[intake.preLitigationStatus] ?? intake.preLitigationStatus}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {intake.status === 'RECEIVED' && (
+              <Button onClick={() => setModal('assess')}>บันทึกผลประเมิน</Button>
+            )}
+            {intake.status === 'ASSESSING' && (
+              <Button onClick={() => setModal('decide')}>ตัดสินใจแนวทาง</Button>
+            )}
+            {intake.status === 'ACCEPTED' && (
+              <Button variant="outline" onClick={() => openNoticeModal()}>ออก Notice</Button>
+            )}
+            {intake.status !== 'CONVERTED' && (
+              <Button variant="outline" onClick={handleQuotePdfExport}>
+                Export ใบเสนอราคา PDF
+              </Button>
+            )}
+            {intake.status !== 'CONVERTED' && (
+              <Button variant="outline" onClick={openPreLitigationModal}>อัปเดต</Button>
+            )}
+            {intake.status === 'ACCEPTED' && (
+              <Button onClick={() => setConverting(true)} disabled={submitting}>
+                {intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}
+              </Button>
+            )}
+            {intake.status === 'CONVERTED' && intake.case && (
+              <Link href={`/cases/${intake.case.id}`}>
+                <Button variant="outline">ดูคดี {intake.case.ownRef}</Button>
+              </Link>
+            )}
+            {!intake.case && intake.relatedCase && (
+              <Link href={`/cases/${intake.relatedCase.id}`}>
+                <Button variant="outline">ดูคดีที่เกี่ยวข้อง</Button>
+              </Link>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg bg-muted/35 p-3">
+              <p className="text-xs text-muted-foreground">ขั้นตอนตอนนี้</p>
+              <p className="mt-1 font-medium">{PRE_LITIGATION_STATUS_LABELS[intake.preLitigationStatus] ?? intake.preLitigationStatus}</p>
+            </div>
+            <div className="rounded-lg bg-muted/35 p-3">
+              <p className="text-xs text-muted-foreground">เอกสารพร้อม</p>
+              <p className="mt-1 font-medium">
+                {matchedExpectedDocuments.length}/{expectedDocuments.length}
+                {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตาม checklist'}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/35 p-3">
+              <p className="text-xs text-muted-foreground">ข้อเสนอจ่าย</p>
+              <p className="mt-1 font-medium">
+                {intake.settlementOfferAmount != null ? `${intake.settlementOfferAmount.toLocaleString('th-TH')} บาท` : 'ยังไม่มี'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(PRE_LITIGATION_GUIDE[intake.preLitigationType] ?? PRE_LITIGATION_GUIDE.GENERAL).map((step) => (
+              <span key={step} className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                {step}
+              </span>
+            ))}
+          </div>
+
+          <div className="rounded-lg bg-muted/35 p-3">
+            <p className="text-sm font-medium">บันทึกล่าสุด</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+              {intake.preLitigationNotes || intake.noticeResult || 'ยังไม่มีบันทึกก่อนฟ้อง'}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {currentAnalysis?.extractedFacts?.selectedAttachments && <p className="text-xs text-muted-foreground">ไฟล์ที่ใช้ในผลวิเคราะห์ที่แสดง: {currentAnalysis.extractedFacts.selectedAttachments.map((file) => file.filename).join(', ') || 'ใช้เฉพาะรายละเอียดเรื่อง'}</p>}
       {currentAnalysis?.extractedFacts?.attachmentWarnings?.map((warning) => <p key={warning} className="text-sm text-destructive">{warning}</p>)}
       {analysisError && <p className="text-sm text-destructive">{analysisError}</p>}
 
-      <Card id="intake-files"><CardContent className="pt-5">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium">ไฟล์ของเรื่องนี้</p>
+      <Card id="intake-files">
+        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-base">เอกสารของเรื่องนี้</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              checklist กับไฟล์ที่อัปโหลดอยู่ด้วยกัน — จับคู่จากชื่อไฟล์เบื้องต้น แล้ววิเคราะห์ต่อได้เลย
+            </p>
+          </div>
+          {intake.status !== 'REJECTED' &&
+            intake.status !== 'CONVERTED' &&
+            intake.status !== 'CONSULTED' && (
+              <div className="flex flex-wrap gap-2 sm:justify-end">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -556,9 +816,103 @@ export default function IntakeDetailPage() {
                 >
                   {uploadingFiles ? 'กำลังอัปโหลด...' : '+ เพิ่มไฟล์'}
                 </Button>
+                <Button
+                  size="sm"
+                  onClick={handleRunPrecedentAnalysis}
+                  disabled={analyzing || uploadingFiles}
+                >
+                  {analyzing ? 'กำลังวิเคราะห์...' : `วิเคราะห์เรื่อง + ไฟล์ที่เลือก (${selectedAttachmentIds.length})`}
+                </Button>
               </div>
-              <p className="text-xs text-muted-foreground">ประเมินเรื่องพร้อมค้นแนวคำพิพากษา (คนละบริการกับการวิเคราะห์เนื้อหาไฟล์) · ไฟล์แนบตามไปกับคดีเมื่อเปิดคดี · แนบได้เฉพาะ PDF ไม่เกิน 10MB ต่อไฟล์ · เลือกได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์ · {AI_CREDIT_COST.PRECEDENT_ANALYSIS} เครดิตต่อครั้ง</p>
-              <div className="my-3 flex flex-wrap gap-2">
+            )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">เอกสารที่คาดว่าจะถูกส่งเข้ามา</p>
+              {documents.length > 0 &&
+                intake.status !== 'REJECTED' &&
+                intake.status !== 'CONVERTED' &&
+                intake.status !== 'CONSULTED' && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={classifyingChecklist || uploadingFiles || analyzing}
+                    onClick={() => requestChecklistSuggestions(documents.map((doc) => doc.id).slice(0, 10))}
+                  >
+                    {classifyingChecklist ? 'AI กำลังแนะนำ...' : 'ให้ AI แนะนำประเภท'}
+                  </Button>
+                )}
+            </div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {expectedDocuments.map((item) => {
+                const matched = isChecklistMatched(item);
+                const confirmedDocId = confirmedChecklist[item.label];
+                const confirmedDoc = confirmedDocId
+                  ? documents.find((doc) => doc.id === confirmedDocId)
+                  : undefined;
+                const pending = pendingSuggestions.find((suggestion) => suggestion.label === item.label);
+                return (
+                  <div key={item.label} className="rounded-lg border border-transparent px-1 py-0.5 text-sm">
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${matched ? 'bg-green-100 text-green-700' : pending ? 'bg-amber-100 text-amber-800' : 'bg-muted text-muted-foreground'}`}>
+                        {matched ? '✓' : pending ? '?' : '○'}
+                      </span>
+                      <div className="min-w-0">
+                        <span className={matched ? 'text-foreground' : 'text-muted-foreground'}>
+                          {item.label}
+                        </span>
+                        {confirmedDoc && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">ยืนยันแล้ว: {confirmedDoc.filename}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              พร้อม {matchedExpectedDocuments.length}/{expectedDocuments.length}
+              {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตาม checklist'}
+              {' · '}จับคู่ชื่อไฟล์อัตโนมัติ หรือกด「ให้ AI แนะนำประเภท」แล้วยืนยัน
+              {' · '}แนบได้เฉพาะ PDF ไม่เกิน 10MB · เลือกวิเคราะห์ได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์ · แนะนำประเภท {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิต
+            </p>
+            {classifyError && (
+              <p className="mt-2 text-sm text-destructive" role="alert">{classifyError}</p>
+            )}
+            {pendingSuggestions.length > 0 && (
+              <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
+                <p className="text-sm font-medium text-amber-950">AI แนะนำประเภทเอกสาร — ยืนยันก่อนติ๊ก checklist</p>
+                {pendingSuggestions.map((suggestion) => (
+                  <div key={suggestion.documentId} className="flex flex-wrap items-start justify-between gap-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium text-amber-950">
+                        {suggestion.filename}
+                        <span className="font-normal text-amber-900"> → {suggestion.label}</span>
+                      </p>
+                      {suggestion.sourceExcerpt && (
+                        <p className="mt-0.5 text-xs text-amber-900/80">“{suggestion.sourceExcerpt}”</p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button type="button" size="sm" onClick={() => confirmChecklistSuggestion(suggestion)}>
+                        ยืนยัน
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => dismissChecklistSuggestion(suggestion.documentId)}>
+                        ไม่ใช่
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t pt-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">ไฟล์ที่อัปโหลดแล้ว ({documents.length})</p>
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   size="sm"
@@ -568,64 +922,72 @@ export default function IntakeDetailPage() {
                 >
                   {selectedAttachmentIds.length ? 'ยกเลิกเลือกทั้งหมด' : 'เลือกทั้งหมด (สูงสุด 10)'}
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={analyzing || uploadingFiles || !selectedAttachmentIds.length}
-                  onClick={handleRunPrecedentAnalysis}
-                >
-                  {analyzing ? 'กำลังวิเคราะห์รวม…' : `วิเคราะห์ ${selectedAttachmentIds.length} ไฟล์ที่เลือก`}
-                </Button>
               </div>
-              {fileError && <p className="mt-1 text-sm text-destructive" role="alert">{fileError}</p>}
-              {documentsError && (
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <p className="text-sm text-destructive" role="alert">{documentsError}</p>
-                  <Button type="button" size="sm" variant="outline" onClick={loadDocuments}>ลองใหม่</Button>
-                </div>
-              )}
-              {documents.length > 0 ? (
-                <ul className="mt-2 space-y-1">
-                  {documents.map((doc) => {
-                    const selected = selectedAttachmentIds.includes(doc.id);
-                    return (
-                      <li key={doc.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3 text-sm">
-                        <label className="flex min-w-0 flex-1 items-start gap-2">
-                          <input
-                            type="checkbox"
-                            className="mt-1"
-                            checked={selected}
-                            disabled={analyzing || uploadingFiles || (!selected && selectedAttachmentIds.length >= 10)}
-                            onChange={() => setSelectedAttachmentIds((previous) => previous.includes(doc.id) ? previous.filter((id) => id !== doc.id) : [...previous, doc.id])}
-                          />
-                          <span className="min-w-0 break-words">{doc.filename}</span>
-                        </label>
-                        <div className="flex shrink-0 items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadDocument(doc)}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            ดาวน์โหลด
-                          </button>
-                          <button
-                            type="button"
-                            disabled={analyzing || uploadingFiles}
-                            onClick={() => handleDeleteFile(doc.id, doc.filename)}
-                            className="text-xs text-destructive hover:underline disabled:opacity-50"
-                          >
-                            ลบ
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                !documentsError && <p className="mt-2 text-sm text-muted-foreground">ยังไม่มีไฟล์ — กด “เพิ่มไฟล์” เพื่ออัปโหลด</p>
-              )}
             </div>
-      </CardContent></Card>
+            {fileError && <p className="mb-2 text-sm text-destructive" role="alert">{fileError}</p>}
+            {documentsError && (
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <p className="text-sm text-destructive" role="alert">{documentsError}</p>
+                <Button type="button" size="sm" variant="outline" onClick={loadDocuments}>ลองใหม่</Button>
+              </div>
+            )}
+              {documents.length > 0 ? (
+              <ul className="space-y-1">
+                {documents.map((doc) => {
+                  const selected = selectedAttachmentIds.includes(doc.id);
+                  const suggestion = pendingSuggestions.find((item) => item.documentId === doc.id);
+                  const confirmedLabel = Object.entries(confirmedChecklist).find(([, docId]) => docId === doc.id)?.[0];
+                  return (
+                    <li key={doc.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                      <label className="flex min-w-0 flex-1 items-start gap-2">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={selected}
+                          disabled={analyzing || uploadingFiles || (!selected && selectedAttachmentIds.length >= 10)}
+                          onChange={() => setSelectedAttachmentIds((previous) => previous.includes(doc.id) ? previous.filter((id) => id !== doc.id) : [...previous, doc.id])}
+                        />
+                        <span className="min-w-0">
+                          <span className="break-words">{doc.filename}</span>
+                          {confirmedLabel && (
+                            <span className="mt-1 block text-xs text-green-700">ยืนยันแล้ว: {confirmedLabel}</span>
+                          )}
+                          {!confirmedLabel && suggestion && (
+                            <span className="mt-1 block text-xs text-amber-800">AI แนะนำ: {suggestion.label}</span>
+                          )}
+                        </span>
+                      </label>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadDocument(doc)}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          ดาวน์โหลด
+                        </button>
+                        <button
+                          type="button"
+                          disabled={analyzing || uploadingFiles}
+                          onClick={() => handleDeleteFile(doc.id, doc.filename)}
+                          className="text-xs text-destructive hover:underline disabled:opacity-50"
+                        >
+                          ลบ
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              !documentsError && (
+                <p className="text-sm text-muted-foreground">
+                  ยังไม่มีไฟล์ — กด “เพิ่มไฟล์” เพื่ออัปโหลดเอกสารตาม checklist ด้านบน
+                </p>
+              )
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {analyses.length > 0 && (
         <Card className="mt-4">
@@ -718,7 +1080,7 @@ export default function IntakeDetailPage() {
                       className="mt-2"
                       onClick={() => handleDraftFromAnalysis(current.id)}
                     >
-                      ร่างหนังสือแจ้งเลย
+                      เปิดฟอร์ม Notice
                     </Button>
                   </div>
 
@@ -734,6 +1096,14 @@ export default function IntakeDetailPage() {
 
       {/* Info cards */}
       <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2 flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold">ข้อมูลเรื่อง</h2>
+          {intake.status !== 'CONVERTED' && (
+            <Button variant="outline" size="sm" onClick={openDetailsModal}>
+              แก้ไขรายละเอียด
+            </Button>
+          )}
+        </div>
         <Card>
           <CardHeader><CardTitle className="text-base">ผู้ส่งเรื่อง</CardTitle></CardHeader>
           <CardContent className="space-y-0">
@@ -769,18 +1139,6 @@ export default function IntakeDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="sm:col-span-2">
-          <CardHeader><CardTitle className="text-base">เอกสารประกอบ</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              ไฟล์ทั้งหมดของเรื่องนี้อยู่ในรายการเดียวด้านบน{' '}
-              <a href="#intake-files" className="text-primary hover:underline">
-                ไปที่รายการไฟล์ ({documents.length})
-              </a>
-            </p>
-          </CardContent>
-        </Card>
-
         {(intake.assessmentNotes || intake.caseStrength || intake.assessor) && (
           <Card>
             <CardHeader><CardTitle className="text-base">ผลการประเมิน</CardTitle></CardHeader>
@@ -791,36 +1149,6 @@ export default function IntakeDetailPage() {
             </CardContent>
           </Card>
         )}
-
-        <Card className="sm:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base">งานก่อนฟ้อง</CardTitle>
-            {intake.status !== 'CONVERTED' && (
-              <Button size="sm" variant="outline" onClick={openPreLitigationModal}>
-                อัปเดต
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <InfoRow label="Flow" value={PRE_LITIGATION_TYPE_LABELS[intake.preLitigationType] ?? intake.preLitigationType} />
-              <InfoRow label="สถานะ" value={PRE_LITIGATION_STATUS_LABELS[intake.preLitigationStatus] ?? intake.preLitigationStatus} />
-              <InfoRow label="ข้อเสนอจ่าย" value={intake.settlementOfferAmount != null ? `${intake.settlementOfferAmount.toLocaleString('th-TH')} บาท` : undefined} />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {(PRE_LITIGATION_GUIDE[intake.preLitigationType] ?? PRE_LITIGATION_GUIDE.GENERAL).map((step) => (
-                <span key={step} className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                  {step}
-                </span>
-              ))}
-            </div>
-            {intake.preLitigationNotes && (
-              <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
-                {intake.preLitigationNotes}
-              </p>
-            )}
-          </CardContent>
-        </Card>
 
         {(intake.decision !== 'PENDING' || intake.decisionNotes) && (
           <Card>
@@ -854,7 +1182,7 @@ export default function IntakeDetailPage() {
       {/* Modals */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-background p-6 shadow-xl">
+          <div className={`w-full rounded-xl bg-background p-6 shadow-xl ${modal === 'details' ? 'max-w-lg' : 'max-w-md'}`}>
             {modal === 'assess' && (
               <>
                 <h2 className="mb-4 text-lg font-semibold">บันทึกผลการประเมิน</h2>
@@ -972,13 +1300,161 @@ export default function IntakeDetailPage() {
                       onChange={(e) => setPreLitigationNotes(e.target.value)}
                       rows={4}
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
-                      placeholder="เช่น จ่ายน้อยไป ลูกความยังไม่รับ / ยื่นขอทบทวนความเห็นแล้ว / ขนส่งไม่ตอบ notice"
+                      placeholder="เช่น รอกรมธรรม์ แบบฟอร์มเรียกร้อง เวชระเบียน peer review และสรุปเหตุการณ์ / จ่ายน้อยไป ลูกความยังไม่รับ / ยื่นขอทบทวนความเห็นแล้ว"
                     />
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setModal(null)}>ยกเลิก</Button>
                   <Button onClick={handlePreLitigationUpdate} disabled={submitting}>
+                    {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {modal === 'details' && (
+              <>
+                <h2 className="mb-4 text-lg font-semibold">แก้ไขรายละเอียดเรื่อง</h2>
+                <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+                  <div>
+                    <label className="block text-sm font-medium">ชื่อเรื่อง</label>
+                    <input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                  {!intake?.clientId && (
+                    <div>
+                      <label className="block text-sm font-medium">ชื่อลูกค้า</label>
+                      <input
+                        value={editClientName}
+                        onChange={(e) => setEditClientName(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium">ประเภทเรื่อง</label>
+                      <select
+                        value={editMatterType}
+                        onChange={(e) => setEditMatterType(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">ยังไม่ทราบ</option>
+                        {Object.entries(MATTER_TYPE_LABELS).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium">คู่กรณี</label>
+                      <input
+                        value={editOpposingParty}
+                        onChange={(e) => setEditOpposingParty(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium">วันเกิดเหตุ</label>
+                      <input
+                        type="date"
+                        value={editIncidentDate}
+                        onChange={(e) => setEditIncidentDate(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium">ความเสียหายโดยประมาณ (บาท)</label>
+                      <input
+                        type="number"
+                        value={editEstimatedDamage}
+                        onChange={(e) => setEditEstimatedDamage(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                        min={0}
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">รายละเอียด</label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium">ประเภทผู้ส่ง</label>
+                      <select
+                        value={editReferralType}
+                        onChange={(e) => setEditReferralType(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        {Object.entries(REFERRAL_TYPE_LABELS).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium">ช่องทาง</label>
+                      <select
+                        value={editReferralChannel}
+                        onChange={(e) => setEditReferralChannel(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        {Object.entries(REFERRAL_CHANNEL_LABELS).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">ชื่อผู้ส่งเรื่อง</label>
+                    <input
+                      value={editReferralName}
+                      onChange={(e) => setEditReferralName(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editIsOngoingElsewhere}
+                      onChange={(e) => setEditIsOngoingElsewhere(e.target.checked)}
+                    />
+                    มีคดีที่ดำเนินอยู่กับทนายหรือสำนักงานอื่น
+                  </label>
+                  {editIsOngoingElsewhere && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium">เลขคดี/หมายเลขดำ</label>
+                        <input
+                          value={editExternalCaseNumber}
+                          onChange={(e) => setEditExternalCaseNumber(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">สถานะปัจจุบัน</label>
+                        <input
+                          value={editCurrentStageNote}
+                          onChange={(e) => setEditCurrentStageNote(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setModal(null)}>ยกเลิก</Button>
+                  <Button onClick={handleDetailsUpdate} disabled={submitting}>
                     {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
                   </Button>
                 </div>

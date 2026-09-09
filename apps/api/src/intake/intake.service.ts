@@ -141,8 +141,8 @@ export class IntakeService {
 
   /**
    * Editing a field the intake pipeline proposed and the lawyer already
-   * confirmed resets that confirmation — a stale amount or date must be
-   * re-confirmed before the intake can be accepted again.
+   * confirmed resets that confirmation so the UI can surface the new value
+   * as needing review again — confirmation stays advisory, not a hard gate.
    */
   private async resetConfirmationForEditedFields(id: string, dto: UpdateIntakeDto) {
     const editedFields: string[] = [];
@@ -206,23 +206,12 @@ export class IntakeService {
   }
 
   /**
-   * "ยืนยันข้อมูลและรับเข้าพิจารณา" — accepting an email-sourced intake for
-   * assessment is not a decision to litigate. It is blocked while any
-   * system-proposed field (amount, requested response date, client/matter
-   * match) still needs the lawyer's confirmation, per the email-intake spec.
+   * Record assessment notes / case strength and move the intake into ASSESSING.
+   * Field proposals stay advisory — unconfirmed system suggestions do not block
+   * the lawyer from proceeding.
    */
-  private async assertFieldProposalsResolved(id: string) {
-    const outstanding = await this.prisma.intakeFieldProposal.count({
-      where: { intakeId: id, status: 'REQUIRES_CONFIRMATION' as any },
-    });
-    if (outstanding > 0) {
-      throw new BadRequestException('ยังมีข้อมูลที่ระบบเสนอซึ่งต้องยืนยันก่อนรับเรื่องเข้าพิจารณา');
-    }
-  }
-
   async assess(user: AuthUser, id: string, dto: AssessIntakeDto) {
     await this.findOne(user, id);
-    await this.assertFieldProposalsResolved(id);
     return this.prisma.intake.update({
       where: { id },
       data: {

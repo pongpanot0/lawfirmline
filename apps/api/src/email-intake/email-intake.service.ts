@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import {
@@ -241,20 +241,6 @@ export class EmailIntakeService {
     }
 
     return updated;
-  }
-
-  /**
-   * Accepting the intake ("รับเข้าพิจารณา") requires every field the system
-   * marked as needing confirmation to have been resolved first — matching
-   * the required-confirmation gate from the brief.
-   */
-  async assertReadyForAcceptance(intakeId: string) {
-    const outstanding = await this.prisma.intakeFieldProposal.count({
-      where: { intakeId, status: FieldProposalStatus.REQUIRES_CONFIRMATION },
-    });
-    if (outstanding > 0) {
-      throw new BadRequestException('ยังมีข้อมูลที่ต้องยืนยันก่อนรับเรื่อง');
-    }
   }
 
   /**

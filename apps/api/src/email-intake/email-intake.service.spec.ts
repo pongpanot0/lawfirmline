@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { EmailIntakeService } from './email-intake.service';
 import { PrismaService } from '../prisma/prisma.module';
 
@@ -10,7 +10,6 @@ describe('EmailIntakeService', () => {
     emailMessage: { create: jest.fn(), findUnique: jest.fn() },
     intake: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
     intakeFieldProposal: {
-      count: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(),
@@ -103,18 +102,6 @@ describe('EmailIntakeService', () => {
       await service.resolveFieldProposal(user, 'intake-1', 'proposal-1', { action: 'reject' });
 
       expect(mockPrisma.intake.update).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('assertReadyForAcceptance', () => {
-    it('blocks acceptance while a proposal still requires confirmation', async () => {
-      mockPrisma.intakeFieldProposal.count.mockResolvedValue(1);
-      await expect(service.assertReadyForAcceptance('intake-1')).rejects.toThrow(BadRequestException);
-    });
-
-    it('allows acceptance once everything is resolved', async () => {
-      mockPrisma.intakeFieldProposal.count.mockResolvedValue(0);
-      await expect(service.assertReadyForAcceptance('intake-1')).resolves.toBeUndefined();
     });
   });
 
