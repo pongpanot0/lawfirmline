@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   EXPENSE_CATEGORIES,
   MONEY_HINT,
@@ -12,7 +12,7 @@ import {
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, CaseItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,8 @@ export default function NewExpensePage() {
   const d = useDashboardT();
   const { token } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const caseIdParam = searchParams.get('caseId') ?? '';
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -37,6 +39,13 @@ export default function NewExpensePage() {
     if (!token) return;
     api.getCases(token).then(setCases).catch(() => setCases([]));
   }, [token]);
+
+  useEffect(() => {
+    if (!caseIdParam) return;
+    setForm((current) =>
+      current.caseId === caseIdParam ? current : { ...current, caseId: caseIdParam },
+    );
+  }, [caseIdParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +150,11 @@ export default function NewExpensePage() {
                   </option>
                 ))}
               </select>
+              {caseIdParam && form.caseId === caseIdParam && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  เลือกคดีจากหน้าที่แล้วให้อัตโนมัติ เปลี่ยนได้ถ้าต้องการ
+                </p>
+              )}
             </div>
 
             {error && <p className="text-sm text-destructive md:col-span-2">{error}</p>}

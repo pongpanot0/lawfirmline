@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { CreateReviewRoundDialog } from '@/components/documents/CreateReviewRoundDialog';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
 const VERSION_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'ฉบับร่าง',
@@ -174,7 +175,7 @@ export default function DocumentReviewPage() {
   };
 
   if (loadError) return <LoadFailed onRetry={load} />;
-  if (loading || !document) return <p className="text-muted-foreground">กำลังโหลด...</p>;
+  if (loading || !document) return <PageLoading title="กำลังโหลดหน้าตรวจเอกสาร" lines={3} />;
 
   return (
     <div className="pb-24">
@@ -223,7 +224,7 @@ export default function DocumentReviewPage() {
 
             {!activeRound && latestVersion && (
               <div className="mt-4 border-t pt-4">
-                <p className="mb-2 text-sm text-muted-foreground">ยังไม่มีการส่งตรวจฉบับนี้</p>
+                <InlineEmptyState title="ยังไม่มีการส่งตรวจฉบับนี้" description="ส่งตรวจเมื่อเอกสารพร้อมให้ผู้เกี่ยวข้องอนุมัติหรือส่งกลับแก้ไข" />
                 <Button size="sm" onClick={() => setShowCreateRound(true)}>
                   ส่งตรวจฉบับนี้
                 </Button>
@@ -321,7 +322,7 @@ export default function DocumentReviewPage() {
                 )}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">ยังไม่มีรอบตรวจ</p>
+              <InlineEmptyState title="ยังไม่มีรอบตรวจ" description="เมื่อส่งตรวจแล้ว สถานะของผู้ตรวจแต่ละคนจะแสดงที่นี่" />
             )}
           </CardContent>
         </Card>

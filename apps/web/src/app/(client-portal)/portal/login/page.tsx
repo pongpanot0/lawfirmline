@@ -36,7 +36,7 @@ export default function PortalLoginPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Scale className="h-4 w-4" />
             </div>
-            <span className="text-base font-extrabold">LexFlow — พอร์ทัลลูกความ</span>
+            <span className="text-base font-extrabold">Samnuan — พอร์ทัลลูกความ</span>
           </div>
           <h1 className="mb-1.5 text-[19px] font-bold">ตรวจสอบคดีของคุณออนไลน์</h1>
           <p className="mb-6 text-sm leading-relaxed text-muted-foreground">

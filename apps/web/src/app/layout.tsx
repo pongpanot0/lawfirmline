@@ -5,8 +5,12 @@ import { LocaleProvider } from '@/components/landing/LocaleProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'LexFlow — Legal Case Management',
+  title: 'Samnuan — Legal Case Management',
   description: 'Modern case management SaaS for Thai law firms',
+  icons: {
+    icon: '/brand/samnuan-icon.png',
+    apple: '/brand/samnuan-icon.png',
+  },
 };
 
 export const viewport: Viewport = {

@@ -6,10 +6,11 @@ import { FirmRole } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, CourtItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { EmptyState } from '@/components/ui/misc';
 
 export default function CourtsPage() {
   const d = useDashboardT();
@@ -43,8 +44,8 @@ export default function CourtsPage() {
   return (
     <div>
       <PageHeader
-        title="{d.admin.courtsTitle}"
-        description="{d.admin.courtsDescription}"
+        title={d.admin.courtsTitle}
+        description={d.admin.courtsDescription}
         actions={
           <Button size="sm" onClick={() => setShowForm(!showForm)}>
             <Plus className="h-4 w-4" />{d.admin.addCourt}
@@ -82,7 +83,9 @@ export default function CourtsPage() {
       )}
 
       <div className="space-y-2">
-        {courts.map((court) => (
+        {courts.length === 0 ? (
+          <EmptyState title="ยังไม่มีข้อมูลศาล" description="เพิ่มศาลที่ใช้บ่อยเพื่อให้การเปิดคดีและนัดศาลเลือกจากรายการได้ทันที" />
+        ) : courts.map((court) => (
           <Card key={court.id} className={!court.isActive ? 'opacity-50' : ''}>
             <CardContent className="flex items-center justify-between p-4">
               <div>

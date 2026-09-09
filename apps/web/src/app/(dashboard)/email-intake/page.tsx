@@ -6,7 +6,7 @@ import { Mail, Paperclip } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, EmailThreadListItem } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/misc';
+import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -66,7 +66,9 @@ export default function EmailIntakePage() {
               <LoadFailed onRetry={() => setReloadKey((k) => k + 1)} />
             </div>
           ) : loading ? (
-            <p className="p-8 text-center text-muted-foreground">กำลังโหลด...</p>
+            <div className="p-4">
+              <PageLoading title="กำลังโหลดอีเมล" lines={3} />
+            </div>
           ) : threads.length === 0 ? (
             <EmptyState icon={Mail} title="ยังไม่มีอีเมลรอรับเรื่อง" description="เมื่อมีอีเมลใหม่เข้ามา รายการจะแสดงที่นี่" />
           ) : (

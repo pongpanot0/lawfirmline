@@ -10,6 +10,7 @@ import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, UserItem, A
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState, PageLoading } from '@/components/ui/misc';
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -380,8 +381,8 @@ export default function IntakeDetailPage() {
     }
   };
 
-  if (loading) return <p className="p-8 text-center text-muted-foreground">กำลังโหลด...</p>;
-  if (!intake) return <p className="p-8 text-center text-muted-foreground">ไม่พบข้อมูล</p>;
+  if (loading) return <PageLoading title="กำลังโหลดเรื่องรับเข้า" lines={4} />;
+  if (!intake) return <EmptyState title="ไม่พบข้อมูล" description="เรื่องรับเข้านี้อาจถูกลบหรือแปลงเป็นคดีไปแล้ว" />;
 
   const STEPS = ['RECEIVED', 'ASSESSING', 'ACCEPTED'];
   const currentStep = STEPS.indexOf(intake.status);

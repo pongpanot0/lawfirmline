@@ -7,10 +7,11 @@ import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { api, CaseTypeItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { EmptyState } from '@/components/ui/misc';
 
 export default function CaseTypesPage() {
   const d = useDashboardT();
@@ -44,8 +45,8 @@ export default function CaseTypesPage() {
   return (
     <div>
       <PageHeader
-        title="{d.admin.caseTypesTitle}"
-        description="{d.admin.caseTypesDescription}"
+        title={d.admin.caseTypesTitle}
+        description={d.admin.caseTypesDescription}
         actions={
           <Button size="sm" onClick={() => setShowForm(!showForm)} className="w-full sm:w-auto">
             <Plus className="h-4 w-4" />
@@ -84,7 +85,11 @@ export default function CaseTypesPage() {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {types.map((t) => (
+        {types.length === 0 ? (
+          <div className="sm:col-span-2 lg:col-span-3">
+            <EmptyState title="ยังไม่มีประเภทคดี" description="เพิ่มประเภทคดีแรกเพื่อใช้เลือกตอนเปิดคดีและตั้ง deadline rule เฉพาะประเภทได้" />
+          </div>
+        ) : types.map((t) => (
           <Card key={t.id} className={!t.isActive ? 'opacity-60' : undefined}>
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-2">

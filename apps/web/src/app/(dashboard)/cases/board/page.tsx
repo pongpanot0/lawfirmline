@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, CaseItem } from '@/lib/api';
 import { CaseWorkflowBoard } from '@/components/CaseWorkflowBoard';
+import { PageLoading } from '@/components/ui/misc';
 
 export default function CaseBoardPage() {
   const d = useDashboardT();
@@ -62,7 +63,7 @@ export default function CaseBoardPage() {
       {loadError ? (
         <LoadFailed onRetry={load} />
       ) : loading ? (
-        <p className="text-slate-500">{d.admin.loadingBoard}</p>
+        <PageLoading title={d.admin.loadingBoard} lines={4} />
       ) : (
         <CaseWorkflowBoard
           cases={cases}

@@ -7,7 +7,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { PHONE_HINT, PHONE_HTML } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

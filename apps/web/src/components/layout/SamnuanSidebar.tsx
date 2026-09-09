@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
+import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -69,14 +70,14 @@ const NAV_ITEMS = [
   { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false, group: 'firm' },
 ] as const;
 
-interface LexFlowSidebarProps {
+interface SamnuanSidebarProps {
   user: AuthUser;
   onLogout: () => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
 
-export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClose }: LexFlowSidebarProps) {
+export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClose }: SamnuanSidebarProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const d = useDashboardT();
@@ -95,12 +96,10 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
       )}
     >
       <div className={cn('flex h-14 items-center gap-2 border-b border-sidebar-border px-4', collapsed && 'md:justify-center md:px-2')}>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Scale className="h-4 w-4" />
-        </div>
+        <SamnuanLogo wordmark={false} markClassName="h-8 w-8" />
         {(!collapsed || mobileOpen) && (
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold tracking-tight text-foreground">LexFlow</p>
+            <p className="text-sm font-bold tracking-tight text-foreground">Samnuan</p>
             <p className="truncate text-[10px] text-muted-foreground">{d.nav.tagline}</p>
           </div>
         )}

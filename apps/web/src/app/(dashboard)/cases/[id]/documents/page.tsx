@@ -11,6 +11,7 @@ import { PublishDocumentDialog } from '@/components/documents/PublishDocumentDia
 import { DocumentDropZone, DocumentDropZoneHandle } from '@/components/DocumentDropZone';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { Button } from '@/components/ui/button';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -185,7 +186,7 @@ export default function CaseDocumentsPage() {
     setRendered(result);
   };
 
-  if (loading) return <p className="text-muted-foreground">{d.documents.loading}</p>;
+  if (loading) return <PageLoading title={d.documents.loading} lines={3} />;
 
   return (
     <div>
@@ -344,7 +345,18 @@ export default function CaseDocumentsPage() {
               </div>
             </div>
           ))}
-          {documents.length === 0 && <p className="text-sm text-muted-foreground">{d.caseDocuments.noDocuments}</p>}
+          {documents.length === 0 && (
+            <InlineEmptyState
+              title={d.caseDocuments.noDocuments}
+              description="อัปโหลดไฟล์แรกของคดีนี้ หรือใช้ AI วิเคราะห์ไฟล์หลังอัปโหลด"
+              action={
+                <Button type="button" size="sm" onClick={() => dropRef.current?.open()}>
+                  <Upload className="h-4 w-4" />
+                  {d.caseDocuments.uploadDocument}
+                </Button>
+              }
+            />
+          )}
         </div>
       </div>
 

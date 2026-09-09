@@ -53,7 +53,7 @@ export default function PortalInviteAcceptPage() {
           ) : invite ? (
             <>
               <h1 className="text-[19px] font-bold">คุณได้รับเชิญเข้าใช้พอร์ทัลลูกความ</h1>
-              <p className="mb-4 text-sm text-muted-foreground">สำนักงาน LexFlow เปิดใช้งานพอร์ทัลสำหรับติดตามคดีให้กับ</p>
+              <p className="mb-4 text-sm text-muted-foreground">สำนักงาน Samnuan เปิดใช้งานพอร์ทัลสำหรับติดตามคดีให้กับ</p>
 
               <div className="mb-5 w-full rounded-lg border border-dashed border-border bg-accent/50 p-4 text-left">
                 <p className="mb-1 text-[12px] font-bold tracking-wide text-muted-foreground">บริษัท / ลูกความ</p>

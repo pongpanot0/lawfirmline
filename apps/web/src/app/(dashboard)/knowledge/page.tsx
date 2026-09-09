@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import Link from 'next/link';
+import { BookOpen } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, KnowledgeItem, CaseItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { EmptyState, PageLoading } from '@/components/ui/misc';
 
 const CATEGORIES = ['', 'SUMMARY', 'CONTRACT', 'COURT_ORDER', 'CORRESPONDENCE', 'OTHER'];
 
@@ -78,7 +80,7 @@ export default function KnowledgePage() {
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
         >
           {CATEGORIES.map((c) => (
-            <option key={c} value={c}>{c ? CATEGORY_LABELS[c] : '{d.knowledge.allCategories}'}</option>
+            <option key={c} value={c}>{c ? CATEGORY_LABELS[c] : d.knowledge.allCategories}</option>
           ))}
         </select>
       </div>
@@ -86,12 +88,9 @@ export default function KnowledgePage() {
       {loadError ? (
         <LoadFailed onRetry={() => setReloadKey((k) => k + 1)} />
       ) : loading ? (
-        <p className="text-slate-500">{d.knowledge.loading}</p>
+        <PageLoading title={d.knowledge.loading} lines={3} />
       ) : items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center">
-          <p className="text-slate-500">{d.knowledge.empty}</p>
-          <p className="mt-1 text-xs text-slate-400">{d.knowledge.emptyHint}</p>
-        </div>
+        <EmptyState icon={BookOpen} title={d.knowledge.empty} description={d.knowledge.emptyHint} />
       ) : (
         <div className="space-y-3">
           {items.map((item) => (
@@ -114,7 +113,7 @@ export default function KnowledgePage() {
                   onClick={() => setExpanded(expanded === item.id ? null : item.id)}
                   className="text-sm text-brand-600 hover:underline"
                 >
-                  {expanded === item.id ? '{d.knowledge.collapse}' : '{d.knowledge.expand}'}
+                  {expanded === item.id ? d.knowledge.collapse : d.knowledge.expand}
                 </button>
               </div>
               <p className={`mt-3 text-sm text-slate-600 whitespace-pre-wrap ${expanded === item.id ? '' : 'line-clamp-3'}`}>

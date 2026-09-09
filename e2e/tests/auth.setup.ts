@@ -11,20 +11,19 @@ setup('login as admin and capture the login screen', async ({ page }) => {
   resetManifest();
 
   await page.goto('/login');
-  await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /เข้าสู่ระบบ|sign in/i })).toBeVisible();
 
   await capture(page, {
     id: '01-login',
     title: 'หน้าเข้าสู่ระบบ (Login)',
     route: '/login',
     description:
-      'เริ่มต้นใช้งานที่หน้านี้ กรอกอีเมลและรหัสผ่านของบัญชีสำนักงาน แล้วกด Sign in ระบบจะพาเข้าสู่ Dashboard',
+      'เริ่มต้นใช้งานที่หน้านี้ กรอกอีเมลและรหัสผ่านของบัญชีสำนักงาน แล้วกดเข้าสู่ระบบ ระบบจะพาเข้าสู่ Dashboard',
     callouts: [
       { selector: 'input[type="email"]', label: 'กรอกอีเมลผู้ใช้', place: 'right' },
       { selector: 'input[type="password"]', label: 'กรอกรหัสผ่าน', place: 'right' },
       { selector: 'button[type="submit"]', label: 'กดเพื่อเข้าสู่ระบบ', place: 'right' },
       { selector: 'a[href="/forgot-password"]', label: 'ลืมรหัสผ่าน กดที่นี่', place: 'right' },
-      { selector: 'a[href="/register"]', label: 'สมัครใช้งาน ทดลองฟรี 30 วัน', place: 'right' },
     ],
   });
 

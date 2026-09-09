@@ -9,6 +9,7 @@ import { api, ApiError, EmailThreadDetail, IntakeFieldProposalItem } from '@/lib
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { PageLoading } from '@/components/ui/misc';
 
 const FIELD_LABELS: Record<string, string> = {
   title: 'ชื่อเรื่อง',
@@ -233,7 +234,7 @@ export default function EmailThreadDetailPage() {
     return <LoadFailed onRetry={load} />;
   }
   if (loading || linking || !data) {
-    return <p className="text-muted-foreground">{linking ? 'กำลังเตรียมข้อมูล...' : 'กำลังโหลด...'}</p>;
+    return <PageLoading title={linking ? 'กำลังเตรียมข้อมูลรับเรื่อง' : 'กำลังโหลดอีเมล'} lines={3} />;
   }
 
   const { thread, proposals } = data;

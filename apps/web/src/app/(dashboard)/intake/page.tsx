@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { api, IntakeItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/misc';
+import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -85,7 +85,7 @@ export default function IntakePage() {
           {loadError ? (
             <div className="p-4"><LoadFailed onRetry={() => setReloadKey((k) => k + 1)} /></div>
           ) : loading ? (
-            <p className="p-8 text-center text-muted-foreground">กำลังโหลด...</p>
+            <div className="p-4"><PageLoading title="กำลังโหลดเรื่องรับเข้า" lines={3} /></div>
           ) : intakes.length === 0 ? (
             <EmptyState
               icon={ClipboardList}

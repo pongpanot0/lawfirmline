@@ -15,6 +15,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, InvoiceItem, TimeEntryItem, ExpenseItem } from '@/lib/api';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'ร่าง',
@@ -85,7 +86,7 @@ export default function CaseBillingPage() {
     }
   };
 
-  if (loading) return <p className="text-slate-500">{d.caseBilling.loading}</p>;
+  if (loading) return <PageLoading title={d.caseBilling.loading} lines={3} />;
 
   const totalHours = timeEntries.reduce((sum, e) => sum + e.hours, 0);
   const totalBilled = timeEntries.reduce((sum, e) => sum + e.hours * e.rate, 0);
@@ -204,7 +205,19 @@ export default function CaseBillingPage() {
             </div>
           ))}
           {expenses.length === 0 && (
-            <p className="text-sm text-slate-400">{d.caseBilling.noExpenses}</p>
+            <InlineEmptyState
+              title={d.caseBilling.noExpenses}
+              description="บันทึกค่าใช้จ่ายแรกของคดีนี้ ระบบจะผูกกับคดีให้อัตโนมัติ"
+              action={
+                <button
+                  type="button"
+                  onClick={() => setShowExpenseForm(true)}
+                  className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm text-white hover:bg-brand-700"
+                >
+                  {d.caseBilling.submitExpense}
+                </button>
+              }
+            />
           )}
         </div>
       </div>
@@ -226,7 +239,12 @@ export default function CaseBillingPage() {
               </div>
             </div>
           ))}
-          {timeEntries.length === 0 && <p className="text-sm text-slate-400">{d.caseBilling.noTimeEntries}</p>}
+          {timeEntries.length === 0 && (
+            <InlineEmptyState
+              title={d.caseBilling.noTimeEntries}
+              description="เมื่อมีการบันทึกเวลาทำงาน รายการจะสรุปยอดให้ตรงนี้"
+            />
+          )}
         </div>
       </div>
 
@@ -242,7 +260,12 @@ export default function CaseBillingPage() {
               </div>
             </div>
           ))}
-          {invoices.length === 0 && <p className="text-sm text-slate-400">{d.caseBilling.noInvoices}</p>}
+          {invoices.length === 0 && (
+            <InlineEmptyState
+              title={d.caseBilling.noInvoices}
+              description="ใบแจ้งหนี้ที่สร้างจากคดีนี้จะแสดงพร้อมสถานะการชำระเงิน"
+            />
+          )}
         </div>
       </div>
     </div>

@@ -7,11 +7,12 @@ import { useAuth } from '@/lib/auth';
 import { api, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { PageLoading } from '@/components/ui/misc';
 
 export default function TodosPage() {
   const d = useDashboardT();
@@ -119,7 +120,7 @@ export default function TodosPage() {
     }
   };
 
-  if (loading) return <p className="text-muted-foreground">{d.todos.loading}</p>;
+  if (loading) return <PageLoading title={d.todos.loading} lines={4} />;
 
   /**
    * An owner or senior is served the team's personal tasks too. The page then

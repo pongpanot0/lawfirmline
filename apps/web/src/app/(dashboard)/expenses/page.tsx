@@ -7,16 +7,16 @@ import { Plus, TrendingUp, TrendingDown, Wallet, Receipt } from 'lucide-react';
 import { FirmRole } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ExpenseItem, FinanceSummary, FirmInvoiceItem } from '@/lib/api';
-import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
+import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/misc';
+import { PageLoading, TableEmptyRow } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 
 const REVENUE_SOURCE_LABEL: Record<string, string> = {
   estimated: 'ประมาณการ',
@@ -83,16 +83,7 @@ export default function ExpensesPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28" />)}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoading title={d.common.loading} lines={4} />;
 
   if (error) {
     return (
@@ -149,11 +140,11 @@ export default function ExpensesPage() {
             </TableHeader>
             <TableBody>
               {caseProfits.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                    ยังไม่มีข้อมูลคดี
-                  </TableCell>
-                </TableRow>
+                <TableEmptyRow
+                  colSpan={8}
+                  title="ยังไม่มีข้อมูลคดี"
+                  description="เมื่อมีคดีหรือบันทึกรายได้ ตารางกำไรจะแสดงที่นี่"
+                />
               ) : (
                 caseProfits.map((row) => (
                   <TableRow key={row.caseId}>
@@ -202,11 +193,11 @@ export default function ExpensesPage() {
               </TableHeader>
               <TableBody>
                 {expenses.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                      {d.expenses.empty}
-                    </TableCell>
-                  </TableRow>
+                  <TableEmptyRow
+                    colSpan={5}
+                    title={d.expenses.empty}
+                    description="เพิ่มค่าใช้จ่ายจากหน้าคดีเพื่อผูกกับงานได้ทันที"
+                  />
                 ) : (
                   expenses.slice(0, 8).map((e) => (
                     <TableRow key={e.id}>
@@ -253,11 +244,11 @@ export default function ExpensesPage() {
               </TableHeader>
               <TableBody>
                 {invoices.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                      {d.expenses.noInvoices}
-                    </TableCell>
-                  </TableRow>
+                  <TableEmptyRow
+                    colSpan={5}
+                    title={d.expenses.noInvoices}
+                    description="เมื่อออกใบแจ้งหนี้แล้ว รายการจะมาอยู่ตรงนี้"
+                  />
                 ) : (
                   invoices.map((inv) => (
                     <TableRow key={inv.id}>

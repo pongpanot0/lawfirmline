@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, InsuranceClaimItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
 export default function CaseInsurancePage() {
   const { id } = useParams<{ id: string }>();
@@ -82,7 +83,7 @@ export default function CaseInsurancePage() {
     }
   };
 
-  if (loading) return <p className="text-slate-500">กำลังโหลด...</p>;
+  if (loading) return <PageLoading title="กำลังโหลดเคลมประกัน" lines={3} />;
 
   return (
     <div>
@@ -95,7 +96,7 @@ export default function CaseInsurancePage() {
 
       {!claim ? (
         <form onSubmit={handleCreate} className="max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-600">คดีนี้ยังไม่มีการติดตามเคลมประกัน</p>
+          <InlineEmptyState title="คดีนี้ยังไม่มีการติดตามเคลมประกัน" description="กรอกข้อมูลพื้นฐานด้านล่างเพื่อเริ่มไทม์ไลน์เคลมและ deadline ที่เกี่ยวข้อง" />
           <div>
             <label className="block text-sm font-medium text-slate-700">บริษัทประกัน</label>
             <input

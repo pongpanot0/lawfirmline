@@ -8,12 +8,12 @@ import { useAuth, getStoredToken } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { api, ApiError, ExpenseItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/misc';
+import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { cn, formatDate } from '@/lib/utils';
 
 const FILTERS = ['', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
@@ -130,18 +130,15 @@ export default function ReimbursementsPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
+        <PageLoading title={d.common.loading} lines={4} />
       ) : error ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
           <p className="text-destructive">{error}</p>
         </div>
       ) : expenses.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">
-            {d.reimbursements.empty}
+          <CardContent>
+            <EmptyState title={d.reimbursements.empty} description="เมื่อทีมส่งรายการเบิก ค่าใช้จ่ายจะแสดงพร้อมสถานะอนุมัติและปุ่มจ่ายเงิน" />
           </CardContent>
         </Card>
       ) : (

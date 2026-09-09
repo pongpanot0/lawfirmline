@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
 import { api, type ClosingEmailDraft, type CaseActivityItem } from '@/lib/api';
 import { formatDate, formatDateTime } from '@/lib/utils';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
 export default function ClosingReportPage() {
   const { id: caseId } = useParams<{ id: string }>();
@@ -123,7 +124,7 @@ export default function ClosingReportPage() {
     }
   };
 
-  if (loading) return <p className="text-muted-foreground">กำลังโหลด...</p>;
+  if (loading) return <PageLoading title="กำลังโหลดรายงานปิดงาน" lines={3} />;
 
   if (loadError) {
     return (
@@ -154,9 +155,7 @@ export default function ClosingReportPage() {
             ติ๊กเหตุการณ์ที่ควรอยู่ในหนังสือปิดคดี แล้วกดสร้างร่าง
           </p>
           {activities.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              ยังไม่มีความเคลื่อนไหวของคดี — บันทึกผลนัดในหน้าคดีก่อน
-            </p>
+            <InlineEmptyState title="ยังไม่มีความเคลื่อนไหวของคดี" description="บันทึกผลนัดหรือกิจกรรมในหน้าคดีก่อน แล้วค่อยนำมาสร้างหนังสือปิดงาน" />
           ) : (
             activities.map((activity) => (
               <label key={activity.id} className="flex items-start gap-2 py-1 text-sm">

@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
 export default function CaseMessagesPage() {
   const d = useDashboardT();
@@ -59,7 +60,7 @@ export default function CaseMessagesPage() {
     }
   };
 
-  if (loading) return <p className="text-muted-foreground">{d.common.loading}</p>;
+  if (loading) return <PageLoading title={d.common.loading} lines={3} />;
 
   return (
     <div>
@@ -74,7 +75,7 @@ export default function CaseMessagesPage() {
       <Card className="mb-4">
         <CardContent className="max-h-[60vh] space-y-3 overflow-y-auto p-4">
           {messages.length === 0 && (
-            <p className="text-sm text-muted-foreground">{d.messages.noMessages}</p>
+            <InlineEmptyState title={d.messages.noMessages} description="ข้อความที่ส่งในคดีนี้จะอยู่รวมกันตรงนี้เพื่อย้อนดูบริบทได้ง่าย" />
           )}
           {messages.map((m) => (
             <div

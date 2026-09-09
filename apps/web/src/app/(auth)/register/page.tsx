@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Scale } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { LanguageSwitcher } from '@/components/landing/LanguageSwitcher';
+import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 
 export default function RegisterPage() {
   const d = useDashboardT();
@@ -16,10 +16,7 @@ export default function RegisterPage() {
             <LanguageSwitcher />
           </div>
           <div className="mb-6 flex items-center justify-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Scale className="h-4 w-4" />
-            </div>
-            <span className="text-lg font-bold">LexFlow</span>
+            <SamnuanLogo markClassName="h-9 w-9" />
           </div>
           <p className="text-sm text-muted-foreground">
             {d.auth.signupDisabled}

@@ -47,6 +47,7 @@ export default function NewCasePage() {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const submittingRef = useRef(false);
   const [autoTitle, setAutoTitle] = useState(true);
+  const [showCostEstimate, setShowCostEstimate] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
   const [courtSearch, setCourtSearch] = useState('');
   const [retry, setRetry] = useState(0);
@@ -356,7 +357,7 @@ export default function NewCasePage() {
   const selectedLawyer = lawyers.find((l) => l.id === form.leadLawyerId);
   const currentIndex = visibleSteps.findIndex((item) => item.value === step);
 
-  // Hallmark · pre-emit critique: P4 H4 E4 S5 R5 V4 · existing LexFlow design tokens
+  // Hallmark · pre-emit critique: P4 H4 E4 S5 R5 V4 · existing Samnuan design tokens
   return (
     <div className="mx-auto w-full max-w-4xl min-w-0 pb-20 [overflow-wrap:anywhere]">
       <Link href="/cases" className="text-sm text-primary hover:underline">
@@ -684,35 +685,33 @@ export default function NewCasePage() {
                   แยกจากค่าทนายและค่าใช้จ่ายดำเนินคดี
                 </p>
               </div>
-              <details className="rounded-lg border border-border p-4">
-                <summary className="cursor-pointer text-sm font-medium">
+              <section className="rounded-lg border border-border p-4">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-expanded={showCostEstimate}
+                  onClick={() => setShowCostEstimate((value) => !value)}
+                >
+                  <span>
                   คำนวณค่าบริการและค่าไปศาล (ไม่บังคับ)
-                </summary>
-                <div className="mt-4">
-                  <CaseCostCalculator
-                    value={costLines}
-                    onChange={setCostLines}
-                    disabled={submitting || analysisBusy || !!createdCaseId}
-                  />
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <p className="text-xs text-muted-foreground">
-                      {autoTitle
-                        ? 'เติมจากประเภทคดีและลูกค้าให้อัตโนมัติ แก้ไขได้ตามต้องการ'
-                        : 'ใช้ชื่อที่คุณแก้ไขไว้'}
-                    </p>
-                    {!autoTitle && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setAutoTitle(true)}
-                      >
-                        ใช้ชื่อแนะนำ
-                      </Button>
-                    )}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {showCostEstimate ? 'ซ่อน' : 'เปิด'}
+                  </span>
+                </button>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  ข้ามได้ตอนเปิดคดี แล้วกลับมาเติมในหน้ารายละเอียดคดี
+                </p>
+                {showCostEstimate && (
+                  <div className="mt-4">
+                    <CaseCostCalculator
+                      value={costLines}
+                      onChange={setCostLines}
+                      disabled={submitting || analysisBusy || !!createdCaseId}
+                    />
                   </div>
-                </div>
-              </details>
+                )}
+              </section>
               <section
                 className="space-y-4 border-t border-border pt-5"
                 aria-labelledby="court-heading"

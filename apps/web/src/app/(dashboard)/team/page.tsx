@@ -5,7 +5,7 @@ import { Copy, Check, Mail, UserPlus, Clock, Trash2 } from 'lucide-react';
 import { FirmRole } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
+import { InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
 
 type TeamMember = Awaited<ReturnType<typeof api.getTeamMembers>>[number];
 type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
@@ -247,51 +248,57 @@ export default function TeamPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <p className="p-6 text-muted-foreground">{d.common.loading}</p>
+            <div className="p-4">
+              <PageLoading title={d.common.loading} lines={3} />
+            </div>
           ) : (
             <>
               <div className="space-y-3 p-4 md:hidden">
-                {members.map((m) => (
-                  <div key={m.id} className="flex items-center gap-3 rounded-lg border p-3">
-                    <Avatar fallback={`${m.firstName[0]}${m.lastName[0]}`} />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">{m.firstName} {m.lastName}</p>
-                      <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
-                        <Mail className="h-3 w-3 shrink-0" />
-                        {m.email}
-                      </p>
+                {members.length === 0 ? (
+                  <InlineEmptyState title="ยังไม่มีสมาชิกทีม" description="เชิญสมาชิกคนแรกด้วยอีเมลด้านบน แล้วสิทธิ์สำนักงานจะถูกผูกให้ทันที" />
+                ) : (
+                  members.map((m) => (
+                    <div key={m.id} className="flex items-center gap-3 rounded-lg border p-3">
+                      <Avatar fallback={`${m.firstName[0]}${m.lastName[0]}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">{m.firstName} {m.lastName}</p>
+                        <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          {m.email}
+                        </p>
+                      </div>
+                      {canChangeRole(m) ? (
+                        <select
+                          value={m.firmRole}
+                          disabled={changingRoleId === m.id}
+                          onChange={(e) => handleRoleChange(m, e.target.value as FirmRole)}
+                          className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
+                          aria-label={d.team.changeRole}
+                        >
+                          {ROLE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Badge variant={firmRoleBadgeVariant(m.firmRole)}>
+                          {firmRoleLabel(m.firmRole)}
+                        </Badge>
+                      )}
+                      {canRemoveMember(m) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={removingId === m.id}
+                          onClick={() => handleRemoveMember(m)}
+                          aria-label={d.team.removeMember}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
-                    {canChangeRole(m) ? (
-                      <select
-                        value={m.firmRole}
-                        disabled={changingRoleId === m.id}
-                        onChange={(e) => handleRoleChange(m, e.target.value as FirmRole)}
-                        className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
-                        aria-label={d.team.changeRole}
-                      >
-                        {ROLE_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Badge variant={firmRoleBadgeVariant(m.firmRole)}>
-                        {firmRoleLabel(m.firmRole)}
-                      </Badge>
-                    )}
-                    {canRemoveMember(m) && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={removingId === m.id}
-                        onClick={() => handleRemoveMember(m)}
-                        aria-label={d.team.removeMember}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
               <Table className="hidden md:table">
                 <TableHeader>
@@ -304,7 +311,9 @@ export default function TeamPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {members.map((m) => (
+                  {members.length === 0 ? (
+                    <TableEmptyRow colSpan={5} title="ยังไม่มีสมาชิกทีม" description="เชิญสมาชิกคนแรกด้วยอีเมลด้านบน แล้วสิทธิ์สำนักงานจะถูกผูกให้ทันที" />
+                  ) : members.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -364,9 +373,9 @@ export default function TeamPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-muted-foreground">{d.common.loading}</p>
+            <PageLoading title={d.common.loading} lines={2} />
           ) : invitations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{d.team.noPending}</p>
+            <InlineEmptyState title={d.team.noPending} description="คำเชิญที่ยังไม่ถูกตอบรับจะแสดงที่นี่ พร้อมวันหมดอายุและปุ่มยกเลิก" />
           ) : (
             <ul className="space-y-3">
               {invitations.map((inv) => (

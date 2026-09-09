@@ -12,6 +12,7 @@ import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { PageLoading } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 export default function CaseTasksPage() {
@@ -110,7 +111,7 @@ export default function CaseTasksPage() {
     }
   };
 
-  if (loading) return <p className="text-muted-foreground">{d.caseTasks.loading}</p>;
+  if (loading) return <PageLoading title={d.caseTasks.loading} lines={3} />;
 
   const isLeadLawyer = !!user && user.id === caseDetail?.leadLawyer?.id;
   const isReviewer = !!user && (user.firmRole === FirmRole.OWNER || isLeadLawyer);

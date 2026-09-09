@@ -4,16 +4,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { CaseStatus, FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry } from '@/lib/api';
-import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
+import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
-import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { EmptyState } from '@/components/ui/misc';
+import { EmptyState, InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
 import { Users, Scale, AlarmClock, PauseCircle, Sparkles, SlidersHorizontal, MousePointerClick, ChevronRight } from 'lucide-react';
 
 function workloadLevel(total: number): { label: string; variant: 'success' | 'warning' | 'destructive' } {
@@ -239,9 +239,11 @@ export default function OperationsPage() {
             <Card className="lg:col-span-7">
               <CardContent className="p-0">
                 {loading ? (
-                  <p className="p-6 text-sm text-muted-foreground">กำลังโหลด...</p>
+                  <div className="p-4">
+                    <PageLoading title="กำลังโหลดภาระงาน" lines={4} />
+                  </div>
                 ) : sorted.length === 0 ? (
-                  <EmptyState title="ไม่มีข้อมูลทนายในสำนักงาน" />
+                  <EmptyState title="ไม่มีข้อมูลทนายในสำนักงาน" description="เมื่อมีสมาชิกทีมและคดี active ระบบจะคำนวณภาระงานให้อัตโนมัติ" />
                 ) : (
                   <Table>
                     <TableHeader>
@@ -318,12 +320,9 @@ export default function OperationsPage() {
             <Card className="lg:col-span-5">
               <CardContent className="p-4">
                 {!selectedUserId ? (
-                  <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-                    <MousePointerClick className="h-6 w-6 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">คลิกชื่อทนายในตารางด้านซ้ายเพื่อดูรายการคดี</p>
-                  </div>
+                  <InlineEmptyState icon={MousePointerClick} title="เลือกทนายเพื่อดูรายละเอียด" description="คลิกชื่อทนายในตารางด้านซ้ายเพื่อดูคดี active และ deadline ใกล้ถึง" />
                 ) : detailLoading || !detail ? (
-                  <p className="text-sm text-muted-foreground">กำลังโหลด...</p>
+                  <PageLoading title="กำลังโหลดรายละเอียด" lines={2} />
                 ) : (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2.5">
@@ -333,7 +332,7 @@ export default function OperationsPage() {
                       </p>
                     </div>
                     {detail.cases.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">ไม่มีคดี active</p>
+                      <InlineEmptyState title="ไม่มีคดี active" description="ทนายคนนี้ยังไม่มีคดีที่ต้องติดตามในช่วงนี้" />
                     ) : (
                       <ul className="space-y-2">
                         {detail.cases.map((c) => (
@@ -379,9 +378,11 @@ export default function OperationsPage() {
           <Card>
             <CardContent className="p-0">
               {pairingLoading ? (
-                <p className="p-6 text-sm text-muted-foreground">กำลังโหลด...</p>
+                <div className="p-4">
+                  <PageLoading title="กำลังโหลดการจับคู่ทีม" lines={3} />
+                </div>
               ) : pairing.length === 0 ? (
-                <EmptyState title="ยังไม่มีคู่ทำงานร่วมกัน" />
+                <EmptyState title="ยังไม่มีคู่ทำงานร่วมกัน" description="เมื่อมอบหมายทนายหลายคนในคดีเดียวกัน ตารางความร่วมมือจะแสดงตรงนี้" />
               ) : (
                 <Table>
                   <TableHeader>
@@ -390,16 +391,18 @@ export default function OperationsPage() {
                       <TableHead>จำนวนคดีร่วมกัน</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {pairing.map((p) => (
-                      <TableRow key={`${p.userAId}:${p.userBId}`}>
-                        <TableCell className="font-medium">
-                          {p.userAName} + {p.userBName}
-                        </TableCell>
-                        <TableCell>{p.count}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
+                    <TableBody>
+                      {pairing.length === 0 ? (
+                        <TableEmptyRow colSpan={2} title="ยังไม่มีคู่ทำงานร่วมกัน" description="เมื่อมอบหมายทนายหลายคนในคดีเดียวกัน ตารางความร่วมมือจะแสดงตรงนี้" />
+                      ) : pairing.map((p) => (
+                        <TableRow key={`${p.userAId}:${p.userBId}`}>
+                          <TableCell className="font-medium">
+                            {p.userAName} + {p.userBName}
+                          </TableCell>
+                          <TableCell>{p.count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
                 </Table>
               )}
             </CardContent>
@@ -410,9 +413,11 @@ export default function OperationsPage() {
           <Card>
             <CardContent className="p-0">
               {onHoldLoading ? (
-                <p className="p-6 text-sm text-muted-foreground">กำลังโหลด...</p>
+                <div className="p-4">
+                  <PageLoading title="กำลังโหลดงานพักไว้" lines={3} />
+                </div>
               ) : onHold.length === 0 ? (
-                <EmptyState title="ไม่มีงานที่พักไว้ในขณะนี้" />
+                <EmptyState title="ไม่มีงานที่พักไว้ในขณะนี้" description="งานที่ถูกพักพร้อมเหตุผลและวันติดตามถัดไปจะแสดงที่นี่" />
               ) : (
                 <Table>
                   <TableHeader>

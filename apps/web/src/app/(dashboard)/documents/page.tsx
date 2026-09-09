@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { FolderOpen, Upload, Search, FileText, Scale, Shield, Gavel, Eye } from 'lucide-react';
 import { CaseStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, CaseItem, DocumentItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,8 @@ import { fmt } from '@/lib/i18n/dashboard';
 
 export default function DocumentsPage() {
   const d = useDashboardT();
+  const searchParams = useSearchParams();
+  const caseIdParam = searchParams.get('caseId') ?? '';
   const CATEGORIES = [
     { id: 'complaint', label: d.documents.catComplaint, icon: Gavel },
     { id: 'evidence', label: d.documents.catEvidence, icon: FileText },
@@ -50,6 +53,11 @@ export default function DocumentsPage() {
     // where the list happened to start.
     api.getCases(token).then(setCases);
   }, [token]);
+
+  useEffect(() => {
+    if (!caseIdParam) return;
+    setSelectedCase((current) => current || caseIdParam);
+  }, [caseIdParam]);
 
   const loadDocuments = (caseId: string) => {
     if (!token || !caseId) return;
@@ -198,6 +206,11 @@ export default function DocumentsPage() {
                   </option>
                 ))}
               </select>
+              {caseIdParam && selectedCase === caseIdParam && (
+                <p className="text-xs text-muted-foreground">
+                  เลือกคดีจากหน้าที่แล้วให้อัตโนมัติ เปลี่ยนได้ถ้าต้องการ
+                </p>
+              )}
               <DocumentDropZone
                 ref={dropZoneRef}
                 label={selectedCase ? d.documents.dropHint : d.documents.selectCaseHint}

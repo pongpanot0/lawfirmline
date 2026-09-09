@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { api, ApiError, LineIntegrationStatus, LinePersonalStatus, MailboxConnectionItem, NotificationPreferences } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -352,7 +352,7 @@ export default function SettingsPage() {
                     {linkCode ? (
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          1. เพิ่มเพื่อน Official Account{oaUrl ? '' : ' ของ LexFlow'}
+                          1. เพิ่มเพื่อน Official Account{oaUrl ? '' : ' ของ Samnuan'}
                           {oaUrl && (
                             <a
                               href={oaUrl}

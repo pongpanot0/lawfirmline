@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { PageLoading } from '@/components/ui/misc';
 
 /**
  * A court date starts its own deadlines when the event is created, but a
@@ -98,7 +99,7 @@ export default function CaseCalendarPage() {
     }
   };
 
-  if (loading) return <p className="text-muted-foreground">{d.calendar.loading}</p>;
+  if (loading) return <PageLoading title={d.calendar.loading} lines={3} />;
 
   return (
     <div>

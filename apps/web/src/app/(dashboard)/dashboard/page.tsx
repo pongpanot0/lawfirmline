@@ -18,12 +18,12 @@ import {
 } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, DashboardStats } from '@/lib/api';
-import { PageHeader, KpiCard, QuickActionButton } from '@/components/lexflow/PageHeader';
+import { PageHeader, KpiCard, QuickActionButton } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/misc';
+import { PageLoading, TableEmptyRow } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { MyDayPanel } from '@/components/agenda/MyDayPanel';
 import { FirmRole } from '@lawfirm/shared';
@@ -55,16 +55,7 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [token, d.common.loadFailed]);
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28" />)}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoading title={d.common.loading} lines={5} />;
 
   if (error) {
     return (
@@ -134,6 +125,7 @@ export default function DashboardPage() {
                     <TableHead>{d.home.client}</TableHead>
                     <TableHead className="text-right">{d.home.revenue}</TableHead>
                     <TableHead className="text-right">{d.home.profit}</TableHead>
+                    <TableHead className="text-right">ทำต่อ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -150,14 +142,36 @@ export default function DashboardPage() {
                       <TableCell className={`text-right font-semibold ${row.profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
                         {formatCurrency(row.profit)}
                       </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          <Link
+                            href={`/cases/${row.caseId}/calendar`}
+                            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                          >
+                            นัด
+                          </Link>
+                          <Link
+                            href={`/cases/${row.caseId}/documents`}
+                            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                          >
+                            เอกสาร
+                          </Link>
+                          <Link
+                            href={`/expenses/new?caseId=${row.caseId}`}
+                            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                          >
+                            เบิก
+                          </Link>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {(data.caseProfits ?? []).length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                        {d.cases.empty}
-                      </TableCell>
-                    </TableRow>
+                    <TableEmptyRow
+                      colSpan={5}
+                      title={d.cases.empty}
+                      description="สร้างคดีแรกเพื่อเริ่มเห็นรายได้ กำไร และทางลัดต่อคดี"
+                    />
                   )}
                 </TableBody>
               </Table>
@@ -198,11 +212,11 @@ export default function DashboardPage() {
                     </TableRow>
                   ))}
                   {data.upcomingHearings.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                        {d.home.noUpcomingCourt}
-                      </TableCell>
-                    </TableRow>
+                    <TableEmptyRow
+                      colSpan={5}
+                      title={d.home.noUpcomingCourt}
+                      description="เพิ่มนัดจากหน้าคดีเพื่อให้ระบบพกข้อมูลศาลและเลขคดีมาให้"
+                    />
                   )}
                 </TableBody>
               </Table>
@@ -250,7 +264,7 @@ export default function DashboardPage() {
               <QuickActionButton label={d.home.newCase} icon={Plus} onClick={() => router.push('/cases/new')} />
               <QuickActionButton label={d.home.addHearing} icon={Gavel} onClick={() => router.push('/court-schedule')} />
               <QuickActionButton label={d.home.uploadDocument} icon={Upload} onClick={() => router.push('/documents')} />
-              <QuickActionButton label={d.home.addClient} icon={UserPlus} onClick={() => router.push('/clients')} />
+              <QuickActionButton label={d.home.addClient} icon={UserPlus} onClick={() => router.push('/clients/new')} />
             </CardContent>
           </Card>
 

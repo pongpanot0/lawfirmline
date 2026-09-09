@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Scale } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { LanguageSwitcher } from '@/components/landing/LanguageSwitcher';
+import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 
 export default function LoginPage() {
   const d = useDashboardT();
@@ -48,10 +48,8 @@ export default function LoginPage() {
     <div className="flex min-h-screen">
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-primary p-12 text-primary-foreground">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
-            <Scale className="h-5 w-5" />
-          </div>
-          <span className="text-xl font-bold">LexFlow</span>
+          <SamnuanLogo wordmark={false} markClassName="h-10 w-10 rounded-xl" />
+          <span className="text-xl font-bold">Samnuan</span>
         </div>
         <div>
           <h1 className="text-4xl font-bold leading-tight">
@@ -59,7 +57,7 @@ export default function LoginPage() {
           </h1>
           <p className="mt-4 text-lg text-primary-foreground/80">{d.auth.brandBlurb}</p>
         </div>
-        <p className="text-sm text-primary-foreground/60">© 2025 LexFlow Legal SaaS</p>
+        <p className="text-sm text-primary-foreground/60">© 2025 Samnuan Legal SaaS</p>
       </div>
 
       <div className="flex flex-1 items-center justify-center p-6 bg-background">
@@ -76,10 +74,7 @@ export default function LoginPage() {
 
             <div className="mb-8 text-center lg:text-left">
               <div className="mb-4 flex items-center justify-center gap-2 lg:justify-start">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Scale className="h-4 w-4" />
-                </div>
-                <span className="text-lg font-bold">LexFlow</span>
+                <SamnuanLogo markClassName="h-9 w-9" />
               </div>
               <h2 className="text-xl font-semibold">{d.auth.signInTitle}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{d.auth.signInSubtitle}</p>

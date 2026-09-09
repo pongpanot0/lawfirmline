@@ -6,10 +6,11 @@ import { useAuth } from '@/lib/auth';
 import { api, CalendarEventItem, CaseItem, UserItem } from '@/lib/api';
 import { CalendarView } from '@/components/CalendarView';
 import { CalendarEventDialog } from '@/components/calendar/CalendarEventDialog';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { formatDateTime } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
@@ -83,7 +84,7 @@ export default function CourtSchedulePage() {
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="lg:col-span-3">
           {loading ? (
-            <p className="text-muted-foreground">{d.calendar.loading}</p>
+            <PageLoading title={d.calendar.loading} lines={2} />
           ) : loadError ? (
             <Card>
               <CardContent className="space-y-3 p-6">
@@ -143,7 +144,10 @@ export default function CourtSchedulePage() {
               </button>
             ))}
             {upcoming.length === 0 && !loading && !loadError && (
-              <p className="text-sm text-muted-foreground">{d.calendar.noUpcoming}</p>
+              <InlineEmptyState
+                title={d.calendar.noUpcoming}
+                description="กดเพิ่มนัด หรือคลิกวันที่ในปฏิทินเพื่อวางนัดใหม่"
+              />
             )}
           </CardContent>
         </Card>

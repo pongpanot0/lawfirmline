@@ -13,7 +13,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    const stored = localStorage.getItem('lexflow-theme') as Theme | null;
+    const stored = localStorage.getItem('samnuan-theme') as Theme | null;
     if (stored) {
       setTheme(stored);
       document.documentElement.classList.toggle('dark', stored === 'dark');
@@ -23,7 +23,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const toggleTheme = () => {
     setTheme((prev) => {
       const next = prev === 'light' ? 'dark' : 'light';
-      localStorage.setItem('lexflow-theme', next);
+      localStorage.setItem('samnuan-theme', next);
       document.documentElement.classList.toggle('dark', next === 'dark');
       return next;
     });

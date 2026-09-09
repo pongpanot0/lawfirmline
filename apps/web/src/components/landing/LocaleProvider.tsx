@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState, ReactNode 
 import { landingCopy, Locale, LandingCopy } from '@/lib/i18n/landing';
 import { dashboardCopy, DashboardCopy } from '@/lib/i18n/dashboard';
 
-const STORAGE_KEY = 'lexflow_locale';
+const STORAGE_KEY = 'samnuan_locale';
 
 interface LocaleContextValue {
   locale: Locale;

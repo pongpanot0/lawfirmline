@@ -41,13 +41,13 @@ import {
   ApiError,
   IntakePrecedentAnalysisItem,
 } from '@/lib/api';
-import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/misc';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   TODO: 'ยังไม่เริ่ม',
@@ -379,7 +379,7 @@ export default function CaseDetailPage() {
     }
   };
 
-  if (loading) return <Skeleton className="h-96 w-full" />;
+  if (loading) return <PageLoading title={d.common.loading} lines={5} />;
   if (!legalCase) return <p className="text-destructive">{d.admin.caseNotFound}</p>;
 
   const customFields = legalCase.customFields as Record<string, string> | null;
@@ -412,7 +412,7 @@ export default function CaseDetailPage() {
     .filter((event) => new Date(event.startAt).getTime() >= Date.now())
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
 
-  // Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · existing LexFlow tokens
+  // Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · existing Samnuan tokens
   return (
     <div className="min-w-0 [overflow-wrap:anywhere]">
       <div className="mb-5">
@@ -955,7 +955,7 @@ export default function CaseDetailPage() {
                   );
                 })}
                 {timeline.length <= 1 && (
-                  <p className="text-sm text-muted-foreground">ยังไม่มีกิจกรรม เพิ่มนัดหมายหรือบันทึกความคืบหน้าเพื่อเริ่มติดตามคดี</p>
+                  <InlineEmptyState title="ยังไม่มีกิจกรรม" description="เพิ่มนัดหมายหรือบันทึกความคืบหน้าเพื่อเริ่มติดตามคดี" />
                 )}
               </div>
             </CardContent>
@@ -1048,7 +1048,7 @@ export default function CaseDetailPage() {
                 </Link>
               ))}
               {pendingTasks.length === 0 && (
-                <p className="text-sm text-muted-foreground">ไม่มีงานค้าง</p>
+                <InlineEmptyState title="ไม่มีงานค้าง" description="สร้างงานจากแท็บงานเมื่อมีสิ่งที่ต้องติดตามต่อ" />
               )}
             </CardContent>
           </Card>
@@ -1064,7 +1064,7 @@ export default function CaseDetailPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">ไม่มีนัดที่จะถึง</p>
+                <InlineEmptyState title="ไม่มีนัดที่จะถึง" description="เพิ่มนัดศาลหรือนัดลูกค้าจากปฏิทินคดีนี้" />
               )}
               <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => router.push(`/cases/${id}/calendar`)}>
                 <CalendarDays className="h-4 w-4" />เปิดปฏิทิน

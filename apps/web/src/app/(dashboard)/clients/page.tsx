@@ -6,14 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Star } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ClientItem, ContactCaseAccessEntry } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Avatar } from '@/components/ui/avatar';
-import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
-import { EmptyState } from '@/components/ui/misc';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
+import { EmptyState, InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -462,7 +462,10 @@ export default function ClientsPage() {
                 );
               })}
               {(selected.cases ?? []).length === 0 && (
-                <p className="text-sm text-muted-foreground">{d.clients.noCasesLinked}</p>
+                <InlineEmptyState
+                  title={d.clients.noCasesLinked}
+                  description="เมื่อเปิดคดีให้ลูกค้ารายนี้ รายการจะแสดงที่นี่"
+                />
               )}
             </div>
           </TabsContent>
@@ -490,7 +493,7 @@ export default function ClientsPage() {
       {loadError ? (
         <LoadFailed onRetry={load} />
       ) : loading ? (
-        <p className="text-muted-foreground">{d.clients.loading}</p>
+        <PageLoading title={d.clients.loading} lines={3} />
       ) : clients.length === 0 ? (
         <EmptyState
           icon={Briefcase}

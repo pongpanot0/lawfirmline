@@ -5,13 +5,14 @@ import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { FirmRole } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, PublicHolidayItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { parseHolidayLines } from '@/lib/holidays';
+import { InlineEmptyState } from '@/components/ui/misc';
 
 /** Buddhist-era label for a Gregorian year. */
 const toBE = (year: number) => year + 543;
@@ -197,7 +198,7 @@ export default function HolidaysPage() {
       <Card>
         <CardContent className="pt-6">
           {holidays.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{d.holidays.empty}</p>
+            <InlineEmptyState title={d.holidays.empty} description="เพิ่มวันหยุดศาลเพื่อให้การคำนวณ deadline ข้ามวันที่ใช้ไม่ได้" />
           ) : (
             <ul className="divide-y divide-border">
               {holidays.map((holiday) => (

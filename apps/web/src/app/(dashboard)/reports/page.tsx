@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { BarChart3, PieChart, TrendingUp } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ReportsSummary } from '@/lib/api';
-import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
+import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/misc';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { formatCurrency } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -25,9 +25,10 @@ function MiniBarChart({ items }: { items: Array<{ label: string; value: number }
 
   if (items.length === 0) {
     return (
-      <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-        {d.reports.noData}
-      </div>
+      <InlineEmptyState
+        title={d.reports.noData}
+        description="รายงานจะเริ่มมีภาพรวมเมื่อมีคดี ค่าใช้จ่าย หรือบันทึกขึ้นศาล"
+      />
     );
   }
 
@@ -105,18 +106,7 @@ export default function ReportsPage() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-28" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoading title={d.common.loading} lines={3} />;
 
   if (error) {
     return (

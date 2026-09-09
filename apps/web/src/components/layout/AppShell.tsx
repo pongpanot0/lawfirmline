@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { LexFlowSidebar } from './LexFlowSidebar';
+import { SamnuanSidebar } from './SamnuanSidebar';
 import { TopNavbar } from './TopNavbar';
 import { AIAssistantPanel } from '@/components/ai/AIAssistantPanel';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
@@ -45,7 +45,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
         />
       )}
 
-      <LexFlowSidebar
+      <SamnuanSidebar
         user={user}
         onLogout={onLogout}
         mobileOpen={mobileNavOpen}
