@@ -556,6 +556,7 @@ export const dashboardCopy = {
       newCase: 'สร้างคดีใหม่',
       loadingBoard: 'กำลังโหลด...',
       precedentAnalysis: 'ผลวิเคราะห์ฎีกา',
+      documentEventSummary: 'สรุปเหตุการณ์จากเอกสาร',
       generalCase: 'ทั่วไป',
     },
     reports: {
@@ -1359,6 +1360,7 @@ export const dashboardCopy = {
       newCase: 'New case',
       loadingBoard: 'Loading board...',
       precedentAnalysis: 'Precedent analysis',
+      documentEventSummary: 'Document event summary',
       generalCase: 'General',
     },
     reports: {

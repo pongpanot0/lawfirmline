@@ -669,6 +669,8 @@ export interface IntakePrecedentAnalysisItem {
   id: string;
   status: 'PENDING' | 'COMPLETE' | 'FAILED';
   precedents: IntakePrecedentItem[];
+  /** Plain-language AI summary of the intake/docs events (may be null on older analyses). */
+  documentSummary?: string | null;
   summaryBullets: string;
   noticeFacts: string;
   creditsCost: number;

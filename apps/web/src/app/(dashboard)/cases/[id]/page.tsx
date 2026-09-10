@@ -987,7 +987,16 @@ export default function CaseDetailPage() {
                   วิเคราะห์เมื่อ {formatDateTime(latestPrecedentAnalysis.createdAt)}
                 </p>
 
-                <div>
+                {latestPrecedentAnalysis.documentSummary && (
+                  <div>
+                    <p className="text-sm font-medium">📝 {d.admin.documentEventSummary}</p>
+                    <p className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm leading-relaxed">
+                      {latestPrecedentAnalysis.documentSummary}
+                    </p>
+                  </div>
+                )}
+
+                <div className={latestPrecedentAnalysis.documentSummary ? 'border-t border-border pt-3' : undefined}>
                   <p className="text-sm font-medium">📚 ฎีกาที่เกี่ยวข้อง</p>
                   {latestPrecedentAnalysis.precedents.length > 0 ? (
                     <ul className="mt-2 space-y-2">

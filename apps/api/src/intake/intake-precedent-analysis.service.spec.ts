@@ -5,6 +5,7 @@ import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.serv
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('IntakePrecedentAnalysisService', () => {
   let service: IntakePrecedentAnalysisService;
@@ -17,6 +18,7 @@ describe('IntakePrecedentAnalysisService', () => {
   const mockIapp = { searchPrecedents: jest.fn(), getPrecedentDetail: jest.fn() };
   const mockDocIntel = { extractText: jest.fn() };
   const mockConfig = { get: jest.fn() };
+  const mockFileStorage = { getBuffer: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   const baseIntake = {
@@ -48,6 +50,7 @@ describe('IntakePrecedentAnalysisService', () => {
         { provide: IappLegalClient, useValue: mockIapp },
         { provide: DocumentIntelligenceService, useValue: mockDocIntel },
         { provide: ConfigService, useValue: mockConfig },
+        { provide: FileStorageService, useValue: mockFileStorage },
       ],
     }).compile();
     service = module.get(IntakePrecedentAnalysisService);
@@ -83,6 +86,7 @@ describe('IntakePrecedentAnalysisService', () => {
               {
                 message: {
                   content: JSON.stringify({
+                    documentSummary: 'ลูกความถูกเลิกจ้างโดยไม่ได้รับค่าชดเชย',
                     summaryBullets: '- ฎ. 1234/2565: ศาลตัดสินให้จ่ายค่าชดเชย',
                     noticeFacts: 'ชื่อลูกความ: ...\nคู่กรณี: บริษัท เอบีซี จำกัด',
                   }),
@@ -122,6 +126,7 @@ describe('IntakePrecedentAnalysisService', () => {
         }),
       });
       expect(result.status).toBe('COMPLETE');
+      expect(result.documentSummary).toContain('เลิกจ้าง');
       expect(result.summaryBullets).toContain('1234/2565');
     });
 
@@ -190,6 +195,7 @@ describe('IntakePrecedentAnalysisService', () => {
         ...baseIntake,
         attachments: [{ id: 'att-1', storagePath: '/tmp/x.pdf', mimeType: 'application/pdf', filename: 'x.pdf' }],
       });
+      mockFileStorage.getBuffer.mockResolvedValue(Buffer.from('pdf'));
       mockDocIntel.extractText.mockRejectedValue(new Error('corrupt pdf'));
 
       (global.fetch as jest.Mock)
@@ -197,7 +203,7 @@ describe('IntakePrecedentAnalysisService', () => {
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
-            choices: [{ message: { content: JSON.stringify({ summaryBullets: 'ไม่พบฎีกาที่เกี่ยวข้อง', noticeFacts: 'ข้อมูลจาก intake' }) } }],
+            choices: [{ message: { content: JSON.stringify({ documentSummary: 'สรุปเหตุการณ์', summaryBullets: 'ไม่พบฎีกาที่เกี่ยวข้อง', noticeFacts: 'ข้อมูลจาก intake' }) } }],
           }),
         });
       mockIapp.searchPrecedents.mockResolvedValue([]);
@@ -225,7 +231,7 @@ describe('IntakePrecedentAnalysisService', () => {
               {
                 message: {
                   content:
-                    '```json\n{"summaryBullets":["ฎ. 224/2567: หัวข้อหนึ่ง","ฎ. 100/2566: หัวข้อสอง"],"noticeFacts":"คู่กรณี: บริษัท เอบีซี จำกัด"}\n```',
+                    '```json\n{"documentSummary":"ผู้ป่วยมาติดตามอาการริดสีดวงทวาร","summaryBullets":["ฎ. 224/2567: หัวข้อหนึ่ง","ฎ. 100/2566: หัวข้อสอง"],"noticeFacts":"คู่กรณี: บริษัท เอบีซี จำกัด"}\n```',
                 },
               },
             ],
@@ -242,6 +248,7 @@ describe('IntakePrecedentAnalysisService', () => {
 
       const summarizeBody = JSON.parse((global.fetch as jest.Mock).mock.calls[1][1].body);
       expect(summarizeBody.response_format).toEqual({ type: 'json_object' });
+      expect(result.documentSummary).toBe('ผู้ป่วยมาติดตามอาการริดสีดวงทวาร');
       expect(result.summaryBullets).toBe('ฎ. 224/2567: หัวข้อหนึ่ง\nฎ. 100/2566: หัวข้อสอง');
       expect(result.noticeFacts).toBe('คู่กรณี: บริษัท เอบีซี จำกัด');
     });
@@ -261,6 +268,7 @@ describe('IntakePrecedentAnalysisService', () => {
           { id: 'att-1', storagePath: '/tmp/corrupt.pdf', mimeType: 'application/pdf', filename: 'corrupt.pdf' },
         ],
       });
+      mockFileStorage.getBuffer.mockResolvedValue(Buffer.from('corrupt'));
       mockDocIntel.extractText.mockRejectedValue(new Error('corrupt pdf'));
 
       await expect(service.analyze(user, 'intake-1')).rejects.toThrow(BadRequestException);
@@ -325,7 +333,11 @@ describe('IntakePrecedentAnalysisService', () => {
             choices: [
               {
                 message: {
-                  content: JSON.stringify({ summaryBullets: '- ฎ. 1/2565', noticeFacts: 'x' }),
+                  content: JSON.stringify({
+                    documentSummary: 'สรุปเหตุการณ์',
+                    summaryBullets: '- ฎ. 1/2565',
+                    noticeFacts: 'x',
+                  }),
                 },
               },
             ],

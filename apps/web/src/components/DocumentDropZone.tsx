@@ -1,14 +1,19 @@
 'use client';
 
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { Upload } from 'lucide-react';
 
 export interface DocumentDropZoneHandle {
   open: () => void;
 }
 
 interface DocumentDropZoneProps {
-  onFile: (file: File) => void;
+  /** Single-file callback (kept for existing callers). Ignored when `onFiles` is set. */
+  onFile?: (file: File) => void;
+  /** Multi-file callback — use with `multiple`. */
+  onFiles?: (files: File[]) => void;
   accept?: string;
+  multiple?: boolean;
   loading?: boolean;
   disabled?: boolean;
   label?: string;
@@ -20,7 +25,9 @@ export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZ
   function DocumentDropZone(
     {
       onFile,
+      onFiles,
       accept = '.pdf,.docx,.txt,.jpg,.jpeg,.png',
+      multiple = false,
       loading,
       disabled,
       label = 'ลากไฟล์มาวาง หรือคลิกที่นี่',
@@ -38,14 +45,26 @@ export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZ
       },
     }));
 
+    const deliver = useCallback(
+      (list: FileList | File[]) => {
+        const files = Array.from(list);
+        if (!files.length || disabled || loading) return;
+        if (onFiles) {
+          onFiles(multiple ? files : files.slice(0, 1));
+          return;
+        }
+        if (onFile && files[0]) onFile(files[0]);
+      },
+      [disabled, loading, multiple, onFile, onFiles],
+    );
+
     const handleDrop = useCallback(
       (e: React.DragEvent) => {
         e.preventDefault();
         setDragOver(false);
-        const file = e.dataTransfer.files[0];
-        if (file && !disabled && !loading) onFile(file);
+        deliver(e.dataTransfer.files);
       },
-      [disabled, loading, onFile],
+      [deliver],
     );
 
     const inactive = disabled || loading;
@@ -74,15 +93,15 @@ export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZ
           ref={inputRef}
           type="file"
           accept={accept}
+          multiple={multiple}
           className="hidden"
           disabled={inactive}
           onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) onFile(file);
+            if (e.target.files?.length) deliver(e.target.files);
             e.target.value = '';
           }}
         />
-        <span className="text-3xl">📄</span>
+        <Upload className="h-8 w-8 text-muted-foreground" aria-hidden />
         <p className="mt-2 text-sm font-medium text-foreground">
           {loading ? loadingLabel : label}
         </p>

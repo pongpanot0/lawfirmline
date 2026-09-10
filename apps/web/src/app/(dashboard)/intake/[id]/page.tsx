@@ -2,15 +2,25 @@
 
 import { AI_CREDIT_COST, AI_UPLOAD_MAX_FILES } from '@lawfirm/shared';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, UserItem, ApiError, ChecklistClassificationSuggestion } from '@/lib/api';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
+
+const ANALYSIS_PROGRESS_STEPS = [
+  'กำลังอ่านเอกสารและรายละเอียดเรื่อง…',
+  'กำลังค้นหาฎีกาที่เกี่ยวข้อง…',
+  'กำลังสรุปเหตุการณ์จากเอกสาร…',
+  'กำลังจัดทำสรุปฎีกาและข้อมูล Notice…',
+  'ใกล้เสร็จแล้ว กรุณารอสักครู่…',
+] as const;
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -224,12 +234,15 @@ export default function IntakeDetailPage() {
   // Files. One list: the AI reads from it and it follows the case.
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Precedent analysis
   const [analyses, setAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisOverlay, setAnalysisOverlay] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [analysisProgressStep, setAnalysisProgressStep] = useState(0);
+  const [analysisElapsedSec, setAnalysisElapsedSec] = useState(0);
+  const [analysisSuccessPreview, setAnalysisSuccessPreview] = useState<IntakePrecedentAnalysisItem | null>(null);
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
   const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
 
@@ -486,21 +499,68 @@ export default function IntakeDetailPage() {
     }
   };
 
+  useEffect(() => {
+    if (!analyzing) {
+      setAnalysisProgressStep(0);
+      setAnalysisElapsedSec(0);
+      return;
+    }
+    const started = Date.now();
+    const tick = window.setInterval(() => {
+      setAnalysisElapsedSec(Math.floor((Date.now() - started) / 1000));
+    }, 500);
+    const step = window.setInterval(() => {
+      setAnalysisProgressStep((prev) =>
+        prev < ANALYSIS_PROGRESS_STEPS.length - 1 ? prev + 1 : prev,
+      );
+    }, 4000);
+    return () => {
+      window.clearInterval(tick);
+      window.clearInterval(step);
+    };
+  }, [analyzing]);
+
+  const scrollToAnalysisResult = () => {
+    document.getElementById('intake-analysis-result')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  };
+
+  const closeAnalysisOverlay = () => {
+    setAnalysisOverlay('idle');
+    setAnalysisSuccessPreview(null);
+  };
+
+  const handleViewAnalysisSuccess = () => {
+    closeAnalysisOverlay();
+    // Wait a tick so the overlay unmounts before scrolling.
+    window.requestAnimationFrame(() => scrollToAnalysisResult());
+  };
+
   const handleRunPrecedentAnalysis = async () => {
     if (!token || !intake) return;
     setAnalyzing(true);
     setAnalysisError(null);
+    setAnalysisOverlay('running');
+    setAnalysisSuccessPreview(null);
     try {
       const result = await api.runPrecedentAnalysis(token, intake.id, selectedAttachmentIds);
       setAnalyses((prev) => [result, ...prev]);
       setSelectedAnalysisId(result.id);
       setShowAnalysisHistory(false);
+      setAnalysisSuccessPreview(result);
+      setAnalysisOverlay(result.status === 'COMPLETE' ? 'success' : 'error');
+      if (result.status !== 'COMPLETE') {
+        setAnalysisError(result.errorMessage || 'การวิเคราะห์ไม่สำเร็จ');
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) {
         setAnalysisError('เครดิต AI ไม่เพียงพอ — กรุณาติดต่อผู้ดูแลระบบเพื่อเติมเครดิต');
       } else {
         setAnalysisError('วิเคราะห์ไม่สำเร็จ — ลองใหม่อีกครั้ง หรือตรวจสอบว่ามีรายละเอียด/ไฟล์แนบเพียงพอ');
       }
+      setAnalysisOverlay('error');
     } finally {
       setAnalyzing(false);
     }
@@ -836,37 +896,38 @@ export default function IntakeDetailPage() {
             intake.status !== 'CONVERTED' &&
             intake.status !== 'CONSULTED' && (
               <div className="flex flex-wrap gap-2 sm:justify-end">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept=".pdf,application/pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files ?? []);
-                    if (files.length) handleUploadFiles(files);
-                    e.target.value = '';
-                  }}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingFiles || analyzing}
-                >
-                  {uploadingFiles ? 'กำลังอัปโหลด...' : '+ เพิ่มไฟล์'}
-                </Button>
                 <Button
                   size="sm"
                   onClick={handleRunPrecedentAnalysis}
                   disabled={analyzing || uploadingFiles}
                 >
-                  {analyzing ? 'กำลังวิเคราะห์...' : `วิเคราะห์เรื่อง + ไฟล์ที่เลือก (${selectedAttachmentIds.length})`}
+                  {analyzing ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      กำลังวิเคราะห์...
+                    </span>
+                  ) : (
+                    `วิเคราะห์เรื่อง + ไฟล์ที่เลือก (${selectedAttachmentIds.length})`
+                  )}
                 </Button>
               </div>
             )}
         </CardHeader>
         <CardContent className="space-y-4">
+          {intake.status !== 'REJECTED' &&
+            intake.status !== 'CONVERTED' &&
+            intake.status !== 'CONSULTED' && (
+              <DocumentDropZone
+                multiple
+                accept=".pdf,application/pdf"
+                loading={uploadingFiles}
+                disabled={analyzing}
+                label="ลากไฟล์ PDF มาวาง หรือคลิกเลือก"
+                loadingLabel="กำลังอัปโหลด..."
+                hint={`แนบได้เฉพาะ PDF ไม่เกิน 10MB · เลือกวิเคราะห์ได้สูงสุด ${AI_UPLOAD_MAX_FILES} ไฟล์`}
+                onFiles={(files) => void handleUploadFiles(files)}
+              />
+            )}
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium">เอกสารที่คาดว่าจะถูกส่งเข้ามา</p>
@@ -1052,7 +1113,7 @@ export default function IntakeDetailPage() {
       </Card>
 
       {analyses.length > 0 && (
-        <Card className="mt-4">
+        <Card id="intake-analysis-result" className="mt-4 scroll-mt-24">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm">
               ผลวิเคราะห์ ({new Date(currentAnalysis.createdAt).toLocaleString('th-TH')})
@@ -1106,7 +1167,16 @@ export default function IntakeDetailPage() {
               }
               return (
                 <>
-                  <div>
+                  {current.documentSummary && (
+                    <div>
+                      <p className="text-sm font-medium">📝 สรุปเหตุการณ์จากเอกสาร</p>
+                      <p className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm leading-relaxed">
+                        {current.documentSummary}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className={current.documentSummary ? 'border-t border-border pt-3' : undefined}>
                     <p className="text-sm font-medium">📚 ฎีกาที่เกี่ยวข้อง</p>
                     {current.precedents.length > 0 ? (
                       <ul className="mt-2 space-y-2">
@@ -1613,6 +1683,90 @@ export default function IntakeDetailPage() {
 
             {error && (
               <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {analysisOverlay !== 'idle' && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="analysis-overlay-title"
+        >
+          <div className="w-full max-w-md rounded-xl bg-background p-6 shadow-xl">
+            {analysisOverlay === 'running' && (
+              <div className="flex flex-col items-center text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
+                <h2 id="analysis-overlay-title" className="mt-4 text-lg font-semibold">
+                  กำลังวิเคราะห์ด้วย AI
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground" aria-live="polite">
+                  {ANALYSIS_PROGRESS_STEPS[analysisProgressStep]}
+                </p>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  ใช้ไฟล์ที่เลือก {selectedAttachmentIds.length} ไฟล์ · ผ่านไป {analysisElapsedSec} วินาที
+                </p>
+                <p className="mt-4 text-xs text-muted-foreground">
+                  มักใช้เวลาประมาณ 10–30 วินาที — อย่าปิดหน้านี้จนกว่าจะเสร็จ
+                </p>
+                <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+                </div>
+              </div>
+            )}
+
+            {analysisOverlay === 'success' && analysisSuccessPreview && (
+              <div className="flex flex-col items-center text-center">
+                <CheckCircle2 className="h-10 w-10 text-green-600" aria-hidden />
+                <h2 id="analysis-overlay-title" className="mt-4 text-lg font-semibold">
+                  วิเคราะห์เสร็จแล้ว
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  พบฎีกาที่เกี่ยวข้อง {analysisSuccessPreview.precedents?.length ?? 0} รายการ
+                  {analysisSuccessPreview.documentSummary ? ' และสรุปเหตุการณ์จากเอกสารแล้ว' : ''}
+                </p>
+                {analysisSuccessPreview.documentSummary && (
+                  <p className="mt-3 max-h-28 w-full overflow-y-auto rounded-lg bg-muted/50 p-3 text-left text-xs leading-relaxed text-muted-foreground">
+                    {analysisSuccessPreview.documentSummary.slice(0, 280)}
+                    {analysisSuccessPreview.documentSummary.length > 280 ? '…' : ''}
+                  </p>
+                )}
+                <div className="mt-5 flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="outline" onClick={closeAnalysisOverlay}>
+                    ปิด
+                  </Button>
+                  <Button type="button" onClick={handleViewAnalysisSuccess}>
+                    ดูผลวิเคราะห์
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {analysisOverlay === 'error' && (
+              <div className="flex flex-col items-center text-center">
+                <h2 id="analysis-overlay-title" className="text-lg font-semibold text-destructive">
+                  วิเคราะห์ไม่สำเร็จ
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {analysisError || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'}
+                </p>
+                <div className="mt-5 flex w-full justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={closeAnalysisOverlay}>
+                    ปิด
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      closeAnalysisOverlay();
+                      void handleRunPrecedentAnalysis();
+                    }}
+                  >
+                    ลองอีกครั้ง
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </div>

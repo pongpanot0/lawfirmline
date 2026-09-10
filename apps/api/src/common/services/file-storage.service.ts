@@ -38,7 +38,8 @@ export class FileStorageService {
 
   /**
    * Persist bytes and return the value to store in DB (`storagePath`).
-   * With S3 this is an object key; locally it remains a filesystem path.
+   * Always an object key / relative key (e.g. `intake/<id>/documents/<file>`),
+   * never a doubled `uploads/uploads/...` filesystem path.
    */
   async put(relativeKey: string, body: Buffer, contentType?: string): Promise<string> {
     const key = this.normalizeKey(relativeKey);
@@ -54,10 +55,10 @@ export class FileStorageService {
       return key;
     }
 
-    const fullPath = path.join(this.uploadDir, key);
+    const fullPath = this.toLocalPath(key);
     mkdirSync(path.dirname(fullPath), { recursive: true });
     writeFileSync(fullPath, body);
-    return fullPath;
+    return key;
   }
 
   async getBuffer(storagePath: string): Promise<Buffer> {
@@ -69,6 +70,7 @@ export class FileStorageService {
         return readFileSync(localPath);
       }
       if (!this.isS3) {
+        this.logger.warn(`Local file missing: ${localPath} (stored as ${storagePath})`);
         throw new NotFoundException('File not found');
       }
     }
@@ -137,8 +139,35 @@ export class FileStorageService {
     }
   }
 
+  /** Exported for unit tests — resolve a stored path to a local filesystem path. */
+  resolveLocalPath(storagePath: string): string {
+    return this.toLocalPath(storagePath);
+  }
+
   private normalizeKey(relativeKey: string): string {
     return relativeKey.replace(/\\/g, '/').replace(/^\/+/, '');
+  }
+
+  private uploadDirPrefixes(): string[] {
+    const raw = this.uploadDir.replace(/\\/g, '/').replace(/\/+$/, '');
+    const withoutDot = raw.replace(/^\.\//, '');
+    return [...new Set([raw, withoutDot, './uploads', 'uploads'].filter(Boolean))];
+  }
+
+  /**
+   * If `storagePath` already includes the upload-dir prefix (legacy rows stored
+   * `uploads/intake/...` or `./uploads/...`), return the key after that prefix.
+   * Otherwise null.
+   */
+  private stripUploadDirPrefix(storagePath: string): string | null {
+    const normalized = storagePath.replace(/\\/g, '/');
+    for (const prefix of this.uploadDirPrefixes()) {
+      if (normalized === prefix) return '';
+      if (normalized.startsWith(`${prefix}/`)) {
+        return normalized.slice(prefix.length + 1);
+      }
+    }
+    return null;
   }
 
   private looksLikeLocalPath(storagePath: string): boolean {
@@ -146,34 +175,32 @@ export class FileStorageService {
       path.isAbsolute(storagePath) ||
       storagePath.startsWith('./') ||
       storagePath.startsWith('.\\') ||
+      this.stripUploadDirPrefix(storagePath) !== null ||
       storagePath.includes(`${path.sep}uploads${path.sep}`) ||
-      storagePath.includes('/uploads/') ||
-      storagePath.startsWith(this.uploadDir)
+      storagePath.includes('/uploads/')
     );
   }
 
   private toLocalPath(storagePath: string): string {
-    if (path.isAbsolute(storagePath) || storagePath.startsWith(this.uploadDir)) {
+    if (path.isAbsolute(storagePath)) {
       return storagePath;
     }
+
+    const stripped = this.stripUploadDirPrefix(storagePath);
+    if (stripped !== null) {
+      return path.join(this.uploadDir, stripped);
+    }
+
     if (storagePath.startsWith('./') || storagePath.startsWith('.\\')) {
       return storagePath;
     }
+
     return path.join(this.uploadDir, storagePath);
   }
 
   private toObjectKey(storagePath: string): string {
-    const normalized = storagePath.replace(/\\/g, '/');
-    const uploadDir = this.uploadDir.replace(/\\/g, '/').replace(/\/+$/, '');
-    if (normalized.startsWith(uploadDir + '/')) {
-      return normalized.slice(uploadDir.length + 1);
-    }
-    if (normalized.startsWith('./uploads/')) {
-      return normalized.slice('./uploads/'.length);
-    }
-    if (normalized.startsWith('uploads/')) {
-      return normalized.slice('uploads/'.length);
-    }
-    return this.normalizeKey(normalized);
+    const stripped = this.stripUploadDirPrefix(storagePath);
+    if (stripped !== null) return stripped;
+    return this.normalizeKey(storagePath);
   }
 }

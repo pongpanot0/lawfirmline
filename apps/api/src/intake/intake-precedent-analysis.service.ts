@@ -182,7 +182,7 @@ export class IntakePrecedentAnalysisService {
   private async summarizePrecedents(
     factsText: string,
     precedents: Array<{ dekaId: string; headnote: string; citedStatutes: string[] }>,
-  ): Promise<{ summaryBullets: string; noticeFacts: string }> {
+  ): Promise<{ documentSummary: string; summaryBullets: string; noticeFacts: string }> {
     const precedentsText =
       precedents.length > 0
         ? precedents
@@ -192,11 +192,15 @@ export class IntakePrecedentAnalysisService {
 
     const content = await this.callOpenAI(
       [
-        'คุณเป็นผู้ช่วยทนายความไทย งานของคุณคือสรุปฎีกาที่เกี่ยวข้องที่ให้มาเป็นข้อๆ สั้นๆ ให้ทนายอ่านเร็วๆ',
-        'และเตรียมข้อเท็จจริงในรูปแบบสำหรับใช้ร่างหนังสือบอกกล่าว',
+        'คุณเป็นผู้ช่วยทนายความไทย งานของคุณมีสามส่วน:',
+        '1) documentSummary — สรุปเหตุการณ์/เนื้อหาจากข้อเท็จจริงและเอกสารแนบให้ทนายอ่านเข้าใจเร็ว',
+        '   (ใคร เกิดอะไร เมื่อไหน ที่ไหน สัญญาณชีพ/อาการ/โรคประจำตัว/ประวัติสำคัญถ้ามี ผลตรวจหรือข้อเท็จจริงที่เอกสารระบุชัด)',
+        '   เขียนเป็นภาษาไทย plain language ห้ามแต่งข้อเท็จจริงที่ไม่มีในข้อมูลที่ให้มา',
+        '2) summaryBullets — สรุปฎีกาที่เกี่ยวข้องที่ให้มาเป็นข้อๆ สั้นๆ',
+        '3) noticeFacts — เตรียมข้อเท็จจริงในรูปแบบสำหรับใช้ร่างหนังสือบอกกล่าว',
         'ห้ามอ้างอิงฎีกาที่ไม่ได้อยู่ในรายการที่ให้มา ห้ามแต่งเลขฎีกาขึ้นเอง',
-        'ตอบเป็น JSON object เท่านั้นในรูปแบบ {"summaryBullets": string, "noticeFacts": string}',
-        'summaryBullets และ noticeFacts ต้องเป็น string (ไม่ใช่ array) — ใช้ \\n คั่นแต่ละข้อใน summaryBullets',
+        'ตอบเป็น JSON object เท่านั้นในรูปแบบ {"documentSummary": string, "summaryBullets": string, "noticeFacts": string}',
+        'ทุกฟิลด์ต้องเป็น string (ไม่ใช่ array) — ใช้ \\n คั่นบรรทัดใน documentSummary และแต่ละข้อใน summaryBullets',
       ].join(' '),
       `ข้อเท็จจริงของเรื่อง:\n${factsText}\n\nฎีกาที่ค้นพบ:\n${precedentsText}`,
       { json: true },
@@ -204,10 +208,12 @@ export class IntakePrecedentAnalysisService {
 
     try {
       const parsed = JSON.parse(this.stripJsonFences(content)) as {
+        documentSummary?: unknown;
         summaryBullets?: unknown;
         noticeFacts?: unknown;
       };
       return {
+        documentSummary: this.coerceSummaryText(parsed.documentSummary, '(ไม่สามารถสรุปเหตุการณ์ได้)'),
         summaryBullets: this.coerceSummaryText(parsed.summaryBullets, '(ไม่สามารถสรุปได้)'),
         noticeFacts: this.coerceSummaryText(parsed.noticeFacts, factsText),
       };
@@ -215,7 +221,11 @@ export class IntakePrecedentAnalysisService {
       this.logger.error(
         `Failed to parse OpenAI JSON response for precedent summary: ${content.slice(0, 200)}`,
       );
-      return { summaryBullets: content || '(ไม่สามารถสรุปได้)', noticeFacts: factsText };
+      return {
+        documentSummary: '(ไม่สามารถสรุปเหตุการณ์ได้)',
+        summaryBullets: content || '(ไม่สามารถสรุปได้)',
+        noticeFacts: factsText,
+      };
     }
   }
 
@@ -290,7 +300,10 @@ export class IntakePrecedentAnalysisService {
       );
       const precedents = topResults.map((r, i) => detailed[i] ?? r);
 
-      const { summaryBullets, noticeFacts } = await this.summarizePrecedents(factsText, precedents);
+      const { documentSummary, summaryBullets, noticeFacts } = await this.summarizePrecedents(
+        factsText,
+        precedents,
+      );
 
       const creditsCost = 0.1 + 0.1 * topResults.length; // search + N detail lookups (IC estimate)
 
@@ -301,6 +314,7 @@ export class IntakePrecedentAnalysisService {
           extractedFacts: facts as unknown as object,
           searchQueries: { query: searchQuery },
           precedents: precedents as unknown as object,
+          documentSummary,
           summaryBullets,
           noticeFacts,
           creditsCost,

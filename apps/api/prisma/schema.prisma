@@ -704,19 +704,20 @@ model IntakeAttachment {
 }
 
 model IntakePrecedentAnalysis {
-  id             String         @id @default(uuid())
-  intakeId       String
-  caseId         String?
-  status         AnalysisStatus @default(PENDING)
-  extractedFacts Json
-  searchQueries  Json
-  precedents     Json
-  summaryBullets String         @db.Text
-  noticeFacts    String         @db.Text
-  creditsCost    Float
-  createdById    String
-  createdAt      DateTime       @default(now())
-  errorMessage   String?        @db.Text
+  id              String         @id @default(uuid())
+  intakeId        String
+  caseId          String?
+  status          AnalysisStatus @default(PENDING)
+  extractedFacts  Json
+  searchQueries   Json
+  precedents      Json
+  documentSummary String?        @db.Text // AI plain-language summary of intake/docs events
+  summaryBullets  String         @db.Text
+  noticeFacts     String         @db.Text
+  creditsCost     Float
+  createdById     String
+  createdAt       DateTime       @default(now())
+  errorMessage    String?        @db.Text
 
   intake    Intake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   case      Case?  @relation(fields: [caseId], references: [id], onDelete: SetNull)

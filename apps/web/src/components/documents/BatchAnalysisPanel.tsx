@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, ApiError, DocumentItem, FieldSuggestion } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CaseKnowledgePanel } from './CaseKnowledgePanel';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
 
 export function BatchAnalysisPanel({
@@ -30,7 +31,6 @@ export function BatchAnalysisPanel({
   entityLabel?: string;
 }) {
   const { token } = useAuth();
-  const input = useRef<HTMLInputElement>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -177,28 +177,18 @@ export function BatchAnalysisPanel({
           ไฟล์ที่เลือกจะไม่ถูกเก็บ
         </p>
       )}
-      <input
-        ref={input}
-        type="file"
+      <DocumentDropZone
         multiple
         accept=".pdf,.txt,application/pdf,text/plain"
-        className="hidden"
-        onChange={(event) => {
-          const incoming = Array.from(event.target.files ?? []);
-          event.target.value = '';
-          void addFiles(incoming);
-        }}
+        loading={busy}
+        disabled={disabled}
+        label="ลากไฟล์มาวาง หรือคลิกเลือกหลายไฟล์"
+        loadingLabel={progress || 'กำลังอัปโหลด...'}
+        hint="PDF / TXT ไม่เกิน 10MB ต่อไฟล์ · สูงสุด 10 ไฟล์"
+        onFiles={(incoming) => void addFiles(incoming)}
       />
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || busy}
-          onClick={() => input.current?.click()}
-        >
-          เพิ่มหลายไฟล์
-        </Button>
-        {rows.length > 0 && (
+      {rows.length > 0 && (
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -214,8 +204,8 @@ export function BatchAnalysisPanel({
               ? 'ยกเลิกเลือกทั้งหมด'
               : 'เลือกทั้งหมด (สูงสุด 10)'}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
       <ul className="max-h-72 space-y-2 overflow-y-auto">
         {rows.map((row) => (
           <li
@@ -266,7 +256,7 @@ export function BatchAnalysisPanel({
       </ul>
       {!rows.length && (
         <p className="text-sm text-muted-foreground">
-          ยังไม่มีไฟล์ เริ่มจาก “เพิ่มหลายไฟล์”
+          ยังไม่มีไฟล์ — ลากไฟล์มาวางด้านบน หรือคลิกเพื่อเลือก
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">

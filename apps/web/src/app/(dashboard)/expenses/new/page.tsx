@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ImagePlus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import {
   EXPENSE_CATEGORIES,
   ExpenseStatus,
@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const RECEIPT_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,application/pdf';
@@ -65,10 +66,6 @@ export default function NewExpensePage() {
     }
     setReceiptPreview(null);
   }, [receipt]);
-
-  const handleReceiptChange = (file: File | null) => {
-    setReceipt(file);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,17 +184,14 @@ export default function NewExpensePage() {
 
             <div className="md:col-span-2">
               <label className="text-sm font-medium">{d.expenses.receipt}</label>
-              <div className="mt-2 flex flex-wrap items-start gap-3">
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input px-4 py-3 text-sm font-medium hover:bg-accent">
-                  <ImagePlus className="h-4 w-4" />
-                  {receipt ? receipt.name : d.expenses.receipt}
-                  <input
-                    type="file"
-                    accept={RECEIPT_ACCEPT}
-                    className="sr-only"
-                    onChange={(e) => handleReceiptChange(e.target.files?.[0] ?? null)}
-                  />
-                </label>
+              <div className="mt-2 space-y-3">
+                <DocumentDropZone
+                  accept={RECEIPT_ACCEPT}
+                  disabled={submitting}
+                  label={receipt ? receipt.name : 'ลากรูปใบเสร็จมาวาง หรือคลิกเลือกไฟล์'}
+                  hint={d.expenses.receiptHint}
+                  onFile={(file) => setReceipt(file)}
+                />
                 {receipt && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setReceipt(null)}>
                     <X className="h-3.5 w-3.5" />
@@ -205,7 +199,6 @@ export default function NewExpensePage() {
                   </Button>
                 )}
               </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">{d.expenses.receiptHint}</p>
               {receiptPreview && (
                 <div className="mt-3">
                   <p className="mb-2 text-xs font-medium text-muted-foreground">{d.expenses.receiptPreview}</p>
