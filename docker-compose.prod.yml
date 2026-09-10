@@ -1,25 +1,15 @@
-# Production deploy: Postgres + API + Web behind a Caddy reverse proxy
+# Production deploy: API + Web behind a Caddy reverse proxy (Postgres via RDS)
 # with automatic HTTPS. Run from a VPS with Docker + Docker Compose installed.
 #
 # Setup:
-#   1. cp .env.production.example .env   # then fill in real values
+#   1. cp .env.production.example .env   # then fill in real values (DATABASE_URL = RDS)
 #   2. Point DOMAIN's DNS A record (and api.DOMAIN) at this VPS's IP first —
 #      Caddy needs that to succeed before it can issue a TLS certificate.
 #   3. docker compose -f docker-compose.prod.yml up -d --build
-#   4. docker compose -f docker-compose.prod.yml exec api pnpm prisma db seed   # optional, first run only
+#   4. docker compose -f docker-compose.prod.yml exec api pnpm prisma migrate deploy
+#   5. docker compose -f docker-compose.prod.yml exec api pnpm prisma db seed   # optional
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks: [internal]
-
   api:
     build:
       context: .
@@ -27,7 +17,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRES_IN: 15m
@@ -53,8 +43,6 @@ services:
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
     volumes:
       - uploads:/data/uploads
-    depends_on:
-      - postgres
     networks: [internal]
 
   web:
@@ -89,7 +77,6 @@ networks:
   internal:
 
 volumes:
-  postgres_data:
   uploads:
   caddy_data:
   caddy_config:
