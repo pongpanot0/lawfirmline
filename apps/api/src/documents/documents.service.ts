@@ -1,20 +1,16 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 @Injectable()
 export class DocumentsService {
   constructor(
     private prisma: PrismaService,
-    private config: ConfigService,
+    private fileStorage: FileStorageService,
   ) {}
-
-  private getUploadDir() {
-    return this.config.get<string>('UPLOAD_DIR') ?? './uploads';
-  }
 
   private async verifyDocument(caseId: string, documentId: string) {
     const document = await this.prisma.document.findFirst({
@@ -125,9 +121,6 @@ export class DocumentsService {
     caseId: string,
     file: Express.Multer.File,
   ) {
-    const uploadDir = path.join(this.getUploadDir(), caseId);
-    fs.mkdirSync(uploadDir, { recursive: true });
-
     const document = await this.prisma.document.create({
       data: {
         caseId,
@@ -140,8 +133,8 @@ export class DocumentsService {
     });
 
     const ext = path.extname(file.originalname);
-    const storagePath = path.join(uploadDir, `${document.id}_v1${ext}`);
-    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
     const updated = await this.prisma.document.update({
       where: { id: document.id },
@@ -169,9 +162,6 @@ export class DocumentsService {
   ) {
     await this.verifyIntake(user, intakeId);
 
-    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId, 'documents');
-    fs.mkdirSync(uploadDir, { recursive: true });
-
     const document = await this.prisma.document.create({
       data: {
         caseId: undefined,
@@ -185,8 +175,8 @@ export class DocumentsService {
     });
 
     const ext = path.extname(file.originalname);
-    const storagePath = path.join(uploadDir, `${document.id}_v1${ext}`);
-    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    const key = path.posix.join('intake', intakeId, 'documents', `${document.id}_v1${ext}`);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
     const updated = await this.prisma.document.update({
       where: { id: document.id },
@@ -217,15 +207,9 @@ export class DocumentsService {
     const document = await this.verifyDocument(caseId, documentId);
 
     const newVersion = document.version + 1;
-    const uploadDir = path.join(this.getUploadDir(), caseId);
-    fs.mkdirSync(uploadDir, { recursive: true });
-
     const ext = path.extname(file.originalname);
-    const storagePath = path.join(
-      uploadDir,
-      `${documentId}_v${newVersion}${ext}`,
-    );
-    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    const key = path.posix.join('cases', caseId, `${documentId}_v${newVersion}${ext}`);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
     // A fresh version was uploaded — any earlier version's approval no
     // longer applies to what's on disk now.
@@ -268,15 +252,14 @@ export class DocumentsService {
     const document = await this.verifyIntakeDocument(intakeId, documentId);
 
     const newVersion = document.version + 1;
-    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId, 'documents');
-    fs.mkdirSync(uploadDir, { recursive: true });
-
     const ext = path.extname(file.originalname);
-    const storagePath = path.join(
-      uploadDir,
+    const key = path.posix.join(
+      'intake',
+      intakeId,
+      'documents',
       `${documentId}_v${newVersion}${ext}`,
     );
-    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
     await this.prisma.documentVersion.create({
       data: {
@@ -333,11 +316,7 @@ export class DocumentsService {
         this.prisma.documentVersion.count({ where: { storagePath } }),
       ]);
       if (stillDocumented > 0 || stillVersioned > 0) continue;
-      try {
-        fs.unlinkSync(storagePath);
-      } catch {
-        // Already gone, or not ours to remove. The listing is correct either way.
-      }
+      await this.fileStorage.delete(storagePath);
     }
 
     return { deleted: true };

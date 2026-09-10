@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
 import { ClientPortalIntakeService } from './client-portal-intake.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('ClientPortalIntakeService', () => {
   let service: ClientPortalIntakeService;
@@ -23,7 +23,12 @@ describe('ClientPortalIntakeService', () => {
       findFirst: jest.fn(),
     },
   };
-  const mockConfig = { get: jest.fn() };
+  const mockFileStorage = {
+    put: jest.fn(async (key: string) => key),
+    delete: jest.fn(),
+    getBuffer: jest.fn(),
+    openDownloadStream: jest.fn(),
+  };
   const portalUser = {
     clientContactId: 'contact-1',
     clientId: 'client-1',
@@ -39,7 +44,7 @@ describe('ClientPortalIntakeService', () => {
       providers: [
         ClientPortalIntakeService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: ConfigService, useValue: mockConfig },
+        { provide: FileStorageService, useValue: mockFileStorage },
       ],
     }).compile();
     service = module.get(ClientPortalIntakeService);

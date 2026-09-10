@@ -6,6 +6,7 @@ import { AuthUser, ExpenseClaimStatus, ExpenseStatus, FirmRole } from '@lawfirm/
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import {
   CreateTimeEntryDto,
@@ -33,12 +34,9 @@ export class BillingService {
     private pettyCash: PettyCashService,
     private caseAccess: CaseAccessService,
     private config: ConfigService,
+    private fileStorage: FileStorageService,
     private line: LineMessagingService,
   ) {}
-
-  private getUploadDir() {
-    return this.config.get<string>('UPLOAD_DIR') ?? './uploads';
-  }
 
   private decodeOriginalFilename(originalname: string): string {
     return Buffer.from(originalname, 'latin1').toString('utf8');
@@ -59,11 +57,9 @@ export class BillingService {
   private async attachReceipt(expenseId: string, file: Express.Multer.File) {
     this.assertReceiptFile(file);
     const filename = this.decodeOriginalFilename(file.originalname);
-    const uploadDir = path.join(this.getUploadDir(), 'expenses', expenseId);
-    fs.mkdirSync(uploadDir, { recursive: true });
     const ext = path.extname(filename);
-    const storagePath = path.join(uploadDir, `receipt${ext || ''}`);
-    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    const key = path.posix.join('expenses', expenseId, `receipt${ext || ''}`);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
     await this.prisma.expense.update({
       where: { id: expenseId },
       data: {

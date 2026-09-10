@@ -1,11 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.module';
 import { EmailDirection } from '../generated/prisma';
 import { GraphMessage, OutlookGraphClient } from './outlook-graph.client';
 import { OutlookConnectionsService } from './outlook-connections.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 /**
  * Pulls new inbox messages via Graph delta query and writes them into the
@@ -23,13 +22,8 @@ export class OutlookSyncService {
     private prisma: PrismaService,
     private connections: OutlookConnectionsService,
     private graph: OutlookGraphClient,
-    private config: ConfigService,
+    private fileStorage: FileStorageService,
   ) {}
-
-  private getUploadDir(firmId: string) {
-    const base = this.config.get<string>('UPLOAD_DIR') ?? './uploads';
-    return path.join(base, 'outlook', firmId);
-  }
 
   async syncConnection(connectionId: string): Promise<{ messagesSynced: number }> {
     const connection = await this.prisma.mailboxConnection.findUniqueOrThrow({ where: { id: connectionId } });
@@ -110,12 +104,14 @@ export class OutlookSyncService {
       return;
     }
 
-    const uploadDir = path.join(this.getUploadDir(firmId), emailMessageId);
     for (const attachment of attachments) {
       if (!attachment.contentBytes) continue; // Large/reference attachments — skip for now, not core path.
-      fs.mkdirSync(uploadDir, { recursive: true });
-      const storagePath = path.join(uploadDir, attachment.name);
-      fs.writeFileSync(storagePath, Buffer.from(attachment.contentBytes, 'base64'));
+      const key = path.posix.join('outlook', firmId, emailMessageId, attachment.name);
+      const storagePath = await this.fileStorage.put(
+        key,
+        Buffer.from(attachment.contentBytes, 'base64'),
+        attachment.contentType,
+      );
       await this.prisma.emailAttachment.create({
         data: {
           messageId: emailMessageId,

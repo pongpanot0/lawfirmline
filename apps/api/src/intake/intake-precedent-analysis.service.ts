@@ -4,6 +4,7 @@ import { AI_CREDIT_COST, AuthUser, RedactionCounts, redactForAi } from '@lawfirm
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 export const PRECEDENT_ANALYSIS_COST = AI_CREDIT_COST.PRECEDENT_ANALYSIS;
 
@@ -47,6 +48,7 @@ export class IntakePrecedentAnalysisService {
     private config: ConfigService,
     private iapp: IappLegalClient,
     private docIntelligence: DocumentIntelligenceService,
+    private fileStorage: FileStorageService,
   ) {}
 
   private async gatherFacts(intake: {
@@ -65,8 +67,7 @@ export class IntakePrecedentAnalysisService {
       const texts: string[] = [];
       for (const attachment of intake.attachments) {
         try {
-          const fs = await import('fs');
-          const buffer = fs.readFileSync(attachment.storagePath);
+          const buffer = await this.fileStorage.getBuffer(attachment.storagePath);
           const text = await this.docIntelligence.extractText(buffer, attachment.mimeType);
           if (!text.trim()) throw new Error('ไม่พบข้อความในเอกสาร');
           if (text.length > Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / intake.attachments.length) - 150) attachmentWarnings.push(`อ่านเฉพาะบางส่วน: ${attachment.filename ?? 'เอกสาร'}`);

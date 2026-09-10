@@ -14,7 +14,6 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import * as fs from 'fs';
 import { DocumentsService } from './documents.service';
 import { UpdateDocumentVisibilityDto } from './dto/update-visibility.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -23,11 +22,15 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
 import { AuthUser } from '@lawfirm/shared';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 @Controller('intake/:intakeId/documents')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class IntakeDocumentsController {
-  constructor(private documentsService: DocumentsService) {}
+  constructor(
+    private documentsService: DocumentsService,
+    private fileStorage: FileStorageService,
+  ) {}
 
   @Get()
   findByIntake(@CurrentUser() user: AuthUser, @Param('intakeId') intakeId: string) {
@@ -91,7 +94,7 @@ export class IntakeDocumentsController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', safeMimeType(fileInfo.mimeType));
     res.setHeader('Content-Disposition', buildContentDispositionHeader(fileInfo.filename));
-    const stream = fs.createReadStream(fileInfo.path);
+    const stream = await this.fileStorage.openDownloadStream(fileInfo.path);
     stream.pipe(res);
   }
 }

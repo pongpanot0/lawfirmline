@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import { DocumentsService } from './documents.service';
 import { PrismaService } from '../prisma/prisma.module';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -28,7 +28,12 @@ describe('DocumentsService', () => {
     intake: { findFirst: jest.fn() },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
-  const mockConfig = { get: jest.fn().mockReturnValue('./uploads') };
+  const mockFileStorage = {
+    put: jest.fn(async (key: string) => `./uploads/${key}`),
+    delete: jest.fn(),
+    getBuffer: jest.fn(),
+    openDownloadStream: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -36,7 +41,7 @@ describe('DocumentsService', () => {
       providers: [
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: ConfigService, useValue: mockConfig },
+        { provide: FileStorageService, useValue: mockFileStorage },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -89,7 +94,12 @@ describe('DocumentsService — intake-scoped methods', () => {
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
     intake: { findFirst: jest.fn() },
   };
-  const mockConfig = { get: jest.fn().mockReturnValue('./uploads') };
+  const mockFileStorage = {
+    put: jest.fn(async (key: string) => `./uploads/${key}`),
+    delete: jest.fn(),
+    getBuffer: jest.fn(),
+    openDownloadStream: jest.fn(),
+  };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -99,7 +109,7 @@ describe('DocumentsService — intake-scoped methods', () => {
       providers: [
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: ConfigService, useValue: mockConfig },
+        { provide: FileStorageService, useValue: mockFileStorage },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -169,7 +179,12 @@ describe('DocumentsService.adoptIntakeAttachments', () => {
     },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
-  const mockConfig = { get: jest.fn().mockReturnValue('./uploads') };
+  const mockFileStorage = {
+    put: jest.fn(async (key: string) => `./uploads/${key}`),
+    delete: jest.fn(),
+    getBuffer: jest.fn(),
+    openDownloadStream: jest.fn(),
+  };
 
   const attachment = {
     id: 'att-1',
@@ -188,7 +203,7 @@ describe('DocumentsService.adoptIntakeAttachments', () => {
       providers: [
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: ConfigService, useValue: mockConfig },
+        { provide: FileStorageService, useValue: mockFileStorage },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -254,7 +269,12 @@ describe('DocumentsService.removeFromIntake', () => {
     documentVersion: { findMany: jest.fn(), count: jest.fn() },
     intakeAttachment: { deleteMany: jest.fn() },
   };
-  const mockConfig = { get: jest.fn().mockReturnValue('./uploads') };
+  const mockFileStorage = {
+    put: jest.fn(async (key: string) => `./uploads/${key}`),
+    delete: jest.fn(),
+    getBuffer: jest.fn(),
+    openDownloadStream: jest.fn(),
+  };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -271,7 +291,7 @@ describe('DocumentsService.removeFromIntake', () => {
       providers: [
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: ConfigService, useValue: mockConfig },
+        { provide: FileStorageService, useValue: mockFileStorage },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -286,7 +306,7 @@ describe('DocumentsService.removeFromIntake', () => {
         storagePath: { in: ['./uploads/intake/intake-1/doc-1_v1.pdf'] },
       },
     });
-    expect(fs.unlinkSync).toHaveBeenCalledWith('./uploads/intake/intake-1/doc-1_v1.pdf');
+    expect(mockFileStorage.delete).toHaveBeenCalledWith('./uploads/intake/intake-1/doc-1_v1.pdf');
   });
 
   it('leaves the file alone while another document still points at it', async () => {
@@ -294,7 +314,7 @@ describe('DocumentsService.removeFromIntake', () => {
 
     await service.removeFromIntake(user, 'intake-1', 'doc-1');
 
-    expect(fs.unlinkSync).not.toHaveBeenCalled();
+    expect(mockFileStorage.delete).not.toHaveBeenCalled();
   });
 
   it('refuses a document that belongs to a different intake', async () => {

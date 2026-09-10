@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Param, Post, Res, UseGuards, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import * as fs from 'fs';
 import { ClientPortalGuard } from './client-portal.guard';
 import { CurrentPortalUser } from './current-portal-user.decorator';
 import { PortalIdentity } from './client-portal-jwt.strategy';
@@ -10,12 +9,16 @@ import { ClientPortalIntakeService } from './client-portal-intake.service';
 import { SubmitPortalIntakeDto } from './dto/portal-intake.dto';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 @Controller('client-portal/intake')
 @UseGuards(ClientPortalGuard)
 @SkipSubscription()
 export class ClientPortalIntakeController {
-  constructor(private readonly intakeService: ClientPortalIntakeService) {}
+  constructor(
+    private readonly intakeService: ClientPortalIntakeService,
+    private readonly fileStorage: FileStorageService,
+  ) {}
 
   @Post()
   @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: 20 * 1024 * 1024 } }))
@@ -48,7 +51,8 @@ export class ClientPortalIntakeController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', safeMimeType(file.mimeType));
     res.setHeader('Content-Disposition', buildContentDispositionHeader(file.filename));
-    fs.createReadStream(file.path).pipe(res);
+    const stream = await this.fileStorage.openDownloadStream(file.path);
+    stream.pipe(res);
   }
 
   @Get(':submissionId/firm-documents/:documentId/download')
@@ -62,6 +66,7 @@ export class ClientPortalIntakeController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', safeMimeType(file.mimeType));
     res.setHeader('Content-Disposition', buildContentDispositionHeader(file.filename));
-    fs.createReadStream(file.path).pipe(res);
+    const stream = await this.fileStorage.openDownloadStream(file.path);
+    stream.pipe(res);
   }
 }

@@ -13,6 +13,7 @@
     "prisma": "prisma"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.758.0",
     "@lawfirm/shared": "workspace:*",
     "@nestjs/common": "^11.0.7",
     "@nestjs/config": "^4.0.0",

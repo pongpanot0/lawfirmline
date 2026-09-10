@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import * as fs from 'fs';
 import { BillingService } from './billing.service';
 import {
   CreateTimeEntryDto,
@@ -32,13 +31,17 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser, Role, ExpenseStatus, ExpenseClaimStatus } from '@lawfirm/shared';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 const RECEIPT_UPLOAD = FileInterceptor('receipt', { limits: { fileSize: 10 * 1024 * 1024 } });
 
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class BillingController {
-  constructor(private billingService: BillingService) {}
+  constructor(
+    private billingService: BillingService,
+    private fileStorage: FileStorageService,
+  ) {}
 
   @Get('petty-cash')
   @UseGuards(RolesGuard)
@@ -86,7 +89,8 @@ export class BillingController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', safeMimeType(file.mimeType));
     res.setHeader('Content-Disposition', buildContentDispositionHeader(file.filename));
-    fs.createReadStream(file.path).pipe(res);
+    const stream = await this.fileStorage.openDownloadStream(file.path);
+    stream.pipe(res);
   }
 
   @Post('expenses/submit')

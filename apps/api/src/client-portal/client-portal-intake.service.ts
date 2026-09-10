@@ -1,22 +1,18 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { PortalIdentity } from './client-portal-jwt.strategy';
 import { SubmitPortalIntakeDto } from './dto/portal-intake.dto';
 import { mapInternalStatusToExternal } from '../intake/intake-status-mapping';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 @Injectable()
 export class ClientPortalIntakeService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
+    private readonly fileStorage: FileStorageService,
   ) {}
-
-  private getUploadDir() {
-    return this.config.get<string>('UPLOAD_DIR') ?? './uploads';
-  }
 
   private getFileBuffer(file: Express.Multer.File): Buffer {
     if (file.buffer) return file.buffer;
@@ -50,9 +46,6 @@ export class ClientPortalIntakeService {
     });
 
     if (files.length > 0) {
-      const uploadDir = path.join(this.getUploadDir(), 'portal-intake', submission.id);
-      fs.mkdirSync(uploadDir, { recursive: true });
-
       for (const file of files) {
         const filename = this.decodeOriginalFilename(file.originalname);
         const attachment = await this.prisma.portalIntakeAttachment.create({
@@ -66,8 +59,8 @@ export class ClientPortalIntakeService {
         });
 
         const ext = path.extname(filename);
-        const storagePath = path.join(uploadDir, `${attachment.id}${ext}`);
-        fs.writeFileSync(storagePath, this.getFileBuffer(file));
+        const key = path.posix.join('portal-intake', submission.id, `${attachment.id}${ext}`);
+        const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
         await this.prisma.portalIntakeAttachment.update({
           where: { id: attachment.id },
