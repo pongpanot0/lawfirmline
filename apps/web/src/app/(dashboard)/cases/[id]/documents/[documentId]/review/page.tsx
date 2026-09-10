@@ -180,7 +180,7 @@ export default function DocumentReviewPage() {
   return (
     <div className="pb-24">
       <Link
-        href={`/cases/${caseId}/documents`}
+        href={`/cases/${caseId}?tab=documents`}
         className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
       >
         <ArrowLeft className="h-4 w-4" /> กลับไปที่เอกสาร
