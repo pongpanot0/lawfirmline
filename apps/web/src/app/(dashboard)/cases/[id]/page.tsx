@@ -46,6 +46,31 @@ const CaseCalendarPanel = dynamic(
   () => import('@/components/cases/CaseCalendarPanel').then((m) => m.CaseCalendarPanel),
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
 );
+
+const CaseDocumentsPanel = dynamic(
+  () => import('@/components/cases/CaseDocumentsPanel').then((m) => m.CaseDocumentsPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseBillingPanel = dynamic(
+  () => import('@/components/cases/CaseBillingPanel').then((m) => m.CaseBillingPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseInsurancePanel = dynamic(
+  () => import('@/components/cases/CaseInsurancePanel').then((m) => m.CaseInsurancePanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseMessagesPanel = dynamic(
+  () => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseClosingReportPanel = dynamic(
+  () => import('@/components/cases/CaseClosingReportPanel').then((m) => m.CaseClosingReportPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import {
@@ -628,14 +653,58 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {activeTab !== 'overview' && activeTab !== 'tasks' && activeTab !== 'calendar' && (
+      {activeTab === 'documents' && (
         <div
           role="tabpanel"
-          id={`case-tabpanel-${activeTab}`}
-          aria-labelledby={`case-tab-${activeTab}`}
+          id="case-tabpanel-documents"
+          aria-labelledby="case-tab-documents"
           className="min-w-0"
         >
-          <p className="text-sm text-muted-foreground">กำลังย้ายแท็บนี้เข้าหน้านี้…</p>
+          <CaseDocumentsPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'billing' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-billing"
+          aria-labelledby="case-tab-billing"
+          className="min-w-0"
+        >
+          <CaseBillingPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'insurance' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-insurance"
+          aria-labelledby="case-tab-insurance"
+          className="min-w-0"
+        >
+          <CaseInsurancePanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'messages' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-messages"
+          aria-labelledby="case-tab-messages"
+          className="min-w-0"
+        >
+          <CaseMessagesPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'closing-report' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-closing-report"
+          aria-labelledby="case-tab-closing-report"
+          className="min-w-0"
+        >
+          <CaseClosingReportPanel caseId={id} />
         </div>
       )}
 
