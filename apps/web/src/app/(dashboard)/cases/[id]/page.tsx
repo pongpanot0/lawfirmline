@@ -6,7 +6,7 @@ import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutcomeDialog';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Gavel,
   FileText,
@@ -18,6 +18,7 @@ import {
   Lock,
   LockOpen,
   Pencil,
+  Sparkles,
 } from 'lucide-react';
 import {
   ActivityType,
@@ -27,6 +28,13 @@ import {
   CASE_NUMBER_HINT,
   FirmRole,
 } from '@lawfirm/shared';
+import {
+  CASE_TAB_IDS,
+  CASE_TAB_LABELS,
+  caseTabHref,
+  parseCaseTab,
+  type CaseTabId,
+} from '@/lib/case-tabs';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import {
@@ -78,6 +86,11 @@ export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { token, user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = parseCaseTab(searchParams.get('tab'));
+  const selectTab = (tab: CaseTabId) => {
+    router.replace(caseTabHref(id, tab));
+  };
   const [legalCase, setCase] = useState<CaseDetail | null>(null);
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -106,6 +119,7 @@ export default function CaseDetailPage() {
   });
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [recordingOutcome, setRecordingOutcome] = useState(false);
+  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   const [closingSummary, setClosingSummary] = useState('');
   const [closingCase, setClosingCase] = useState(false);
   const [reopeningCase, setReopeningCase] = useState(false);
@@ -149,6 +163,15 @@ export default function CaseDetailPage() {
   useEffect(() => {
     loadCase();
   }, [token, id]);
+
+  useEffect(() => {
+    if (!showAiAnalysis) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowAiAnalysis(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showAiAnalysis]);
 
   const startEditTeam = () => {
     if (!legalCase) return;
@@ -389,20 +412,6 @@ export default function CaseDetailPage() {
   // this case view is read-only and has no re-run action to offer.
   const latestPrecedentAnalysis =
     precedentAnalyses.find((a) => a.status === 'COMPLETE') ?? null;
-  const tabs = [
-    { id: 'overview', label: 'ภาพรวม' },
-    { id: 'tasks', label: 'งาน', href: `/cases/${id}/tasks` },
-    { id: 'calendar', label: 'ปฏิทิน', href: `/cases/${id}/calendar` },
-    { id: 'documents', label: 'เอกสาร', href: `/cases/${id}/documents` },
-    { id: 'billing', label: 'ค่าใช้จ่าย', href: `/cases/${id}/billing` },
-    { id: 'insurance', label: 'ประกัน', href: `/cases/${id}/insurance` },
-    { id: 'messages', label: 'ข้อความ', href: `/cases/${id}/messages` },
-    {
-      id: 'closing-report',
-      label: 'รายงานปิดงาน',
-      href: `/cases/${id}/closing-report`,
-    },
-  ];
 
   const pendingTasks = tasks.filter((task) => task.status !== 'DONE').sort(
     (a, b) => (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) -
@@ -438,7 +447,15 @@ export default function CaseDetailPage() {
             <dt className="text-xs text-muted-foreground">นัดถัดไป</dt>
             <dd className="font-medium">
               {upcomingEvents[0]
-                ? <Link href={`/cases/${id}/calendar`} className="hover:underline">{formatDateTime(upcomingEvents[0].startAt)} · {upcomingEvents[0].title}</Link>
+                ? (
+                  <button
+                    type="button"
+                    className="hover:underline"
+                    onClick={() => selectTab('calendar')}
+                  >
+                    {formatDateTime(upcomingEvents[0].startAt)} · {upcomingEvents[0].title}
+                  </button>
+                )
                 : <span className="text-muted-foreground">ไม่มีนัดที่จะถึง</span>}
             </dd>
           </div>
@@ -446,7 +463,15 @@ export default function CaseDetailPage() {
             <dt className="text-xs text-muted-foreground">งานใกล้ครบกำหนด</dt>
             <dd className="font-medium">
               {pendingTasks[0]
-                ? <Link href={`/cases/${id}/tasks`} className="hover:underline">{pendingTasks[0].title}{pendingTasks[0].dueDate ? ` · ${formatDate(pendingTasks[0].dueDate)}` : ''}</Link>
+                ? (
+                  <button
+                    type="button"
+                    className="hover:underline text-left"
+                    onClick={() => selectTab('tasks')}
+                  >
+                    {pendingTasks[0].title}{pendingTasks[0].dueDate ? ` · ${formatDate(pendingTasks[0].dueDate)}` : ''}
+                  </button>
+                )
                 : <span className="text-muted-foreground">ไม่มีงานค้าง</span>}
             </dd>
           </div>
@@ -531,24 +556,63 @@ export default function CaseDetailPage() {
         </Card>
       )}
 
-      <nav aria-label="เมนูคดี" className="mb-6 flex flex-wrap gap-1 border-b border-border">
-        {tabs.map((t) => (
-          t.href ? (
-            <Link
-              key={t.id}
-              href={t.href}
-              className="whitespace-nowrap rounded-t-md px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {t.label}
-            </Link>
-          ) : (
-            <span key={t.id} aria-current="page" className="whitespace-nowrap border-b-2 border-primary px-4 py-3 text-sm font-semibold text-primary">
-              {t.label}
-            </span>
-          )
-        ))}
-      </nav>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-2 border-b border-border">
+        <div role="tablist" aria-label="เมนูคดี" className="flex min-w-0 flex-1 flex-wrap gap-1">
+          {CASE_TAB_IDS.map((tabId) => {
+            const selected = activeTab === tabId;
+            return (
+              <button
+                key={tabId}
+                type="button"
+                role="tab"
+                id={`case-tab-${tabId}`}
+                aria-selected={selected}
+                aria-controls={`case-tabpanel-${tabId}`}
+                tabIndex={selected ? 0 : -1}
+                className={
+                  selected
+                    ? 'whitespace-nowrap border-b-2 border-primary px-4 py-3 text-sm font-semibold text-primary'
+                    : 'whitespace-nowrap rounded-t-md px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                }
+                onClick={() => selectTab(tabId)}
+              >
+                {CASE_TAB_LABELS[tabId]}
+              </button>
+            );
+          })}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mb-2 shrink-0"
+          aria-expanded={showAiAnalysis}
+          aria-controls="case-ai-analysis-panel"
+          onClick={() => setShowAiAnalysis(true)}
+        >
+          <Sparkles className="h-4 w-4" />
+          วิเคราะห์ด้วย AI
+        </Button>
+      </div>
 
+      {activeTab !== 'overview' && (
+        <div
+          role="tabpanel"
+          id={`case-tabpanel-${activeTab}`}
+          aria-labelledby={`case-tab-${activeTab}`}
+          className="min-w-0"
+        >
+          <p className="text-sm text-muted-foreground">กำลังย้ายแท็บนี้เข้าหน้านี้…</p>
+        </div>
+      )}
+
+      {activeTab === 'overview' && (
+      <div
+        role="tabpanel"
+        id="case-tabpanel-overview"
+        aria-labelledby="case-tab-overview"
+        className="min-w-0"
+      >
       <div className="grid items-start gap-5 lg:grid-cols-12">
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-1">
           <Card>
@@ -1043,18 +1107,29 @@ export default function CaseDetailPage() {
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm">งานที่ต้องทำ</CardTitle>
-              <Link href={`/cases/${id}/tasks`} className="text-xs text-primary hover:underline">ดูทั้งหมด</Link>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() => selectTab('tasks')}
+              >
+                ดูทั้งหมด
+              </button>
             </CardHeader>
             <CardContent className="space-y-2">
               {pendingTasks.slice(0, 4).map((t) => (
-                <Link href={`/cases/${id}/tasks`} key={t.id} className="flex items-start gap-3 rounded-lg border border-border px-3 py-3 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <button
+                  type="button"
+                  onClick={() => selectTab('tasks')}
+                  key={t.id}
+                  className="flex w-full items-start gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{t.title}</span>
                     <span className="mt-1 block text-xs text-muted-foreground">{t.dueDate ? `กำหนดส่ง ${formatDate(t.dueDate)}` : 'ยังไม่กำหนดวันส่ง'}</span>
                   </span>
                   <span className="text-xs text-muted-foreground">{TASK_STATUS_LABELS[t.status] ?? t.status}</span>
-                </Link>
+                </button>
               ))}
               {pendingTasks.length === 0 && (
                 <InlineEmptyState title="ไม่มีงานค้าง" description="สร้างงานจากแท็บงานเมื่อมีสิ่งที่ต้องติดตามต่อ" />
@@ -1075,7 +1150,7 @@ export default function CaseDetailPage() {
               ) : (
                 <InlineEmptyState title="ไม่มีนัดที่จะถึง" description="เพิ่มนัดศาลหรือนัดลูกค้าจากปฏิทินคดีนี้" />
               )}
-              <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => router.push(`/cases/${id}/calendar`)}>
+              <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => selectTab('calendar')}>
                 <CalendarDays className="h-4 w-4" />เปิดปฏิทิน
               </Button>
             </CardContent>
@@ -1107,15 +1182,54 @@ export default function CaseDetailPage() {
 
         </div>
       </div>
+      </div>
+      )}
 
-      {/* AI reads the files; it is a helper, not the case, so it sits after
-          the work and stays folded until asked for. */}
-      <details className="mt-5 rounded-xl border border-border bg-card p-4 shadow-soft">
-        <summary className="cursor-pointer text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          วิเคราะห์เนื้อหาไฟล์ด้วย AI
-        </summary>
-        <div className="mt-4"><BatchAnalysisPanel caseId={id} /></div>
-      </details>
+      {/* AI file analysis opens as a right panel so the case page URL and
+          overview stay put — helper work, not a navigation target. */}
+      {showAiAnalysis && (
+        <>
+          <button
+            type="button"
+            aria-label="ปิดแผงวิเคราะห์ AI"
+            className="fixed inset-0 z-40 bg-black/40"
+            onClick={() => setShowAiAnalysis(false)}
+          />
+          <aside
+            id="case-ai-analysis-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="case-ai-analysis-title"
+            className="fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-md flex-col border-l border-border bg-card shadow-card sm:top-14"
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p id="case-ai-analysis-title" className="text-sm font-semibold">
+                    วิเคราะห์เนื้อหาไฟล์ด้วย AI
+                  </p>
+                  <p className="text-xs text-muted-foreground">สรุปเอกสารในคดีนี้</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="ปิด"
+                onClick={() => setShowAiAnalysis(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin">
+              <BatchAnalysisPanel caseId={id} />
+            </div>
+          </aside>
+        </>
+      )}
 
       {recordingOutcome && (
         <RecordHearingOutcomeDialog
