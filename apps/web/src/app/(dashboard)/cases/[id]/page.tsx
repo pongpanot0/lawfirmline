@@ -41,6 +41,11 @@ const CaseTasksPanel = dynamic(
   () => import('@/components/cases/CaseTasksPanel').then((m) => m.CaseTasksPanel),
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
 );
+
+const CaseCalendarPanel = dynamic(
+  () => import('@/components/cases/CaseCalendarPanel').then((m) => m.CaseCalendarPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import {
@@ -612,7 +617,18 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {activeTab !== 'overview' && activeTab !== 'tasks' && (
+      {activeTab === 'calendar' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-calendar"
+          aria-labelledby="case-tab-calendar"
+          className="min-w-0"
+        >
+          <CaseCalendarPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab !== 'overview' && activeTab !== 'tasks' && activeTab !== 'calendar' && (
         <div
           role="tabpanel"
           id={`case-tabpanel-${activeTab}`}
