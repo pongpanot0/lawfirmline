@@ -22,7 +22,7 @@ export const RESERVED_FIRM_SLUGS = [
   'assets',
 ] as const;
 
-export const DEFAULT_ROOT_DOMAIN = 'samnaun.com';
+export const DEFAULT_ROOT_DOMAIN = 'samnuan.com';
 
 export function isReservedFirmSlug(slug: string): boolean {
   return (RESERVED_FIRM_SLUGS as readonly string[]).includes(slug.toLowerCase());

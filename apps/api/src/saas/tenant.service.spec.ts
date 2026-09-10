@@ -123,7 +123,7 @@ describe('TenantService.allowOnDemandTls', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    process.env.ROOT_DOMAIN = 'samnaun.com';
+    process.env.ROOT_DOMAIN = 'samnuan.com';
     const module: TestingModule = await Test.createTestingModule({
       providers: [TenantService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
@@ -137,14 +137,20 @@ describe('TenantService.allowOnDemandTls', () => {
 
   it('allows known firm subdomains', async () => {
     mockPrisma.firm.findUnique.mockResolvedValue({ id: 'f1', slug: 'thesiambarristers' });
-    await expect(service.allowOnDemandTls('thesiambarristers.samnaun.com')).resolves.toBe(true);
+    await expect(service.allowOnDemandTls('thesiambarristers.samnuan.com')).resolves.toBe(true);
   });
 
-  it('denies apex, reserved, and unknown slugs', async () => {
+  it('allows platform hosts (apex / www / api)', async () => {
+    await expect(service.allowOnDemandTls('samnuan.com')).resolves.toBe(true);
+    await expect(service.allowOnDemandTls('www.samnuan.com')).resolves.toBe(true);
+    await expect(service.allowOnDemandTls('api.samnuan.com')).resolves.toBe(true);
+    expect(mockPrisma.firm.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('denies unknown and reserved firm-like hosts', async () => {
     mockPrisma.firm.findUnique.mockResolvedValue(null);
-    await expect(service.allowOnDemandTls('samnaun.com')).resolves.toBe(false);
-    await expect(service.allowOnDemandTls('api.samnaun.com')).resolves.toBe(false);
-    await expect(service.allowOnDemandTls('no-such-firm.samnaun.com')).resolves.toBe(false);
+    await expect(service.allowOnDemandTls('no-such-firm.samnuan.com')).resolves.toBe(false);
+    await expect(service.allowOnDemandTls('mail.samnuan.com')).resolves.toBe(false);
     await expect(service.allowOnDemandTls(undefined)).resolves.toBe(false);
   });
 });

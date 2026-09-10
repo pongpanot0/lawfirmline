@@ -240,13 +240,29 @@ export class TenantService {
   }
 
   /**
-   * Whether Caddy may issue an on-demand TLS cert for this Host.
-   * Only known firm subdomains under ROOT_DOMAIN are allowed.
+   * Whether Caddy may issue / serve an on-demand TLS cert for this Host.
+   *
+   * Allows:
+   * - Platform hosts (apex / www / api) — required because a `*.ROOT` site with
+   *   on_demand can win the SNI handshake for those names; rejecting them
+   *   causes ERR_SSL_PROTOCOL_ERROR even when a managed cert exists on disk.
+   * - Known firm subdomains under ROOT_DOMAIN (not reserved, present in DB).
    */
   async allowOnDemandTls(domain: string | undefined | null): Promise<boolean> {
     if (!domain) return false;
-    const rootDomain = process.env.ROOT_DOMAIN ?? DEFAULT_ROOT_DOMAIN;
-    const slug = extractFirmSlugFromHost(domain, rootDomain);
+    const rootDomain = (process.env.ROOT_DOMAIN ?? DEFAULT_ROOT_DOMAIN).toLowerCase();
+    const host = domain.split(':')[0]?.toLowerCase().trim();
+    if (!host) return false;
+
+    if (
+      host === rootDomain ||
+      host === `www.${rootDomain}` ||
+      host === `api.${rootDomain}`
+    ) {
+      return true;
+    }
+
+    const slug = extractFirmSlugFromHost(host, rootDomain);
     if (!slug) return false;
     const firm = await this.findBySlug(slug);
     return !!firm;

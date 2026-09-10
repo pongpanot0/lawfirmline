@@ -9,7 +9,7 @@ describe('post-login firm redirect', () => {
   it('redirects from apex to firm handoff with tokens in hash', () => {
     const url = buildFirmHandoffUrl({
       firmSlug: 'thesiambarristers',
-      currentHost: 'samnaun.com',
+      currentHost: 'samnuan.com',
       protocol: 'https:',
       accessToken: 'access-1',
       refreshToken: 'refresh-1',
@@ -17,7 +17,7 @@ describe('post-login firm redirect', () => {
     });
     assert.equal(
       url,
-      'https://thesiambarristers.samnaun.com/handoff#access_token=access-1&refresh_token=refresh-1&next=%2Fdashboard',
+      'https://thesiambarristers.samnuan.com/handoff#access_token=access-1&refresh_token=refresh-1&next=%2Fdashboard',
     );
   });
 
@@ -34,9 +34,9 @@ describe('post-login firm redirect', () => {
 
   it('skips redirect when already on firm host', () => {
     assert.equal(
-      shouldRedirectAfterLogin('thesiambarristers.samnaun.com', 'thesiambarristers'),
+      shouldRedirectAfterLogin('thesiambarristers.samnuan.com', 'thesiambarristers'),
       false,
     );
-    assert.equal(shouldRedirectAfterLogin('samnaun.com', 'thesiambarristers'), true);
+    assert.equal(shouldRedirectAfterLogin('samnuan.com', 'thesiambarristers'), true);
   });
 });

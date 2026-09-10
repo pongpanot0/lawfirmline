@@ -191,7 +191,7 @@ export class SaasController {
 
   /**
    * Caddy On-Demand TLS ask endpoint.
-   * Returns 200 only when `domain` is an existing firm subdomain of ROOT_DOMAIN.
+   * Returns 200 for platform hosts (apex / www / api) and known firm subdomains.
    */
   @Get('caddy-ask')
   @SkipSubscription()
