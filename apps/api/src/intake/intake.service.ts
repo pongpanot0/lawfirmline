@@ -8,6 +8,7 @@ import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 import {
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -35,6 +36,7 @@ export class IntakeService {
     private precedentAnalysisService: IntakePrecedentAnalysisService,
     private documentsService: DocumentsService,
     private fileStorage: FileStorageService,
+    private caseAccess: CaseAccessService,
   ) {}
 
   private intakeInclude = {
@@ -64,16 +66,22 @@ export class IntakeService {
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: Record<string, unknown> = { firmId: user.firmId };
+    const accessWhere = await this.caseAccess.getIntakeFilterForUser(user);
+    const where: Record<string, unknown> = { ...accessWhere };
     if (query.status) {
       where.status = query.status;
     }
     if (query.search) {
       const term = query.search.trim();
-      where.OR = [
-        { title: { contains: term, mode: 'insensitive' } },
-        { clientName: { contains: term, mode: 'insensitive' } },
-        { referralName: { contains: term, mode: 'insensitive' } },
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        {
+          OR: [
+            { title: { contains: term, mode: 'insensitive' } },
+            { clientName: { contains: term, mode: 'insensitive' } },
+            { referralName: { contains: term, mode: 'insensitive' } },
+          ],
+        },
       ];
     }
 
@@ -92,8 +100,9 @@ export class IntakeService {
   }
 
   async findOne(user: AuthUser, id: string) {
+    const accessWhere = await this.caseAccess.getIntakeFilterForUser(user);
     const intake = await this.prisma.intake.findFirst({
-      where: { id, firmId: user.firmId },
+      where: { id, ...accessWhere },
       include: this.intakeInclude,
     });
     if (!intake) throw new NotFoundException('Intake not found');

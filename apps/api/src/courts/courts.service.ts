@@ -10,43 +10,39 @@ type PrismaClientLike = PrismaService | Prisma.TransactionClient;
 export class CourtsService {
   constructor(private prisma: PrismaService) {}
 
-  async provisionDefaults(firmId: string, db: PrismaClientLike = this.prisma) {
-    const existing = await db.court.count({ where: { firmId } });
+  async provisionDefaults(db: PrismaClientLike = this.prisma) {
+    const existing = await db.court.count();
     if (existing > 0) return;
 
     await db.court.createMany({
-      data: DEFAULT_THAI_COURTS.map((name) => ({ firmId, name })),
+      data: DEFAULT_THAI_COURTS.map((name) => ({ name })),
+      skipDuplicates: true,
     });
   }
 
-  async findAll(user: AuthUser, activeOnly = false) {
-    await this.provisionDefaults(user.firmId);
+  async findAll(_user: AuthUser, activeOnly = false) {
+    await this.provisionDefaults();
 
     return this.prisma.court.findMany({
-      where: {
-        firmId: user.firmId,
-        ...(activeOnly ? { isActive: true } : {}),
-      },
+      where: activeOnly ? { isActive: true } : undefined,
       orderBy: { name: 'asc' },
     });
   }
 
-  async findOne(user: AuthUser, id: string) {
-    const court = await this.prisma.court.findFirst({
-      where: { id, firmId: user.firmId },
-    });
+  async findOne(_user: AuthUser, id: string) {
+    const court = await this.prisma.court.findUnique({ where: { id } });
     if (!court) throw new NotFoundException('Court not found');
     return court;
   }
 
-  async create(user: AuthUser, dto: CreateCourtDto) {
+  async create(_user: AuthUser, dto: CreateCourtDto) {
     const existing = await this.prisma.court.findUnique({
-      where: { firmId_name: { firmId: user.firmId, name: dto.name } },
+      where: { name: dto.name },
     });
     if (existing) throw new ConflictException('Court name already exists');
 
     return this.prisma.court.create({
-      data: { ...dto, firmId: user.firmId },
+      data: { ...dto },
     });
   }
 

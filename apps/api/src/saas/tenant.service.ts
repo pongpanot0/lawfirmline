@@ -10,6 +10,7 @@ import {
   SubscriptionPlan,
   SubscriptionStatus,
   TRIAL_DAYS,
+  isReservedFirmSlug,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -230,14 +231,46 @@ export class TenantService {
     return { success: true };
   }
 
+  async findBySlug(slug: string) {
+    if (!slug || isReservedFirmSlug(slug)) return null;
+    return this.prisma.firm.findUnique({ where: { slug: slug.toLowerCase() } });
+  }
+
+  async assertSlugAvailable(slug: string): Promise<void> {
+    if (isReservedFirmSlug(slug)) {
+      throw new BadRequestException('This firm URL is reserved');
+    }
+    const existing = await this.prisma.firm.findUnique({ where: { slug } });
+    if (existing) {
+      throw new BadRequestException('This firm URL is already taken');
+    }
+  }
+
+  /**
+   * Build a unique subdomain slug. Reserved names get a random suffix.
+   * On rare collision with an existing firm, retry with a new suffix.
+   */
+  async allocateSlug(name: string): Promise<string> {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const candidate = this.slugify(name);
+      if (isReservedFirmSlug(candidate.split('-')[0] ?? '')) {
+        continue;
+      }
+      const existing = await this.prisma.firm.findUnique({ where: { slug: candidate } });
+      if (!existing) return candidate;
+    }
+    throw new BadRequestException('Could not allocate a unique firm URL');
+  }
+
   slugify(name: string): string {
     const base = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 40);
+    const safeBase = !base || isReservedFirmSlug(base) ? 'firm' : base;
     const suffix = Math.random().toString(36).slice(2, 8);
-    return `${base || 'firm'}-${suffix}`;
+    return `${safeBase}-${suffix}`;
   }
 
   trialEndDate(from = new Date()): Date {

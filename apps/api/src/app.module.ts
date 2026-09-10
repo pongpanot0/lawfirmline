@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
@@ -8,6 +8,8 @@ import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { SaasModule } from './saas/saas.module';
 import { SubscriptionGuard } from './saas/guards/subscription.guard';
+import { TenantMatchGuard } from './saas/guards/tenant-match.guard';
+import { TenantResolveMiddleware } from './saas/middleware/tenant-resolve.middleware';
 import { UsersModule } from './users/users.module';
 import { CasesModule } from './cases/cases.module';
 import { TasksModule } from './tasks/tasks.module';
@@ -80,6 +82,14 @@ import { OutlookIntegrationModule } from './outlook-integration/outlook-integrat
       provide: APP_GUARD,
       useClass: SubscriptionGuard,
     },
+    {
+      provide: APP_GUARD,
+      useClass: TenantMatchGuard,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TenantResolveMiddleware).forRoutes('*');
+  }
+}

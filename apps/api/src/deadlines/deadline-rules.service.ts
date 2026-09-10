@@ -77,36 +77,32 @@ export class DeadlineRulesService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Starter rules for a new firm, written to be edited: the offsets follow
-   * common Thai civil procedure, but every firm's practice differs, so they are
-   * suggestions a lawyer confirms — never applied to a calendar on their own.
+   * Starter platform rules. Offsets follow common Thai civil procedure;
+   * they are suggestions a lawyer confirms — never applied to a calendar alone.
    */
-  async provisionDefaults(firmId: string, client: PrismaClientLike = this.prisma): Promise<void> {
-    const existing = await client.deadlineRule.count({ where: { firmId } });
+  async provisionDefaults(client: PrismaClientLike = this.prisma): Promise<void> {
+    const existing = await client.deadlineRule.count();
     if (existing > 0) return;
 
     await client.deadlineRule.createMany({
-      data: DEFAULT_RULES.map((rule) => ({ ...rule, firmId })),
+      data: DEFAULT_RULES.map((rule) => ({ ...rule })),
       skipDuplicates: true,
     });
   }
 
-  async list(user: AuthUser) {
-    // Firms created before deadline rules existed have none; provision on read,
-    // the same way case types do, so the admin screen is never blank.
-    await this.provisionDefaults(user.firmId);
+  async list(_user: AuthUser) {
+    await this.provisionDefaults();
 
     return this.prisma.deadlineRule.findMany({
-      where: { firmId: user.firmId },
       orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
     });
   }
 
-  create(user: AuthUser, dto: CreateDeadlineRuleDto) {
+  create(_user: AuthUser, dto: CreateDeadlineRuleDto) {
+    // Platform-global rules only in this pass — ignore per-firm caseType links.
     return this.prisma.deadlineRule.create({
       data: {
-        firmId: user.firmId,
-        caseTypeId: dto.caseTypeId ?? null,
+        caseTypeId: null,
         trigger: dto.trigger,
         label: dto.label,
         offsetDays: dto.offsetDays,
@@ -116,20 +112,21 @@ export class DeadlineRulesService {
     });
   }
 
-  async update(user: AuthUser, id: string, dto: UpdateDeadlineRuleDto) {
-    // updateMany with the firm in the filter, so another firm's id cannot be
-    // touched even by guessing it.
+  async update(_user: AuthUser, id: string, dto: UpdateDeadlineRuleDto) {
+    const { caseTypeId: _ignored, ...rest } = dto as UpdateDeadlineRuleDto & {
+      caseTypeId?: string | null;
+    };
     const result = await this.prisma.deadlineRule.updateMany({
-      where: { id, firmId: user.firmId },
-      data: { ...dto },
+      where: { id },
+      data: { ...rest, caseTypeId: null },
     });
     if (result.count === 0) throw new NotFoundException('Deadline rule not found');
     return { updated: true };
   }
 
-  async remove(user: AuthUser, id: string) {
+  async remove(_user: AuthUser, id: string) {
     const result = await this.prisma.deadlineRule.deleteMany({
-      where: { id, firmId: user.firmId },
+      where: { id },
     });
     if (result.count === 0) throw new NotFoundException('Deadline rule not found');
     return { deleted: true };
@@ -174,10 +171,10 @@ export class DeadlineRulesService {
   async applyTrigger(context: DeadlineTriggerContext): Promise<number> {
     const rules = await this.prisma.deadlineRule.findMany({
       where: {
-        firmId: context.firmId,
         trigger: context.trigger,
         isActive: true,
-        OR: [{ caseTypeId: null }, ...(context.caseTypeId ? [{ caseTypeId: context.caseTypeId }] : [])],
+        // Global catalog: only null caseType rules in this pass.
+        caseTypeId: null,
       },
     });
     if (rules.length === 0) return 0;

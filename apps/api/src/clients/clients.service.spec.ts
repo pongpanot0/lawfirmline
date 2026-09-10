@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClientsService } from './clients.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CaseAccessService } from '../common/services/case-access.service';
+import { FirmRole } from '@lawfirm/shared';
 
 describe('ClientsService.update contact upsert', () => {
   let service: ClientsService;
@@ -14,13 +16,27 @@ describe('ClientsService.update contact upsert', () => {
     },
     $transaction: jest.fn((cb: any) => cb(mockPrisma)),
   };
-  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+  const mockCaseAccess = {
+    getClientFilterForUser: jest.fn((user: { firmId: string }) => ({ firmId: user.firmId })),
+    getCaseFilterForUser: jest.fn((user: { firmId: string }) => ({ firmId: user.firmId })),
+  };
+  const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     mockPrisma.client.findFirst.mockResolvedValue({ id: 'client-1', firmId: 'firm-1' });
+    mockCaseAccess.getClientFilterForUser.mockImplementation((u: { firmId: string }) => ({
+      firmId: u.firmId,
+    }));
+    mockCaseAccess.getCaseFilterForUser.mockImplementation((u: { firmId: string }) => ({
+      firmId: u.firmId,
+    }));
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ClientsService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        ClientsService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: mockCaseAccess },
+      ],
     }).compile();
     service = module.get(ClientsService);
   });

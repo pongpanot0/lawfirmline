@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { CaseAccessService } from '../common/services/case-access.service';
 import {
   EmailDirection,
   EmailThreadStatus,
@@ -40,11 +41,15 @@ const threadInclude = {
 
 @Injectable()
 export class EmailIntakeService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private caseAccess: CaseAccessService,
+  ) {}
 
   async listThreads(user: AuthUser) {
+    const accessWhere = await this.caseAccess.getEmailThreadFilterForUser(user);
     const threads = await this.prisma.emailThread.findMany({
-      where: { firmId: user.firmId },
+      where: accessWhere,
       include: {
         intake: { select: { id: true, status: true } },
         messages: {
@@ -72,8 +77,9 @@ export class EmailIntakeService {
   }
 
   private async getThreadOrThrow(user: AuthUser, threadId: string) {
+    const accessWhere = await this.caseAccess.getEmailThreadFilterForUser(user);
     const thread = await this.prisma.emailThread.findFirst({
-      where: { id: threadId, firmId: user.firmId },
+      where: { id: threadId, ...accessWhere },
       include: threadInclude,
     });
     if (!thread) throw new NotFoundException('ไม่พบอีเมลนี้');

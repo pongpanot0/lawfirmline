@@ -292,10 +292,8 @@ model Firm {
   cases              Case[]
   caseTypes          CaseType[]
   clients            Client[]
-  courts             Court[]
   pettyCashFund      PettyCashFund?
   intakes            Intake[]
-  deadlineRules      DeadlineRule[]
   emailThreads       EmailThread[]
   mailboxConnections MailboxConnection[]
   expenseClaims      ExpenseClaim[]
@@ -548,19 +546,14 @@ model ClientPortalLoginToken {
   @@index([clientContactId])
 }
 
+/// Shared Thai court catalog — not scoped to a firm.
 model Court {
   id        String   @id @default(uuid())
-  firmId    String
-  name      String
+  name      String   @unique
   address   String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
-
-  @@unique([firmId, name])
-  @@index([firmId])
 }
 
 model Case {
@@ -1082,13 +1075,12 @@ model DocumentDateSuggestion {
   @@index([caseId, status])
 }
 
-/// A procedural clock: "<offsetDays> days from <trigger>".
+/// Platform-wide procedural clock: "<offsetDays> days from <trigger>".
 /// Rules never write to the calendar directly — they raise a
 /// DocumentDateSuggestion for a lawyer to confirm.
+/// caseTypeId is reserved for a future catalog; this pass keeps it null.
 model DeadlineRule {
   id         String           @id @default(uuid())
-  firmId     String
-  /// Null applies the rule to every case type in the firm.
   caseTypeId String?
   trigger    DeadlineTrigger
   label      String
@@ -1098,11 +1090,10 @@ model DeadlineRule {
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
 
-  firm        Firm                     @relation(fields: [firmId], references: [id], onDelete: Cascade)
   caseType    CaseType?                @relation(fields: [caseTypeId], references: [id], onDelete: Cascade)
   suggestions DocumentDateSuggestion[]
 
-  @@index([firmId, trigger, isActive])
+  @@index([trigger, isActive])
 }
 
 /// Thai public holidays, used when a rule counts business days.

@@ -1,3 +1,5 @@
+import { withFirmSlugHeaders } from './firm-slug';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 function parseApiErrorMessage(body: unknown, fallback: string): string {
@@ -20,10 +22,10 @@ export class PortalApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit & { token?: string } = {}): Promise<T> {
   const { token, ...fetchOptions } = options;
-  const headers: HeadersInit = {
+  const headers: HeadersInit = withFirmSlugHeaders({
     'Content-Type': 'application/json',
-    ...(options.headers ?? {}),
-  };
+    ...(options.headers as Record<string, string> | undefined),
+  });
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }

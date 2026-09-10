@@ -1,3 +1,5 @@
+import { withFirmSlugHeaders } from './firm-slug';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 const TOKEN_KEY = 'lawfirm_access_token';
 const REFRESH_KEY = 'lawfirm_refresh_token';
@@ -24,7 +26,7 @@ async function refreshAccessToken(): Promise<string | null> {
   try {
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withFirmSlugHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ refreshToken }),
       cache: 'no-store',
     });
@@ -55,10 +57,10 @@ async function request<T>(
 ): Promise<T> {
   const { token, ...fetchOptions } = options;
   const isFormData = fetchOptions.body instanceof FormData;
-  const headers: HeadersInit = {
+  const headers: HeadersInit = withFirmSlugHeaders({
     ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
-    ...(options.headers ?? {}),
-  };
+    ...(options.headers as Record<string, string> | undefined),
+  });
   const authToken = token ?? (typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null);
   if (authToken) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`;
@@ -97,7 +99,9 @@ async function fetchBlob(
   options: RequestInit & { token?: string } = {},
 ): Promise<Blob> {
   const { token, ...fetchOptions } = options;
-  const headers: HeadersInit = { ...(options.headers ?? {}) };
+  const headers: HeadersInit = withFirmSlugHeaders({
+    ...(options.headers as Record<string, string> | undefined),
+  });
   const authToken = token ?? (typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null);
   if (authToken) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`;

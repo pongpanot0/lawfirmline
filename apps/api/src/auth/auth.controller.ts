@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto, RefreshTokenDto } from './dto/login.dto';
 import { RegisterDto, ForgotPasswordDto, ResetPasswordDto } from './dto/register.dto';
@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '@lawfirm/shared';
 import { SkipSubscription } from '../saas/decorators/saas.decorators';
+import { TenantRequest } from '../saas/middleware/tenant-resolve.middleware';
 
 @Controller('auth')
 export class AuthController {
@@ -13,14 +14,14 @@ export class AuthController {
 
   @Post('login')
   @SkipSubscription()
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @Req() req: TenantRequest) {
+    return this.authService.login(dto, req.resolvedFirmId ?? undefined);
   }
 
   @Post('register')
   @SkipSubscription()
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  register(@Body() dto: RegisterDto, @Req() req: TenantRequest) {
+    return this.authService.register(dto, req.resolvedFirmId);
   }
 
   @Post('forgot-password')

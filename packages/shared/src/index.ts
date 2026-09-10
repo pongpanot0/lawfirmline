@@ -10,6 +10,56 @@ export enum FirmRole {
   ASSISTANT = 'ASSISTANT',
 }
 
+/** Subdomains that cannot be claimed as a firm slug. */
+export const RESERVED_FIRM_SLUGS = [
+  'www',
+  'api',
+  'app',
+  'admin',
+  'mail',
+  'portal',
+  'static',
+  'assets',
+] as const;
+
+export const DEFAULT_ROOT_DOMAIN = 'samnaun.com';
+
+export function isReservedFirmSlug(slug: string): boolean {
+  return (RESERVED_FIRM_SLUGS as readonly string[]).includes(slug.toLowerCase());
+}
+
+/**
+ * Extract firm slug from a Host header.
+ * Returns null for apex / www / api / unknown hosts (no tenant).
+ */
+export function extractFirmSlugFromHost(
+  hostHeader: string | null | undefined,
+  rootDomain: string = DEFAULT_ROOT_DOMAIN,
+): string | null {
+  if (!hostHeader) return null;
+  const host = hostHeader.split(':')[0]?.toLowerCase().trim();
+  if (!host) return null;
+
+  const root = rootDomain.toLowerCase();
+  if (host === root || host === `www.${root}` || host === `api.${root}`) {
+    return null;
+  }
+  if (host.endsWith(`.${root}`)) {
+    const sub = host.slice(0, -(root.length + 1));
+    if (!sub || sub.includes('.') || isReservedFirmSlug(sub)) return null;
+    return sub;
+  }
+
+  // Dev: thesiambarrister.localhost
+  if (host.endsWith('.localhost')) {
+    const sub = host.slice(0, -'.localhost'.length);
+    if (!sub || sub.includes('.') || isReservedFirmSlug(sub)) return null;
+    return sub;
+  }
+
+  return null;
+}
+
 export enum SubscriptionPlan {
   SOLO = 'SOLO',
   FIRM = 'FIRM',

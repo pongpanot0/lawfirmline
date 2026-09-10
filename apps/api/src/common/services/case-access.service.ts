@@ -90,4 +90,64 @@ export class CaseAccessService {
 
     return { OR: [{ assigneeId: user.id }, { assigneeId: null }] };
   }
+
+  /** Clients visible when the user owns the firm or has a visible case on them. */
+  getClientFilterForUser(user: AuthUser): Prisma.ClientWhereInput {
+    if (user.firmRole === FirmRole.OWNER) {
+      return { firmId: user.firmId };
+    }
+
+    return {
+      firmId: user.firmId,
+      cases: { some: this.getCaseFilterForUser(user) },
+    };
+  }
+
+  async getIntakeFilterForUser(user: AuthUser): Promise<Prisma.IntakeWhereInput> {
+    const tenantFilter = { firmId: user.firmId };
+    if (user.firmRole === FirmRole.OWNER) {
+      return tenantFilter;
+    }
+
+    const ownOrRelated: Prisma.IntakeWhereInput[] = [
+      { receivedById: user.id },
+      { assignedUserIds: { has: user.id } },
+      { relatedCase: this.getCaseFilterForUser(user) },
+    ];
+
+    if (user.firmRole === FirmRole.SENIOR_LAWYER) {
+      const lawyers = await this.prisma.firmMember.findMany({
+        where: { firmId: user.firmId, role: FirmRole.LAWYER },
+        select: { userId: true },
+      });
+      const lawyerIds = lawyers.map((m) => m.userId);
+      return {
+        ...tenantFilter,
+        OR: [
+          ...ownOrRelated,
+          ...(lawyerIds.length
+            ? [
+                { assignedUserIds: { hasSome: lawyerIds } },
+                { receivedById: { in: lawyerIds } },
+              ]
+            : []),
+        ],
+      };
+    }
+
+    return { ...tenantFilter, OR: ownOrRelated };
+  }
+
+  async getEmailThreadFilterForUser(user: AuthUser): Promise<Prisma.EmailThreadWhereInput> {
+    const tenantFilter = { firmId: user.firmId };
+    if (user.firmRole === FirmRole.OWNER || user.firmRole === FirmRole.SENIOR_LAWYER) {
+      return tenantFilter;
+    }
+
+    const intakeFilter = await this.getIntakeFilterForUser(user);
+    return {
+      ...tenantFilter,
+      intake: intakeFilter,
+    };
+  }
 }

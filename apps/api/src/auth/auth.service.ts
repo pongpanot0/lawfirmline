@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -24,7 +24,7 @@ export class AuthService {
     private config: ConfigService,
   ) {}
 
-  async login(dto: LoginDto): Promise<LoginResponse> {
+  async login(dto: LoginDto, firmId?: string): Promise<LoginResponse> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -32,9 +32,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const authUser = await this.tenant.buildAuthUser(user.id);
+    const authUser = await this.tenant.buildAuthUser(user.id, firmId);
     if (!authUser) {
-      throw new UnauthorizedException('No firm membership found');
+      throw new UnauthorizedException(
+        firmId ? 'No membership for this firm' : 'No firm membership found',
+      );
     }
 
     return {
@@ -44,7 +46,10 @@ export class AuthService {
     };
   }
 
-  async register(dto: RegisterDto): Promise<LoginResponse> {
+  async register(dto: RegisterDto, tenantFirmId?: string | null): Promise<LoginResponse> {
+    if (tenantFirmId) {
+      throw new BadRequestException('Register from the main site, not a firm subdomain');
+    }
     const authUser = await this.saasAuth.register(dto);
     return {
       accessToken: this.signAccessToken(authUser),

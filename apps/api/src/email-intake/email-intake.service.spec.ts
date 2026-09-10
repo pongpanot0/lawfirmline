@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { EmailIntakeService } from './email-intake.service';
 import { PrismaService } from '../prisma/prisma.module';
+import { CaseAccessService } from '../common/services/case-access.service';
 
 describe('EmailIntakeService', () => {
   let service: EmailIntakeService;
@@ -17,12 +18,22 @@ describe('EmailIntakeService', () => {
     },
     client: { findMany: jest.fn(), findFirst: jest.fn() },
   };
+  const mockCaseAccess = {
+    getEmailThreadFilterForUser: jest.fn(async (user: { firmId: string }) => ({
+      firmId: user.firmId,
+    })),
+  };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockCaseAccess.getEmailThreadFilterForUser.mockResolvedValue({ firmId: 'firm-1' });
     const module: TestingModule = await Test.createTestingModule({
-      providers: [EmailIntakeService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        EmailIntakeService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: mockCaseAccess },
+      ],
     }).compile();
     service = module.get(EmailIntakeService);
   });
