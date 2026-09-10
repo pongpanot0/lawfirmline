@@ -7,6 +7,7 @@ import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutc
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   Gavel,
   FileText,
@@ -35,6 +36,11 @@ import {
   parseCaseTab,
   type CaseTabId,
 } from '@/lib/case-tabs';
+
+const CaseTasksPanel = dynamic(
+  () => import('@/components/cases/CaseTasksPanel').then((m) => m.CaseTasksPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import {
@@ -595,7 +601,18 @@ export default function CaseDetailPage() {
         </Button>
       </div>
 
-      {activeTab !== 'overview' && (
+      {activeTab === 'tasks' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-tasks"
+          aria-labelledby="case-tab-tasks"
+          className="min-w-0"
+        >
+          <CaseTasksPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab !== 'overview' && activeTab !== 'tasks' && (
         <div
           role="tabpanel"
           id={`case-tabpanel-${activeTab}`}
