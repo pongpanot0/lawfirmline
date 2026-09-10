@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthUser, ExpenseStatus, FirmRole } from '@lawfirm/shared';
 import { BillingService } from './billing.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { LineMessagingService } from '../notifications/line-messaging.service';
 
 /**
  * A cost drafted after a hearing is a note, not a claim. What matters is that
@@ -15,11 +17,14 @@ import { CaseAccessService } from '../common/services/case-access.service';
 describe('BillingService — drafted expenses', () => {
   let service: BillingService;
   const mockPrisma = {
-    expense: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    expense: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     calendarEvent: { findFirst: jest.fn() },
     case: { findFirst: jest.fn() },
+    firmMember: { findMany: jest.fn().mockResolvedValue([]) },
+    $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
   };
   const mockPettyCash = { deduct: jest.fn() };
+  const mockLine = { isConfigured: jest.fn().mockReturnValue(false), pushTo: jest.fn() };
   const mockCaseAccess = {
     getCaseFilterForUser: jest.fn().mockReturnValue({}),
     getCaseFilterForFinancials: jest.fn().mockReturnValue({}),
@@ -36,6 +41,8 @@ describe('BillingService — drafted expenses', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PettyCashService, useValue: mockPettyCash },
         { provide: CaseAccessService, useValue: mockCaseAccess },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('./uploads') } },
+        { provide: LineMessagingService, useValue: mockLine },
       ],
     }).compile();
     service = module.get(BillingService);
@@ -131,6 +138,25 @@ describe('BillingService — drafted expenses', () => {
     await expect(
       service.updateExpenseStatus(lawyer, 'expense-1', { status: ExpenseStatus.PENDING }),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('submits multiple drafts in one batch and notifies owners', async () => {
+    mockPrisma.expense.findMany.mockResolvedValue([
+      { id: 'expense-1', userId: 'user-1', amount: 300, status: ExpenseStatus.DRAFT, description: 'ค่าเดินทาง' },
+      { id: 'expense-2', userId: 'user-1', amount: 200, status: ExpenseStatus.DRAFT, description: 'ค่าถ่ายเอกสาร' },
+    ]);
+    mockPrisma.expense.update.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, amount: where.id === 'expense-1' ? 300 : 200, description: 'x' }),
+    );
+    mockPrisma.firmMember.findMany.mockResolvedValue([
+      { user: { lineUserId: 'U-owner', firstName: 'Owner', lastName: 'One' } },
+    ]);
+    mockLine.isConfigured.mockReturnValue(true);
+
+    const result = await service.submitExpensesForApproval(lawyer, ['expense-1', 'expense-2']);
+
+    expect(result).toHaveLength(2);
+    expect(mockLine.pushTo).toHaveBeenCalledWith('U-owner', expect.stringContaining('2 รายการ'));
   });
 
   it('keeps approval to the owner and still deducts petty cash on a real claim', async () => {

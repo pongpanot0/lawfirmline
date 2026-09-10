@@ -56,6 +56,7 @@ export class CreateTimeEntryDto {
 }
 
 export class CreateExpenseDto {
+  @Type(() => Number)
   @IsNumber(money)
   @Min(MONEY_MIN)
   @Max(MONEY_MAX)
@@ -109,6 +110,12 @@ export class CreateStandaloneExpenseDto extends CreateExpenseDto {
 export class UpdateExpenseStatusDto {
   @IsEnum(ExpenseStatus)
   status!: ExpenseStatus;
+}
+
+export class SubmitExpensesDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  expenseIds!: string[];
 }
 
 export class InvoiceLineItemDto {

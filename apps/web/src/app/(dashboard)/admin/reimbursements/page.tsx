@@ -95,7 +95,9 @@ export default function ReimbursementsPage() {
         </Button>
       )}
       {e.status === 'PAID' && e.paidAt && (
-        <span className="text-xs text-muted-foreground">{formatDate(e.paidAt)}</span>
+        <span className="text-xs text-muted-foreground">
+          {d.reimbursements.paidOn} {formatDate(e.paidAt)}
+        </span>
       )}
     </div>
   );

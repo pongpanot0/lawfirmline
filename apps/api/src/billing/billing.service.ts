@@ -1,8 +1,12 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AuthUser, ExpenseStatus, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { LineMessagingService } from '../notifications/line-messaging.service';
 import {
   CreateTimeEntryDto,
   CreateExpenseDto,
@@ -11,13 +15,63 @@ import {
   UpdateExpenseStatusDto,
 } from './dto/billing.dto';
 
+const RECEIPT_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+]);
+
 @Injectable()
 export class BillingService {
+  private readonly logger = new Logger(BillingService.name);
+
   constructor(
     private prisma: PrismaService,
     private pettyCash: PettyCashService,
     private caseAccess: CaseAccessService,
+    private config: ConfigService,
+    private line: LineMessagingService,
   ) {}
+
+  private getUploadDir() {
+    return this.config.get<string>('UPLOAD_DIR') ?? './uploads';
+  }
+
+  private decodeOriginalFilename(originalname: string): string {
+    return Buffer.from(originalname, 'latin1').toString('utf8');
+  }
+
+  private getFileBuffer(file: Express.Multer.File): Buffer {
+    if (file.buffer) return file.buffer;
+    if (file.path) return fs.readFileSync(file.path);
+    throw new BadRequestException('Uploaded file is empty');
+  }
+
+  private assertReceiptFile(file: Express.Multer.File) {
+    if (!RECEIPT_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Receipt must be a JPEG, PNG, WebP, GIF, or PDF file');
+    }
+  }
+
+  private async attachReceipt(expenseId: string, file: Express.Multer.File) {
+    this.assertReceiptFile(file);
+    const filename = this.decodeOriginalFilename(file.originalname);
+    const uploadDir = path.join(this.getUploadDir(), 'expenses', expenseId);
+    fs.mkdirSync(uploadDir, { recursive: true });
+    const ext = path.extname(filename);
+    const storagePath = path.join(uploadDir, `receipt${ext || ''}`);
+    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    await this.prisma.expense.update({
+      where: { id: expenseId },
+      data: {
+        receiptFilename: filename,
+        receiptStoragePath: storagePath,
+        receiptMimeType: file.mimetype,
+      },
+    });
+  }
 
   private expenseInclude = {
     user: { select: { id: true, firstName: true, lastName: true, role: true } },
@@ -204,9 +258,14 @@ export class BillingService {
     });
   }
 
-  async createExpense(user: AuthUser, caseId: string, dto: CreateExpenseDto) {
+  async createExpense(
+    user: AuthUser,
+    caseId: string,
+    dto: CreateExpenseDto,
+    receipt?: Express.Multer.File,
+  ) {
     await this.assertSourceEventOnCase(dto.sourceEventId, caseId);
-    return this.prisma.expense.create({
+    const expense = await this.prisma.expense.create({
       data: {
         caseId,
         userId: user.id,
@@ -221,6 +280,14 @@ export class BillingService {
       },
       include: this.expenseInclude,
     });
+    if (receipt) {
+      await this.attachReceipt(expense.id, receipt);
+      return this.prisma.expense.findUniqueOrThrow({
+        where: { id: expense.id },
+        include: this.expenseInclude,
+      });
+    }
+    return expense;
   }
 
   /** A cost may only name a hearing on the case it is being charged to. */
@@ -239,7 +306,11 @@ export class BillingService {
     if (!event) throw new NotFoundException('ไม่พบนัดที่อ้างถึงในคดีนี้');
   }
 
-  async createStandaloneExpense(user: AuthUser, dto: CreateStandaloneExpenseDto) {
+  async createStandaloneExpense(
+    user: AuthUser,
+    dto: CreateStandaloneExpenseDto,
+    receipt?: Express.Multer.File,
+  ) {
     if (dto.caseId) {
       const legalCase = await this.prisma.case.findFirst({
         where: { id: dto.caseId, firmId: user.firmId },
@@ -247,7 +318,7 @@ export class BillingService {
       if (!legalCase) throw new NotFoundException('Case not found');
     }
     await this.assertSourceEventOnCase(dto.sourceEventId, dto.caseId);
-    return this.prisma.expense.create({
+    const expense = await this.prisma.expense.create({
       data: {
         caseId: dto.caseId ?? null,
         userId: user.id,
@@ -257,10 +328,43 @@ export class BillingService {
         expensePurpose: dto.expensePurpose,
         date: dto.date ? new Date(dto.date) : new Date(),
         sourceEventId: dto.sourceEventId ?? null,
-        status: dto.status ?? ExpenseStatus.PENDING,
+        // Standalone claims from /expenses start as drafts so the lawyer can
+        // tick, print, and only then send them to the owner.
+        status: dto.status ?? ExpenseStatus.DRAFT,
       },
       include: this.expenseInclude,
     });
+    if (receipt) {
+      await this.attachReceipt(expense.id, receipt);
+      return this.prisma.expense.findUniqueOrThrow({
+        where: { id: expense.id },
+        include: this.expenseInclude,
+      });
+    }
+    return expense;
+  }
+
+  async getReceiptFile(user: AuthUser, expenseId: string) {
+    const expense = await this.prisma.expense.findFirst({
+      where: { id: expenseId, ...this.getFirmExpenseFilter(user.firmId) },
+      select: {
+        userId: true,
+        receiptFilename: true,
+        receiptStoragePath: true,
+        receiptMimeType: true,
+      },
+    });
+    if (!expense?.receiptStoragePath || !expense.receiptFilename) {
+      throw new NotFoundException('Receipt not found');
+    }
+    if (user.firmRole !== FirmRole.OWNER && expense.userId !== user.id) {
+      throw new ForbiddenException('Cannot access this receipt');
+    }
+    return {
+      path: expense.receiptStoragePath,
+      filename: expense.receiptFilename,
+      mimeType: expense.receiptMimeType ?? 'application/octet-stream',
+    };
   }
 
   async getAllExpenses(user: AuthUser, status?: ExpenseStatus) {
@@ -313,6 +417,8 @@ export class BillingService {
     const outstanding = expenses
       .filter((e) => e.status === 'PENDING')
       .reduce((sum, e) => sum + e.amount, 0);
+    const draftExpenses = expenses.filter((e) => e.status === 'DRAFT');
+    const draftTotal = draftExpenses.reduce((sum, e) => sum + e.amount, 0);
 
     const netProfit = caseProfits.reduce((sum, row) => sum + row.profit, 0);
 
@@ -324,10 +430,12 @@ export class BillingService {
       totalExpenses,
       approvedExpenses,
       outstanding,
+      draftTotal,
       netProfit,
       caseProfits,
       pettyCashBalance: pettyCash.balance,
       pendingCount: expenses.filter((e) => e.status === 'PENDING').length,
+      draftCount: draftExpenses.length,
       expenseCount: expenses.length,
     };
   }
@@ -416,11 +524,98 @@ export class BillingService {
       data.paidById = user.id;
     }
 
-    return this.prisma.expense.update({
+    const updated = await this.prisma.expense.update({
       where: { id: expenseId },
       data,
       include: this.expenseInclude,
     });
+
+    if (submitting) {
+      await this.notifyOwnersOfExpenseClaim(user, [updated]);
+    }
+
+    return updated;
+  }
+
+  async submitExpensesForApproval(user: AuthUser, expenseIds: string[]) {
+    if (!expenseIds.length) {
+      throw new BadRequestException('เลือกอย่างน้อย 1 รายการ');
+    }
+
+    const uniqueIds = [...new Set(expenseIds)];
+    const expenses = await this.prisma.expense.findMany({
+      where: {
+        id: { in: uniqueIds },
+        ...this.getFirmExpenseFilter(user.firmId),
+      },
+      include: this.expenseInclude,
+    });
+
+    if (expenses.length !== uniqueIds.length) {
+      throw new NotFoundException('ไม่พบรายการค่าใช้จ่ายบางรายการ');
+    }
+
+    for (const expense of expenses) {
+      if (expense.status !== ExpenseStatus.DRAFT) {
+        throw new BadRequestException('เบิกได้เฉพาะรายการที่ยังเป็นร่าง');
+      }
+      if (expense.userId !== user.id && user.firmRole !== FirmRole.OWNER) {
+        throw new ForbiddenException('ส่งเบิกได้เฉพาะรายการของตัวเอง');
+      }
+    }
+
+    const updated = await this.prisma.$transaction(
+      uniqueIds.map((id) =>
+        this.prisma.expense.update({
+          where: { id },
+          data: { status: ExpenseStatus.PENDING },
+          include: this.expenseInclude,
+        }),
+      ),
+    );
+
+    await this.notifyOwnersOfExpenseClaim(user, updated);
+    return updated;
+  }
+
+  private async notifyOwnersOfExpenseClaim(
+    submitter: AuthUser,
+    expenses: Array<{ amount: number; description: string }>,
+  ) {
+    if (!expenses.length) return;
+
+    const owners = await this.prisma.firmMember.findMany({
+      where: { firmId: submitter.firmId, role: FirmRole.OWNER },
+      include: {
+        user: { select: { lineUserId: true, firstName: true, lastName: true } },
+      },
+    });
+
+    const ownerLineIds = owners
+      .map((member) => member.user.lineUserId)
+      .filter((id): id is string => Boolean(id));
+
+    if (!ownerLineIds.length || !this.line.isConfigured()) return;
+
+    const total = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const webUrl =
+      this.config.get<string>('WEB_APP_URL') ??
+      this.config.get<string>('APP_URL') ??
+      'http://localhost:3005';
+    const link = `${webUrl.replace(/\/$/, '')}/admin/reimbursements?status=PENDING`;
+    const submitterName = `${submitter.firstName ?? ''} ${submitter.lastName ?? ''}`.trim() || 'ทนายความ';
+    const message =
+      `📋 ${submitterName} ส่งคำขอเบิกค่าใช้จ่าย ${expenses.length} รายการ\n` +
+      `รวม ฿${total.toLocaleString('th-TH')}\n\n` +
+      `🔗 ${link}`;
+
+    for (const lineUserId of ownerLineIds) {
+      try {
+        await this.line.pushTo(lineUserId, message);
+      } catch (error) {
+        this.logger.warn(`Failed to notify owner ${lineUserId} about expense claim: ${error}`);
+      }
+    }
   }
 
   async getInvoices(caseId: string) {

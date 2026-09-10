@@ -1,12 +1,28 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { BarChart3, PieChart, TrendingUp } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
-import { api, ApiError, ReportsSummary } from '@/lib/api';
+import {
+  api,
+  ApiError,
+  CaseProfitRow,
+  FinanceSummary,
+  ReportsSummary,
+} from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { formatCurrency } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -82,10 +98,27 @@ function reportChartItems(data: ReportsSummary, key: (typeof REPORT_META)[number
   }
 }
 
+function revenueSourceLabel(
+  source: CaseProfitRow['revenueSource'],
+  d: ReturnType<typeof useDashboardT>,
+) {
+  switch (source) {
+    case 'estimated':
+      return d.home.revenueEstimated;
+    case 'time':
+      return d.home.revenueTime;
+    case 'invoice':
+      return d.home.revenueInvoice;
+    default:
+      return '—';
+  }
+}
+
 export default function ReportsPage() {
   const d = useDashboardT();
   const { user, token } = useAuth();
   const [data, setData] = useState<ReportsSummary | null>(null);
+  const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -96,9 +129,14 @@ export default function ReportsPage() {
       return;
     }
     setError('');
-    api
-      .getReportsSummary(authToken)
-      .then(setData)
+    Promise.all([
+      api.getReportsSummary(authToken),
+      api.getFinanceSummary(authToken),
+    ])
+      .then(([reports, financeSummary]) => {
+        setData(reports);
+        setFinance(financeSummary);
+      })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
         setError(err instanceof Error ? err.message : d.reports.loadFailed);
@@ -118,6 +156,7 @@ export default function ReportsPage() {
 
   if (!data || !user) return null;
 
+  const caseProfits = finance?.caseProfits ?? [];
   const changeLabel =
     data.kpis.casesClosedChange >= 0
       ? `+${data.kpis.casesClosedChange} ${d.reports.vsLastYear}`
@@ -134,7 +173,7 @@ export default function ReportsPage() {
         }
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label={d.reports.casesClosedYtd}
           value={data.kpis.casesClosedYtd}
@@ -156,7 +195,79 @@ export default function ReportsPage() {
           }
           trend="neutral"
         />
+        {finance && (
+          <KpiCard
+            label={d.reports.netProfit}
+            value={formatCurrency(finance.netProfit)}
+            trend={finance.netProfit >= 0 ? 'up' : 'down'}
+            change={d.reports.caseProfitHint}
+          />
+        )}
       </div>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>{d.reports.caseProfitByCase}</CardTitle>
+          <p className="text-xs text-muted-foreground">{d.reports.caseProfitHint}</p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{d.home.ownRef}</TableHead>
+                <TableHead>{d.reports.caseTitle}</TableHead>
+                <TableHead>{d.home.client}</TableHead>
+                <TableHead className="text-right">{d.home.revenue}</TableHead>
+                <TableHead>{d.reports.revenueSource}</TableHead>
+                <TableHead className="text-right">{d.nav.expenses}</TableHead>
+                <TableHead className="text-right">{d.home.profit}</TableHead>
+                <TableHead>{d.billing.status}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {caseProfits.length === 0 ? (
+                <TableEmptyRow
+                  colSpan={8}
+                  title={d.reports.noCaseProfits}
+                  description={d.reports.noCaseProfitsHint}
+                />
+              ) : (
+                caseProfits.map((row) => (
+                  <TableRow key={row.caseId}>
+                    <TableCell>
+                      <Link
+                        href={`/cases/${row.caseId}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {row.ownRef}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="max-w-[180px] truncate">{row.title}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {row.clientName ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-right">{formatCurrency(row.revenue)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {revenueSourceLabel(row.revenueSource, d)}
+                    </TableCell>
+                    <TableCell className="text-right">{formatCurrency(row.expenses)}</TableCell>
+                    <TableCell
+                      className={`text-right font-semibold ${
+                        row.profit >= 0 ? 'text-green-600' : 'text-destructive'
+                      }`}
+                    >
+                      {formatCurrency(row.profit)}
+                    </TableCell>
+                    <TableCell>
+                      <CaseStatusBadge status={row.status} />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2">
         {REPORT_META.map((report) => {

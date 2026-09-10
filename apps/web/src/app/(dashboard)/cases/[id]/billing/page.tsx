@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   EXPENSE_CATEGORIES,
+  ExpenseStatus,
+  FirmRole,
   MONEY_HINT,
   MONEY_MAX,
   MONEY_MIN,
@@ -26,7 +28,7 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 export default function CaseBillingPage() {
   const d = useDashboardT();
   const { id } = useParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [timeEntries, setTimeEntries] = useState<TimeEntryItem[]>([]);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
@@ -77,6 +79,7 @@ export default function CaseBillingPage() {
         description: expenseForm.description,
         category: expenseForm.category,
         expensePurpose: expenseForm.expensePurpose || undefined,
+        status: user?.firmRole === FirmRole.OWNER ? undefined : ExpenseStatus.DRAFT,
       });
       setExpenseForm({ amount: '', description: '', category: EXPENSE_CATEGORIES[0], expensePurpose: '' });
       setShowExpenseForm(false);

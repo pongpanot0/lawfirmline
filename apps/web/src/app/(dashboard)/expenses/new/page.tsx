@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { ImagePlus, X } from 'lucide-react';
 import {
   EXPENSE_CATEGORIES,
+  ExpenseStatus,
   MONEY_HINT,
   MONEY_MAX,
   MONEY_MIN,
@@ -18,6 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
+const RECEIPT_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,application/pdf';
+
 export default function NewExpensePage() {
   const d = useDashboardT();
   const { token } = useAuth();
@@ -27,6 +31,8 @@ export default function NewExpensePage() {
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [receipt, setReceipt] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [form, setForm] = useState({
     amount: '',
     description: '',
@@ -47,19 +53,41 @@ export default function NewExpensePage() {
     );
   }, [caseIdParam]);
 
+  useEffect(() => {
+    if (!receipt) {
+      setReceiptPreview(null);
+      return;
+    }
+    if (receipt.type.startsWith('image/')) {
+      const url = URL.createObjectURL(receipt);
+      setReceiptPreview(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setReceiptPreview(null);
+  }, [receipt]);
+
+  const handleReceiptChange = (file: File | null) => {
+    setReceipt(file);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
     setSubmitting(true);
     setError('');
     try {
-      await api.createStandaloneExpense(token, {
-        amount: parseFloat(form.amount),
-        description: form.description,
-        category: form.category,
-        expensePurpose: form.expensePurpose || undefined,
-        caseId: form.caseId || undefined,
-      });
+      await api.createStandaloneExpense(
+        token,
+        {
+          amount: parseFloat(form.amount),
+          description: form.description,
+          category: form.category,
+          expensePurpose: form.expensePurpose || undefined,
+          caseId: form.caseId || undefined,
+          status: ExpenseStatus.DRAFT,
+        },
+        receipt ?? undefined,
+      );
       router.push('/expenses');
     } catch (err) {
       setError(
@@ -157,6 +185,43 @@ export default function NewExpensePage() {
               )}
             </div>
 
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium">{d.expenses.receipt}</label>
+              <div className="mt-2 flex flex-wrap items-start gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input px-4 py-3 text-sm font-medium hover:bg-accent">
+                  <ImagePlus className="h-4 w-4" />
+                  {receipt ? receipt.name : d.expenses.receipt}
+                  <input
+                    type="file"
+                    accept={RECEIPT_ACCEPT}
+                    className="sr-only"
+                    onChange={(e) => handleReceiptChange(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {receipt && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setReceipt(null)}>
+                    <X className="h-3.5 w-3.5" />
+                    {d.expenses.removeReceipt}
+                  </Button>
+                )}
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">{d.expenses.receiptHint}</p>
+              {receiptPreview && (
+                <div className="mt-3">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">{d.expenses.receiptPreview}</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={receiptPreview}
+                    alt={d.expenses.receiptPreview}
+                    className="max-h-48 rounded-lg border border-border object-contain"
+                  />
+                </div>
+              )}
+              {receipt && !receiptPreview && (
+                <p className="mt-2 text-sm text-muted-foreground">{receipt.name}</p>
+              )}
+            </div>
+
             {error && <p className="text-sm text-destructive md:col-span-2">{error}</p>}
 
             <div className="flex gap-3 md:col-span-2">
@@ -164,7 +229,7 @@ export default function NewExpensePage() {
                 {d.common.cancel}
               </Button>
               <Button type="submit" disabled={submitting || !form.amount || !form.description.trim()}>
-                {submitting ? d.expenses.submitting : d.expenses.submit}
+                {submitting ? d.expenses.submitting : d.expenses.saveDraft}
               </Button>
             </div>
           </form>

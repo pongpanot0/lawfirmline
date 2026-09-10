@@ -145,7 +145,9 @@ export default function NewClientPage() {
             </label>
 
             <label className="block">
-              <span className="text-sm font-medium">{d.clients.name} *</span>
+              <span className="text-sm font-medium">
+                {isCompany ? d.clients.companyName : d.clients.name} *
+              </span>
               <Input
                 required
                 autoFocus

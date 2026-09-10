@@ -6,8 +6,14 @@ import {
   Body,
   Param,
   Query,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
+import * as fs from 'fs';
 import { BillingService } from './billing.service';
 import {
   CreateTimeEntryDto,
@@ -15,6 +21,7 @@ import {
   CreateStandaloneExpenseDto,
   CreateInvoiceDto,
   UpdateExpenseStatusDto,
+  SubmitExpensesDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -22,6 +29,10 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser, Role, ExpenseStatus } from '@lawfirm/shared';
+import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
+import { safeMimeType } from '../common/utils/safe-mime-type';
+
+const RECEIPT_UPLOAD = FileInterceptor('receipt', { limits: { fileSize: 10 * 1024 * 1024 } });
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -54,11 +65,34 @@ export class BillingController {
   }
 
   @Post('expenses')
+  @UseInterceptors(RECEIPT_UPLOAD)
   createStandaloneExpense(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateStandaloneExpenseDto,
+    @UploadedFile() receipt?: Express.Multer.File,
   ) {
-    return this.billingService.createStandaloneExpense(user, dto);
+    return this.billingService.createStandaloneExpense(user, dto, receipt);
+  }
+
+  @Get('expenses/:expenseId/receipt')
+  async downloadReceipt(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId') expenseId: string,
+    @Res() res: Response,
+  ) {
+    const file = await this.billingService.getReceiptFile(user, expenseId);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Type', safeMimeType(file.mimeType));
+    res.setHeader('Content-Disposition', buildContentDispositionHeader(file.filename));
+    fs.createReadStream(file.path).pipe(res);
+  }
+
+  @Post('expenses/submit')
+  submitExpenses(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: SubmitExpensesDto,
+  ) {
+    return this.billingService.submitExpensesForApproval(user, dto.expenseIds);
   }
 
   @Patch('expenses/:expenseId/status')
@@ -102,12 +136,14 @@ export class BillingController {
 
   @Post('cases/:caseId/billing/expenses')
   @UseGuards(CaseAccessGuard)
+  @UseInterceptors(RECEIPT_UPLOAD)
   createExpense(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @Body() dto: CreateExpenseDto,
+    @UploadedFile() receipt?: Express.Multer.File,
   ) {
-    return this.billingService.createExpense(user, caseId, dto);
+    return this.billingService.createExpense(user, caseId, dto, receipt);
   }
 
   @Get('cases/:caseId/billing/invoices')

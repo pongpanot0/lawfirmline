@@ -115,7 +115,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>{d.home.caseProfitByCase}</CardTitle>
-              <Link href="/expenses" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
+              <Link href="/reports" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
             </CardHeader>
             <CardContent className="p-0">
               <Table>

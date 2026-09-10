@@ -306,6 +306,7 @@ export interface ExpenseItem {
   user: { id: string; firstName: string; lastName: string; role?: string };
   paidBy?: { firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string; courtName?: string | null } | null;
+  receiptFilename?: string | null;
 }
 
 export interface CaseParticipantItem {
@@ -474,10 +475,12 @@ export interface FinanceSummary {
   totalExpenses: number;
   approvedExpenses: number;
   outstanding: number;
+  draftTotal?: number;
   netProfit: number;
   caseProfits: CaseProfitRow[];
   pettyCashBalance: number;
   pendingCount: number;
+  draftCount?: number;
   expenseCount: number;
 }
 
@@ -1202,6 +1205,13 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
+  submitExpenses: (token: string, expenseIds: string[]) =>
+    request<ExpenseItem[]>('/expenses/submit', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ expenseIds }),
+    }),
+
   getDocuments: (token: string, caseId: string) =>
     request<DocumentItem[]>(`/cases/${caseId}/documents`, { token }),
 
@@ -1217,8 +1227,22 @@ export const api = {
       { token },
     ),
 
-  createStandaloneExpense: (token: string, data: Record<string, unknown>) =>
-    request('/expenses', { method: 'POST', token, body: JSON.stringify(data) }),
+  createStandaloneExpense: (token: string, data: Record<string, unknown>, receipt?: File) => {
+    if (receipt) {
+      const form = new FormData();
+      for (const [key, value] of Object.entries(data)) {
+        if (value !== undefined && value !== null && value !== '') {
+          form.append(key, String(value));
+        }
+      }
+      form.append('receipt', receipt);
+      return request('/expenses', { method: 'POST', token, body: form });
+    }
+    return request('/expenses', { method: 'POST', token, body: JSON.stringify(data) });
+  },
+
+  downloadExpenseReceipt: (token: string, expenseId: string) =>
+    fetchBlob(`/expenses/${expenseId}/receipt`, { token }),
 
   getPettyCash: (token: string) =>
     request<{ balance: number }>('/petty-cash', { token }),

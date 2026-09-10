@@ -955,6 +955,10 @@ model Expense {
   sourceEventId  String?
   paidAt         DateTime?
   paidById       String?
+  /// Optional receipt photo uploaded with the claim.
+  receiptFilename    String?
+  receiptStoragePath String?
+  receiptMimeType    String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
