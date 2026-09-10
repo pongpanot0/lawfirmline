@@ -2,8 +2,9 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    tags:
+      - 'prod'
+      - 'prod-*'
 
 permissions:
   contents: read
