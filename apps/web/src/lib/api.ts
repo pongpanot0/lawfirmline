@@ -413,6 +413,19 @@ export interface PublicHolidayItem {
   name: string;
 }
 
+/** A task the signed-in user has picked up and not yet finished. */
+export interface ActiveTask {
+  id: string;
+  title: string;
+  status: import('@lawfirm/shared').TaskStatus;
+  dueDate: string | null;
+  caseId: string | null;
+  caseRef: string | null;
+  caseTitle: string | null;
+  /** Set only while the task is still paused waiting on someone. */
+  onHold: { reason: string; nextFollowUpAt: string | null } | null;
+}
+
 export interface DashboardStats {
   firmId: string;
   firmName: string;
@@ -430,6 +443,7 @@ export interface DashboardStats {
     totalNetProfit: number;
   };
   caseProfits: CaseProfitRow[];
+  activeTasks: ActiveTask[];
   recentCases: Array<{
     id: string;
     ownRef: string;

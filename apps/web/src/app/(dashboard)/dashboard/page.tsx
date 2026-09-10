@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { TaskStatus } from '@lawfirm/shared';
 import {
   Briefcase,
   Activity,
@@ -15,19 +16,58 @@ import {
   FileText,
   CheckCircle2,
   TrendingUp,
+  PauseCircle,
+  CalendarDays as CalendarDaysIcon,
 } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
-import { api, ApiError, DashboardStats } from '@/lib/api';
+import { api, ApiError, ActiveTask, DashboardStats, MyDayResponse } from '@/lib/api';
+import { AgendaRow } from '@/components/samnuan/AgendaRow';
 import { PageHeader, KpiCard, QuickActionButton } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils';
-import { PageLoading, TableEmptyRow } from '@/components/ui/misc';
+import { PageLoading, Skeleton, TableEmptyRow } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { MyDayPanel } from '@/components/agenda/MyDayPanel';
 import { FirmRole } from '@lawfirm/shared';
 import { fmt } from '@/lib/i18n/dashboard';
+
+/** Reads a task's own status, so a paused task never looks like it is moving. */
+function ActiveTaskRow({ task }: { task: ActiveTask }) {
+  const d = useDashboardT();
+  const statusLabel = {
+    [TaskStatus.TODO]: d.todos.columnTodo,
+    [TaskStatus.IN_PROGRESS]: d.todos.columnInProgress,
+    [TaskStatus.PENDING_REVIEW]: d.todos.columnPendingReview,
+    [TaskStatus.NEEDS_REVISION]: d.todos.columnNeedsRevision,
+    [TaskStatus.DONE]: d.todos.columnDone,
+  }[task.status];
+
+  return (
+    <Link
+      href={task.caseId ? `/cases/${task.caseId}/tasks` : '/todos'}
+      className="block rounded-lg px-2 py-1.5 transition hover:bg-muted/50"
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-sm font-medium">{task.title}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{statusLabel}</span>
+      </div>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+        {task.caseRef && <span className="font-mono">{task.caseRef}</span>}
+        <span>
+          {task.dueDate ? fmt(d.home.dueOn, { date: formatDate(task.dueDate) }) : d.home.noDueDate}
+        </span>
+      </div>
+      {task.onHold && (
+        <p className="mt-1 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-500">
+          <PauseCircle className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{fmt(d.home.onHoldFor, { reason: task.onHold.reason })}</span>
+        </p>
+      )}
+    </Link>
+  );
+}
 
 export default function DashboardPage() {
   const { token, user } = useAuth();
@@ -35,6 +75,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const isOwner = user?.firmRole === FirmRole.OWNER;
   const [data, setData] = useState<DashboardStats | null>(null);
+  // `null` while in flight, `'error'` when the agenda alone failed. Kept apart
+  // from `data` so a broken agenda costs the lawyer one card, not the page.
+  const [agenda, setAgenda] = useState<MyDayResponse | 'error' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -45,6 +88,14 @@ export default function DashboardPage() {
       return;
     }
     setError('');
+    setAgenda(null);
+    api
+      .getMyDay(authToken)
+      .then(setAgenda)
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) return;
+        setAgenda('error');
+      });
     api
       .getDashboardStats(authToken)
       .then(setData)
@@ -66,6 +117,8 @@ export default function DashboardPage() {
   }
 
   if (!data || !user) return null;
+
+  const agendaReady = agenda !== null && agenda !== 'error';
 
   /**
    * The firm's money is the owner's question. A lawyer opening the app wants
@@ -112,6 +165,38 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-6">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <CalendarDaysIcon className="size-4 text-muted-foreground" aria-hidden />
+                {d.home.todayAgenda}
+                {agendaReady && agenda.overdue.length > 0 && (
+                  <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                    {fmt(d.home.overdueBadge, { count: agenda.overdue.length })}
+                  </span>
+                )}
+              </CardTitle>
+              <Link href="/my-day" className="text-sm text-primary hover:underline">
+                {d.common.viewAll}
+              </Link>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {agenda === null ? (
+                <Skeleton className="mx-3 h-10" />
+              ) : agenda === 'error' ? (
+                <p className="px-3 py-2 text-sm text-destructive">{d.common.loadFailed}</p>
+              ) : agenda.todayItems.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-muted-foreground">{d.home.noAgendaToday}</p>
+              ) : (
+                <div className="-mx-1 divide-y divide-border/60">
+                  {agenda.todayItems.map((item) => (
+                    <AgendaRow key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>{d.home.caseProfitByCase}</CardTitle>
@@ -256,6 +341,24 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-6">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle>{d.home.activeWork}</CardTitle>
+              <Link href="/todos" className="text-sm text-primary hover:underline">
+                {d.common.viewAll}
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {(data.activeTasks ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">{d.home.noActiveWork}</p>
+              ) : (
+                (data.activeTasks ?? []).map((task) => (
+                  <ActiveTaskRow key={task.id} task={task} />
+                ))
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>{d.home.quickActions}</CardTitle>

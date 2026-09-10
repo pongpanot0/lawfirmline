@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { Prisma, TaskStatus } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { BillingService } from '../billing/billing.service';
@@ -12,6 +13,19 @@ export class DashboardService {
     private billingService: BillingService,
   ) {}
 
+  /**
+   * What "still on my plate" means. TODO is work not started, DONE is finished;
+   * everything between is work the caller has picked up and not yet let go of.
+   */
+  private static readonly ACTIVE_TASK_STATUSES = [
+    'IN_PROGRESS',
+    'PENDING_REVIEW',
+    'NEEDS_REVISION',
+  ];
+
+  /** How many rows of active work the home page shows before deferring to /todos. */
+  private static readonly ACTIVE_TASK_TAKE = 8;
+
   private getFirmExpenseFilter(firmId: string) {
     return {
       OR: [
@@ -19,6 +33,43 @@ export class DashboardService {
         { caseId: null, user: { firmMembers: { some: { firmId } } } },
       ],
     };
+  }
+
+  /**
+   * The work the caller has personally picked up, case tasks and standalone
+   * todos alike. Scoped by `assigneeId` rather than the role visibility filter:
+   * this answers "what am *I* in the middle of", not "what may I see".
+   */
+  private async getActiveTasks(user: AuthUser, caseFilter: Prisma.CaseWhereInput) {
+    const rows = await this.prisma.task.findMany({
+      where: {
+        assigneeId: user.id,
+        status: { in: DashboardService.ACTIVE_TASK_STATUSES as TaskStatus[] },
+        OR: [{ caseId: null }, { case: caseFilter }],
+      },
+      // Postgres sorts NULLs last on ASC, so undated work falls below dated work.
+      orderBy: [{ dueDate: 'asc' }, { updatedAt: 'desc' }],
+      take: DashboardService.ACTIVE_TASK_TAKE,
+      include: {
+        case: { select: { id: true, ownRef: true, title: true } },
+        onHold: { select: { reason: true, nextFollowUpAt: true, endedAt: true } },
+      },
+    });
+
+    return rows.map((task) => ({
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      dueDate: task.dueDate,
+      caseId: task.caseId,
+      caseRef: task.case?.ownRef ?? null,
+      caseTitle: task.case?.title ?? null,
+      // A hold that has ended is history; only an open one still blocks the task.
+      onHold:
+        task.onHold && !task.onHold.endedAt
+          ? { reason: task.onHold.reason, nextFollowUpAt: task.onHold.nextFollowUpAt }
+          : null,
+    }));
   }
 
   async getStats(user: AuthUser) {
@@ -69,8 +120,8 @@ export class DashboardService {
       pendingReimbursementList,
       timeEntries,
       caseProfits,
-    ] =
-      await Promise.all([
+      activeTasks,
+    ] = await Promise.all([
         this.prisma.expense.count({
           where: { ...expenseScope, status: 'PENDING' },
         }),
@@ -91,6 +142,7 @@ export class DashboardService {
           select: { hours: true, rate: true, date: true },
         }),
         this.billingService.getCaseProfits(user),
+        this.getActiveTasks(user, caseFilter),
       ]);
 
     const monthlyRevenue = timeEntries
@@ -147,6 +199,7 @@ export class DashboardService {
         totalNetProfit,
       },
       caseProfits: caseProfits.slice(0, 8),
+      activeTasks,
       recentCases,
       upcomingHearings,
       pendingReimbursements: pendingReimbursementList,
