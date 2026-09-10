@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/lib/auth';
+import { useAuth, REFRESH_KEY } from '@/lib/auth';
+import { redirectToFirmApp } from '@/lib/firm-slug';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 
 export default function LoginPage() {
   const d = useDashboardT();
-  const { login, user, loading } = useAuth();
+  const { login, user, loading, token } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,10 +22,14 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) {
-      router.replace('/dashboard');
+    if (loading || !user) return;
+    const refresh =
+      typeof window !== 'undefined' ? localStorage.getItem(REFRESH_KEY) : null;
+    if (token && refresh && redirectToFirmApp(user, { accessToken: token, refreshToken: refresh })) {
+      return;
     }
-  }, [user, loading, router]);
+    router.replace('/dashboard');
+  }, [user, loading, router, token]);
 
   if (!loading && user) {
     return null;
@@ -35,7 +40,10 @@ export default function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      await login(email, password);
+      const res = await login(email, password);
+      if (redirectToFirmApp(res.user, res)) {
+        return;
+      }
       router.push('/dashboard');
     } catch {
       setError(d.auth.invalidCredentials);

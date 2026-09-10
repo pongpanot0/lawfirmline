@@ -1,11 +1,14 @@
 # Reverse proxy with automatic HTTPS (Let's Encrypt) for the lawfirm app.
 # {$DOMAIN} is read from the DOMAIN env var passed to the caddy service —
 # set it in .env (see .env.production.example).
+#
+# Firm tenants are served on subdomains (first firm: thesiambarrister).
+# Add each firm host here (HTTP-01 works). Wildcard *.DOMAIN needs DNS-01.
 
 api.{$DOMAIN} {
 	reverse_proxy api:3001
 }
 
-{$DOMAIN}, www.{$DOMAIN} {
+{$DOMAIN}, www.{$DOMAIN}, thesiambarrister.{$DOMAIN} {
 	reverse_proxy web:3000
 }

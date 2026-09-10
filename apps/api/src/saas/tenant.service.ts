@@ -48,6 +48,7 @@ export class TenantService {
       firstName: user.firstName,
       lastName: user.lastName,
       firmId: firm.id,
+      firmSlug: firm.slug,
       firmName: firm.name,
       firmRole: membership.role as FirmRole,
       subscriptionStatus,

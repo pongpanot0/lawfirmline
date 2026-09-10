@@ -60,6 +60,52 @@ export function extractFirmSlugFromHost(
   return null;
 }
 
+function splitHostPort(hostHeader: string): { hostname: string; port: string } {
+  const trimmed = hostHeader.trim();
+  const idx = trimmed.lastIndexOf(':');
+  if (idx > -1 && /^\d+$/.test(trimmed.slice(idx + 1))) {
+    return { hostname: trimmed.slice(0, idx).toLowerCase(), port: trimmed.slice(idx + 1) };
+  }
+  return { hostname: trimmed.toLowerCase(), port: '' };
+}
+
+/**
+ * Build the origin for a firm's subdomain, preserving localhost/port for local dev.
+ */
+export function buildFirmAppOrigin(opts: {
+  firmSlug: string;
+  currentHost: string;
+  protocol?: string;
+  rootDomain?: string;
+}): string {
+  const rootDomain = (opts.rootDomain ?? DEFAULT_ROOT_DOMAIN).toLowerCase();
+  const protocol = opts.protocol ?? 'https:';
+  const { hostname, port } = splitHostPort(opts.currentHost);
+  const slug = opts.firmSlug.toLowerCase();
+
+  const isLocal =
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname === '127.0.0.1';
+
+  if (isLocal) {
+    const host = `${slug}.localhost${port ? `:${port}` : ''}`;
+    return `${protocol}//${host}`;
+  }
+
+  return `${protocol}//${slug}.${rootDomain}`;
+}
+
+/** True when the browser is not already on the user's firm subdomain. */
+export function needsFirmHostRedirect(
+  currentHost: string,
+  firmSlug: string,
+  rootDomain: string = DEFAULT_ROOT_DOMAIN,
+): boolean {
+  const currentSlug = extractFirmSlugFromHost(currentHost, rootDomain);
+  return currentSlug !== firmSlug.toLowerCase();
+}
+
 export enum SubscriptionPlan {
   SOLO = 'SOLO',
   FIRM = 'FIRM',
@@ -356,6 +402,7 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   firmId: string;
+  firmSlug: string;
   firmName: string;
   firmRole: FirmRole;
   subscriptionStatus: SubscriptionStatus;

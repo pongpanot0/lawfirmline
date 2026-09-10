@@ -44,6 +44,7 @@ jobs:
         run: |
           docker build -f apps/web/Dockerfile \
             --build-arg "NEXT_PUBLIC_API_URL=https://api.${{ secrets.DOMAIN }}" \
+            --build-arg "NEXT_PUBLIC_ROOT_DOMAIN=${{ secrets.DOMAIN }}" \
             -t "$ECR_REGISTRY/lawfirm-web:$IMAGE_TAG" \
             -t "$ECR_REGISTRY/lawfirm-web:latest" .
           docker push "$ECR_REGISTRY/lawfirm-web:$IMAGE_TAG"
