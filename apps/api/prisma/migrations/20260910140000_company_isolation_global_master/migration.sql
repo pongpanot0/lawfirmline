@@ -2,9 +2,9 @@
 UPDATE "Firm"
 SET
   "name" = 'The Siam Barrister',
-  "slug" = 'thesiambarrister',
+  "slug" = 'thesiambarristers',
   "updatedAt" = NOW()
-WHERE "slug" IN ('demo-law-firm', 'thesiambarrister')
+WHERE "slug" IN ('demo-law-firm', 'thesiambarrister', 'thesiambarristers')
    OR "id" = 'default-firm';
 
 -- Global courts: dedupe by name, drop firmId.

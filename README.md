@@ -169,7 +169,17 @@ API + Web run as containers behind [Caddy](https://caddyserver.com/) (HTTPS). Im
 
 ### 1. Point DNS at the server
 
-Create A records for `yourdomain.com` and `api.yourdomain.com` pointing at the EC2 IP before starting Caddy.
+Create these A records pointing at the EC2 IP **before** starting Caddy:
+
+| Name | Type | Target |
+|------|------|--------|
+| `@` / apex | A | EC2 IP |
+| `api` | A | EC2 IP |
+| `*` (wildcard) | A | EC2 IP |
+
+The wildcard covers every firm subdomain (`thesiambarristers`, and any future signup). You do **not** add a DNS record per company.
+
+Caddy uses On-Demand TLS for `*.DOMAIN`: on first HTTPS hit it asks `GET /saas/caddy-ask?domain=…` and only issues a cert when that firm slug exists in the database.
 
 ### 2. Configure on EC2
 

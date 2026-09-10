@@ -6,10 +6,12 @@ import {
 } from '@nestjs/common';
 import {
   AuthUser,
+  DEFAULT_ROOT_DOMAIN,
   FirmRole,
   SubscriptionPlan,
   SubscriptionStatus,
   TRIAL_DAYS,
+  extractFirmSlugFromHost,
   isReservedFirmSlug,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -235,6 +237,19 @@ export class TenantService {
   async findBySlug(slug: string) {
     if (!slug || isReservedFirmSlug(slug)) return null;
     return this.prisma.firm.findUnique({ where: { slug: slug.toLowerCase() } });
+  }
+
+  /**
+   * Whether Caddy may issue an on-demand TLS cert for this Host.
+   * Only known firm subdomains under ROOT_DOMAIN are allowed.
+   */
+  async allowOnDemandTls(domain: string | undefined | null): Promise<boolean> {
+    if (!domain) return false;
+    const rootDomain = process.env.ROOT_DOMAIN ?? DEFAULT_ROOT_DOMAIN;
+    const slug = extractFirmSlugFromHost(domain, rootDomain);
+    if (!slug) return false;
+    const firm = await this.findBySlug(slug);
+    return !!firm;
   }
 
   async assertSlugAvailable(slug: string): Promise<void> {

@@ -2,13 +2,31 @@
 # {$DOMAIN} is read from the DOMAIN env var passed to the caddy service —
 # set it in .env (see .env.production.example).
 #
-# Firm tenants are served on subdomains (first firm: thesiambarrister).
-# Add each firm host here (HTTP-01 works). Wildcard *.DOMAIN needs DNS-01.
+# DNS (once):
+#   A  {$DOMAIN}           → EC2 IP
+#   A  api.{$DOMAIN}       → EC2 IP
+#   A  *.{$DOMAIN}         → EC2 IP   (all firm subdomains)
+#
+# Firm hosts use On-Demand TLS: Caddy asks the API whether the slug exists
+# before issuing a cert (prevents arbitrary-domain abuse).
+
+{
+	on_demand_tls {
+		ask http://api:3001/saas/caddy-ask
+	}
+}
 
 api.{$DOMAIN} {
 	reverse_proxy api:3001
 }
 
-{$DOMAIN}, www.{$DOMAIN}, thesiambarrister.{$DOMAIN} {
+{$DOMAIN}, www.{$DOMAIN} {
+	reverse_proxy web:3000
+}
+
+*.{$DOMAIN} {
+	tls {
+		on_demand
+	}
 	reverse_proxy web:3000
 }

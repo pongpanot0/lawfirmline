@@ -8,8 +8,8 @@ import {
 
 describe('firm slug helpers', () => {
   it('extracts tenant slug from samnaun.com subdomain', () => {
-    expect(extractFirmSlugFromHost('thesiambarrister.samnaun.com', DEFAULT_ROOT_DOMAIN)).toBe(
-      'thesiambarrister',
+    expect(extractFirmSlugFromHost('thesiambarristers.samnaun.com', DEFAULT_ROOT_DOMAIN)).toBe(
+      'thesiambarristers',
     );
   });
 
@@ -20,7 +20,7 @@ describe('firm slug helpers', () => {
   });
 
   it('supports localhost subdomain for development', () => {
-    expect(extractFirmSlugFromHost('thesiambarrister.localhost:3005')).toBe('thesiambarrister');
+    expect(extractFirmSlugFromHost('thesiambarristers.localhost:3005')).toBe('thesiambarristers');
   });
 
   it('rejects reserved slugs', () => {
@@ -33,28 +33,28 @@ describe('firm slug helpers', () => {
   it('builds firm origin on production apex login', () => {
     expect(
       buildFirmAppOrigin({
-        firmSlug: 'thesiambarrister',
+        firmSlug: 'thesiambarristers',
         currentHost: 'samnaun.com',
         protocol: 'https:',
       }),
-    ).toBe('https://thesiambarrister.samnaun.com');
+    ).toBe('https://thesiambarristers.samnaun.com');
   });
 
   it('builds firm origin for localhost with port', () => {
     expect(
       buildFirmAppOrigin({
-        firmSlug: 'thesiambarrister',
+        firmSlug: 'thesiambarristers',
         currentHost: 'localhost:3005',
         protocol: 'http:',
       }),
-    ).toBe('http://thesiambarrister.localhost:3005');
+    ).toBe('http://thesiambarristers.localhost:3005');
   });
 
   it('needs redirect from apex but not from matching firm host', () => {
-    expect(needsFirmHostRedirect('samnaun.com', 'thesiambarrister')).toBe(true);
-    expect(needsFirmHostRedirect('thesiambarrister.samnaun.com', 'thesiambarrister')).toBe(false);
-    expect(needsFirmHostRedirect('localhost:3005', 'thesiambarrister')).toBe(true);
-    expect(needsFirmHostRedirect('thesiambarrister.localhost:3005', 'thesiambarrister')).toBe(
+    expect(needsFirmHostRedirect('samnaun.com', 'thesiambarristers')).toBe(true);
+    expect(needsFirmHostRedirect('thesiambarristers.samnaun.com', 'thesiambarristers')).toBe(false);
+    expect(needsFirmHostRedirect('localhost:3005', 'thesiambarristers')).toBe(true);
+    expect(needsFirmHostRedirect('thesiambarristers.localhost:3005', 'thesiambarristers')).toBe(
       false,
     );
   });

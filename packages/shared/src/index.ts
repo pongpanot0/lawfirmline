@@ -50,7 +50,7 @@ export function extractFirmSlugFromHost(
     return sub;
   }
 
-  // Dev: thesiambarrister.localhost
+  // Dev: thesiambarristers.localhost
   if (host.endsWith('.localhost')) {
     const sub = host.slice(0, -'.localhost'.length);
     if (!sub || sub.includes('.') || isReservedFirmSlug(sub)) return null;

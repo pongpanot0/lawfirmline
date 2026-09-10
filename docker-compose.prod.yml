@@ -3,8 +3,8 @@
 #
 # Setup:
 #   1. cp .env.production.example .env   # then fill in real values (DATABASE_URL = RDS)
-#   2. Point DOMAIN's DNS A records (apex, api.DOMAIN, thesiambarrister.DOMAIN)
-#      at this VPS's IP first — Caddy needs that for TLS certificates.
+#   2. Point DNS A records at this VPS IP before starting Caddy:
+#        DOMAIN, api.DOMAIN, and *.DOMAIN (wildcard for all firm subdomains)
 #   3. aws ecr get-login-password --region ap-southeast-7 \
 #        | docker login --username AWS --password-stdin $ECR_REGISTRY
 #   4. docker compose -f docker-compose.prod.yml pull
@@ -33,7 +33,7 @@ services:
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
       CLIENT_PORTAL_JWT_SECRET: ${CLIENT_PORTAL_JWT_SECRET}
-      CORS_ORIGIN: https://${DOMAIN},https://www.${DOMAIN},https://thesiambarrister.${DOMAIN}
+      CORS_ORIGIN: https://${DOMAIN},https://www.${DOMAIN}
       ROOT_DOMAIN: ${DOMAIN}
       APP_URL: https://${DOMAIN}
       UPLOAD_DIR: /data/uploads

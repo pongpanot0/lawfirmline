@@ -44,7 +44,7 @@ async function main() {
   const firm = await prisma.firm.create({
     data: {
       name: 'The Siam Barrister',
-      slug: 'thesiambarrister',
+      slug: 'thesiambarristers',
       subscriptionStatus: 'TRIAL',
       trialStartAt: new Date(),
       trialEndAt: trialEnd,
@@ -410,7 +410,7 @@ async function main() {
     ],
   });
 
-  console.log('Seed completed! Firm slug: thesiambarrister');
+  console.log('Seed completed! Firm slug: thesiambarristers');
   console.log('Login credentials (all use password: password123):');
   console.log('  Owner:     admin@lawfirm.com');
   console.log('  Senior:    senior@lawfirm.com');

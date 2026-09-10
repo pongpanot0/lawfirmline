@@ -1,7 +1,7 @@
 # Completion: post-login redirect to firm subdomain
 
 **Date**: 2026-09-10  
-**Issue**: After login on apex (`samnaun.com` / `localhost`), app stayed on `/dashboard` and never moved to `thesiambarrister.samnaun.com`.
+**Issue**: After login on apex (`samnaun.com` / `localhost`), app stayed on `/dashboard` and never moved to `thesiambarristers.samnaun.com`.
 
 ## Root cause
 
@@ -18,15 +18,15 @@
 
 ## Target URL
 
-`https://thesiambarrister.samnaun.com` (slug `thesiambarrister`, root `samnaun.com`)
+`https://thesiambarristers.samnaun.com` (slug `thesiambarristers`, root `samnaun.com`)
 
-Local: `http://thesiambarrister.localhost:3005`
+Local: `http://thesiambarristers.localhost:3005`
 
 ## Infra also fixed
 
-- Caddy serves `thesiambarrister.{$DOMAIN}` (not only apex/www)
+- Caddy serves `thesiambarristers.{$DOMAIN}` (not only apex/www)
 - Web build gets `NEXT_PUBLIC_ROOT_DOMAIN`
 - API gets `ROOT_DOMAIN` + firm origin in CORS
 - Deploy workflow passes root domain build arg
 
-**Ops:** add DNS A record `thesiambarrister.samnaun.com` → EC2 before redeploy.
+**Ops:** add DNS A record `*.samnaun.com` → EC2 (covers all firms). See also `2026-09-10-wildcard-ondemand-tls.md`.

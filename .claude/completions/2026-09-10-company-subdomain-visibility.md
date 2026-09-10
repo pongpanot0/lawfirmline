@@ -4,7 +4,7 @@
 
 ## Done
 
-- Seed/migration: firm `thesiambarrister` (The Siam Barrister); roles OWNER / SENIOR / LAWYER / ASSISTANT
+- Seed/migration: firm `thesiambarristers` (The Siam Barrister); roles OWNER / SENIOR / LAWYER / ASSISTANT
 - Reserved slug helpers + allocateSlug on register
 - Web middleware + API tenant resolve (`X-Firm-Slug` / Host); TenantMatchGuard
 - Courts + DeadlineRules global; CaseType still per-firm with defaults

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Multi-tenant firms are addressed by `Firm.id` (company id) and `Firm.slug` (subdomain on `samnaun.com`). The first customer is `thesiambarrister` → `https://thesiambarrister.samnaun.com`. Courts and deadline rules are platform-global; case types remain per-firm with defaults. Role visibility extends to clients and intake.
+Multi-tenant firms are addressed by `Firm.id` (company id) and `Firm.slug` (subdomain on `samnaun.com`). The first customer is `thesiambarristers` → `https://thesiambarristers.samnaun.com`. Courts and deadline rules are platform-global; case types remain per-firm with defaults. Role visibility extends to clients and intake.
 
 ## Identity
 
