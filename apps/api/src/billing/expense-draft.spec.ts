@@ -17,12 +17,30 @@ import { LineMessagingService } from '../notifications/line-messaging.service';
 describe('BillingService — drafted expenses', () => {
   let service: BillingService;
   const mockPrisma = {
-    expense: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    expense: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    expenseClaim: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+      update: jest.fn(),
+    },
     calendarEvent: { findFirst: jest.fn() },
     case: { findFirst: jest.fn() },
     firmMember: { findMany: jest.fn().mockResolvedValue([]) },
-    $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
-  };
+    $transaction: jest.fn(async (arg: unknown): Promise<unknown> => {
+      if (typeof arg === 'function') {
+        return (arg as (tx: typeof mockPrisma) => Promise<unknown>)(mockPrisma);
+      }
+      return Promise.all(arg as unknown[]);
+    }),
+  } as any;
   const mockPettyCash = { deduct: jest.fn() };
   const mockLine = { isConfigured: jest.fn().mockReturnValue(false), pushTo: jest.fn() };
   const mockCaseAccess = {
@@ -116,13 +134,41 @@ describe('BillingService — drafted expenses', () => {
       userId: 'user-1',
       amount: 500,
       status: ExpenseStatus.DRAFT,
+      claimId: null,
     });
-    mockPrisma.expense.update.mockResolvedValue({ id: 'expense-1' });
+    mockPrisma.expense.findMany.mockResolvedValue([
+      { id: 'expense-1', userId: 'user-1', amount: 500, status: ExpenseStatus.DRAFT, claimId: null },
+    ]);
+    mockPrisma.expenseClaim.create.mockResolvedValue({ id: 'claim-1' });
+    mockPrisma.expense.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.expenseClaim.findUniqueOrThrow.mockResolvedValue({
+      id: 'claim-1',
+      status: 'PENDING',
+      submittedAt: new Date(),
+      reviewedAt: null,
+      paidAt: null,
+      submittedBy: { id: 'user-1', firstName: 'Somchai', lastName: 'Lawyer' },
+      expenses: [
+        {
+          id: 'expense-1',
+          amount: 500,
+          receiptFilename: null,
+          case: null,
+          user: { id: 'user-1', firstName: 'Somchai', lastName: 'Lawyer' },
+        },
+      ],
+    });
 
-    await service.updateExpenseStatus(lawyer, 'expense-1', { status: ExpenseStatus.PENDING });
+    const result = await service.updateExpenseStatus(lawyer, 'expense-1', {
+      status: ExpenseStatus.PENDING,
+    });
 
-    expect(mockPrisma.expense.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: ExpenseStatus.PENDING } }),
+    expect(result.id).toBe('expense-1');
+    expect(mockPrisma.expenseClaim.create).toHaveBeenCalled();
+    expect(mockPrisma.expense.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: ExpenseStatus.PENDING, claimId: 'claim-1' }),
+      }),
     );
     expect(mockPettyCash.deduct).not.toHaveBeenCalled();
   });
@@ -140,14 +186,25 @@ describe('BillingService — drafted expenses', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it('submits multiple drafts in one batch and notifies owners', async () => {
+  it('submits multiple drafts as one claim round and notifies owners', async () => {
     mockPrisma.expense.findMany.mockResolvedValue([
-      { id: 'expense-1', userId: 'user-1', amount: 300, status: ExpenseStatus.DRAFT, description: 'ค่าเดินทาง' },
-      { id: 'expense-2', userId: 'user-1', amount: 200, status: ExpenseStatus.DRAFT, description: 'ค่าถ่ายเอกสาร' },
+      { id: 'expense-1', userId: 'user-1', amount: 300, status: ExpenseStatus.DRAFT, claimId: null, description: 'ค่าเดินทาง' },
+      { id: 'expense-2', userId: 'user-1', amount: 200, status: ExpenseStatus.DRAFT, claimId: null, description: 'ค่าถ่ายเอกสาร' },
     ]);
-    mockPrisma.expense.update.mockImplementation(({ where }: { where: { id: string } }) =>
-      Promise.resolve({ id: where.id, amount: where.id === 'expense-1' ? 300 : 200, description: 'x' }),
-    );
+    mockPrisma.expenseClaim.create.mockResolvedValue({ id: 'claim-1' });
+    mockPrisma.expense.updateMany.mockResolvedValue({ count: 2 });
+    mockPrisma.expenseClaim.findUniqueOrThrow.mockResolvedValue({
+      id: 'claim-1',
+      status: 'PENDING',
+      submittedAt: new Date(),
+      reviewedAt: null,
+      paidAt: null,
+      submittedBy: { id: 'user-1', firstName: 'Somchai', lastName: 'Lawyer' },
+      expenses: [
+        { id: 'expense-1', amount: 300, receiptFilename: null, case: null, description: 'ค่าเดินทาง', user: { id: 'user-1', firstName: 'Somchai', lastName: 'Lawyer' } },
+        { id: 'expense-2', amount: 200, receiptFilename: 'r.pdf', case: { id: 'c1', ownRef: 'A-1', title: 'Case' }, description: 'ค่าถ่ายเอกสาร', user: { id: 'user-1', firstName: 'Somchai', lastName: 'Lawyer' } },
+      ],
+    });
     mockPrisma.firmMember.findMany.mockResolvedValue([
       { user: { lineUserId: 'U-owner', firstName: 'Owner', lastName: 'One' } },
     ]);
@@ -155,8 +212,42 @@ describe('BillingService — drafted expenses', () => {
 
     const result = await service.submitExpensesForApproval(lawyer, ['expense-1', 'expense-2']);
 
-    expect(result).toHaveLength(2);
+    expect(result.id).toBe('claim-1');
+    expect(result.itemCount).toBe(2);
+    expect(result.totalAmount).toBe(500);
+    expect(result.receiptCount).toBe(1);
     expect(mockLine.pushTo).toHaveBeenCalledWith('U-owner', expect.stringContaining('2 รายการ'));
+  });
+
+  it('approves a whole claim round and deducts petty cash once', async () => {
+    mockPrisma.expenseClaim.findFirst.mockResolvedValue({
+      id: 'claim-1',
+      status: 'PENDING',
+      expenses: [
+        { id: 'expense-1', amount: 300 },
+        { id: 'expense-2', amount: 200 },
+      ],
+    });
+    mockPrisma.expense.updateMany.mockResolvedValue({ count: 2 });
+    mockPrisma.expenseClaim.update.mockResolvedValue({
+      id: 'claim-1',
+      status: 'APPROVED',
+      submittedAt: new Date(),
+      reviewedAt: new Date(),
+      paidAt: null,
+      submittedBy: { id: 'user-1', firstName: 'Somchai', lastName: 'Lawyer' },
+      expenses: [
+        { id: 'expense-1', amount: 300, receiptFilename: null, case: null },
+        { id: 'expense-2', amount: 200, receiptFilename: null, case: null },
+      ],
+    });
+
+    const result = await service.updateExpenseClaimStatus(owner, 'claim-1', {
+      status: 'APPROVED' as never,
+    });
+
+    expect(mockPettyCash.deduct).toHaveBeenCalledWith('firm-1', 500);
+    expect(result.status).toBe('APPROVED');
   });
 
   it('keeps approval to the owner and still deducts petty cash on a real claim', async () => {
@@ -165,6 +256,7 @@ describe('BillingService — drafted expenses', () => {
       userId: 'user-1',
       amount: 500,
       status: ExpenseStatus.PENDING,
+      claimId: null,
     });
     mockPrisma.expense.update.mockResolvedValue({ id: 'expense-1' });
 
@@ -174,5 +266,58 @@ describe('BillingService — drafted expenses', () => {
 
     await service.updateExpenseStatus(owner, 'expense-1', { status: ExpenseStatus.APPROVED });
     expect(mockPettyCash.deduct).toHaveBeenCalledWith('firm-1', 500);
+  });
+
+  it('blocks per-line approval when the expense belongs to a claim round', async () => {
+    mockPrisma.expense.findFirst.mockResolvedValue({
+      id: 'expense-1',
+      userId: 'user-1',
+      amount: 500,
+      status: ExpenseStatus.PENDING,
+      claimId: 'claim-1',
+    });
+
+    await expect(
+      service.updateExpenseStatus(owner, 'expense-1', { status: ExpenseStatus.APPROVED }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('hides other lawyers’ drafts from the owner until they are submitted', async () => {
+    mockPrisma.expense.findMany.mockResolvedValue([]);
+
+    await service.getAllExpenses(owner);
+
+    const where = mockPrisma.expense.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain('"not":"DRAFT"');
+    expect(JSON.stringify(where)).toContain(`"userId":"${owner.id}"`);
+  });
+
+  it('lets a lawyer list their own drafts and claims only', async () => {
+    mockPrisma.expense.findMany.mockResolvedValue([]);
+
+    await service.getAllExpenses(lawyer, { status: ExpenseStatus.DRAFT });
+
+    const where = mockPrisma.expense.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain(`"userId":"${lawyer.id}"`);
+    expect(where.AND).toEqual(
+      expect.arrayContaining([{ status: ExpenseStatus.DRAFT }]),
+    );
+  });
+
+  it('lets the owner filter submitted claims by requester', async () => {
+    mockPrisma.expense.findMany.mockResolvedValue([]);
+
+    await service.getAllExpenses(owner, {
+      status: ExpenseStatus.PENDING,
+      userId: 'lawyer-9',
+    });
+
+    const where = mockPrisma.expense.findMany.mock.calls[0][0].where;
+    expect(where.AND).toEqual(
+      expect.arrayContaining([
+        { status: ExpenseStatus.PENDING },
+        { userId: 'lawyer-9' },
+      ]),
+    );
   });
 });

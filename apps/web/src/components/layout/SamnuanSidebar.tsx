@@ -59,7 +59,7 @@ const NAV_ITEMS = [
   { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work' },
   { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false, group: 'work' },
   { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, ownerOnly: false, group: 'work' },
-  { href: '/expenses', labelKey: 'expenses' as const, icon: Receipt, ownerOnly: true, group: 'firm' },
+  { href: '/expenses', labelKey: 'expenses' as const, icon: Receipt, ownerOnly: false, group: 'work' },
   { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true, group: 'firm' },
   { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true, group: 'firm' },
   { href: '/admin/reimbursements', labelKey: 'reimbursements' as const, icon: Shield, ownerOnly: true, group: 'firm' },

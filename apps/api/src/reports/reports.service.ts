@@ -18,11 +18,14 @@ export class ReportsService {
       ],
     };
 
+    // Drafts are private notes until claimed — never roll them into reports.
+    const submittedOnly = { status: { not: 'DRAFT' as const } };
+
     if (user.firmRole === FirmRole.OWNER) {
-      return firmFilter;
+      return { AND: [firmFilter, submittedOnly] };
     }
 
-    return { userId: user.id, ...firmFilter };
+    return { AND: [firmFilter, submittedOnly, { userId: user.id }] };
   }
 
   async getSummary(user: AuthUser) {

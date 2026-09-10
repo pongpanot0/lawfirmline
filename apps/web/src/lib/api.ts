@@ -303,10 +303,25 @@ export interface ExpenseItem {
   status: import('@lawfirm/shared').ExpenseStatus;
   date: string;
   paidAt?: string | null;
+  claimId?: string | null;
   user: { id: string; firstName: string; lastName: string; role?: string };
   paidBy?: { firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string; courtName?: string | null } | null;
   receiptFilename?: string | null;
+}
+
+export interface ExpenseClaimSummary {
+  id: string;
+  status: import('@lawfirm/shared').ExpenseClaimStatus | string;
+  submittedAt: string;
+  reviewedAt?: string | null;
+  paidAt?: string | null;
+  submittedBy: { id: string; firstName: string; lastName: string };
+  totalAmount: number;
+  itemCount: number;
+  receiptCount: number;
+  cases: Array<{ id: string; ownRef: string; title: string }>;
+  expenses: ExpenseItem[];
 }
 
 export interface CaseParticipantItem {
@@ -1183,9 +1198,12 @@ export const api = {
   updateCaseType: (token: string, id: string, data: Record<string, unknown>) =>
     request(`/case-types/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
-  getExpenses: (token: string, status?: string) => {
-    const qs = status ? `?status=${status}` : '';
-    return request<ExpenseItem[]>(`/expenses${qs}`, { token });
+  getExpenses: (token: string, params?: { status?: string; userId?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.userId) qs.set('userId', params.userId);
+    const query = qs.toString();
+    return request<ExpenseItem[]>(`/expenses${query ? `?${query}` : ''}`, { token });
   },
 
   createExpense: (token: string, caseId: string, data: Record<string, unknown>) =>
@@ -1206,10 +1224,28 @@ export const api = {
     }),
 
   submitExpenses: (token: string, expenseIds: string[]) =>
-    request<ExpenseItem[]>('/expenses/submit', {
+    request<ExpenseClaimSummary>('/expenses/submit', {
       method: 'POST',
       token,
       body: JSON.stringify({ expenseIds }),
+    }),
+
+  getExpenseClaims: (token: string, params?: { status?: string; userId?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.userId) qs.set('userId', params.userId);
+    const query = qs.toString();
+    return request<ExpenseClaimSummary[]>(`/expense-claims${query ? `?${query}` : ''}`, { token });
+  },
+
+  getExpenseClaim: (token: string, claimId: string) =>
+    request<ExpenseClaimSummary>(`/expense-claims/${claimId}`, { token }),
+
+  updateExpenseClaimStatus: (token: string, claimId: string, status: string) =>
+    request<ExpenseClaimSummary>(`/expense-claims/${claimId}/status`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ status }),
     }),
 
   getDocuments: (token: string, caseId: string) =>

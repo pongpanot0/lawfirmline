@@ -2,7 +2,7 @@ import { Injectable, ForbiddenException, NotFoundException, BadRequestException,
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AuthUser, ExpenseStatus, FirmRole } from '@lawfirm/shared';
+import { AuthUser, ExpenseClaimStatus, ExpenseStatus, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -13,6 +13,7 @@ import {
   CreateStandaloneExpenseDto,
   CreateInvoiceDto,
   UpdateExpenseStatusDto,
+  UpdateExpenseClaimStatusDto,
 } from './dto/billing.dto';
 
 const RECEIPT_MIME_TYPES = new Set([
@@ -79,11 +80,73 @@ export class BillingService {
     case: { select: { id: true, ownRef: true, title: true, courtName: true } },
   };
 
+  private claimInclude = {
+    submittedBy: { select: { id: true, firstName: true, lastName: true } },
+    reviewedBy: { select: { id: true, firstName: true, lastName: true } },
+    paidBy: { select: { id: true, firstName: true, lastName: true } },
+    expenses: {
+      include: this.expenseInclude,
+      orderBy: { date: 'desc' as const },
+    },
+  };
+
+  private summarizeClaim<T extends {
+    id: string;
+    status: string;
+    submittedAt: Date;
+    reviewedAt: Date | null;
+    paidAt: Date | null;
+    submittedBy: { id: string; firstName: string; lastName: string };
+    expenses: Array<{
+      id: string;
+      amount: number;
+      receiptFilename: string | null;
+      case: { id: string; ownRef: string; title: string } | null;
+    }>;
+  }>(claim: T) {
+    const caseMap = new Map<string, { id: string; ownRef: string; title: string }>();
+    for (const expense of claim.expenses) {
+      if (expense.case) caseMap.set(expense.case.id, expense.case);
+    }
+    return {
+      id: claim.id,
+      status: claim.status,
+      submittedAt: claim.submittedAt,
+      reviewedAt: claim.reviewedAt,
+      paidAt: claim.paidAt,
+      submittedBy: claim.submittedBy,
+      totalAmount: claim.expenses.reduce((sum, e) => sum + e.amount, 0),
+      itemCount: claim.expenses.length,
+      receiptCount: claim.expenses.filter((e) => e.receiptFilename).length,
+      cases: [...caseMap.values()],
+      expenses: claim.expenses,
+    };
+  }
+
   private getFirmExpenseFilter(firmId: string) {
     return {
       OR: [
         { case: { firmId } },
         { caseId: null, user: { firmMembers: { some: { firmId } } } },
+      ],
+    };
+  }
+
+  /**
+   * Drafts stay private to the author until they submit to the owner.
+   * Owners see every submitted firm claim; lawyers see only their own rows.
+   */
+  private getExpenseVisibilityFilter(user: AuthUser) {
+    const firmFilter = this.getFirmExpenseFilter(user.firmId);
+    if (user.firmRole !== FirmRole.OWNER) {
+      return { AND: [firmFilter, { userId: user.id }] };
+    }
+    return {
+      AND: [
+        firmFilter,
+        {
+          OR: [{ status: { not: ExpenseStatus.DRAFT } }, { userId: user.id }],
+        },
       ],
     };
   }
@@ -250,9 +313,12 @@ export class BillingService {
     });
   }
 
-  async getExpenses(caseId: string) {
+  async getExpenses(user: AuthUser, caseId: string) {
     return this.prisma.expense.findMany({
-      where: { caseId },
+      where: {
+        caseId,
+        OR: [{ status: { not: ExpenseStatus.DRAFT } }, { userId: user.id }],
+      },
       include: this.expenseInclude,
       orderBy: { date: 'desc' },
     });
@@ -367,20 +433,20 @@ export class BillingService {
     };
   }
 
-  async getAllExpenses(user: AuthUser, status?: ExpenseStatus) {
-    const firmFilter = this.getFirmExpenseFilter(user.firmId);
-    const statusFilter = status ? { status } : {};
-
-    if (user.firmRole !== FirmRole.OWNER) {
-      return this.prisma.expense.findMany({
-        where: { userId: user.id, ...firmFilter, ...statusFilter },
-        include: this.expenseInclude,
-        orderBy: { createdAt: 'desc' },
-      });
-    }
+  async getAllExpenses(
+    user: AuthUser,
+    filters?: { status?: ExpenseStatus; userId?: string },
+  ) {
+    const statusFilter = filters?.status ? { status: filters.status } : {};
+    const requesterFilter =
+      user.firmRole === FirmRole.OWNER && filters?.userId
+        ? { userId: filters.userId }
+        : {};
 
     return this.prisma.expense.findMany({
-      where: { ...firmFilter, ...statusFilter },
+      where: {
+        AND: [this.getExpenseVisibilityFilter(user), statusFilter, requesterFilter],
+      },
       include: this.expenseInclude,
       orderBy: { createdAt: 'desc' },
     });
@@ -390,14 +456,12 @@ export class BillingService {
     const { firmId } = user;
     const isOwner = user.firmRole === FirmRole.OWNER;
     const caseFilter = this.caseAccess.getCaseFilterForFinancials(user);
-    const expenseFilter = isOwner
-      ? this.getFirmExpenseFilter(firmId)
-      : { userId: user.id, ...this.getFirmExpenseFilter(firmId) };
+    const expenseFilter = this.getExpenseVisibilityFilter(user);
 
     const [expenses, timeEntries, pettyCash, caseProfits] = await Promise.all([
       this.prisma.expense.findMany({
         where: expenseFilter,
-        select: { amount: true, status: true },
+        select: { amount: true, status: true, userId: true },
       }),
       this.prisma.timeEntry.findMany({
         where: { case: caseFilter, billable: true },
@@ -410,14 +474,18 @@ export class BillingService {
     const timeRevenue = timeEntries.reduce((sum, entry) => sum + entry.hours * entry.rate, 0);
     const totalCaseRevenue = caseProfits.reduce((sum, row) => sum + row.revenue, 0);
     const revenue = totalCaseRevenue > 0 ? totalCaseRevenue : timeRevenue;
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    // Firm-wide money figures ignore drafts — those are private until claimed.
+    const submitted = expenses.filter((e) => e.status !== ExpenseStatus.DRAFT);
+    const totalExpenses = submitted.reduce((sum, e) => sum + e.amount, 0);
     const approvedExpenses = expenses
       .filter((e) => e.status === 'APPROVED' || e.status === 'PAID')
       .reduce((sum, e) => sum + e.amount, 0);
     const outstanding = expenses
       .filter((e) => e.status === 'PENDING')
       .reduce((sum, e) => sum + e.amount, 0);
-    const draftExpenses = expenses.filter((e) => e.status === 'DRAFT');
+    const draftExpenses = expenses.filter(
+      (e) => e.status === ExpenseStatus.DRAFT && e.userId === user.id,
+    );
     const draftTotal = draftExpenses.reduce((sum, e) => sum + e.amount, 0);
 
     const netProfit = caseProfits.reduce((sum, row) => sum + row.profit, 0);
@@ -436,7 +504,7 @@ export class BillingService {
       pettyCashBalance: pettyCash.balance,
       pendingCount: expenses.filter((e) => e.status === 'PENDING').length,
       draftCount: draftExpenses.length,
-      expenseCount: expenses.length,
+      expenseCount: submitted.length,
     };
   }
 
@@ -495,6 +563,17 @@ export class BillingService {
       }
     }
 
+    // Claim-round expenses must be approved/paid/rejected as a batch.
+    if (
+      expense.claimId &&
+      !submitting &&
+      (dto.status === ExpenseStatus.APPROVED ||
+        dto.status === ExpenseStatus.PAID ||
+        dto.status === ExpenseStatus.REJECTED)
+    ) {
+      throw new BadRequestException('อนุมัติผ่านใบเบิกทั้งรอบเท่านั้น');
+    }
+
     // A draft was never claimed, so approving it directly would skip the petty
     // cash deduction that approval is supposed to make. It has to be submitted
     // first.
@@ -503,6 +582,11 @@ export class BillingService {
       (dto.status === ExpenseStatus.APPROVED || dto.status === ExpenseStatus.PAID)
     ) {
       throw new BadRequestException('ต้องส่งขออนุมัติก่อนจึงจะอนุมัติหรือจ่ายได้');
+    }
+
+    if (submitting) {
+      const claim = await this.createClaimFromExpenses(user, [expense.id]);
+      return claim.expenses.find((row) => row.id === expense.id) ?? claim.expenses[0];
     }
 
     const data: {
@@ -524,20 +608,18 @@ export class BillingService {
       data.paidById = user.id;
     }
 
-    const updated = await this.prisma.expense.update({
+    return this.prisma.expense.update({
       where: { id: expenseId },
       data,
       include: this.expenseInclude,
     });
-
-    if (submitting) {
-      await this.notifyOwnersOfExpenseClaim(user, [updated]);
-    }
-
-    return updated;
   }
 
   async submitExpensesForApproval(user: AuthUser, expenseIds: string[]) {
+    return this.createClaimFromExpenses(user, expenseIds);
+  }
+
+  private async createClaimFromExpenses(user: AuthUser, expenseIds: string[]) {
     if (!expenseIds.length) {
       throw new BadRequestException('เลือกอย่างน้อย 1 รายการ');
     }
@@ -559,31 +641,160 @@ export class BillingService {
       if (expense.status !== ExpenseStatus.DRAFT) {
         throw new BadRequestException('เบิกได้เฉพาะรายการที่ยังเป็นร่าง');
       }
+      if (expense.claimId) {
+        throw new BadRequestException('รายการนี้อยู่ในใบเบิกแล้ว');
+      }
       if (expense.userId !== user.id && user.firmRole !== FirmRole.OWNER) {
         throw new ForbiddenException('ส่งเบิกได้เฉพาะรายการของตัวเอง');
       }
     }
 
-    const updated = await this.prisma.$transaction(
-      uniqueIds.map((id) =>
-        this.prisma.expense.update({
-          where: { id },
-          data: { status: ExpenseStatus.PENDING },
-          include: this.expenseInclude,
-        }),
-      ),
-    );
+    const claim = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.expenseClaim.create({
+        data: {
+          firmId: user.firmId,
+          submittedById: user.id,
+          status: ExpenseClaimStatus.PENDING,
+        },
+      });
 
-    await this.notifyOwnersOfExpenseClaim(user, updated);
-    return updated;
+      await tx.expense.updateMany({
+        where: { id: { in: uniqueIds } },
+        data: {
+          status: ExpenseStatus.PENDING,
+          claimId: created.id,
+        },
+      });
+
+      return tx.expenseClaim.findUniqueOrThrow({
+        where: { id: created.id },
+        include: this.claimInclude,
+      });
+    });
+
+    const summary = this.summarizeClaim(claim);
+    await this.notifyOwnersOfExpenseClaim(user, summary);
+    return summary;
+  }
+
+  async getExpenseClaims(
+    user: AuthUser,
+    filters?: { status?: ExpenseClaimStatus; userId?: string },
+  ) {
+    const where = {
+      firmId: user.firmId,
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(user.firmRole === FirmRole.OWNER
+        ? filters?.userId
+          ? { submittedById: filters.userId }
+          : {}
+        : { submittedById: user.id }),
+    };
+
+    const claims = await this.prisma.expenseClaim.findMany({
+      where,
+      include: this.claimInclude,
+      orderBy: { submittedAt: 'desc' },
+    });
+
+    return claims.map((claim) => this.summarizeClaim(claim));
+  }
+
+  async getExpenseClaim(user: AuthUser, claimId: string) {
+    const claim = await this.prisma.expenseClaim.findFirst({
+      where: {
+        id: claimId,
+        firmId: user.firmId,
+        ...(user.firmRole === FirmRole.OWNER ? {} : { submittedById: user.id }),
+      },
+      include: this.claimInclude,
+    });
+    if (!claim) throw new NotFoundException('ไม่พบใบเบิก');
+    return this.summarizeClaim(claim);
+  }
+
+  async updateExpenseClaimStatus(
+    user: AuthUser,
+    claimId: string,
+    dto: UpdateExpenseClaimStatusDto,
+  ) {
+    if (user.firmRole !== FirmRole.OWNER) {
+      throw new ForbiddenException('Only owner can update claim status');
+    }
+
+    const claim = await this.prisma.expenseClaim.findFirst({
+      where: { id: claimId, firmId: user.firmId },
+      include: { expenses: true },
+    });
+    if (!claim) throw new NotFoundException('ไม่พบใบเบิก');
+    if (!claim.expenses.length) {
+      throw new BadRequestException('ใบเบิกไม่มีรายการ');
+    }
+
+    const next = dto.status;
+    if (next === ExpenseClaimStatus.APPROVED) {
+      if (claim.status !== ExpenseClaimStatus.PENDING) {
+        throw new BadRequestException('อนุมัติได้เฉพาะใบเบิกที่รออนุมัติ');
+      }
+      const total = claim.expenses.reduce((sum, e) => sum + e.amount, 0);
+      try {
+        await this.pettyCash.deduct(user.firmId, total);
+      } catch {
+        throw new BadRequestException('Insufficient petty cash fund');
+      }
+    } else if (next === ExpenseClaimStatus.REJECTED) {
+      if (claim.status !== ExpenseClaimStatus.PENDING) {
+        throw new BadRequestException('ปฏิเสธได้เฉพาะใบเบิกที่รออนุมัติ');
+      }
+    } else if (next === ExpenseClaimStatus.PAID) {
+      if (claim.status !== ExpenseClaimStatus.APPROVED) {
+        throw new BadRequestException('จ่ายได้เฉพาะใบเบิกที่อนุมัติแล้ว');
+      }
+    } else {
+      throw new BadRequestException('สถานะไม่ถูกต้อง');
+    }
+
+    const now = new Date();
+    const expenseStatus =
+      next === ExpenseClaimStatus.APPROVED
+        ? ExpenseStatus.APPROVED
+        : next === ExpenseClaimStatus.REJECTED
+          ? ExpenseStatus.REJECTED
+          : ExpenseStatus.PAID;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.expense.updateMany({
+        where: { claimId },
+        data: {
+          status: expenseStatus,
+          ...(next === ExpenseClaimStatus.PAID
+            ? { paidAt: now, paidById: user.id }
+            : {}),
+        },
+      });
+
+      return tx.expenseClaim.update({
+        where: { id: claimId },
+        data: {
+          status: next,
+          ...(next === ExpenseClaimStatus.APPROVED || next === ExpenseClaimStatus.REJECTED
+            ? { reviewedAt: now, reviewedById: user.id }
+            : {}),
+          ...(next === ExpenseClaimStatus.PAID
+            ? { paidAt: now, paidById: user.id }
+            : {}),
+        },
+        include: this.claimInclude,
+      });
+    });
+
+    return this.summarizeClaim(updated);
   }
 
   private async notifyOwnersOfExpenseClaim(
     submitter: AuthUser,
-    expenses: Array<{ amount: number; description: string }>,
+    claim: { id: string; totalAmount: number; itemCount: number },
   ) {
-    if (!expenses.length) return;
-
     const owners = await this.prisma.firmMember.findMany({
       where: { firmId: submitter.firmId, role: FirmRole.OWNER },
       include: {
@@ -597,7 +808,6 @@ export class BillingService {
 
     if (!ownerLineIds.length || !this.line.isConfigured()) return;
 
-    const total = expenses.reduce((sum, e) => sum + e.amount, 0);
     const webUrl =
       this.config.get<string>('WEB_APP_URL') ??
       this.config.get<string>('APP_URL') ??
@@ -605,8 +815,8 @@ export class BillingService {
     const link = `${webUrl.replace(/\/$/, '')}/admin/reimbursements?status=PENDING`;
     const submitterName = `${submitter.firstName ?? ''} ${submitter.lastName ?? ''}`.trim() || 'ทนายความ';
     const message =
-      `📋 ${submitterName} ส่งคำขอเบิกค่าใช้จ่าย ${expenses.length} รายการ\n` +
-      `รวม ฿${total.toLocaleString('th-TH')}\n\n` +
+      `📋 ${submitterName} ส่งใบเบิก ${claim.itemCount} รายการ\n` +
+      `รวม ฿${claim.totalAmount.toLocaleString('th-TH')}\n\n` +
       `🔗 ${link}`;
 
     for (const lineUserId of ownerLineIds) {

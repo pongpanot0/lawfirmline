@@ -224,6 +224,14 @@ enum ExpenseStatus {
   REJECTED
 }
 
+/// A batch of expenses submitted together for owner review (one approve/reject).
+enum ExpenseClaimStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
 enum InvoiceStatus {
   DRAFT
   SENT
@@ -290,6 +298,7 @@ model Firm {
   deadlineRules      DeadlineRule[]
   emailThreads       EmailThread[]
   mailboxConnections MailboxConnection[]
+  expenseClaims      ExpenseClaim[]
 }
 
 model FirmMember {
@@ -429,6 +438,9 @@ model User {
   createdInvoices            Invoice[]                 @relation("InvoiceCreator")
   expenses                   Expense[]
   paidExpenses               Expense[]                 @relation("ExpensePaidBy")
+  submittedExpenseClaims     ExpenseClaim[]            @relation("ExpenseClaimSubmitter")
+  reviewedExpenseClaims      ExpenseClaim[]            @relation("ExpenseClaimReviewer")
+  paidExpenseClaims          ExpenseClaim[]            @relation("ExpenseClaimPayer")
   knowledge                  CaseKnowledge[]
   intakeAttachments          IntakeAttachment[]
   intakePrecedentAnalyses    IntakePrecedentAnalysis[]
@@ -944,6 +956,8 @@ model Expense {
   id             String        @id @default(uuid())
   caseId         String?
   userId         String
+  /// Set when this line is part of a submitted claim round.
+  claimId        String?
   amount         Float
   description    String
   category       String?
@@ -966,8 +980,34 @@ model Expense {
   user        User           @relation(fields: [userId], references: [id])
   paidBy      User?          @relation("ExpensePaidBy", fields: [paidById], references: [id])
   sourceEvent CalendarEvent? @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
+  claim       ExpenseClaim?  @relation(fields: [claimId], references: [id], onDelete: SetNull)
 
   @@index([sourceEventId])
+  @@index([claimId])
+}
+
+/// One reimbursement round: lawyer submits many draft lines; owner approves the batch.
+model ExpenseClaim {
+  id            String             @id @default(uuid())
+  firmId        String
+  submittedById String
+  status        ExpenseClaimStatus @default(PENDING)
+  submittedAt   DateTime           @default(now())
+  reviewedAt    DateTime?
+  reviewedById  String?
+  paidAt        DateTime?
+  paidById      String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  firm        Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  submittedBy User     @relation("ExpenseClaimSubmitter", fields: [submittedById], references: [id])
+  reviewedBy  User?    @relation("ExpenseClaimReviewer", fields: [reviewedById], references: [id])
+  paidBy      User?    @relation("ExpenseClaimPayer", fields: [paidById], references: [id])
+  expenses    Expense[]
+
+  @@index([firmId, status])
+  @@index([submittedById])
 }
 
 model PettyCashFund {

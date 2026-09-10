@@ -159,6 +159,14 @@ export enum ExpenseStatus {
   REJECTED = 'REJECTED',
 }
 
+/** A batch of expenses submitted together for owner review. */
+export enum ExpenseClaimStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  PAID = 'PAID',
+  REJECTED = 'REJECTED',
+}
+
 export enum InvoiceStatus {
   DRAFT = 'DRAFT',
   SENT = 'SENT',

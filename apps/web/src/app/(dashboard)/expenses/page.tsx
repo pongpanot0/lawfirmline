@@ -18,19 +18,38 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatCurrency } from '@/lib/utils';
 import { fmt } from '@/lib/i18n/dashboard';
 
+const STATUS_FILTERS = ['', 'DRAFT', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
+
+type TeamMember = {
+  id: string;
+  firstName: string;
+  lastName: string;
+};
+
 export default function ExpensesPage() {
   const d = useDashboardT();
   const { token, user } = useAuth();
   const router = useRouter();
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [requesterFilter, setRequesterFilter] = useState('');
 
   const isOwner = user?.firmRole === FirmRole.OWNER;
+
+  const statusLabels: Record<string, string> = {
+    DRAFT: d.expenses.statusDraft,
+    PENDING: d.expenses.statusPending,
+    APPROVED: d.expenses.statusApproved,
+    PAID: d.expenses.statusPaid,
+    REJECTED: d.expenses.statusRejected,
+  };
 
   useEffect(() => {
     const authToken = token ?? getStoredToken();
@@ -39,17 +58,29 @@ export default function ExpensesPage() {
       return;
     }
     setError('');
-    Promise.all([api.getExpenses(authToken), api.getFinanceSummary(authToken)])
-      .then(([e, f]) => {
-        setExpenses(e);
-        setFinance(f);
+    const expenseParams = {
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(isOwner && requesterFilter ? { userId: requesterFilter } : {}),
+    };
+    const loads: Promise<unknown>[] = [
+      api.getExpenses(authToken, Object.keys(expenseParams).length ? expenseParams : undefined),
+      api.getFinanceSummary(authToken),
+    ];
+    if (isOwner) {
+      loads.push(api.getTeamMembers(authToken).catch(() => []));
+    }
+    Promise.all(loads)
+      .then(([e, f, m]) => {
+        setExpenses(e as ExpenseItem[]);
+        setFinance(f as FinanceSummary);
+        if (Array.isArray(m)) setMembers(m as TeamMember[]);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
         setError(err instanceof Error ? err.message : d.expenses.loadFailed);
       })
       .finally(() => setLoading(false));
-  }, [token, reloadKey, d.expenses.loadFailed]);
+  }, [token, reloadKey, statusFilter, requesterFilter, isOwner, d.expenses.loadFailed]);
 
   const draftExpenses = useMemo(
     () => expenses.filter((e) => e.status === 'DRAFT'),
@@ -120,6 +151,9 @@ export default function ExpensesPage() {
 
   if (!finance) return null;
 
+  const showDraftCheckbox = draftExpenses.length > 0 && (!statusFilter || statusFilter === 'DRAFT');
+  const colSpan = (showDraftCheckbox ? 1 : 0) + (isOwner ? 1 : 0) + 4;
+
   return (
     <div>
       <PageHeader
@@ -157,19 +191,60 @@ export default function ExpensesPage() {
           trend="neutral"
         />
         <KpiCard
-          label="รออนุมัติ"
+          label={d.expenses.statusPending}
           value={formatCurrency(finance.outstanding)}
           icon={Clock}
           change={`${finance.pendingCount} รายการ`}
           trend="neutral"
         />
         <KpiCard
-          label="อนุมัติแล้ว"
+          label={d.expenses.statusApproved}
           value={formatCurrency(finance.approvedExpenses)}
           icon={Receipt}
           change={`${finance.expenseCount} รายการ`}
           trend="down"
         />
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>{d.expenses.filterStatus}</span>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+            value={statusFilter}
+            onChange={(e) => {
+              setLoading(true);
+              setStatusFilter(e.target.value);
+            }}
+          >
+            <option value="">{d.expenses.allStatuses}</option>
+            {STATUS_FILTERS.filter(Boolean).map((status) => (
+              <option key={status} value={status}>
+                {statusLabels[status]}
+              </option>
+            ))}
+          </select>
+        </label>
+        {isOwner && (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{d.expenses.filterRequester}</span>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              value={requesterFilter}
+              onChange={(e) => {
+                setLoading(true);
+                setRequesterFilter(e.target.value);
+              }}
+            >
+              <option value="">{d.expenses.allRequesters}</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.firstName} {m.lastName}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <Card>
@@ -200,7 +275,7 @@ export default function ExpensesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                {draftExpenses.length > 0 && (
+                {showDraftCheckbox && (
                   <TableHead className="w-10">
                     <Checkbox
                       checked={draftExpenses.length > 0 && selectedDraftIds.length === draftExpenses.length}
@@ -210,6 +285,7 @@ export default function ExpensesPage() {
                   </TableHead>
                 )}
                 <TableHead>{d.expenses.descriptionField}</TableHead>
+                {isOwner && <TableHead>{d.expenses.requester}</TableHead>}
                 <TableHead>{d.expenses.caseField}</TableHead>
                 <TableHead>{d.expenses.amount}</TableHead>
                 <TableHead>{d.expenses.status}</TableHead>
@@ -218,7 +294,7 @@ export default function ExpensesPage() {
             <TableBody>
               {expenses.length === 0 ? (
                 <TableEmptyRow
-                  colSpan={draftExpenses.length > 0 ? 5 : 4}
+                  colSpan={colSpan}
                   title={d.expenses.empty}
                   description="เพิ่มค่าใช้จ่ายแล้วติ๊กเลือกรายการเพื่อจัดทำใบเบิก"
                 />
@@ -226,13 +302,15 @@ export default function ExpensesPage() {
                 <>
                   {draftExpenses.map((e) => (
                     <TableRow key={e.id} className={selectedDraftIds.includes(e.id) ? 'bg-primary/5' : undefined}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedDraftIds.includes(e.id)}
-                          onChange={() => toggleDraft(e.id)}
-                          aria-label={e.description}
-                        />
-                      </TableCell>
+                      {showDraftCheckbox && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedDraftIds.includes(e.id)}
+                            onChange={() => toggleDraft(e.id)}
+                            aria-label={e.description}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <p className="text-sm font-medium">{e.description}</p>
                         <p className="text-xs text-muted-foreground">{e.category}</p>
@@ -247,6 +325,11 @@ export default function ExpensesPage() {
                           </button>
                         )}
                       </TableCell>
+                      {isOwner && (
+                        <TableCell className="text-sm text-muted-foreground">
+                          {e.user.firstName} {e.user.lastName}
+                        </TableCell>
+                      )}
                       <TableCell className="text-sm text-muted-foreground">
                         {e.case?.ownRef ?? d.expenses.general}
                       </TableCell>
@@ -258,7 +341,7 @@ export default function ExpensesPage() {
                   ))}
                   {submittedExpenses.map((e) => (
                     <TableRow key={e.id}>
-                      {draftExpenses.length > 0 && <TableCell />}
+                      {showDraftCheckbox && <TableCell />}
                       <TableCell>
                         <p className="text-sm font-medium">{e.description}</p>
                         <p className="text-xs text-muted-foreground">{e.category}</p>
@@ -273,6 +356,11 @@ export default function ExpensesPage() {
                           </button>
                         )}
                       </TableCell>
+                      {isOwner && (
+                        <TableCell className="text-sm text-muted-foreground">
+                          {e.user.firstName} {e.user.lastName}
+                        </TableCell>
+                      )}
                       <TableCell className="text-sm text-muted-foreground">
                         {e.case?.ownRef ?? d.expenses.general}
                       </TableCell>

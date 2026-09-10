@@ -21,6 +21,7 @@ import {
   CreateStandaloneExpenseDto,
   CreateInvoiceDto,
   UpdateExpenseStatusDto,
+  UpdateExpenseClaimStatusDto,
   SubmitExpensesDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -28,7 +29,7 @@ import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AuthUser, Role, ExpenseStatus } from '@lawfirm/shared';
+import { AuthUser, Role, ExpenseStatus, ExpenseClaimStatus } from '@lawfirm/shared';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
 
@@ -60,8 +61,9 @@ export class BillingController {
   getAllExpenses(
     @CurrentUser() user: AuthUser,
     @Query('status') status?: ExpenseStatus,
+    @Query('userId') userId?: string,
   ) {
-    return this.billingService.getAllExpenses(user, status);
+    return this.billingService.getAllExpenses(user, { status, userId });
   }
 
   @Post('expenses')
@@ -93,6 +95,34 @@ export class BillingController {
     @Body() dto: SubmitExpensesDto,
   ) {
     return this.billingService.submitExpensesForApproval(user, dto.expenseIds);
+  }
+
+  @Get('expense-claims')
+  getExpenseClaims(
+    @CurrentUser() user: AuthUser,
+    @Query('status') status?: ExpenseClaimStatus,
+    @Query('userId') userId?: string,
+  ) {
+    return this.billingService.getExpenseClaims(user, { status, userId });
+  }
+
+  @Get('expense-claims/:claimId')
+  getExpenseClaim(
+    @CurrentUser() user: AuthUser,
+    @Param('claimId') claimId: string,
+  ) {
+    return this.billingService.getExpenseClaim(user, claimId);
+  }
+
+  @Patch('expense-claims/:claimId/status')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  updateExpenseClaimStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('claimId') claimId: string,
+    @Body() dto: UpdateExpenseClaimStatusDto,
+  ) {
+    return this.billingService.updateExpenseClaimStatus(user, claimId, dto);
   }
 
   @Patch('expenses/:expenseId/status')
@@ -130,8 +160,8 @@ export class BillingController {
 
   @Get('cases/:caseId/billing/expenses')
   @UseGuards(CaseAccessGuard)
-  getExpenses(@Param('caseId') caseId: string) {
-    return this.billingService.getExpenses(caseId);
+  getExpenses(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
+    return this.billingService.getExpenses(user, caseId);
   }
 
   @Post('cases/:caseId/billing/expenses')

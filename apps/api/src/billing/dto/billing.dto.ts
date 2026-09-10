@@ -16,6 +16,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import {
+  ExpenseClaimStatus,
   ExpenseStatus,
   HOURS_MAX,
   HOURS_MIN,
@@ -110,6 +111,18 @@ export class CreateStandaloneExpenseDto extends CreateExpenseDto {
 export class UpdateExpenseStatusDto {
   @IsEnum(ExpenseStatus)
   status!: ExpenseStatus;
+}
+
+export class UpdateExpenseClaimStatusDto {
+  @IsIn([
+    ExpenseClaimStatus.APPROVED,
+    ExpenseClaimStatus.PAID,
+    ExpenseClaimStatus.REJECTED,
+  ])
+  status!:
+    | ExpenseClaimStatus.APPROVED
+    | ExpenseClaimStatus.PAID
+    | ExpenseClaimStatus.REJECTED;
 }
 
 export class SubmitExpensesDto {
