@@ -7,6 +7,8 @@ import { DocumentIntelligenceService } from '../intelligence/document-intelligen
 import { PrismaService } from '../prisma/prisma.module';
 import { ConfigService } from '@nestjs/config';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
+import { FileStorageService } from '../common/services/file-storage.service';
+import { readFileSync } from 'fs';
 
 jest.mock('pdf-parse', () => ({ PDFParse: jest.fn() }));
 
@@ -42,6 +44,11 @@ describe('intake attachment selection', () => {
         incidentDate: null,
         attachments: [...attachments],
       }));
+    // One file in each store, so selection has to span both: `a` is a legacy
+    // attachment the analyser used to be alone in seeing, `b` a document from
+    // the repository that follows the case.
+    const documentFindMany = jest.fn().mockImplementation(async () => [attachments[1]]);
+    const attachmentFindMany = jest.fn().mockImplementation(async () => [attachments[0]]);
     const create = jest.fn().mockImplementation(async ({ data }) => data);
     const extractText = jest
       .fn()
@@ -57,6 +64,7 @@ describe('intake attachment selection', () => {
                 content: JSON.stringify({
                   summaryBullets: 'summary',
                   noticeFacts: 'facts',
+                  documentSummary: 'event summary',
                 }),
               },
             },
@@ -67,10 +75,15 @@ describe('intake attachment selection', () => {
       {
         intake: { findFirst },
         intakePrecedentAnalysis: { create },
+        document: { findMany: documentFindMany },
+        intakeAttachment: { findMany: attachmentFindMany },
       } as unknown as PrismaService,
       { get: () => 'test-key' } as unknown as ConfigService,
       { searchPrecedents: async () => [] } as unknown as IappLegalClient,
       { extractText } as unknown as DocumentIntelligenceService,
+      {
+        getBuffer: async (storagePath: string) => readFileSync(storagePath),
+      } as unknown as FileStorageService,
     );
     return { service, extractText, create, findFirst };
   }

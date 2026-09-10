@@ -123,7 +123,7 @@ export function PricingSection() {
           : (shown as number).toLocaleString(locale === 'th' ? 'th-TH' : 'en-US'),
       perUser: PLAN_PRICES[key].perUser,
       popular: PLAN_PRICES[key].popular,
-      href: key === 'enterprise' ? 'mailto:hello@lexflow.co?subject=LexFlow Enterprise' : '/login',
+      href: key === 'enterprise' ? 'mailto:hello@samnuan.co?subject=Samnuan Enterprise' : '/login',
       cta: key === 'enterprise' ? p.contactSales : p.tryFree,
     };
   });

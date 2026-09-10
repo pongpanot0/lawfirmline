@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
 
 @Injectable()
 export class ClientsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private caseAccess: CaseAccessService,
+  ) {}
 
   private include = {
     contacts: { orderBy: [{ isPrimary: 'desc' as const }, { name: 'asc' as const }] },
@@ -15,7 +19,7 @@ export class ClientsService {
   async findAll(user: AuthUser, search?: string) {
     return this.prisma.client.findMany({
       where: {
-        firmId: user.firmId,
+        ...this.caseAccess.getClientFilterForUser(user),
         ...(search
           ? { name: { contains: search, mode: 'insensitive' as const } }
           : {}),
@@ -27,10 +31,11 @@ export class ClientsService {
 
   async findOne(user: AuthUser, id: string) {
     const client = await this.prisma.client.findFirst({
-      where: { id, firmId: user.firmId },
+      where: { id, ...this.caseAccess.getClientFilterForUser(user) },
       include: {
         ...this.include,
         cases: {
+          where: this.caseAccess.getCaseFilterForUser(user),
           select: {
             id: true,
             ownRef: true,
@@ -78,16 +83,11 @@ export class ClientsService {
     return this.prisma.$transaction(async (tx) => {
       if (dto.contacts) {
         const existing = await tx.clientContact.findMany({ where: { clientId: id } });
-        const existingIds = new Set(existing.map((c) => c.id));
-        const incomingIds = new Set(
-          dto.contacts.filter((c) => c.id).map((c) => c.id as string),
-        );
-
-        const toDelete = [...existingIds].filter((eid) => !incomingIds.has(eid));
-        if (toDelete.length > 0) {
+        const incomingIds = new Set(dto.contacts.filter((c) => c.id).map((c) => c.id!));
+        const toDelete = existing.filter((c) => !incomingIds.has(c.id)).map((c) => c.id);
+        if (toDelete.length) {
           await tx.clientContact.deleteMany({ where: { id: { in: toDelete } } });
         }
-
         for (const [i, c] of dto.contacts.entries()) {
           const data = {
             name: c.name,
@@ -97,7 +97,7 @@ export class ClientsService {
             isPrimary: c.isPrimary ?? i === 0,
             portalEnabled: c.portalEnabled ?? false,
           };
-          if (c.id && existingIds.has(c.id)) {
+          if (c.id) {
             await tx.clientContact.update({ where: { id: c.id }, data });
           } else {
             await tx.clientContact.create({ data: { ...data, clientId: id } });

@@ -6,7 +6,7 @@ import { api, type PortalSubmissionStaffEntry } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { EmptyState } from '@/components/ui/misc';
+import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { Inbox } from 'lucide-react';
 
 export default function PortalSubmissionsPage() {
@@ -42,12 +42,14 @@ export default function PortalSubmissionsPage() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <p className="p-8 text-center text-muted-foreground">กำลังโหลด...</p>
+            <div className="p-4">
+              <PageLoading title="กำลังโหลดเรื่องจากพอร์ทัล" lines={3} />
+            </div>
           ) : items.length === 0 ? (
             <EmptyState
               icon={Inbox}
               title="ไม่มีเรื่องรอรับเข้า"
-              description="ยังไม่มีเรื่องที่ส่งจาก Customer Portal"
+              description="เมื่อลูกความส่งงานหรือไฟล์จาก Customer Portal รายการจะรอรับเข้าเป็น F01 ที่นี่"
             />
           ) : (
             <Table>

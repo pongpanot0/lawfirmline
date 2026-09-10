@@ -1,49 +1,50 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { BarChart3, PieChart, TrendingUp } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
-import { api, ApiError, ReportsSummary } from '@/lib/api';
-import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
+import {
+  api,
+  ApiError,
+  CaseProfitRow,
+  FinanceSummary,
+  ReportsSummary,
+} from '@/lib/api';
+import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/misc';
+import { InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { formatCurrency } from '@/lib/utils';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fmt } from '@/lib/i18n/dashboard';
 
+/** Copy lives in the dictionary; this only fixes the order and the icons. */
 const REPORT_META = [
-  {
-    key: 'caseVolumeByType' as const,
-    title: 'Case Volume by Type / จำนวนคดีตามประเภท',
-    desc: 'Breakdown of cases by practice area / แยกตามประเภทคดี',
-    icon: PieChart,
-  },
-  {
-    key: 'revenueByLawyer' as const,
-    title: 'Revenue by Lawyer / รายได้ต่อทนายความ',
-    desc: 'Billable hours and revenue per attorney / ชั่วโมงคิดค่าบริการและรายได้ต่อคน',
-    icon: BarChart3,
-  },
-  {
-    key: 'courtAppearancesByMonth' as const,
-    title: 'Court Appearance Log / บันทึกการขึ้นศาล',
-    desc: 'Hearings attended per month / จำนวนนัดศาลต่อเดือน',
-    icon: TrendingUp,
-  },
-  {
-    key: 'expenseSummary' as const,
-    title: 'Expense Summary / สรุปค่าใช้จ่าย',
-    desc: 'Reimbursements and petty cash usage / การเบิกจ่ายและเงินสดย่อย',
-    icon: BarChart3,
-  },
+  { key: 'caseVolumeByType' as const, titleKey: 'caseVolumeByType' as const, descKey: 'caseVolumeHint' as const, icon: PieChart },
+  { key: 'revenueByLawyer' as const, titleKey: 'revenueByLawyer' as const, descKey: 'revenueByLawyerHint' as const, icon: BarChart3 },
+  { key: 'courtAppearancesByMonth' as const, titleKey: 'courtAppearanceLog' as const, descKey: 'courtAppearanceHint' as const, icon: TrendingUp },
+  { key: 'expenseSummary' as const, titleKey: 'expenseSummary' as const, descKey: 'expenseSummaryHint' as const, icon: BarChart3 },
 ];
 
 function MiniBarChart({ items }: { items: Array<{ label: string; value: number }> }) {
+  const d = useDashboardT();
   const max = Math.max(...items.map((i) => i.value), 1);
 
   if (items.length === 0) {
     return (
-      <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-        No data yet / ยังไม่มีข้อมูล
-      </div>
+      <InlineEmptyState
+        title={d.reports.noData}
+        description="รายงานจะเริ่มมีภาพรวมเมื่อมีคดี ค่าใช้จ่าย หรือบันทึกขึ้นศาล"
+      />
     );
   }
 
@@ -97,9 +98,27 @@ function reportChartItems(data: ReportsSummary, key: (typeof REPORT_META)[number
   }
 }
 
+function revenueSourceLabel(
+  source: CaseProfitRow['revenueSource'],
+  d: ReturnType<typeof useDashboardT>,
+) {
+  switch (source) {
+    case 'estimated':
+      return d.home.revenueEstimated;
+    case 'time':
+      return d.home.revenueTime;
+    case 'invoice':
+      return d.home.revenueInvoice;
+    default:
+      return '—';
+  }
+}
+
 export default function ReportsPage() {
+  const d = useDashboardT();
   const { user, token } = useAuth();
   const [data, setData] = useState<ReportsSummary | null>(null);
+  const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -110,28 +129,22 @@ export default function ReportsPage() {
       return;
     }
     setError('');
-    api
-      .getReportsSummary(authToken)
-      .then(setData)
+    Promise.all([
+      api.getReportsSummary(authToken),
+      api.getFinanceSummary(authToken),
+    ])
+      .then(([reports, financeSummary]) => {
+        setData(reports);
+        setFinance(financeSummary);
+      })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
-        setError(err instanceof Error ? err.message : 'Failed to load reports / โหลดรายงานไม่สำเร็จ');
+        setError(err instanceof Error ? err.message : d.reports.loadFailed);
       })
       .finally(() => setLoading(false));
   }, [token]);
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-28" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoading title={d.common.loading} lines={3} />;
 
   if (error) {
     return (
@@ -143,45 +156,118 @@ export default function ReportsPage() {
 
   if (!data || !user) return null;
 
+  const caseProfits = finance?.caseProfits ?? [];
   const changeLabel =
     data.kpis.casesClosedChange >= 0
-      ? `+${data.kpis.casesClosedChange} vs last year / เทียบปีก่อน`
-      : `${data.kpis.casesClosedChange} vs last year / เทียบปีก่อน`;
+      ? `+${data.kpis.casesClosedChange} ${d.reports.vsLastYear}`
+      : `${data.kpis.casesClosedChange} ${d.reports.vsLastYear}`;
 
   return (
     <div>
       <PageHeader
-        title="Reports / รายงาน"
+        title={d.reports.title}
         description={
           data.scope === 'user'
-            ? `Your analytics / ข้อมูลของคุณ · ${data.firmName}`
-            : `Analytics and insights for / ข้อมูลวิเคราะห์ของ ${data.firmName}`
+            ? fmt(d.reports.descriptionMine, { firm: data.firmName })
+            : fmt(d.reports.descriptionOwner, { firm: data.firmName })
         }
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="Cases Closed (YTD) / คดีปิดปีนี้"
+          label={d.reports.casesClosedYtd}
           value={data.kpis.casesClosedYtd}
           trend={data.kpis.casesClosedChange >= 0 ? 'up' : 'down'}
           change={changeLabel}
         />
         <KpiCard
-          label="Completion Rate / อัตราปิดคดี"
+          label={d.reports.completionRate}
           value={`${data.kpis.winRate}%`}
           trend="neutral"
-          change="Closed cases / total cases / คดีปิด ÷ คดีทั้งหมด"
+          change={d.reports.completionRateHint}
         />
         <KpiCard
-          label="Avg. Case Duration / ระยะเวลาคดีเฉลี่ย"
+          label={d.reports.avgCaseDuration}
           value={
             data.kpis.avgCaseDurationMonths != null
-              ? `${data.kpis.avgCaseDurationMonths} mo / เดือน`
+              ? fmt(d.reports.months, { count: data.kpis.avgCaseDurationMonths })
               : '—'
           }
           trend="neutral"
         />
+        {finance && (
+          <KpiCard
+            label={d.reports.netProfit}
+            value={formatCurrency(finance.netProfit)}
+            trend={finance.netProfit >= 0 ? 'up' : 'down'}
+            change={d.reports.caseProfitHint}
+          />
+        )}
       </div>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>{d.reports.caseProfitByCase}</CardTitle>
+          <p className="text-xs text-muted-foreground">{d.reports.caseProfitHint}</p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{d.home.ownRef}</TableHead>
+                <TableHead>{d.reports.caseTitle}</TableHead>
+                <TableHead>{d.home.client}</TableHead>
+                <TableHead className="text-right">{d.home.revenue}</TableHead>
+                <TableHead>{d.reports.revenueSource}</TableHead>
+                <TableHead className="text-right">{d.nav.expenses}</TableHead>
+                <TableHead className="text-right">{d.home.profit}</TableHead>
+                <TableHead>{d.billing.status}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {caseProfits.length === 0 ? (
+                <TableEmptyRow
+                  colSpan={8}
+                  title={d.reports.noCaseProfits}
+                  description={d.reports.noCaseProfitsHint}
+                />
+              ) : (
+                caseProfits.map((row) => (
+                  <TableRow key={row.caseId}>
+                    <TableCell>
+                      <Link
+                        href={`/cases/${row.caseId}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {row.ownRef}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="max-w-[180px] truncate">{row.title}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {row.clientName ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-right">{formatCurrency(row.revenue)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {revenueSourceLabel(row.revenueSource, d)}
+                    </TableCell>
+                    <TableCell className="text-right">{formatCurrency(row.expenses)}</TableCell>
+                    <TableCell
+                      className={`text-right font-semibold ${
+                        row.profit >= 0 ? 'text-green-600' : 'text-destructive'
+                      }`}
+                    >
+                      {formatCurrency(row.profit)}
+                    </TableCell>
+                    <TableCell>
+                      <CaseStatusBadge status={row.status} />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2">
         {REPORT_META.map((report) => {
@@ -196,17 +282,17 @@ export default function ReportsPage() {
                   <Icon className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-base">{report.title}</CardTitle>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{report.desc}</p>
+                  <CardTitle className="text-base">{d.reports[report.titleKey]}</CardTitle>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{d.reports[report.descKey]}</p>
                 </div>
               </CardHeader>
               <CardContent>
                 <MiniBarChart items={chartItems} />
                 <p className="mt-3 text-lg font-bold">
                   {report.key === 'caseVolumeByType'
-                    ? `${total} cases / คดี`
+                    ? fmt(d.reports.caseCount, { count: total })
                     : report.key === 'courtAppearancesByMonth'
-                      ? `${total} hearings / นัด`
+                      ? fmt(d.reports.hearingCount, { count: total })
                       : formatCurrency(total)}
                 </p>
               </CardContent>

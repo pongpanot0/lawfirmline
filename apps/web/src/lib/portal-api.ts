@@ -1,3 +1,5 @@
+import { withFirmSlugHeaders } from './firm-slug';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 function parseApiErrorMessage(body: unknown, fallback: string): string {
@@ -20,10 +22,10 @@ export class PortalApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit & { token?: string } = {}): Promise<T> {
   const { token, ...fetchOptions } = options;
-  const headers: HeadersInit = {
+  const headers: HeadersInit = withFirmSlugHeaders({
     'Content-Type': 'application/json',
-    ...(options.headers ?? {}),
-  };
+    ...(options.headers as Record<string, string> | undefined),
+  });
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
@@ -70,6 +72,7 @@ export interface PortalContact {
   id: string;
   name: string;
   email: string | null;
+  hasPassword: boolean;
   client: { id: string; name: string } | null;
 }
 
@@ -119,7 +122,14 @@ export interface PortalIntakeSubmissionEntry {
   submittedAt: string;
   withdrawnByClient: boolean;
   externalStatus: string;
-  attachments: Array<{ id: string; filename: string; size: number }>;
+  attachments: Array<{ id: string; filename: string; size: number; createdAt?: string }>;
+  firmDocuments: Array<{ id: string; filename: string; mimeType: string; createdAt: string }>;
+}
+
+export interface PortalIntakeSubmissionDetail extends PortalIntakeSubmissionEntry {
+  detail: string;
+  urgencyFlag: boolean;
+  clientRequestedDate: string | null;
 }
 
 export interface PortalDashboardActivityItem {
@@ -182,10 +192,27 @@ export const portalApi = {
       body: JSON.stringify({ email }),
     }),
 
+  loginWithPassword: (email: string, password: string) =>
+    request<{
+      accessToken: string;
+      contact: { id: string; name: string; email: string | null; hasPassword: boolean };
+      client: { id: string; name: string };
+    }>('/client-portal/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  setPassword: (token: string, password: string) =>
+    request<{ hasPassword: true }>('/client-portal/auth/set-password', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ password }),
+    }),
+
   verify: (token: string) =>
     request<{
       accessToken: string;
-      contact: { id: string; name: string; email: string | null };
+      contact: { id: string; name: string; email: string | null; hasPassword: boolean };
       client: { id: string; name: string };
     }>('/client-portal/auth/verify', { method: 'POST', body: JSON.stringify({ token }) }),
 
@@ -201,7 +228,7 @@ export const portalApi = {
   acceptInvite: (token: string) =>
     request<{
       accessToken: string;
-      contact: { id: string; name: string; email: string | null };
+      contact: { id: string; name: string; email: string | null; hasPassword: boolean };
       client: { id: string; name: string };
     }>(`/client-portal/invites/${token}/accept`, { method: 'POST' }),
 
@@ -239,8 +266,14 @@ export const portalApi = {
   getMyIntakeSubmissions: (token: string) =>
     request<PortalIntakeSubmissionEntry[]>('/client-portal/intake', { token }),
 
+  getMyIntakeSubmission: (token: string, submissionId: string) =>
+    request<PortalIntakeSubmissionDetail>(`/client-portal/intake/${submissionId}`, { token }),
+
   downloadIntakeAttachment: (token: string, submissionId: string, attachmentId: string) =>
     requestBlob(`/client-portal/intake/${submissionId}/attachments/${attachmentId}/download`, token),
+
+  downloadIntakeFirmDocument: (token: string, submissionId: string, documentId: string) =>
+    requestBlob(`/client-portal/intake/${submissionId}/firm-documents/${documentId}/download`, token),
 
   getLineStatus: (token: string) =>
     request<PortalLineStatus>('/client-portal/integrations/line/me', { token }),

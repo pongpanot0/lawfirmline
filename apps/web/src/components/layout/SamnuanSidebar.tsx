@@ -26,9 +26,11 @@ import {
   Timer,
   CalendarCheck,
   CalendarOff,
+  Mail,
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
+import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 import { useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -37,35 +39,45 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { LanguageSwitcher } from '@/components/landing/LanguageSwitcher';
 import { useState } from 'react';
 
-const NAV_ITEMS = [
-  { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false },
-  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true },
-  { href: '/my-day', labelKey: 'myDay' as const, icon: CalendarCheck, ownerOnly: false },
-  { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false },
-  { href: '/intake', labelKey: 'intake' as const, icon: ClipboardList, ownerOnly: false },
-  { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false },
-  { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false },
-  { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false },
-  { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, ownerOnly: false },
-  { href: '/expenses', labelKey: 'expenses' as const, icon: Receipt, ownerOnly: true },
-  { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true },
-  { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true },
-  { href: '/admin/reimbursements', labelKey: 'reimbursements' as const, icon: Shield, ownerOnly: true },
-  { href: '/admin/case-types', labelKey: 'caseTypes' as const, icon: Tags, ownerOnly: true },
-  { href: '/admin/deadline-rules', labelKey: 'deadlineRules' as const, icon: Timer, ownerOnly: true },
-  { href: '/admin/holidays', labelKey: 'holidays' as const, icon: CalendarOff, ownerOnly: true },
-  { href: '/admin/courts', labelKey: 'courts' as const, icon: Scale, ownerOnly: true },
-  { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false },
+/**
+ * Day-to-day work and the settings that shape the office are different
+ * errands, so the menu keeps them apart.
+ */
+const NAV_GROUPS = [
+  { key: 'work', labelKey: 'groupWork' as const },
+  { key: 'firm', labelKey: 'groupFirm' as const },
 ] as const;
 
-interface LexFlowSidebarProps {
+const NAV_ITEMS = [
+  { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false, group: 'work' },
+  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true, group: 'firm' },
+  { href: '/my-day', labelKey: 'myDay' as const, icon: CalendarCheck, ownerOnly: false, group: 'work' },
+  { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work' },
+  { href: '/intake', labelKey: 'intake' as const, icon: ClipboardList, ownerOnly: false, group: 'work' },
+  { href: '/email-intake', labelKey: 'emailIntake' as const, icon: Mail, ownerOnly: false, group: 'work' },
+  { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false, group: 'work' },
+  { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work' },
+  { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false, group: 'work' },
+  { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, ownerOnly: false, group: 'work' },
+  { href: '/expenses', labelKey: 'expenses' as const, icon: Receipt, ownerOnly: false, group: 'work' },
+  { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true, group: 'firm' },
+  { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true, group: 'firm' },
+  { href: '/admin/reimbursements', labelKey: 'reimbursements' as const, icon: Shield, ownerOnly: true, group: 'firm' },
+  { href: '/admin/case-types', labelKey: 'caseTypes' as const, icon: Tags, ownerOnly: true, group: 'firm' },
+  { href: '/admin/deadline-rules', labelKey: 'deadlineRules' as const, icon: Timer, ownerOnly: true, group: 'firm' },
+  { href: '/admin/holidays', labelKey: 'holidays' as const, icon: CalendarOff, ownerOnly: true, group: 'firm' },
+  { href: '/admin/courts', labelKey: 'courts' as const, icon: Scale, ownerOnly: true, group: 'firm' },
+  { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false, group: 'firm' },
+] as const;
+
+interface SamnuanSidebarProps {
   user: AuthUser;
   onLogout: () => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
 
-export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClose }: LexFlowSidebarProps) {
+export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClose }: SamnuanSidebarProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const d = useDashboardT();
@@ -84,12 +96,10 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
       )}
     >
       <div className={cn('flex h-14 items-center gap-2 border-b border-sidebar-border px-4', collapsed && 'md:justify-center md:px-2')}>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Scale className="h-4 w-4" />
-        </div>
+        <SamnuanLogo wordmark={false} markClassName="h-8 w-8" />
         {(!collapsed || mobileOpen) && (
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold tracking-tight text-foreground">LexFlow</p>
+            <p className="text-sm font-bold tracking-tight text-foreground">Samnuan</p>
             <p className="truncate text-[10px] text-muted-foreground">{d.nav.tagline}</p>
           </div>
         )}
@@ -104,8 +114,24 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3 scrollbar-thin">
-        {filtered.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        {NAV_GROUPS.map((group) => {
+          const items = filtered.filter((item) => item.group === group.key);
+          if (items.length === 0) return null;
+          return (
+            <div key={group.key} className="pb-2">
+              {/*
+                Day-to-day work and the settings that shape the office are
+                different errands; running them together makes a lawyer read
+                past court types to reach their cases.
+              */}
+              {!collapsed && (
+                <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {d.nav[group.labelKey]}
+                </p>
+              )}
+              {items.map((item) => {
+                const active =
+                  pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
           const label = d.nav[item.labelKey];
           return (
@@ -125,6 +151,9 @@ export function LexFlowSidebar({ user, onLogout, mobileOpen = false, onMobileClo
               <Icon className="h-4 w-4 shrink-0" />
               <span className={cn(collapsed && 'md:hidden')}>{label}</span>
             </Link>
+                );
+              })}
+            </div>
           );
         })}
       </nav>

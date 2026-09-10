@@ -3,9 +3,11 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
+  Query,
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
@@ -185,6 +187,20 @@ export class SaasController {
   @SkipSubscription()
   omiseWebhook(@Body() body: Record<string, unknown>) {
     return this.subscriptions.handleWebhook(body);
+  }
+
+  /**
+   * Caddy On-Demand TLS ask endpoint.
+   * Returns 200 only when `domain` is an existing firm subdomain of ROOT_DOMAIN.
+   */
+  @Get('caddy-ask')
+  @SkipSubscription()
+  async caddyAsk(@Query('domain') domain?: string) {
+    const allowed = await this.tenant.allowOnDemandTls(domain);
+    if (!allowed) {
+      throw new NotFoundException('Unknown firm host');
+    }
+    return { ok: true };
   }
 }
 

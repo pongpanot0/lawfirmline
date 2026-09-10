@@ -7,6 +7,7 @@ import {
   caseCostTotal,
 } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
+import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,6 +20,7 @@ import {
   CourtItem,
   ApiError,
   WorkloadSummary,
+  FieldSuggestion,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import type { CaseFieldSchema } from '@lawfirm/shared';
@@ -45,6 +47,7 @@ export default function NewCasePage() {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const submittingRef = useRef(false);
   const [autoTitle, setAutoTitle] = useState(true);
+  const [showCostEstimate, setShowCostEstimate] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
   const [courtSearch, setCourtSearch] = useState('');
   const [retry, setRetry] = useState(0);
@@ -82,6 +85,11 @@ export default function NewCasePage() {
     initialActivityDescription: '',
   });
   const [nextOwnRef, setNextOwnRef] = useState<string>('');
+  /**
+   * Values the documents state. Re-analysing replaces these, never the form —
+   * what a lawyer typed or accepted stays put.
+   */
+  const [suggestions, setSuggestions] = useState<FieldSuggestion[]>([]);
 
   const selectedType = caseTypes.find((t) => t.id === form.caseTypeId);
   const fieldSchema = (
@@ -184,9 +192,17 @@ export default function NewCasePage() {
         return 'กรุณากรอกทุนทรัพย์เป็นจำนวนเงินตั้งแต่ 0 และทศนิยมไม่เกิน 2 ตำแหน่ง';
       if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
       if (!form.courtName) return 'กรุณาเลือกศาล';
-      if (!CASE_NUMBER_REGEX.test(form.blackCaseNumber.trim()))
+      // Court numbers arrive after the case is opened; only a filled-in
+      // value has to fit the format.
+      if (
+        form.blackCaseNumber.trim() &&
+        !CASE_NUMBER_REGEX.test(form.blackCaseNumber.trim())
+      )
         return `เลขดำ: ${CASE_NUMBER_HINT}`;
-      if (!CASE_NUMBER_REGEX.test(form.redCaseNumber.trim()))
+      if (
+        form.redCaseNumber.trim() &&
+        !CASE_NUMBER_REGEX.test(form.redCaseNumber.trim())
+      )
         return `เลขแดง: ${CASE_NUMBER_HINT}`;
       if (
         form.estimatedFee &&
@@ -265,8 +281,8 @@ export default function NewCasePage() {
         description: form.description || undefined,
         courtName: form.courtName,
         courtLevel: form.courtLevel,
-        blackCaseNumber: form.blackCaseNumber.trim(),
-        redCaseNumber: form.redCaseNumber.trim(),
+        blackCaseNumber: form.blackCaseNumber.trim() || undefined,
+        redCaseNumber: form.redCaseNumber.trim() || undefined,
         claimedAmount: form.claimedAmount
           ? Number(form.claimedAmount)
           : undefined,
@@ -341,7 +357,7 @@ export default function NewCasePage() {
   const selectedLawyer = lawyers.find((l) => l.id === form.leadLawyerId);
   const currentIndex = visibleSteps.findIndex((item) => item.value === step);
 
-  // Hallmark · pre-emit critique: P4 H4 E4 S5 R5 V4 · existing LexFlow design tokens
+  // Hallmark · pre-emit critique: P4 H4 E4 S5 R5 V4 · existing Samnuan design tokens
   return (
     <div className="mx-auto w-full max-w-4xl min-w-0 pb-20 [overflow-wrap:anywhere]">
       <Link href="/cases" className="text-sm text-primary hover:underline">
@@ -380,6 +396,7 @@ export default function NewCasePage() {
           files={files}
           onFilesChange={setFiles}
           onBusyChange={setAnalysisBusy}
+          onFieldSuggestions={setSuggestions}
           disabled={submitting || !!createdCaseId}
           onUseSummary={(summary) =>
             setForm((previous) => ({
@@ -391,6 +408,22 @@ export default function NewCasePage() {
           }
         />
       </div>
+      {suggestions.length > 0 && (
+        <div className="mb-5">
+          <SuggestedFieldsPanel
+            suggestions={suggestions}
+            accepts={['title', 'courtName', 'claimedAmount']}
+            current={{
+              title: form.title,
+              courtName: form.courtName,
+              claimedAmount: form.claimedAmount,
+            }}
+            onApply={(field, value) =>
+              setForm((previous) => ({ ...previous, [field]: value }))
+            }
+          />
+        </div>
+      )}
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -652,35 +685,33 @@ export default function NewCasePage() {
                   แยกจากค่าทนายและค่าใช้จ่ายดำเนินคดี
                 </p>
               </div>
-              <details className="rounded-lg border border-border p-4">
-                <summary className="cursor-pointer text-sm font-medium">
+              <section className="rounded-lg border border-border p-4">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-expanded={showCostEstimate}
+                  onClick={() => setShowCostEstimate((value) => !value)}
+                >
+                  <span>
                   คำนวณค่าบริการและค่าไปศาล (ไม่บังคับ)
-                </summary>
-                <div className="mt-4">
-                  <CaseCostCalculator
-                    value={costLines}
-                    onChange={setCostLines}
-                    disabled={submitting || analysisBusy || !!createdCaseId}
-                  />
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <p className="text-xs text-muted-foreground">
-                      {autoTitle
-                        ? 'เติมจากประเภทคดีและลูกค้าให้อัตโนมัติ แก้ไขได้ตามต้องการ'
-                        : 'ใช้ชื่อที่คุณแก้ไขไว้'}
-                    </p>
-                    {!autoTitle && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setAutoTitle(true)}
-                      >
-                        ใช้ชื่อแนะนำ
-                      </Button>
-                    )}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {showCostEstimate ? 'ซ่อน' : 'เปิด'}
+                  </span>
+                </button>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  ข้ามได้ตอนเปิดคดี แล้วกลับมาเติมในหน้ารายละเอียดคดี
+                </p>
+                {showCostEstimate && (
+                  <div className="mt-4">
+                    <CaseCostCalculator
+                      value={costLines}
+                      onChange={setCostLines}
+                      disabled={submitting || analysisBusy || !!createdCaseId}
+                    />
                   </div>
-                </div>
-              </details>
+                )}
+              </section>
               <section
                 className="space-y-4 border-t border-border pt-5"
                 aria-labelledby="court-heading"
@@ -689,8 +720,9 @@ export default function NewCasePage() {
                   ข้อมูลศาลและหมายเลขคดี
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  ระบบปัจจุบันต้องใช้เลขดำและเลขแดงในการสร้างคดี
-                  กรุณาใช้หมายเลขจริงตามเอกสาร
+                  ยังไม่มีเลขดำ/เลขแดงก็เปิดคดีได้
+                  ระบบใช้เลขอ้างอิงสำนักงานติดตามไปก่อน
+                  แล้วมาเติมเลขจากศาลในหน้าคดีเมื่อได้รับ
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
@@ -764,11 +796,13 @@ export default function NewCasePage() {
                     (key) => (
                       <div key={key}>
                         <label htmlFor={key} className={fieldLabel}>
-                          {key === 'blackCaseNumber' ? 'เลขดำ' : 'เลขแดง'} *
+                          {key === 'blackCaseNumber' ? 'เลขดำ' : 'เลขแดง'}{' '}
+                          <span className="font-normal text-muted-foreground">
+                            (ถ้ามี)
+                          </span>
                         </label>
                         <input
                           id={key}
-                          required
                           pattern={CASE_NUMBER_HTML}
                           title={CASE_NUMBER_HINT}
                           value={form[key]}
@@ -1126,8 +1160,8 @@ export default function NewCasePage() {
                       'ศาล',
                       `${COURT_LEVEL_LABELS[form.courtLevel]} · ${form.courtName}`,
                     ],
-                    ['เลขดำ', form.blackCaseNumber],
-                    ['เลขแดง', form.redCaseNumber],
+                    ['เลขดำ', form.blackCaseNumber || 'ยังไม่มี'],
+                    ['เลขแดง', form.redCaseNumber || 'ยังไม่มี'],
                     [
                       'ผู้รับผิดชอบ',
                       selectedLawyer

@@ -7,6 +7,8 @@ import { SubscriptionService } from './subscription.service';
 import { OmiseService } from './omise.service';
 import { FirmRoleGuard } from './guards/firm-role.guard';
 import { SubscriptionGuard } from './guards/subscription.guard';
+import { TenantMatchGuard } from './guards/tenant-match.guard';
+import { TenantResolveMiddleware } from './middleware/tenant-resolve.middleware';
 import { AuthModule } from '../auth/auth.module';
 import { CaseTypesModule } from '../case-types/case-types.module';
 import { DeadlinesModule } from '../deadlines/deadlines.module';
@@ -23,7 +25,16 @@ import { NotificationsModule } from '../notifications/notifications.module';
     OmiseService,
     FirmRoleGuard,
     SubscriptionGuard,
+    TenantMatchGuard,
+    TenantResolveMiddleware,
   ],
-  exports: [TenantService, SaasAuthService, SubscriptionGuard, FirmRoleGuard],
+  exports: [
+    TenantService,
+    SaasAuthService,
+    SubscriptionGuard,
+    FirmRoleGuard,
+    TenantMatchGuard,
+    TenantResolveMiddleware,
+  ],
 })
 export class SaasModule {}

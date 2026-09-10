@@ -7,6 +7,7 @@ import {
   IsDateString,
   IsArray,
   IsEnum,
+  IsIn,
   IsUUID,
   Max,
   MaxLength,
@@ -15,6 +16,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import {
+  ExpenseClaimStatus,
   ExpenseStatus,
   HOURS_MAX,
   HOURS_MIN,
@@ -55,6 +57,7 @@ export class CreateTimeEntryDto {
 }
 
 export class CreateExpenseDto {
+  @Type(() => Number)
   @IsNumber(money)
   @Min(MONEY_MIN)
   @Max(MONEY_MAX)
@@ -81,6 +84,22 @@ export class CreateExpenseDto {
   @IsOptional()
   @IsDateString()
   date?: string;
+
+  /**
+   * The hearing this cost came from, so a reimbursement can be traced back to
+   * the trip that caused it.
+   */
+  @IsOptional()
+  @IsUUID()
+  sourceEventId?: string;
+
+  /**
+   * `DRAFT` records the cost without claiming it. Omitted means `PENDING`,
+   * which is a claim — the existing behaviour of every caller.
+   */
+  @IsOptional()
+  @IsIn([ExpenseStatus.DRAFT, ExpenseStatus.PENDING])
+  status?: ExpenseStatus.DRAFT | ExpenseStatus.PENDING;
 }
 
 export class CreateStandaloneExpenseDto extends CreateExpenseDto {
@@ -92,6 +111,24 @@ export class CreateStandaloneExpenseDto extends CreateExpenseDto {
 export class UpdateExpenseStatusDto {
   @IsEnum(ExpenseStatus)
   status!: ExpenseStatus;
+}
+
+export class UpdateExpenseClaimStatusDto {
+  @IsIn([
+    ExpenseClaimStatus.APPROVED,
+    ExpenseClaimStatus.PAID,
+    ExpenseClaimStatus.REJECTED,
+  ])
+  status!:
+    | ExpenseClaimStatus.APPROVED
+    | ExpenseClaimStatus.PAID
+    | ExpenseClaimStatus.REJECTED;
+}
+
+export class SubmitExpensesDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  expenseIds!: string[];
 }
 
 export class InvoiceLineItemDto {

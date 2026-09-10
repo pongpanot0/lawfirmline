@@ -108,11 +108,23 @@ export function CalendarView({
             >
               {day && (
                 <>
-                  <span
-                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${isToday ? 'bg-primary font-bold text-primary-foreground' : 'text-foreground'}`}
+                  {/*
+                    The whole cell is clickable for the mouse, but a nested
+                    button would be invalid markup — so the day number carries
+                    the keyboard affordance for adding an event.
+                  */}
+                  <button
+                    type="button"
+                    disabled={!onDayClick}
+                    aria-label={onDayClick ? fmt(d.calendar.addOnDay, { day }) : undefined}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      onDayClick?.(new Date(year, monthIndex, day));
+                    }}
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs disabled:cursor-default ${isToday ? 'bg-primary font-bold text-primary-foreground' : 'text-foreground'}`}
                   >
                     {day}
-                  </span>
+                  </button>
                   <div className="mt-1 space-y-0.5">
                     {dayEvents.slice(0, 2).map((e) => (
                       <button

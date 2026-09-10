@@ -6,8 +6,13 @@ import {
   Body,
   Param,
   Query,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { BillingService } from './billing.service';
 import {
   CreateTimeEntryDto,
@@ -15,18 +20,28 @@ import {
   CreateStandaloneExpenseDto,
   CreateInvoiceDto,
   UpdateExpenseStatusDto,
+  UpdateExpenseClaimStatusDto,
+  SubmitExpensesDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AuthUser, Role, ExpenseStatus } from '@lawfirm/shared';
+import { AuthUser, Role, ExpenseStatus, ExpenseClaimStatus } from '@lawfirm/shared';
+import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
+import { safeMimeType } from '../common/utils/safe-mime-type';
+import { FileStorageService } from '../common/services/file-storage.service';
+
+const RECEIPT_UPLOAD = FileInterceptor('receipt', { limits: { fileSize: 10 * 1024 * 1024 } });
 
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class BillingController {
-  constructor(private billingService: BillingService) {}
+  constructor(
+    private billingService: BillingService,
+    private fileStorage: FileStorageService,
+  ) {}
 
   @Get('petty-cash')
   @UseGuards(RolesGuard)
@@ -49,16 +64,69 @@ export class BillingController {
   getAllExpenses(
     @CurrentUser() user: AuthUser,
     @Query('status') status?: ExpenseStatus,
+    @Query('userId') userId?: string,
   ) {
-    return this.billingService.getAllExpenses(user, status);
+    return this.billingService.getAllExpenses(user, { status, userId });
   }
 
   @Post('expenses')
+  @UseInterceptors(RECEIPT_UPLOAD)
   createStandaloneExpense(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateStandaloneExpenseDto,
+    @UploadedFile() receipt?: Express.Multer.File,
   ) {
-    return this.billingService.createStandaloneExpense(user, dto);
+    return this.billingService.createStandaloneExpense(user, dto, receipt);
+  }
+
+  @Get('expenses/:expenseId/receipt')
+  async downloadReceipt(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId') expenseId: string,
+    @Res() res: Response,
+  ) {
+    const file = await this.billingService.getReceiptFile(user, expenseId);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Type', safeMimeType(file.mimeType));
+    res.setHeader('Content-Disposition', buildContentDispositionHeader(file.filename));
+    const stream = await this.fileStorage.openDownloadStream(file.path);
+    stream.pipe(res);
+  }
+
+  @Post('expenses/submit')
+  submitExpenses(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: SubmitExpensesDto,
+  ) {
+    return this.billingService.submitExpensesForApproval(user, dto.expenseIds);
+  }
+
+  @Get('expense-claims')
+  getExpenseClaims(
+    @CurrentUser() user: AuthUser,
+    @Query('status') status?: ExpenseClaimStatus,
+    @Query('userId') userId?: string,
+  ) {
+    return this.billingService.getExpenseClaims(user, { status, userId });
+  }
+
+  @Get('expense-claims/:claimId')
+  getExpenseClaim(
+    @CurrentUser() user: AuthUser,
+    @Param('claimId') claimId: string,
+  ) {
+    return this.billingService.getExpenseClaim(user, claimId);
+  }
+
+  @Patch('expense-claims/:claimId/status')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  updateExpenseClaimStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('claimId') claimId: string,
+    @Body() dto: UpdateExpenseClaimStatusDto,
+  ) {
+    return this.billingService.updateExpenseClaimStatus(user, claimId, dto);
   }
 
   @Patch('expenses/:expenseId/status')
@@ -96,18 +164,20 @@ export class BillingController {
 
   @Get('cases/:caseId/billing/expenses')
   @UseGuards(CaseAccessGuard)
-  getExpenses(@Param('caseId') caseId: string) {
-    return this.billingService.getExpenses(caseId);
+  getExpenses(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
+    return this.billingService.getExpenses(user, caseId);
   }
 
   @Post('cases/:caseId/billing/expenses')
   @UseGuards(CaseAccessGuard)
+  @UseInterceptors(RECEIPT_UPLOAD)
   createExpense(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @Body() dto: CreateExpenseDto,
+    @UploadedFile() receipt?: Express.Multer.File,
   ) {
-    return this.billingService.createExpense(user, caseId, dto);
+    return this.billingService.createExpense(user, caseId, dto, receipt);
   }
 
   @Get('cases/:caseId/billing/invoices')

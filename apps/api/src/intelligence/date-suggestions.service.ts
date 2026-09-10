@@ -40,7 +40,7 @@ export class DateSuggestionsService {
   ) {
     const suggestion = await this.findPendingOrThrow(caseId, id);
 
-    const event = await this.calendarService.create({
+    const event = await this.calendarService.createInternal({
       caseId,
       title: overrides.label ?? suggestion.label,
       startAt: overrides.date ?? suggestion.suggestedDate.toISOString(),

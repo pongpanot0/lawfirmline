@@ -1,3 +1,5 @@
+import { withFirmSlugHeaders } from './firm-slug';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 const TOKEN_KEY = 'lawfirm_access_token';
 const REFRESH_KEY = 'lawfirm_refresh_token';
@@ -24,7 +26,7 @@ async function refreshAccessToken(): Promise<string | null> {
   try {
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withFirmSlugHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ refreshToken }),
       cache: 'no-store',
     });
@@ -55,10 +57,10 @@ async function request<T>(
 ): Promise<T> {
   const { token, ...fetchOptions } = options;
   const isFormData = fetchOptions.body instanceof FormData;
-  const headers: HeadersInit = {
+  const headers: HeadersInit = withFirmSlugHeaders({
     ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
-    ...(options.headers ?? {}),
-  };
+    ...(options.headers as Record<string, string> | undefined),
+  });
   const authToken = token ?? (typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null);
   if (authToken) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`;
@@ -97,7 +99,9 @@ async function fetchBlob(
   options: RequestInit & { token?: string } = {},
 ): Promise<Blob> {
   const { token, ...fetchOptions } = options;
-  const headers: HeadersInit = { ...(options.headers ?? {}) };
+  const headers: HeadersInit = withFirmSlugHeaders({
+    ...(options.headers as Record<string, string> | undefined),
+  });
   const authToken = token ?? (typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null);
   if (authToken) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`;
@@ -189,10 +193,13 @@ export interface OnHoldTaskEntry {
 export interface CalendarEventItem {
   id: string;
   title: string;
+  description?: string | null;
+  courtName?: string | null;
   startAt: string;
   endAt?: string | null;
   type: string;
-  case?: { id: string; ownRef: string; title: string };
+  assigneeId?: string | null;
+  case?: { id: string; ownRef: string; title: string; courtName?: string | null };
 }
 
 export interface CaseItem {
@@ -300,9 +307,25 @@ export interface ExpenseItem {
   status: import('@lawfirm/shared').ExpenseStatus;
   date: string;
   paidAt?: string | null;
+  claimId?: string | null;
   user: { id: string; firstName: string; lastName: string; role?: string };
   paidBy?: { firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string; courtName?: string | null } | null;
+  receiptFilename?: string | null;
+}
+
+export interface ExpenseClaimSummary {
+  id: string;
+  status: import('@lawfirm/shared').ExpenseClaimStatus | string;
+  submittedAt: string;
+  reviewedAt?: string | null;
+  paidAt?: string | null;
+  submittedBy: { id: string; firstName: string; lastName: string };
+  totalAmount: number;
+  itemCount: number;
+  receiptCount: number;
+  cases: Array<{ id: string; ownRef: string; title: string }>;
+  expenses: ExpenseItem[];
 }
 
 export interface CaseParticipantItem {
@@ -414,6 +437,8 @@ export interface DashboardStats {
     overdueTasks: number;
     myTasks: number;
     pendingExpenses: number;
+    /** Approved but not yet paid out — kept apart from "awaiting approval". */
+    approvedExpenses: number;
     monthlyRevenue: number;
     totalNetProfit: number;
   };
@@ -483,10 +508,12 @@ export interface FinanceSummary {
   totalExpenses: number;
   approvedExpenses: number;
   outstanding: number;
+  draftTotal?: number;
   netProfit: number;
   caseProfits: CaseProfitRow[];
   pettyCashBalance: number;
   pendingCount: number;
+  draftCount?: number;
   expenseCount: number;
 }
 
@@ -513,13 +540,21 @@ export interface IntakeItem {
   referralName?: string | null;
   clientId?: string | null;
   clientName?: string | null;
+  contactName?: string | null;
   matterType?: string | null;
   opposingParty?: string | null;
   incidentDate?: string | null;
   description?: string | null;
   estimatedDamage?: number | null;
+  requestedResponseDate?: string | null;
+  assignedUserIds?: string[];
+  deadlineDate?: string | null;
   status: string;
   decision: string;
+  preLitigationType: string;
+  preLitigationStatus: string;
+  preLitigationNotes?: string | null;
+  settlementOfferAmount?: number | null;
   caseStrength?: string | null;
   assessmentNotes?: string | null;
   decisionNotes?: string | null;
@@ -529,6 +564,8 @@ export interface IntakeItem {
   noticeResult?: string | null;
   noticeContent?: string | null;
   attachments?: IntakeAttachmentItem[];
+  fieldProposals?: IntakeFieldProposalItem[];
+  emailThreads?: { id: string; subject: string; fromName: string | null; fromAddress: string | null; lastMessageAt: string }[];
   receivedBy?: { id: string; firstName: string; lastName: string };
   assessor?: { id: string; firstName: string; lastName: string } | null;
   client?: { id: string; name: string } | null;
@@ -545,6 +582,97 @@ export interface IntakeAttachmentItem {
   createdAt: string;
 }
 
+export interface IntakeFieldProposalItem {
+  id: string;
+  intakeId: string;
+  field: string;
+  proposedValue: string | null;
+  previousValue: string | null;
+  sourceType: 'EMAIL_BODY' | 'ATTACHMENT' | 'EXISTING_CLIENT' | 'MANUAL';
+  sourceDetail: string | null;
+  status: 'SUGGESTED' | 'REQUIRES_CONFIRMATION' | 'CONFIRMED' | 'REJECTED' | 'CONFLICT';
+  confirmedById: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+}
+
+export interface EmailThreadListItem {
+  id: string;
+  subject: string;
+  fromName: string | null;
+  fromAddress: string | null;
+  lastMessageAt: string;
+  status: 'PENDING_INTAKE' | 'LINKED' | 'ARCHIVED';
+  messageCount: number;
+  attachmentCount: number;
+  bodyExcerpt: string;
+  linkedIntake: { id: string; status: string } | null;
+}
+
+export interface EmailAttachmentItem {
+  id: string;
+  filename: string;
+  mimeType: string;
+  createdAt: string;
+}
+
+export interface EmailMessageItem {
+  id: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  fromName: string | null;
+  fromAddress: string | null;
+  bodyText: string | null;
+  receivedAt: string;
+  attachments: EmailAttachmentItem[];
+}
+
+export interface EmailThreadDetail {
+  thread: EmailThreadListItem & { messages: EmailMessageItem[]; intake: { id: string; status: string; title: string | null } | null };
+  proposals: IntakeFieldProposalItem[];
+}
+
+export interface MailboxConnectionItem {
+  id: string;
+  mailboxAddress: string;
+  connectedByUserId: string;
+  status: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'ERROR';
+  lastError: string | null;
+  lastSyncedAt: string | null;
+  subscriptionExpiresAt: string | null;
+  createdAt: string;
+}
+
+export interface ReviewDecisionItem {
+  reviewerId: string;
+  decision: 'APPROVED' | 'RETURNED';
+  reason: string | null;
+  decidedAt: string;
+}
+
+export interface ReviewRoundItem {
+  id: string;
+  documentVersionId: string;
+  reviewerIds: string[];
+  editorIds: string[];
+  approvalRule: 'ALL' | 'ANY_ONE';
+  scope: string | null;
+  dueAt: string | null;
+  status: 'WAITING_REVIEW' | 'RETURNED' | 'APPROVED' | 'CANCELLED';
+  createdById: string;
+  createdAt: string;
+  decisions: ReviewDecisionItem[];
+  documentVersion: {
+    id: string;
+    documentId: string;
+    version: number;
+    filename: string;
+    status: 'DRAFT' | 'WAITING_REVIEW' | 'RETURNED_FOR_CHANGES' | 'APPROVED' | 'SUPERSEDED';
+    notes: string | null;
+    createdById: string | null;
+    createdAt: string;
+  };
+}
+
 export interface IntakePrecedentItem {
   dekaId: string;
   headnote: string;
@@ -559,6 +687,8 @@ export interface IntakePrecedentAnalysisItem {
   id: string;
   status: 'PENDING' | 'COMPLETE' | 'FAILED';
   precedents: IntakePrecedentItem[];
+  /** Plain-language AI summary of the intake/docs events (may be null on older analyses). */
+  documentSummary?: string | null;
   summaryBullets: string;
   noticeFacts: string;
   creditsCost: number;
@@ -979,9 +1109,19 @@ export const api = {
     return request<CalendarEventItem[]>(`/calendar/events${qs ? `?${qs}` : ''}`, { token });
   },
 
+  getCalendarEvent: (token: string, id: string) =>
+    request<CalendarEventItem>(`/calendar/events/${id}`, { token }),
+
   createCalendarEvent: (token: string, data: Record<string, unknown>) =>
-    request('/calendar/events', {
+    request<CalendarEventItem>('/calendar/events', {
       method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  updateCalendarEvent: (token: string, id: string, data: Record<string, unknown>) =>
+    request<CalendarEventItem>(`/calendar/events/${id}`, {
+      method: 'PATCH',
       token,
       body: JSON.stringify(data),
     }),
@@ -1078,9 +1218,12 @@ export const api = {
   updateCaseType: (token: string, id: string, data: Record<string, unknown>) =>
     request(`/case-types/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
-  getExpenses: (token: string, status?: string) => {
-    const qs = status ? `?status=${status}` : '';
-    return request<ExpenseItem[]>(`/expenses${qs}`, { token });
+  getExpenses: (token: string, params?: { status?: string; userId?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.userId) qs.set('userId', params.userId);
+    const query = qs.toString();
+    return request<ExpenseItem[]>(`/expenses${query ? `?${query}` : ''}`, { token });
   },
 
   createExpense: (token: string, caseId: string, data: Record<string, unknown>) =>
@@ -1095,6 +1238,31 @@ export const api = {
 
   updateExpenseStatus: (token: string, expenseId: string, status: string) =>
     request(`/expenses/${expenseId}/status`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ status }),
+    }),
+
+  submitExpenses: (token: string, expenseIds: string[]) =>
+    request<ExpenseClaimSummary>('/expenses/submit', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ expenseIds }),
+    }),
+
+  getExpenseClaims: (token: string, params?: { status?: string; userId?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.userId) qs.set('userId', params.userId);
+    const query = qs.toString();
+    return request<ExpenseClaimSummary[]>(`/expense-claims${query ? `?${query}` : ''}`, { token });
+  },
+
+  getExpenseClaim: (token: string, claimId: string) =>
+    request<ExpenseClaimSummary>(`/expense-claims/${claimId}`, { token }),
+
+  updateExpenseClaimStatus: (token: string, claimId: string, status: string) =>
+    request<ExpenseClaimSummary>(`/expense-claims/${claimId}/status`, {
       method: 'PATCH',
       token,
       body: JSON.stringify({ status }),
@@ -1115,8 +1283,22 @@ export const api = {
       { token },
     ),
 
-  createStandaloneExpense: (token: string, data: Record<string, unknown>) =>
-    request('/expenses', { method: 'POST', token, body: JSON.stringify(data) }),
+  createStandaloneExpense: (token: string, data: Record<string, unknown>, receipt?: File) => {
+    if (receipt) {
+      const form = new FormData();
+      for (const [key, value] of Object.entries(data)) {
+        if (value !== undefined && value !== null && value !== '') {
+          form.append(key, String(value));
+        }
+      }
+      form.append('receipt', receipt);
+      return request('/expenses', { method: 'POST', token, body: form });
+    }
+    return request('/expenses', { method: 'POST', token, body: JSON.stringify(data) });
+  },
+
+  downloadExpenseReceipt: (token: string, expenseId: string) =>
+    fetchBlob(`/expenses/${expenseId}/receipt`, { token }),
 
   getPettyCash: (token: string) =>
     request<{ balance: number }>('/petty-cash', { token }),
@@ -1161,14 +1343,14 @@ export const api = {
     request<Array<{ id: string; summary: string; createdAt: string }>>(`/cases/${caseId}/documents/batch-analyses`, { token }),
 
   analyzeSelectedDocuments: (token: string, caseId: string, documentIds: string[]) =>
-    request<{ summary: string; sources: string[]; truncatedFiles: string[] }>(`/cases/${caseId}/documents/analyze-batch`, {
+    request<BatchAnalysisResult>(`/cases/${caseId}/documents/analyze-batch`, {
       method: 'POST', token, body: JSON.stringify({ documentIds }),
     }),
 
   analyzeDraftFiles: (token: string, files: File[]) => {
     const body = new FormData();
     files.forEach((file) => body.append('files', file));
-    return request<{ summary: string; sources: string[]; truncatedFiles: string[] }>('/documents/analyze-batch', { method: 'POST', token, body });
+    return request<BatchAnalysisResult>('/documents/analyze-batch', { method: 'POST', token, body });
   },
 
   analyzeExistingDocument: (token: string, caseId: string, documentId: string) =>
@@ -1216,6 +1398,17 @@ export const api = {
     });
   },
 
+  uploadDocumentVersion: (token: string, caseId: string, documentId: string, file: File, notes?: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (notes) form.append('notes', notes);
+    return request<DocumentItem>(`/cases/${caseId}/documents/${documentId}/versions`, {
+      method: 'POST',
+      token,
+      body: form,
+    });
+  },
+
   getIntakeDocuments: (token: string, intakeId: string) =>
     request<DocumentItem[]>(`/intake/${intakeId}/documents`, { token }),
 
@@ -1229,10 +1422,28 @@ export const api = {
     });
   },
 
+  classifyIntakeChecklist: (
+    token: string,
+    intakeId: string,
+    documentIds: string[],
+    labels: string[],
+  ) =>
+    request<ChecklistClassificationSuggestion[]>(
+      `/intake/${intakeId}/documents/classify-checklist`,
+      {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ documentIds, labels }),
+      },
+    ),
+
   downloadIntakeDocument: (token: string, intakeId: string, documentId: string, version?: number) => {
     const qs = version ? `?version=${version}` : '';
     return fetchBlob(`/intake/${intakeId}/documents/${documentId}/download${qs}`, { token });
   },
+
+  deleteIntakeDocument: (token: string, intakeId: string, documentId: string) =>
+    request(`/intake/${intakeId}/documents/${documentId}`, { method: 'DELETE', token }),
 
   updateIntakeDocumentVisibility: (token: string, intakeId: string, documentId: string, visibleToClient: boolean) =>
     request<DocumentItem>(`/intake/${intakeId}/documents/${documentId}/visibility`, {
@@ -1274,6 +1485,19 @@ export const api = {
     if (origin) query.set('origin', origin);
     return request<TravelResult>(`/travel/calculate?${query}`, { token });
   },
+
+  // --- Outlook / Microsoft Graph (self-service mailbox connect) ---
+  getOutlookConnections: (token: string) =>
+    request<MailboxConnectionItem[]>('/outlook/connections', { token }),
+
+  getOutlookConnectUrl: (token: string) =>
+    request<{ url: string }>('/outlook/connect', { token }),
+
+  disconnectOutlook: (token: string, id: string) =>
+    request<{ revoked: boolean }>(`/outlook/connections/${id}`, { method: 'DELETE', token }),
+
+  syncOutlookNow: (token: string, id: string) =>
+    request<{ messagesSynced: number }>(`/outlook/connections/${id}/sync`, { method: 'POST', token }),
 
   getLineStatus: (token: string) =>
     request<LineIntegrationStatus>('/integrations/line/status', { token }),
@@ -1359,6 +1583,76 @@ export const api = {
   convertIntake: (token: string, id: string, data?: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/convert`, { method: 'POST', token, body: JSON.stringify(data ?? {}) }),
 
+  // --- Email intake ---
+  getEmailThreads: (token: string) => request<EmailThreadListItem[]>('/email-intake/threads', { token }),
+
+  getEmailThread: (token: string, threadId: string) =>
+    request<EmailThreadDetail>(`/email-intake/threads/${threadId}`, { token }),
+
+  acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
+    request<IntakeItem>(`/email-intake/threads/${threadId}/accept`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data ?? {}),
+    }),
+
+  mockReplyEmailThread: (token: string, threadId: string, data: { bodyText: string; fromName?: string; fromAddress?: string }) =>
+    request<EmailMessageItem>(`/email-intake/threads/${threadId}/mock-reply`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  resolveFieldProposal: (
+    token: string,
+    intakeId: string,
+    proposalId: string,
+    data: { action: 'confirm' | 'reject'; overrideValue?: string },
+  ) =>
+    request<IntakeFieldProposalItem>(`/email-intake/intakes/${intakeId}/field-proposals/${proposalId}`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  // --- Document review rounds ---
+  getReviewEligibleMembers: (token: string, caseId: string, documentId: string) =>
+    request<{ id: string; firstName: string; lastName: string; email: string }[]>(
+      `/cases/${caseId}/documents/${documentId}/review-rounds/eligible-members`,
+      { token },
+    ),
+
+  getReviewRounds: (token: string, caseId: string, documentId: string) =>
+    request<ReviewRoundItem[]>(`/cases/${caseId}/documents/${documentId}/review-rounds`, { token }),
+
+  getReviewRound: (token: string, caseId: string, documentId: string, roundId: string) =>
+    request<ReviewRoundItem>(`/cases/${caseId}/documents/${documentId}/review-rounds/${roundId}`, { token }),
+
+  createReviewRound: (
+    token: string,
+    caseId: string,
+    documentId: string,
+    data: { documentVersionId: string; reviewerIds: string[]; editorIds?: string[]; approvalRule?: 'ALL' | 'ANY_ONE'; scope?: string; dueAt?: string },
+  ) =>
+    request<ReviewRoundItem>(`/cases/${caseId}/documents/${documentId}/review-rounds`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  recordReviewDecision: (
+    token: string,
+    caseId: string,
+    documentId: string,
+    roundId: string,
+    data: { action: 'approve' | 'return'; reason?: string; reviewedDocumentVersionId: string },
+  ) =>
+    request<ReviewRoundItem>(`/cases/${caseId}/documents/${documentId}/review-rounds/${roundId}/decision`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
   uploadIntakeAttachment: (token: string, intakeId: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -1442,7 +1736,12 @@ export const api = {
   listDocumentPublications: (token: string, caseId: string, documentId: string) =>
     request<DocumentPublicationEntry[]>(`/cases/${caseId}/documents/${documentId}/publications`, { token }),
 
-  publishDocument: (token: string, caseId: string, documentId: string, data: { title?: string; summary?: string }) =>
+  publishDocument: (
+    token: string,
+    caseId: string,
+    documentId: string,
+    data: { title?: string; summary?: string; recipientContacts?: string[] },
+  ) =>
     request<DocumentPublicationEntry>(`/cases/${caseId}/documents/${documentId}/publications`, {
       method: 'POST',
       token,
@@ -1489,6 +1788,35 @@ export interface LineLinkCodeResponse {
   officialAccountUrl: string | null;
 }
 
+
+/** A case field the document analysis can offer a value for. */
+export type SuggestibleField =
+  | 'title'
+  | 'opposingParty'
+  | 'courtName'
+  | 'incidentDate'
+  | 'claimedAmount'
+  | 'estimatedDamage';
+
+/**
+ * A value read out of the uploaded documents, with the sentence it came from.
+ * Never applied on its own — the excerpt is what a lawyer checks it against.
+ */
+export interface FieldSuggestion {
+  field: SuggestibleField;
+  /** ISO instant for dates, a plain decimal for amounts, otherwise the text. */
+  value: string;
+  sourceFilename: string | null;
+  sourceExcerpt: string;
+}
+
+export interface BatchAnalysisResult {
+  summary: string;
+  sources: string[];
+  truncatedFiles: string[];
+  fieldSuggestions?: FieldSuggestion[];
+}
+
 export interface TravelResult {
   distanceMeters: number;
   durationSeconds: number;
@@ -1526,6 +1854,17 @@ export interface DateSuggestionItem {
 
 export type DeadlineTriggerValue = import('@lawfirm/shared').DeadlineTrigger;
 
+export interface DocumentVersionItem {
+  id: string;
+  version: number;
+  filename: string;
+  mimeType: string;
+  status: 'DRAFT' | 'WAITING_REVIEW' | 'RETURNED_FOR_CHANGES' | 'APPROVED' | 'SUPERSEDED';
+  notes: string | null;
+  createdById: string | null;
+  createdAt: string;
+}
+
 export interface DocumentItem {
   id: string;
   filename: string;
@@ -1534,6 +1873,16 @@ export interface DocumentItem {
   visibleToClient: boolean;
   createdAt: string;
   uploadedBy: { firstName: string; lastName: string };
+  versions?: DocumentVersionItem[];
+}
+
+/** AI suggestion that an intake file matches an expected-document checklist label. */
+export interface ChecklistClassificationSuggestion {
+  documentId: string;
+  filename: string;
+  label: string;
+  source: 'ai';
+  sourceExcerpt: string;
 }
 
 export interface DocumentPublicationEntry {

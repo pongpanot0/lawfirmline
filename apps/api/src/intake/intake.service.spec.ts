@@ -1,18 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import * as fs from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { IntakeService } from './intake.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
-
-jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
-  mkdirSync: jest.fn(),
-  writeFileSync: jest.fn(),
-  unlinkSync: jest.fn(),
-}));
+import { DocumentsService } from '../documents/documents.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('IntakeService attachments', () => {
   let service: IntakeService;
@@ -21,20 +15,26 @@ describe('IntakeService attachments', () => {
     intakeAttachment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn() },
   };
   const mockTasksService = { create: jest.fn() };
-  const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
+  const mockFileStorage = {
+    put: jest.fn().mockResolvedValue('intake/intake-1/att.pdf'),
+    delete: jest.fn().mockResolvedValue(undefined),
+  };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockConfig.get.mockReturnValue('./uploads');
+    mockFileStorage.put.mockResolvedValue('intake/intake-1/att.pdf');
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TasksService, useValue: mockTasksService },
-        { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
+        { provide: FileStorageService, useValue: mockFileStorage },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -77,14 +77,14 @@ describe('IntakeService attachments', () => {
       expect(mockPrisma.intakeAttachment.create).not.toHaveBeenCalled();
     });
 
-    it('writes the file to disk and creates an IntakeAttachment row', async () => {
+    it('writes the file to storage and creates an IntakeAttachment row', async () => {
       mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1' });
       mockPrisma.intakeAttachment.create.mockResolvedValue({
         id: 'att-1',
         intakeId: 'intake-1',
         filename: 'a.pdf',
         mimeType: 'application/pdf',
-        storagePath: 'uploads/intake-1/att-1.pdf',
+        storagePath: 'intake/intake-1/att.pdf',
         uploadedById: 'user-1',
         createdAt: new Date('2026-09-06'),
       });
@@ -92,8 +92,7 @@ describe('IntakeService attachments', () => {
 
       const result = await service.uploadAttachment(user, 'intake-1', file);
 
-      expect(fs.mkdirSync).toHaveBeenCalled();
-      expect(fs.writeFileSync).toHaveBeenCalled();
+      expect(mockFileStorage.put).toHaveBeenCalled();
       expect(mockPrisma.intakeAttachment.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           intakeId: 'intake-1',
@@ -112,7 +111,7 @@ describe('IntakeService attachments', () => {
       await expect(service.deleteAttachment(user, 'intake-1', 'att-1')).rejects.toThrow(NotFoundException);
     });
 
-    it('deletes the file from disk and the DB row', async () => {
+    it('deletes the file from storage and the DB row', async () => {
       mockPrisma.intakeAttachment.findFirst.mockResolvedValue({
         id: 'att-1',
         intakeId: 'intake-1',
@@ -123,7 +122,7 @@ describe('IntakeService attachments', () => {
 
       await service.deleteAttachment(user, 'intake-1', 'att-1');
 
-      expect(fs.unlinkSync).toHaveBeenCalledWith('uploads/intake-1/att-1.pdf');
+      expect(mockFileStorage.delete).toHaveBeenCalledWith('uploads/intake-1/att-1.pdf');
       expect(mockPrisma.intakeAttachment.delete).toHaveBeenCalledWith({ where: { id: 'att-1' } });
     });
   });
@@ -138,6 +137,7 @@ describe('IntakeService draftNotice with analysisId', () => {
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -146,10 +146,12 @@ describe('IntakeService draftNotice with analysisId', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TasksService, useValue: mockTasksService },
-        { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
+        { provide: FileStorageService, useValue: { put: jest.fn(), delete: jest.fn(), getBuffer: jest.fn() } },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -230,11 +232,18 @@ describe('IntakeService convertToCase', () => {
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
-    document: { updateMany: jest.fn() },
+    document: {
+      updateMany: jest.fn(),
+      createMany: jest.fn(),
+      // No document yet claims an attachment's file, in the common case.
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -243,10 +252,12 @@ describe('IntakeService convertToCase', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TasksService, useValue: mockTasksService },
-        { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
+        { provide: FileStorageService, useValue: { put: jest.fn(), delete: jest.fn(), getBuffer: jest.fn() } },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -278,7 +289,7 @@ describe('IntakeService convertToCase', () => {
 
     const result = await service.convertToCase(user, 'intake-1', {} as any);
 
-    expect(result.id).toBe('case-1');
+    expect(result?.id).toBe('case-1');
     expect(mockPrisma.intakePrecedentAnalysis.updateMany).toHaveBeenCalledWith({
       where: { intakeId: 'intake-1' },
       data: { caseId: 'case-1' },
@@ -295,6 +306,7 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -302,10 +314,12 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TasksService, useValue: mockTasksService },
-        { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
+        { provide: FileStorageService, useValue: { put: jest.fn(), delete: jest.fn(), getBuffer: jest.fn() } },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -383,6 +397,7 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -390,10 +405,12 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TasksService, useValue: mockTasksService },
-        { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
+        { provide: FileStorageService, useValue: { put: jest.fn(), delete: jest.fn(), getBuffer: jest.fn() } },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -421,15 +438,28 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
   const mockPrisma = {
     intake: { findFirst: jest.fn(), update: jest.fn() },
     firm: { findUnique: jest.fn() },
-    case: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    case: {
+      findMany: jest.fn(),
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
-    document: { updateMany: jest.fn() },
+    document: {
+      updateMany: jest.fn(),
+      createMany: jest.fn(),
+      // No document yet claims an attachment's file, in the common case.
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -437,10 +467,12 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TasksService, useValue: mockTasksService },
-        { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
+        { provide: FileStorageService, useValue: { put: jest.fn(), delete: jest.fn(), getBuffer: jest.fn() } },
       ],
     }).compile();
     service = module.get(IntakeService);
@@ -471,6 +503,94 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
       expect.objectContaining({ where: { id: 'intake-1' }, data: { status: 'CONVERTED' } }),
     );
     expect(result).toEqual(expect.objectContaining({ id: 'case-1' }));
+  });
+
+  it('adopts the intake attachments onto the case before re-pointing documents', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: 'case-1',
+      assignedUserIds: [],
+      deadlineDate: null,
+    });
+    mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', firmId: 'firm-1', title: 'คดีเดิม' });
+    mockPrisma.case.update.mockResolvedValue({ id: 'case-1', title: 'คดีเดิม' });
+
+    await service.convertToCase(user, 'intake-1', {});
+
+    // Files uploaded for the AI to read live in the older attachment store and
+    // have no link to a case; without this they vanish at conversion.
+    expect(mockDocumentsService.adoptIntakeAttachments).toHaveBeenCalledWith(
+      'intake-1',
+      'case-1',
+    );
+    expect(mockPrisma.document.updateMany).toHaveBeenCalledWith({
+      where: { intakeId: 'intake-1' },
+      data: { caseId: 'case-1', intakeId: null },
+    });
+  });
+
+  it('returns the case it already opened instead of opening a second one', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: null,
+      case: { id: 'case-existing' },
+      assignedUserIds: [],
+      deadlineDate: null,
+    });
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'case-existing' });
+
+    const result = await service.convertToCase(user, 'intake-1', {});
+
+    expect(result).toEqual({ id: 'case-existing' });
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+  });
+
+  it('does not add the deadline event and intake task twice on a repeated attach', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: 'case-1',
+      status: 'CONVERTED',
+      assignedUserIds: [],
+      deadlineDate: new Date('2026-10-01'),
+    });
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'case-1' });
+
+    const result = await service.convertToCase(user, 'intake-1', {});
+
+    expect(result).toEqual({ id: 'case-1' });
+    expect(mockPrisma.calendarEvent.create).not.toHaveBeenCalled();
+    expect(mockTasksService.create).not.toHaveBeenCalled();
+  });
+
+  it('opens the case without a claimed amount unless the lawyer confirmed one', async () => {
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'intake-1',
+      firmId: 'firm-1',
+      relatedCaseId: null,
+      // The intake's own estimate is a different figure and must not become
+      // the amount claimed on its own.
+      estimatedDamage: 900000,
+      assignedUserIds: [],
+      deadlineDate: null,
+      clientName: 'นายทดสอบ',
+      matterType: null,
+      title: null,
+      description: null,
+    });
+    mockPrisma.firm.findUnique.mockResolvedValue({ ownRefPrefix: 'TSBREF' });
+    mockPrisma.case.findMany.mockResolvedValue([]);
+    mockPrisma.case.create.mockResolvedValue({ id: 'case-new', leadLawyerId: 'user-1' });
+
+    await service.convertToCase(user, 'intake-1', {});
+
+    expect(mockPrisma.case.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ claimedAmount: undefined }),
+      }),
+    );
   });
 
   it('rejects conversion when relatedCaseId no longer belongs to the firm', async () => {
@@ -531,12 +651,19 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
     case: { findMany: jest.fn(), create: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
-    document: { updateMany: jest.fn() },
+    document: {
+      updateMany: jest.fn(),
+      createMany: jest.fn(),
+      // No document yet claims an attachment's file, in the common case.
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockAnalysisService = { getOne: jest.fn(), analyze: jest.fn(), listForIntake: jest.fn() };
+  const mockDocumentsService = { adoptIntakeAttachments: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -544,10 +671,12 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TasksService, useValue: mockTasksService },
-        { provide: ConfigService, useValue: mockConfig },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: DocumentsService, useValue: mockDocumentsService },
+        { provide: FileStorageService, useValue: { put: jest.fn(), delete: jest.fn(), getBuffer: jest.fn() } },
       ],
     }).compile();
     service = module.get(IntakeService);

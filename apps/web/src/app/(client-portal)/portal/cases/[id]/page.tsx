@@ -90,9 +90,9 @@ export default function PortalCaseDetailPage() {
 
   return (
     <PortalShell>
-      <Link href="/portal" className="mb-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-primary">
+      <Link href="/portal/operations" className="mb-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-primary">
         <ArrowLeft className="h-3.5 w-3.5" />
-        คดีทั้งหมด
+        งานดำเนินการ
       </Link>
 
       <div className="mb-3 flex flex-wrap items-start justify-between gap-4">

@@ -9,7 +9,8 @@ interface PortalAuthContextValue {
   contact: PortalContact | null;
   token: string | null;
   loading: boolean;
-  setSession: (accessToken: string) => Promise<void>;
+  setSession: (accessToken: string) => Promise<PortalContact>;
+  refreshContact: () => Promise<PortalContact | null>;
   logout: () => void;
 }
 
@@ -41,7 +42,15 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     const c = await portalApi.getMe(accessToken);
     setToken(accessToken);
     setContact(c);
+    return c;
   }, []);
+
+  const refreshContact = useCallback(async () => {
+    if (!token) return null;
+    const c = await portalApi.getMe(token);
+    setContact(c);
+    return c;
+  }, [token]);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
@@ -50,7 +59,7 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <PortalAuthContext.Provider value={{ contact, token, loading, setSession, logout }}>
+    <PortalAuthContext.Provider value={{ contact, token, loading, setSession, refreshContact, logout }}>
       {children}
     </PortalAuthContext.Provider>
   );
@@ -60,4 +69,9 @@ export function usePortalAuth() {
   const ctx = useContext(PortalAuthContext);
   if (!ctx) throw new Error('usePortalAuth must be used within PortalAuthProvider');
   return ctx;
+}
+
+/** After magic-link / invite login, send users who still need a password to set one. */
+export function portalHomeFor(contact: Pick<PortalContact, 'hasPassword'>): string {
+  return contact.hasPassword ? '/portal' : '/portal/set-password';
 }

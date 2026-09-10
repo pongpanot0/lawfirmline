@@ -11,15 +11,16 @@ import {
 import { AuthUser, LoginResponse } from '@lawfirm/shared';
 import { api } from './api';
 
-const TOKEN_KEY = 'lawfirm_access_token';
-const REFRESH_KEY = 'lawfirm_refresh_token';
+export const TOKEN_KEY = 'lawfirm_access_token';
+export const REFRESH_KEY = 'lawfirm_refresh_token';
 
 interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResponse>;
   logout: () => void;
+  applySession: (accessToken: string, refreshToken: string, user?: AuthUser | null) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -65,13 +66,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res: LoginResponse = await api.login(email, password);
-    localStorage.setItem(TOKEN_KEY, res.accessToken);
-    localStorage.setItem(REFRESH_KEY, res.refreshToken);
-    setToken(res.accessToken);
-    setUser(res.user);
-  }, []);
+  const applySession = useCallback(
+    (accessToken: string, refreshToken: string, nextUser?: AuthUser | null) => {
+      localStorage.setItem(TOKEN_KEY, accessToken);
+      localStorage.setItem(REFRESH_KEY, refreshToken);
+      setToken(accessToken);
+      if (nextUser !== undefined) {
+        setUser(nextUser);
+      }
+    },
+    [],
+  );
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res: LoginResponse = await api.login(email, password);
+      applySession(res.accessToken, res.refreshToken, res.user);
+      return res;
+    },
+    [applySession],
+  );
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
@@ -81,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, applySession }}>
       {children}
     </AuthContext.Provider>
   );
@@ -96,4 +110,9 @@ export function useAuth() {
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(TOKEN_KEY);
+}
+
+export function persistTokens(accessToken: string, refreshToken: string): void {
+  localStorage.setItem(TOKEN_KEY, accessToken);
+  localStorage.setItem(REFRESH_KEY, refreshToken);
 }

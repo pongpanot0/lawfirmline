@@ -7,14 +7,15 @@ import { Plus, Download, ArrowUpDown } from 'lucide-react';
 import { Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
-import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { PageHeader } from '@/components/samnuan/PageHeader';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CASE_STATUS_OPTIONS, getCaseStatusDisplay } from '@/lib/case-status';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { EmptyState } from '@/components/ui/misc';
+import { EmptyState, PageLoading } from '@/components/ui/misc';
+import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { Briefcase } from 'lucide-react';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -24,7 +25,7 @@ const PAGE_SIZE = 10;
 export default function CasesPage() {
   const d = useDashboardT();
   return (
-    <Suspense fallback={<p className="text-muted-foreground">{d.cases.loading}</p>}>
+    <Suspense fallback={<PageLoading title={d.cases.loading} lines={3} />}>
       <CasesPageContent />
     </Suspense>
   );
@@ -37,6 +38,8 @@ function CasesPageContent() {
   const searchParams = useSearchParams();
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
@@ -45,12 +48,13 @@ function CasesPageContent() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
+    setLoadError(false);
     api
       .getCases(token, { search: search || undefined, status: statusFilter || undefined })
       .then(setCases)
-      .catch(console.error)
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [token, search, statusFilter]);
+  }, [token, search, statusFilter, reloadKey]);
 
   const sorted = useMemo(() => {
     return [...cases].sort((a, b) => {
@@ -140,8 +144,10 @@ function CasesPageContent() {
 
       <Card>
         <CardContent className="p-0">
-          {loading ? (
-            <p className="p-8 text-center text-muted-foreground">{d.cases.loading}</p>
+          {loadError ? (
+            <div className="p-4"><LoadFailed onRetry={() => setReloadKey((k) => k + 1)} /></div>
+          ) : loading ? (
+            <div className="p-4"><PageLoading title={d.cases.loading} lines={3} /></div>
           ) : paginated.length === 0 ? (
             <EmptyState
               icon={Briefcase}

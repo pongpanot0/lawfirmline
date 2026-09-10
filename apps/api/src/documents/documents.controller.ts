@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import * as fs from 'fs';
 import { DocumentsService } from './documents.service';
 import { UpdateDocumentVisibilityDto } from './dto/update-visibility.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -23,12 +22,16 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
+import { FileStorageService } from '../common/services/file-storage.service';
 import { AuthUser, Role } from '@lawfirm/shared';
 
 @Controller('cases/:caseId/documents')
 @UseGuards(JwtAuthGuard, CaseAccessGuard)
 export class DocumentsController {
-  constructor(private documentsService: DocumentsService) {}
+  constructor(
+    private documentsService: DocumentsService,
+    private fileStorage: FileStorageService,
+  ) {}
 
   @Get()
   findByCase(@Param('caseId') caseId: string) {
@@ -56,8 +59,9 @@ export class DocumentsController {
     @Param('caseId') caseId: string,
     @Param('documentId') documentId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body('notes') notes?: string,
   ) {
-    return this.documentsService.uploadNewVersion(user, caseId, documentId, file);
+    return this.documentsService.uploadNewVersion(user, caseId, documentId, file, notes);
   }
 
   @Patch(':documentId/visibility')
@@ -86,7 +90,7 @@ export class DocumentsController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', safeMimeType(fileInfo.mimeType));
     res.setHeader('Content-Disposition', buildContentDispositionHeader(fileInfo.filename));
-    const stream = fs.createReadStream(fileInfo.path);
+    const stream = await this.fileStorage.openDownloadStream(fileInfo.path);
     stream.pipe(res);
   }
 }

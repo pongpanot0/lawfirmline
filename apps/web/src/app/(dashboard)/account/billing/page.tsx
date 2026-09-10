@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { BillingPeriod, FirmRole, PLAN_CONFIG, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, BillingInvoiceItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +41,8 @@ function BillingPageContent() {
   const [loading, setLoading] = useState(true);
   const [autoOpenPlan, setAutoOpenPlan] = useState<SubscriptionPlan | null>(null);
   const [paymentError, setPaymentError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(BillingPeriod.MONTHLY);
   const loc = dateLocale(locale);
 
@@ -53,13 +55,17 @@ function BillingPageContent() {
   useEffect(() => {
     const t = token ?? getStoredToken();
     if (!t) return;
+    setLoadError('');
     Promise.all([api.getPlans(t), api.getBillingHistory(t)])
       .then(([p, h]) => {
         setPlans(p);
         setHistory(h);
       })
+      // Without this a failed load rendered an empty plan grid and "no
+      // payments" — an owner would read that as the truth about their account.
+      .catch((err) => setLoadError(err instanceof Error ? err.message : d.billing.loadFailed))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, d.billing.loadFailed]);
 
   useEffect(() => {
     const planParam = searchParams.get('plan') as SubscriptionPlan | null;
@@ -73,11 +79,21 @@ function BillingPageContent() {
   }, [searchParams, plans, loading, router]);
 
   const handleCancel = async () => {
+    if (cancelling) return;
     if (!confirm(d.billing.cancelConfirm)) return;
     const t = token ?? getStoredToken();
     if (!t) return;
-    await api.cancelSubscription(t);
-    window.location.reload();
+    setCancelling(true);
+    setPaymentError('');
+    try {
+      await api.cancelSubscription(t);
+      window.location.reload();
+    } catch (err) {
+      // The reload used to happen either way, so a failed cancellation looked
+      // exactly like a successful one.
+      setPaymentError(err instanceof Error ? err.message : d.billing.cancelFailed);
+      setCancelling(false);
+    }
   };
 
   const handlePaymentSuccess = () => {
@@ -111,6 +127,12 @@ function BillingPageContent() {
       {paymentSuccess && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
           {d.billing.paymentSuccess}
+        </div>
+      )}
+
+      {loadError && (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {loadError}
         </div>
       )}
 
@@ -159,7 +181,13 @@ function BillingPageContent() {
           <CardHeader><CardTitle className="text-sm">{d.billing.actions}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {user.subscriptionStatus === SubscriptionStatus.ACTIVE && (
-              <Button variant="outline" size="sm" className="w-full" onClick={handleCancel}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                disabled={cancelling}
+                onClick={handleCancel}
+              >
                 {d.billing.cancelSubscription}
               </Button>
             )}

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
@@ -8,6 +8,8 @@ import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { SaasModule } from './saas/saas.module';
 import { SubscriptionGuard } from './saas/guards/subscription.guard';
+import { TenantMatchGuard } from './saas/guards/tenant-match.guard';
+import { TenantResolveMiddleware } from './saas/middleware/tenant-resolve.middleware';
 import { UsersModule } from './users/users.module';
 import { CasesModule } from './cases/cases.module';
 import { TasksModule } from './tasks/tasks.module';
@@ -32,6 +34,9 @@ import { ClosingEmailModule } from './closing-email/closing-email.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { DeadlinesModule } from './deadlines/deadlines.module';
 import { HolidaysModule } from './holidays/holidays.module';
+import { EmailIntakeModule } from './email-intake/email-intake.module';
+import { DocumentReviewModule } from './document-review/document-review.module';
+import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
 
 @Module({
   imports: [
@@ -68,12 +73,23 @@ import { HolidaysModule } from './holidays/holidays.module';
     AgendaModule,
     DeadlinesModule,
     HolidaysModule,
+    EmailIntakeModule,
+    DocumentReviewModule,
+    OutlookIntegrationModule,
   ],
   providers: [
     {
       provide: APP_GUARD,
       useClass: SubscriptionGuard,
     },
+    {
+      provide: APP_GUARD,
+      useClass: TenantMatchGuard,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TenantResolveMiddleware).forRoutes('*');
+  }
+}

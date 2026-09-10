@@ -4,13 +4,16 @@ import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { FirmRole } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, CourtItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { EmptyState } from '@/components/ui/misc';
 
 export default function CourtsPage() {
+  const d = useDashboardT();
   const { token, user } = useAuth();
   const [courts, setCourts] = useState<CourtItem[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -26,7 +29,7 @@ export default function CourtsPage() {
   }, [token]);
 
   if (user?.firmRole !== FirmRole.OWNER) {
-    return <p className="text-destructive">Access denied. Admin only. / ไม่มีสิทธิ์เข้าถึง เฉพาะ Admin</p>;
+    return <p className="text-destructive">{d.admin.accessDenied}</p>;
   }
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -41,11 +44,11 @@ export default function CourtsPage() {
   return (
     <div>
       <PageHeader
-        title="Courts / ศาล"
-        description="Manage court list for case and calendar selection / จัดการรายชื่อศาลสำหรับใช้ในคดีและปฏิทิน"
+        title={d.admin.courtsTitle}
+        description={d.admin.courtsDescription}
         actions={
           <Button size="sm" onClick={() => setShowForm(!showForm)}>
-            <Plus className="h-4 w-4" />Add Court / เพิ่มศาล
+            <Plus className="h-4 w-4" />{d.admin.addCourt}
           </Button>
         }
       />
@@ -55,7 +58,7 @@ export default function CourtsPage() {
           <CardContent className="p-4 sm:p-6">
             <form onSubmit={handleCreate} className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="flex-1">
-                <label className="text-sm font-medium">Court Name / ชื่อศาล *</label>
+                <label className="text-sm font-medium">{d.admin.courtName} *</label>
                 <Input
                   required
                   placeholder="ศาลแพ่งกรุงเทพใต้"
@@ -65,29 +68,31 @@ export default function CourtsPage() {
                 />
               </div>
               <div className="flex-1">
-                <label className="text-sm font-medium">Address / ที่อยู่</label>
+                <label className="text-sm font-medium">{d.admin.address}</label>
                 <Input
-                  placeholder="Optional address / ที่อยู่ (ไม่บังคับ)"
+                  placeholder={d.admin.addressPlaceholder}
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                   className="mt-1"
                 />
               </div>
-              <Button type="submit" className="w-full sm:w-auto">Save / บันทึก</Button>
+              <Button type="submit" className="w-full sm:w-auto">{d.common.save}</Button>
             </form>
           </CardContent>
         </Card>
       )}
 
       <div className="space-y-2">
-        {courts.map((court) => (
+        {courts.length === 0 ? (
+          <EmptyState title="ยังไม่มีข้อมูลศาล" description="เพิ่มศาลที่ใช้บ่อยเพื่อให้การเปิดคดีและนัดศาลเลือกจากรายการได้ทันที" />
+        ) : courts.map((court) => (
           <Card key={court.id} className={!court.isActive ? 'opacity-50' : ''}>
             <CardContent className="flex items-center justify-between p-4">
               <div>
                 <p className="font-medium">{court.name}</p>
                 {court.address && <p className="text-xs text-muted-foreground">{court.address}</p>}
               </div>
-              {!court.isActive && <span className="text-xs text-muted-foreground">Inactive / ปิดใช้งาน</span>}
+              {!court.isActive && <span className="text-xs text-muted-foreground">{d.admin.inactive}</span>}
             </CardContent>
           </Card>
         ))}

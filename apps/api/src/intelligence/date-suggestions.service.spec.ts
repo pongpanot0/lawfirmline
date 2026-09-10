@@ -14,7 +14,7 @@ describe('DateSuggestionsService', () => {
       update: jest.fn(),
     },
   };
-  const mockCalendar = { create: jest.fn() };
+  const mockCalendar = { createInternal: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -52,7 +52,7 @@ describe('DateSuggestionsService', () => {
 
     it('creates a CalendarEvent using stored values when no overrides given', async () => {
       mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue(pending);
-      mockCalendar.create.mockResolvedValue({ id: 'event-1' });
+      mockCalendar.createInternal.mockResolvedValue({ id: 'event-1' });
       mockPrisma.documentDateSuggestion.update.mockResolvedValue({
         ...pending,
         status: DateSuggestionStatus.CONFIRMED,
@@ -60,7 +60,7 @@ describe('DateSuggestionsService', () => {
 
       await service.confirm('case-1', 'sug-1', 'user-1', {});
 
-      expect(mockCalendar.create).toHaveBeenCalledWith({
+      expect(mockCalendar.createInternal).toHaveBeenCalledWith({
         caseId: 'case-1',
         title: 'วันนัดไต่สวน',
         startAt: pending.suggestedDate.toISOString(),
@@ -71,7 +71,7 @@ describe('DateSuggestionsService', () => {
 
     it('applies overrides on top of the stored values', async () => {
       mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue(pending);
-      mockCalendar.create.mockResolvedValue({ id: 'event-1' });
+      mockCalendar.createInternal.mockResolvedValue({ id: 'event-1' });
       mockPrisma.documentDateSuggestion.update.mockResolvedValue(pending);
 
       await service.confirm('case-1', 'sug-1', 'user-1', {
@@ -80,7 +80,7 @@ describe('DateSuggestionsService', () => {
         eventType: EventType.DEADLINE,
       });
 
-      expect(mockCalendar.create).toHaveBeenCalledWith({
+      expect(mockCalendar.createInternal).toHaveBeenCalledWith({
         caseId: 'case-1',
         title: 'แก้ไขแล้ว',
         startAt: '2026-11-01T00:00:00.000Z',
@@ -91,7 +91,7 @@ describe('DateSuggestionsService', () => {
 
     it('marks the suggestion CONFIRMED, storing the created event id and reviewer', async () => {
       mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue(pending);
-      mockCalendar.create.mockResolvedValue({ id: 'event-1' });
+      mockCalendar.createInternal.mockResolvedValue({ id: 'event-1' });
       mockPrisma.documentDateSuggestion.update.mockResolvedValue({});
 
       await service.confirm('case-1', 'sug-1', 'user-1', {});

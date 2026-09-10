@@ -11,6 +11,7 @@ describe('TasksService on-hold', () => {
     task: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
+    firmMember: { count: jest.fn() },
     caseActivity: { create: jest.fn() },
     taskAssignmentLog: { create: jest.fn(), findFirst: jest.fn() },
     taskOnHold: {
@@ -24,6 +25,8 @@ describe('TasksService on-hold', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // Default: the chosen reviewer belongs to the caller's firm.
+    mockPrisma.firmMember.count.mockResolvedValue(1);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TasksService,
@@ -295,6 +298,24 @@ describe('TasksService on-hold', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('throws BadRequestException when the chosen reviewer is not in the caller\'s firm', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({
+        id: 'task-1',
+        caseId: null,
+        assigneeId: 'user-1',
+        status: TaskStatus.IN_PROGRESS,
+      });
+      mockPrisma.firmMember.count.mockResolvedValue(0);
+
+      await expect(
+        service.handoffStandalone('task-1', user, { reviewerId: 'outsider-1' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.firmMember.count).toHaveBeenCalledWith({
+        where: { firmId: 'firm-1', userId: 'outsider-1' },
+      });
+      expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    });
+
     it('moves the task to PENDING_REVIEW, reassigns to the chosen reviewer, and logs the handoff', async () => {
       mockPrisma.task.findFirst.mockResolvedValue({
         id: 'task-1',
@@ -462,5 +483,106 @@ describe('TasksService on-hold', () => {
         }),
       );
     });
+  });
+});
+
+/**
+ * A supervisor's day view lists the team's work, so the button that closes a
+ * task has to be the thing that is scoped — not the list. Hiding it in the UI
+ * is a courtesy; this is what actually stops it.
+ */
+describe('TasksService.update — who may change a status', () => {
+  let service: TasksService;
+  const mockPrisma = {
+    task: { findUnique: jest.fn(), update: jest.fn() },
+    case: { findUnique: jest.fn() },
+    caseActivity: { create: jest.fn() },
+    taskAssignmentLog: { create: jest.fn() },
+    firmMember: { count: jest.fn() },
+  };
+  const mockCaseAccess = { getTaskFilterForUser: jest.fn() };
+
+  const lawyer = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
+  const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
+  const legalCase = { id: 'case-1', firmId: 'firm-1', leadLawyerId: 'lead-1' };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockPrisma.task.update.mockResolvedValue({ id: 'task-1' });
+    mockPrisma.case.findUnique.mockResolvedValue(legalCase);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        TasksService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: mockCaseAccess },
+      ],
+    }).compile();
+    service = module.get(TasksService);
+  });
+
+  it('refuses to let a lawyer close a colleague’s task', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      id: 'task-1',
+      caseId: 'case-1',
+      assigneeId: 'someone-else',
+      title: 'ยื่นคำร้อง',
+    });
+
+    await expect(
+      service.update('task-1', { status: TaskStatus.DONE }, lawyer),
+    ).rejects.toThrow(ForbiddenException);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
+  it('lets the assignee close their own task', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      id: 'task-1',
+      caseId: 'case-1',
+      assigneeId: 'user-1',
+      title: 'ยื่นคำร้อง',
+    });
+
+    await service.update('task-1', { status: TaskStatus.DONE }, lawyer);
+
+    expect(mockPrisma.task.update).toHaveBeenCalled();
+  });
+
+  it('leaves an unassigned task open to anyone who can reach the case', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      id: 'task-1',
+      caseId: 'case-1',
+      assigneeId: null,
+      title: 'ตรวจเอกสาร',
+    });
+
+    await service.update('task-1', { status: TaskStatus.DONE }, lawyer);
+
+    expect(mockPrisma.task.update).toHaveBeenCalled();
+  });
+
+  it('still lets the owner close it, since they may reassign it anyway', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      id: 'task-1',
+      caseId: 'case-1',
+      assigneeId: 'someone-else',
+      title: 'ยื่นคำร้อง',
+    });
+
+    await service.update('task-1', { status: TaskStatus.DONE }, owner);
+
+    expect(mockPrisma.task.update).toHaveBeenCalled();
+  });
+
+  it('does not gate edits that leave the status alone', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      id: 'task-1',
+      caseId: 'case-1',
+      assigneeId: 'someone-else',
+      title: 'ยื่นคำร้อง',
+    });
+
+    await service.update('task-1', { title: 'ยื่นคำร้องแก้ไข' }, lawyer);
+
+    expect(mockPrisma.task.update).toHaveBeenCalled();
   });
 });

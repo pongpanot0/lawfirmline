@@ -14,7 +14,6 @@ import {
   Bell,
   Check,
   ArrowRight,
-  Scale,
 } from 'lucide-react';
 import { useLocale } from './LocaleProvider';
 import { LandingNavbar } from './LandingNavbar';
@@ -245,7 +244,7 @@ export function LandingPage() {
               {t.cta.tryFree}
             </Link>
             <a
-              href={`mailto:hello@lexflow.co?subject=${encodeURIComponent(t.cta.demoSubject)}`}
+              href={`mailto:hello@samnuan.co?subject=${encodeURIComponent(t.cta.demoSubject)}`}
               className="text-sm font-medium underline underline-offset-4"
               style={{ color: 'oklch(99% 0 0 / 0.9)' }}
             >
@@ -259,13 +258,8 @@ export function LandingPage() {
       <footer className="border-t" style={{ borderColor: 'var(--color-rule)' }}>
         <div className="lf-shell flex flex-col items-center justify-between gap-3 py-8 text-center sm:flex-row sm:text-left">
           <Link href="/" className="flex items-center gap-2">
-            <span
-              className="flex h-7 w-7 items-center justify-center rounded-full"
-              style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
-            >
-              <Scale className="h-3.5 w-3.5" />
-            </span>
-            <span className="lf-display text-sm">LexFlow</span>
+            <img src="/brand/samnuan-icon.png" alt="" className="h-7 w-7 rounded-full object-contain" />
+            <span className="lf-display text-sm">Samnuan</span>
           </Link>
           <p className="text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
             {t.footer}

@@ -54,6 +54,7 @@ interface TaskRow {
   dueDate: Date | null;
   caseId: string | null;
   case: { id: string; ownRef: string; title: string } | null;
+  assignee: { id: string; firstName: string; lastName: string } | null;
 }
 
 @Injectable()
@@ -188,6 +189,7 @@ export class AgendaService {
         dueDate: true,
         caseId: true,
         case: { select: { id: true, ownRef: true, title: true } },
+        assignee: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: { dueDate: 'asc' },
       ...(take ? { take } : {}),
@@ -218,6 +220,8 @@ export class AgendaService {
         (kind === AgendaItemKind.COURT_DATE ? row.case?.courtName ?? null : null),
       departBy: null,
       url: `/cases/${row.caseId}/calendar`,
+      assigneeId: null,
+      assigneeName: null,
     };
   }
 
@@ -238,6 +242,8 @@ export class AgendaService {
       location: null,
       departBy: null,
       url: row.caseId ? `/cases/${row.caseId}/tasks` : '/todos',
+      assigneeId: row.assignee?.id ?? null,
+      assigneeName: row.assignee ? `${row.assignee.firstName} ${row.assignee.lastName}` : null,
     };
   }
 

@@ -1,12 +1,14 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser, redactForAi } from '@lawfirm/shared';
-import * as fs from 'fs';
+import { AuthUser, redactForAi, AI_CREDIT_COST, AI_UPLOAD_MAX_BYTES } from '@lawfirm/shared';
 import * as path from 'path';
 import { AssignmentType, ReferralChannel } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
+import { DocumentsService } from '../documents/documents.service';
+import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 import {
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -16,11 +18,12 @@ import {
   ConvertToCaseDto,
   IntakeQueryDto,
   IntakeDecision,
+  PreLitigationStatus,
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 
-export const DRAFT_NOTICE_COST = 5;
-const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
+const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
 
 @Injectable()
 export class IntakeService {
@@ -31,6 +34,9 @@ export class IntakeService {
     private tasksService: TasksService,
     private config: ConfigService,
     private precedentAnalysisService: IntakePrecedentAnalysisService,
+    private documentsService: DocumentsService,
+    private fileStorage: FileStorageService,
+    private caseAccess: CaseAccessService,
   ) {}
 
   private intakeInclude = {
@@ -47,6 +53,12 @@ export class IntakeService {
       orderBy: { createdAt: 'desc' as const },
       select: { id: true, filename: true, mimeType: true, createdAt: true },
     },
+    fieldProposals: {
+      orderBy: { createdAt: 'desc' as const },
+    },
+    emailThreads: {
+      select: { id: true, subject: true, fromName: true, fromAddress: true, lastMessageAt: true },
+    },
   };
 
   async findAll(user: AuthUser, query: IntakeQueryDto) {
@@ -54,16 +66,22 @@ export class IntakeService {
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: Record<string, unknown> = { firmId: user.firmId };
+    const accessWhere = await this.caseAccess.getIntakeFilterForUser(user);
+    const where: Record<string, unknown> = { ...accessWhere };
     if (query.status) {
       where.status = query.status;
     }
     if (query.search) {
       const term = query.search.trim();
-      where.OR = [
-        { title: { contains: term, mode: 'insensitive' } },
-        { clientName: { contains: term, mode: 'insensitive' } },
-        { referralName: { contains: term, mode: 'insensitive' } },
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        {
+          OR: [
+            { title: { contains: term, mode: 'insensitive' } },
+            { clientName: { contains: term, mode: 'insensitive' } },
+            { referralName: { contains: term, mode: 'insensitive' } },
+          ],
+        },
       ];
     }
 
@@ -82,8 +100,9 @@ export class IntakeService {
   }
 
   async findOne(user: AuthUser, id: string) {
+    const accessWhere = await this.caseAccess.getIntakeFilterForUser(user);
     const intake = await this.prisma.intake.findFirst({
-      where: { id, firmId: user.firmId },
+      where: { id, ...accessWhere },
       include: this.intakeInclude,
     });
     if (!intake) throw new NotFoundException('Intake not found');
@@ -121,8 +140,29 @@ export class IntakeService {
         isOngoingElsewhere: dto.isOngoingElsewhere ?? false,
         externalCaseNumber: dto.externalCaseNumber,
         currentStageNote: dto.currentStageNote,
+        preLitigationType: dto.preLitigationType as any,
+        preLitigationStatus: dto.preLitigationStatus as any,
+        preLitigationNotes: dto.preLitigationNotes,
+        settlementOfferAmount: dto.settlementOfferAmount,
       },
       include: this.intakeInclude,
+    });
+  }
+
+  /**
+   * Editing a field the intake pipeline proposed and the lawyer already
+   * confirmed resets that confirmation so the UI can surface the new value
+   * as needing review again — confirmation stays advisory, not a hard gate.
+   */
+  private async resetConfirmationForEditedFields(id: string, dto: UpdateIntakeDto) {
+    const editedFields: string[] = [];
+    if (dto.estimatedDamage !== undefined) editedFields.push('estimatedDamage');
+    if (dto.requestedResponseDate !== undefined) editedFields.push('requestedResponseDate');
+    if (editedFields.length === 0) return;
+
+    await this.prisma.intakeFieldProposal.updateMany({
+      where: { intakeId: id, field: { in: editedFields }, status: 'CONFIRMED' as any },
+      data: { status: 'REQUIRES_CONFIRMATION' as any, confirmedById: null, confirmedAt: null },
     });
   }
 
@@ -136,6 +176,7 @@ export class IntakeService {
         throw new BadRequestException('ไม่พบคดีที่เลือกไว้ในสำนักงานนี้');
       }
     }
+    await this.resetConfirmationForEditedFields(id, dto);
     return this.prisma.intake.update({
       where: { id },
       data: {
@@ -146,11 +187,13 @@ export class IntakeService {
         referralName: dto.referralName,
         clientId: dto.clientId,
         clientName: dto.clientName,
+        contactName: dto.contactName,
         matterType: dto.matterType,
         opposingParty: dto.opposingParty,
         incidentDate: dto.incidentDate ? new Date(dto.incidentDate) : undefined,
         description: dto.description,
         estimatedDamage: dto.estimatedDamage,
+        requestedResponseDate: dto.requestedResponseDate ? new Date(dto.requestedResponseDate) : undefined,
         assessmentNotes: dto.assessmentNotes,
         caseStrength: dto.caseStrength,
         decision: dto.decision as any,
@@ -163,11 +206,20 @@ export class IntakeService {
         isOngoingElsewhere: dto.isOngoingElsewhere,
         externalCaseNumber: dto.externalCaseNumber,
         currentStageNote: dto.currentStageNote,
+        preLitigationType: dto.preLitigationType as any,
+        preLitigationStatus: dto.preLitigationStatus as any,
+        preLitigationNotes: dto.preLitigationNotes,
+        settlementOfferAmount: dto.settlementOfferAmount,
       },
       include: this.intakeInclude,
     });
   }
 
+  /**
+   * Record assessment notes / case strength and move the intake into ASSESSING.
+   * Field proposals stay advisory — unconfirmed system suggestions do not block
+   * the lawyer from proceeding.
+   */
   async assess(user: AuthUser, id: string, dto: AssessIntakeDto) {
     await this.findOne(user, id);
     return this.prisma.intake.update({
@@ -229,6 +281,10 @@ export class IntakeService {
         noticeDeadline: dto.noticeDeadline ? new Date(dto.noticeDeadline) : undefined,
         noticeResult: dto.noticeResult,
         noticeContent: dto.noticeContent,
+        preLitigationStatus:
+          existing.preLitigationStatus === PreLitigationStatus.NOT_STARTED
+            ? (PreLitigationStatus.NOTICE_SENT as any)
+            : undefined,
       },
       include: this.intakeInclude,
     });
@@ -334,6 +390,16 @@ export class IntakeService {
   async convertToCase(user: AuthUser, id: string, dto: ConvertToCaseDto) {
     const intake = await this.findOne(user, id);
 
+    // A second press — or a retry after a response was lost — must not open a
+    // second case, nor add the deadline event and the intake task twice. The
+    // case this intake already reached is the answer.
+    if (intake.case) {
+      return this.prisma.case.findUnique({ where: { id: intake.case.id } });
+    }
+    if (intake.status === 'CONVERTED' && intake.relatedCaseId) {
+      return this.prisma.case.findUnique({ where: { id: intake.relatedCaseId } });
+    }
+
     if (intake.relatedCaseId) {
       return this.attachToExistingCase(user, intake, dto);
     }
@@ -390,6 +456,10 @@ export class IntakeService {
         leadLawyerId: dto.leadLawyerId ?? user.id,
         intakeId: intake.id,
         limitationDeadline: intake.deadlineDate ?? undefined,
+        caseTypeId: dto.caseTypeId ?? undefined,
+        // Only what the lawyer confirmed. The intake's estimated damage is a
+        // different figure and never becomes the amount claimed by itself.
+        claimedAmount: dto.claimedAmount ?? undefined,
       },
     });
 
@@ -400,10 +470,7 @@ export class IntakeService {
       data: { caseId: newCase.id },
     });
 
-    await this.prisma.document.updateMany({
-      where: { intakeId: intake.id },
-      data: { caseId: newCase.id, intakeId: null },
-    });
+    await this.carryFilesOntoCase(intake.id, newCase.id);
 
     await this.prisma.intake.update({
       where: { id },
@@ -498,10 +565,7 @@ export class IntakeService {
       data: { caseId: relatedCase.id },
     });
 
-    await this.prisma.document.updateMany({
-      where: { intakeId: intake.id },
-      data: { caseId: relatedCase.id, intakeId: null },
-    });
+    await this.carryFilesOntoCase(intake.id, relatedCase.id);
 
     await this.prisma.intake.update({
       where: { id: intake.id },
@@ -540,6 +604,22 @@ export class IntakeService {
     });
 
     return updatedCase;
+  }
+
+  /**
+   * Move the intake's files onto the case.
+   *
+   * Files the lawyer uploaded for the AI to read live in the older
+   * `IntakeAttachment` store, which has no link to a case — so they used to
+   * disappear from view the moment the intake became one. They are adopted as
+   * documents first, then every document is re-pointed at the case.
+   */
+  private async carryFilesOntoCase(intakeId: string, caseId: string) {
+    await this.documentsService.adoptIntakeAttachments(intakeId, caseId);
+    await this.prisma.document.updateMany({
+      where: { intakeId },
+      data: { caseId, intakeId: null },
+    });
   }
 
   async listPortalSubmissions(user: AuthUser) {
@@ -590,10 +670,6 @@ export class IntakeService {
     return intake;
   }
 
-  private getUploadDir() {
-    return this.config.get<string>('UPLOAD_DIR') ?? './uploads';
-  }
-
   async uploadAttachment(user: AuthUser, intakeId: string, file: Express.Multer.File) {
     const intake = await this.prisma.intake.findFirst({
       where: { id: intakeId, firmId: user.firmId },
@@ -613,12 +689,9 @@ export class IntakeService {
       throw new BadRequestException('ไฟล์มีขนาดใหญ่เกิน 10MB');
     }
 
-    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId);
-    fs.mkdirSync(uploadDir, { recursive: true });
-
     const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const storagePath = path.join(uploadDir, `${fileId}.pdf`);
-    fs.writeFileSync(storagePath, file.buffer);
+    const key = path.posix.join('intake', intakeId, `${fileId}.pdf`);
+    const storagePath = await this.fileStorage.put(key, file.buffer, file.mimetype);
 
     return this.prisma.intakeAttachment.create({
       data: {
@@ -640,11 +713,11 @@ export class IntakeService {
       throw new NotFoundException('Attachment not found');
     }
 
-    // The file on disk may already be gone (manual cleanup, a prior partial
-    // failure, a DB restored without its files). Never let that block removing
-    // the DB row, or the attachment becomes permanently un-deletable.
+    // The file may already be gone (manual cleanup, a prior partial failure,
+    // a DB restored without its files). Never let that block removing the DB
+    // row, or the attachment becomes permanently un-deletable.
     try {
-      fs.unlinkSync(attachment.storagePath);
+      await this.fileStorage.delete(attachment.storagePath);
     } catch (err) {
       this.logger.warn(
         `Failed to remove attachment file ${attachment.storagePath}: ${

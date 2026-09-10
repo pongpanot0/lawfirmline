@@ -43,12 +43,13 @@ async function main() {
 
   const firm = await prisma.firm.create({
     data: {
-      name: 'Demo Law Firm',
-      slug: 'demo-law-firm',
+      name: 'The Siam Barrister',
+      slug: 'thesiambarristers',
       subscriptionStatus: 'TRIAL',
       trialStartAt: new Date(),
       trialEndAt: trialEnd,
       maxUsers: 20,
+      ownRefPrefix: 'TSBREF',
     },
   });
 
@@ -68,12 +69,22 @@ async function main() {
     },
   });
 
+  const senior = await prisma.user.create({
+    data: {
+      email: 'senior@lawfirm.com',
+      passwordHash,
+      firstName: 'Nattapong',
+      lastName: 'Srisawat',
+      role: Role.LAWYER,
+    },
+  });
+
   const lawyer1 = await prisma.user.create({
     data: {
       email: 'lawyer1@lawfirm.com',
       passwordHash,
-      firstName: 'Nattapong',
-      lastName: 'Srisawat',
+      firstName: 'Pimchanok',
+      lastName: 'Viriya',
       role: Role.LAWYER,
     },
   });
@@ -82,25 +93,15 @@ async function main() {
     data: {
       email: 'lawyer2@lawfirm.com',
       passwordHash,
-      firstName: 'Pimchanok',
-      lastName: 'Viriya',
-      role: Role.LAWYER,
-    },
-  });
-
-  const lawyer3 = await prisma.user.create({
-    data: {
-      email: 'lawyer3@lawfirm.com',
-      passwordHash,
       firstName: 'Siriporn',
       lastName: 'Kaew',
       role: Role.LAWYER,
     },
   });
 
-  const lawyer4 = await prisma.user.create({
+  const assistant = await prisma.user.create({
     data: {
-      email: 'lawyer4@lawfirm.com',
+      email: 'assistant@lawfirm.com',
       passwordHash,
       firstName: 'Anan',
       lastName: 'Boonma',
@@ -111,10 +112,10 @@ async function main() {
   await prisma.firmMember.createMany({
     data: [
       { firmId: firm.id, userId: admin.id, role: 'OWNER' },
-      { firmId: firm.id, userId: lawyer1.id, role: 'ASSISTANT' },
-      { firmId: firm.id, userId: lawyer2.id, role: 'ASSISTANT' },
-      { firmId: firm.id, userId: lawyer3.id, role: 'ASSISTANT' },
-      { firmId: firm.id, userId: lawyer4.id, role: 'ASSISTANT' },
+      { firmId: firm.id, userId: senior.id, role: 'SENIOR_LAWYER' },
+      { firmId: firm.id, userId: lawyer1.id, role: 'LAWYER' },
+      { firmId: firm.id, userId: lawyer2.id, role: 'LAWYER' },
+      { firmId: firm.id, userId: assistant.id, role: 'ASSISTANT' },
     ],
   });
 
@@ -128,8 +129,21 @@ async function main() {
   });
 
   await prisma.court.createMany({
-    data: DEFAULT_THAI_COURTS.map((name) => ({ firmId: firm.id, name })),
+    data: DEFAULT_THAI_COURTS.map((name) => ({ name })),
+    skipDuplicates: true,
   });
+
+  const existingRules = await prisma.deadlineRule.count();
+  if (existingRules === 0) {
+    await prisma.deadlineRule.createMany({
+      data: [
+        { trigger: 'COMPLAINT_SERVED', label: 'ยื่นคำให้การ', offsetDays: 15, dayBasis: 'CALENDAR' },
+        { trigger: 'JUDGMENT', label: 'ยื่นอุทธรณ์', offsetDays: 30, dayBasis: 'CALENDAR' },
+        { trigger: 'ORDER_RECEIVED', label: 'โต้แย้งคำสั่งศาล', offsetDays: 15, dayBasis: 'CALENDAR' },
+        { trigger: 'COURT_DATE', label: 'สรุปผลนัดและรายงานลูกความ', offsetDays: 3, dayBasis: 'BUSINESS' },
+      ],
+    });
+  }
 
   const clientSmith = await prisma.client.create({
     data: {
@@ -173,7 +187,7 @@ async function main() {
       clientName: 'John Smith',
       status: CaseStatus.IN_PROGRESS,
       leadLawyerId: lawyer1.id,
-      buddies: [lawyer2.id, lawyer3.id],
+      buddies: [lawyer2.id, assistant.id],
     },
     {
       ownRef: 'TSBREF20250002',
@@ -183,7 +197,7 @@ async function main() {
       clientName: 'ABC Corporation',
       status: CaseStatus.OPEN,
       leadLawyerId: lawyer2.id,
-      buddies: [lawyer3.id, lawyer4.id],
+      buddies: [assistant.id, senior.id],
     },
     {
       ownRef: 'TSBREF20250003',
@@ -193,7 +207,7 @@ async function main() {
       clientName: 'Thai Property Ltd.',
       status: CaseStatus.PENDING,
       leadLawyerId: lawyer1.id,
-      buddies: [lawyer4.id],
+      buddies: [senior.id],
     },
     {
       ownRef: 'TSBREF20250004',
@@ -203,7 +217,7 @@ async function main() {
       clientName: 'StartupXYZ',
       status: CaseStatus.IN_PROGRESS,
       leadLawyerId: lawyer2.id,
-      buddies: [lawyer1.id, lawyer3.id],
+      buddies: [lawyer1.id, assistant.id],
     },
     {
       ownRef: 'TSBREF20250005',
@@ -246,7 +260,7 @@ async function main() {
       caseId: createdCases[0].id,
       title: 'Draft initial complaint',
       status: TaskStatus.DONE,
-      assigneeId: lawyer3.id,
+      assigneeId: assistant.id,
       createdById: lawyer1.id,
       dueDate: new Date(now.getTime() - 7 * 86400000),
     },
@@ -254,7 +268,7 @@ async function main() {
       caseId: createdCases[0].id,
       title: 'Gather evidence documents',
       status: TaskStatus.IN_PROGRESS,
-      assigneeId: lawyer3.id,
+      assigneeId: assistant.id,
       createdById: lawyer1.id,
       dueDate: new Date(now.getTime() + 3 * 86400000),
     },
@@ -262,7 +276,7 @@ async function main() {
       caseId: createdCases[0].id,
       title: 'Prepare witness list',
       status: TaskStatus.TODO,
-      assigneeId: lawyer3.id,
+      assigneeId: assistant.id,
       createdById: lawyer2.id,
       dueDate: new Date(now.getTime() + 14 * 86400000),
     },
@@ -270,7 +284,7 @@ async function main() {
       caseId: createdCases[1].id,
       title: 'Patent prior art search',
       status: TaskStatus.IN_PROGRESS,
-      assigneeId: lawyer4.id,
+      assigneeId: senior.id,
       createdById: lawyer2.id,
       dueDate: new Date(now.getTime() + 5 * 86400000),
     },
@@ -278,7 +292,7 @@ async function main() {
       caseId: createdCases[3].id,
       title: 'Review employment contract',
       status: TaskStatus.TODO,
-      assigneeId: lawyer3.id,
+      assigneeId: assistant.id,
       createdById: lawyer2.id,
       dueDate: new Date(now.getTime() - 2 * 86400000),
     },
@@ -396,10 +410,12 @@ async function main() {
     ],
   });
 
-  console.log('Seed completed!');
+  console.log('Seed completed! Firm slug: thesiambarristers');
   console.log('Login credentials (all use password: password123):');
-  console.log('  Admin:   admin@lawfirm.com');
-  console.log('  Lawyers: lawyer1@lawfirm.com … lawyer4@lawfirm.com');
+  console.log('  Owner:     admin@lawfirm.com');
+  console.log('  Senior:    senior@lawfirm.com');
+  console.log('  Lawyers:   lawyer1@lawfirm.com, lawyer2@lawfirm.com');
+  console.log('  Assistant: assistant@lawfirm.com');
 }
 
 main()

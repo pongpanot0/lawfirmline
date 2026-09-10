@@ -15,7 +15,7 @@ describe('DeadlineRulesService', () => {
       deleteMany: jest.fn(),
     },
     publicHoliday: { findMany: jest.fn() },
-    documentDateSuggestion: { createMany: jest.fn() },
+    documentDateSuggestion: { findMany: jest.fn(), createMany: jest.fn() },
   };
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
 
@@ -36,6 +36,7 @@ describe('DeadlineRulesService', () => {
     mockPrisma.deadlineRule.count.mockResolvedValue(0);
     mockPrisma.deadlineRule.createMany.mockResolvedValue({ count: 0 });
     mockPrisma.publicHoliday.findMany.mockResolvedValue([]);
+    mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([]);
     mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 0 });
 
     const module: TestingModule = await Test.createTestingModule({
@@ -172,15 +173,14 @@ describe('DeadlineRulesService', () => {
       expect(data[0].suggestedDate.toISOString()).toBe('2026-10-05T00:00:00.000Z');
     });
 
-    it('matches firm-wide rules and rules for the case type only', async () => {
+    it('matches global platform rules for the trigger', async () => {
       await service.applyTrigger(context);
 
       expect(mockPrisma.deadlineRule.findMany).toHaveBeenCalledWith({
         where: {
-          firmId: 'firm-1',
           trigger: DeadlineTrigger.JUDGMENT,
           isActive: true,
-          OR: [{ caseTypeId: null }, { caseTypeId: 'ct-1' }],
+          caseTypeId: null,
         },
       });
     });
@@ -195,41 +195,71 @@ describe('DeadlineRulesService', () => {
       expect(created).toBe(0);
       expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
     });
+
+    it('skips rules that already have a PENDING suggestion for a manual trigger', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([{ deadlineRuleId: 'rule-1' }]);
+
+      const created = await service.applyTrigger({ ...context, triggerEventId: null });
+
+      expect(created).toBe(0);
+      expect(mockPrisma.documentDateSuggestion.findMany).toHaveBeenCalledWith({
+        where: {
+          caseId: 'case-1',
+          status: 'PENDING',
+          source: 'RULE',
+          deadlineRuleId: { in: ['rule-1'] },
+          triggerEventId: null,
+        },
+        select: { deadlineRuleId: true },
+      });
+      expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
+    });
+
+    it('still creates when a prior suggestion was dismissed', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      const created = await service.applyTrigger({ ...context, triggerEventId: null });
+
+      expect(created).toBe(1);
+      expect(mockPrisma.documentDateSuggestion.createMany).toHaveBeenCalled();
+    });
   });
 
   describe('provisionDefaults', () => {
-    it('seeds starter rules for a firm that has none', async () => {
-      await service.provisionDefaults('firm-1');
+    it('seeds starter rules when the catalog is empty', async () => {
+      await service.provisionDefaults();
 
       const { data } = mockPrisma.deadlineRule.createMany.mock.calls[0][0];
       expect(data.length).toBeGreaterThan(0);
-      expect(data.every((r: { firmId: string }) => r.firmId === 'firm-1')).toBe(true);
+      expect(data.every((r: { firmId?: string }) => r.firmId === undefined)).toBe(true);
       expect(data).toContainEqual(
         expect.objectContaining({ trigger: DeadlineTrigger.JUDGMENT, label: 'ยื่นอุทธรณ์' }),
       );
     });
 
-    it('leaves a firm that already has rules alone', async () => {
+    it('leaves an existing catalog alone', async () => {
       mockPrisma.deadlineRule.count.mockResolvedValue(2);
 
-      await service.provisionDefaults('firm-1');
+      await service.provisionDefaults();
 
       expect(mockPrisma.deadlineRule.createMany).not.toHaveBeenCalled();
     });
   });
 
   describe('list', () => {
-    it('provisions the starter rules for a firm that predates the feature', async () => {
+    it('provisions the starter rules when the catalog is empty', async () => {
       await service.list(user);
 
       expect(mockPrisma.deadlineRule.createMany).toHaveBeenCalled();
       expect(mockPrisma.deadlineRule.findMany).toHaveBeenCalledWith({
-        where: { firmId: 'firm-1' },
         orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
       });
     });
 
-    it('does not re-seed a firm that already has rules', async () => {
+    it('does not re-seed when rules already exist', async () => {
       mockPrisma.deadlineRule.count.mockResolvedValue(4);
 
       await service.list(user);
@@ -239,18 +269,18 @@ describe('DeadlineRulesService', () => {
   });
 
   describe('rule management', () => {
-    it('scopes a rule update to the caller firm', async () => {
+    it('updates a global rule by id', async () => {
       mockPrisma.deadlineRule.updateMany.mockResolvedValue({ count: 1 });
 
       await service.update(user, 'rule-1', { offsetDays: 15 });
 
       expect(mockPrisma.deadlineRule.updateMany).toHaveBeenCalledWith({
-        where: { id: 'rule-1', firmId: 'firm-1' },
-        data: { offsetDays: 15 },
+        where: { id: 'rule-1' },
+        data: { offsetDays: 15, caseTypeId: null },
       });
     });
 
-    it('reports a miss when the rule belongs to another firm', async () => {
+    it('reports a miss when the rule does not exist', async () => {
       mockPrisma.deadlineRule.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(service.update(user, 'rule-x', { offsetDays: 15 })).rejects.toThrow(

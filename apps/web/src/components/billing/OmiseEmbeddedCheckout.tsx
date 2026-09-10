@@ -270,7 +270,7 @@ export function OmiseEmbeddedCheckout({
       window.OmiseCard.open({
         amount: chargeAmount * 100,
         currency: 'THB',
-        frameLabel: 'LexFlow',
+        frameLabel: 'Samnuan',
         frameDescription: `${plan.name} — ${chargeAmount.toLocaleString()} THB/${yearly ? 'year' : 'month'}`,
         onCreateTokenSuccess: async (nonce: string) => {
           try {

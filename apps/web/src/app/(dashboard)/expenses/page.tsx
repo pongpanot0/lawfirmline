@@ -1,43 +1,55 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, TrendingUp, TrendingDown, Wallet, Receipt } from 'lucide-react';
+import { Plus, Wallet, Receipt, Paperclip, FileText, Clock } from 'lucide-react';
 import { FirmRole } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
-import { api, ApiError, ExpenseItem, FinanceSummary, FirmInvoiceItem } from '@/lib/api';
-import { PageHeader, KpiCard } from '@/components/lexflow/PageHeader';
+import { api, ApiError, ExpenseItem, FinanceSummary } from '@/lib/api';
+import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/misc';
-import { formatCurrency, formatDate } from '@/lib/utils';
-import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { PageLoading, TableEmptyRow } from '@/components/ui/misc';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { formatCurrency } from '@/lib/utils';
+import { fmt } from '@/lib/i18n/dashboard';
 
-const REVENUE_SOURCE_LABEL: Record<string, string> = {
-  estimated: 'ประมาณการ',
-  time: 'ชั่วโมงทำงาน',
-  invoice: 'ใบแจ้งหนี้',
-  none: '—',
-};
+const STATUS_FILTERS = ['', 'DRAFT', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
-const INVOICE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'ร่าง',
-  SENT: 'ส่งแล้ว',
-  PAID: 'ชำระแล้ว',
+type TeamMember = {
+  id: string;
+  firstName: string;
+  lastName: string;
 };
 
 export default function ExpensesPage() {
+  const d = useDashboardT();
   const { token, user } = useAuth();
   const router = useRouter();
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
-  const [invoices, setInvoices] = useState<FirmInvoiceItem[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+  const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [requesterFilter, setRequesterFilter] = useState('');
+
+  const isOwner = user?.firmRole === FirmRole.OWNER;
+
+  const statusLabels: Record<string, string> = {
+    DRAFT: d.expenses.statusDraft,
+    PENDING: d.expenses.statusPending,
+    APPROVED: d.expenses.statusApproved,
+    PAID: d.expenses.statusPaid,
+    REJECTED: d.expenses.statusRejected,
+  };
 
   useEffect(() => {
     const authToken = token ?? getStoredToken();
@@ -46,35 +58,90 @@ export default function ExpensesPage() {
       return;
     }
     setError('');
-    Promise.all([
-      api.getExpenses(authToken),
+    const expenseParams = {
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(isOwner && requesterFilter ? { userId: requesterFilter } : {}),
+    };
+    const loads: Promise<unknown>[] = [
+      api.getExpenses(authToken, Object.keys(expenseParams).length ? expenseParams : undefined),
       api.getFinanceSummary(authToken),
-      api.getFirmInvoices(authToken),
-    ])
-      .then(([e, f, inv]) => {
-        setExpenses(e);
-        setFinance(f);
-        setInvoices(inv);
+    ];
+    if (isOwner) {
+      loads.push(api.getTeamMembers(authToken).catch(() => []));
+    }
+    Promise.all(loads)
+      .then(([e, f, m]) => {
+        setExpenses(e as ExpenseItem[]);
+        setFinance(f as FinanceSummary);
+        if (Array.isArray(m)) setMembers(m as TeamMember[]);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
-        setError(err instanceof Error ? err.message : 'Failed to load expenses / โหลดค่าใช้จ่ายไม่สำเร็จ');
+        setError(err instanceof Error ? err.message : d.expenses.loadFailed);
       })
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, reloadKey, statusFilter, requesterFilter, isOwner, d.expenses.loadFailed]);
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28" />)}
-        </div>
-      </div>
+  const draftExpenses = useMemo(
+    () => expenses.filter((e) => e.status === 'DRAFT'),
+    [expenses],
+  );
+  const submittedExpenses = useMemo(
+    () => expenses.filter((e) => e.status !== 'DRAFT'),
+    [expenses],
+  );
+
+  const downloadReceipt = async (expenseId: string, filename: string) => {
+    const authToken = token ?? getStoredToken();
+    if (!authToken) return;
+    try {
+      const blob = await api.downloadExpenseReceipt(authToken, expenseId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : d.expenses.loadFailed);
+    }
+  };
+
+  const toggleDraft = (expenseId: string) => {
+    setSelectedDraftIds((current) =>
+      current.includes(expenseId)
+        ? current.filter((id) => id !== expenseId)
+        : [...current, expenseId],
     );
-  }
+  };
 
-  if (error) {
+  const toggleAllDrafts = () => {
+    if (selectedDraftIds.length === draftExpenses.length) {
+      setSelectedDraftIds([]);
+      return;
+    }
+    setSelectedDraftIds(draftExpenses.map((e) => e.id));
+  };
+
+  const openClaimSheet = () => {
+    if (!selectedDraftIds.length) return;
+    router.push(`/expenses/claim?ids=${selectedDraftIds.join(',')}`);
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sent = new URLSearchParams(window.location.search).get('sent');
+    if (sent === '1') {
+      setSuccess(d.expenses.sendToOwnerSuccess);
+      setSelectedDraftIds([]);
+      setReloadKey((n) => n + 1);
+      router.replace('/expenses');
+    }
+  }, [d.expenses.sendToOwnerSuccess, router]);
+
+  if (loading) return <PageLoading title={d.common.loading} lines={4} />;
+
+  if (error && !finance) {
     return (
       <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
         <p className="text-destructive">{error}</p>
@@ -84,168 +151,231 @@ export default function ExpensesPage() {
 
   if (!finance) return null;
 
-  const caseProfits = finance.caseProfits ?? [];
+  const showDraftCheckbox = draftExpenses.length > 0 && (!statusFilter || statusFilter === 'DRAFT');
+  const colSpan = (showDraftCheckbox ? 1 : 0) + (isOwner ? 1 : 0) + 4;
 
   return (
     <div>
       <PageHeader
-        title="Expenses & Finance / ค่าใช้จ่ายและการเงิน"
+        title={d.expenses.title}
         description={
           finance.scope === 'user'
             ? `ค่าใช้จ่ายของคุณ · ${finance.firmName}`
-            : `แดชบอร์ดการเงินของ ${finance.firmName}`
+            : `บันทึก เบิก และติดตามค่าใช้จ่ายของ ${finance.firmName}`
         }
         actions={
           <Button size="sm" onClick={() => router.push('/expenses/new')}>
-            <Plus className="h-4 w-4" />New Expense / เพิ่มค่าใช้จ่าย
+            <Plus className="h-4 w-4" />
+            {d.expenses.newTitle}
           </Button>
         }
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="รายได้รวม" value={formatCurrency(finance.revenue)} icon={TrendingUp} change="จากทุกคดี" trend="up" />
-        <KpiCard label="ค่าใช้จ่ายอนุมัติ" value={formatCurrency(finance.approvedExpenses)} icon={Receipt} change={`${finance.expenseCount} รายการ`} trend="down" />
-        <KpiCard label="รออนุมัติ" value={formatCurrency(finance.outstanding)} icon={Wallet} change={`${finance.pendingCount} รายการ`} trend="neutral" />
-        <KpiCard label="กำไรสุทธิ" value={formatCurrency(finance.netProfit)} icon={TrendingDown} change="รายได้ − ค่าใช้จ่ายอนุมัติ" trend={finance.netProfit >= 0 ? 'up' : 'down'} />
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          {success}
+        </div>
+      )}
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <KpiCard
+          label={d.expenses.draftKpi}
+          value={formatCurrency(finance.draftTotal ?? 0)}
+          icon={Wallet}
+          change={`${finance.draftCount ?? 0} รายการ`}
+          trend="neutral"
+        />
+        <KpiCard
+          label={d.expenses.statusPending}
+          value={formatCurrency(finance.outstanding)}
+          icon={Clock}
+          change={`${finance.pendingCount} รายการ`}
+          trend="neutral"
+        />
+        <KpiCard
+          label={d.expenses.statusApproved}
+          value={formatCurrency(finance.approvedExpenses)}
+          icon={Receipt}
+          change={`${finance.expenseCount} รายการ`}
+          trend="down"
+        />
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>กำไรแต่ละคดี / Profit by Case</CardTitle>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>{d.expenses.filterStatus}</span>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+            value={statusFilter}
+            onChange={(e) => {
+              setLoading(true);
+              setStatusFilter(e.target.value);
+            }}
+          >
+            <option value="">{d.expenses.allStatuses}</option>
+            {STATUS_FILTERS.filter(Boolean).map((status) => (
+              <option key={status} value={status}>
+                {statusLabels[status]}
+              </option>
+            ))}
+          </select>
+        </label>
+        {isOwner && (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{d.expenses.filterRequester}</span>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              value={requesterFilter}
+              onChange={(e) => {
+                setLoading(true);
+                setRequesterFilter(e.target.value);
+              }}
+            >
+              <option value="">{d.expenses.allRequesters}</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.firstName} {m.lastName}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>{d.expenses.savedDrafts}</CardTitle>
+            {draftExpenses.length > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">{d.expenses.savedDraftsHint}</p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedDraftIds.length > 0 && (
+              <Button size="sm" onClick={openClaimSheet}>
+                <FileText className="h-4 w-4" />
+                {fmt(d.expenses.prepareClaimCount, { count: selectedDraftIds.length })}
+              </Button>
+            )}
+            {isOwner && (
+              <Link href="/admin/reimbursements">
+                <Button variant="outline" size="sm">
+                  {d.expenses.approve}
+                </Button>
+              </Link>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>เลขคดี</TableHead>
-                <TableHead>ชื่อคดี</TableHead>
-                <TableHead>ลูกความ</TableHead>
-                <TableHead className="text-right">รายได้</TableHead>
-                <TableHead>แหล่งรายได้</TableHead>
-                <TableHead className="text-right">ค่าใช้จ่าย</TableHead>
-                <TableHead className="text-right">กำไร</TableHead>
-                <TableHead>สถานะ</TableHead>
+                {showDraftCheckbox && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={draftExpenses.length > 0 && selectedDraftIds.length === draftExpenses.length}
+                      onChange={toggleAllDrafts}
+                      aria-label={d.expenses.selectAll}
+                    />
+                  </TableHead>
+                )}
+                <TableHead>{d.expenses.descriptionField}</TableHead>
+                {isOwner && <TableHead>{d.expenses.requester}</TableHead>}
+                <TableHead>{d.expenses.caseField}</TableHead>
+                <TableHead>{d.expenses.amount}</TableHead>
+                <TableHead>{d.expenses.status}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {caseProfits.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                    ยังไม่มีข้อมูลคดี
-                  </TableCell>
-                </TableRow>
+              {expenses.length === 0 ? (
+                <TableEmptyRow
+                  colSpan={colSpan}
+                  title={d.expenses.empty}
+                  description="เพิ่มค่าใช้จ่ายแล้วติ๊กเลือกรายการเพื่อจัดทำใบเบิก"
+                />
               ) : (
-                caseProfits.map((row) => (
-                  <TableRow key={row.caseId}>
-                    <TableCell>
-                      <Link href={`/cases/${row.caseId}`} className="font-medium text-primary hover:underline">
-                        {row.ownRef}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="max-w-[180px] truncate">{row.title}</TableCell>
-                    <TableCell className="text-muted-foreground">{row.clientName ?? '—'}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.revenue)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {REVENUE_SOURCE_LABEL[row.revenueSource] ?? row.revenueSource}
-                    </TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.expenses)}</TableCell>
-                    <TableCell className={`text-right font-semibold ${row.profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                      {formatCurrency(row.profit)}
-                    </TableCell>
-                    <TableCell><CaseStatusBadge status={row.status as import('@lawfirm/shared').CaseStatus} /></TableCell>
-                  </TableRow>
-                ))
+                <>
+                  {draftExpenses.map((e) => (
+                    <TableRow key={e.id} className={selectedDraftIds.includes(e.id) ? 'bg-primary/5' : undefined}>
+                      {showDraftCheckbox && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedDraftIds.includes(e.id)}
+                            onChange={() => toggleDraft(e.id)}
+                            aria-label={e.description}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <p className="text-sm font-medium">{e.description}</p>
+                        <p className="text-xs text-muted-foreground">{e.category}</p>
+                        {e.receiptFilename && (
+                          <button
+                            type="button"
+                            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                            onClick={() => downloadReceipt(e.id, e.receiptFilename!)}
+                          >
+                            <Paperclip className="h-3 w-3" />
+                            {d.expenses.viewReceipt}
+                          </button>
+                        )}
+                      </TableCell>
+                      {isOwner && (
+                        <TableCell className="text-sm text-muted-foreground">
+                          {e.user.firstName} {e.user.lastName}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-sm text-muted-foreground">
+                        {e.case?.ownRef ?? d.expenses.general}
+                      </TableCell>
+                      <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
+                      <TableCell>
+                        <ExpenseStatusBadge status={e.status} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {submittedExpenses.map((e) => (
+                    <TableRow key={e.id}>
+                      {showDraftCheckbox && <TableCell />}
+                      <TableCell>
+                        <p className="text-sm font-medium">{e.description}</p>
+                        <p className="text-xs text-muted-foreground">{e.category}</p>
+                        {e.receiptFilename && (
+                          <button
+                            type="button"
+                            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                            onClick={() => downloadReceipt(e.id, e.receiptFilename!)}
+                          >
+                            <Paperclip className="h-3 w-3" />
+                            {d.expenses.viewReceipt}
+                          </button>
+                        )}
+                      </TableCell>
+                      {isOwner && (
+                        <TableCell className="text-sm text-muted-foreground">
+                          {e.user.firstName} {e.user.lastName}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-sm text-muted-foreground">
+                        {e.case?.ownRef ?? d.expenses.general}
+                      </TableCell>
+                      <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
+                      <TableCell>
+                        <ExpenseStatusBadge status={e.status} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </>
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Expense Claims / รายการค่าใช้จ่าย</CardTitle>
-            {user?.firmRole === FirmRole.OWNER && (
-              <Link href="/admin/reimbursements"><Button variant="outline" size="sm">Approve / อนุมัติ</Button></Link>
-            )}
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Description / รายละเอียด</TableHead>
-                  <TableHead>Case / คดี</TableHead>
-                  <TableHead>Amount / จำนวนเงิน</TableHead>
-                  <TableHead>Status / สถานะ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {expenses.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                      No expense claims yet / ยังไม่มีรายการค่าใช้จ่าย
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  expenses.slice(0, 8).map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell>
-                        <p className="font-medium text-sm">{e.description}</p>
-                        <p className="text-xs text-muted-foreground">{e.category}</p>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{e.case?.ownRef ?? 'General / ทั่วไป'}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
-                      <TableCell><ExpenseStatusBadge status={e.status} /></TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>Invoices / ใบแจ้งหนี้</CardTitle></CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice # / เลขที่</TableHead>
-                  <TableHead>Client / ลูกความ</TableHead>
-                  <TableHead>Amount / จำนวนเงิน</TableHead>
-                  <TableHead>Due / กำหนดชำระ</TableHead>
-                  <TableHead>Status / สถานะ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                      No invoices yet / ยังไม่มีใบแจ้งหนี้
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  invoices.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell className="font-medium">{inv.invoiceNumber}</TableCell>
-                      <TableCell>{inv.clientName}</TableCell>
-                      <TableCell>{formatCurrency(inv.totalAmount)}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {inv.dueAt ? formatDate(inv.dueAt) : '—'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={inv.status === 'PAID' ? 'success' : inv.status === 'SENT' ? 'warning' : 'muted'}>
-                          {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

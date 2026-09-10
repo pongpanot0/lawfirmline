@@ -21,7 +21,7 @@ export const landingCopy = {
     },
     problems: {
       title: 'ปัญหาที่สำนักงานกฎหมายเจอทุกวัน',
-      subtitle: 'LexFlow ออกแบบมาเพื่อแก้ pain point ที่เกิดขึ้นจริงทุกวันในสำนักงาน',
+      subtitle: 'Samnuan ออกแบบมาเพื่อแก้ pain point ที่เกิดขึ้นจริงทุกวันในสำนักงาน',
       items: [
         'ลูกความโทรถามสถานะคดีซ้ำ ๆ',
         'เอกสารกระจายอยู่ใน LINE และอีเมล',
@@ -38,7 +38,7 @@ export const landingCopy = {
       cases: 'รายการคดีทั้งหมด',
     },
     features: {
-      title: 'LexFlow ช่วยอะไรได้บ้าง',
+      title: 'Samnuan ช่วยอะไรได้บ้าง',
       subtitle: 'ทุกอย่างที่สำนักงานกฎหมายต้องการ รวมไว้ในที่เดียว',
       items: [
         {
@@ -113,9 +113,9 @@ export const landingCopy = {
       subtitle: 'รับสิทธิ์ Early Access สำหรับ 10 สำนักงานแรก — เริ่มจัดการคดีอย่างเป็นระบบวันนี้',
       demo: 'ขอนัด Demo',
       tryFree: 'ทดลองใช้งานฟรี',
-      demoSubject: 'ขอนัด Demo LexFlow',
+      demoSubject: 'ขอนัด Demo Samnuan',
     },
-    footer: '© 2025 LexFlow — ระบบจัดการสำนักงานกฎหมาย',
+    footer: '© 2025 Samnuan — ระบบจัดการสำนักงานกฎหมาย',
   },
   en: {
     nav: {
@@ -137,7 +137,7 @@ export const landingCopy = {
     },
     problems: {
       title: 'Daily pain points for law firms',
-      subtitle: 'LexFlow is built to solve the problems your team faces every day.',
+      subtitle: 'Samnuan is built to solve the problems your team faces every day.',
       items: [
         'Clients calling repeatedly for case updates',
         'Documents scattered across LINE and email',
@@ -154,7 +154,7 @@ export const landingCopy = {
       cases: 'Case list',
     },
     features: {
-      title: 'What LexFlow helps you do',
+      title: 'What Samnuan helps you do',
       subtitle: 'Everything your law firm needs — in one system.',
       items: [
         {
@@ -229,9 +229,9 @@ export const landingCopy = {
       subtitle: 'Early Access for the first 10 firms — start managing cases systematically today.',
       demo: 'Book a demo',
       tryFree: 'Start free trial',
-      demoSubject: 'LexFlow Demo Request',
+      demoSubject: 'Samnuan Demo Request',
     },
-    footer: '© 2025 LexFlow — Legal practice management',
+    footer: '© 2025 Samnuan — Legal practice management',
   },
 } as const;
 

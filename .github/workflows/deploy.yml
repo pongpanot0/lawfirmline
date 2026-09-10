@@ -1,0 +1,73 @@
+name: Deploy to EC2
+
+on:
+  push:
+    tags:
+      - 'prod'
+      - 'prod-*'
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-7
+  ECR_REGISTRY: 905418334683.dkr.ecr.ap-southeast-7.amazonaws.com
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
+      - name: Build and push API
+        run: |
+          docker build -f apps/api/Dockerfile \
+            -t "$ECR_REGISTRY/lawfirm-api:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/lawfirm-api:latest" .
+          docker push "$ECR_REGISTRY/lawfirm-api:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/lawfirm-api:latest"
+
+      - name: Build and push Web
+        run: |
+          docker build -f apps/web/Dockerfile \
+            --build-arg "NEXT_PUBLIC_API_URL=https://api.${{ secrets.DOMAIN }}" \
+            --build-arg "NEXT_PUBLIC_ROOT_DOMAIN=${{ secrets.DOMAIN }}" \
+            -t "$ECR_REGISTRY/lawfirm-web:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/lawfirm-web:latest" .
+          docker push "$ECR_REGISTRY/lawfirm-web:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/lawfirm-web:latest"
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.EC2_APP_DIR }}"
+            aws ecr get-login-password --region ap-southeast-7 \
+              | docker login --username AWS --password-stdin 905418334683.dkr.ecr.ap-southeast-7.amazonaws.com
+            export IMAGE_TAG=${{ env.IMAGE_TAG }}
+            # Keep IMAGE_TAG in .env so next manual compose uses the same tag
+            if grep -q '^IMAGE_TAG=' .env; then
+              sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${IMAGE_TAG}/" .env
+            else
+              echo "IMAGE_TAG=${IMAGE_TAG}" >> .env
+            fi
+            docker compose -f docker-compose.prod.yml pull api web
+            docker compose -f docker-compose.prod.yml up -d
+            docker image prune -f

@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Scale, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useLocale } from './LocaleProvider';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 
 export function LandingNavbar() {
   const { t } = useLocale();
@@ -30,13 +31,7 @@ export function LandingNavbar() {
         }}
       >
         <Link href="/" className="flex shrink-0 items-center gap-2 pl-1.5" onClick={close}>
-          <span
-            className="flex h-8 w-8 items-center justify-center rounded-full"
-            style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
-          >
-            <Scale className="h-4 w-4" />
-          </span>
-          <span className="lf-display text-base sm:text-lg">LexFlow</span>
+          <SamnuanLogo className="lf-display text-base sm:text-lg" markClassName="h-8 w-8 rounded-full" />
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm md:flex" style={{ color: 'var(--color-ink-2)' }}>

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthUser, DeadlineTrigger, EventType } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -55,7 +60,19 @@ export class CalendarService {
     });
   }
 
-  async findOne(id: string) {
+  /**
+   * A single event is reachable by id, so it needs the same case filter the
+   * list does — otherwise an id from another firm's case reads straight
+   * through. The check runs on every read, edit and delete path.
+   */
+  async findOne(user: AuthUser, id: string) {
+    const event = await this.findOneInternal(id);
+    await this.assertCaseAccess(user, event.caseId);
+    return event;
+  }
+
+  /** Unfiltered read for callers that have already authorized the case. */
+  async findOneInternal(id: string) {
     const event = await this.prisma.calendarEvent.findUnique({
       where: { id },
       include: this.eventInclude,
@@ -64,12 +81,23 @@ export class CalendarService {
     return event;
   }
 
+  private async assertCaseAccess(user: AuthUser, caseId: string) {
+    if (!(await this.caseAccess.canAccessCase(user, caseId))) {
+      throw new ForbiddenException('No access to this case');
+    }
+  }
+
   /**
-   * @param actorId who created the event. A court date starts procedural
-   *   clocks, and the resulting deadline suggestions need an author; without an
-   *   actor the event is still created, just without them.
+   * A court date starts procedural clocks, and the resulting deadline
+   * suggestions are attributed to whoever entered the event.
    */
-  async create(dto: CreateEventDto, actorId?: string) {
+  async create(user: AuthUser, dto: CreateEventDto) {
+    await this.assertCaseAccess(user, dto.caseId);
+    return this.createInternal(dto, user.id);
+  }
+
+  /** Creation for callers that have already authorized the case. */
+  async createInternal(dto: CreateEventDto, actorId?: string) {
     const legalCase = await this.prisma.case.findUnique({
       where: { id: dto.caseId },
       include: { leadLawyer: true },
@@ -143,8 +171,14 @@ export class CalendarService {
     return event;
   }
 
-  async update(id: string, dto: UpdateEventDto) {
-    await this.findOne(id);
+  async update(user: AuthUser, id: string, dto: UpdateEventDto) {
+    await this.findOne(user, id);
+    return this.updateInternal(id, dto);
+  }
+
+  /** Update for callers that have already authorized the case. */
+  async updateInternal(id: string, dto: UpdateEventDto) {
+    await this.findOneInternal(id);
     return this.prisma.calendarEvent.update({
       where: { id },
       data: {
@@ -156,8 +190,8 @@ export class CalendarService {
     });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(user: AuthUser, id: string) {
+    await this.findOne(user, id);
     await this.prisma.calendarEvent.delete({ where: { id } });
     return { deleted: true };
   }

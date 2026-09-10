@@ -32,14 +32,14 @@ export class LimitationDeadlineService {
     });
 
     if (existingEventId) {
-      const updated = await this.calendarService.update(existingEventId, {
+      const updated = await this.calendarService.updateInternal(existingEventId, {
         startAt: deadline.toISOString(),
       });
       await this.prisma.reminderLog.deleteMany({ where: { eventId: existingEventId } });
       return updated.id;
     }
 
-    const created = await this.calendarService.create({
+    const created = await this.calendarService.createInternal({
       caseId,
       title: 'อายุความฟ้องคดี (ม.882)',
       startAt: deadline.toISOString(),

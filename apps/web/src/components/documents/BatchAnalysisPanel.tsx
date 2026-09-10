@@ -1,9 +1,12 @@
 'use client';
 
+import { AI_CREDIT_COST, AI_UPLOAD_MAX_FILES } from '@lawfirm/shared';
+
 import { useEffect, useRef, useState } from 'react';
-import { api, ApiError, DocumentItem } from '@/lib/api';
+import { api, ApiError, DocumentItem, FieldSuggestion } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CaseKnowledgePanel } from './CaseKnowledgePanel';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
 
 export function BatchAnalysisPanel({
@@ -11,6 +14,7 @@ export function BatchAnalysisPanel({
   files = [],
   onFilesChange,
   onUseSummary,
+  onFieldSuggestions,
   disabled = false,
   onBusyChange,
   entityLabel = 'คดี',
@@ -19,13 +23,14 @@ export function BatchAnalysisPanel({
   files?: File[];
   onFilesChange?: (files: File[]) => void;
   onUseSummary?: (summary: string) => void;
+  /** Values the documents state, for the form to offer — never to apply itself. */
+  onFieldSuggestions?: (suggestions: FieldSuggestion[]) => void;
   disabled?: boolean;
   onBusyChange?: (busy: boolean) => void;
   /** Noun to use in draft-mode copy ("บันทึกลง{entityLabel}") — defaults to "คดี" for case creation. */
   entityLabel?: string;
 }) {
   const { token } = useAuth();
-  const input = useRef<HTMLInputElement>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -141,6 +146,7 @@ export function BatchAnalysisPanel({
             files.filter((file) => selected.includes(fileKey(file))),
           );
       setSummary(result.summary);
+      onFieldSuggestions?.(result.fieldSuggestions ?? []);
       if (caseId) setAnalysisRevision((value) => value + 1);
     } catch (err) {
       setError(
@@ -160,9 +166,9 @@ export function BatchAnalysisPanel({
       className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5"
       aria-label="เอกสารสำหรับวิเคราะห์รวม"
     >
-      <h2 className="font-semibold">เอกสารและการวิเคราะห์รวม</h2>
+      <h2 className="font-semibold">วิเคราะห์เนื้อหาไฟล์ด้วย AI</h2>
       <p className="text-sm text-muted-foreground">
-        เพิ่มหลายไฟล์ เลือกไฟล์ที่ต้องการ แล้ววิเคราะห์พร้อมกันในครั้งเดียว ·
+        อ่านไฟล์ที่เลือกแล้วสรุปเนื้อหาและดึงวันสำคัญ (คนละบริการกับการประเมินเรื่องในหน้ารับเรื่อง) ·
         PDF/TXT ไม่เกิน 10MB ต่อไฟล์
       </p>
       {!caseId && (
@@ -171,28 +177,18 @@ export function BatchAnalysisPanel({
           ไฟล์ที่เลือกจะไม่ถูกเก็บ
         </p>
       )}
-      <input
-        ref={input}
-        type="file"
+      <DocumentDropZone
         multiple
         accept=".pdf,.txt,application/pdf,text/plain"
-        className="hidden"
-        onChange={(event) => {
-          const incoming = Array.from(event.target.files ?? []);
-          event.target.value = '';
-          void addFiles(incoming);
-        }}
+        loading={busy}
+        disabled={disabled}
+        label="ลากไฟล์มาวาง หรือคลิกเลือกหลายไฟล์"
+        loadingLabel={progress || 'กำลังอัปโหลด...'}
+        hint="PDF / TXT ไม่เกิน 10MB ต่อไฟล์ · สูงสุด 10 ไฟล์"
+        onFiles={(incoming) => void addFiles(incoming)}
       />
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || busy}
-          onClick={() => input.current?.click()}
-        >
-          เพิ่มหลายไฟล์
-        </Button>
-        {rows.length > 0 && (
+      {rows.length > 0 && (
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -208,8 +204,8 @@ export function BatchAnalysisPanel({
               ? 'ยกเลิกเลือกทั้งหมด'
               : 'เลือกทั้งหมด (สูงสุด 10)'}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
       <ul className="max-h-72 space-y-2 overflow-y-auto">
         {rows.map((row) => (
           <li
@@ -260,7 +256,7 @@ export function BatchAnalysisPanel({
       </ul>
       {!rows.length && (
         <p className="text-sm text-muted-foreground">
-          ยังไม่มีไฟล์ เริ่มจาก “เพิ่มหลายไฟล์”
+          ยังไม่มีไฟล์ — ลากไฟล์มาวางด้านบน หรือคลิกเพื่อเลือก
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
@@ -272,7 +268,7 @@ export function BatchAnalysisPanel({
           วิเคราะห์รวม {selected.length} ไฟล์
         </Button>
         <span className="text-xs text-muted-foreground">
-          5 เครดิตต่อครั้ง · เลือกได้ 1–10 ไฟล์
+          {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิตต่อครั้ง · เลือกได้ 1–{AI_UPLOAD_MAX_FILES} ไฟล์
         </span>
       </div>
       {progress && (

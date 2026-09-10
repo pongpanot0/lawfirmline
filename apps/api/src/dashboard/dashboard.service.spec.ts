@@ -52,6 +52,21 @@ describe('DashboardService', () => {
     service = module.get(DashboardService);
   });
 
+  it('counts and lists "awaiting approval" by the same definition: status PENDING', async () => {
+    const owner = { ...user, firmRole: FirmRole.OWNER } as any;
+    mockPrisma.expense.count.mockImplementation(async ({ where }: any) =>
+      where.status === 'PENDING' ? 1 : where.status === 'APPROVED' ? 1 : 0,
+    );
+
+    const result = await service.getStats(owner);
+
+    expect(result.stats.pendingExpenses).toBe(1);
+    expect(result.stats.approvedExpenses).toBe(1);
+    expect(mockPrisma.expense.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ status: 'PENDING' }) }),
+    );
+  });
+
   it('merges the role-based task filter into the overdueTasks and myTasks counts', async () => {
     await service.getStats(user);
 

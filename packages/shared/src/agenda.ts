@@ -66,6 +66,13 @@ export interface AgendaItem {
   departBy: string | null;
   /** Web route for the item, e.g. `/cases/<id>/calendar`. */
   url: string;
+  /**
+   * Who the task is assigned to. An owner or senior sees other people's
+   * tasks on their day, and a row must say whose it is before offering a
+   * "done" button for it. Null for events and unassigned tasks.
+   */
+  assigneeId: string | null;
+  assigneeName: string | null;
 }
 
 export interface AgendaDay {

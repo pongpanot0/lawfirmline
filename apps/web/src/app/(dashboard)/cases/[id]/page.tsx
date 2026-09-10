@@ -3,13 +3,14 @@
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CASE_COSTS_KEY } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
+import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutcomeDialog';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   Gavel,
   FileText,
-  Upload,
   CalendarDays,
   Plus,
   StickyNote,
@@ -18,6 +19,7 @@ import {
   Lock,
   LockOpen,
   Pencil,
+  Sparkles,
 } from 'lucide-react';
 import {
   ActivityType,
@@ -27,7 +29,50 @@ import {
   CASE_NUMBER_HINT,
   FirmRole,
 } from '@lawfirm/shared';
+import {
+  CASE_TAB_IDS,
+  CASE_TAB_LABELS,
+  caseTabHref,
+  parseCaseTab,
+  type CaseTabId,
+} from '@/lib/case-tabs';
+
+const CaseTasksPanel = dynamic(
+  () => import('@/components/cases/CaseTasksPanel').then((m) => m.CaseTasksPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseCalendarPanel = dynamic(
+  () => import('@/components/cases/CaseCalendarPanel').then((m) => m.CaseCalendarPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseDocumentsPanel = dynamic(
+  () => import('@/components/cases/CaseDocumentsPanel').then((m) => m.CaseDocumentsPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseBillingPanel = dynamic(
+  () => import('@/components/cases/CaseBillingPanel').then((m) => m.CaseBillingPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseInsurancePanel = dynamic(
+  () => import('@/components/cases/CaseInsurancePanel').then((m) => m.CaseInsurancePanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseMessagesPanel = dynamic(
+  () => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseClosingReportPanel = dynamic(
+  () => import('@/components/cases/CaseClosingReportPanel').then((m) => m.CaseClosingReportPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
 import { useAuth } from '@/lib/auth';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 import {
   api,
   CaseDetail,
@@ -40,13 +85,13 @@ import {
   ApiError,
   IntakePrecedentAnalysisItem,
 } from '@/lib/api';
-import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/misc';
+import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   TODO: 'ยังไม่เริ่ม',
@@ -73,9 +118,15 @@ const ACTIVITY_ICONS: Record<string, typeof Gavel> = {
 };
 
 export default function CaseDetailPage() {
+  const d = useDashboardT();
   const { id } = useParams<{ id: string }>();
   const { token, user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = parseCaseTab(searchParams.get('tab'));
+  const selectTab = (tab: CaseTabId) => {
+    router.replace(caseTabHref(id, tab));
+  };
   const [legalCase, setCase] = useState<CaseDetail | null>(null);
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -103,6 +154,8 @@ export default function CaseDetailPage() {
     estimatedFee: '',
   });
   const [showCloseForm, setShowCloseForm] = useState(false);
+  const [recordingOutcome, setRecordingOutcome] = useState(false);
+  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   const [closingSummary, setClosingSummary] = useState('');
   const [closingCase, setClosingCase] = useState(false);
   const [reopeningCase, setReopeningCase] = useState(false);
@@ -146,6 +199,15 @@ export default function CaseDetailPage() {
   useEffect(() => {
     loadCase();
   }, [token, id]);
+
+  useEffect(() => {
+    if (!showAiAnalysis) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowAiAnalysis(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showAiAnalysis]);
 
   const startEditTeam = () => {
     if (!legalCase) return;
@@ -376,8 +438,8 @@ export default function CaseDetailPage() {
     }
   };
 
-  if (loading) return <Skeleton className="h-96 w-full" />;
-  if (!legalCase) return <p className="text-destructive">Case not found / ไม่พบคดี</p>;
+  if (loading) return <PageLoading title={d.common.loading} lines={5} />;
+  if (!legalCase) return <p className="text-destructive">{d.admin.caseNotFound}</p>;
 
   const customFields = legalCase.customFields as Record<string, string> | null;
   const clientDisplay = legalCase.client?.name ?? legalCase.clientName ?? '—';
@@ -386,20 +448,6 @@ export default function CaseDetailPage() {
   // this case view is read-only and has no re-run action to offer.
   const latestPrecedentAnalysis =
     precedentAnalyses.find((a) => a.status === 'COMPLETE') ?? null;
-  const tabs = [
-    { id: 'overview', label: 'ภาพรวม' },
-    { id: 'tasks', label: 'งาน', href: `/cases/${id}/tasks` },
-    { id: 'calendar', label: 'ปฏิทิน', href: `/cases/${id}/calendar` },
-    { id: 'documents', label: 'เอกสาร', href: `/cases/${id}/documents` },
-    { id: 'billing', label: 'ค่าใช้จ่าย', href: `/cases/${id}/billing` },
-    { id: 'insurance', label: 'ประกัน', href: `/cases/${id}/insurance` },
-    { id: 'messages', label: 'ข้อความ', href: `/cases/${id}/messages` },
-    {
-      id: 'closing-report',
-      label: 'รายงานปิดงาน',
-      href: `/cases/${id}/closing-report`,
-    },
-  ];
 
   const pendingTasks = tasks.filter((task) => task.status !== 'DONE').sort(
     (a, b) => (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) -
@@ -409,7 +457,7 @@ export default function CaseDetailPage() {
     .filter((event) => new Date(event.startAt).getTime() >= Date.now())
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
 
-  // Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · existing LexFlow tokens
+  // Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · existing Samnuan tokens
   return (
     <div className="min-w-0 [overflow-wrap:anywhere]">
       <div className="mb-5">
@@ -421,10 +469,53 @@ export default function CaseDetailPage() {
           <CaseStatusBadge status={legalCase.status} />
         </div>
         <p className="mt-2 text-sm text-muted-foreground">{legalCase.ownRef} · ลูกค้า {clientDisplay}</p>
+        {/*
+          What a lawyer opens the case to learn, before anything else: who
+          holds it, what is next in court, and what is due soonest. The tabs
+          below are the way into each area, so no second set of links here.
+        */}
+        <dl className="mt-4 grid gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-muted-foreground">ผู้รับผิดชอบ</dt>
+            <dd className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">นัดถัดไป</dt>
+            <dd className="font-medium">
+              {upcomingEvents[0]
+                ? (
+                  <button
+                    type="button"
+                    className="hover:underline"
+                    onClick={() => selectTab('calendar')}
+                  >
+                    {formatDateTime(upcomingEvents[0].startAt)} · {upcomingEvents[0].title}
+                  </button>
+                )
+                : <span className="text-muted-foreground">ไม่มีนัดที่จะถึง</span>}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">งานใกล้ครบกำหนด</dt>
+            <dd className="font-medium">
+              {pendingTasks[0]
+                ? (
+                  <button
+                    type="button"
+                    className="hover:underline text-left"
+                    onClick={() => selectTab('tasks')}
+                  >
+                    {pendingTasks[0].title}{pendingTasks[0].dueDate ? ` · ${formatDate(pendingTasks[0].dueDate)}` : ''}
+                  </button>
+                )
+                : <span className="text-muted-foreground">ไม่มีงานค้าง</span>}
+            </dd>
+          </div>
+        </dl>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={() => router.push(`/cases/${id}/tasks`)}><CheckSquare className="h-4 w-4" />จัดการงาน</Button>
-          <Button variant="outline" onClick={() => router.push(`/cases/${id}/calendar`)}><CalendarDays className="h-4 w-4" />นัดหมาย</Button>
-          <Button variant="outline" onClick={() => router.push(`/cases/${id}/documents`)}><FileText className="h-4 w-4" />เอกสาร</Button>
+          <Button variant="outline" onClick={() => setRecordingOutcome(true)}>
+            <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
+          </Button>
         </div>
         {legalCase.status !== CaseStatus.CLOSED ? (
           <Button
@@ -501,26 +592,129 @@ export default function CaseDetailPage() {
         </Card>
       )}
 
-      <nav aria-label="เมนูคดี" className="mb-6 flex flex-wrap gap-1 border-b border-border">
-        {tabs.map((t) => (
-          t.href ? (
-            <Link
-              key={t.id}
-              href={t.href}
-              className="whitespace-nowrap rounded-t-md px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {t.label}
-            </Link>
-          ) : (
-            <span key={t.id} aria-current="page" className="whitespace-nowrap border-b-2 border-primary px-4 py-3 text-sm font-semibold text-primary">
-              {t.label}
-            </span>
-          )
-        ))}
-      </nav>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-2 border-b border-border">
+        <div role="tablist" aria-label="เมนูคดี" className="flex min-w-0 flex-1 flex-wrap gap-1">
+          {CASE_TAB_IDS.map((tabId) => {
+            const selected = activeTab === tabId;
+            return (
+              <button
+                key={tabId}
+                type="button"
+                role="tab"
+                id={`case-tab-${tabId}`}
+                aria-selected={selected}
+                aria-controls={`case-tabpanel-${tabId}`}
+                tabIndex={selected ? 0 : -1}
+                className={
+                  selected
+                    ? 'whitespace-nowrap border-b-2 border-primary px-4 py-3 text-sm font-semibold text-primary'
+                    : 'whitespace-nowrap rounded-t-md px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                }
+                onClick={() => selectTab(tabId)}
+              >
+                {CASE_TAB_LABELS[tabId]}
+              </button>
+            );
+          })}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mb-2 shrink-0"
+          aria-expanded={showAiAnalysis}
+          aria-controls="case-ai-analysis-panel"
+          onClick={() => setShowAiAnalysis(true)}
+        >
+          <Sparkles className="h-4 w-4" />
+          วิเคราะห์ด้วย AI
+        </Button>
+      </div>
 
-      <div className="mb-5"><BatchAnalysisPanel caseId={id} /></div>
+      {activeTab === 'tasks' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-tasks"
+          aria-labelledby="case-tab-tasks"
+          className="min-w-0"
+        >
+          <CaseTasksPanel caseId={id} />
+        </div>
+      )}
 
+      {activeTab === 'calendar' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-calendar"
+          aria-labelledby="case-tab-calendar"
+          className="min-w-0"
+        >
+          <CaseCalendarPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'documents' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-documents"
+          aria-labelledby="case-tab-documents"
+          className="min-w-0"
+        >
+          <CaseDocumentsPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'billing' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-billing"
+          aria-labelledby="case-tab-billing"
+          className="min-w-0"
+        >
+          <CaseBillingPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'insurance' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-insurance"
+          aria-labelledby="case-tab-insurance"
+          className="min-w-0"
+        >
+          <CaseInsurancePanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'messages' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-messages"
+          aria-labelledby="case-tab-messages"
+          className="min-w-0"
+        >
+          <CaseMessagesPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'closing-report' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-closing-report"
+          aria-labelledby="case-tab-closing-report"
+          className="min-w-0"
+        >
+          <CaseClosingReportPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'overview' && (
+      <div
+        role="tabpanel"
+        id="case-tabpanel-overview"
+        aria-labelledby="case-tab-overview"
+        className="min-w-0"
+      >
       <div className="grid items-start gap-5 lg:grid-cols-12">
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-1">
           <Card>
@@ -927,7 +1121,7 @@ export default function CaseDetailPage() {
                   );
                 })}
                 {timeline.length <= 1 && (
-                  <p className="text-sm text-muted-foreground">ยังไม่มีกิจกรรม เพิ่มนัดหมายหรือบันทึกความคืบหน้าเพื่อเริ่มติดตามคดี</p>
+                  <InlineEmptyState title="ยังไม่มีกิจกรรม" description="เพิ่มนัดหมายหรือบันทึกความคืบหน้าเพื่อเริ่มติดตามคดี" />
                 )}
               </div>
             </CardContent>
@@ -951,7 +1145,7 @@ export default function CaseDetailPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">
-                  Precedent Analysis / ผลวิเคราะห์ฎีกา
+                  {d.admin.precedentAnalysis}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -959,7 +1153,16 @@ export default function CaseDetailPage() {
                   วิเคราะห์เมื่อ {formatDateTime(latestPrecedentAnalysis.createdAt)}
                 </p>
 
-                <div>
+                {latestPrecedentAnalysis.documentSummary && (
+                  <div>
+                    <p className="text-sm font-medium">📝 {d.admin.documentEventSummary}</p>
+                    <p className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm leading-relaxed">
+                      {latestPrecedentAnalysis.documentSummary}
+                    </p>
+                  </div>
+                )}
+
+                <div className={latestPrecedentAnalysis.documentSummary ? 'border-t border-border pt-3' : undefined}>
                   <p className="text-sm font-medium">📚 ฎีกาที่เกี่ยวข้อง</p>
                   {latestPrecedentAnalysis.precedents.length > 0 ? (
                     <ul className="mt-2 space-y-2">
@@ -1006,21 +1209,32 @@ export default function CaseDetailPage() {
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm">งานที่ต้องทำ</CardTitle>
-              <Link href={`/cases/${id}/tasks`} className="text-xs text-primary hover:underline">ดูทั้งหมด</Link>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() => selectTab('tasks')}
+              >
+                ดูทั้งหมด
+              </button>
             </CardHeader>
             <CardContent className="space-y-2">
               {pendingTasks.slice(0, 4).map((t) => (
-                <Link href={`/cases/${id}/tasks`} key={t.id} className="flex items-start gap-3 rounded-lg border border-border px-3 py-3 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <button
+                  type="button"
+                  onClick={() => selectTab('tasks')}
+                  key={t.id}
+                  className="flex w-full items-start gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{t.title}</span>
                     <span className="mt-1 block text-xs text-muted-foreground">{t.dueDate ? `กำหนดส่ง ${formatDate(t.dueDate)}` : 'ยังไม่กำหนดวันส่ง'}</span>
                   </span>
                   <span className="text-xs text-muted-foreground">{TASK_STATUS_LABELS[t.status] ?? t.status}</span>
-                </Link>
+                </button>
               ))}
               {pendingTasks.length === 0 && (
-                <p className="text-sm text-muted-foreground">ไม่มีงานค้าง</p>
+                <InlineEmptyState title="ไม่มีงานค้าง" description="สร้างงานจากแท็บงานเมื่อมีสิ่งที่ต้องติดตามต่อ" />
               )}
             </CardContent>
           </Card>
@@ -1036,9 +1250,9 @@ export default function CaseDetailPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">ไม่มีนัดที่จะถึง</p>
+                <InlineEmptyState title="ไม่มีนัดที่จะถึง" description="เพิ่มนัดศาลหรือนัดลูกค้าจากปฏิทินคดีนี้" />
               )}
-              <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => router.push(`/cases/${id}/calendar`)}>
+              <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => selectTab('calendar')}>
                 <CalendarDays className="h-4 w-4" />เปิดปฏิทิน
               </Button>
             </CardContent>
@@ -1068,16 +1282,64 @@ export default function CaseDetailPage() {
             </CardContent>
           </Card>
 
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => router.push(`/cases/${id}/documents`)}>
-              <Upload className="h-4 w-4" />เอกสาร
-            </Button>
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => router.push(`/cases/${id}/billing`)}>
-              <FileText className="h-4 w-4" />ค่าใช้จ่าย
-            </Button>
-          </div>
         </div>
       </div>
+      </div>
+      )}
+
+      {/* AI file analysis opens as a right panel so the case page URL and
+          overview stay put — helper work, not a navigation target. */}
+      {showAiAnalysis && (
+        <>
+          <button
+            type="button"
+            aria-label="ปิดแผงวิเคราะห์ AI"
+            className="fixed inset-0 z-40 bg-black/40"
+            onClick={() => setShowAiAnalysis(false)}
+          />
+          <aside
+            id="case-ai-analysis-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="case-ai-analysis-title"
+            className="fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-md flex-col border-l border-border bg-card shadow-card sm:top-14"
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p id="case-ai-analysis-title" className="text-sm font-semibold">
+                    วิเคราะห์เนื้อหาไฟล์ด้วย AI
+                  </p>
+                  <p className="text-xs text-muted-foreground">สรุปเอกสารในคดีนี้</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="ปิด"
+                onClick={() => setShowAiAnalysis(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin">
+              <BatchAnalysisPanel caseId={id} />
+            </div>
+          </aside>
+        </>
+      )}
+
+      {recordingOutcome && (
+        <RecordHearingOutcomeDialog
+          legalCase={legalCase}
+          onClose={() => setRecordingOutcome(false)}
+          onSaved={loadCase}
+        />
+      )}
     </div>
   );
 }

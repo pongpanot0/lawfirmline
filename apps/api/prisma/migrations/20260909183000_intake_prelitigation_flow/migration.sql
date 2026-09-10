@@ -1,0 +1,21 @@
+CREATE TYPE "PreLitigationType" AS ENUM ('GENERAL', 'MEDICAL_CLAIM', 'TRANSPORT');
+
+CREATE TYPE "PreLitigationStatus" AS ENUM (
+  'NOT_STARTED',
+  'NOTICE_TO_SEND',
+  'NOTICE_SENT',
+  'UNDER_REVIEW',
+  'REPORT_PREPARED',
+  'OFFER_RECEIVED',
+  'NEGOTIATING',
+  'APPEAL_REVIEW',
+  'READY_TO_FILE',
+  'CLOSED_SETTLED',
+  'CLOSED_NO_FILE'
+);
+
+ALTER TABLE "Intake"
+ADD COLUMN "preLitigationType" "PreLitigationType" NOT NULL DEFAULT 'GENERAL',
+ADD COLUMN "preLitigationStatus" "PreLitigationStatus" NOT NULL DEFAULT 'NOT_STARTED',
+ADD COLUMN "preLitigationNotes" TEXT,
+ADD COLUMN "settlementOfferAmount" DOUBLE PRECISION;

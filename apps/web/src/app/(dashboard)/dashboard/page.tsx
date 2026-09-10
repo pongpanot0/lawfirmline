@@ -21,14 +21,16 @@ import {
 } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ActiveTask, DashboardStats, MyDayResponse } from '@/lib/api';
-import { AgendaRow } from '@/components/lexflow/AgendaRow';
-import { PageHeader, KpiCard, QuickActionButton } from '@/components/lexflow/PageHeader';
+import { AgendaRow } from '@/components/samnuan/AgendaRow';
+import { PageHeader, KpiCard, QuickActionButton } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CaseStatusBadge } from '@/components/lexflow/CaseStatusBadge';
+import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/misc';
+import { PageLoading, Skeleton, TableEmptyRow } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { MyDayPanel } from '@/components/agenda/MyDayPanel';
+import { FirmRole } from '@lawfirm/shared';
 import { fmt } from '@/lib/i18n/dashboard';
 
 /** Reads a task's own status, so a paused task never looks like it is moving. */
@@ -71,6 +73,7 @@ export default function DashboardPage() {
   const { token, user } = useAuth();
   const d = useDashboardT();
   const router = useRouter();
+  const isOwner = user?.firmRole === FirmRole.OWNER;
   const [data, setData] = useState<DashboardStats | null>(null);
   // `null` while in flight, `'error'` when the agenda alone failed. Kept apart
   // from `data` so a broken agenda costs the lawyer one card, not the page.
@@ -103,16 +106,7 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [token, d.common.loadFailed]);
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28" />)}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoading title={d.common.loading} lines={5} />;
 
   if (error) {
     return (
@@ -126,6 +120,29 @@ export default function DashboardPage() {
 
   const agendaReady = agenda !== null && agenda !== 'error';
 
+  /**
+   * The firm's money is the owner's question. A lawyer opening the app wants
+   * what is overdue, what is on today and what is waiting on them — so that is
+   * what they land on, with the case list one click away.
+   */
+  if (user.firmRole !== FirmRole.OWNER) {
+    return (
+      <div className="space-y-4">
+        <PageHeader
+          title={fmt(d.home.welcome, { name: user.firstName })}
+          description={data.firmName}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <QuickActionButton icon={Briefcase} label={d.nav.cases} onClick={() => router.push('/cases')} />
+              <QuickActionButton icon={Plus} label={d.nav.intake} onClick={() => router.push('/intake/new')} />
+            </div>
+          }
+        />
+        <MyDayPanel showHeader={false} />
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -134,10 +151,15 @@ export default function DashboardPage() {
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label={d.home.totalCases} value={data.stats.totalCases} icon={Briefcase} change={d.home.changeThisMonth} trend="up" />
+        {/*
+          No `change`/`trend` here: nothing computes a comparison, and the
+          arrow this used to show was hardcoded — an owner reading "+12% vs
+          last month" off a constant is worse served than by no figure at all.
+        */}
+        <KpiCard label={d.home.totalCases} value={data.stats.totalCases} icon={Briefcase} />
         <KpiCard label={d.home.activeCases} value={data.stats.openCases} icon={Activity} change={d.home.inProgress} trend="neutral" />
         <KpiCard label={d.home.upcomingHearings} value={data.stats.upcomingEvents} icon={CalendarDays} change={d.home.next30Days} trend="neutral" />
-        <KpiCard label={d.home.monthlyRevenue} value={formatCurrency(data.stats.monthlyRevenue)} icon={Banknote} change={d.home.revenueChange} trend="up" />
+        <KpiCard label={d.home.monthlyRevenue} value={formatCurrency(data.stats.monthlyRevenue)} icon={Banknote} change={d.home.thisMonth} trend="neutral" />
         <KpiCard label={d.home.totalNetProfit} value={formatCurrency(data.stats.totalNetProfit)} icon={TrendingUp} change={d.home.profitHint} trend={data.stats.totalNetProfit >= 0 ? 'up' : 'down'} />
       </div>
 
@@ -178,7 +200,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>{d.home.caseProfitByCase}</CardTitle>
-              <Link href="/expenses" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
+              <Link href="/reports" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -188,6 +210,7 @@ export default function DashboardPage() {
                     <TableHead>{d.home.client}</TableHead>
                     <TableHead className="text-right">{d.home.revenue}</TableHead>
                     <TableHead className="text-right">{d.home.profit}</TableHead>
+                    <TableHead className="text-right">ทำต่อ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -204,14 +227,36 @@ export default function DashboardPage() {
                       <TableCell className={`text-right font-semibold ${row.profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
                         {formatCurrency(row.profit)}
                       </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          <Link
+                            href={`/cases/${row.caseId}/calendar`}
+                            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                          >
+                            นัด
+                          </Link>
+                          <Link
+                            href={`/cases/${row.caseId}/documents`}
+                            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                          >
+                            เอกสาร
+                          </Link>
+                          <Link
+                            href={`/expenses/new?caseId=${row.caseId}`}
+                            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                          >
+                            เบิก
+                          </Link>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {(data.caseProfits ?? []).length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                        {d.cases.empty}
-                      </TableCell>
-                    </TableRow>
+                    <TableEmptyRow
+                      colSpan={5}
+                      title={d.cases.empty}
+                      description="สร้างคดีแรกเพื่อเริ่มเห็นรายได้ กำไร และทางลัดต่อคดี"
+                    />
                   )}
                 </TableBody>
               </Table>
@@ -252,11 +297,11 @@ export default function DashboardPage() {
                     </TableRow>
                   ))}
                   {data.upcomingHearings.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                        {d.home.noUpcomingCourt}
-                      </TableCell>
-                    </TableRow>
+                    <TableEmptyRow
+                      colSpan={5}
+                      title={d.home.noUpcomingCourt}
+                      description="เพิ่มนัดจากหน้าคดีเพื่อให้ระบบพกข้อมูลศาลและเลขคดีมาให้"
+                    />
                   )}
                 </TableBody>
               </Table>
@@ -322,16 +367,17 @@ export default function DashboardPage() {
               <QuickActionButton label={d.home.newCase} icon={Plus} onClick={() => router.push('/cases/new')} />
               <QuickActionButton label={d.home.addHearing} icon={Gavel} onClick={() => router.push('/court-schedule')} />
               <QuickActionButton label={d.home.uploadDocument} icon={Upload} onClick={() => router.push('/documents')} />
-              <QuickActionButton label={d.home.addClient} icon={UserPlus} onClick={() => router.push('/clients')} />
+              <QuickActionButton label={d.home.addClient} icon={UserPlus} onClick={() => router.push('/clients/new')} />
             </CardContent>
           </Card>
 
-          {data.pendingReimbursements.length > 0 && (
+          {(data.stats.pendingExpenses > 0 || data.stats.approvedExpenses > 0) && (
             <Card>
               <CardHeader className="flex-row items-center justify-between">
                 <CardTitle>{d.home.pendingExpenses}</CardTitle>
+                {/* The badge and the list share one definition: status PENDING. */}
                 <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
-                  {data.pendingReimbursements.length}
+                  {data.stats.pendingExpenses}
                 </span>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -339,11 +385,22 @@ export default function DashboardPage() {
                   <div key={e.id} className="flex items-center justify-between text-sm">
                     <div>
                       <p className="font-medium truncate max-w-[140px]">{e.description}</p>
-                      <p className="text-xs text-muted-foreground">{e.case?.ownRef ?? 'General / ทั่วไป'}</p>
+                      <p className="text-xs text-muted-foreground">{e.case?.ownRef ?? d.admin.generalCase}</p>
                     </div>
                     <p className="font-semibold">{formatCurrency(e.amount)}</p>
                   </div>
                 ))}
+                {data.stats.approvedExpenses > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {fmt(d.home.approvedAwaitingPayment, { count: data.stats.approvedExpenses })}
+                  </p>
+                )}
+                <Link
+                  href={isOwner ? '/admin/reimbursements?status=PENDING' : '/expenses'}
+                  className="block text-sm text-primary hover:underline"
+                >
+                  {d.common.viewAll}
+                </Link>
               </CardContent>
             </Card>
           )}

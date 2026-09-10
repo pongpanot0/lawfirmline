@@ -7,14 +7,21 @@ export class ClientPortalService {
   constructor(private prisma: PrismaService) {}
 
   async getMe(portalUser: PortalIdentity) {
-    const client = await this.prisma.client.findUnique({
-      where: { id: portalUser.clientId },
-      select: { id: true, name: true },
-    });
+    const [client, contact] = await Promise.all([
+      this.prisma.client.findUnique({
+        where: { id: portalUser.clientId },
+        select: { id: true, name: true },
+      }),
+      this.prisma.clientContact.findUnique({
+        where: { id: portalUser.clientContactId },
+        select: { passwordHash: true },
+      }),
+    ]);
     return {
       id: portalUser.clientContactId,
       name: portalUser.name,
       email: portalUser.email,
+      hasPassword: Boolean(contact?.passwordHash),
       client,
     };
   }

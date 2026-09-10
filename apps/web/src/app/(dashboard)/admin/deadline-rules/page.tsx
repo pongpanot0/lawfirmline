@@ -5,11 +5,12 @@ import { Plus, Trash2 } from 'lucide-react';
 import { DeadlineDayBasis, DeadlineTrigger, FirmRole } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseTypeItem, DeadlineRuleItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { InlineEmptyState } from '@/components/ui/misc';
 
 const TRIGGERS = Object.values(DeadlineTrigger);
 const BASES = Object.values(DeadlineDayBasis);
@@ -42,7 +43,7 @@ export default function DeadlineRulesPage() {
   }, [token]);
 
   if (user?.firmRole !== FirmRole.OWNER) {
-    return <p className="text-destructive">Access denied. Admin only. / ไม่มีสิทธิ์เข้าถึง เฉพาะ Admin</p>;
+    return <p className="text-destructive">{d.admin.accessDenied}</p>;
   }
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -190,7 +191,7 @@ export default function DeadlineRulesPage() {
       <Card>
         <CardContent className="pt-6">
           {rules.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{d.deadlineRules.empty}</p>
+            <InlineEmptyState title={d.deadlineRules.empty} description="เพิ่ม rule แรกเพื่อให้ระบบช่วยคำนวณกำหนดตามเหตุการณ์ของคดี" />
           ) : (
             <ul className="divide-y divide-border">
               {rules.map((rule) => (

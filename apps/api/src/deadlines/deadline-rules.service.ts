@@ -77,36 +77,32 @@ export class DeadlineRulesService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Starter rules for a new firm, written to be edited: the offsets follow
-   * common Thai civil procedure, but every firm's practice differs, so they are
-   * suggestions a lawyer confirms — never applied to a calendar on their own.
+   * Starter platform rules. Offsets follow common Thai civil procedure;
+   * they are suggestions a lawyer confirms — never applied to a calendar alone.
    */
-  async provisionDefaults(firmId: string, client: PrismaClientLike = this.prisma): Promise<void> {
-    const existing = await client.deadlineRule.count({ where: { firmId } });
+  async provisionDefaults(client: PrismaClientLike = this.prisma): Promise<void> {
+    const existing = await client.deadlineRule.count();
     if (existing > 0) return;
 
     await client.deadlineRule.createMany({
-      data: DEFAULT_RULES.map((rule) => ({ ...rule, firmId })),
+      data: DEFAULT_RULES.map((rule) => ({ ...rule })),
       skipDuplicates: true,
     });
   }
 
-  async list(user: AuthUser) {
-    // Firms created before deadline rules existed have none; provision on read,
-    // the same way case types do, so the admin screen is never blank.
-    await this.provisionDefaults(user.firmId);
+  async list(_user: AuthUser) {
+    await this.provisionDefaults();
 
     return this.prisma.deadlineRule.findMany({
-      where: { firmId: user.firmId },
       orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
     });
   }
 
-  create(user: AuthUser, dto: CreateDeadlineRuleDto) {
+  create(_user: AuthUser, dto: CreateDeadlineRuleDto) {
+    // Platform-global rules only in this pass — ignore per-firm caseType links.
     return this.prisma.deadlineRule.create({
       data: {
-        firmId: user.firmId,
-        caseTypeId: dto.caseTypeId ?? null,
+        caseTypeId: null,
         trigger: dto.trigger,
         label: dto.label,
         offsetDays: dto.offsetDays,
@@ -116,20 +112,21 @@ export class DeadlineRulesService {
     });
   }
 
-  async update(user: AuthUser, id: string, dto: UpdateDeadlineRuleDto) {
-    // updateMany with the firm in the filter, so another firm's id cannot be
-    // touched even by guessing it.
+  async update(_user: AuthUser, id: string, dto: UpdateDeadlineRuleDto) {
+    const { caseTypeId: _ignored, ...rest } = dto as UpdateDeadlineRuleDto & {
+      caseTypeId?: string | null;
+    };
     const result = await this.prisma.deadlineRule.updateMany({
-      where: { id, firmId: user.firmId },
-      data: { ...dto },
+      where: { id },
+      data: { ...rest, caseTypeId: null },
     });
     if (result.count === 0) throw new NotFoundException('Deadline rule not found');
     return { updated: true };
   }
 
-  async remove(user: AuthUser, id: string) {
+  async remove(_user: AuthUser, id: string) {
     const result = await this.prisma.deadlineRule.deleteMany({
-      where: { id, firmId: user.firmId },
+      where: { id },
     });
     if (result.count === 0) throw new NotFoundException('Deadline rule not found');
     return { deleted: true };
@@ -156,8 +153,8 @@ export class DeadlineRulesService {
       caseTypeId: legalCase.caseTypeId,
       trigger: dto.trigger,
       triggerDate: new Date(dto.triggerDate),
-      // No calendar event started this clock, so nothing to key duplicates on;
-      // re-firing the same trigger intentionally raises fresh suggestions.
+      // Manual clocks have no calendar event; idempotency uses PENDING rows
+      // for this case + rule instead of the (triggerEventId, deadlineRuleId) unique.
       triggerEventId: null,
       createdById: user.id,
     });
@@ -165,26 +162,32 @@ export class DeadlineRulesService {
   }
 
   /**
-   * @returns how many suggestions were created; re-running for the same trigger
-   *   creates none, thanks to the (triggerEventId, deadlineRuleId) uniqueness.
+   * @returns how many suggestions were created. Calendar-backed runs are
+   *   deduped by `(triggerEventId, deadlineRuleId)`. Manual runs (`triggerEventId`
+   *   null) skip any rule that already has a PENDING suggestion on the case —
+   *   Postgres unique indexes do not treat NULL as equal, so `skipDuplicates`
+   *   alone cannot stop a second manual fire.
    */
   async applyTrigger(context: DeadlineTriggerContext): Promise<number> {
     const rules = await this.prisma.deadlineRule.findMany({
       where: {
-        firmId: context.firmId,
         trigger: context.trigger,
         isActive: true,
-        OR: [{ caseTypeId: null }, ...(context.caseTypeId ? [{ caseTypeId: context.caseTypeId }] : [])],
+        // Global catalog: only null caseType rules in this pass.
+        caseTypeId: null,
       },
     });
     if (rules.length === 0) return 0;
 
+    const openRules = await this.rulesWithoutPendingSuggestion(context.caseId, rules, context.triggerEventId);
+    if (openRules.length === 0) return 0;
+
     const holidays = await this.loadHolidays(
       context.triggerDate,
-      Math.max(...rules.map((r) => r.offsetDays)),
+      Math.max(...openRules.map((r) => r.offsetDays)),
     );
 
-    const data = rules.map((rule) => ({
+    const data = openRules.map((rule) => ({
       caseId: context.caseId,
       label: rule.label,
       suggestedDate: new Date(
@@ -209,6 +212,32 @@ export class DeadlineRulesService {
       skipDuplicates: true,
     });
     return result.count;
+  }
+
+  /**
+   * Drop rules that already have a PENDING suggestion for this case.
+   * Calendar-backed: only rows tied to the same trigger event count.
+   * Manual: any PENDING for the rule on the case blocks a second card.
+   */
+  private async rulesWithoutPendingSuggestion<T extends { id: string }>(
+    caseId: string,
+    rules: T[],
+    triggerEventId: string | null,
+  ): Promise<T[]> {
+    const existing = await this.prisma.documentDateSuggestion.findMany({
+      where: {
+        caseId,
+        status: DateSuggestionStatus.PENDING,
+        source: DateSuggestionSource.RULE,
+        deadlineRuleId: { in: rules.map((r) => r.id) },
+        ...(triggerEventId ? { triggerEventId } : { triggerEventId: null }),
+      },
+      select: { deadlineRuleId: true },
+    });
+    const blocked = new Set(
+      existing.map((row) => row.deadlineRuleId).filter((id): id is string => id != null),
+    );
+    return rules.filter((rule) => !blocked.has(rule.id));
   }
 
   /**

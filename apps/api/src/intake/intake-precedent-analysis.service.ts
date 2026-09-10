@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser, RedactionCounts, redactForAi } from '@lawfirm/shared';
+import { AI_CREDIT_COST, AuthUser, RedactionCounts, redactForAi } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
-export const PRECEDENT_ANALYSIS_COST = 10;
+export const PRECEDENT_ANALYSIS_COST = AI_CREDIT_COST.PRECEDENT_ANALYSIS;
 
 /**
  * Cap on extracted attachment text — applied both when storing `extractedFacts`
@@ -47,6 +48,7 @@ export class IntakePrecedentAnalysisService {
     private config: ConfigService,
     private iapp: IappLegalClient,
     private docIntelligence: DocumentIntelligenceService,
+    private fileStorage: FileStorageService,
   ) {}
 
   private async gatherFacts(intake: {
@@ -65,8 +67,7 @@ export class IntakePrecedentAnalysisService {
       const texts: string[] = [];
       for (const attachment of intake.attachments) {
         try {
-          const fs = await import('fs');
-          const buffer = fs.readFileSync(attachment.storagePath);
+          const buffer = await this.fileStorage.getBuffer(attachment.storagePath);
           const text = await this.docIntelligence.extractText(buffer, attachment.mimeType);
           if (!text.trim()) throw new Error('ไม่พบข้อความในเอกสาร');
           if (text.length > Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / intake.attachments.length) - 150) attachmentWarnings.push(`อ่านเฉพาะบางส่วน: ${attachment.filename ?? 'เอกสาร'}`);
@@ -181,7 +182,7 @@ export class IntakePrecedentAnalysisService {
   private async summarizePrecedents(
     factsText: string,
     precedents: Array<{ dekaId: string; headnote: string; citedStatutes: string[] }>,
-  ): Promise<{ summaryBullets: string; noticeFacts: string }> {
+  ): Promise<{ documentSummary: string; summaryBullets: string; noticeFacts: string }> {
     const precedentsText =
       precedents.length > 0
         ? precedents
@@ -191,11 +192,15 @@ export class IntakePrecedentAnalysisService {
 
     const content = await this.callOpenAI(
       [
-        'คุณเป็นผู้ช่วยทนายความไทย งานของคุณคือสรุปฎีกาที่เกี่ยวข้องที่ให้มาเป็นข้อๆ สั้นๆ ให้ทนายอ่านเร็วๆ',
-        'และเตรียมข้อเท็จจริงในรูปแบบสำหรับใช้ร่างหนังสือบอกกล่าว',
+        'คุณเป็นผู้ช่วยทนายความไทย งานของคุณมีสามส่วน:',
+        '1) documentSummary — สรุปเหตุการณ์/เนื้อหาจากข้อเท็จจริงและเอกสารแนบให้ทนายอ่านเข้าใจเร็ว',
+        '   (ใคร เกิดอะไร เมื่อไหน ที่ไหน สัญญาณชีพ/อาการ/โรคประจำตัว/ประวัติสำคัญถ้ามี ผลตรวจหรือข้อเท็จจริงที่เอกสารระบุชัด)',
+        '   เขียนเป็นภาษาไทย plain language ห้ามแต่งข้อเท็จจริงที่ไม่มีในข้อมูลที่ให้มา',
+        '2) summaryBullets — สรุปฎีกาที่เกี่ยวข้องที่ให้มาเป็นข้อๆ สั้นๆ',
+        '3) noticeFacts — เตรียมข้อเท็จจริงในรูปแบบสำหรับใช้ร่างหนังสือบอกกล่าว',
         'ห้ามอ้างอิงฎีกาที่ไม่ได้อยู่ในรายการที่ให้มา ห้ามแต่งเลขฎีกาขึ้นเอง',
-        'ตอบเป็น JSON object เท่านั้นในรูปแบบ {"summaryBullets": string, "noticeFacts": string}',
-        'summaryBullets และ noticeFacts ต้องเป็น string (ไม่ใช่ array) — ใช้ \\n คั่นแต่ละข้อใน summaryBullets',
+        'ตอบเป็น JSON object เท่านั้นในรูปแบบ {"documentSummary": string, "summaryBullets": string, "noticeFacts": string}',
+        'ทุกฟิลด์ต้องเป็น string (ไม่ใช่ array) — ใช้ \\n คั่นบรรทัดใน documentSummary และแต่ละข้อใน summaryBullets',
       ].join(' '),
       `ข้อเท็จจริงของเรื่อง:\n${factsText}\n\nฎีกาที่ค้นพบ:\n${precedentsText}`,
       { json: true },
@@ -203,10 +208,12 @@ export class IntakePrecedentAnalysisService {
 
     try {
       const parsed = JSON.parse(this.stripJsonFences(content)) as {
+        documentSummary?: unknown;
         summaryBullets?: unknown;
         noticeFacts?: unknown;
       };
       return {
+        documentSummary: this.coerceSummaryText(parsed.documentSummary, '(ไม่สามารถสรุปเหตุการณ์ได้)'),
         summaryBullets: this.coerceSummaryText(parsed.summaryBullets, '(ไม่สามารถสรุปได้)'),
         noticeFacts: this.coerceSummaryText(parsed.noticeFacts, factsText),
       };
@@ -214,22 +221,58 @@ export class IntakePrecedentAnalysisService {
       this.logger.error(
         `Failed to parse OpenAI JSON response for precedent summary: ${content.slice(0, 200)}`,
       );
-      return { summaryBullets: content || '(ไม่สามารถสรุปได้)', noticeFacts: factsText };
+      return {
+        documentSummary: '(ไม่สามารถสรุปเหตุการณ์ได้)',
+        summaryBullets: content || '(ไม่สามารถสรุปได้)',
+        noticeFacts: factsText,
+      };
     }
   }
 
+  /**
+   * Every file on the intake that can be read for analysis.
+   *
+   * The page grew two stores: `IntakeAttachment`, which only the analyser could
+   * see, and `Document`, which is the repository that follows the case. A
+   * lawyer therefore had to upload the same PDF twice — once to have it read,
+   * once for it to survive becoming a case. `Document` is now the store the
+   * page writes to; attachments already on disk stay selectable here, and are
+   * carried over as documents when the intake becomes a case.
+   *
+   * A carried-over attachment has a document pointing at the same file, so the
+   * list is deduped by storage path to keep it out of the analysis twice.
+   */
+  private async selectableFiles(intakeId: string) {
+    const [documents, attachments] = await Promise.all([
+      this.prisma.document.findMany({
+        where: { intakeId },
+        select: { id: true, filename: true, mimeType: true, storagePath: true },
+      }),
+      this.prisma.intakeAttachment.findMany({
+        where: { intakeId },
+        select: { id: true, filename: true, mimeType: true, storagePath: true },
+      }),
+    ]);
+
+    const seen = new Set(documents.map((file) => file.storagePath));
+    return [...documents, ...attachments.filter((file) => !seen.has(file.storagePath))];
+  }
+
   async analyze(user: AuthUser, intakeId: string, attachmentIds?: string[]) {
-    const intake = await this.prisma.intake.findFirst({
+    const found = await this.prisma.intake.findFirst({
       where: { id: intakeId, firmId: user.firmId },
       include: { attachments: true },
     });
-    if (!intake) throw new NotFoundException('Intake not found');
+    if (!found) throw new NotFoundException('Intake not found');
+
+    const available = await this.selectableFiles(intakeId);
+    const intake = { ...found, attachments: available };
 
     if (attachmentIds !== undefined) {
-      if (attachmentIds.some((id) => !intake.attachments.some((file) => file.id === id))) {
+      if (attachmentIds.some((id) => !available.some((file) => file.id === id))) {
         throw new BadRequestException('ไฟล์ที่เลือกไม่อยู่ในเรื่องนี้ กรุณาโหลดรายการใหม่');
       }
-      intake.attachments = intake.attachments.filter((file) => attachmentIds.includes(file.id));
+      intake.attachments = available.filter((file) => attachmentIds.includes(file.id));
     }
     if (intake.attachments.length > 10) throw new BadRequestException('เลือกได้ไม่เกิน 10 ไฟล์ต่อครั้ง');
 
@@ -257,7 +300,10 @@ export class IntakePrecedentAnalysisService {
       );
       const precedents = topResults.map((r, i) => detailed[i] ?? r);
 
-      const { summaryBullets, noticeFacts } = await this.summarizePrecedents(factsText, precedents);
+      const { documentSummary, summaryBullets, noticeFacts } = await this.summarizePrecedents(
+        factsText,
+        precedents,
+      );
 
       const creditsCost = 0.1 + 0.1 * topResults.length; // search + N detail lookups (IC estimate)
 
@@ -268,6 +314,7 @@ export class IntakePrecedentAnalysisService {
           extractedFacts: facts as unknown as object,
           searchQueries: { query: searchQuery },
           precedents: precedents as unknown as object,
+          documentSummary,
           summaryBullets,
           noticeFacts,
           creditsCost,

@@ -30,22 +30,26 @@ export class CalendarController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.calendarService.findOne(id);
+  findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.calendarService.findOne(user, id);
   }
 
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateEventDto) {
-    return this.calendarService.create(dto, user.id);
+    return this.calendarService.create(user, dto);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateEventDto) {
-    return this.calendarService.update(id, dto);
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateEventDto,
+  ) {
+    return this.calendarService.update(user, id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.calendarService.remove(id);
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.calendarService.remove(user, id);
   }
 }

@@ -1,8 +1,11 @@
 # Production image for the Next.js web app (apps/web).
-# Build from the monorepo root: `docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.yourdomain.com .`
+# Build from the monorepo root:
+#   docker build -f apps/web/Dockerfile \
+#     --build-arg NEXT_PUBLIC_API_URL=https://api.yourdomain.com \
+#     --build-arg NEXT_PUBLIC_ROOT_DOMAIN=yourdomain.com .
 #
-# NEXT_PUBLIC_API_URL is baked into the client bundle at build time — it must
-# be passed as a build arg, not a runtime env var.
+# NEXT_PUBLIC_* vars are baked into the client bundle at build time — they must
+# be passed as build args, not runtime env vars.
 
 FROM node:20-slim AS builder
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
@@ -17,7 +20,9 @@ COPY packages/shared packages/shared
 COPY apps/web apps/web
 
 ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_ROOT_DOMAIN=samnaun.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_ROOT_DOMAIN=$NEXT_PUBLIC_ROOT_DOMAIN
 
 RUN pnpm --filter @lawfirm/shared build
 RUN pnpm --filter web build
@@ -31,7 +36,9 @@ WORKDIR /app
 
 COPY --from=builder /repo/apps/web/.next/standalone ./
 COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
-# apps/web has no public/ directory today — add a COPY line here if one is added later.
+COPY --from=builder /repo/apps/web/public ./apps/web/public
+# Ensure files are readable inside the container (logos may be mode 600 on host).
+RUN chmod -R a+rX apps/web/public
 
 EXPOSE 3000
 CMD ["node", "apps/web/server.js"]

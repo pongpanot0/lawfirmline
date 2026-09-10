@@ -163,43 +163,58 @@ Demo login: `admin@lawfirm.com` / `password123`
 - Uploads use ephemeral disk on Railway — use a volume or S3 for production file storage.
 - LINE webhook URL: `https://<api-service>.up.railway.app/line/webhook`
 
-## Deploy on your own VPS (Docker)
+## Deploy on EC2 (Docker + ECR)
 
-Runs the same 3 pieces (Postgres + API + Web) as containers on one server, behind a [Caddy](https://caddyserver.com/) reverse proxy that issues HTTPS certificates automatically. Uploaded files land on the VPS's own persistent disk (not ephemeral like Railway), so no S3/volume setup is required to get started.
+API + Web run as containers behind [Caddy](https://caddyserver.com/) (HTTPS). Images are **built on GitHub Actions (ARM)** and pushed to ECR, then pulled on the EC2 host (`t4g.*`). Do not `--build` on a small instance.
 
 ### 1. Point DNS at the server
 
-Before starting Caddy, create A records for both `yourdomain.com` and `api.yourdomain.com` pointing at the VPS's IP — Caddy needs these to resolve in order to issue certificates.
+Create these A records pointing at the EC2 IP **before** starting Caddy:
 
-### 2. Configure
+| Name | Type | Target |
+|------|------|--------|
+| `@` / apex | A | EC2 IP |
+| `api` | A | EC2 IP |
+| `*` (wildcard) | A | EC2 IP |
+
+The wildcard covers every firm subdomain (`thesiambarristers`, and any future signup). You do **not** add a DNS record per company.
+
+Caddy uses On-Demand TLS for `*.DOMAIN`: on first HTTPS hit it asks `GET /saas/caddy-ask?domain=…` and only issues a cert when that firm slug exists in the database.
+
+### 2. Configure on EC2
 
 ```bash
 cp .env.production.example .env
-# fill in DOMAIN, POSTGRES_PASSWORD, JWT_SECRET, JWT_REFRESH_SECRET, CLIENT_PORTAL_JWT_SECRET
+# fill in DOMAIN, ECR_REGISTRY, DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, CLIENT_PORTAL_JWT_SECRET
 # (openssl rand -hex 32 for each secret)
 ```
 
-### 3. Build and start
+`ECR_REGISTRY` for this account/region:
 
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
+```text
+905418334683.dkr.ecr.ap-southeast-7.amazonaws.com
 ```
 
-First boot runs `prisma migrate deploy` automatically before the API starts. To seed demo data once:
+### 3. First start (after CI has pushed images, or pull manually)
 
 ```bash
+aws ecr get-login-password --region ap-southeast-7 \
+  | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml exec api pnpm prisma migrate deploy
+# optional once:
 docker compose -f docker-compose.prod.yml exec api pnpm prisma db seed
 ```
 
-### 4. Redeploying after a code change
+### 4. Continuous deploy
 
-```bash
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
-```
+Push to `main` runs `.github/workflows/deploy.yml`: build arm64 images → ECR → SSH to EC2 → `pull` + `up -d`.
+
+Required GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DOMAIN`, `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`, `EC2_APP_DIR`.
 
 ### Notes
 
-- Postgres data, uploaded files, and Caddy's TLS certificates all live in named Docker volumes (`postgres_data`, `uploads`, `caddy_data`) — they survive `docker compose down` and rebuilds. Only `docker compose down -v` deletes them.
-- `CLIENT_PORTAL_EXPOSE_DEV_TOKEN` is hardcoded to `false` in `docker-compose.prod.yml` — the client-portal magic-link token is never exposed in API responses in this setup; login is via the actual emailed link (requires `SENDGRID_API_KEY`/`SENDGRID_FROM_EMAIL` to be set, or the link has to be pulled from server logs during initial testing).
-- Back up the `postgres_data` volume regularly (e.g. `docker compose -f docker-compose.prod.yml exec postgres pg_dump -U lawfirm lawfirm > backup.sql`) — a VPS has no automatic snapshot unless the provider offers one separately.
+- Uploaded files and Caddy TLS certs live in Docker volumes (`uploads`, `caddy_data`) — they survive redeploys. Only `docker compose down -v` deletes them.
+- `CLIENT_PORTAL_EXPOSE_DEV_TOKEN` is hardcoded to `false` in `docker-compose.prod.yml`.
+- Prefer an EC2 instance IAM role for ECR pull + S3 (set IMDS hop limit to 2 for containers).

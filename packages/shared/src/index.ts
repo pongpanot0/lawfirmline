@@ -10,6 +10,102 @@ export enum FirmRole {
   ASSISTANT = 'ASSISTANT',
 }
 
+/** Subdomains that cannot be claimed as a firm slug. */
+export const RESERVED_FIRM_SLUGS = [
+  'www',
+  'api',
+  'app',
+  'admin',
+  'mail',
+  'portal',
+  'static',
+  'assets',
+] as const;
+
+export const DEFAULT_ROOT_DOMAIN = 'samnaun.com';
+
+export function isReservedFirmSlug(slug: string): boolean {
+  return (RESERVED_FIRM_SLUGS as readonly string[]).includes(slug.toLowerCase());
+}
+
+/**
+ * Extract firm slug from a Host header.
+ * Returns null for apex / www / api / unknown hosts (no tenant).
+ */
+export function extractFirmSlugFromHost(
+  hostHeader: string | null | undefined,
+  rootDomain: string = DEFAULT_ROOT_DOMAIN,
+): string | null {
+  if (!hostHeader) return null;
+  const host = hostHeader.split(':')[0]?.toLowerCase().trim();
+  if (!host) return null;
+
+  const root = rootDomain.toLowerCase();
+  if (host === root || host === `www.${root}` || host === `api.${root}`) {
+    return null;
+  }
+  if (host.endsWith(`.${root}`)) {
+    const sub = host.slice(0, -(root.length + 1));
+    if (!sub || sub.includes('.') || isReservedFirmSlug(sub)) return null;
+    return sub;
+  }
+
+  // Dev: thesiambarristers.localhost
+  if (host.endsWith('.localhost')) {
+    const sub = host.slice(0, -'.localhost'.length);
+    if (!sub || sub.includes('.') || isReservedFirmSlug(sub)) return null;
+    return sub;
+  }
+
+  return null;
+}
+
+function splitHostPort(hostHeader: string): { hostname: string; port: string } {
+  const trimmed = hostHeader.trim();
+  const idx = trimmed.lastIndexOf(':');
+  if (idx > -1 && /^\d+$/.test(trimmed.slice(idx + 1))) {
+    return { hostname: trimmed.slice(0, idx).toLowerCase(), port: trimmed.slice(idx + 1) };
+  }
+  return { hostname: trimmed.toLowerCase(), port: '' };
+}
+
+/**
+ * Build the origin for a firm's subdomain, preserving localhost/port for local dev.
+ */
+export function buildFirmAppOrigin(opts: {
+  firmSlug: string;
+  currentHost: string;
+  protocol?: string;
+  rootDomain?: string;
+}): string {
+  const rootDomain = (opts.rootDomain ?? DEFAULT_ROOT_DOMAIN).toLowerCase();
+  const protocol = opts.protocol ?? 'https:';
+  const { hostname, port } = splitHostPort(opts.currentHost);
+  const slug = opts.firmSlug.toLowerCase();
+
+  const isLocal =
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname === '127.0.0.1';
+
+  if (isLocal) {
+    const host = `${slug}.localhost${port ? `:${port}` : ''}`;
+    return `${protocol}//${host}`;
+  }
+
+  return `${protocol}//${slug}.${rootDomain}`;
+}
+
+/** True when the browser is not already on the user's firm subdomain. */
+export function needsFirmHostRedirect(
+  currentHost: string,
+  firmSlug: string,
+  rootDomain: string = DEFAULT_ROOT_DOMAIN,
+): boolean {
+  const currentSlug = extractFirmSlugFromHost(currentHost, rootDomain);
+  return currentSlug !== firmSlug.toLowerCase();
+}
+
 export enum SubscriptionPlan {
   SOLO = 'SOLO',
   FIRM = 'FIRM',
@@ -151,6 +247,16 @@ export enum DateSuggestionStatus {
 }
 
 export enum ExpenseStatus {
+  /** Saved by its author and not yet claimed — no money is committed. */
+  DRAFT = 'DRAFT',
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  PAID = 'PAID',
+  REJECTED = 'REJECTED',
+}
+
+/** A batch of expenses submitted together for owner review. */
+export enum ExpenseClaimStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   PAID = 'PAID',
@@ -296,6 +402,7 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   firmId: string;
+  firmSlug: string;
   firmName: string;
   firmRole: FirmRole;
   subscriptionStatus: SubscriptionStatus;
@@ -333,3 +440,4 @@ export * from './validation';
 export * from './pii';
 export * from './agenda';
 export * from './ai-redaction';
+export * from './ai-credits';

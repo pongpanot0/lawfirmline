@@ -170,7 +170,7 @@ export function AIAssistantPanel({ caseId }: AIAssistantPanelProps) {
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <p className="text-sm font-semibold">LexFlow AI</p>
+            <p className="text-sm font-semibold">Samnuan AI</p>
             <p className="text-xs text-muted-foreground">ขับเคลื่อนโดย GPT-4o</p>
           </div>
         </div>

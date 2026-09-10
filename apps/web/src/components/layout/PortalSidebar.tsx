@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Inbox, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Inbox, Settings, LogOut, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
 import { PortalContact } from '@/lib/portal-api';
+import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 
 const NAV_ITEMS = [
   { href: '/portal', label: 'ภาพรวม', icon: LayoutDashboard },
+  { href: '/portal/operations', label: 'งานดำเนินการ', icon: Briefcase },
   { href: '/portal/intake', label: 'เรื่องที่ส่ง', icon: Inbox },
   { href: '/portal/settings', label: 'ตั้งค่าการแจ้งเตือน', icon: Settings },
 ] as const;
@@ -28,11 +30,9 @@ export function PortalSidebar({ contact, onLogout }: { contact: PortalContact; o
   return (
     <aside className="hidden h-dvh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 md:flex">
       <div className="mb-6 flex items-center gap-2.5 px-2">
-        <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-primary text-sm font-extrabold text-primary-foreground">
-          LF
-        </div>
+        <SamnuanLogo wordmark={false} markClassName="h-[34px] w-[34px] rounded-[9px]" />
         <div>
-          <p className="text-[15px] font-bold leading-tight">LexFlow</p>
+          <p className="text-[15px] font-bold leading-tight">Samnuan</p>
           <p className="text-[11px] font-medium text-muted-foreground">Client Portal</p>
         </div>
       </div>

@@ -38,7 +38,7 @@ export class SaasAuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const trialEndAt = this.tenant.trialEndDate();
-    const slug = this.tenant.slugify(dto.firmName);
+    const slug = await this.tenant.allocateSlug(dto.firmName);
 
     const user = await this.prisma.$transaction(async (tx) => {
       const firm = await tx.firm.create({
@@ -75,14 +75,14 @@ export class SaasAuthService {
       });
 
       await this.caseTypes.provisionDefaults(firm.id, tx);
-      await this.deadlineRules.provisionDefaults(firm.id, tx);
+      await this.deadlineRules.provisionDefaults(tx);
 
       await tx.auditLog.create({
         data: {
           firmId: firm.id,
           userId: createdUser.id,
           action: 'FIRM_REGISTERED',
-          metadata: { email: maskEmail(dto.email) },
+          metadata: { email: maskEmail(dto.email), slug },
         },
       });
 

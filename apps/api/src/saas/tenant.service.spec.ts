@@ -113,3 +113,38 @@ describe('TenantService.updateMemberRole', () => {
     });
   });
 });
+
+describe('TenantService.allowOnDemandTls', () => {
+  let service: TenantService;
+  const mockPrisma = {
+    firm: { findUnique: jest.fn() },
+  };
+  const prevRoot = process.env.ROOT_DOMAIN;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    process.env.ROOT_DOMAIN = 'samnaun.com';
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [TenantService, { provide: PrismaService, useValue: mockPrisma }],
+    }).compile();
+    service = module.get(TenantService);
+  });
+
+  afterAll(() => {
+    if (prevRoot === undefined) delete process.env.ROOT_DOMAIN;
+    else process.env.ROOT_DOMAIN = prevRoot;
+  });
+
+  it('allows known firm subdomains', async () => {
+    mockPrisma.firm.findUnique.mockResolvedValue({ id: 'f1', slug: 'thesiambarristers' });
+    await expect(service.allowOnDemandTls('thesiambarristers.samnaun.com')).resolves.toBe(true);
+  });
+
+  it('denies apex, reserved, and unknown slugs', async () => {
+    mockPrisma.firm.findUnique.mockResolvedValue(null);
+    await expect(service.allowOnDemandTls('samnaun.com')).resolves.toBe(false);
+    await expect(service.allowOnDemandTls('api.samnaun.com')).resolves.toBe(false);
+    await expect(service.allowOnDemandTls('no-such-firm.samnaun.com')).resolves.toBe(false);
+    await expect(service.allowOnDemandTls(undefined)).resolves.toBe(false);
+  });
+});

@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { FolderOpen, Upload, Search, FileText, Scale, Shield, Gavel, Eye } from 'lucide-react';
+import { CaseStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, CaseItem, DocumentItem } from '@/lib/api';
-import { PageHeader } from '@/components/lexflow/PageHeader';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,6 +19,8 @@ import { fmt } from '@/lib/i18n/dashboard';
 
 export default function DocumentsPage() {
   const d = useDashboardT();
+  const searchParams = useSearchParams();
+  const caseIdParam = searchParams.get('caseId') ?? '';
   const CATEGORIES = [
     { id: 'complaint', label: d.documents.catComplaint, icon: Gavel },
     { id: 'evidence', label: d.documents.catEvidence, icon: FileText },
@@ -37,13 +41,23 @@ export default function DocumentsPage() {
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
   const dropZoneRef = useRef<DocumentDropZoneHandle>(null);
 
+  // Closed cases sink to the bottom: they are rarely the destination, and a
+  // file that lands in one by accident is hard to notice.
+  const caseOptions = [...cases].sort(
+    (a, b) => Number(a.status === CaseStatus.CLOSED) - Number(b.status === CaseStatus.CLOSED),
+  );
+
   useEffect(() => {
     if (!token) return;
-    api.getCases(token).then((c) => {
-      setCases(c);
-      if (c[0]) setSelectedCase(c[0].id);
-    });
+    // No case is picked for the user: a file lands where they said, not
+    // where the list happened to start.
+    api.getCases(token).then(setCases);
   }, [token]);
+
+  useEffect(() => {
+    if (!caseIdParam) return;
+    setSelectedCase((current) => current || caseIdParam);
+  }, [caseIdParam]);
 
   const loadDocuments = (caseId: string) => {
     if (!token || !caseId) return;
@@ -184,8 +198,19 @@ export default function DocumentsPage() {
                 onChange={(e) => setSelectedCase(e.target.value)}
                 className="w-full h-9 rounded-lg border border-input bg-card px-3 text-sm"
               >
-                {cases.map((c) => <option key={c.id} value={c.id}>{c.ownRef}</option>)}
+                <option value="">{d.documents.selectCase}</option>
+                {caseOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.ownRef} — {c.title}
+                    {c.status === CaseStatus.CLOSED ? ` (${d.documents.caseClosedTag})` : ''}
+                  </option>
+                ))}
               </select>
+              {caseIdParam && selectedCase === caseIdParam && (
+                <p className="text-xs text-muted-foreground">
+                  เลือกคดีจากหน้าที่แล้วให้อัตโนมัติ เปลี่ยนได้ถ้าต้องการ
+                </p>
+              )}
               <DocumentDropZone
                 ref={dropZoneRef}
                 label={selectedCase ? d.documents.dropHint : d.documents.selectCaseHint}

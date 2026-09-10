@@ -21,13 +21,31 @@ async function goto(page: Page, route: string) {
   await page.waitForTimeout(600);
 }
 
+async function expectDashboardLoaded(page: Page) {
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.locator('main h1')).toContainText('แดชบอร์ด');
+  await expect(page.getByText('คดีทั้งหมด').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'กำไรแต่ละคดี' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'นัดศาลที่จะถึง' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ทางลัด' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'สร้างคดีใหม่' }).last()).toBeVisible();
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1),
+    )
+    .toBe(true);
+}
+
 test.describe.configure({ mode: 'serial' });
 
 let caseId = '';
 
 test('02 — แดชบอร์ด', async ({ page }) => {
   await goto(page, '/dashboard');
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expectDashboardLoaded(page);
 
   caseId =
     (await page.evaluate(() => {
@@ -52,6 +70,48 @@ test('02 — แดชบอร์ด', async ({ page }) => {
       { selector: 'button:has-text("สร้างคดีใหม่")', label: 'ปุ่มลัด สร้างคดีใหม่', place: 'left', nth: 1 },
     ],
   });
+});
+
+test('02.1 — แดชบอร์ด smoke และทางลัด', async ({ page }) => {
+  await goto(page, '/dashboard');
+  await expectDashboardLoaded(page);
+
+  await page.getByRole('button', { name: 'สร้างคดีใหม่' }).last().click();
+  await expect(page).toHaveURL(/\/cases\/new$/);
+
+  await goto(page, '/dashboard');
+  await page.getByRole('button', { name: 'เพิ่มนัดศาล' }).click();
+  await expect(page).toHaveURL(/\/court-schedule$/);
+
+  await goto(page, '/dashboard');
+  await page.getByRole('button', { name: 'อัปโหลดเอกสาร' }).click();
+  await expect(page).toHaveURL(/\/documents$/);
+
+  await goto(page, '/dashboard');
+  await page.getByRole('button', { name: 'เพิ่มลูกค้า' }).click();
+  await expect(page).toHaveURL(/\/clients\/new$/);
+});
+
+test('02.2 — แดชบอร์ด mobile ไม่มีหน้าล้น', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await goto(page, '/dashboard');
+  await expectDashboardLoaded(page);
+  await expectNoHorizontalOverflow(page);
+});
+
+test('02.3 — action ต่อคดียก case context ไปใช้ต่อ', async ({ page }) => {
+  test.skip(!caseId, 'no seeded case found');
+  await goto(page, '/dashboard');
+  const firstRow = page.locator('main tbody tr').first();
+  await expect(firstRow.getByRole('link', { name: 'นัด' })).toHaveAttribute('href', `/cases/${caseId}/calendar`);
+  await expect(firstRow.getByRole('link', { name: 'เอกสาร' })).toHaveAttribute('href', `/cases/${caseId}/documents`);
+  await expect(firstRow.getByRole('link', { name: 'เบิก' })).toHaveAttribute('href', `/expenses/new?caseId=${caseId}`);
+
+  await goto(page, `/expenses/new?caseId=${caseId}`);
+  await expect(page.locator('main select').last()).toHaveValue(caseId);
+
+  await goto(page, `/documents?caseId=${caseId}`);
+  await expect(page.locator('main select').last()).toHaveValue(caseId);
 });
 
 test('03 — รายการคดี', async ({ page }) => {
@@ -99,7 +159,7 @@ test('05 — สร้างคดีใหม่ ขั้นที่ 1 เล
     callouts: [
       { selector: 'h1', label: 'หัวข้อหน้า สร้างคดีใหม่', place: 'right' },
       { selector: 'main button:has-text("Litigation")', label: 'คลิกเลือกประเภทคดี', place: 'right' },
-      { selector: 'button:has-text("Next")', label: 'กด Next เพื่อไปขั้นถัดไป (ต้องเลือกประเภทก่อน)', place: 'top' },
+      { selector: 'button:has-text("ถัดไป"), button:has-text("Next")', label: 'กดถัดไปเพื่อไปขั้นถัดไป (ต้องเลือกประเภทก่อน)', place: 'top' },
     ],
   });
 });
@@ -107,7 +167,7 @@ test('05 — สร้างคดีใหม่ ขั้นที่ 1 เล
 test('06 — สร้างคดีใหม่ ขั้นที่ 2 ข้อมูลคดี', async ({ page }) => {
   await goto(page, '/cases/new');
   await page.click('main button:has-text("Litigation")');
-  await page.click('button:has-text("Next")');
+  await page.click('button:has-text("ถัดไป"), button:has-text("Next")');
   await page.waitForTimeout(500);
   await capture(page, {
     id: '06-case-new-step2',
@@ -120,7 +180,7 @@ test('06 — สร้างคดีใหม่ ขั้นที่ 2 ข้
       { selector: 'input[placeholder="เช่น 123/2567"]', label: 'เลขดำ รูปแบบ 123/2567', place: 'right' },
       { selector: 'input[placeholder="เช่น 456/2567"]', label: 'เลขแดง รูปแบบ 456/2567', place: 'right' },
       { selector: 'input[type="number"]', label: 'รายได้โดยประมาณ ต้องเป็นตัวเลขไม่ติดลบ', place: 'right' },
-      { selector: 'button:has-text("Next")', label: 'ไปขั้นตอนถัดไป', place: 'top' },
+      { selector: 'button:has-text("ถัดไป"), button:has-text("Next")', label: 'ไปขั้นตอนถัดไป', place: 'top' },
     ],
   });
 });
@@ -259,7 +319,9 @@ test('14 — เอกสารรวม', async ({ page }) => {
 
 test('15 — ค่าใช้จ่ายและการเงิน', async ({ page }) => {
   await goto(page, '/expenses');
-  await page.click('button:has-text("New Expense")').catch(() => {});
+  await page
+    .click('button:has-text("ค่าใช้จ่ายใหม่"), button:has-text("เพิ่มรายการ"), button:has-text("New Expense")', { timeout: 3_000 })
+    .catch(() => {});
   await page.waitForTimeout(400);
   await capture(page, {
     id: '15-expenses',

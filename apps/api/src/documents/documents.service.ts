@@ -1,20 +1,16 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 @Injectable()
 export class DocumentsService {
   constructor(
     private prisma: PrismaService,
-    private config: ConfigService,
+    private fileStorage: FileStorageService,
   ) {}
-
-  private getUploadDir() {
-    return this.config.get<string>('UPLOAD_DIR') ?? './uploads';
-  }
 
   private async verifyDocument(caseId: string, documentId: string) {
     const document = await this.prisma.document.findFirst({
@@ -45,8 +41,52 @@ export class DocumentsService {
     });
   }
 
+  /**
+   * Give every legacy intake attachment a `Document` row.
+   *
+   * The intake page grew two file stores: `IntakeAttachment`, which only the AI
+   * analyser could read, and `Document`, the repository that follows the case.
+   * A lawyer had to upload the same PDF twice for it to be both analysed and
+   * kept. `Document` is the store the page writes to now, and this adopts what
+   * the other store already holds so one list covers both.
+   *
+   * The new row points at the file already on disk — nothing is copied, moved
+   * or deleted, so a failure part-way cannot lose a file. It is safe to call
+   * repeatedly: a storage path some document already claims is skipped.
+   *
+   * @param caseId when the intake is becoming a case, adopt straight onto it.
+   */
+  async adoptIntakeAttachments(intakeId: string, caseId?: string) {
+    const [attachments, claimed] = await Promise.all([
+      this.prisma.intakeAttachment.findMany({ where: { intakeId } }),
+      this.prisma.document.findMany({
+        where: caseId ? { OR: [{ intakeId }, { caseId }] } : { intakeId },
+        select: { storagePath: true },
+      }),
+    ]);
+
+    const claimedPaths = new Set(claimed.map((document) => document.storagePath));
+    const unclaimed = attachments.filter(
+      (attachment) => !claimedPaths.has(attachment.storagePath),
+    );
+    if (unclaimed.length === 0) return;
+
+    await this.prisma.document.createMany({
+      data: unclaimed.map((attachment) => ({
+        caseId: caseId ?? null,
+        intakeId: caseId ? null : intakeId,
+        filename: attachment.filename,
+        storagePath: attachment.storagePath,
+        mimeType: attachment.mimeType,
+        version: 1,
+        uploadedById: attachment.uploadedById,
+      })),
+    });
+  }
+
   async findByIntake(user: AuthUser, intakeId: string) {
     await this.verifyIntake(user, intakeId);
+    await this.adoptIntakeAttachments(intakeId);
     return this.prisma.document.findMany({
       where: { intakeId },
       include: {
@@ -81,9 +121,6 @@ export class DocumentsService {
     caseId: string,
     file: Express.Multer.File,
   ) {
-    const uploadDir = path.join(this.getUploadDir(), caseId);
-    fs.mkdirSync(uploadDir, { recursive: true });
-
     const document = await this.prisma.document.create({
       data: {
         caseId,
@@ -96,8 +133,8 @@ export class DocumentsService {
     });
 
     const ext = path.extname(file.originalname);
-    const storagePath = path.join(uploadDir, `${document.id}_v1${ext}`);
-    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
     const updated = await this.prisma.document.update({
       where: { id: document.id },
@@ -111,6 +148,7 @@ export class DocumentsService {
         storagePath,
         filename: file.originalname,
         mimeType: file.mimetype,
+        createdById: user.id,
       },
     });
 
@@ -123,9 +161,6 @@ export class DocumentsService {
     file: Express.Multer.File,
   ) {
     await this.verifyIntake(user, intakeId);
-
-    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId, 'documents');
-    fs.mkdirSync(uploadDir, { recursive: true });
 
     const document = await this.prisma.document.create({
       data: {
@@ -140,8 +175,8 @@ export class DocumentsService {
     });
 
     const ext = path.extname(file.originalname);
-    const storagePath = path.join(uploadDir, `${document.id}_v1${ext}`);
-    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    const key = path.posix.join('intake', intakeId, 'documents', `${document.id}_v1${ext}`);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
     const updated = await this.prisma.document.update({
       where: { id: document.id },
@@ -155,6 +190,7 @@ export class DocumentsService {
         storagePath,
         filename: file.originalname,
         mimeType: file.mimetype,
+        createdById: user.id,
       },
     });
 
@@ -166,19 +202,21 @@ export class DocumentsService {
     caseId: string,
     documentId: string,
     file: Express.Multer.File,
+    notes?: string,
   ) {
     const document = await this.verifyDocument(caseId, documentId);
 
     const newVersion = document.version + 1;
-    const uploadDir = path.join(this.getUploadDir(), caseId);
-    fs.mkdirSync(uploadDir, { recursive: true });
-
     const ext = path.extname(file.originalname);
-    const storagePath = path.join(
-      uploadDir,
-      `${documentId}_v${newVersion}${ext}`,
-    );
-    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    const key = path.posix.join('cases', caseId, `${documentId}_v${newVersion}${ext}`);
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
+
+    // A fresh version was uploaded — any earlier version's approval no
+    // longer applies to what's on disk now.
+    await this.prisma.documentVersion.updateMany({
+      where: { documentId, status: 'APPROVED' as any },
+      data: { status: 'SUPERSEDED' as any },
+    });
 
     await this.prisma.documentVersion.create({
       data: {
@@ -187,6 +225,8 @@ export class DocumentsService {
         storagePath,
         filename: file.originalname,
         mimeType: file.mimetype,
+        createdById: user.id,
+        notes,
       },
     });
 
@@ -212,15 +252,14 @@ export class DocumentsService {
     const document = await this.verifyIntakeDocument(intakeId, documentId);
 
     const newVersion = document.version + 1;
-    const uploadDir = path.join(this.getUploadDir(), 'intake', intakeId, 'documents');
-    fs.mkdirSync(uploadDir, { recursive: true });
-
     const ext = path.extname(file.originalname);
-    const storagePath = path.join(
-      uploadDir,
+    const key = path.posix.join(
+      'intake',
+      intakeId,
+      'documents',
       `${documentId}_v${newVersion}${ext}`,
     );
-    fs.writeFileSync(storagePath, this.getFileBuffer(file));
+    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
     await this.prisma.documentVersion.create({
       data: {
@@ -242,6 +281,45 @@ export class DocumentsService {
         uploadedById: user.id,
       },
     });
+  }
+
+  /**
+   * Remove a file from an intake.
+   *
+   * A wrongly uploaded scan — the wrong client's ID card, say — has to be
+   * removable, and was while the page wrote to the attachment store. Deleting
+   * the document alone is not enough: the attachment row it was adopted from
+   * would put the file straight back on the next listing, so that row goes too.
+   *
+   * The file on disk is only unlinked once no other document or version points
+   * at it, and a failure to unlink does not fail the request: an orphaned file
+   * is recoverable, a row deleted with the file still listed is not.
+   */
+  async removeFromIntake(user: AuthUser, intakeId: string, documentId: string) {
+    await this.verifyIntake(user, intakeId);
+    const document = await this.verifyIntakeDocument(intakeId, documentId);
+
+    const versions = await this.prisma.documentVersion.findMany({
+      where: { documentId },
+      select: { storagePath: true },
+    });
+    const paths = [...new Set([document.storagePath, ...versions.map((v) => v.storagePath)])];
+
+    await this.prisma.document.delete({ where: { id: documentId } });
+    await this.prisma.intakeAttachment.deleteMany({
+      where: { intakeId, storagePath: { in: paths } },
+    });
+
+    for (const storagePath of paths) {
+      const [stillDocumented, stillVersioned] = await Promise.all([
+        this.prisma.document.count({ where: { storagePath } }),
+        this.prisma.documentVersion.count({ where: { storagePath } }),
+      ]);
+      if (stillDocumented > 0 || stillVersioned > 0) continue;
+      await this.fileStorage.delete(storagePath);
+    }
+
+    return { deleted: true };
   }
 
   async getFilePath(caseId: string, documentId: string, version?: number) {
