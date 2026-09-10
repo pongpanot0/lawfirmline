@@ -1,16 +1,23 @@
 # Production deploy: API + Web behind a Caddy reverse proxy (Postgres via RDS)
-# with automatic HTTPS. Run from a VPS with Docker + Docker Compose installed.
+# with automatic HTTPS. Images are pulled from ECR (built by GitHub Actions).
 #
 # Setup:
 #   1. cp .env.production.example .env   # then fill in real values (DATABASE_URL = RDS)
 #   2. Point DOMAIN's DNS A record (and api.DOMAIN) at this VPS's IP first —
 #      Caddy needs that to succeed before it can issue a TLS certificate.
-#   3. docker compose -f docker-compose.prod.yml up -d --build
-#   4. docker compose -f docker-compose.prod.yml exec api pnpm prisma migrate deploy
-#   5. docker compose -f docker-compose.prod.yml exec api pnpm prisma db seed   # optional
+#   3. aws ecr get-login-password --region ap-southeast-7 \
+#        | docker login --username AWS --password-stdin $ECR_REGISTRY
+#   4. docker compose -f docker-compose.prod.yml pull
+#   5. docker compose -f docker-compose.prod.yml up -d
+#   6. docker compose -f docker-compose.prod.yml exec api pnpm prisma migrate deploy
+#   7. docker compose -f docker-compose.prod.yml exec api pnpm prisma db seed   # optional
+#
+# Local rebuild (not recommended on t4g.small):
+#   docker compose -f docker-compose.prod.yml up -d --build
 
 services:
   api:
+    image: ${ECR_REGISTRY}/lawfirm-api:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -49,6 +56,7 @@ services:
     networks: [internal]
 
   web:
+    image: ${ECR_REGISTRY}/lawfirm-web:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
