@@ -62,6 +62,12 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   useEffect(() => {
     setTask(null);
     setNotice('');
+    setError('');
+    setLabelDraft('');
+    setSubtaskTitle('');
+    setComment('');
+    setUploadError('');
+    setDownloadingId(null);
     void load();
   }, [load]);
 
@@ -304,10 +310,19 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
             <section>
               <h3 className="text-sm font-semibold">{d.taskDetail.attachments}</h3>
               <div
+                role="button"
+                tabIndex={0}
+                aria-label={d.taskDetail.dropHint}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.preventDefault(); void upload(e.dataTransfer.files); }}
                 onClick={() => fileInput.current?.click()}
-                className="mt-2 cursor-pointer rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground hover:bg-muted/50"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInput.current?.click();
+                  }
+                }}
+                className="mt-2 cursor-pointer rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Paperclip className="mx-auto mb-1 h-4 w-4" />
                 {busy ? d.taskDetail.uploading : d.taskDetail.dropHint}
