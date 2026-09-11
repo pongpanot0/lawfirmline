@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
 import { TaskDetailService } from './task-detail.service';
 import { TasksService } from './tasks.service';
@@ -56,6 +56,39 @@ describe('TaskDetailService', () => {
     const file = { mimetype: 'application/pdf', size: 10, buffer: Buffer.from('x'), originalname: 'a.pdf' } as any;
     await expect(service.uploadAttachment('t1', lawyer, file)).rejects.toThrow('db down');
     expect(mockStorage.delete).toHaveBeenCalledWith('tasks/t1/abc.pdf');
+  });
+
+  it('getDetail checks access before querying, and never queries when access is denied', async () => {
+    mockTasks.assertAccess.mockRejectedValue(new ForbiddenException('no access'));
+    await expect(service.getDetail('t1', lawyer)).rejects.toThrow(ForbiddenException);
+    expect(mockPrisma.task.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('getDetail throws NotFoundException when the task does not exist', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1', caseId: 'c1', parentId: null });
+    mockPrisma.task.findUnique.mockResolvedValue(null);
+    await expect(service.getDetail('t1', lawyer)).rejects.toThrow(NotFoundException);
+  });
+
+  it('getDetail returns the row from prisma and includes the expected relations', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1', caseId: 'c1', parentId: null });
+    const row = { id: 't1', title: 'Task' };
+    mockPrisma.task.findUnique.mockResolvedValue(row);
+    await expect(service.getDetail('t1', lawyer)).resolves.toBe(row);
+    expect(mockTasks.assertAccess).toHaveBeenCalledWith('t1', lawyer);
+    expect(mockPrisma.task.findUnique.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        where: { id: 't1' },
+        include: expect.objectContaining({
+          parent: expect.anything(),
+          case: expect.anything(),
+          subtasks: expect.anything(),
+          attachments: expect.anything(),
+          comments: expect.anything(),
+          assignmentLogs: expect.anything(),
+        }),
+      }),
+    );
   });
 
   it('deleteComment allows author and owner, forbids others', async () => {
