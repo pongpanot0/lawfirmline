@@ -233,6 +233,42 @@ export enum TaskLogAction {
   REJECTED = 'REJECTED',
 }
 
+export enum TaskPriority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+}
+
+export const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = {
+  [TaskPriority.HIGH]: 'สูง',
+  [TaskPriority.MEDIUM]: 'กลาง',
+  [TaskPriority.LOW]: 'ต่ำ',
+};
+
+export const TASK_LABEL_MAX_COUNT = 10;
+export const TASK_LABEL_MAX_LENGTH = 30;
+
+/**
+ * Labels are free text typed by lawyers; this is the one place their shape is
+ * decided so the API and the chip input agree. Throws with a stable code so
+ * callers can map it to their own error copy.
+ */
+export function normalizeTaskLabels(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of input) {
+    if (typeof raw !== 'string') continue;
+    const label = raw.trim();
+    if (!label || seen.has(label)) continue;
+    if (label.length > TASK_LABEL_MAX_LENGTH) throw new Error('TASK_LABEL_TOO_LONG');
+    seen.add(label);
+    out.push(label);
+  }
+  if (out.length > TASK_LABEL_MAX_COUNT) throw new Error('TASK_LABELS_TOO_MANY');
+  return out;
+}
+
 export enum EventType {
   COURT_DATE = 'COURT_DATE',
   CLIENT_MEETING = 'CLIENT_MEETING',

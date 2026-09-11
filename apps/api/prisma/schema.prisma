@@ -431,6 +431,8 @@ model User {
   assignments                CaseAssignment[]
   assignedTasks              Task[]                    @relation("TaskAssignee")
   createdTasks               Task[]                    @relation("TaskCreator")
+  taskAttachments            TaskAttachment[]          @relation("TaskAttachmentUploader")
+  taskComments               TaskComment[]             @relation("TaskCommentAuthor")
   documents                  Document[]
   timeEntries                TimeEntry[]
   createdInvoices            Invoice[]                 @relation("InvoiceCreator")
@@ -773,27 +775,70 @@ model CaseAssignment {
   @@unique([caseId, userId, assignmentType])
 }
 
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model Task {
-  id          String     @id @default(uuid())
+  id          String       @id @default(uuid())
   caseId      String?
   title       String
   description String?
-  status      TaskStatus @default(TODO)
+  status      TaskStatus   @default(TODO)
   assigneeId  String?
   createdById String
   dueDate     DateTime?
-  source      TaskSource @default(WEB)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  source      TaskSource   @default(WEB)
+  parentId    String?
+  priority    TaskPriority @default(MEDIUM)
+  labels      String[]     @default([])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   case           Case?               @relation(fields: [caseId], references: [id], onDelete: Cascade)
   assignee       User?               @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy      User                @relation("TaskCreator", fields: [createdById], references: [id])
   onHold         TaskOnHold?
   assignmentLogs TaskAssignmentLog[]
+  parent         Task?               @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks       Task[]              @relation("TaskSubtasks")
+  attachments    TaskAttachment[]
+  comments       TaskComment[]
 
   @@index([dueDate])
   @@index([assigneeId, status, dueDate])
+  @@index([parentId])
+}
+
+model TaskAttachment {
+  id           String   @id @default(uuid())
+  taskId       String
+  filename     String
+  storagePath  String
+  mimeType     String
+  size         Int
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation("TaskAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([taskId])
+}
+
+model TaskComment {
+  id        String   @id @default(uuid())
+  taskId    String
+  authorId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation("TaskCommentAuthor", fields: [authorId], references: [id])
+
+  @@index([taskId, createdAt])
 }
 
 model TaskAssignmentLog {
