@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { FirmRole, TaskStatus } from '@lawfirm/shared';
+import { FirmRole, TASK_PRIORITY_LABELS, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseDetail, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
+import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
+import { useTaskParam } from '@/components/tasks/useTaskParam';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,10 +26,12 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [newDueDate, setNewDueDate] = useState('');
+  const [newPriority, setNewPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [layout, setLayout] = useTaskLayout();
+  const taskParam = useTaskParam();
 
   const loadTasks = () => {
     if (!token || !caseId) return;
@@ -94,10 +98,12 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
         title: newTitle.trim(),
         assigneeId: newAssigneeId || undefined,
         dueDate: newDueDate || undefined,
+        priority: newPriority,
       });
       setNewTitle('');
       setNewAssigneeId('');
       setNewDueDate('');
+      setNewPriority(TaskPriority.MEDIUM);
       setShowForm(false);
       loadTasks();
     } catch {
@@ -187,6 +193,16 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                 onChange={(e) => setNewDueDate(e.target.value)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               />
+              <select
+                value={newPriority}
+                onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
+                aria-label={d.todos.priority}
+                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              >
+                {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
+                  <option key={p} value={p}>{TASK_PRIORITY_LABELS[p]}</option>
+                ))}
+              </select>
               <Button type="submit" size="sm" disabled={creating}>{d.caseTasks.create}</Button>
             </form>
           </CardContent>
@@ -213,8 +229,16 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
         onHandoff={handleHandoff}
         onAccept={handleAccept}
         onReject={handleReject}
+        onOpen={taskParam.open}
       />
       )}
+      <TaskDetailDrawer
+        taskId={taskParam.taskId}
+        users={users}
+        onClose={taskParam.close}
+        onChanged={loadTasks}
+        onNavigate={taskParam.open}
+      />
     </div>
   );
 }

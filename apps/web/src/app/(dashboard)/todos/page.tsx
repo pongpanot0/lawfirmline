@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { TaskStatus } from '@lawfirm/shared';
+import { TASK_PRIORITY_LABELS, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
+import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
+import { useTaskParam } from '@/components/tasks/useTaskParam';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { PageLoading } from '@/components/ui/misc';
 
-export default function TodosPage() {
+function TodosPageContent() {
   const d = useDashboardT();
   const { token, user } = useAuth();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -24,12 +26,14 @@ export default function TodosPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
+  const [newPriority, setNewPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [usersLoadError, setUsersLoadError] = useState('');
   const [creating, setCreating] = useState(false);
   const [layout, setLayout] = useTaskLayout();
   const [scope, setScope] = useState<'mine' | 'team' | 'review'>('mine');
+  const taskParam = useTaskParam();
 
   const loadTasks = () => {
     if (!token) return;
@@ -106,10 +110,12 @@ export default function TodosPage() {
         title: newTitle.trim(),
         assigneeId: newAssigneeId || undefined,
         dueDate: newDueDate || undefined,
+        priority: newPriority,
       });
       setNewTitle('');
       setNewAssigneeId('');
       setNewDueDate('');
+      setNewPriority(TaskPriority.MEDIUM);
       setShowForm(false);
       loadTasks();
     } catch {
@@ -203,6 +209,16 @@ export default function TodosPage() {
                 onChange={(e) => setNewDueDate(e.target.value)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               />
+              <select
+                value={newPriority}
+                onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
+                aria-label={d.todos.priority}
+                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              >
+                {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
+                  <option key={p} value={p}>{TASK_PRIORITY_LABELS[p]}</option>
+                ))}
+              </select>
               <Button type="submit" size="sm" disabled={creating}>{d.todos.create}</Button>
             </form>
           </CardContent>
@@ -230,8 +246,25 @@ export default function TodosPage() {
         onHandoff={handleHandoff}
         onAccept={handleAccept}
         onReject={handleReject}
+        onOpen={taskParam.open}
       />
       )}
+      <TaskDetailDrawer
+        taskId={taskParam.taskId}
+        users={users}
+        onClose={taskParam.close}
+        onChanged={loadTasks}
+        onNavigate={taskParam.open}
+      />
     </div>
+  );
+}
+
+export default function TodosPage() {
+  const d = useDashboardT();
+  return (
+    <Suspense fallback={<PageLoading title={d.todos.loading} lines={4} />}>
+      <TodosPageContent />
+    </Suspense>
   );
 }
