@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TaskStatus } from '@lawfirm/shared';
+import { TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -12,8 +12,14 @@ interface Task {
   title: string;
   description?: string | null;
   status: TaskStatus;
+  priority?: TaskPriority;
+  labels?: string[];
   dueDate?: string | null;
   assignee?: { id: string; firstName: string; lastName: string } | null;
+  subtaskCount?: number;
+  subtaskDoneCount?: number;
+  attachmentCount?: number;
+  commentCount?: number;
 }
 
 interface KanbanBoardProps {
@@ -21,6 +27,8 @@ interface KanbanBoardProps {
   onStatusChange: (taskId: string, status: TaskStatus) => void;
   currentUserId: string;
   isReviewer?: boolean;
+  /** Title click opens the task's detail drawer; omitted keeps titles inert. */
+  onOpen?: (taskId: string) => void;
   /** Case-bound tasks only: the lawyer↔senior handoff/review pipeline. */
   enableHandoff?: boolean;
   /**
@@ -64,6 +72,7 @@ export function KanbanBoard({
   onStatusChange,
   currentUserId,
   isReviewer = false,
+  onOpen,
   enableHandoff = false,
   onHandoff,
   onAccept,
@@ -138,13 +147,44 @@ export function KanbanBoard({
           enableHandoff &&
           task.status === TaskStatus.PENDING_REVIEW &&
           (isReviewer || isAssignee);
+        const priorityBar =
+          task.priority === TaskPriority.HIGH
+            ? 'border-l-4 border-l-rose-500'
+            : task.priority === TaskPriority.LOW
+              ? 'border-l-4 border-l-muted-foreground/30'
+              : '';
+        const labels = task.labels ?? [];
+        const counters = [
+          task.subtaskCount ? `☑ ${task.subtaskDoneCount ?? 0}/${task.subtaskCount}` : null,
+          task.attachmentCount ? `📎 ${task.attachmentCount}` : null,
+          task.commentCount ? `💬 ${task.commentCount}` : null,
+        ].filter(Boolean);
 
         return (
-          <div
-            key={task.id}
-            className="rounded-lg border bg-card p-3 shadow-soft"
-          >
-            <p className="text-sm font-medium text-foreground">{task.title}</p>
+          <div key={task.id} className={`rounded-lg border bg-card p-3 shadow-soft ${priorityBar}`}>
+            {onOpen ? (
+              <button
+                type="button"
+                onClick={() => onOpen(task.id)}
+                className="text-left text-sm font-medium text-foreground hover:text-primary hover:underline"
+              >
+                {task.title}
+              </button>
+            ) : (
+              <p className="text-sm font-medium text-foreground">{task.title}</p>
+            )}
+            {labels.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {labels.slice(0, 3).map((label) => (
+                  <span key={label} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                    {label}
+                  </span>
+                ))}
+                {labels.length > 3 && (
+                  <span className="text-[11px] text-muted-foreground">+{labels.length - 3}</span>
+                )}
+              </div>
+            )}
             {task.description && (
               <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>
             )}
@@ -157,6 +197,9 @@ export function KanbanBoard({
               <p className="mt-1 text-xs text-muted-foreground">
                 {fmt(d.todos.due, { date: formatDate(task.dueDate) })}
               </p>
+            )}
+            {counters.length > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">{counters.join(' · ')}</p>
             )}
             <div className="mt-3 flex flex-wrap gap-1">
               {canSetPlainStatus &&
