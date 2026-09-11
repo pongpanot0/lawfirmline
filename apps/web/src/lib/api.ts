@@ -1,4 +1,5 @@
 import { withFirmSlugHeaders } from './firm-slug';
+import { taskUpdatePath } from './task-detail';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 const TOKEN_KEY = 'lawfirm_access_token';
@@ -379,14 +380,28 @@ export interface CaseDetail extends CaseItem {
   _count: { tasks: number; documents: number };
 }
 
+export interface TaskPerson {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 export interface TaskItem {
   id: string;
+  caseId?: string | null;
+  parentId?: string | null;
   title: string;
   description?: string | null;
   status: import('@lawfirm/shared').TaskStatus;
+  priority: import('@lawfirm/shared').TaskPriority;
+  labels: string[];
   dueDate?: string | null;
   createdById?: string;
-  assignee?: { id: string; firstName: string; lastName: string } | null;
+  assignee?: TaskPerson | null;
+  subtaskCount?: number;
+  subtaskDoneCount?: number;
+  attachmentCount?: number;
+  commentCount?: number;
   assignmentLogs?: Array<{
     action: import('@lawfirm/shared').TaskLogAction;
     note?: string | null;
@@ -395,6 +410,43 @@ export interface TaskItem {
     fromUser?: { firstName: string; lastName: string } | null;
     toUser: { firstName: string; lastName: string };
   }>;
+}
+
+export interface TaskAttachmentItem {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+  uploadedBy: TaskPerson;
+}
+
+export interface TaskCommentItem {
+  id: string;
+  body: string;
+  createdAt: string;
+  author: TaskPerson;
+}
+
+export interface TaskSubtaskItem {
+  id: string;
+  title: string;
+  status: import('@lawfirm/shared').TaskStatus;
+  dueDate?: string | null;
+  priority: import('@lawfirm/shared').TaskPriority;
+  assignee?: TaskPerson | null;
+}
+
+export interface TaskDetail extends TaskItem {
+  parent?: { id: string; title: string } | null;
+  case?: { id: string; ownRef: string; title: string } | null;
+  subtasks: TaskSubtaskItem[];
+  attachments: TaskAttachmentItem[];
+  comments: TaskCommentItem[];
+}
+
+export function taskAttachmentDownloadUrl(taskId: string, attachmentId: string) {
+  return `${API_URL}/tasks/${taskId}/attachments/${attachmentId}/download`;
 }
 
 export type MyDayResponse = import('@lawfirm/shared').MyDayResponse;
@@ -1665,6 +1717,33 @@ export const api = {
 
   deleteIntakeAttachment: (token: string, intakeId: string, attachmentId: string) =>
     request(`/intake/${intakeId}/attachments/${attachmentId}`, { method: 'DELETE', token }),
+
+  getTaskDetail: (token: string, taskId: string) =>
+    request<TaskDetail>(`/tasks/${taskId}`, { token }),
+
+  updateAnyTask: (token: string, task: { id: string; caseId?: string | null }, data: Record<string, unknown>) =>
+    request<TaskItem>(taskUpdatePath(task), { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  createSubtask: (
+    token: string,
+    taskId: string,
+    data: { title: string; assigneeId?: string; dueDate?: string; priority?: string },
+  ) => request<TaskItem>(`/tasks/${taskId}/subtasks`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  uploadTaskAttachment: (token: string, taskId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<TaskAttachmentItem>(`/tasks/${taskId}/attachments`, { method: 'POST', token, body: form });
+  },
+
+  deleteTaskAttachment: (token: string, taskId: string, attachmentId: string) =>
+    request(`/tasks/${taskId}/attachments/${attachmentId}`, { method: 'DELETE', token }),
+
+  addTaskComment: (token: string, taskId: string, body: string) =>
+    request<TaskCommentItem>(`/tasks/${taskId}/comments`, { method: 'POST', token, body: JSON.stringify({ body }) }),
+
+  deleteTaskComment: (token: string, taskId: string, commentId: string) =>
+    request(`/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE', token }),
 
   runPrecedentAnalysis: (token: string, intakeId: string, attachmentIds?: string[]) =>
     request<IntakePrecedentAnalysisItem>(`/intake/${intakeId}/precedent-analysis`, {
