@@ -11,7 +11,9 @@ import {
   AuthUser,
   FirmRole,
   TaskLogAction,
+  TaskPriority,
   TaskStatus,
+  normalizeTaskLabels,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -50,6 +52,65 @@ export class TasksService {
       },
     },
   };
+
+  /**
+   * Board cards need the counts, not the rows: a parent with 12 subtasks
+   * would otherwise ship 12 nested objects per card.
+   */
+  private boardInclude = {
+    ...this.taskInclude,
+    subtasks: { select: { status: true } },
+    _count: { select: { attachments: true, comments: true } },
+  };
+
+  private toBoardItem<
+    T extends { subtasks?: { status: string }[]; _count?: { attachments: number; comments: number } },
+  >(task: T) {
+    const { subtasks, _count, ...rest } = task;
+    const subtaskRows = subtasks ?? [];
+    const counts = _count ?? { attachments: 0, comments: 0 };
+    return {
+      ...rest,
+      subtaskCount: subtaskRows.length,
+      subtaskDoneCount: subtaskRows.filter((s) => s.status === TaskStatus.DONE).length,
+      attachmentCount: counts.attachments,
+      commentCount: counts.comments,
+    };
+  }
+
+  /** Maps the shared normalizer's codes onto API errors; `undefined` means "field not sent". */
+  labelsFromDto(labels?: unknown): string[] | undefined {
+    if (labels === undefined) return undefined;
+    try {
+      return normalizeTaskLabels(labels);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      throw new BadRequestException(
+        code === 'TASK_LABELS_TOO_MANY' ? 'ใส่ label ได้ไม่เกิน 10 รายการ' : 'label ยาวได้ไม่เกิน 30 ตัวอักษร',
+      );
+    }
+  }
+
+  /**
+   * The one access rule for `/tasks/:id/*`: a case task follows case
+   * membership, a personal task its assignee/creator, and the firm owner
+   * sees both. Returns the row so callers do not fetch it twice.
+   */
+  async assertAccess(taskId: string, user: AuthUser) {
+    const task = await this.prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) throw new NotFoundException('Task not found');
+    if (task.caseId) {
+      if (!(await this.caseAccess.canAccessCase(user, task.caseId))) {
+        throw new ForbiddenException('You do not have access to this task');
+      }
+      return task;
+    }
+    if (user.firmRole === FirmRole.OWNER) return task;
+    if (task.assigneeId !== user.id && task.createdById !== user.id) {
+      throw new ForbiddenException('You do not have access to this task');
+    }
+    return task;
+  }
 
   private assertLeadOrOwner(user: AuthUser, legalCase: CaseForAccess) {
     if (user.firmRole === FirmRole.OWNER) return;
@@ -104,23 +165,26 @@ export class TasksService {
   }
 
   async findByCase(caseId: string, user: AuthUser) {
-    return this.prisma.task.findMany({
-      where: { caseId, ...this.caseAccess.getTaskFilterForUser(user) },
-      include: this.taskInclude,
+    const tasks = await this.prisma.task.findMany({
+      where: { caseId, parentId: null, ...this.caseAccess.getTaskFilterForUser(user) },
+      include: this.boardInclude,
       orderBy: { createdAt: 'desc' },
     });
+    return tasks.map((task) => this.toBoardItem(task));
   }
 
   async findMine(user: AuthUser) {
-    return this.prisma.task.findMany({
+    const tasks = await this.prisma.task.findMany({
       where: {
         caseId: null,
+        parentId: null,
         assignee: { firmMembers: { some: { firmId: user.firmId } } },
         ...this.caseAccess.getTaskFilterForUser(user),
       },
-      include: this.taskInclude,
+      include: this.boardInclude,
       orderBy: { createdAt: 'desc' },
     });
+    return tasks.map((task) => this.toBoardItem(task));
   }
 
   async assertStandaloneOwnership(id: string, user: AuthUser) {
@@ -154,6 +218,8 @@ export class TasksService {
         assigneeId: dto.assigneeId,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
         status: dto.status,
+        priority: dto.priority ?? TaskPriority.MEDIUM,
+        labels: this.labelsFromDto(dto.labels) ?? [],
         createdById: user.id,
         source,
       },
@@ -222,6 +288,7 @@ export class TasksService {
       where: { id },
       data: {
         ...dto,
+        labels: this.labelsFromDto(dto.labels),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
       },
       include: this.taskInclude,

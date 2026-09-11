@@ -433,7 +433,7 @@ describe('TasksService on-hold', () => {
       expect(mockCaseAccess.getTaskFilterForUser).toHaveBeenCalledWith(user);
       expect(mockPrisma.task.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { caseId: 'case-1', assigneeId: 'user-1' },
+          where: { caseId: 'case-1', parentId: null, assigneeId: 'user-1' },
         }),
       );
     });
@@ -460,7 +460,7 @@ describe('TasksService on-hold', () => {
       });
       expect(mockPrisma.task.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { caseId: 'case-1', ...realFilter },
+          where: { caseId: 'case-1', parentId: null, ...realFilter },
         }),
       );
     });
@@ -477,6 +477,7 @@ describe('TasksService on-hold', () => {
         expect.objectContaining({
           where: {
             caseId: null,
+            parentId: null,
             assignee: { firmMembers: { some: { firmId: 'firm-1' } } },
             assigneeId: 'user-1',
           },

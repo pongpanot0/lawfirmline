@@ -1,11 +1,12 @@
 import {
+  IsArray,
   IsEnum,
   IsOptional,
   IsString,
   IsUUID,
   IsDateString,
 } from 'class-validator';
-import { TaskStatus } from '@lawfirm/shared';
+import { TaskPriority, TaskStatus } from '@lawfirm/shared';
 
 export class CreateTaskDto {
   @IsString()
@@ -26,6 +27,15 @@ export class CreateTaskDto {
   @IsOptional()
   @IsEnum(TaskStatus)
   status?: TaskStatus;
+
+  @IsOptional()
+  @IsEnum(TaskPriority)
+  priority?: TaskPriority;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  labels?: string[];
 }
 
 export class UpdateTaskDto {
@@ -48,4 +58,13 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsEnum(TaskStatus)
   status?: TaskStatus;
+
+  @IsOptional()
+  @IsEnum(TaskPriority)
+  priority?: TaskPriority;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  labels?: string[];
 }
