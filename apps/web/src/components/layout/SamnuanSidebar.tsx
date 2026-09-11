@@ -13,19 +13,14 @@ import {
   UsersRound,
   Gauge,
   Settings,
-  Scale,
   ChevronLeft,
   ChevronRight,
   Moon,
   Sun,
   X,
-  Shield,
-  Tags,
   ClipboardList,
   ListTodo,
-  Timer,
   CalendarCheck,
-  CalendarOff,
   Mail,
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
@@ -62,11 +57,6 @@ const NAV_ITEMS = [
   { href: '/expenses', labelKey: 'expenses' as const, icon: Receipt, ownerOnly: false, group: 'work' },
   { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true, group: 'firm' },
   { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true, group: 'firm' },
-  { href: '/admin/reimbursements', labelKey: 'reimbursements' as const, icon: Shield, ownerOnly: true, group: 'firm' },
-  { href: '/admin/case-types', labelKey: 'caseTypes' as const, icon: Tags, ownerOnly: true, group: 'firm' },
-  { href: '/admin/deadline-rules', labelKey: 'deadlineRules' as const, icon: Timer, ownerOnly: true, group: 'firm' },
-  { href: '/admin/holidays', labelKey: 'holidays' as const, icon: CalendarOff, ownerOnly: true, group: 'firm' },
-  { href: '/admin/courts', labelKey: 'courts' as const, icon: Scale, ownerOnly: true, group: 'firm' },
   { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false, group: 'firm' },
 ] as const;
 
@@ -130,8 +120,12 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
                 </p>
               )}
               {items.map((item) => {
+                // Office settings pages (/admin/*) are reached from Settings,
+                // so they light up that entry rather than none.
                 const active =
-                  pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  pathname === item.href ||
+                  pathname.startsWith(`${item.href}/`) ||
+                  (item.href === '/settings' && pathname.startsWith('/admin/'));
           const Icon = item.icon;
           const label = d.nav[item.labelKey];
           return (

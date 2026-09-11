@@ -357,6 +357,8 @@ export const dashboardCopy = {
     settings: {
       title: 'ตั้งค่า',
       description: 'จัดการบัญชีและการตั้งค่าสำนักงาน',
+      office: 'ตั้งค่าสำนักงาน',
+      officeDescription: 'ประเภทคดี ศาล กฎวันครบกำหนด วันหยุด และการเบิกจ่าย',
       profile: 'โปรไฟล์',
       firstName: 'ชื่อ',
       lastName: 'นามสกุล',
@@ -1169,6 +1171,8 @@ export const dashboardCopy = {
     settings: {
       title: 'Settings',
       description: 'Manage your account and firm preferences',
+      office: 'Office settings',
+      officeDescription: 'Case types, courts, deadline rules, holidays and reimbursements',
       profile: 'Profile',
       firstName: 'First Name',
       lastName: 'Last Name',

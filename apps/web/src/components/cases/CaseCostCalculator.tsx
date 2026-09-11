@@ -5,6 +5,7 @@ import {
   CaseCostLine,
   caseCostTotal,
   CASE_COSTS_KEY,
+  initialCaseCosts,
   readCaseCosts,
 } from '@/lib/case-costs';
 import { api, ApiError } from '@/lib/api';
@@ -36,6 +37,19 @@ export function CaseCostCalculator({
         ระบุอัตราของสำนักงานและจำนวนครั้ง ระบบคูณและรวมให้ทันที
         อัตราเหล่านี้ไม่ใช่อัตราค่าธรรมเนียมศาลตามกฎหมาย
       </p>
+      {value.length === 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border p-3 text-sm">
+          <span className="text-muted-foreground">ยังไม่มีประมาณการสำหรับคดีนี้</span>
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled}
+            onClick={() => onChange(initialCaseCosts())}
+          >
+            เริ่มประมาณการ
+          </Button>
+        </div>
+      )}
       {value.map((line, index) => (
         <div
           key={index}
@@ -113,30 +127,36 @@ export function CaseCostCalculator({
           </div>
         </div>
       ))}
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={disabled || value.length >= 20}
-        onClick={() =>
-          onChange([
-            ...value,
-            { label: 'ค่าใช้จ่ายเพิ่มเติม', quantity: '1', rate: '' },
-          ])
-        }
-      >
-        เพิ่มรายการ
-      </Button>
-      <p
-        className="border-t border-border pt-3 text-sm font-semibold"
-        aria-live="polite"
-      >
-        {result.incomplete ? 'รวมเฉพาะรายการที่กรอกครบ' : 'รวมประมาณการ'}:{' '}
-        {formatCurrency(result.totalCents / 100)}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        เป็นประมาณการ ยังไม่สร้างรายการเบิกจ่ายหรือใบแจ้งหนี้
-      </p>
+      {value.length > 0 && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={disabled || value.length >= 20}
+          onClick={() =>
+            onChange([
+              ...value,
+              { label: 'ค่าใช้จ่ายเพิ่มเติม', quantity: '1', rate: '' },
+            ])
+          }
+        >
+          เพิ่มรายการ
+        </Button>
+      )}
+      {value.length > 0 && (
+        <>
+          <p
+            className="border-t border-border pt-3 text-sm font-semibold"
+            aria-live="polite"
+          >
+            {result.incomplete ? 'รวมเฉพาะรายการที่กรอกครบ' : 'รวมประมาณการ'}:{' '}
+            {formatCurrency(result.totalCents / 100)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            เป็นประมาณการ ยังไม่สร้างรายการเบิกจ่ายหรือใบแจ้งหนี้
+          </p>
+        </>
+      )}
     </section>
   );
 }
@@ -152,7 +172,7 @@ export function SavedCaseCostCalculator({
 }) {
   const { token } = useAuth();
   const [lines, setLines] = useState(() =>
-    readCaseCosts(customFields?.[CASE_COSTS_KEY]),
+    readCaseCosts(customFields?.[CASE_COSTS_KEY], () => []),
   );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -187,9 +207,11 @@ export function SavedCaseCostCalculator({
         }}
         disabled={saving}
       />
-      <Button type="button" variant="outline" disabled={saving} onClick={save}>
-        {saving ? 'กำลังบันทึก…' : 'บันทึกประมาณการ'}
-      </Button>
+      {lines.length > 0 && (
+        <Button type="button" variant="outline" disabled={saving} onClick={save}>
+          {saving ? 'กำลังบันทึก…' : 'บันทึกประมาณการ'}
+        </Button>
+      )}
       {message && (
         <p role="status" className="text-sm">
           {message}

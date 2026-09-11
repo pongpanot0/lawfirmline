@@ -157,7 +157,29 @@ function CasesPageContent() {
             />
           ) : (
             <>
-              <Table>
+              {/* Nine columns cannot be read on a phone; each case becomes a card there. */}
+              <ul className="divide-y md:hidden">
+                {paginated.map((c) => (
+                  <li key={c.id}>
+                    <Link href={`/cases/${c.id}`} className="block space-y-1.5 p-4 hover:bg-muted/50">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-sm font-medium text-primary">{c.ownRef}</span>
+                        <CaseStatusBadge status={c.status} />
+                      </div>
+                      <p className="font-medium leading-snug">{c.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {c.clientName ?? '—'}
+                        {c.courtName ? ` · ${c.courtName}` : ''}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {c.leadLawyer.firstName} {c.leadLawyer.lastName}
+                        {c.updatedAt ? ` · ${formatDate(c.updatedAt)}` : ''}
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <Table className="max-md:hidden">
                 <TableHeader>
                   <TableRow>
                     <TableHead>

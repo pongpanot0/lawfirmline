@@ -168,33 +168,6 @@ export default function NewIntakePage() {
         กรอกแค่ชื่อเรื่องกับลูกค้า แล้วไปเติมรายละเอียดต่อที่หน้าเรื่อง
       </p>
 
-      <div className="mb-5">
-        <BatchAnalysisPanel
-          files={files}
-          onFilesChange={setFiles}
-          onBusyChange={setAnalysisBusy}
-          onFieldSuggestions={setSuggestions}
-          entityLabel="เรื่อง"
-          disabled={submitting || !!createdIntakeId}
-        />
-      </div>
-
-      {suggestions.length > 0 && (
-        <div className="mb-5">
-          <SuggestedFieldsPanel
-            suggestions={suggestions}
-            accepts={['title']}
-            current={{ title: form.title }}
-            onApply={(field, value) =>
-              setForm((previous) => ({
-                ...previous,
-                [field]: value,
-              }))
-            }
-          />
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-4 sm:p-6 shadow-sm">
         <fieldset disabled={submitting} className="min-w-0 space-y-5">
           <div>
@@ -309,6 +282,44 @@ export default function NewIntakePage() {
           </div>
         </fieldset>
       </form>
+      {/*
+        Optional and credit-metered, so it sits below the form as a closed
+        disclosure: the two required fields come first.
+      */}
+      <details className="group mt-6 rounded-xl border bg-card shadow-sm">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium sm:px-6 [&::-webkit-details-marker]:hidden">
+          <span className="mr-2 inline-block transition-transform group-open:rotate-90">▸</span>
+          วิเคราะห์เนื้อหาไฟล์ด้วย AI (ไม่บังคับ)
+        </summary>
+        <div className="border-t p-4 sm:p-6">
+          <div>
+            <BatchAnalysisPanel
+              files={files}
+              onFilesChange={setFiles}
+              onBusyChange={setAnalysisBusy}
+              onFieldSuggestions={setSuggestions}
+              entityLabel="เรื่อง"
+              disabled={submitting || !!createdIntakeId}
+            />
+          </div>
+
+          {suggestions.length > 0 && (
+            <div className="mt-4">
+              <SuggestedFieldsPanel
+                suggestions={suggestions}
+                accepts={['title']}
+                current={{ title: form.title }}
+                onApply={(field, value) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    [field]: value,
+                  }))
+                }
+              />
+            </div>
+          )}
+        </div>
+      </details>
     </div>
   );
 }

@@ -369,8 +369,8 @@ export const DEFAULT_CASE_TYPES: DefaultCaseTypeDefinition[] = [
   {
     name: 'Litigation',
     description: 'คดีความ / ฟ้องร้อง',
+    // The claimed amount is a core case field (ทุนทรัพย์), not a type-specific one.
     fieldSchema: [
-      { key: 'claimAmount', label: 'Claim Amount / มูลค่าความเสียหาย', type: 'number' },
       { key: 'opposingParty', label: 'Opposing Party / คู่ความ', type: 'text' },
     ],
   },

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Moon, Sun, Bell, Key, Building2, Sparkles, Copy, ExternalLink, Mail } from 'lucide-react';
+import { Moon, Sun, Bell, Key, Building2, Sparkles, Copy, ExternalLink, Mail, Shield, Tags, Timer, CalendarOff, Scale, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
@@ -14,6 +15,15 @@ import { Separator } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { formatDate, formatDateTime } from '@/lib/utils';
+
+/** Office-wide master data; owner-only, so it sits under Settings instead of the sidebar. */
+const OFFICE_LINKS = [
+  { href: '/admin/reimbursements', icon: Shield, labelKey: 'reimbursements' as const },
+  { href: '/admin/case-types', icon: Tags, labelKey: 'caseTypes' as const },
+  { href: '/admin/deadline-rules', icon: Timer, labelKey: 'deadlineRules' as const },
+  { href: '/admin/holidays', icon: CalendarOff, labelKey: 'holidays' as const },
+  { href: '/admin/courts', icon: Scale, labelKey: 'courts' as const },
+];
 
 export default function SettingsPage() {
   const d = useDashboardT();
@@ -221,6 +231,31 @@ export default function SettingsPage() {
       <PageHeader title={d.settings.title} description={d.settings.description} />
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {user?.firmRole === 'OWNER' && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>{d.settings.office}</CardTitle>
+              <p className="text-sm text-muted-foreground">{d.settings.officeDescription}</p>
+            </CardHeader>
+            <CardContent>
+              <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {OFFICE_LINKS.map(({ href, icon: Icon, labelKey }) => (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
+                    >
+                      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="flex-1">{d.nav[labelKey]}</span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader><CardTitle>{d.settings.profile}</CardTitle></CardHeader>
           <CardContent className="space-y-4">

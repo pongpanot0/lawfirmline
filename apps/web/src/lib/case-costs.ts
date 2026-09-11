@@ -9,11 +9,18 @@ export const initialCaseCosts = (): CaseCostLine[] => [
   { label: 'ค่าไปศาล (ต่อครั้ง)', quantity: '1', rate: '' },
   { label: 'ค่าเดินทาง / ที่พัก', quantity: '1', rate: '' },
 ];
-export function readCaseCosts(raw: unknown): CaseCostLine[] {
-  if (typeof raw !== 'string') return initialCaseCosts();
+/**
+ * Saved lines, or `fallback` when nothing usable is stored. The case page
+ * passes `[]` so an untouched case shows a prompt instead of three empty rows.
+ */
+export function readCaseCosts(
+  raw: unknown,
+  fallback: () => CaseCostLine[] = initialCaseCosts,
+): CaseCostLine[] {
+  if (typeof raw !== 'string') return fallback();
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length > 20) return initialCaseCosts();
+    if (!Array.isArray(parsed) || parsed.length > 20) return fallback();
     return parsed.filter(
       (item): item is CaseCostLine =>
         item &&
@@ -22,7 +29,7 @@ export function readCaseCosts(raw: unknown): CaseCostLine[] {
         typeof item.rate === 'string',
     );
   } catch {
-    return initialCaseCosts();
+    return fallback();
   }
 }
 export function caseCostTotal(lines: CaseCostLine[]) {

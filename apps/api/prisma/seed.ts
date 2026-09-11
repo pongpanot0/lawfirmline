@@ -306,10 +306,13 @@ async function main() {
   // of inheriting whatever wall-clock time `now` happens to be when the seed
   // script runs — otherwise every event shows the same odd time (e.g. 00:14)
   // in the calendar UI.
+  // Bangkok is a fixed UTC+7, so the offset is written explicitly rather than
+  // via setHours(), which would use whatever zone the seed process runs in.
   const atNine = (daysFromNow: number) => {
-    const d = new Date(now.getTime() + daysFromNow * 86400000);
-    d.setHours(9, 0, 0, 0);
-    return d;
+    const day = new Date(now.getTime() + daysFromNow * 86400000 + 7 * 3600000)
+      .toISOString()
+      .slice(0, 10);
+    return new Date(`${day}T09:00:00+07:00`);
   };
 
   const events = [
