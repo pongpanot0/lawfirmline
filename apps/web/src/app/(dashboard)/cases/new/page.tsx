@@ -7,6 +7,7 @@ import {
   caseCostTotal,
 } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
+import { ClientCombobox } from './ClientCombobox';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -48,7 +49,6 @@ export default function NewCasePage() {
   const submittingRef = useRef(false);
   const [autoTitle, setAutoTitle] = useState(true);
   const [showCostEstimate, setShowCostEstimate] = useState(false);
-  const [clientSearch, setClientSearch] = useState('');
   const [courtSearch, setCourtSearch] = useState('');
   const [retry, setRetry] = useState(0);
   const [lookupWarning, setLookupWarning] = useState('');
@@ -179,9 +179,8 @@ export default function NewCasePage() {
   };
 
   const validationMessage = (targetStep: number) => {
-    if (targetStep === 0 && !form.caseTypeId)
-      return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
-    if (targetStep === 1) {
+    if (targetStep === 0) {
+      if (!form.caseTypeId) return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
       if (
         form.claimedAmount &&
         (!Number.isFinite(Number(form.claimedAmount)) ||
@@ -191,7 +190,8 @@ export default function NewCasePage() {
       )
         return 'กรุณากรอกทุนทรัพย์เป็นจำนวนเงินตั้งแต่ 0 และทศนิยมไม่เกิน 2 ตำแหน่ง';
       if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
-      if (!form.courtName) return 'กรุณาเลือกศาล';
+      // The court itself may not be known yet (e.g. a consult that hasn't
+      // gone to court) — only the level defaults, court name stays optional.
       // Court numbers arrive after the case is opened; only a filled-in
       // value has to fit the format.
       if (
@@ -224,16 +224,15 @@ export default function NewCasePage() {
       );
       if (missing) return `กรุณากรอก${missing.label}`;
     }
-    if (targetStep === 2 && !lawyers.some((l) => l.id === form.leadLawyerId))
+    if (targetStep === 1 && !lawyers.some((l) => l.id === form.leadLawyerId))
       return 'กรุณาเลือกทนายผู้รับผิดชอบ';
     return '';
   };
   // Type-specific fields live inside "ข้อมูลคดี": a step of their own made
   // lawyers click through a page holding one or two optional inputs.
   const visibleSteps = [
-    { value: 0, label: 'ประเภทคดี' },
-    { value: 1, label: 'ข้อมูลคดี' },
-    { value: 2, label: 'ทีมและตรวจสอบ' },
+    { value: 0, label: 'ข้อมูลคดี' },
+    { value: 1, label: 'ทีมและตรวจสอบ' },
   ];
 
   const goNext = () => {
@@ -385,7 +384,7 @@ export default function NewCasePage() {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (step === 2) void handleSubmit();
+          if (step === 1) void handleSubmit();
           else goNext();
         }}
         className="rounded-xl border border-border bg-card text-card-foreground shadow-soft"
@@ -407,10 +406,8 @@ export default function NewCasePage() {
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {step === 0
-                ? 'เลือกประเภทที่ตรงกับคดี เพื่อแสดงเฉพาะข้อมูลที่เกี่ยวข้อง'
-                : step === 1
-                  ? 'ช่องที่มี * จำเป็นต้องกรอก ข้อมูลอื่นเพิ่มภายหลังได้'
-                  : 'ตรวจสอบข้อมูลก่อนสร้างคดี และเลือกทีมที่ดูแล'}
+                ? 'ช่องที่มี * จำเป็นต้องกรอก ข้อมูลอื่นเพิ่มภายหลังได้'
+                : 'ตรวจสอบข้อมูลก่อนสร้างคดี และเลือกทีมที่ดูแล'}
             </p>
           </div>
 
@@ -435,133 +432,92 @@ export default function NewCasePage() {
           )}
 
           {step === 0 && (
-            <div className="space-y-4">
-              {loadingTypes ? (
-                <p role="status" className="text-sm text-muted-foreground">
-                  กำลังเตรียมข้อมูล…
-                </p>
-              ) : caseTypes.length === 0 ? (
-                <p className="text-sm">
-                  ยังไม่มีประเภทคดี{' '}
-                  <Link
-                    href="/admin/case-types"
-                    className="text-primary underline"
-                  >
-                    เพิ่มประเภทคดี
-                  </Link>
-                  ก่อนเริ่ม
-                </p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {caseTypes.map((type) => (
-                    <button
-                      key={type.id}
-                      type="button"
-                      aria-pressed={form.caseTypeId === type.id}
-                      onClick={() =>
-                        setForm((f) =>
-                          f.caseTypeId === type.id
-                            ? f
-                            : { ...f, caseTypeId: type.id, customFields: {} },
-                        )
-                      }
-                      className={`rounded-lg border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.caseTypeId === type.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
-                    >
-                      <span className="flex items-center justify-between gap-2 font-medium">
-                        {type.name}
-                        <span aria-hidden="true">
-                          {form.caseTypeId === type.id ? '✓' : '○'}
-                        </span>
-                      </span>
-                      {type.description && (
-                        <span className="mt-2 block text-sm text-muted-foreground">
-                          {type.description}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 1 && (
             <div className="space-y-6">
+              <section className="space-y-3" aria-label="ประเภทคดี">
+                <div>
+                  <h3 className="text-sm font-semibold">ประเภทคดี</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    เลือกประเภทที่ตรงกับคดี เพื่อแสดงเฉพาะข้อมูลที่เกี่ยวข้อง
+                  </p>
+                </div>
+                {loadingTypes ? (
+                  <p role="status" className="text-sm text-muted-foreground">
+                    กำลังเตรียมข้อมูล…
+                  </p>
+                ) : caseTypes.length === 0 ? (
+                  <p className="text-sm">
+                    ยังไม่มีประเภทคดี{' '}
+                    <Link
+                      href="/admin/case-types"
+                      className="text-primary underline"
+                    >
+                      เพิ่มประเภทคดี
+                    </Link>
+                    ก่อนเริ่ม
+                  </p>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {caseTypes.map((type) => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        aria-pressed={form.caseTypeId === type.id}
+                        onClick={() =>
+                          setForm((f) =>
+                            f.caseTypeId === type.id
+                              ? f
+                              : { ...f, caseTypeId: type.id, customFields: {} },
+                          )
+                        }
+                        className={`rounded-lg border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.caseTypeId === type.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
+                      >
+                        <span className="flex items-center justify-between gap-2 font-medium">
+                          {type.name}
+                          <span aria-hidden="true">
+                            {form.caseTypeId === type.id ? '✓' : '○'}
+                          </span>
+                        </span>
+                        {type.description && (
+                          <span className="mt-2 block text-sm text-muted-foreground">
+                            {type.description}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
               <section className="space-y-4" aria-label="ลูกค้าและชื่อคดี">
                 <div>
-                  <label htmlFor="client-search" className={fieldLabel}>
+                  <label htmlFor="client-combobox" className={fieldLabel}>
                     ลูกค้า{' '}
                     <span className="font-normal text-muted-foreground">
                       (เพิ่มภายหลังได้)
                     </span>
                   </label>
-                  <input
-                    id="client-search"
-                    type="search"
-                    value={clientSearch}
-                    onChange={(e) => setClientSearch(e.target.value)}
-                    placeholder="ค้นหาลูกค้าในรายชื่อ"
-                    className={inputClass}
+                  <ClientCombobox
+                    id="client-combobox"
+                    clients={clients}
+                    clientId={form.clientId}
+                    clientName={form.clientName}
                     disabled={form.useTmpClient}
-                  />
-                  <select
-                    aria-label="เลือกลูกค้า"
-                    value={form.clientId}
-                    disabled={form.useTmpClient}
-                    className={inputClass}
-                    onChange={(e) => {
-                      const client = clients.find(
-                        (c) => c.id === e.target.value,
-                      );
+                    onSelectClient={(client) =>
                       setForm({
                         ...form,
-                        clientId: e.target.value,
-                        clientName: client?.name ?? '',
+                        clientId: client.id,
+                        clientName: client.name,
                         useTmpClient: false,
-                      });
-                    }}
-                  >
-                    <option value="">เลือกลูกค้า หรือกรอกชื่อด้านล่าง</option>
-                    {clients
-                      .filter(
-                        (c) =>
-                          c.id === form.clientId ||
-                          c.name
-                            .toLowerCase()
-                            .includes(clientSearch.toLowerCase()),
-                      )
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                  </select>
-                  {clientSearch &&
-                    !clients.some((c) =>
-                      c.name.toLowerCase().includes(clientSearch.toLowerCase()),
-                    ) && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        ไม่พบชื่อนี้ในรายชื่อ สามารถกรอกชื่อเองได้
-                      </p>
-                    )}
-                  {!form.clientId && !form.useTmpClient && (
-                    <div className="mt-3">
-                      <label htmlFor="client-name" className={fieldLabel}>
-                        ชื่อลูกค้าที่ไม่มีในรายชื่อ
-                      </label>
-                      <input
-                        id="client-name"
-                        value={form.clientName}
-                        onChange={(e) =>
-                          setForm({ ...form, clientName: e.target.value })
-                        }
-                        placeholder="ชื่อบุคคลหรือบริษัท"
-                        className={inputClass}
-                      />
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        บันทึกชื่อในคดีนี้ โดยยังไม่สร้างทะเบียนลูกค้า
-                      </p>
-                    </div>
+                      })
+                    }
+                    onFreeText={(name) =>
+                      setForm({ ...form, clientId: '', clientName: name })
+                    }
+                  />
+                  {!form.clientId && form.clientName.trim() && !form.useTmpClient && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      บันทึกชื่อในคดีนี้ โดยยังไม่สร้างทะเบียนลูกค้า
+                    </p>
                   )}
                   <label className="mt-3 flex items-start gap-2 text-sm">
                     <input
@@ -708,7 +664,10 @@ export default function NewCasePage() {
                   </div>
                   <div>
                     <label htmlFor="court-search" className={fieldLabel}>
-                      ศาล *
+                      ศาล{' '}
+                      <span className="font-normal text-muted-foreground">
+                        (ถ้ามี)
+                      </span>
                     </label>
                     <input
                       id="court-search"
@@ -720,14 +679,13 @@ export default function NewCasePage() {
                     />
                     <select
                       aria-label="เลือกศาล"
-                      required
                       value={form.courtName}
                       onChange={(e) =>
                         setForm({ ...form, courtName: e.target.value })
                       }
                       className={inputClass}
                     >
-                      <option value="">เลือกศาล</option>
+                      <option value="">ยังไม่ทราบศาล ระบุภายหลัง</option>
                       {courts
                         .filter(
                           (c) =>
@@ -1016,7 +974,7 @@ export default function NewCasePage() {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 1 && (
             <div className="space-y-6">
               <div>
                 <label htmlFor="lead-lawyer" className={fieldLabel}>
@@ -1101,7 +1059,7 @@ export default function NewCasePage() {
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                      setStep(1);
+                      setStep(0);
                       setError('');
                     }}
                   >
@@ -1125,7 +1083,9 @@ export default function NewCasePage() {
                     ['ลูกค้า', displayClientName()],
                     [
                       'ศาล',
-                      `${COURT_LEVEL_LABELS[form.courtLevel]} · ${form.courtName}`,
+                      form.courtName
+                        ? `${COURT_LEVEL_LABELS[form.courtLevel]} · ${form.courtName}`
+                        : `${COURT_LEVEL_LABELS[form.courtLevel]} · ยังไม่ทราบศาล`,
                     ],
                     ['เลขดำ', form.blackCaseNumber || 'ยังไม่มี'],
                     ['เลขแดง', form.redCaseNumber || 'ยังไม่มี'],
@@ -1211,7 +1171,7 @@ export default function NewCasePage() {
           >
             {submitting
               ? 'กำลังบันทึก…'
-              : step === 2
+              : step === 1
                 ? createdCaseId
                   ? 'แนบไฟล์ที่เหลืออีกครั้ง'
                   : 'สร้างคดี'
