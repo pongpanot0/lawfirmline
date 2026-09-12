@@ -3,14 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { X, Paperclip, Trash2, Download } from 'lucide-react';
-import {
-  normalizeTaskLabels,
-  TASK_PRIORITY_LABELS,
-  TaskPriority,
-  TaskStatus,
-} from '@lawfirm/shared';
+import { normalizeTaskLabels, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { api, ApiError, TaskDetail, UserItem } from '@/lib/api';
-import { formatBytes, downloadTaskAttachment } from '@/lib/task-detail';
+import { formatBytes, downloadTaskAttachment, priorityLabel } from '@/lib/task-detail';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { bangkokDateInputValue } from '@/lib/bangkok';
@@ -114,7 +109,11 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
       setLabelDraft('');
       void patch({ labels });
     } catch (err) {
-      setError(err instanceof Error && err.message === 'TASK_LABELS_TOO_MANY' ? 'ใส่ label ได้ไม่เกิน 10 รายการ' : 'label ยาวได้ไม่เกิน 30 ตัวอักษร');
+      setError(
+        err instanceof Error && err.message === 'TASK_LABELS_TOO_MANY'
+          ? d.taskDetail.labelTooMany
+          : d.taskDetail.labelTooLong,
+      );
     }
   };
 
@@ -220,7 +219,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                       onClick={() => task.priority !== p && patch({ priority: p })}
                       className={`rounded-full border px-3 py-1 text-xs ${task.priority === p ? (p === TaskPriority.HIGH ? 'border-rose-500 bg-rose-500/10 text-rose-600' : 'border-primary bg-primary/10 text-primary') : 'border-border text-muted-foreground hover:bg-muted'}`}
                     >
-                      {TASK_PRIORITY_LABELS[p]}
+                      {priorityLabel(d, p)}
                     </button>
                   ))}
                 </div>

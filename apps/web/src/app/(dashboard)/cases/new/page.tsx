@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { CaseCostCalculator } from "@/components/cases/CaseCostCalculator";
+import { CaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import {
   CASE_COSTS_KEY,
   initialCaseCosts,
   caseCostTotal,
-} from "@/lib/case-costs";
-import { BatchAnalysisPanel } from "@/components/documents/BatchAnalysisPanel";
-import { SuggestedFieldsPanel } from "@/components/documents/SuggestedFieldsPanel";
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth";
+} from '@/lib/case-costs';
+import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
+import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
+import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
 import {
   api,
   UserItem,
@@ -21,9 +21,9 @@ import {
   ApiError,
   WorkloadSummary,
   FieldSuggestion,
-} from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import type { CaseFieldSchema } from "@lawfirm/shared";
+} from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import type { CaseFieldSchema } from '@lawfirm/shared';
 import {
   ActivityType,
   TMP_CLIENT_PLACEHOLDER,
@@ -34,7 +34,7 @@ import {
   CASE_NUMBER_REGEX,
   FEE_MAX,
   FEE_MIN,
-} from "@lawfirm/shared";
+} from '@lawfirm/shared';
 
 export default function NewCasePage() {
   const { token, user } = useAuth();
@@ -48,43 +48,43 @@ export default function NewCasePage() {
   const submittingRef = useRef(false);
   const [autoTitle, setAutoTitle] = useState(true);
   const [showCostEstimate, setShowCostEstimate] = useState(false);
-  const [clientSearch, setClientSearch] = useState("");
-  const [courtSearch, setCourtSearch] = useState("");
+  const [clientSearch, setClientSearch] = useState('');
+  const [courtSearch, setCourtSearch] = useState('');
   const [retry, setRetry] = useState(0);
-  const [lookupWarning, setLookupWarning] = useState("");
+  const [lookupWarning, setLookupWarning] = useState('');
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [courts, setCourts] = useState<CourtItem[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
 
   const [form, setForm] = useState({
-    caseTypeId: "",
-    customerRef: "",
-    title: "",
-    clientId: "",
-    clientName: "",
+    caseTypeId: '',
+    customerRef: '',
+    title: '',
+    clientId: '',
+    clientName: '',
     useTmpClient: false,
-    courtName: "",
+    courtName: '',
     courtLevel: CourtLevel.TRIAL as CourtLevel,
-    blackCaseNumber: "",
-    redCaseNumber: "",
-    description: "",
-    claimedAmount: "",
-    estimatedFee: "",
-    leadLawyerId: "",
+    blackCaseNumber: '',
+    redCaseNumber: '',
+    description: '',
+    claimedAmount: '',
+    estimatedFee: '',
+    leadLawyerId: '',
     buddyIds: [] as string[],
     customFields: {} as Record<string, string>,
     addInitialActivity: false,
-    initialActivityTitle: "",
-    initialActivityAt: "",
+    initialActivityTitle: '',
+    initialActivityAt: '',
     initialActivityType: ActivityType.COURT_DATE as string,
-    initialActivityDescription: "",
+    initialActivityDescription: '',
   });
-  const [nextOwnRef, setNextOwnRef] = useState<string>("");
+  const [nextOwnRef, setNextOwnRef] = useState<string>('');
   /**
    * Values the documents state. Re-analysing replaces these, never the form —
    * what a lawyer typed or accepted stays put.
@@ -98,31 +98,31 @@ export default function NewCasePage() {
 
   const workloadLabel = (userId: string) => {
     const w = workload.find((x) => x.userId === userId);
-    if (!w) return "";
+    if (!w) return '';
     return ` (หลัก ${w.leadCount}, ผู้ช่วย ${w.buddyCount}, ใกล้ deadline ${w.nearDeadlineCount})`;
   };
 
   useEffect(() => {
     if (!token) return;
     setLoadingTypes(true);
-    setError("");
-    setLookupWarning("");
+    setError('');
+    setLookupWarning('');
     Promise.all([
       api.getLawyers(token),
       api.getCaseTypes(token),
       api.getClients(token).catch(() => {
         setLookupWarning(
-          "โหลดข้อมูลลูกค้าหรือศาลไม่สำเร็จ ลองโหลดใหม่ก่อนกรอกต่อ",
+          'โหลดข้อมูลลูกค้าหรือศาลไม่สำเร็จ ลองโหลดใหม่ก่อนกรอกต่อ',
         );
         return [] as ClientItem[];
       }),
       api.getCourts(token).catch(() => {
         setLookupWarning(
-          "โหลดข้อมูลลูกค้าหรือศาลไม่สำเร็จ ลองโหลดใหม่ก่อนกรอกต่อ",
+          'โหลดข้อมูลลูกค้าหรือศาลไม่สำเร็จ ลองโหลดใหม่ก่อนกรอกต่อ',
         );
         return [] as CourtItem[];
       }),
-      api.getNextOwnRef(token).catch(() => ({ ownRef: "" })),
+      api.getNextOwnRef(token).catch(() => ({ ownRef: '' })),
       api.getWorkloadSummary(token).catch(() => [] as WorkloadSummary[]),
     ])
       .then(
@@ -132,8 +132,8 @@ export default function NewCasePage() {
             ...f,
             leadLawyerId: lawyerList.some((l) => l.id === f.leadLawyerId)
               ? f.leadLawyerId
-              : (lawyerList.find((l) => l.id === user?.id)?.id ?? ""),
-            caseTypeId: f.caseTypeId || (types.length === 1 ? types[0].id : ""),
+              : (lawyerList.find((l) => l.id === user?.id)?.id ?? ''),
+            caseTypeId: f.caseTypeId || (types.length === 1 ? types[0].id : ''),
           }));
           setCaseTypes(types);
           setClients(clientList);
@@ -142,18 +142,18 @@ export default function NewCasePage() {
           setWorkload(workloadList);
         },
       )
-      .catch(() => setError("โหลดข้อมูลฟอร์มไม่สำเร็จ กรุณาลองใหม่"))
+      .catch(() => setError('โหลดข้อมูลฟอร์มไม่สำเร็จ กรุณาลองใหม่'))
       .finally(() => setLoadingTypes(false));
   }, [token, user?.id, retry]);
 
   const clientLabel = form.clientId
-    ? (clients.find((c) => c.id === form.clientId)?.name ?? "")
+    ? (clients.find((c) => c.id === form.clientId)?.name ?? '')
     : form.useTmpClient
-      ? ""
+      ? ''
       : form.clientName.trim();
   const suggestedTitle = [selectedType?.name, clientLabel]
     .filter(Boolean)
-    .join(" — ");
+    .join(' — ');
   useEffect(() => {
     if (autoTitle) setForm((f) => ({ ...f, title: suggestedTitle }));
   }, [autoTitle, suggestedTitle]);
@@ -172,7 +172,7 @@ export default function NewCasePage() {
 
   const displayClientName = () => {
     if (form.clientId) {
-      return clients.find((c) => c.id === form.clientId)?.name ?? "";
+      return clients.find((c) => c.id === form.clientId)?.name ?? '';
     }
     if (form.useTmpClient) return TMP_CLIENT_PLACEHOLDER;
     return form.clientName.trim() || TMP_CLIENT_PLACEHOLDER;
@@ -180,7 +180,7 @@ export default function NewCasePage() {
 
   const validationMessage = (targetStep: number) => {
     if (targetStep === 0 && !form.caseTypeId)
-      return "เลือกประเภทคดีก่อนดำเนินการต่อ";
+      return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
     if (targetStep === 1) {
       if (
         form.claimedAmount &&
@@ -189,9 +189,9 @@ export default function NewCasePage() {
           Number(form.claimedAmount) > FEE_MAX ||
           !/^\d+(\.\d{1,2})?$/.test(form.claimedAmount))
       )
-        return "กรุณากรอกทุนทรัพย์เป็นจำนวนเงินตั้งแต่ 0 และทศนิยมไม่เกิน 2 ตำแหน่ง";
-      if (!form.title.trim()) return "กรุณากรอกชื่อคดี";
-      if (!form.courtName) return "กรุณาเลือกศาล";
+        return 'กรุณากรอกทุนทรัพย์เป็นจำนวนเงินตั้งแต่ 0 และทศนิยมไม่เกิน 2 ตำแหน่ง';
+      if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
+      if (!form.courtName) return 'กรุณาเลือกศาล';
       // Court numbers arrive after the case is opened; only a filled-in
       // value has to fit the format.
       if (
@@ -211,29 +211,29 @@ export default function NewCasePage() {
           Number(form.estimatedFee) > FEE_MAX ||
           !/^\d+(\.\d{1,2})?$/.test(form.estimatedFee))
       )
-        return "กรุณากรอกรายได้ในช่วงที่กำหนด และทศนิยมไม่เกิน 2 ตำแหน่ง";
+        return 'กรุณากรอกรายได้ในช่วงที่กำหนด และทศนิยมไม่เกิน 2 ตำแหน่ง';
       if (
         form.addInitialActivity &&
         (!form.initialActivityTitle.trim() ||
           !form.initialActivityAt ||
           Number.isNaN(new Date(form.initialActivityAt).getTime()))
       )
-        return "กรุณากรอกหัวข้อและวันเวลานัดหมายแรก";
+        return 'กรุณากรอกหัวข้อและวันเวลานัดหมายแรก';
       const missing = fieldSchema.find(
         (f) => f.required && !form.customFields[f.key]?.trim(),
       );
       if (missing) return `กรุณากรอก${missing.label}`;
     }
     if (targetStep === 2 && !lawyers.some((l) => l.id === form.leadLawyerId))
-      return "กรุณาเลือกทนายผู้รับผิดชอบ";
-    return "";
+      return 'กรุณาเลือกทนายผู้รับผิดชอบ';
+    return '';
   };
   // Type-specific fields live inside "ข้อมูลคดี": a step of their own made
   // lawyers click through a page holding one or two optional inputs.
   const visibleSteps = [
-    { value: 0, label: "ประเภทคดี" },
-    { value: 1, label: "ข้อมูลคดี" },
-    { value: 2, label: "ทีมและตรวจสอบ" },
+    { value: 0, label: 'ประเภทคดี' },
+    { value: 1, label: 'ข้อมูลคดี' },
+    { value: 2, label: 'ทีมและตรวจสอบ' },
   ];
 
   const goNext = () => {
@@ -242,14 +242,14 @@ export default function NewCasePage() {
       setError(message);
       return;
     }
-    setError("");
+    setError('');
     setStep(step + 1);
   };
 
   const goBack = () => {
-    setError("");
+    setError('');
     if (step > 0) setStep(step - 1);
-    else router.push("/cases");
+    else router.push('/cases');
   };
 
   const handleSubmit = async () => {
@@ -264,7 +264,7 @@ export default function NewCasePage() {
     }
     submittingRef.current = true;
     setSubmitting(true);
-    setError("");
+    setError('');
     try {
       const payload: Record<string, unknown> = {
         customerRef: form.customerRef.trim() || undefined,
@@ -335,7 +335,7 @@ export default function NewCasePage() {
       setError(
         err instanceof ApiError
           ? err.message
-          : "สร้างคดีไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ กรุณาลองใหม่",
+          : 'สร้างคดีไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ กรุณาลองใหม่',
       );
       submittingRef.current = false;
       setSubmitting(false);
@@ -343,8 +343,8 @@ export default function NewCasePage() {
   };
 
   const inputClass =
-    "mt-1 min-w-0 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
-  const fieldLabel = "block text-sm font-medium";
+    'mt-1 min-w-0 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60';
+  const fieldLabel = 'block text-sm font-medium';
   const selectedLawyer = lawyers.find((l) => l.id === form.leadLawyerId);
   const currentIndex = visibleSteps.findIndex((item) => item.value === step);
 
@@ -366,15 +366,15 @@ export default function NewCasePage() {
               <button
                 type="button"
                 disabled={item.value > step || submitting}
-                aria-current={item.value === step ? "step" : undefined}
+                aria-current={item.value === step ? 'step' : undefined}
                 onClick={() => {
                   setStep(item.value);
-                  setError("");
+                  setError('');
                 }}
-                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${item.value === step ? "border-primary bg-primary/5 text-primary" : "border-border bg-card text-muted-foreground disabled:opacity-60"}`}
+                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${item.value === step ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-card text-muted-foreground disabled:opacity-60'}`}
               >
                 <span className="shrink-0">
-                  {item.value < step ? "✓" : index + 1}
+                  {item.value < step ? '✓' : index + 1}
                 </span>
                 <span className="whitespace-nowrap">{item.label}</span>
               </button>
@@ -407,10 +407,10 @@ export default function NewCasePage() {
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {step === 0
-                ? "เลือกประเภทที่ตรงกับคดี เพื่อแสดงเฉพาะข้อมูลที่เกี่ยวข้อง"
+                ? 'เลือกประเภทที่ตรงกับคดี เพื่อแสดงเฉพาะข้อมูลที่เกี่ยวข้อง'
                 : step === 1
-                  ? "ช่องที่มี * จำเป็นต้องกรอก ข้อมูลอื่นเพิ่มภายหลังได้"
-                  : "ตรวจสอบข้อมูลก่อนสร้างคดี และเลือกทีมที่ดูแล"}
+                  ? 'ช่องที่มี * จำเป็นต้องกรอก ข้อมูลอื่นเพิ่มภายหลังได้'
+                  : 'ตรวจสอบข้อมูลก่อนสร้างคดี และเลือกทีมที่ดูแล'}
             </p>
           </div>
 
@@ -442,7 +442,7 @@ export default function NewCasePage() {
                 </p>
               ) : caseTypes.length === 0 ? (
                 <p className="text-sm">
-                  ยังไม่มีประเภทคดี{" "}
+                  ยังไม่มีประเภทคดี{' '}
                   <Link
                     href="/admin/case-types"
                     className="text-primary underline"
@@ -465,12 +465,12 @@ export default function NewCasePage() {
                             : { ...f, caseTypeId: type.id, customFields: {} },
                         )
                       }
-                      className={`rounded-lg border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.caseTypeId === type.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted"}`}
+                      className={`rounded-lg border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.caseTypeId === type.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
                     >
                       <span className="flex items-center justify-between gap-2 font-medium">
                         {type.name}
                         <span aria-hidden="true">
-                          {form.caseTypeId === type.id ? "✓" : "○"}
+                          {form.caseTypeId === type.id ? '✓' : '○'}
                         </span>
                       </span>
                       {type.description && (
@@ -490,7 +490,7 @@ export default function NewCasePage() {
               <section className="space-y-4" aria-label="ลูกค้าและชื่อคดี">
                 <div>
                   <label htmlFor="client-search" className={fieldLabel}>
-                    ลูกค้า{" "}
+                    ลูกค้า{' '}
                     <span className="font-normal text-muted-foreground">
                       (เพิ่มภายหลังได้)
                     </span>
@@ -516,7 +516,7 @@ export default function NewCasePage() {
                       setForm({
                         ...form,
                         clientId: e.target.value,
-                        clientName: client?.name ?? "",
+                        clientName: client?.name ?? '',
                         useTmpClient: false,
                       });
                     }}
@@ -572,7 +572,7 @@ export default function NewCasePage() {
                         setForm({
                           ...form,
                           useTmpClient: e.target.checked,
-                          clientId: e.target.checked ? "" : form.clientId,
+                          clientId: e.target.checked ? '' : form.clientId,
                         })
                       }
                     />
@@ -603,8 +603,8 @@ export default function NewCasePage() {
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <p className="text-xs text-muted-foreground">
                       {autoTitle
-                        ? "เติมจากประเภทคดีและลูกค้าให้อัตโนมัติ แก้ไขได้ตามต้องการ"
-                        : "ใช้ชื่อที่คุณแก้ไขไว้"}
+                        ? 'เติมจากประเภทคดีและลูกค้าให้อัตโนมัติ แก้ไขได้ตามต้องการ'
+                        : 'ใช้ชื่อที่คุณแก้ไขไว้'}
                     </p>
                     {!autoTitle && (
                       <Button
@@ -650,7 +650,7 @@ export default function NewCasePage() {
                 >
                   <span>คำนวณค่าบริการและค่าไปศาล (ไม่บังคับ)</span>
                   <span className="text-xs text-muted-foreground">
-                    {showCostEstimate ? "ซ่อน" : "เปิด"}
+                    {showCostEstimate ? 'ซ่อน' : 'เปิด'}
                   </span>
                 </button>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -746,11 +746,11 @@ export default function NewCasePage() {
                       </p>
                     )}
                   </div>
-                  {(["blackCaseNumber", "redCaseNumber"] as const).map(
+                  {(['blackCaseNumber', 'redCaseNumber'] as const).map(
                     (key) => (
                       <div key={key}>
                         <label htmlFor={key} className={fieldLabel}>
-                          {key === "blackCaseNumber" ? "เลขดำ" : "เลขแดง"}{" "}
+                          {key === 'blackCaseNumber' ? 'เลขดำ' : 'เลขแดง'}{' '}
                           <span className="font-normal text-muted-foreground">
                             (ถ้ามี)
                           </span>
@@ -771,7 +771,7 @@ export default function NewCasePage() {
                                 .replace(/[๐-๙]/g, (digit) =>
                                   String(digit.charCodeAt(0) - 3664),
                                 )
-                                .replace(/\s+/g, ""),
+                                .replace(/\s+/g, ''),
                             }))
                           }
                           className={inputClass}
@@ -888,11 +888,11 @@ export default function NewCasePage() {
                         className={inputClass}
                       >
                         {[
-                          [ActivityType.COURT_DATE, "นัดศาล"],
-                          [ActivityType.CLIENT_MEETING, "นัดลูกค้า"],
-                          [ActivityType.FILING, "ยื่นคำร้อง"],
-                          [ActivityType.DEADLINE, "กำหนดส่ง"],
-                          [ActivityType.OTHER, "อื่นๆ"],
+                          [ActivityType.COURT_DATE, 'นัดศาล'],
+                          [ActivityType.CLIENT_MEETING, 'นัดลูกค้า'],
+                          [ActivityType.FILING, 'ยื่นคำร้อง'],
+                          [ActivityType.DEADLINE, 'กำหนดส่ง'],
+                          [ActivityType.OTHER, 'อื่นๆ'],
                         ].map(([value, label]) => (
                           <option key={value} value={value}>
                             {label}
@@ -960,13 +960,13 @@ export default function NewCasePage() {
                           className={fieldLabel}
                         >
                           {field.label}
-                          {field.required ? " *" : " (ไม่บังคับ)"}
+                          {field.required ? ' *' : ' (ไม่บังคับ)'}
                         </label>
-                        {field.type === "select" ? (
+                        {field.type === 'select' ? (
                           <select
                             id={`custom-${field.key}`}
                             required={field.required}
-                            value={form.customFields[field.key] ?? ""}
+                            value={form.customFields[field.key] ?? ''}
                             onChange={(e) =>
                               setForm({
                                 ...form,
@@ -989,9 +989,9 @@ export default function NewCasePage() {
                           <input
                             id={`custom-${field.key}`}
                             type={field.type}
-                            step={field.type === "number" ? "any" : undefined}
+                            step={field.type === 'number' ? 'any' : undefined}
                             required={field.required}
-                            value={form.customFields[field.key] ?? ""}
+                            value={form.customFields[field.key] ?? ''}
                             onChange={(e) =>
                               setForm({
                                 ...form,
@@ -1011,7 +1011,7 @@ export default function NewCasePage() {
               )}
               <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
                 เลขอ้างอิงสำนักงานและเลขแฟ้มสร้างอัตโนมัติเมื่อบันทึก
-                {nextOwnRef ? ` · เลขอ้างอิงคาดการณ์ ${nextOwnRef}` : ""}
+                {nextOwnRef ? ` · เลขอ้างอิงคาดการณ์ ${nextOwnRef}` : ''}
               </p>
             </div>
           )}
@@ -1047,8 +1047,8 @@ export default function NewCasePage() {
                 </select>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {form.leadLawyerId === user?.id
-                    ? "เลือกคุณเป็นผู้รับผิดชอบเริ่มต้น เปลี่ยนได้ก่อนสร้างคดี"
-                    : "เลือกผู้รับผิดชอบหลัก 1 คน โดยดูภาระงานประกอบได้"}
+                    ? 'เลือกคุณเป็นผู้รับผิดชอบเริ่มต้น เปลี่ยนได้ก่อนสร้างคดี'
+                    : 'เลือกผู้รับผิดชอบหลัก 1 คน โดยดูภาระงานประกอบได้'}
                 </p>
               </div>
               <details className="rounded-lg border border-border p-4">
@@ -1056,7 +1056,7 @@ export default function NewCasePage() {
                   เพิ่มทนายผู้ช่วย (ไม่บังคับ)
                   {form.buddyIds.length > 0
                     ? ` · เลือก ${form.buddyIds.length} คน`
-                    : ""}
+                    : ''}
                 </summary>
                 <div className="mt-3 space-y-2">
                   {lawyers
@@ -1102,7 +1102,7 @@ export default function NewCasePage() {
                     variant="ghost"
                     onClick={() => {
                       setStep(1);
-                      setError("");
+                      setError('');
                     }}
                   >
                     แก้ไขข้อมูล
@@ -1110,51 +1110,51 @@ export default function NewCasePage() {
                 </div>
                 <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
                   {[
-                    ["ชื่อคดี", form.title],
+                    ['ชื่อคดี', form.title],
                     [
-                      "ประมาณการค่าใช้จ่าย",
-                      `${(caseCostTotal(costLines).totalCents / 100).toLocaleString("th-TH")} บาท${caseCostTotal(costLines).incomplete ? " (ยังกรอกอัตราไม่ครบ)" : ""}`,
+                      'ประมาณการค่าใช้จ่าย',
+                      `${(caseCostTotal(costLines).totalCents / 100).toLocaleString('th-TH')} บาท${caseCostTotal(costLines).incomplete ? ' (ยังกรอกอัตราไม่ครบ)' : ''}`,
                     ],
                     [
-                      "ทุนทรัพย์",
+                      'ทุนทรัพย์',
                       form.claimedAmount
-                        ? `${Number(form.claimedAmount).toLocaleString("th-TH")} บาท`
-                        : "ยังไม่ระบุ",
+                        ? `${Number(form.claimedAmount).toLocaleString('th-TH')} บาท`
+                        : 'ยังไม่ระบุ',
                     ],
-                    ["ประเภทคดี", selectedType?.name],
-                    ["ลูกค้า", displayClientName()],
+                    ['ประเภทคดี', selectedType?.name],
+                    ['ลูกค้า', displayClientName()],
                     [
-                      "ศาล",
+                      'ศาล',
                       `${COURT_LEVEL_LABELS[form.courtLevel]} · ${form.courtName}`,
                     ],
-                    ["เลขดำ", form.blackCaseNumber || "ยังไม่มี"],
-                    ["เลขแดง", form.redCaseNumber || "ยังไม่มี"],
+                    ['เลขดำ', form.blackCaseNumber || 'ยังไม่มี'],
+                    ['เลขแดง', form.redCaseNumber || 'ยังไม่มี'],
                     [
-                      "ผู้รับผิดชอบ",
+                      'ผู้รับผิดชอบ',
                       selectedLawyer
                         ? `${selectedLawyer.firstName} ${selectedLawyer.lastName}`
-                        : "ยังไม่ได้เลือก",
+                        : 'ยังไม่ได้เลือก',
                     ],
                     [
-                      "ทนายผู้ช่วย",
+                      'ทนายผู้ช่วย',
                       lawyers
                         .filter((l) => form.buddyIds.includes(l.id))
                         .map((l) => `${l.firstName} ${l.lastName}`)
-                        .join(", ") || "ไม่มี",
+                        .join(', ') || 'ไม่มี',
                     ],
                     ...(form.customerRef
-                      ? [["เลขอ้างอิงลูกค้า", form.customerRef]]
+                      ? [['เลขอ้างอิงลูกค้า', form.customerRef]]
                       : []),
                     ...(form.estimatedFee
                       ? [
                           [
-                            "รายได้โดยประมาณ",
-                            `${Number(form.estimatedFee).toLocaleString("th-TH")} บาท`,
+                            'รายได้โดยประมาณ',
+                            `${Number(form.estimatedFee).toLocaleString('th-TH')} บาท`,
                           ],
                         ]
                       : []),
                     ...(form.description
-                      ? [["รายละเอียดคดี", form.description]]
+                      ? [['รายละเอียดคดี', form.description]]
                       : []),
                     ...fieldSchema
                       .filter((f) => form.customFields[f.key])
@@ -1162,13 +1162,13 @@ export default function NewCasePage() {
                     ...(form.addInitialActivity
                       ? [
                           [
-                            "นัดหมายแรก",
-                            `${form.initialActivityTitle} · ${form.initialActivityAt.replace("T", " ")}`,
+                            'นัดหมายแรก',
+                            `${form.initialActivityTitle} · ${form.initialActivityAt.replace('T', ' ')}`,
                           ],
                           ...(form.initialActivityDescription
                             ? [
                                 [
-                                  "รายละเอียดนัดหมาย",
+                                  'รายละเอียดนัดหมาย',
                                   form.initialActivityDescription,
                                 ],
                               ]
@@ -1179,7 +1179,7 @@ export default function NewCasePage() {
                     <div key={label}>
                       <dt className="text-xs text-muted-foreground">{label}</dt>
                       <dd className="mt-1 whitespace-pre-wrap font-medium">
-                        {value || "—"}
+                        {value || '—'}
                       </dd>
                     </div>
                   ))}
@@ -1198,7 +1198,7 @@ export default function NewCasePage() {
             disabled={submitting || analysisBusy || !!createdCaseId}
             onClick={goBack}
           >
-            {step === 0 ? "ยกเลิก" : "ย้อนกลับ"}
+            {step === 0 ? 'ยกเลิก' : 'ย้อนกลับ'}
           </Button>
           <Button
             type="submit"
@@ -1210,12 +1210,12 @@ export default function NewCasePage() {
             }
           >
             {submitting
-              ? "กำลังบันทึก…"
+              ? 'กำลังบันทึก…'
               : step === 2
                 ? createdCaseId
-                  ? "แนบไฟล์ที่เหลืออีกครั้ง"
-                  : "สร้างคดี"
-                : "ถัดไป"}
+                  ? 'แนบไฟล์ที่เหลืออีกครั้ง'
+                  : 'สร้างคดี'
+                : 'ถัดไป'}
           </Button>
         </div>
       </form>
@@ -1244,7 +1244,7 @@ export default function NewCasePage() {
                   ...previous,
                   description: [previous.description, summary]
                     .filter(Boolean)
-                    .join("\n\n"),
+                    .join('\n\n'),
                 }))
               }
             />
@@ -1253,7 +1253,7 @@ export default function NewCasePage() {
             <div className="mt-4">
               <SuggestedFieldsPanel
                 suggestions={suggestions}
-                accepts={["title", "courtName", "claimedAmount"]}
+                accepts={['title', 'courtName', 'claimedAmount']}
                 current={{
                   title: form.title,
                   courtName: form.courtName,

@@ -1,3 +1,16 @@
+import { TaskPriority } from '@lawfirm/shared';
+import type { DashboardCopy } from '@/lib/i18n/dashboard';
+
+/**
+ * The shared TASK_PRIORITY_LABELS map is Thai-only (it is server copy); the
+ * UI must follow whatever locale the reader picked.
+ */
+export function priorityLabel(d: DashboardCopy, priority: TaskPriority): string {
+  if (priority === TaskPriority.HIGH) return d.taskDetail.priorityHigh;
+  if (priority === TaskPriority.LOW) return d.taskDetail.priorityLow;
+  return d.taskDetail.priorityMedium;
+}
+
 /**
  * A task is patched through whichever board owns it: personal tasks live
  * under /todos, case tasks under their case. The drawer serves both.

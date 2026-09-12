@@ -13,6 +13,7 @@ import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
+import { formatDate } from '@/lib/utils';
 
 const ANALYSIS_PROGRESS_STEPS = [
   'กำลังอ่านเอกสารและรายละเอียดเรื่อง…',
@@ -125,9 +126,9 @@ const PRE_LITIGATION_DOCUMENTS: Record<string, Array<{ label: string; hints: str
   ],
 };
 
-function formatDate(date: string | null | undefined) {
-  if (!date) return '—';
-  return new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+/** Same Bangkok-pinned format as the rest of the app, with an em dash for empty. */
+function formatDateOrDash(date: string | null | undefined) {
+  return date ? formatDate(date) : '—';
 }
 
 function matchesDocument(filename: string, hints: string[]) {
@@ -766,7 +767,7 @@ export default function IntakeDetailPage() {
           <h1 className="text-2xl font-bold">
             {intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
           </h1>
-          <p className="text-sm text-muted-foreground">{intake.referralName || intake.clientName || intake.client?.name || '—'} · รับเมื่อ {formatDate(intake.receivedDate)}</p>
+          <p className="text-sm text-muted-foreground">{intake.referralName || intake.clientName || intake.client?.name || '—'} · รับเมื่อ {formatDateOrDash(intake.receivedDate)}</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[intake.status] ?? 'bg-gray-100 text-gray-700'}`}>
           {STATUS_LABELS[intake.status] ?? intake.status}
@@ -1258,7 +1259,7 @@ export default function IntakeDetailPage() {
           <CardContent className="space-y-0">
             <InfoRow label="ประเภทเรื่อง" value={intake.matterType ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType) : undefined} />
             <InfoRow label="คู่กรณี" value={intake.opposingParty} />
-            <InfoRow label="วันเกิดเหตุ" value={formatDate(intake.incidentDate)} />
+            <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
             <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
             <InfoRow label="รายละเอียด" value={intake.description} />
             {intake.isOngoingElsewhere && (
@@ -1296,9 +1297,9 @@ export default function IntakeDetailPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">หนังสือแจ้ง</CardTitle></CardHeader>
             <CardContent className="space-y-0">
-              <InfoRow label="ออกเมื่อ" value={formatDate(intake.noticeIssuedAt)} />
+              <InfoRow label="ออกเมื่อ" value={formatDateOrDash(intake.noticeIssuedAt)} />
               <InfoRow label="ผู้รับ" value={intake.noticeRecipient} />
-              <InfoRow label="กำหนดตอบ" value={formatDate(intake.noticeDeadline)} />
+              <InfoRow label="กำหนดตอบ" value={formatDateOrDash(intake.noticeDeadline)} />
               <InfoRow label="ผล" value={intake.noticeResult} />
               {intake.noticeContent && (
                 <div className="pt-2">

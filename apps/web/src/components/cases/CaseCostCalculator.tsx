@@ -176,6 +176,9 @@ export function SavedCaseCostCalculator({
   );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  // Removing the last line is itself a change worth saving; hiding the button
+  // on an empty list left a stale estimate stored with no way to clear it.
+  const [dirty, setDirty] = useState(false);
   const save = async () => {
     if (!token || saving) return;
     setSaving(true);
@@ -190,6 +193,7 @@ export function SavedCaseCostCalculator({
         },
       });
       setMessage('บันทึกประมาณการแล้ว');
+      setDirty(false);
       onSaved();
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : 'บันทึกไม่สำเร็จ');
@@ -203,11 +207,12 @@ export function SavedCaseCostCalculator({
         value={lines}
         onChange={(updated) => {
           setLines(updated);
+          setDirty(true);
           setMessage('');
         }}
         disabled={saving}
       />
-      {lines.length > 0 && (
+      {(lines.length > 0 || dirty) && (
         <Button type="button" variant="outline" disabled={saving} onClick={save}>
           {saving ? 'กำลังบันทึก…' : 'บันทึกประมาณการ'}
         </Button>

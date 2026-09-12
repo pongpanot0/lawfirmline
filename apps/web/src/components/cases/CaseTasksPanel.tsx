@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { FirmRole, TASK_PRIORITY_LABELS, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { FirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseDetail, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { priorityLabel } from '@/lib/task-detail';
 
 export function CaseTasksPanel({ caseId }: { caseId: string }) {
   const d = useDashboardT();
@@ -200,7 +201,7 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               >
                 {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
-                  <option key={p} value={p}>{TASK_PRIORITY_LABELS[p]}</option>
+                  <option key={p} value={p}>{priorityLabel(d, p)}</option>
                 ))}
               </select>
               <Button type="submit" size="sm" disabled={creating}>{d.caseTasks.create}</Button>

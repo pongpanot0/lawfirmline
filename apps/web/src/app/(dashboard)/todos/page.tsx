@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { TASK_PRIORITY_LABELS, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { priorityLabel } from '@/lib/task-detail';
 import { PageLoading } from '@/components/ui/misc';
 
 function TodosPageContent() {
@@ -216,7 +217,7 @@ function TodosPageContent() {
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               >
                 {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
-                  <option key={p} value={p}>{TASK_PRIORITY_LABELS[p]}</option>
+                  <option key={p} value={p}>{priorityLabel(d, p)}</option>
                 ))}
               </select>
               <Button type="submit" size="sm" disabled={creating}>{d.todos.create}</Button>

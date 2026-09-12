@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
+import { formatDate } from '@/lib/utils';
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -27,10 +28,6 @@ const STATUS_VARIANT: Record<string, string> = {
   CONVERTED: 'bg-purple-100 text-purple-700',
   CONSULTED: 'bg-teal-100 text-teal-700',
 };
-
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-}
 
 export default function IntakePage() {
   const { token } = useAuth();
