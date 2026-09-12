@@ -206,9 +206,9 @@ function CasesPageContent() {
                     >
                       <TableCell className="font-medium text-primary">{c.ownRef}</TableCell>
                       <TableCell className="text-muted-foreground">{c.customerRef ?? '—'}</TableCell>
-                      <TableCell>{c.title}</TableCell>
-                      <TableCell className="text-muted-foreground">{c.clientName ?? '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">{c.courtName ?? '—'}</TableCell>
+                      <TableCell className="max-w-[220px] truncate" title={c.title}>{c.title}</TableCell>
+                      <TableCell className="max-w-[160px] truncate text-muted-foreground" title={c.clientName ?? undefined}>{c.clientName ?? '—'}</TableCell>
+                      <TableCell className="max-w-[180px] truncate text-muted-foreground" title={c.courtName ?? undefined}>{c.courtName ?? '—'}</TableCell>
                       <TableCell>{c.leadLawyer.firstName} {c.leadLawyer.lastName}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {c.estimatedFee != null ? formatCurrency(c.estimatedFee) : '—'}
