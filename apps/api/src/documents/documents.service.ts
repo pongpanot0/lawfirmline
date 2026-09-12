@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthUser } from '@lawfirm/shared';
@@ -124,7 +125,7 @@ export class DocumentsService {
     const document = await this.prisma.document.create({
       data: {
         caseId,
-        filename: file.originalname,
+        filename: decodeUploadFilename(file.originalname),
         storagePath: '',
         mimeType: file.mimetype,
         version: 1,
@@ -132,7 +133,7 @@ export class DocumentsService {
       },
     });
 
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(decodeUploadFilename(file.originalname));
     const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
     const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
@@ -146,7 +147,7 @@ export class DocumentsService {
         documentId: document.id,
         version: 1,
         storagePath,
-        filename: file.originalname,
+        filename: decodeUploadFilename(file.originalname),
         mimeType: file.mimetype,
         createdById: user.id,
       },
@@ -166,7 +167,7 @@ export class DocumentsService {
       data: {
         caseId: undefined,
         intakeId,
-        filename: file.originalname,
+        filename: decodeUploadFilename(file.originalname),
         storagePath: '',
         mimeType: file.mimetype,
         version: 1,
@@ -174,7 +175,7 @@ export class DocumentsService {
       },
     });
 
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(decodeUploadFilename(file.originalname));
     const key = path.posix.join('intake', intakeId, 'documents', `${document.id}_v1${ext}`);
     const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
@@ -188,7 +189,7 @@ export class DocumentsService {
         documentId: document.id,
         version: 1,
         storagePath,
-        filename: file.originalname,
+        filename: decodeUploadFilename(file.originalname),
         mimeType: file.mimetype,
         createdById: user.id,
       },
@@ -207,7 +208,7 @@ export class DocumentsService {
     const document = await this.verifyDocument(caseId, documentId);
 
     const newVersion = document.version + 1;
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(decodeUploadFilename(file.originalname));
     const key = path.posix.join('cases', caseId, `${documentId}_v${newVersion}${ext}`);
     const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
 
@@ -223,7 +224,7 @@ export class DocumentsService {
         documentId,
         version: newVersion,
         storagePath,
-        filename: file.originalname,
+        filename: decodeUploadFilename(file.originalname),
         mimeType: file.mimetype,
         createdById: user.id,
         notes,
@@ -234,7 +235,7 @@ export class DocumentsService {
       where: { id: documentId },
       data: {
         version: newVersion,
-        filename: file.originalname,
+        filename: decodeUploadFilename(file.originalname),
         storagePath,
         mimeType: file.mimetype,
         uploadedById: user.id,
@@ -252,7 +253,7 @@ export class DocumentsService {
     const document = await this.verifyIntakeDocument(intakeId, documentId);
 
     const newVersion = document.version + 1;
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(decodeUploadFilename(file.originalname));
     const key = path.posix.join(
       'intake',
       intakeId,
@@ -266,7 +267,7 @@ export class DocumentsService {
         documentId,
         version: newVersion,
         storagePath,
-        filename: file.originalname,
+        filename: decodeUploadFilename(file.originalname),
         mimeType: file.mimetype,
       },
     });
@@ -275,7 +276,7 @@ export class DocumentsService {
       where: { id: documentId },
       data: {
         version: newVersion,
-        filename: file.originalname,
+        filename: decodeUploadFilename(file.originalname),
         storagePath,
         mimeType: file.mimetype,
         uploadedById: user.id,

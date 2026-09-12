@@ -1,4 +1,5 @@
 import { BatchAnalysisDto } from './dto/batch-analysis.dto';
+import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ClassifyChecklistDto } from './dto/classify-checklist.dto';
 import {
   Controller,
@@ -51,7 +52,7 @@ export class IntelligenceController {
   @RequireCredits(5)
   @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024, files: 10 } }), AiCreditsInterceptor)
   analyzeDraftBatch(@CurrentUser() user: AuthUser, @UploadedFiles() files: Express.Multer.File[]) {
-    return this.intelligenceService.analyzeBatch((files ?? []).map((file) => ({ buffer: file.buffer, mimeType: file.mimetype, filename: file.originalname })), user.id);
+    return this.intelligenceService.analyzeBatch((files ?? []).map((file) => ({ buffer: file.buffer, mimeType: file.mimetype, filename: decodeUploadFilename(file.originalname) })), user.id);
   }
 
   @Get('cases/:caseId/documents/batch-analyses')

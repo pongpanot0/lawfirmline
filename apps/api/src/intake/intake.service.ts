@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser, redactForAi, AI_CREDIT_COST, AI_UPLOAD_MAX_BYTES } from '@lawfirm/shared';
 import * as path from 'path';
@@ -696,7 +697,7 @@ export class IntakeService {
     return this.prisma.intakeAttachment.create({
       data: {
         intakeId,
-        filename: file.originalname,
+        filename: decodeUploadFilename(file.originalname),
         storagePath,
         mimeType: file.mimetype,
         uploadedById: user.id,

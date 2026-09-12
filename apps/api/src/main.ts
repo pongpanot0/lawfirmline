@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { config } from 'dotenv';
 import { resolve } from 'path';
 import { AppModule } from './app.module';
+import { PayloadTooLargeFilter } from './common/filters/payload-too-large.filter';
 import { DEFAULT_ROOT_DOMAIN } from '@lawfirm/shared';
 
 config({ path: resolve(__dirname, '../.env') });
@@ -42,6 +43,7 @@ async function bootstrap() {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Firm-Slug'],
   });
+  app.useGlobalFilters(new PayloadTooLargeFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
