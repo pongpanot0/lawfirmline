@@ -1,4 +1,7 @@
+'use client';
+
 import type { CaseStatus } from '@lawfirm/shared';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const statusColors: Record<string, string> = {
   OPEN: 'bg-sky-100 text-sky-800',
@@ -9,22 +12,14 @@ const statusColors: Record<string, string> = {
   CLOSED: 'bg-slate-100 text-slate-600',
 };
 
-const statusLabels: Record<string, string> = {
-  OPEN: 'คดีใหม่',
-  DRAFTING: 'ร่างคำฟ้อง',
-  COURT_DATE: 'นัดศาล',
-  IN_PROGRESS: 'ยื่นฟ้องแล้ว',
-  PENDING: 'รอคำพิพากษา',
-  CLOSED: 'ปิดคดี',
-};
-
 export function StatusBadge({ status }: { status: CaseStatus | string }) {
+  const d = useDashboardT();
   const key = String(status);
   return (
     <span
       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[key] ?? 'bg-slate-100 text-slate-600'}`}
     >
-      {statusLabels[key] ?? key.replace('_', ' ')}
+      {d.caseStatus[key as keyof typeof d.caseStatus] ?? key.replace('_', ' ')}
     </span>
   );
 }

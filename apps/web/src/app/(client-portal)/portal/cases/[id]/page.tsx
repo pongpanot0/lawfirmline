@@ -14,6 +14,7 @@ import { PortalShell } from '@/components/layout/PortalShell';
 import { StageTrack } from '@/components/portal/StageTrack';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { getCaseStatusDisplay } from '@/lib/case-status';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'ร่าง',
@@ -22,6 +23,7 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 };
 
 export default function PortalCaseDetailPage() {
+  const d = useDashboardT();
   const { id } = useParams<{ id: string }>();
   const { contact, token, loading } = usePortalAuth();
   const router = useRouter();
@@ -86,7 +88,7 @@ export default function PortalCaseDetailPage() {
 
   if (loading || !contact || !detail) return null;
 
-  const status = getCaseStatusDisplay(detail.status);
+  const status = getCaseStatusDisplay(detail.status, d.caseStatus);
 
   return (
     <PortalShell>

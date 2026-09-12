@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 interface OnHoldResumeButtonProps {
   token: string;
@@ -16,13 +17,14 @@ export function OnHoldResumeButton({
   taskId,
   onResumed,
 }: OnHoldResumeButtonProps) {
+  const d = useDashboardT();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!caseId) {
     return (
       <span className="text-xs text-muted-foreground">
-        จัดการงานนี้ผ่านหน้ารายการงานของฉัน
+        {d.operations.resumeTaskUnavailable}
       </span>
     );
   }
@@ -34,7 +36,7 @@ export function OnHoldResumeButton({
       await api.resumeTaskFromOnHold(token, caseId, taskId);
       onResumed();
     } catch {
-      setError('ไม่สามารถเคลียร์สถานะพักงานได้ กรุณาลองใหม่');
+      setError(d.operations.resumeTaskError);
     } finally {
       setLoading(false);
     }
@@ -47,7 +49,7 @@ export function OnHoldResumeButton({
         onClick={handleResume}
         disabled={loading}
       >
-        {loading ? 'กำลังดำเนินการ...' : 'เคลียร์สถานะพักงาน'}
+        {loading ? d.operations.resumeTaskLoading : d.operations.resumeTask}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>

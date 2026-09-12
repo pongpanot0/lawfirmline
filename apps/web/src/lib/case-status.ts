@@ -4,17 +4,23 @@ import { badgeVariants } from '@/components/ui/badge';
 
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>['variant']>;
 
-const STATUS_MAP: Record<string, { label: string; variant: BadgeVariant }> = {
-  OPEN: { label: 'คดีใหม่', variant: 'new' },
-  DRAFTING: { label: 'ร่างคำฟ้อง', variant: 'drafting' },
-  IN_PROGRESS: { label: 'ยื่นฟ้องแล้ว', variant: 'filed' },
-  COURT_DATE: { label: 'นัดศาล', variant: 'hearing' },
-  PENDING: { label: 'รอคำพิพากษา', variant: 'judgment' },
-  CLOSED: { label: 'ปิดคดี', variant: 'closed' },
+/** Status labels live in the i18n copy; callers pass `d.caseStatus` from useDashboardT(). */
+export type CaseStatusLabels = Record<string, string>;
+
+const STATUS_VARIANTS: Record<string, BadgeVariant> = {
+  OPEN: 'new',
+  DRAFTING: 'drafting',
+  IN_PROGRESS: 'filed',
+  COURT_DATE: 'hearing',
+  PENDING: 'judgment',
+  CLOSED: 'closed',
 };
 
-export function getCaseStatusDisplay(status: CaseStatus | string) {
-  return STATUS_MAP[status] ?? { label: String(status), variant: 'muted' as BadgeVariant };
+export function getCaseStatusDisplay(status: CaseStatus | string, labels: CaseStatusLabels) {
+  return {
+    label: labels[status as string] ?? String(status),
+    variant: STATUS_VARIANTS[status as string] ?? ('muted' as BadgeVariant),
+  };
 }
 
 /** Ordered case lifecycle stages, used to render the portal's stage-progress track. */
@@ -28,15 +34,10 @@ export function getCaseStageIndex(status: CaseStatus | string): number {
 
 export const CASE_STAGE_COUNT = STAGE_ORDER.length - 1;
 
-/** Status filter options in display order, sharing the same Thai labels as the badge. */
-export const CASE_STATUS_OPTIONS: { value: string; label: string }[] = [
-  'OPEN',
-  'DRAFTING',
-  'IN_PROGRESS',
-  'COURT_DATE',
-  'PENDING',
-  'CLOSED',
-].map((value) => ({ value, label: STATUS_MAP[value].label }));
+/** Status filter options in lifecycle order, sharing the same labels as the badge. */
+export function caseStatusOptions(labels: CaseStatusLabels): { value: string; label: string }[] {
+  return STAGE_ORDER.map((value) => ({ value, label: labels[value] ?? value }));
+}
 
 export const ACTIVITY_ICONS = {
   case: 'Briefcase',
