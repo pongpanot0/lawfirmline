@@ -179,9 +179,8 @@ export default function NewCasePage() {
   };
 
   const validationMessage = (targetStep: number) => {
-    if (targetStep === 0 && !form.caseTypeId)
-      return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
-    if (targetStep === 1) {
+    if (targetStep === 0) {
+      if (!form.caseTypeId) return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
       if (
         form.claimedAmount &&
         (!Number.isFinite(Number(form.claimedAmount)) ||
@@ -225,16 +224,15 @@ export default function NewCasePage() {
       );
       if (missing) return `กรุณากรอก${missing.label}`;
     }
-    if (targetStep === 2 && !lawyers.some((l) => l.id === form.leadLawyerId))
+    if (targetStep === 1 && !lawyers.some((l) => l.id === form.leadLawyerId))
       return 'กรุณาเลือกทนายผู้รับผิดชอบ';
     return '';
   };
   // Type-specific fields live inside "ข้อมูลคดี": a step of their own made
   // lawyers click through a page holding one or two optional inputs.
   const visibleSteps = [
-    { value: 0, label: 'ประเภทคดี' },
-    { value: 1, label: 'ข้อมูลคดี' },
-    { value: 2, label: 'ทีมและตรวจสอบ' },
+    { value: 0, label: 'ข้อมูลคดี' },
+    { value: 1, label: 'ทีมและตรวจสอบ' },
   ];
 
   const goNext = () => {
@@ -386,7 +384,7 @@ export default function NewCasePage() {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (step === 2) void handleSubmit();
+          if (step === 1) void handleSubmit();
           else goNext();
         }}
         className="rounded-xl border border-border bg-card text-card-foreground shadow-soft"
@@ -408,10 +406,8 @@ export default function NewCasePage() {
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {step === 0
-                ? 'เลือกประเภทที่ตรงกับคดี เพื่อแสดงเฉพาะข้อมูลที่เกี่ยวข้อง'
-                : step === 1
-                  ? 'ช่องที่มี * จำเป็นต้องกรอก ข้อมูลอื่นเพิ่มภายหลังได้'
-                  : 'ตรวจสอบข้อมูลก่อนสร้างคดี และเลือกทีมที่ดูแล'}
+                ? 'ช่องที่มี * จำเป็นต้องกรอก ข้อมูลอื่นเพิ่มภายหลังได้'
+                : 'ตรวจสอบข้อมูลก่อนสร้างคดี และเลือกทีมที่ดูแล'}
             </p>
           </div>
 
@@ -436,58 +432,62 @@ export default function NewCasePage() {
           )}
 
           {step === 0 && (
-            <div className="space-y-4">
-              {loadingTypes ? (
-                <p role="status" className="text-sm text-muted-foreground">
-                  กำลังเตรียมข้อมูล…
-                </p>
-              ) : caseTypes.length === 0 ? (
-                <p className="text-sm">
-                  ยังไม่มีประเภทคดี{' '}
-                  <Link
-                    href="/admin/case-types"
-                    className="text-primary underline"
-                  >
-                    เพิ่มประเภทคดี
-                  </Link>
-                  ก่อนเริ่ม
-                </p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {caseTypes.map((type) => (
-                    <button
-                      key={type.id}
-                      type="button"
-                      aria-pressed={form.caseTypeId === type.id}
-                      onClick={() =>
-                        setForm((f) =>
-                          f.caseTypeId === type.id
-                            ? f
-                            : { ...f, caseTypeId: type.id, customFields: {} },
-                        )
-                      }
-                      className={`rounded-lg border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.caseTypeId === type.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
-                    >
-                      <span className="flex items-center justify-between gap-2 font-medium">
-                        {type.name}
-                        <span aria-hidden="true">
-                          {form.caseTypeId === type.id ? '✓' : '○'}
-                        </span>
-                      </span>
-                      {type.description && (
-                        <span className="mt-2 block text-sm text-muted-foreground">
-                          {type.description}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 1 && (
             <div className="space-y-6">
+              <section className="space-y-3" aria-label="ประเภทคดี">
+                <div>
+                  <h3 className="text-sm font-semibold">ประเภทคดี</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    เลือกประเภทที่ตรงกับคดี เพื่อแสดงเฉพาะข้อมูลที่เกี่ยวข้อง
+                  </p>
+                </div>
+                {loadingTypes ? (
+                  <p role="status" className="text-sm text-muted-foreground">
+                    กำลังเตรียมข้อมูล…
+                  </p>
+                ) : caseTypes.length === 0 ? (
+                  <p className="text-sm">
+                    ยังไม่มีประเภทคดี{' '}
+                    <Link
+                      href="/admin/case-types"
+                      className="text-primary underline"
+                    >
+                      เพิ่มประเภทคดี
+                    </Link>
+                    ก่อนเริ่ม
+                  </p>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {caseTypes.map((type) => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        aria-pressed={form.caseTypeId === type.id}
+                        onClick={() =>
+                          setForm((f) =>
+                            f.caseTypeId === type.id
+                              ? f
+                              : { ...f, caseTypeId: type.id, customFields: {} },
+                          )
+                        }
+                        className={`rounded-lg border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.caseTypeId === type.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
+                      >
+                        <span className="flex items-center justify-between gap-2 font-medium">
+                          {type.name}
+                          <span aria-hidden="true">
+                            {form.caseTypeId === type.id ? '✓' : '○'}
+                          </span>
+                        </span>
+                        {type.description && (
+                          <span className="mt-2 block text-sm text-muted-foreground">
+                            {type.description}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
               <section className="space-y-4" aria-label="ลูกค้าและชื่อคดี">
                 <div>
                   <label htmlFor="client-combobox" className={fieldLabel}>
@@ -974,7 +974,7 @@ export default function NewCasePage() {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 1 && (
             <div className="space-y-6">
               <div>
                 <label htmlFor="lead-lawyer" className={fieldLabel}>
@@ -1059,7 +1059,7 @@ export default function NewCasePage() {
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                      setStep(1);
+                      setStep(0);
                       setError('');
                     }}
                   >
@@ -1171,7 +1171,7 @@ export default function NewCasePage() {
           >
             {submitting
               ? 'กำลังบันทึก…'
-              : step === 2
+              : step === 1
                 ? createdCaseId
                   ? 'แนบไฟล์ที่เหลืออีกครั้ง'
                   : 'สร้างคดี'
