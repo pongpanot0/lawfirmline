@@ -16,7 +16,12 @@
     {
       "name": "api",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "api", "run", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "api",
+        "run",
+        "dev"
+      ],
       "port": 3001
     },
     {
@@ -54,6 +59,15 @@
         "3015"
       ],
       "port": 3015
+    },
+    {
+      "name": "api-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "PORT=3011 pnpm --filter api run dev"
+      ],
+      "port": 3011
     }
   ]
 }

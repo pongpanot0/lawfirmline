@@ -9,6 +9,7 @@ import * as path from 'path';
 import { AuthUser, FirmRole, TaskPriority } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { TasksService } from './tasks.service';
 import { CreateSubtaskDto, CreateTaskCommentDto } from './dto/task-detail.dto';
 
@@ -115,7 +116,8 @@ export class TaskDetailService {
     if (file.size > TASK_ATTACHMENT_MAX_BYTES) {
       throw new BadRequestException('ไฟล์มีขนาดใหญ่เกิน 10MB');
     }
-    const ext = path.extname(file.originalname).toLowerCase().slice(0, 10);
+    const filename = decodeUploadFilename(file.originalname);
+    const ext = path.extname(filename).toLowerCase().slice(0, 10);
     const key = path.posix.join(
       'tasks',
       taskId,
@@ -126,7 +128,7 @@ export class TaskDetailService {
       return await this.prisma.taskAttachment.create({
         data: {
           taskId,
-          filename: file.originalname,
+          filename,
           storagePath,
           mimeType: file.mimetype,
           size: file.size,
