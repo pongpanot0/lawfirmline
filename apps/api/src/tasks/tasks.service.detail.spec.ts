@@ -171,5 +171,19 @@ describe('TasksService detail support', () => {
       await expect(service.remove('nope')).rejects.toThrow(NotFoundException);
       expect(mockPrisma.task.delete).not.toHaveBeenCalled();
     });
+
+    it('404s when the task belongs to another case', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(null);
+      await expect(service.remove('t1', 'other-case')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes when the task belongs to the case in the url', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({ id: 't1' });
+      mockPrisma.task.findUnique.mockResolvedValue(withAttachments);
+      mockPrisma.task.delete.mockResolvedValue({ id: 't1' });
+      await expect(service.remove('t1', 'c1')).resolves.toEqual({ deleted: true });
+      expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
+    });
   });
 });

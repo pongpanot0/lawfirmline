@@ -113,7 +113,7 @@ export class TasksController {
   }
 
   @Delete(':taskId')
-  remove(@Param('taskId') taskId: string) {
-    return this.tasksService.remove(taskId);
+  remove(@Param('caseId') caseId: string, @Param('taskId') taskId: string) {
+    return this.tasksService.remove(taskId, caseId);
   }
 }
