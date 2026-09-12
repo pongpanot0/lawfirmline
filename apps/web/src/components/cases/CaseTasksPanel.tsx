@@ -9,6 +9,8 @@ import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
 import { useTaskParam } from '@/components/tasks/useTaskParam';
+import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
+import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,6 +35,9 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
   const [loadError, setLoadError] = useState('');
   const [layout, setLayout] = useTaskLayout();
   const taskParam = useTaskParam();
+  const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
+  const visibleTasks = applyTaskFilters(tasks, filters);
+  const filtering = hasActiveTaskFilters(filters);
 
   const loadTasks = () => {
     if (!token || !caseId) return;
@@ -210,6 +215,20 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
         </Card>
       )}
 
+      <Card className="mb-4">
+        <CardContent className="p-3">
+          <TaskFilterBar
+            value={filters}
+            onChange={setFilters}
+            users={users}
+            labels={collectTaskLabels(tasks)}
+            statuses={[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.PENDING_REVIEW, TaskStatus.NEEDS_REVISION, TaskStatus.DONE]}
+            shown={visibleTasks.length}
+            total={tasks.length}
+          />
+        </CardContent>
+      </Card>
+
       {loadError ? (
         <div className="rounded-xl border bg-card p-6 shadow-soft">
           <p role="alert" className="text-sm text-destructive">{loadError}</p>
@@ -218,9 +237,13 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
           </Button>
         </div>
       ) : (
+      <>
+      {filtering && visibleTasks.length === 0 && (
+        <p role="status" className="mb-3 text-sm text-muted-foreground">{d.todos.noMatches}</p>
+      )}
       <KanbanBoard
         layout={layout}
-        tasks={tasks}
+        tasks={visibleTasks}
         onStatusChange={handleStatusChange}
         currentUserId={user?.id ?? ''}
         isReviewer={isReviewer}
@@ -232,6 +255,7 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
         onReject={handleReject}
         onOpen={taskParam.open}
       />
+      </>
       )}
       <TaskDetailDrawer
         taskId={taskParam.taskId}
