@@ -24,9 +24,9 @@ export function useTaskParam() {
     [router, pathname, searchParams],
   );
 
-  return {
-    taskId,
-    open: (id: string) => setParam(id),
-    close: () => setParam(null),
-  };
+  // Stable identities: the drawer's key-handling effect depends on `close`.
+  const open = useCallback((id: string) => setParam(id), [setParam]);
+  const close = useCallback(() => setParam(null), [setParam]);
+
+  return { taskId, open, close };
 }

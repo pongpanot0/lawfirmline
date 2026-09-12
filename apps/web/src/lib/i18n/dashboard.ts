@@ -737,6 +737,8 @@ export const dashboardCopy = {
     taskDetail: {
       title: 'รายละเอียดงาน',
       close: 'ปิด',
+      titleField: 'ชื่องาน',
+      downloadFailed: 'ดาวน์โหลดไม่สำเร็จ',
       backToParent: '← กลับไปงานหลัก',
       loadFailed: 'โหลดรายละเอียดงานไม่สำเร็จ',
       forbidden: 'ไม่มีสิทธิ์ดูงานนี้',
@@ -1608,6 +1610,8 @@ export const dashboardCopy = {
     taskDetail: {
       title: 'Task detail',
       close: 'Close',
+      titleField: 'Task title',
+      downloadFailed: 'Download failed',
       backToParent: '← Back to parent task',
       loadFailed: 'Could not load the task',
       forbidden: 'You cannot view this task',

@@ -39,16 +39,24 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [uploadError, setUploadError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
+  const titleInput = useRef<HTMLInputElement>(null);
+  // Navigating parent → subtask → parent quickly can make an older response
+  // land last; only the response for the task currently open is painted.
+  const requestedId = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !taskId) return;
+    requestedId.current = taskId;
     setError('');
     try {
       const detail = await api.getTaskDetail(token, taskId);
+      if (requestedId.current !== taskId) return;
       setTask(detail);
       setTitle(detail.title);
       setDescription(detail.description ?? '');
     } catch (err) {
+      if (requestedId.current !== taskId) return;
       setTask(null);
       setError(err instanceof ApiError && err.status === 403 ? d.taskDetail.forbidden : d.taskDetail.loadFailed);
     }
@@ -66,18 +74,48 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     void load();
   }, [load]);
 
-  // Escape closes; the body stops scrolling while the drawer is up.
+  // Escape closes, Tab stays inside the drawer, the body stops scrolling, and
+  // focus returns to whatever opened it (usually the card title) on close.
   useEffect(() => {
     if (!taskId) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const opener = document.activeElement as HTMLElement | null;
+    const focusable = () =>
+      [...(asideRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [])].filter((el) => !el.hidden && el.offsetParent !== null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const inside = asideRef.current?.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
+      opener?.focus?.();
     };
   }, [taskId, onClose]);
+
+  // First focus lands on the title once the task has loaded.
+  useEffect(() => {
+    if (task && !asideRef.current?.contains(document.activeElement)) titleInput.current?.focus();
+  }, [task?.id]);
 
   /** Every write goes through here: same error copy, same refresh, same board reload. */
   const run = async (action: () => Promise<unknown>, successNotice = '') => {
@@ -142,7 +180,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     try {
       await downloadTaskAttachment(token, task.id, attachmentId, filename);
     } catch (err) {
-      setUploadError(err instanceof ApiError && err.message ? err.message : d.taskDetail.uploadFailed);
+      setUploadError(err instanceof ApiError && err.message ? err.message : d.taskDetail.downloadFailed);
     } finally {
       setDownloadingId(null);
     }
@@ -163,7 +201,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={d.taskDetail.title}>
       <button type="button" aria-label={d.taskDetail.close} onClick={onClose} className="flex-1 bg-black/30" />
-      <aside className="flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card shadow-xl">
+      <aside ref={asideRef} className="flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card shadow-xl">
         <div className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div className="min-w-0 flex-1">
             {task?.parent && (
@@ -180,11 +218,18 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               </p>
             )}
             <input
+              ref={titleInput}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              onBlur={() => task && title.trim() && title.trim() !== task.title && patch({ title: title.trim() }, d.taskDetail.saved)}
+              onBlur={() => {
+                if (!task) return;
+                const next = title.trim();
+                // An emptied title is never saved; it falls back to the stored one.
+                if (!next) setTitle(task.title);
+                else if (next !== task.title) void patch({ title: next }, d.taskDetail.saved);
+              }}
               disabled={!task || busy}
-              aria-label={d.taskDetail.title}
+              aria-label={d.taskDetail.titleField}
               className="mt-1 w-full rounded-md border border-transparent bg-transparent px-1 text-lg font-semibold hover:border-input focus:border-input focus:outline-none"
             />
           </div>
