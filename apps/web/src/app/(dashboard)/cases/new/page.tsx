@@ -191,7 +191,8 @@ export default function NewCasePage() {
       )
         return 'กรุณากรอกทุนทรัพย์เป็นจำนวนเงินตั้งแต่ 0 และทศนิยมไม่เกิน 2 ตำแหน่ง';
       if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
-      if (!form.courtName) return 'กรุณาเลือกศาล';
+      // The court itself may not be known yet (e.g. a consult that hasn't
+      // gone to court) — only the level defaults, court name stays optional.
       // Court numbers arrive after the case is opened; only a filled-in
       // value has to fit the format.
       if (
@@ -708,7 +709,10 @@ export default function NewCasePage() {
                   </div>
                   <div>
                     <label htmlFor="court-search" className={fieldLabel}>
-                      ศาล *
+                      ศาล{' '}
+                      <span className="font-normal text-muted-foreground">
+                        (ถ้ามี)
+                      </span>
                     </label>
                     <input
                       id="court-search"
@@ -720,14 +724,13 @@ export default function NewCasePage() {
                     />
                     <select
                       aria-label="เลือกศาล"
-                      required
                       value={form.courtName}
                       onChange={(e) =>
                         setForm({ ...form, courtName: e.target.value })
                       }
                       className={inputClass}
                     >
-                      <option value="">เลือกศาล</option>
+                      <option value="">ยังไม่ทราบศาล ระบุภายหลัง</option>
                       {courts
                         .filter(
                           (c) =>
@@ -1125,7 +1128,9 @@ export default function NewCasePage() {
                     ['ลูกค้า', displayClientName()],
                     [
                       'ศาล',
-                      `${COURT_LEVEL_LABELS[form.courtLevel]} · ${form.courtName}`,
+                      form.courtName
+                        ? `${COURT_LEVEL_LABELS[form.courtLevel]} · ${form.courtName}`
+                        : `${COURT_LEVEL_LABELS[form.courtLevel]} · ยังไม่ทราบศาล`,
                     ],
                     ['เลขดำ', form.blackCaseNumber || 'ยังไม่มี'],
                     ['เลขแดง', form.redCaseNumber || 'ยังไม่มี'],
