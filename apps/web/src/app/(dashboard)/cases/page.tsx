@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { api, CaseItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
-import { CASE_STATUS_OPTIONS, getCaseStatusDisplay } from '@/lib/case-status';
+import { caseStatusOptions, getCaseStatusDisplay } from '@/lib/case-status';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -87,7 +87,7 @@ function CasesPageContent() {
       c.courtName ?? '',
       `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}`,
       c.estimatedFee != null ? String(c.estimatedFee) : '',
-      getCaseStatusDisplay(c.status).label,
+      getCaseStatusDisplay(c.status, d.caseStatus).label,
     ]);
     const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
     const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
@@ -133,7 +133,7 @@ function CasesPageContent() {
             className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
           >
             <option value="">{d.cases.allStatuses}</option>
-            {CASE_STATUS_OPTIONS.map((opt) => (
+            {caseStatusOptions(d.caseStatus).map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>

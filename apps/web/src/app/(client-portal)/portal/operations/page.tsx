@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { PortalShell } from '@/components/layout/PortalShell';
 import { StageTrack } from '@/components/portal/StageTrack';
 import { getCaseStatusDisplay } from '@/lib/case-status';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatDate } from '@/lib/utils';
 
 /**
@@ -17,6 +18,7 @@ import { formatDate } from '@/lib/utils';
  * ("เรื่องที่ส่ง"), which is pre-engagement submissions only.
  */
 export default function PortalOperationsPage() {
+  const d = useDashboardT();
   const { contact, token, loading } = usePortalAuth();
   const router = useRouter();
   const [cases, setCases] = useState<PortalCaseSummary[]>([]);
@@ -64,7 +66,7 @@ export default function PortalOperationsPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {cases.map((c) => {
-            const status = getCaseStatusDisplay(c.status);
+            const status = getCaseStatusDisplay(c.status, d.caseStatus);
             return (
               <Card
                 key={c.id}

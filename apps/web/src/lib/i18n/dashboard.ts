@@ -941,6 +941,14 @@ export const dashboardCopy = {
       resumeTaskError: 'ไม่สามารถเคลียร์สถานะพักงานได้ กรุณาลองใหม่',
       resumeTaskUnavailable: 'จัดการงานนี้ผ่านหน้ารายการงานของฉัน',
     },
+    caseStatus: {
+      OPEN: 'คดีใหม่',
+      DRAFTING: 'ร่างคำฟ้อง',
+      IN_PROGRESS: 'ยื่นฟ้องแล้ว',
+      COURT_DATE: 'นัดศาล',
+      PENDING: 'รอคำพิพากษา',
+      CLOSED: 'ปิดคดี',
+    },
   },
   en: {
     common: {
@@ -1879,6 +1887,14 @@ export const dashboardCopy = {
       resumeTaskLoading: 'Working...',
       resumeTaskError: 'Could not clear the on-hold status. Please try again.',
       resumeTaskUnavailable: 'Manage this task from your own task list',
+    },
+    caseStatus: {
+      OPEN: 'New case',
+      DRAFTING: 'Drafting complaint',
+      IN_PROGRESS: 'Filed',
+      COURT_DATE: 'Hearing scheduled',
+      PENDING: 'Awaiting judgment',
+      CLOSED: 'Closed',
     },
   },
 } satisfies Record<Locale, Record<string, unknown>>;

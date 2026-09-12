@@ -1,6 +1,7 @@
 'use client';
 
 import { getCaseStatusDisplay } from '@/lib/case-status';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 import Link from 'next/link';
 import type { CaseStatus } from '@lawfirm/shared';
@@ -40,12 +41,14 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
     return cases.filter((c) => c.status === status);
   };
 
+  const d = useDashboardT();
+
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {WORKFLOW_COLUMNS.map((col) => (
         <div key={col.status} className={`rounded-xl border-2 p-4 ${col.color}`}>
           <h3 className="mb-3 text-sm font-semibold text-slate-700">
-            {getCaseStatusDisplay(col.status).label}
+            {getCaseStatusDisplay(col.status, d.caseStatus).label}
             <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-slate-500">
               {getColumnCases(col.status).length}
             </span>
@@ -73,9 +76,9 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                     className="mt-2 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                   >
                     {WORKFLOW_COLUMNS.map((w) => (
-                      <option key={w.status} value={w.status}>{getCaseStatusDisplay(w.status).label}</option>
+                      <option key={w.status} value={w.status}>{getCaseStatusDisplay(w.status, d.caseStatus).label}</option>
                     ))}
-                    <option value="IN_PROGRESS">ยื่นฟ้องแล้ว</option>
+                    <option value="IN_PROGRESS">{d.caseStatus.IN_PROGRESS}</option>
                   </select>
                 )}
                 <div className="mt-2">

@@ -21,9 +21,11 @@ import { buttonVariants } from '@/components/ui/button';
 import { PortalShell } from '@/components/layout/PortalShell';
 import { StageTrack } from '@/components/portal/StageTrack';
 import { getCaseStatusDisplay } from '@/lib/case-status';
+import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatDate, formatDateTime } from '@/lib/utils';
 
 export default function PortalDashboardPage() {
+  const d = useDashboardT();
   const { contact, token, loading } = usePortalAuth();
   const router = useRouter();
   const [cases, setCases] = useState<PortalCaseSummary[]>([]);
@@ -135,7 +137,7 @@ export default function PortalDashboardPage() {
           ) : (
             <div className="flex flex-col gap-3">
               {cases.slice(0, 3).map((c) => {
-                const status = getCaseStatusDisplay(c.status);
+                const status = getCaseStatusDisplay(c.status, d.caseStatus);
                 return (
                   <Card
                     key={c.id}
