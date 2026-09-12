@@ -7,6 +7,7 @@ import {
   caseCostTotal,
 } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
+import { ClientCombobox } from './ClientCombobox';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -48,7 +49,6 @@ export default function NewCasePage() {
   const submittingRef = useRef(false);
   const [autoTitle, setAutoTitle] = useState(true);
   const [showCostEstimate, setShowCostEstimate] = useState(false);
-  const [clientSearch, setClientSearch] = useState('');
   const [courtSearch, setCourtSearch] = useState('');
   const [retry, setRetry] = useState(0);
   const [lookupWarning, setLookupWarning] = useState('');
@@ -490,79 +490,34 @@ export default function NewCasePage() {
             <div className="space-y-6">
               <section className="space-y-4" aria-label="ลูกค้าและชื่อคดี">
                 <div>
-                  <label htmlFor="client-search" className={fieldLabel}>
+                  <label htmlFor="client-combobox" className={fieldLabel}>
                     ลูกค้า{' '}
                     <span className="font-normal text-muted-foreground">
                       (เพิ่มภายหลังได้)
                     </span>
                   </label>
-                  <input
-                    id="client-search"
-                    type="search"
-                    value={clientSearch}
-                    onChange={(e) => setClientSearch(e.target.value)}
-                    placeholder="ค้นหาลูกค้าในรายชื่อ"
-                    className={inputClass}
+                  <ClientCombobox
+                    id="client-combobox"
+                    clients={clients}
+                    clientId={form.clientId}
+                    clientName={form.clientName}
                     disabled={form.useTmpClient}
-                  />
-                  <select
-                    aria-label="เลือกลูกค้า"
-                    value={form.clientId}
-                    disabled={form.useTmpClient}
-                    className={inputClass}
-                    onChange={(e) => {
-                      const client = clients.find(
-                        (c) => c.id === e.target.value,
-                      );
+                    onSelectClient={(client) =>
                       setForm({
                         ...form,
-                        clientId: e.target.value,
-                        clientName: client?.name ?? '',
+                        clientId: client.id,
+                        clientName: client.name,
                         useTmpClient: false,
-                      });
-                    }}
-                  >
-                    <option value="">เลือกลูกค้า หรือกรอกชื่อด้านล่าง</option>
-                    {clients
-                      .filter(
-                        (c) =>
-                          c.id === form.clientId ||
-                          c.name
-                            .toLowerCase()
-                            .includes(clientSearch.toLowerCase()),
-                      )
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                  </select>
-                  {clientSearch &&
-                    !clients.some((c) =>
-                      c.name.toLowerCase().includes(clientSearch.toLowerCase()),
-                    ) && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        ไม่พบชื่อนี้ในรายชื่อ สามารถกรอกชื่อเองได้
-                      </p>
-                    )}
-                  {!form.clientId && !form.useTmpClient && (
-                    <div className="mt-3">
-                      <label htmlFor="client-name" className={fieldLabel}>
-                        ชื่อลูกค้าที่ไม่มีในรายชื่อ
-                      </label>
-                      <input
-                        id="client-name"
-                        value={form.clientName}
-                        onChange={(e) =>
-                          setForm({ ...form, clientName: e.target.value })
-                        }
-                        placeholder="ชื่อบุคคลหรือบริษัท"
-                        className={inputClass}
-                      />
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        บันทึกชื่อในคดีนี้ โดยยังไม่สร้างทะเบียนลูกค้า
-                      </p>
-                    </div>
+                      })
+                    }
+                    onFreeText={(name) =>
+                      setForm({ ...form, clientId: '', clientName: name })
+                    }
+                  />
+                  {!form.clientId && form.clientName.trim() && !form.useTmpClient && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      บันทึกชื่อในคดีนี้ โดยยังไม่สร้างทะเบียนลูกค้า
+                    </p>
                   )}
                   <label className="mt-3 flex items-start gap-2 text-sm">
                     <input
