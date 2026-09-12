@@ -150,7 +150,7 @@ export default function DashboardPage() {
         description={fmt(d.home.welcome, { name: user.firstName }) + ` · ${data.firmName}`}
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
         {/*
           No `change`/`trend` here: nothing computes a comparison, and the
           arrow this used to show was hardcoded — an owner reading "+12% vs

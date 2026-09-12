@@ -35,19 +35,19 @@ export function KpiCard({
   trend?: 'up' | 'down' | 'neutral';
 }) {
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-soft">
-      <div className="flex items-start justify-between">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+    <div className="min-w-0 rounded-xl border bg-card p-3 shadow-soft sm:p-5">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
         {Icon && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-4 w-4 text-primary" />
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 sm:h-8 sm:w-8">
+            <Icon className="h-3.5 w-3.5 text-primary sm:h-4 sm:w-4" />
           </div>
         )}
       </div>
-      <p className="mt-2 text-3xl font-bold tracking-tight">{value}</p>
+      <p className="mt-2 truncate text-xl font-bold tracking-tight sm:text-3xl">{value}</p>
       {change && (
         <p className={cn(
-          'mt-1 text-xs font-medium',
+          'mt-1 truncate text-xs font-medium',
           trend === 'up' && 'text-emerald-600',
           trend === 'down' && 'text-red-600',
           trend === 'neutral' && 'text-muted-foreground',

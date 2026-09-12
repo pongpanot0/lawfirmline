@@ -15,6 +15,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Moon,
   Sun,
   X,
@@ -22,6 +23,7 @@ import {
   ListTodo,
   CalendarCheck,
   Mail,
+  type LucideIcon,
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
@@ -43,21 +45,42 @@ const NAV_GROUPS = [
   { key: 'firm', labelKey: 'groupFirm' as const },
 ] as const;
 
+/**
+ * Children collapse two closely-related pages under one top-level row so the
+ * lawyer scans fewer entries; the child route still exists and still shows
+ * as active/auto-expanded when visited directly.
+ */
 const NAV_ITEMS = [
-  { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false, group: 'work' },
-  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true, group: 'firm' },
-  { href: '/my-day', labelKey: 'myDay' as const, icon: CalendarCheck, ownerOnly: false, group: 'work' },
-  { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work' },
-  { href: '/intake', labelKey: 'intake' as const, icon: ClipboardList, ownerOnly: false, group: 'work' },
-  { href: '/email-intake', labelKey: 'emailIntake' as const, icon: Mail, ownerOnly: false, group: 'work' },
-  { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false, group: 'work' },
-  { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work' },
-  { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false, group: 'work' },
-  { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, ownerOnly: false, group: 'work' },
-  { href: '/expenses', labelKey: 'expenses' as const, icon: Receipt, ownerOnly: false, group: 'work' },
-  { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true, group: 'firm' },
-  { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true, group: 'firm' },
-  { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false, group: 'firm' },
+  { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true, group: 'firm', children: [] as const },
+  { href: '/my-day', labelKey: 'myDay' as const, icon: CalendarCheck, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work', children: [] as const },
+  {
+    href: '/intake',
+    labelKey: 'intake' as const,
+    icon: ClipboardList,
+    ownerOnly: false,
+    group: 'work',
+    children: [
+      { href: '/email-intake', labelKey: 'emailIntake' as const, icon: Mail, ownerOnly: false },
+    ],
+  },
+  { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, ownerOnly: false, group: 'work', children: [] as const },
+  {
+    href: '/expenses',
+    labelKey: 'expenses' as const,
+    icon: Receipt,
+    ownerOnly: false,
+    group: 'firm',
+    children: [
+      { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true },
+    ],
+  },
+  { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true, group: 'firm', children: [] as const },
+  { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false, group: 'firm', children: [] as const },
 ] as const;
 
 interface SamnuanSidebarProps {
@@ -119,34 +142,17 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
                   {d.nav[group.labelKey]}
                 </p>
               )}
-              {items.map((item) => {
-                // Office settings pages (/admin/*) are reached from Settings,
-                // so they light up that entry rather than none.
-                const active =
-                  pathname === item.href ||
-                  pathname.startsWith(`${item.href}/`) ||
-                  (item.href === '/settings' && pathname.startsWith('/admin/'));
-          const Icon = item.icon;
-          const label = d.nav[item.labelKey];
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onMobileClose}
-              title={collapsed ? label : undefined}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                active
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground',
-                collapsed && 'md:justify-center md:px-2',
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className={cn(collapsed && 'md:hidden')}>{label}</span>
-            </Link>
-                );
-              })}
+              {items.map((item) => (
+                <NavItemRow
+                  key={item.href}
+                  item={item}
+                  pathname={pathname}
+                  collapsed={collapsed}
+                  onNavigate={onMobileClose}
+                  user={user}
+                  labels={d.nav}
+                />
+              ))}
             </div>
           );
         })}
@@ -210,5 +216,99 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
         </Button>
       </div>
     </aside>
+  );
+}
+
+type NavDict = ReturnType<typeof useDashboardT>['nav'];
+
+interface NavChild {
+  href: string;
+  labelKey: keyof NavDict;
+  icon: LucideIcon;
+  ownerOnly: boolean;
+}
+
+interface NavItem extends NavChild {
+  group: string;
+  children: readonly NavChild[];
+}
+
+function NavItemRow({
+  item,
+  pathname,
+  collapsed,
+  onNavigate,
+  user,
+  labels,
+}: {
+  item: NavItem;
+  pathname: string;
+  collapsed: boolean;
+  onNavigate?: () => void;
+  user: AuthUser;
+  labels: NavDict;
+}) {
+  const isRouteActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  // Office settings pages (/admin/*) are reached from Settings, so they
+  // light up that entry rather than none.
+  const active = isRouteActive(item.href) || (item.href === '/settings' && pathname.startsWith('/admin/'));
+  const children = item.children.filter((child) => !child.ownerOnly || user.firmRole === FirmRole.OWNER);
+  const childActive = children.some((child) => isRouteActive(child.href));
+  const [open, setOpen] = useState(childActive);
+  const Icon = item.icon;
+  const label = labels[item.labelKey];
+
+  const linkClass = (isActive: boolean) =>
+    cn(
+      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+      isActive
+        ? 'bg-primary/10 text-primary'
+        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground',
+      collapsed && 'md:justify-center md:px-2',
+    );
+
+  if (children.length === 0) {
+    return (
+      <Link href={item.href} onClick={onNavigate} title={collapsed ? label : undefined} className={linkClass(active)}>
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className={cn(collapsed && 'md:hidden')}>{label}</span>
+      </Link>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center">
+        <Link href={item.href} onClick={onNavigate} title={collapsed ? label : undefined} className={cn(linkClass(active), 'flex-1')}>
+          <Icon className="h-4 w-4 shrink-0" />
+          <span className={cn(collapsed && 'md:hidden')}>{label}</span>
+        </Link>
+        {!collapsed && (
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            className="mr-1 shrink-0 rounded p-1.5 text-sidebar-foreground hover:bg-sidebar-accent"
+            aria-label={label}
+            aria-expanded={open}
+          >
+            <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', !open && '-rotate-90')} />
+          </button>
+        )}
+      </div>
+      {!collapsed && open && (
+        <div className="ml-4 space-y-0.5 border-l border-sidebar-border py-0.5 pl-3">
+          {children.map((child) => {
+            const ChildIcon = child.icon;
+            const childRowActive = isRouteActive(child.href);
+            return (
+              <Link key={child.href} href={child.href} onClick={onNavigate} className={linkClass(childRowActive)}>
+                <ChildIcon className="h-4 w-4 shrink-0" />
+                <span>{labels[child.labelKey]}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
