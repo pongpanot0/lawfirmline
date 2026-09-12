@@ -9,6 +9,8 @@ import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
 import { useTaskParam } from '@/components/tasks/useTaskParam';
+import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
+import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +37,7 @@ function TodosPageContent() {
   const [layout, setLayout] = useTaskLayout();
   const [scope, setScope] = useState<'mine' | 'team' | 'review'>('mine');
   const taskParam = useTaskParam();
+  const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
 
   const loadTasks = () => {
     if (!token) return;
@@ -134,13 +137,15 @@ function TodosPageContent() {
    * says which set is on screen instead of calling everything "mine".
    */
   const seesOthers = tasks.some((t) => t.assignee && t.assignee.id !== user?.id);
-  const visibleTasks = !seesOthers
+  const scopedTasks = !seesOthers
     ? tasks
     : scope === 'team'
       ? tasks
       : scope === 'review'
         ? tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW && t.assignee?.id === user?.id)
         : tasks.filter((t) => !t.assignee || t.assignee.id === user?.id);
+  const visibleTasks = applyTaskFilters(scopedTasks, filters);
+  const filtering = hasActiveTaskFilters(filters);
   const scopes: { key: typeof scope; label: string }[] = [
     { key: 'mine', label: d.todos.scopeMine },
     { key: 'team', label: d.todos.scopeTeam },
@@ -180,6 +185,20 @@ function TodosPageContent() {
       />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      <Card className="mb-4">
+        <CardContent className="p-3">
+          <TaskFilterBar
+            value={filters}
+            onChange={setFilters}
+            users={users}
+            labels={collectTaskLabels(scopedTasks)}
+            statuses={[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.PENDING_REVIEW, TaskStatus.NEEDS_REVISION, TaskStatus.DONE]}
+            shown={visibleTasks.length}
+            total={scopedTasks.length}
+          />
+        </CardContent>
+      </Card>
 
       {showForm && (
         <Card className="mb-6">
@@ -234,6 +253,10 @@ function TodosPageContent() {
           </Button>
         </div>
       ) : (
+      <>
+      {filtering && visibleTasks.length === 0 && (
+        <p role="status" className="mb-3 text-sm text-muted-foreground">{d.todos.noMatches}</p>
+      )}
       <KanbanBoard
         layout={layout}
         tasks={visibleTasks}
@@ -249,6 +272,7 @@ function TodosPageContent() {
         onReject={handleReject}
         onOpen={taskParam.open}
       />
+      </>
       )}
       <TaskDetailDrawer
         taskId={taskParam.taskId}
