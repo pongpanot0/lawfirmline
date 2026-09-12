@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { CaseStatus, FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry } from '@/lib/api';
@@ -236,7 +237,7 @@ export default function OperationsPage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-12">
-            <Card className="lg:col-span-7">
+            <Card className="min-w-0 lg:col-span-7">
               <CardContent className="p-0">
                 {loading ? (
                   <div className="p-4">
@@ -317,7 +318,7 @@ export default function OperationsPage() {
               </CardContent>
             </Card>
 
-            <Card className="lg:col-span-5">
+            <Card className="min-w-0 lg:col-span-5">
               <CardContent className="p-4">
                 {!selectedUserId ? (
                   <InlineEmptyState icon={MousePointerClick} title="เลือกทนายเพื่อดูรายละเอียด" description="คลิกชื่อทนายในตารางด้านซ้ายเพื่อดูคดี active และ deadline ใกล้ถึง" />
@@ -336,8 +337,11 @@ export default function OperationsPage() {
                     ) : (
                       <ul className="space-y-2">
                         {detail.cases.map((c) => (
-                          <li key={c.caseId} className="rounded-lg border border-border p-3 text-sm">
-                            <div className="flex items-start justify-between gap-3">
+                          <li key={c.caseId}>
+                            <Link
+                              href={`/cases/${c.caseId}`}
+                              className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-sm transition-colors hover:border-primary/40 hover:bg-muted/50"
+                            >
                               <div className="min-w-0">
                                 <p className="truncate font-medium">{c.title}</p>
                                 <div className="mt-1 flex items-center gap-1.5">
@@ -362,7 +366,7 @@ export default function OperationsPage() {
                                   อีก {c.nearestDeadlineDays} วัน
                                 </span>
                               )}
-                            </div>
+                            </Link>
                           </li>
                         ))}
                       </ul>
