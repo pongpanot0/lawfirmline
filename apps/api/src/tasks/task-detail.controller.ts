@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Logger,
   Param,
   Post,
   Res,
@@ -28,6 +29,8 @@ import { CreateSubtaskDto, CreateTaskCommentDto } from './dto/task-detail.dto';
 @Controller('tasks/:taskId')
 @UseGuards(JwtAuthGuard)
 export class TaskDetailController {
+  private readonly logger = new Logger(TaskDetailController.name);
+
   constructor(
     private detail: TaskDetailService,
     private fileStorage: FileStorageService,
@@ -96,6 +99,12 @@ export class TaskDetailController {
     res.setHeader('Content-Type', safeMimeType(file.mimeType));
     res.setHeader('Content-Disposition', buildContentDispositionHeader(file.filename));
     const stream = await this.fileStorage.openDownloadStream(file.storagePath);
+    // A missing or unreadable object mid-stream would otherwise surface as an
+    // unhandled 'error' and take the process down instead of the response.
+    stream.on('error', (err: Error) => {
+      this.logger.warn(`Download stream failed for ${file.storagePath}: ${err.message}`);
+      res.destroy(err);
+    });
     stream.pipe(res);
   }
 }

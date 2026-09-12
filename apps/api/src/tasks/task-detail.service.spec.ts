@@ -49,6 +49,18 @@ describe('TaskDetailService', () => {
     expect(mockStorage.put).not.toHaveBeenCalled();
   });
 
+  it('uploadAttachment rejects a file over 10MB before touching storage', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1', caseId: null, parentId: null });
+    const file = {
+      mimetype: 'application/pdf',
+      size: 10 * 1024 * 1024 + 1,
+      buffer: Buffer.from('x'),
+      originalname: 'big.pdf',
+    } as any;
+    await expect(service.uploadAttachment('t1', lawyer, file)).rejects.toThrow(BadRequestException);
+    expect(mockStorage.put).not.toHaveBeenCalled();
+  });
+
   it('uploadAttachment stores the file then the row, and removes the file if the row fails', async () => {
     mockTasks.assertAccess.mockResolvedValue({ id: 't1', caseId: null, parentId: null });
     mockStorage.put.mockResolvedValue('tasks/t1/abc.pdf');
@@ -96,5 +108,23 @@ describe('TaskDetailService', () => {
     mockPrisma.taskComment.findFirst.mockResolvedValue({ id: 'c1', taskId: 't1', authorId: 'u2' });
     await expect(service.deleteComment('t1', 'c1', lawyer)).rejects.toThrow(ForbiddenException);
     await expect(service.deleteComment('t1', 'c1', owner)).resolves.toEqual({ deleted: true });
+  });
+
+  it('deleteAttachment allows the uploader and the owner, forbids another lawyer', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1', caseId: null, parentId: null });
+    mockPrisma.taskAttachment.findFirst.mockResolvedValue({
+      id: 'a1',
+      taskId: 't1',
+      storagePath: 'tasks/t1/a.pdf',
+      uploadedById: 'u1',
+    });
+
+    await expect(service.deleteAttachment('t1', 'a1', lawyer)).resolves.toEqual({ deleted: true });
+    expect(mockStorage.delete).toHaveBeenCalledWith('tasks/t1/a.pdf');
+    await expect(service.deleteAttachment('t1', 'a1', owner)).resolves.toEqual({ deleted: true });
+
+    const otherLawyer = { id: 'u2', firmId: 'f1', firmRole: FirmRole.LAWYER } as any;
+    await expect(service.deleteAttachment('t1', 'a1', otherLawyer)).rejects.toThrow(ForbiddenException);
+    expect(mockPrisma.taskAttachment.delete).toHaveBeenCalledTimes(2);
   });
 });

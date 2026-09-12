@@ -2,9 +2,10 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { TaskSource } from '../generated/prisma';
+import { Prisma, TaskSource } from '../generated/prisma';
 import {
   ActivityType,
   AssignmentType,
@@ -17,6 +18,7 @@ import {
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
 import {
@@ -30,9 +32,12 @@ type CaseForAccess = { id: string; leadLawyerId: string };
 
 @Injectable()
 export class TasksService {
+  private readonly logger = new Logger(TasksService.name);
+
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
+    private fileStorage: FileStorageService,
   ) {}
 
   private taskInclude = {
@@ -92,9 +97,23 @@ export class TasksService {
   }
 
   /**
+   * A standalone task carries no `firmId`; its tenancy is whatever firm the
+   * assignee or creator belongs to — the same derivation `findMine` uses.
+   */
+  private standaloneFirmScope(user: AuthUser): Prisma.TaskWhereInput {
+    return {
+      OR: [
+        { assignee: { firmMembers: { some: { firmId: user.firmId } } } },
+        { createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
+      ],
+    };
+  }
+
+  /**
    * The one access rule for `/tasks/:id/*`: a case task follows case
-   * membership, a personal task its assignee/creator, and the firm owner
-   * sees both. Returns the row so callers do not fetch it twice.
+   * membership, a personal task its assignee/creator plus whatever the
+   * caller's board already lists (a senior sees their lawyers' cards).
+   * Returns the row so callers do not fetch it twice.
    */
   async assertAccess(taskId: string, user: AuthUser) {
     const task = await this.prisma.task.findUnique({ where: { id: taskId } });
@@ -105,10 +124,25 @@ export class TasksService {
       }
       return task;
     }
+
+    // Tenancy first: another firm's todo must look like it does not exist,
+    // owner included — OWNER is only an owner of their own firm.
+    const inFirm = await this.prisma.task.findFirst({
+      where: { id: taskId, caseId: null, ...this.standaloneFirmScope(user) },
+      select: { id: true },
+    });
+    if (!inFirm) throw new NotFoundException('Task not found');
+
     if (user.firmRole === FirmRole.OWNER) return task;
-    if (task.assigneeId !== user.id && task.createdById !== user.id) {
-      throw new ForbiddenException('You do not have access to this task');
-    }
+    if (task.assigneeId === user.id || task.createdById === user.id) return task;
+
+    // Anything the board shows must open; otherwise seniors get a 403 on a
+    // card they can see.
+    const visible = await this.prisma.task.findFirst({
+      where: { id: taskId, caseId: null, ...this.caseAccess.getTaskFilterForUser(user) },
+      select: { id: true },
+    });
+    if (!visible) throw new ForbiddenException('You do not have access to this task');
     return task;
   }
 
@@ -243,7 +277,16 @@ export class TasksService {
     return this.findOne(task.id);
   }
 
-  async update(id: string, dto: UpdateTaskDto, user: AuthUser) {
+  async update(id: string, dto: UpdateTaskDto, user: AuthUser, caseId?: string) {
+    // The case guard only proves the caller may touch THIS case; without
+    // binding the task to it, any task id in the database would be editable.
+    if (caseId) {
+      const inCase = await this.prisma.task.findFirst({
+        where: { id, caseId },
+        select: { id: true },
+      });
+      if (!inCase) throw new NotFoundException('ไม่พบงานนี้');
+    }
     const task = await this.findOne(id);
 
     if (dto.status === TaskStatus.PENDING_REVIEW || dto.status === TaskStatus.NEEDS_REVISION) {
@@ -296,7 +339,31 @@ export class TasksService {
   }
 
   async remove(id: string) {
-    await this.findOne(id);
+    // The rows cascade with the task; the bytes behind them do not, so they
+    // would sit in storage forever with nothing left pointing at them.
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+      include: {
+        attachments: { select: { storagePath: true } },
+        subtasks: { select: { attachments: { select: { storagePath: true } } } },
+      },
+    });
+    if (!task) throw new NotFoundException('Task not found');
+
+    const storagePaths = [
+      ...task.attachments.map((a) => a.storagePath),
+      ...task.subtasks.flatMap((s) => s.attachments.map((a) => a.storagePath)),
+    ];
+    for (const storagePath of storagePaths) {
+      try {
+        await this.fileStorage.delete(storagePath);
+      } catch (err) {
+        this.logger.warn(
+          `Failed to remove ${storagePath}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
     await this.prisma.task.delete({ where: { id } });
     return { deleted: true };
   }

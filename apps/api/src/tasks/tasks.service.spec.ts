@@ -4,6 +4,7 @@ import { FirmRole, TaskLogAction, TaskStatus } from '@lawfirm/shared';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('TasksService on-hold', () => {
   let service: TasksService;
@@ -32,6 +33,7 @@ describe('TasksService on-hold', () => {
         TasksService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
+        { provide: FileStorageService, useValue: { delete: jest.fn() } },
       ],
     }).compile();
     service = module.get(TasksService);
@@ -516,6 +518,7 @@ describe('TasksService.update — who may change a status', () => {
         TasksService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
+        { provide: FileStorageService, useValue: { delete: jest.fn() } },
       ],
     }).compile();
     service = module.get(TasksService);

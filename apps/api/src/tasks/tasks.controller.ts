@@ -39,10 +39,11 @@ export class TasksController {
   @Patch(':taskId')
   update(
     @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
     @Param('taskId') taskId: string,
     @Body() dto: UpdateTaskDto,
   ) {
-    return this.tasksService.update(taskId, dto, user);
+    return this.tasksService.update(taskId, dto, user, caseId);
   }
 
   @Patch(':taskId/handoff')
