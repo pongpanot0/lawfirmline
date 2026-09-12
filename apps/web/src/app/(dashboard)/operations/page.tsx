@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
+import { fmt, dateLocale } from '@/lib/i18n/dashboard';
 import { useAuth } from '@/lib/auth';
 import { CaseStatus, FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry } from '@/lib/api';
@@ -17,10 +19,12 @@ import { Input } from '@/components/ui/input';
 import { EmptyState, InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
 import { Users, Scale, AlarmClock, PauseCircle, Sparkles, SlidersHorizontal, MousePointerClick, ChevronRight } from 'lucide-react';
 
-function workloadLevel(total: number): { label: string; variant: 'success' | 'warning' | 'destructive' } {
-  if (total <= 3) return { label: 'เบา', variant: 'success' };
-  if (total <= 7) return { label: 'ปานกลาง', variant: 'warning' };
-  return { label: 'หนัก', variant: 'destructive' };
+type WorkloadLevelKey = 'levelLight' | 'levelMedium' | 'levelHeavy';
+
+function workloadLevel(total: number): { key: WorkloadLevelKey; variant: 'success' | 'warning' | 'destructive' } {
+  if (total <= 3) return { key: 'levelLight', variant: 'success' };
+  if (total <= 7) return { key: 'levelMedium', variant: 'warning' };
+  return { key: 'levelHeavy', variant: 'destructive' };
 }
 
 const AVATAR_COLORS = [
@@ -50,7 +54,9 @@ function LawyerAvatar({ firstName, lastName }: { firstName: string; lastName: st
 
 function WorkloadBar({ total, max }: { total: number; max: number }) {
   const pct = max > 0 ? Math.min(100, Math.round((total / max) * 100)) : 0;
-  const { label, variant } = workloadLevel(total);
+  const d = useDashboardT();
+  const { key, variant } = workloadLevel(total);
+  const label = d.operations[key];
   const barColor =
     variant === 'success' ? 'bg-emerald-500' : variant === 'warning' ? 'bg-amber-500' : 'bg-red-500';
   const labelColor =
@@ -67,6 +73,8 @@ function WorkloadBar({ total, max }: { total: number; max: number }) {
 
 export default function OperationsPage() {
   const { token, user } = useAuth();
+  const d = useDashboardT();
+  const { locale } = useLocale();
   const isOwner = user?.firmRole === FirmRole.OWNER;
   const [tab, setTab] = useState('workload');
   const [summary, setSummary] = useState<WorkloadSummary[]>([]);
@@ -79,7 +87,8 @@ export default function OperationsPage() {
   const [activeCaseCount, setActiveCaseCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [nearDeadlineDays, setNearDeadlineDays] = useState(7);
-  const [sortDesc, setSortDesc] = useState(true);
+  // Default to lightest-first so the recommended lawyer (least loaded) is the first row.
+  const [sortDesc, setSortDesc] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [detail, setDetail] = useState<WorkloadDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -160,38 +169,39 @@ export default function OperationsPage() {
   }, [enriched]);
 
   if (!isOwner) {
-    return <p className="text-destructive">ไม่มีสิทธิ์เข้าถึง — เฉพาะเจ้าของสำนักงานเท่านั้น</p>;
+    return <p className="text-destructive">{d.operations.noAccess}</p>;
   }
 
   return (
     <div>
-      <PageHeader title="ภาระงานทีม" description="ภาพรวมภาระงาน การจับคู่ทีมงาน และงานที่พักไว้" />
+      <PageHeader title={d.operations.title} description={d.operations.description} />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="ทนายในสำนักงาน" value={enriched.length} icon={Users} />
-        <KpiCard label="คดี active (ไม่นับซ้ำ)" value={activeCaseCount ?? '—'} icon={Scale} change={`การมอบหมายรวม ${totalAssignments}`} trend="neutral" />
+        <KpiCard label={d.operations.kpiLawyers} value={enriched.length} icon={Users} />
+        <KpiCard label={d.operations.kpiActiveCases} value={activeCaseCount ?? '—'} icon={Scale} change={fmt(d.operations.kpiActiveCasesChange, { count: totalAssignments })} trend="neutral" />
         <KpiCard
-          label={`ใกล้ deadline (${nearDeadlineDays} วัน)`}
+          label={fmt(d.operations.kpiNearDeadline, { days: nearDeadlineDays })}
           value={totalNearDeadline}
           icon={AlarmClock}
           trend={totalNearDeadline > 0 ? 'down' : 'neutral'}
-          change={totalNearDeadline > 0 ? 'ต้องติดตาม' : undefined}
+          change={totalNearDeadline > 0 ? d.operations.kpiNeedsFollowUp : undefined}
         />
         <KpiCard
-          label="งานพักไว้"
+          label={d.operations.kpiOnHold}
           value={onHold.length}
           icon={PauseCircle}
           trend={overdueOnHoldCount > 0 ? 'down' : 'neutral'}
-          change={overdueOnHoldCount > 0 ? `${overdueOnHoldCount} เกินกำหนด` : undefined}
+          change={overdueOnHoldCount > 0 ? fmt(d.operations.kpiOnHoldOverdue, { count: overdueOnHoldCount }) : undefined}
         />
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="workload">ภาระงาน</TabsTrigger>
-          <TabsTrigger value="pairing">การจับคู่ทีม</TabsTrigger>
+          <TabsTrigger value="workload">{d.operations.tabWorkload}</TabsTrigger>
+          <TabsTrigger value="pairing">{d.operations.tabPairing}</TabsTrigger>
           <TabsTrigger value="onhold">
-            พักงาน{onHold.length > 0 ? ` (${onHold.length})` : ''}
+            {d.operations.tabOnHold}
+            {onHold.length > 0 ? ` (${onHold.length})` : ''}
           </TabsTrigger>
         </TabsList>
 
@@ -202,17 +212,19 @@ export default function OperationsPage() {
                 <Sparkles className="h-4 w-4 text-primary" />
               </div>
               <p className="text-sm">
-                <span className="text-muted-foreground">ถ้ามีคดีใหม่เข้ามา แนะนำมอบหมายให้{' '}</span>
+                <span className="text-muted-foreground">{d.operations.recommendPrefix}{' '}</span>
                 <span className="font-semibold text-primary">
                   {recommended.firstName} {recommended.lastName}
                 </span>
                 <span className="text-muted-foreground">
                   {' '}
-                  — ตอนนี้มีภาระงานน้อยที่สุด ({recommended.total} คดี
-                  {recommended.nearDeadlineCount > 0
-                    ? `, ใกล้ deadline ${recommended.nearDeadlineCount} คดี`
-                    : ''}
-                  )
+                  {fmt(d.operations.recommendSuffix, {
+                    count: recommended.total,
+                    extra:
+                      recommended.nearDeadlineCount > 0
+                        ? fmt(d.operations.recommendNearDeadline, { count: recommended.nearDeadlineCount })
+                        : '',
+                  })}
                 </span>
               </p>
             </div>
@@ -221,7 +233,7 @@ export default function OperationsPage() {
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
             <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              นับว่า &ldquo;ใกล้ deadline&rdquo; ถ้าเหลือไม่เกิน
+              {d.operations.thresholdLabel}
               <Input
                 type="number"
                 min={1}
@@ -229,10 +241,12 @@ export default function OperationsPage() {
                 onChange={(e) => setNearDeadlineDays(Math.max(1, Number(e.target.value) || 7))}
                 className="h-8 w-16"
               />
-              วัน
+              {d.operations.days}
             </label>
             <Button size="sm" variant="outline" onClick={() => setSortDesc((s) => !s)}>
-              เรียงตามภาระงาน: {sortDesc ? 'มากไปน้อย' : 'น้อยไปมาก'}
+              {fmt(d.operations.sortLabel, {
+                direction: sortDesc ? d.operations.sortDesc : d.operations.sortAsc,
+              })}
             </Button>
           </div>
 
@@ -241,18 +255,18 @@ export default function OperationsPage() {
               <CardContent className="p-0">
                 {loading ? (
                   <div className="p-4">
-                    <PageLoading title="กำลังโหลดภาระงาน" lines={4} />
+                    <PageLoading title={d.operations.loadingWorkload} lines={4} />
                   </div>
                 ) : sorted.length === 0 ? (
-                  <EmptyState title="ไม่มีข้อมูลทนายในสำนักงาน" description="เมื่อมีสมาชิกทีมและคดี active ระบบจะคำนวณภาระงานให้อัตโนมัติ" />
+                  <EmptyState title={d.operations.emptyLawyersTitle} description={d.operations.emptyLawyersDesc} />
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>ทนาย</TableHead>
-                        <TableHead>ภาระงาน</TableHead>
-                        <TableHead>บทบาทในคดี</TableHead>
-                        <TableHead>ใกล้ deadline</TableHead>
+                        <TableHead>{d.operations.colLawyer}</TableHead>
+                        <TableHead>{d.operations.colWorkload}</TableHead>
+                        <TableHead>{d.operations.colRoles}</TableHead>
+                        <TableHead>{d.operations.colNearDeadline}</TableHead>
                         <TableHead className="w-8" />
                       </TableRow>
                     </TableHeader>
@@ -282,19 +296,19 @@ export default function OperationsPage() {
                                 {isRecommended && (
                                   <Badge variant="default" className="gap-1">
                                     <Sparkles className="h-3 w-3" />
-                                    แนะนำ
+                                    {d.operations.badgeRecommended}
                                   </Badge>
                                 )}
                               </div>
                             </TableCell>
                             <TableCell>
                               <div className="mb-1">
-                                <span className="font-medium">{s.total} คดี</span>
+                                <span className="font-medium">{fmt(d.operations.caseCount, { count: s.total })}</span>
                               </div>
                               <WorkloadBar total={s.total} max={maxTotal} />
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              หลัก {s.leadCount} · ช่วย {s.buddyCount}
+                              {fmt(d.operations.roleSummary, { lead: s.leadCount, buddy: s.buddyCount })}
                             </TableCell>
                             <TableCell>
                               {s.nearDeadlineCount > 0 ? (
@@ -321,9 +335,9 @@ export default function OperationsPage() {
             <Card className="min-w-0 lg:col-span-5">
               <CardContent className="p-4">
                 {!selectedUserId ? (
-                  <InlineEmptyState icon={MousePointerClick} title="เลือกทนายเพื่อดูรายละเอียด" description="คลิกชื่อทนายในตารางด้านซ้ายเพื่อดูคดี active และ deadline ใกล้ถึง" />
+                  <InlineEmptyState icon={MousePointerClick} title={d.operations.selectLawyerTitle} description={d.operations.selectLawyerDesc} />
                 ) : detailLoading || !detail ? (
-                  <PageLoading title="กำลังโหลดรายละเอียด" lines={2} />
+                  <PageLoading title={d.operations.loadingDetail} lines={2} />
                 ) : (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2.5">
@@ -333,7 +347,7 @@ export default function OperationsPage() {
                       </p>
                     </div>
                     {detail.cases.length === 0 ? (
-                      <InlineEmptyState title="ไม่มีคดี active" description="ทนายคนนี้ยังไม่มีคดีที่ต้องติดตามในช่วงนี้" />
+                      <InlineEmptyState title={d.operations.noActiveCasesTitle} description={d.operations.noActiveCasesDesc} />
                     ) : (
                       <ul className="space-y-2">
                         {detail.cases.map((c) => (
@@ -347,23 +361,23 @@ export default function OperationsPage() {
                                 <div className="mt-1 flex items-center gap-1.5">
                                   <CaseStatusBadge status={c.status} />
                                   <span className="text-xs text-muted-foreground">
-                                    {c.role === 'LEAD' ? 'หลัก' : 'ช่วย'}
+                                    {c.role === 'LEAD' ? d.operations.roleLead : d.operations.roleBuddy}
                                   </span>
                                 </div>
                               </div>
                               {c.nearestDeadlineDays === null ? (
-                                <span className="shrink-0 text-xs text-muted-foreground">ไม่มี deadline</span>
+                                <span className="shrink-0 text-xs text-muted-foreground">{d.operations.noDeadline}</span>
                               ) : c.nearestDeadlineDays < 0 ? (
                                 <Badge variant="destructive" className="shrink-0">
-                                  เลยกำหนด {Math.abs(c.nearestDeadlineDays)} วัน
+                                  {fmt(d.operations.overdueDays, { days: Math.abs(c.nearestDeadlineDays) })}
                                 </Badge>
                               ) : c.nearestDeadlineDays <= nearDeadlineDays ? (
                                 <Badge variant="warning" className="shrink-0">
-                                  อีก {c.nearestDeadlineDays} วัน
+                                  {fmt(d.operations.inDays, { days: c.nearestDeadlineDays })}
                                 </Badge>
                               ) : (
                                 <span className="shrink-0 text-xs text-muted-foreground">
-                                  อีก {c.nearestDeadlineDays} วัน
+                                  {fmt(d.operations.inDays, { days: c.nearestDeadlineDays })}
                                 </span>
                               )}
                             </Link>
@@ -383,21 +397,21 @@ export default function OperationsPage() {
             <CardContent className="p-0">
               {pairingLoading ? (
                 <div className="p-4">
-                  <PageLoading title="กำลังโหลดการจับคู่ทีม" lines={3} />
+                  <PageLoading title={d.operations.loadingPairing} lines={3} />
                 </div>
               ) : pairing.length === 0 ? (
-                <EmptyState title="ยังไม่มีคู่ทำงานร่วมกัน" description="เมื่อมอบหมายทนายหลายคนในคดีเดียวกัน ตารางความร่วมมือจะแสดงตรงนี้" />
+                <EmptyState title={d.operations.emptyPairingTitle} description={d.operations.emptyPairingDesc} />
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>คู่</TableHead>
-                      <TableHead>จำนวนคดีร่วมกัน</TableHead>
+                      <TableHead>{d.operations.colPair}</TableHead>
+                      <TableHead>{d.operations.colSharedCases}</TableHead>
                     </TableRow>
                   </TableHeader>
                     <TableBody>
                       {pairing.length === 0 ? (
-                        <TableEmptyRow colSpan={2} title="ยังไม่มีคู่ทำงานร่วมกัน" description="เมื่อมอบหมายทนายหลายคนในคดีเดียวกัน ตารางความร่วมมือจะแสดงตรงนี้" />
+                        <TableEmptyRow colSpan={2} title={d.operations.emptyPairingTitle} description={d.operations.emptyPairingDesc} />
                       ) : pairing.map((p) => (
                         <TableRow key={`${p.userAId}:${p.userBId}`}>
                           <TableCell className="font-medium">
@@ -418,21 +432,21 @@ export default function OperationsPage() {
             <CardContent className="p-0">
               {onHoldLoading ? (
                 <div className="p-4">
-                  <PageLoading title="กำลังโหลดงานพักไว้" lines={3} />
+                  <PageLoading title={d.operations.loadingOnHold} lines={3} />
                 </div>
               ) : onHold.length === 0 ? (
-                <EmptyState title="ไม่มีงานที่พักไว้ในขณะนี้" description="งานที่ถูกพักพร้อมเหตุผลและวันติดตามถัดไปจะแสดงที่นี่" />
+                <EmptyState title={d.operations.emptyOnHoldTitle} description={d.operations.emptyOnHoldDesc} />
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>งาน</TableHead>
-                      <TableHead>คดี</TableHead>
-                      <TableHead>ผู้รับผิดชอบ</TableHead>
-                      <TableHead>เหตุผล</TableHead>
-                      <TableHead>ผู้ติดตาม</TableHead>
-                      <TableHead>วันติดตามถัดไป</TableHead>
-                      <TableHead>กำหนดส่ง</TableHead>
+                      <TableHead>{d.operations.colTask}</TableHead>
+                      <TableHead>{d.operations.colCase}</TableHead>
+                      <TableHead>{d.operations.colAssignee}</TableHead>
+                      <TableHead>{d.operations.colReason}</TableHead>
+                      <TableHead>{d.operations.colFollower}</TableHead>
+                      <TableHead>{d.operations.colNextFollowUp}</TableHead>
+                      <TableHead>{d.operations.colDueDate}</TableHead>
                       <TableHead />
                     </TableRow>
                   </TableHeader>
@@ -448,14 +462,14 @@ export default function OperationsPage() {
                         <TableCell>{item.followerName ?? '-'}</TableCell>
                         <TableCell>
                           {item.nextFollowUpAt
-                            ? new Date(item.nextFollowUpAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+                            ? new Date(item.nextFollowUpAt).toLocaleDateString(dateLocale(locale), { day: 'numeric', month: 'short', year: 'numeric' })
                             : '-'}
                         </TableCell>
                         <TableCell>
                           {item.dueDate ? (
                             <Badge variant={item.isOverdue ? 'destructive' : 'muted'}>
-                              {new Date(item.dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
-                              {item.isOverdue ? ' เกินกำหนด' : ''}
+                              {new Date(item.dueDate).toLocaleDateString(dateLocale(locale), { day: 'numeric', month: 'short', year: 'numeric' })}
+                              {item.isOverdue ? d.operations.overdueSuffix : ''}
                             </Badge>
                           ) : (
                             '-'
