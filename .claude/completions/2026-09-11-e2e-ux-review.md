@@ -88,3 +88,13 @@ Quick wins ทั้ง 6 ข้อลงโค้ดแล้วบน branch `
 - `formatDate`/`formatDateTime` ปักโซน Asia/Bangkok; seed ปักนัด 09:00 ไทยไม่ขึ้นกับ TZ ของ process; แก้ 4 นัดใน demo DB จาก 00:14 → 09:00
 - /cases: card list บนจอ < md, ตารางบน md ขึ้นไป
 - ประมาณการค่าใช้จ่ายในหน้าคดีเริ่มว่างพร้อมปุ่ม "เริ่มประมาณการ" (ไม่โชว์ 3 แถวว่าง)
+
+## Task detail (Jira-style) — implemented 2026-09-12
+
+Spec: `docs/superpowers/specs/2026-09-11-task-detail-jira-design.md` · Plan: `docs/superpowers/plans/2026-09-11-task-detail-jira.md`
+
+- Task ได้ `parentId` (subtask 1 ชั้น), `priority` (LOW/MEDIUM/HIGH), `labels[]`; ตารางใหม่ `TaskAttachment`, `TaskComment`; migration `20260911161352_task_detail_fields`
+- API ใหม่ `/tasks/:id` (GET detail, POST subtasks, POST/DELETE attachments + download, POST/DELETE comments) ใช้ได้ทั้งงานส่วนตัวและงานในคดี; list เดิมคืนเฉพาะงานหลักพร้อม counter
+- Web: `TaskDetailDrawer` เปิดจาก `?task=<id>` บน /todos และแท็บงานในคดี; การ์ด Kanban มีแถบสี priority, label chips, ☑/📎/💬
+- แก้ bug ชื่อไฟล์ไทยเพี้ยน (multer latin1) ด้วย `decodeUploadFilename` — documents/intake ยังใช้ `originalname` ตรงๆ (pre-existing, ยังไม่แก้)
+- Verified in browser (worktree API :3011 + web :3015): create HIGH → red bar, drawer/URL/back, label, subtask 1/2, comment, upload/delete/download ไฟล์ไทย, case tab keeps `tab=tasks`, mobile 375px full-width drawer, subtask ↔ parent navigation
