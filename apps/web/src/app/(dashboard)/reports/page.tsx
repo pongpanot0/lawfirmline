@@ -49,9 +49,14 @@ function MiniBarChart({ items }: { items: Array<{ label: string; value: number }
   }
 
   return (
-    <div className="flex h-32 items-end gap-2">
+    // A bar's `height: N%` resolves against its immediate parent, so that
+    // parent needs a *definite* height of its own — `items-end` on this row
+    // only aligns children, it doesn't stretch them, so without `h-full`
+    // below every column collapses to its label's height and every bar
+    // renders at 0px regardless of the percentage.
+    <div className="flex h-32 gap-2">
       {items.slice(0, 6).map((item) => (
-        <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+        <div key={item.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
           <div
             className="w-full rounded-t bg-primary/70"
             style={{ height: `${Math.max((item.value / max) * 100, 8)}%` }}
