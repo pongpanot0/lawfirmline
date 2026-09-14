@@ -20,10 +20,14 @@ export function localTestData() {
     async cleanup() {
       try {
         const users = await db.user.findMany({ where: { email: { startsWith: tag, endsWith: '@example.test' } }, select: { id: true } });
+        const firms = await db.firm.findMany({ where: { name: { startsWith: `E2E ${tag}` } }, select: { id: true } });
         await db.$transaction(async tx => {
           await tx.task.deleteMany({ where: { createdById: { in: users.map(u => u.id) } } });
           await tx.expense.deleteMany({ where: { userId: { in: users.map(u => u.id) } } });
-          await tx.firm.deleteMany({ where: { name: { startsWith: `E2E ${tag}` } } });
+          // ON DELETE RESTRICT from AppliedPlaybook to PlaybookRelease: clear applications
+          // before the firm cascade tries to remove their release.
+          await tx.appliedPlaybook.deleteMany({ where: { release: { firmId: { in: firms.map(f => f.id) } } } });
+          await tx.firm.deleteMany({ where: { id: { in: firms.map(f => f.id) } } });
           await tx.user.deleteMany({ where: { id: { in: users.map(u => u.id) } } });
         });
       } finally { await db.$disconnect(); }

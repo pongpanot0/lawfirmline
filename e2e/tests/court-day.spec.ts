@@ -695,9 +695,11 @@ test('court day restores unsaved navigation drafts and clears them on logout', a
       )
       .toBe(true);
     await page.getByRole('link', { name: 'My Day', exact: true }).click();
+    // The event also appears in the Action Center's acknowledgement queue with
+    // the same title, so scope to the court-day panel's own link by href.
     await page
       .locator('main')
-      .getByRole('link')
+      .locator(`a[href^="/court-day/"]`)
       .filter({ hasText: `นัดศาล ${f.tag}` })
       .click();
     await expect(
