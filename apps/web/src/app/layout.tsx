@@ -21,13 +21,13 @@ export const metadata: Metadata = {
     siteName: 'Samnuan',
     locale: 'th_TH',
     type: 'website',
-    images: [{ url: '/marketing/dashboard.png', width: 2880, height: 1800 }],
+    images: [{ url: '/marketing/og.png', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title,
     description,
-    images: ['/marketing/dashboard.png'],
+    images: ['/marketing/og.png'],
   },
   icons: {
     icon: '/brand/samnuan-icon.png',
