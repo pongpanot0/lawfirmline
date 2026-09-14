@@ -75,8 +75,10 @@
   height: 100dvh;
   overflow-y: auto;
   overflow-x: clip;
+  scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  /* The sticky nav sits above the snap-port — push snap positions below it. */
   scroll-padding-top: 5rem;
 }
 
@@ -90,8 +92,18 @@
   box-sizing: border-box;
 }
 
-/* era-DNA: no snap slides — sections size to content, a cinematic long
-   scroll of alternating color acts. The hero alone keeps near-full height. */
+/* Full-screen acts: every section locks to the viewport on scroll.
+   .lf-snap sections are true slides (hero, tour, CTA); taller sections
+   (features, pricing) snap to their start and scroll freely inside. */
+.lf-landing > section {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.lf-landing > footer {
+  scroll-snap-align: end;
+}
+
 .lf-snap {
   min-height: calc(100dvh - 5rem);
   display: flex;
@@ -101,6 +113,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lf-landing {
+    scroll-snap-type: y proximity;
     scroll-behavior: auto;
   }
 }
