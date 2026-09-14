@@ -11,7 +11,7 @@ export const landingCopy = {
       menu: 'เมนู',
     },
     hero: {
-      badge: 'Early Access — 10 สำนักงานแรก',
+      badge: 'Early Access — 10 สำนักงานแรก ลด 50% ปีแรก',
       title: 'ระบบจัดการสำนักงานกฎหมาย',
       titleHighlight: 'ไม่พลาดนัดศาล ลดงาน Admin',
       subtitle: 'จัดการคดี นัดหมาย เอกสาร และการแจ้งเตือนลูกความในระบบเดียว',
@@ -71,6 +71,8 @@ export const landingCopy = {
     pricing: {
       title: 'แพ็กเกจและราคา',
       subtitle: 'เลือกแพ็กเกจที่เหมาะกับขนาดสำนักงาน — ทดลองใช้ฟรี 30 วัน ไม่ต้องใช้บัตรเครดิต',
+      earlyAccess:
+        'Early Access: 10 สำนักงานแรก ลด 50% ปีแรก และล็อคราคานี้ตลอดอายุการใช้งาน — เช่น Firm เหลือ 1,499 บาท/เดือน',
       recommended: 'แนะนำ',
       perMonth: 'บาท/เดือน',
       contactUs: 'ติดต่อเรา',
@@ -106,7 +108,7 @@ export const landingCopy = {
     },
     cta: {
       title: 'เริ่มใช้ Samnuan ฟรี 30 วัน',
-      subtitle: 'รับสิทธิ์ Early Access สำหรับ 10 สำนักงานแรก — เริ่มจัดการคดีอย่างเป็นระบบวันนี้',
+      subtitle: 'รับสิทธิ์ Early Access — 10 สำนักงานแรก ลด 50% ปีแรก ล็อคราคาตลอดอายุการใช้งาน',
       demo: 'ขอนัด Demo',
       tryFree: 'ทดลองใช้งานฟรี',
       demoSubject: 'ขอนัด Demo Samnuan',
@@ -123,7 +125,7 @@ export const landingCopy = {
       menu: 'Menu',
     },
     hero: {
-      badge: 'Early Access — First 10 firms',
+      badge: 'Early Access — First 10 firms get 50% off year one',
       title: 'Law firm management',
       titleHighlight: 'Never miss a court date.',
       subtitle: 'Manage cases, appointments, documents, and client notifications in one place — and cut the admin work.',
@@ -183,6 +185,8 @@ export const landingCopy = {
     pricing: {
       title: 'Plans & pricing',
       subtitle: 'Pick the plan that fits your firm — 30-day free trial, no credit card required.',
+      earlyAccess:
+        'Early Access: the first 10 firms get 50% off year one, with this rate locked for life — e.g. Firm at 1,499 THB/month.',
       recommended: 'Popular',
       perMonth: 'THB/month',
       contactUs: 'Contact us',
@@ -218,7 +222,7 @@ export const landingCopy = {
     },
     cta: {
       title: 'Try Samnuan free for 30 days',
-      subtitle: 'Early Access for the first 10 firms — start managing cases systematically today.',
+      subtitle: 'Early Access — the first 10 firms get 50% off year one, rate locked for life.',
       demo: 'Book a demo',
       tryFree: 'Start free trial',
       demoSubject: 'Samnuan Demo Request',
