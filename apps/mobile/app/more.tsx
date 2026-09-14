@@ -2,10 +2,13 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  BarChart3,
+  BookOpen,
   ChevronRight,
   Contact,
   FilePlus2,
   LogOut,
+  PauseCircle,
   Receipt,
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
@@ -30,6 +33,24 @@ const ITEMS = [
     Icon: FilePlus2,
     title: 'รับเรื่องใหม่',
     detail: 'จดเรื่องจากลูกความนอกออฟฟิศเข้าคิว intake',
+  },
+  {
+    route: '/reports',
+    Icon: BarChart3,
+    title: 'รายงาน',
+    detail: 'สรุปตัวเลขสำคัญ: ปิดคดี อัตราสำเร็จ ปริมาณงาน',
+  },
+  {
+    route: '/knowledge',
+    Icon: BookOpen,
+    title: 'คลังความรู้',
+    detail: 'ค้นหาสรุปคดี แนวคำพิพากษา บทเรียน',
+  },
+  {
+    route: '/operations',
+    Icon: PauseCircle,
+    title: 'งานพักไว้ (Owner)',
+    detail: 'คิวงานที่รอคนอื่น เรียงตามกำหนดติดตาม',
   },
 ] as const;
 

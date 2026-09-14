@@ -77,10 +77,10 @@ types. Web (`apps/web`) stays the surface for admin/setup work.
 
 ### Phase 3 — Team, reports, portal
 
-- [ ] Operations queue + on-hold actions (owner/lead persona)
-- [ ] Reports: read-only summary cards (open/closed cases, expenses, team load)
-- [ ] Knowledge / Playbooks read-only search
-- [ ] Decide: Client Portal as mode-in-app vs separate app (spike + ADR in `docs/adr/`)
+- [x] Operations on-hold queue (Owner-only screen; resume/close actions stay on web)
+- [x] Reports: read-only summary (KPIs, case volume by type, hours by lawyer)
+- [x] Knowledge read-only search (/knowledge); playbooks apply-to-case stays web
+- [x] Decided: Client Portal stays responsive web — ADR 0003
 
 ### Stays web-only
 

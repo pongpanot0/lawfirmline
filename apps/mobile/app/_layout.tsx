@@ -98,6 +98,9 @@ export default function RootLayout() {
               <Stack.Screen name="expenses/new" options={{ title: 'ค่าใช้จ่ายใหม่' }} />
               <Stack.Screen name="intake/new" options={{ title: 'รับเรื่องใหม่' }} />
               <Stack.Screen name="scan/[caseId]" options={{ title: 'สแกนเอกสาร' }} />
+              <Stack.Screen name="reports" options={{ title: 'รายงาน' }} />
+              <Stack.Screen name="knowledge" options={{ title: 'คลังความรู้' }} />
+              <Stack.Screen name="operations" options={{ title: 'งานพักไว้' }} />
               <Stack.Screen
                 name="court-day/[eventId]"
                 options={{ title: 'Court Day', headerShown: false }}

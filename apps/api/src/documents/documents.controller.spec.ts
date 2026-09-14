@@ -31,14 +31,14 @@ describe('DocumentsController role restrictions', () => {
     reflector = module.get(Reflector);
   });
 
-  it('requires ADMIN role (singular) on upload', () => {
+  it('allows ADMIN and LAWYER on upload (lawyers scan from court)', () => {
     const roles = reflector.get(ROLES_KEY, controller.upload);
-    expect(roles).toEqual([Role.ADMIN]);
+    expect(roles).toEqual([Role.ADMIN, Role.LAWYER]);
   });
 
-  it('requires ADMIN role (singular) on uploadVersion', () => {
+  it('allows ADMIN and LAWYER on uploadVersion', () => {
     const roles = reflector.get(ROLES_KEY, controller.uploadVersion);
-    expect(roles).toEqual([Role.ADMIN]);
+    expect(roles).toEqual([Role.ADMIN, Role.LAWYER]);
   });
 
   it('requires ADMIN role (singular) on updateVisibility', () => {
@@ -63,12 +63,12 @@ describe('DocumentsController RolesGuard outcome', () => {
     } as any;
   }
 
-  it('denies a non-owner LAWYER on upload', () => {
+  it('allows a LAWYER on upload (mobile court scanner, CEO decision 2026-09-14)', () => {
     const context = buildContext(DocumentsController.prototype.upload, {
       role: Role.LAWYER,
       firmRole: FirmRole.ASSISTANT,
     });
-    expect(guard.canActivate(context)).toBe(false);
+    expect(guard.canActivate(context)).toBe(true);
   });
 
   it('allows an ADMIN on upload', () => {

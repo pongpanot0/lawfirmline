@@ -70,16 +70,9 @@ export default function ScanScreen() {
         { text: 'ตกลง', onPress: () => router.back() },
       ]);
     } catch (error) {
-      // Uploading documents is ADMIN-only by firm policy (see
-      // documents.controller.spec) — say so instead of a bare 403.
-      const forbidden = error instanceof Error && error.message.includes('403');
       Alert.alert(
         'อัปโหลดไม่สำเร็จ',
-        forbidden || (error as { status?: number })?.status === 403
-          ? 'สิทธิ์ของคุณอัปโหลดเอกสารไม่ได้ (นโยบายสำนักงานให้เฉพาะแอดมิน) — แชร์ไฟล์ให้แอดมินอัปโหลดแทน'
-          : error instanceof Error
-            ? error.message
-            : 'ตรวจสอบการเชื่อมต่อแล้วลองใหม่',
+        error instanceof Error ? error.message : 'ตรวจสอบการเชื่อมต่อแล้วลองใหม่',
       );
     } finally {
       setBusy(false);

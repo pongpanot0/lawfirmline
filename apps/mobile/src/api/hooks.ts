@@ -265,6 +265,67 @@ export function useInsuranceClaim(caseId: string) {
   });
 }
 
+export interface ReportsSummary {
+  scope: 'firm' | 'user';
+  kpis: {
+    casesClosedYtd: number;
+    casesClosedChange: number;
+    winRate: number;
+    avgCaseDurationMonths: number;
+  };
+  caseVolumeByType: Array<{ label: string; count: number }>;
+  revenueByLawyer: Array<{ lawyerName: string; hours: number; revenue: number }>;
+  expenseSummary?: { total?: number; byCategory?: Array<{ category: string; amount: number }> };
+}
+
+export function useReportsSummary() {
+  return useQuery({
+    queryKey: ['reports-summary'],
+    queryFn: () => api<ReportsSummary>('/reports/summary'),
+  });
+}
+
+export interface KnowledgeItem {
+  id: string;
+  title: string;
+  summary: string;
+  category: string;
+  createdAt: string;
+  caseId: string;
+  case?: { id: string; ownRef: string; title: string } | null;
+}
+
+export function useKnowledge(search: string) {
+  return useQuery({
+    queryKey: ['knowledge', search],
+    queryFn: () =>
+      api<KnowledgeItem[]>(
+        search ? `/knowledge?search=${encodeURIComponent(search)}` : '/knowledge',
+      ),
+  });
+}
+
+export interface OnHoldItem {
+  taskId: string;
+  taskTitle: string;
+  caseId: string | null;
+  caseTitle: string | null;
+  caseOwnRef: string | null;
+  assigneeName: string | null;
+  reason?: string | null;
+  nextFollowUpAt?: string | null;
+  followerName?: string | null;
+}
+
+/** OwnerOnly on the API — a 403 here means the caller is not the Firm Owner. */
+export function useOnHoldTasks() {
+  return useQuery({
+    queryKey: ['operations-onhold'],
+    queryFn: () => api<OnHoldItem[]>('/operations/onhold'),
+    retry: false,
+  });
+}
+
 export function useCourtDay(eventId: string) {
   return useQuery({
     queryKey: ['court-day', eventId],
