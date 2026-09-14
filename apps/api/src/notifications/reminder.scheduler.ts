@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService } from './line-messaging.service';
 import { LineLinkService } from './line-link.service';
+import { PushService } from './push.service';
 
 /**
  * The widest lead time a reminder can use. The scheduler only loads events
@@ -31,6 +32,7 @@ export class ReminderScheduler {
     private prisma: PrismaService,
     private lineMessaging: LineMessagingService,
     private lineLink: LineLinkService,
+    private push: PushService,
   ) {}
 
   @Cron(CronExpression.EVERY_10_MINUTES)
@@ -69,10 +71,21 @@ export class ReminderScheduler {
           const lineUserIds = await this.lineLink.getLineUserIdsForEvent(event);
           const lineSent = await this.lineMessaging.sendText(message, lineUserIds);
 
+          // Mobile push goes to whoever attends: the event's assignee when
+          // set, otherwise the case's lead lawyer.
+          const pushSent = await this.push.sendToUsers(
+            [event.assigneeId ?? event.case.leadLawyerId],
+            {
+              title: `⏰ ${event.title} (${leadTime}ก่อน)`,
+              body: `${event.case.ownRef} · ${event.startAt.toLocaleString('th-TH')}`,
+              data: { url: `/court-day/${event.id}` },
+            },
+          );
+
           await this.prisma.reminderLog.create({
             data: {
               eventId: event.id,
-              channel: lineSent ? 'line' : 'console',
+              channel: lineSent ? 'line' : pushSent ? 'push' : 'console',
               minutesBefore,
             },
           });
