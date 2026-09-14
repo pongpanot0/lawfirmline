@@ -2,21 +2,24 @@ import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { ApiError } from '@/api/client';
 import { Button } from '@/components/ui';
-import { colors, radius, spacing } from '@/theme';
+import { colors, radius, spacing, TOUCH } from '@/theme';
 
 export default function LoginScreen() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const keyboardHeight = useKeyboardHeight();
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +30,17 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), password);
     } catch (err) {
-      setError(
-        err instanceof ApiError && err.status === 401
-          ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
-          : 'เข้าสู่ระบบไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองใหม่',
-      );
+      if (err instanceof ApiError) {
+        // Surface the server's own reason — a generic message hides
+        // fixable mistakes like a too-short password or a typo'd email.
+        setError(
+          err.status === 401
+            ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
+            : `เข้าสู่ระบบไม่สำเร็จ: ${err.message}`,
+        );
+      } else {
+        setError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+      }
     } finally {
       setBusy(false);
     }
@@ -56,15 +65,30 @@ export default function LoginScreen() {
           value={email}
           onChangeText={setEmail}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="รหัสผ่าน"
-          placeholderTextColor={colors.faint}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          onSubmitEditing={submit}
-        />
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={[styles.input, styles.passwordInput]}
+            placeholder="รหัสผ่าน"
+            placeholderTextColor={colors.faint}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoComplete="password"
+            value={password}
+            onChangeText={setPassword}
+            onSubmitEditing={submit}
+          />
+          <Pressable
+            style={styles.eyeButton}
+            hitSlop={8}
+            onPress={() => setShowPassword((visible) => !visible)}
+          >
+            {showPassword ? (
+              <EyeOff size={20} color={colors.faint} />
+            ) : (
+              <Eye size={20} color={colors.faint} />
+            )}
+          </Pressable>
+        </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button title="เข้าสู่ระบบ" onPress={submit} busy={busy} disabled={!email || !password} />
       </View>
@@ -99,6 +123,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: colors.text,
+  },
+  passwordRow: { position: 'relative', justifyContent: 'center' },
+  passwordInput: { paddingRight: TOUCH + 4 },
+  eyeButton: {
+    position: 'absolute',
+    right: 4,
+    top: 0,
+    bottom: 0,
+    width: TOUCH,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   error: { color: '#E07A63', fontSize: 13, textAlign: 'center' },
 });
