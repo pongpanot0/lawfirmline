@@ -15,7 +15,9 @@ import {
   Check,
   ArrowRight,
 } from 'lucide-react';
+import { fbTrack } from '@/components/FacebookPixel';
 import { useLocale } from './LocaleProvider';
+import { demoHref } from './contact';
 import { LandingNavbar } from './LandingNavbar';
 import { PricingSection } from './PricingSection';
 import { useLandingMotion } from './useLandingMotion';
@@ -63,7 +65,7 @@ export function LandingPage() {
                 {t.hero.ctaPrimary}
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <a href="#trial" className="lf-btn lf-btn--outline w-full sm:w-auto">
+              <a href={demoHref} onClick={() => fbTrack('Lead')} className="lf-btn lf-btn--outline w-full sm:w-auto">
                 {t.hero.ctaSecondary}
               </a>
             </div>
@@ -263,7 +265,8 @@ export function LandingPage() {
               {t.cta.tryFree}
             </Link>
             <a
-              href={`mailto:hello@samnuan.co?subject=${encodeURIComponent(t.cta.demoSubject)}`}
+              href={demoHref}
+              onClick={() => fbTrack('Lead')}
               className="text-sm font-medium underline underline-offset-4"
               style={{ color: 'oklch(99% 0 0 / 0.9)' }}
             >

@@ -46,6 +46,7 @@ jobs:
             --build-arg "NEXT_PUBLIC_API_URL=https://api.${{ secrets.DOMAIN }}" \
             --build-arg "NEXT_PUBLIC_ROOT_DOMAIN=${{ secrets.DOMAIN }}" \
             --build-arg "NEXT_PUBLIC_FB_PIXEL_ID=${{ secrets.FB_PIXEL_ID }}" \
+            --build-arg "NEXT_PUBLIC_LINE_OA_URL=${{ secrets.LINE_OA_URL }}" \
             -t "$ECR_REGISTRY/lawfirm-web:$IMAGE_TAG" \
             -t "$ECR_REGISTRY/lawfirm-web:latest" .
           docker push "$ECR_REGISTRY/lawfirm-web:$IMAGE_TAG"

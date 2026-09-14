@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Check } from 'lucide-react';
+import { Check, Sparkle } from 'lucide-react';
+import { fbTrack } from '@/components/FacebookPixel';
 import { useLocale } from './LocaleProvider';
+import { demoHref } from './contact';
 
 const PLAN_KEYS = ['solo', 'firm', 'professional', 'enterprise'] as const;
 const PLAN_PRICES = {
@@ -42,7 +44,7 @@ export function PricingSection() {
           : (shown as number).toLocaleString(locale === 'th' ? 'th-TH' : 'en-US'),
       perUser: PLAN_PRICES[key].perUser,
       popular: PLAN_PRICES[key].popular,
-      href: key === 'enterprise' ? 'mailto:hello@samnuan.co?subject=Samnuan Enterprise' : '/register',
+      href: key === 'enterprise' ? demoHref : '/register',
       cta: key === 'enterprise' ? p.contactSales : p.tryFree,
     };
   });
@@ -54,6 +56,15 @@ export function PricingSection() {
           <span className="lf-kicker">Pricing</span>
           <h2 className="lf-display-s mt-3" style={{ fontSize: 'var(--text-display-s)' }}>{p.title}</h2>
           <p className="lf-lede mt-3">{p.subtitle}</p>
+        </div>
+
+        {/* Early Access offer — the commercial hook; list prices below stay as the anchor */}
+        <div
+          className="mx-auto mt-6 flex max-w-2xl items-start gap-3 rounded-2xl border px-4 py-3 text-sm sm:items-center"
+          style={{ borderColor: 'var(--color-accent-line)', background: 'var(--color-accent-soft)', color: 'var(--color-ink)' }}
+        >
+          <Sparkle className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" style={{ color: 'var(--color-accent)' }} />
+          <p className="font-medium">{p.earlyAccess}</p>
         </div>
 
         {/* Billing period toggle */}
@@ -153,9 +164,10 @@ export function PricingSection() {
                   </li>
                 ))}
               </ul>
-              {plan.href.startsWith('mailto') ? (
+              {plan.key === 'enterprise' ? (
                 <a
                   href={plan.href}
+                  onClick={() => fbTrack('Lead')}
                   className={`lf-btn mt-5 w-full sm:mt-6 ${plan.popular ? 'lf-btn--primary' : 'lf-btn--outline'}`}
                 >
                   {plan.cta}
