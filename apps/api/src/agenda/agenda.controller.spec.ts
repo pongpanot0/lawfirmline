@@ -2,18 +2,23 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { FirmRole } from '@lawfirm/shared';
 import { AgendaController } from './agenda.controller';
 import { AgendaService } from './agenda.service';
+import { ActionCenterService } from './action-center.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 describe('AgendaController', () => {
   let controller: AgendaController;
   const mockService = { getMyDay: jest.fn(), getAgenda: jest.fn() };
+  const mockActionCenter = { list: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AgendaController],
-      providers: [{ provide: AgendaService, useValue: mockService }],
+      providers: [
+        { provide: AgendaService, useValue: mockService },
+        { provide: ActionCenterService, useValue: mockActionCenter },
+      ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })

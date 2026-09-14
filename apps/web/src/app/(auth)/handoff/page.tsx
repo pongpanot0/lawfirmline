@@ -1,47 +1,51 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { persistTokens } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
+import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 
-/**
- * Cross-subdomain session handoff.
- * Tokens arrive in the URL hash (not sent to the server) from apex login.
- */
+/** Verify the destination tenant and update React auth state before navigating. */
 export default function HandoffPage() {
   const router = useRouter();
-  const [error, setError] = useState('');
+  const { applySession } = useAuth();
+  const d = useDashboardT();
+  const { setLocale } = useLocale();
+  const started = useRef(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    const hash = window.location.hash.replace(/^#/, '');
-    const params = new URLSearchParams(hash);
+    // Strict Mode replays effects; the first pass has already removed the hash.
+    if (started.current) return;
+    started.current = true;
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const accessToken = params.get('access_token');
     const refreshToken = params.get('refresh_token');
     const next = params.get('next') || '/dashboard';
-
-    // Drop tokens from the address bar ASAP.
     window.history.replaceState(null, '', window.location.pathname);
-
     if (!accessToken || !refreshToken) {
-      setError('Session handoff failed. Please sign in again.');
+      setFailed(true);
       return;
     }
-
-    persistTokens(accessToken, refreshToken);
-    router.replace(next.startsWith('/') ? next : '/dashboard');
-  }, [router]);
-
-  if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-6">
-        <p className="text-sm text-destructive">{error}</p>
-      </div>
-    );
-  }
+    // An incoming handoff must stand on its own, never refresh as a previous user.
+    void api.getMe(accessToken, { refreshAuth: false }).then(user => {
+      const locale = params.get('locale');
+      if (locale === 'th' || locale === 'en') setLocale(locale);
+      applySession(accessToken, refreshToken, user);
+      const destination = new URL(next, window.location.origin);
+      router.replace(destination.origin === window.location.origin && destination.pathname !== '/handoff'
+        ? `${destination.pathname}${destination.search}${destination.hash}` : '/dashboard');
+    }).catch(() => setFailed(true));
+  }, [applySession, router, setLocale]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <p className="text-sm text-muted-foreground">Signing you in…</p>
-    </div>
+    <main className="flex min-h-dvh items-center justify-center p-6">
+      {failed ? <div className="space-y-4 text-center">
+        <p role="alert" className="text-sm text-destructive">{d.auth.handoffFailed}</p>
+        <Link href="/login" className="text-sm font-medium text-primary underline">{d.auth.backToSignIn}</Link>
+      </div> : <p role="status" className="text-sm text-muted-foreground">{d.auth.signingIn}</p>}
+    </main>
   );
 }

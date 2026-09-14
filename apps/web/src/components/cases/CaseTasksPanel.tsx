@@ -1,5 +1,6 @@
 'use client';
 
+import { CasePlaybook } from './CasePlaybook';
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { FirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
@@ -143,6 +144,7 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
 
   return (
     <div>
+      <CasePlaybook caseId={caseId} onApplied={loadTasks} />
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight text-foreground">{d.caseTasks.title}</h2>
         <div className="flex items-center gap-2">

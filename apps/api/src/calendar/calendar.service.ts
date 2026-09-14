@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -97,7 +98,20 @@ export class CalendarService {
   }
 
   /** Creation for callers that have already authorized the case. */
-  async createInternal(dto: CreateEventDto, actorId?: string) {
+  async createInternal(dto: CreateEventDto, actorId?: string, tx?: Prisma.TransactionClient) {
+    if (tx) {
+      const legalCase = await tx.case.findUnique({ where: { id: dto.caseId } });
+      if (!legalCase) throw new NotFoundException('Case not found');
+      const event = await tx.calendarEvent.create({ data: {
+        ...dto, startAt: new Date(dto.startAt), endAt: dto.endAt ? new Date(dto.endAt) : undefined,
+        courtName: dto.courtName ?? legalCase.courtName, reminderMinutes: dto.reminderMinutes ?? [4320, 1440, 60],
+      }, include: this.eventInclude });
+      if (dto.type === EventType.COURT_DATE && actorId) {
+        await tx.case.update({ where: { id: dto.caseId }, data: { status: 'COURT_DATE' } });
+        await this.deadlineRules.applyTrigger({ caseId: dto.caseId, firmId: legalCase.firmId, caseTypeId: legalCase.caseTypeId, trigger: DeadlineTrigger.COURT_DATE, triggerDate: event.startAt, triggerEventId: event.id, createdById: actorId }, tx);
+      }
+      return event;
+    }
     const legalCase = await this.prisma.case.findUnique({
       where: { id: dto.caseId },
       include: { leadLawyer: true },
@@ -178,12 +192,15 @@ export class CalendarService {
 
   /** Update for callers that have already authorized the case. */
   async updateInternal(id: string, dto: UpdateEventDto) {
-    await this.findOneInternal(id);
+    const existing = await this.findOneInternal(id);
+    if (dto.startAt && new Date(dto.startAt).getTime() !== existing.startAt.getTime()) {
+      throw new ConflictException('กรุณาใช้เลื่อนนัดเพื่อตรวจผลกระทบก่อน / Use reschedule to review affected deadlines');
+    }
     return this.prisma.calendarEvent.update({
       where: { id },
       data: {
         ...dto,
-        startAt: dto.startAt ? new Date(dto.startAt) : undefined,
+        startAt: undefined,
         endAt: dto.endAt ? new Date(dto.endAt) : undefined,
       },
       include: this.eventInclude,

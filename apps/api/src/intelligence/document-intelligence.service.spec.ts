@@ -4,6 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import { EventType } from '@lawfirm/shared';
 import { DocumentIntelligenceService } from './document-intelligence.service';
 import { PrismaService } from '../prisma/prisma.module';
+import { PDFParse } from 'pdf-parse';
+
+jest.mock('pdf-parse', () => ({ PDFParse: jest.fn() }));
 
 describe('DocumentIntelligenceService — date extraction', () => {
   let service: DocumentIntelligenceService;
@@ -27,6 +30,51 @@ describe('DocumentIntelligenceService — date extraction', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  describe('extractText', () => {
+    it('preserves original page numbers across blank pages and releases the parser', async () => {
+      const destroy = jest.fn().mockResolvedValue(undefined);
+      jest.mocked(PDFParse).mockImplementation(() => ({
+        getText: jest.fn().mockResolvedValue({ pages: [
+          { num: 1, text: 'First fact' },
+          { num: 2, text: '   ' },
+          { num: 3, text: 'Third-page fact' },
+        ] }), destroy,
+      }) as unknown as PDFParse);
+      expect(await service.extractText(Buffer.from('pdf'), 'application/pdf'))
+        .toBe('[หน้า 1]\nFirst fact\n\n[หน้า 3]\nThird-page fact');
+      expect(destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps textless PDFs empty so the caller can require OCR', async () => {
+      jest.mocked(PDFParse).mockImplementation(() => ({
+        getText: jest.fn().mockResolvedValue({ pages: [{ num: 1, text: ' ' }] }),
+        destroy: jest.fn().mockResolvedValue(undefined),
+      }) as unknown as PDFParse);
+      expect(await service.extractText(Buffer.from('pdf'), 'application/pdf')).toBe('');
+    });
+
+    it('releases the parser when PDF extraction fails', async () => {
+      const destroy = jest.fn().mockResolvedValue(undefined);
+      jest.mocked(PDFParse).mockImplementation(() => ({
+        getText: jest.fn().mockRejectedValue(new Error('Malformed PDF')), destroy,
+      }) as unknown as PDFParse);
+      await expect(service.extractText(Buffer.from('pdf'), 'application/pdf')).rejects.toThrow('Malformed PDF');
+      expect(destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects DOCX instead of treating the archive bytes as document text', async () => {
+      await expect(service.extractText(Buffer.from('PK archive'),
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'))
+        .rejects.toThrow('DOCX');
+      expect(PDFParse).not.toHaveBeenCalled();
+    });
+
+    it('preserves UTF-8 plain text', async () => {
+      expect(await service.extractText(Buffer.from('ข้อเท็จจริง\nบรรทัดสอง'), 'text/plain'))
+        .toBe('ข้อเท็จจริง\nบรรทัดสอง');
+    });
   });
 
   describe('extractDatesWithAI', () => {

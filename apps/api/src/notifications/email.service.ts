@@ -101,6 +101,19 @@ export class EmailService {
     return this.config.get<string>('SENDGRID_FROM_NAME')?.trim() || 'LexFlow';
   }
 
+  async sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
+    if (!this.isConfigured()) return;
+    const safeUrl = escapeHtml(resetUrl);
+    await sgMail.send({
+      to,
+      from: { email: this.getFromEmail()!, name: this.getFromName() },
+      subject: 'ตั้งรหัสผ่านใหม่ / Reset your password — Samnuan',
+      text: `ตั้งรหัสผ่านใหม่ / Reset your password\n\n${resetUrl}\n\nลิงก์ใช้ได้ 1 ชั่วโมง หากคุณไม่ได้ขอเปลี่ยนรหัสผ่าน ไม่ต้องดำเนินการใด ๆ\nThis link expires in one hour. If you did not request this, you can ignore this email.`,
+      html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:auto;line-height:1.7"><h1>Samnuan</h1><h2>ตั้งรหัสผ่านใหม่ / Reset your password</h2><p><a href="${safeUrl}">ตั้งรหัสผ่านใหม่ / Reset password</a></p><p>ลิงก์ใช้ได้ 1 ชั่วโมง หากคุณไม่ได้ขอเปลี่ยนรหัสผ่าน ไม่ต้องดำเนินการใด ๆ</p><p>This link expires in one hour. If you did not request this, you can ignore this email.</p></div>`,
+    });
+    this.logger.log(`Password reset email sent to ${maskEmail(to)}`);
+  }
+
   async sendInvitationEmail(params: InvitationEmailParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(

@@ -144,10 +144,11 @@ export class AgendaService {
     ]);
   }
 
-  private fetchEvents(user: AuthUser, from: Date, to: Date, take?: number) {
-    return this.prisma.calendarEvent.findMany({
+  private async fetchEvents(user: AuthUser, from: Date, to: Date, take?: number) {
+    const rows = await this.prisma.calendarEvent.findMany({
       where: {
-        case: this.caseAccess.getCaseFilterForUser(user),
+        case: { AND: [this.caseAccess.getCaseFilterForUser(user), { status: { not: 'CLOSED' } }] },
+        NOT: { courtDay: { completedAt: { not: null } } },
         startAt: { gte: from, lt: to },
       },
       select: {
@@ -158,11 +159,13 @@ export class AgendaService {
         type: true,
         courtName: true,
         caseId: true,
-        case: { select: { id: true, ownRef: true, title: true, courtName: true } },
+        updatedAt: true, assigneeId: true, responsibility: true,
+        case: { select: { id: true, ownRef: true, title: true, courtName: true, leadLawyerId: true } },
       },
       orderBy: { startAt: 'asc' },
       ...(take ? { take } : {}),
-    }) as unknown as Promise<EventRow[]>;
+    });
+    return rows.filter(e => !(e.responsibility?.completedAt && e.responsibility.ownerId === (e.assigneeId ?? e.case.leadLawyerId) && e.responsibility.eventUpdatedAt.getTime() === e.updatedAt.getTime())) as EventRow[];
   }
 
   private fetchTasks(user: AuthUser, from: Date, to: Date, take?: number) {
@@ -172,13 +175,12 @@ export class AgendaService {
         dueDate: { gte: from, lt: to },
         // Standalone todos have no case to inherit tenancy from, so the
         // assignee's firm membership is what keeps them tenant-scoped.
-        assignee: { firmMembers: { some: { firmId: user.firmId } } },
         AND: [
           this.caseAccess.getTaskFilterForUser(user),
           {
             OR: [
-              { caseId: null },
-              { case: this.caseAccess.getCaseFilterForUser(user) },
+              { caseId: null, assignee: { firmMembers: { some: { firmId: user.firmId } } } },
+              { case: { AND: [this.caseAccess.getCaseFilterForUser(user), { status: { not: 'CLOSED' } }] } },
             ],
           },
         ],

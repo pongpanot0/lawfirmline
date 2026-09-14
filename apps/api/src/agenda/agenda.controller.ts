@@ -1,3 +1,4 @@
+import { ActionCenterService } from './action-center.service';
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { AgendaService } from './agenda.service';
@@ -9,7 +10,11 @@ import { SkipSubscription } from '../saas/decorators/saas.decorators';
 @Controller('agenda')
 @UseGuards(JwtAuthGuard)
 export class AgendaController {
-  constructor(private agendaService: AgendaService) {}
+  constructor(private agendaService: AgendaService, private actionCenter: ActionCenterService) {}
+
+  @Get('actions')
+  @SkipSubscription()
+  actions(@CurrentUser() user: AuthUser) { return this.actionCenter.list(user); }
 
   /** Everything the caller owes, bucketed for the "my day" screen. */
   @Get('my-day')

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/auth/PasswordInput';
 import { Card, CardContent } from '@/components/ui/card';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { LanguageSwitcher } from '@/components/landing/LanguageSwitcher';
@@ -32,13 +32,13 @@ function ResetForm() {
     } catch (err) {
       // An expired or already-used link is the common case here, and it used
       // to leave the button inert with nothing said.
-      setError(err instanceof Error ? err.message : d.auth.resetFailed);
+      setError(d.auth.resetFailed);
       setSaving(false);
     }
   };
 
   if (!token) {
-    return <p className="text-destructive">{d.auth.invalidResetLink}</p>;
+    return <p role="alert" className="text-destructive">{d.auth.invalidResetLink}</p>;
   }
 
   return done ? (
@@ -46,8 +46,8 @@ function ResetForm() {
   ) : (
     <form onSubmit={handleSubmit} className="mt-4 space-y-4">
       <div>
-        <label className="text-sm font-medium">{d.auth.newPassword}</label>
-        <Input required type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1" />
+        <label htmlFor="new-password" className="text-sm font-medium">{d.auth.newPassword}</label>
+        <PasswordInput id="new-password" autoComplete="new-password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1" />
       </div>
       {error && (
         <p role="alert" className="text-sm text-destructive">

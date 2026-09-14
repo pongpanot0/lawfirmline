@@ -54,9 +54,9 @@ export class ApiError extends Error {
 
 async function request<T>(
   path: string,
-  options: RequestInit & { token?: string } = {},
+  options: RequestInit & { token?: string; refreshAuth?: boolean } = {},
 ): Promise<T> {
-  const { token, ...fetchOptions } = options;
+  const { token, refreshAuth = true, ...fetchOptions } = options;
   const isFormData = fetchOptions.body instanceof FormData;
   const headers: HeadersInit = withFirmSlugHeaders({
     ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
@@ -73,7 +73,7 @@ async function request<T>(
     cache: 'no-store',
   });
 
-  if (res.status === 401 && authToken) {
+  if (res.status === 401 && authToken && refreshAuth) {
     const newToken = await refreshAccessToken();
     if (newToken) {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
@@ -87,7 +87,7 @@ async function request<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    if (res.status === 401) clearSession();
+    if (res.status === 401 && refreshAuth) clearSession();
     throw new ApiError(res.status, parseApiErrorMessage(body, res.statusText));
   }
 
@@ -878,8 +878,8 @@ export const api = {
   getOmiseConfig: () =>
     request<{ publicKey: string | null; mockMode: boolean }>('/saas/omise/public-key'),
 
-  getMe: (token: string) =>
-    request<import('@lawfirm/shared').AuthUser>('/auth/me', { token }),
+  getMe: (token: string, options?: { refreshAuth?: boolean }) =>
+    request<import('@lawfirm/shared').AuthUser>('/auth/me', { token, ...options }),
 
   getDashboardStats: (token: string) =>
     request<DashboardStats>('/dashboard/stats', { token }),
@@ -989,6 +989,8 @@ export const api = {
     request<TaskItem[]>(`/cases/${caseId}/tasks`, { token }),
 
   getMyTodos: (token: string) => request<TaskItem[]>('/todos', { token }),
+
+  getActionQueue: (token: string) => request<import('@/components/agenda/ActionCenter').ActionQueue>('/agenda/actions', { token }),
 
   getMyDay: (token: string) => request<MyDayResponse>('/agenda/my-day', { token }),
 
@@ -1150,6 +1152,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getCourtDay: (token: string, id: string) =>
+    request<import('./court-day').CourtDayResponse>(`/calendar/events/${id}/court-day`, { token }),
+  saveCourtDay: (token: string, id: string, version: number, state: import('./court-day').CourtDayState) =>
+    request<import('./court-day').CourtDayWorkspace>(`/calendar/events/${id}/court-day`, { token, method: 'PATCH', body: JSON.stringify({ version, state }) }),
+  completeCourtDay: (token: string, id: string, version: number, eventUpdatedAt: string) =>
+    request<import('./court-day').CourtDayWorkspace>(`/calendar/events/${id}/court-day/complete`, { token, method: 'POST', body: JSON.stringify({ version, eventUpdatedAt }) }),
+
   getCalendarEvents: (
     token: string,
     params?: { from?: string; to?: string },
@@ -1161,6 +1170,10 @@ export const api = {
     return request<CalendarEventItem[]>(`/calendar/events${qs ? `?${qs}` : ''}`, { token });
   },
 
+  getEventResponsibility: (token: string, id: string) => request<import('@/components/calendar/EventResponsibility').Responsibility>(`/calendar/events/${id}/responsibility`, { token }),
+  acknowledgeEvent: (token: string, id: string, eventUpdatedAt: string, complete = false) => request(`/calendar/events/${id}/${complete ? 'complete-work' : 'acknowledge'}`, { token, method: 'POST', body: JSON.stringify({ eventUpdatedAt }) }),
+  previewEventReschedule: (token: string, id: string, startAt: string) => request<import('@/components/calendar/EventResponsibility').ReschedulePreview>(`/calendar/events/${id}/reschedule-preview`, { token, method: 'POST', body: JSON.stringify({ startAt }) }),
+  rescheduleEvent: (token: string, id: string, data: { startAt: string; fingerprint: string; reason: string }) => request(`/calendar/events/${id}/reschedule`, { token, method: 'POST', body: JSON.stringify(data) }),
   getCalendarEvent: (token: string, id: string) =>
     request<CalendarEventItem>(`/calendar/events/${id}`, { token }),
 
@@ -1426,7 +1439,7 @@ export const api = {
     token: string,
     caseId: string,
     id: string,
-    overrides: { label?: string; date?: string; eventType?: string },
+    overrides: { expectedUpdatedAt?: string; label?: string; date?: string; eventType?: string },
   ) =>
     request<DateSuggestionItem>(`/cases/${caseId}/date-suggestions/${id}/confirm`, {
       method: 'POST',
@@ -1929,6 +1942,7 @@ export interface DateSuggestionItem {
   status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
   calendarEventId?: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export type DeadlineTriggerValue = import('@lawfirm/shared').DeadlineTrigger;

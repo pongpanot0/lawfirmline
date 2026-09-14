@@ -1,4 +1,4 @@
-import { test, expect, Page, Locator } from '@playwright/test';
+import { test, expect, Page, Locator } from '../helpers/tenant-test';
 
 /**
  * Form-validation coverage for the numeric / formatted text fields that used to
@@ -15,8 +15,8 @@ async function invalid(input: Locator) {
 
 async function goto(page: Page, route: string) {
   await page.goto(route);
-  await page.waitForLoadState('networkidle').catch(() => {});
-  await page.waitForTimeout(400);
+  await expect(page.locator('main h1')).toBeVisible();
+  await page.getByRole('button', { name: 'EN', exact: true }).click();
 }
 
 async function adminToken(page: Page) {
@@ -30,7 +30,7 @@ async function adminToken(page: Page) {
 test.describe('ยอดเงินค่าใช้จ่าย (Expense amount)', () => {
   test('ปฏิเสธยอดติดลบและศูนย์ที่หน้า /expenses', async ({ page }) => {
     await goto(page, '/expenses');
-    await page.click('button:has-text("New Expense")');
+    await page.getByRole('button', { name: /New Expense|Record Expense/i }).click();
     const amount = page.locator('form input[type="number"]').first();
 
     await amount.fill('-500');
@@ -45,7 +45,7 @@ test.describe('ยอดเงินค่าใช้จ่าย (Expense amou
 
   test('ปฏิเสธทศนิยมเกิน 2 ตำแหน่ง', async ({ page }) => {
     await goto(page, '/expenses');
-    await page.click('button:has-text("New Expense")');
+    await page.getByRole('button', { name: /New Expense|Record Expense/i }).click();
     const amount = page.locator('form input[type="number"]').first();
     await amount.fill('10.999');
     expect(await invalid(amount)).toBe(true);
@@ -73,16 +73,15 @@ test.describe('ยอดเงินค่าใช้จ่าย (Expense amou
 });
 
 test.describe('เลขคดีและรายได้โดยประมาณ (/cases/new)', () => {
-  async function openStep2(page: Page) {
+  async function openCaseForm(page: Page) {
     await goto(page, '/cases/new');
     await page.click('main button:has-text("Litigation")');
-    await page.click('button:has-text("Next")');
-    await page.waitForTimeout(400);
+    await expect(page.locator('#blackCaseNumber')).toBeVisible();
   }
 
   test('เลขดำต้องอยู่ในรูปแบบ เลขที่/ปีพ.ศ.', async ({ page }) => {
-    await openStep2(page);
-    const black = page.locator('input[placeholder="เช่น 123/2567"]');
+    await openCaseForm(page);
+    const black = page.locator('#blackCaseNumber');
 
     await black.fill('abc');
     expect(await invalid(black)).toBe(true);
@@ -95,8 +94,8 @@ test.describe('เลขคดีและรายได้โดยประ�
   });
 
   test('เลขแดงต้องอยู่ในรูปแบบ เลขที่/ปีพ.ศ.', async ({ page }) => {
-    await openStep2(page);
-    const red = page.locator('input[placeholder="เช่น 456/2567"]');
+    await openCaseForm(page);
+    const red = page.locator('#redCaseNumber');
 
     await red.fill('ไม่ใช่ตัวเลข');
     expect(await invalid(red)).toBe(true);
@@ -105,8 +104,8 @@ test.describe('เลขคดีและรายได้โดยประ�
     expect(await invalid(red)).toBe(false);
   });
 
-  test('รายได้โดยประมาณห้ามติดลบ', async ({ page }) => {
-    await openStep2(page);
+  test('ทุนทรัพย์ห้ามติดลบ', async ({ page }) => {
+    await openCaseForm(page);
     const fee = page.locator('input[type="number"]').first();
 
     await fee.fill('-1');
@@ -120,7 +119,7 @@ test.describe('เลขคดีและรายได้โดยประ�
 test.describe('เบอร์โทรผู้ติดต่อ (/clients/new)', () => {
   test('เบอร์โทรต้องเป็นตัวเลข', async ({ page }) => {
     await goto(page, '/clients/new');
-    const phone = page.locator('input[placeholder*="Phone"]').first();
+    const phone = page.locator('input[type="tel"]').first();
 
     await phone.fill('ไม่ใช่เบอร์');
     expect(await invalid(phone)).toBe(true);

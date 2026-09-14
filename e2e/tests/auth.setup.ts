@@ -8,12 +8,12 @@ const ADMIN_STATE = path.resolve(__dirname, '../.auth/admin.json');
 export const ADMIN = { email: 'admin@lawfirm.com', password: 'password123' };
 
 setup('login as admin and capture the login screen', async ({ page }) => {
-  resetManifest();
+  if (process.env.E2E_CAPTURE_GUIDE === '1') resetManifest();
 
   await page.goto('/login');
   await expect(page.getByRole('heading', { name: /เข้าสู่ระบบ|sign in/i })).toBeVisible();
 
-  await capture(page, {
+  if (process.env.E2E_CAPTURE_GUIDE === '1') await capture(page, {
     id: '01-login',
     title: 'หน้าเข้าสู่ระบบ (Login)',
     route: '/login',
@@ -31,7 +31,9 @@ setup('login as admin and capture the login screen', async ({ page }) => {
   await page.fill('input[type="password"]', ADMIN.password);
   await page.click('button[type="submit"]');
   await page.waitForURL('**/dashboard', { timeout: 30_000 });
+  await expect(page.locator('main h1')).toBeVisible();
 
   fs.mkdirSync(path.dirname(ADMIN_STATE), { recursive: true });
   await page.context().storageState({ path: ADMIN_STATE });
+  fs.writeFileSync(path.resolve(__dirname, '../.auth/tenant.json'), JSON.stringify({ origin: new URL(page.url()).origin }));
 });
