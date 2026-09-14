@@ -124,9 +124,11 @@ test('court day: prepare from My Day → download → record → follow-up + dra
   page.on('pageerror', (err) => errors.push(err.message));
   try {
     await f.open(page);
+    // The event also appears in the Action Center's acknowledgement queue with
+    // the same title, so scope to the court-day panel's own link by href.
     await page
       .locator('main')
-      .getByRole('link')
+      .locator(`a[href^="/court-day/"]`)
       .filter({ hasText: `นัดศาล ${f.tag}` })
       .click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
