@@ -39,7 +39,10 @@ export default function ReportsScreen() {
       </View>
       <View style={[styles.statRow, { marginTop: spacing.sm }]}>
         <StatCard label="อัตราปิดคดี" value={`${kpis.winRate}%`} />
-        <StatCard label="ระยะเวลาเฉลี่ย" value={`${kpis.avgCaseDurationMonths} เดือน`} />
+        <StatCard
+          label="ระยะเวลาเฉลี่ย"
+          value={kpis.avgCaseDurationMonths != null ? `${kpis.avgCaseDurationMonths} เดือน` : '—'}
+        />
       </View>
 
       <SectionLabel>คดีตามประเภท</SectionLabel>
