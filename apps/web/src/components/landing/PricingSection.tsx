@@ -1,17 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
 import { Check } from 'lucide-react';
 import { useLocale } from './LocaleProvider';
 
@@ -30,81 +20,10 @@ const PLAN_NAMES: Record<(typeof PLAN_KEYS)[number], string> = {
   enterprise: 'Enterprise',
 };
 
-// Mirrors --color-accent / --color-ink-2 / --color-success from landing-tokens.css —
-// recharts fills need literal color strings, not CSS custom properties.
-const CHART_ACCENT = 'oklch(62% 0.19 32)';
-const CHART_ACCENT_MUTED = 'oklch(62% 0.19 32 / 0.35)';
-const CHART_SUCCESS = 'oklch(56% 0.13 152)';
-const CHART_SUCCESS_MUTED = 'oklch(56% 0.13 152 / 0.4)';
-const CHART_RULE = 'oklch(88% 0.014 50)';
-const CHART_INK_2 = 'oklch(46% 0.022 40)';
-
-function formatBaht(value: number, locale: 'th' | 'en') {
-  return locale === 'th'
-    ? `${value.toLocaleString('th-TH')} ฿`
-    : `${value.toLocaleString('en-US')} THB`;
-}
-
-function PriceTooltip({
-  active,
-  payload,
-  locale,
-}: {
-  active?: boolean;
-  payload?: { value: number; payload: { name: string } }[];
-  locale: 'th' | 'en';
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-lg border px-3 py-2 text-sm"
-      style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)' }}
-    >
-      <p className="font-medium" style={{ color: 'var(--color-ink)' }}>
-        {payload[0].payload.name}
-      </p>
-      <p style={{ color: 'var(--color-accent)' }}>{formatBaht(payload[0].value, locale)}</p>
-    </div>
-  );
-}
-
-function PerUserTooltip({
-  active,
-  payload,
-  locale,
-  suffix,
-}: {
-  active?: boolean;
-  payload?: { value: number; payload: { name: string } }[];
-  locale: 'th' | 'en';
-  suffix: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-lg border px-3 py-2 text-sm"
-      style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)' }}
-    >
-      <p className="font-medium" style={{ color: 'var(--color-ink)' }}>
-        {payload[0].payload.name}
-      </p>
-      <p style={{ color: 'var(--color-success)' }}>
-        {formatBaht(payload[0].value, locale)}
-        {suffix}
-      </p>
-    </div>
-  );
-}
-
 export function PricingSection() {
   const { locale, t } = useLocale();
   const p = t.pricing;
-  const [chartsReady, setChartsReady] = useState(false);
   const [yearly, setYearly] = useState(false);
-
-  useEffect(() => {
-    setChartsReady(true);
-  }, []);
 
   const plans = PLAN_KEYS.map((key) => {
     const base = PLAN_PRICES[key].price;
@@ -127,22 +46,6 @@ export function PricingSection() {
       cta: key === 'enterprise' ? p.contactSales : p.tryFree,
     };
   });
-
-  const priceChartData = plans
-    .filter((plan) => plan.price !== null)
-    .map((plan) => ({
-      name: plan.name,
-      price: plan.price,
-      fill: plan.popular ? CHART_ACCENT : CHART_ACCENT_MUTED,
-    }));
-
-  const perUserChartData = plans
-    .filter((plan) => plan.perUser !== null)
-    .map((plan) => ({
-      name: plan.name,
-      perUser: plan.perUser,
-      fill: plan.popular ? CHART_SUCCESS : CHART_SUCCESS_MUTED,
-    }));
 
   return (
     <section id="pricing" className="lf-section lf-snap-tall">
@@ -265,98 +168,10 @@ export function PricingSection() {
           ))}
         </div>
 
-        {/* Charts */}
-        <div className="mt-10 grid gap-5 sm:mt-16 sm:gap-8 lg:grid-cols-2">
-          <div className="rounded-2xl border p-4 sm:p-6" style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)' }}>
-            <h3 className="text-sm font-semibold sm:text-base" style={{ color: 'var(--color-ink)' }}>
-              {p.chartMonthly}
-            </h3>
-            <p className="mt-1 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
-              {p.chartMonthlyDesc}
-            </p>
-            <div className="mt-4 h-52 min-h-0 min-w-0 sm:mt-6 sm:h-64">
-              {chartsReady ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={priceChartData} margin={{ top: 8, right: 4, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_RULE} vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: CHART_INK_2 }}
-                      axisLine={{ stroke: CHART_RULE }}
-                      tickLine={false}
-                      interval={0}
-                      angle={-20}
-                      textAnchor="end"
-                      height={50}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: CHART_INK_2 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                      width={36}
-                    />
-                    <Tooltip content={<PriceTooltip locale={locale} />} cursor={{ fill: CHART_RULE, opacity: 0.5 }} />
-                    <Bar dataKey="price" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                      {priceChartData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border p-4 sm:p-6" style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)' }}>
-            <h3 className="text-sm font-semibold sm:text-base" style={{ color: 'var(--color-ink)' }}>
-              {p.chartPerUser}
-            </h3>
-            <p className="mt-1 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
-              {p.chartPerUserDesc}
-            </p>
-            <div className="mt-4 h-52 min-h-0 min-w-0 sm:mt-6 sm:h-64">
-              {chartsReady ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={perUserChartData} margin={{ top: 8, right: 4, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_RULE} vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: CHART_INK_2 }}
-                      axisLine={{ stroke: CHART_RULE }}
-                      tickLine={false}
-                      interval={0}
-                      angle={-20}
-                      textAnchor="end"
-                      height={50}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: CHART_INK_2 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => (locale === 'th' ? `${v}฿` : `${v}`)}
-                      width={36}
-                    />
-                    <Tooltip
-                      content={<PerUserTooltip locale={locale} suffix={p.perUserTooltip} />}
-                      cursor={{ fill: CHART_RULE, opacity: 0.5 }}
-                    />
-                    <Bar dataKey="perUser" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                      {perUserChartData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
         {/* Comparison table — mobile scroll */}
         <div className="-mx-4 mt-8 overflow-x-auto px-4 sm:mx-0 sm:mt-12 sm:px-0">
           <div className="min-w-[320px] overflow-hidden rounded-xl border" style={{ borderColor: 'var(--color-rule)' }}>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
               <thead>
                 <tr className="border-b" style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-2)' }}>
                   <th className="px-4 py-3 text-left font-semibold sm:px-6 sm:py-4" style={{ color: 'var(--color-ink)' }}>
