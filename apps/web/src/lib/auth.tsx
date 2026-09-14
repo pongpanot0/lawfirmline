@@ -99,6 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const logout = useCallback(() => {
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    if (refreshToken) void api.logout(refreshToken).catch(() => {});
     clearCourtDayDrafts();
     void clearCourtOffline();
     localStorage.removeItem(TOKEN_KEY);

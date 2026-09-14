@@ -466,6 +466,15 @@ export interface MfaChallengeResponse {
 
 export type LoginResult = LoginResponse | MfaChallengeResponse;
 
+/** One active refresh-token session, as shown in Settings → Security → Sessions. */
+export interface SessionInfo {
+  id: string;
+  userAgent: string | null;
+  ip: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+}
+
 export interface SubscriptionSummary {
   status: SubscriptionStatus;
   plan: SubscriptionPlan | null;

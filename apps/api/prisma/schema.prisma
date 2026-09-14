@@ -293,6 +293,7 @@ model Firm {
   caseTypes          CaseType[]
   clients            Client[]
   pettyCashFund      PettyCashFund?
+  cashAdvances       CashAdvance[]
   intakes            Intake[]
   emailThreads       EmailThread[]
   mailboxConnections MailboxConnection[]
@@ -432,6 +433,25 @@ model MfaCode {
   @@index([userId, purpose])
 }
 
+/// One row per issued refresh token. Access tokens stay stateless (never
+/// checked against this table) — revocation takes effect the next time the
+/// client calls /auth/refresh, within JWT_EXPIRES_IN of a revoke.
+model Session {
+  id         String    @id @default(uuid())
+  userId     String
+  jti        String    @unique
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  revokedAt  DateTime?
+  expiresAt  DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 model User {
   id                    String    @id @default(uuid())
   email                 String    @unique
@@ -453,6 +473,7 @@ model User {
   updatedAt             DateTime  @updatedAt
 
   mfaCodes                   MfaCode[]
+  sessions                   Session[]
   firmMembers                FirmMember[]
   sentInvitations            Invitation[]              @relation("SentInvitations")
   sentPortalInvitations      ClientPortalInvite[]      @relation("SentPortalInvitations")
@@ -472,6 +493,8 @@ model User {
   submittedExpenseClaims     ExpenseClaim[]            @relation("ExpenseClaimSubmitter")
   reviewedExpenseClaims      ExpenseClaim[]            @relation("ExpenseClaimReviewer")
   paidExpenseClaims          ExpenseClaim[]            @relation("ExpenseClaimPayer")
+  cashAdvancesReceived       CashAdvance[]             @relation("CashAdvanceRecipient")
+  cashAdvancesIssued         CashAdvance[]             @relation("CashAdvanceIssuer")
   knowledge                  CaseKnowledge[]           @relation("CaseKnowledgeCreator")
   reviewedKnowledge          CaseKnowledge[]           @relation("CaseKnowledgeReviewer")
   intakeAttachments          IntakeAttachment[]
@@ -1061,6 +1084,10 @@ model Expense {
   sourceEventId  String?
   paidAt         DateTime?
   paidById       String?
+  /// Set when this cost was covered out of a cash advance the owner already
+  /// handed the claimant — the expense is recorded straight as PAID and never
+  /// enters an ExpenseClaim, since there is nothing left to reimburse.
+  paidFromAdvanceId String?
   /// Optional receipt photo uploaded with the claim.
   receiptFilename    String?
   receiptStoragePath String?
@@ -1068,14 +1095,16 @@ model Expense {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  case        Case?          @relation(fields: [caseId], references: [id], onDelete: SetNull)
-  user        User           @relation(fields: [userId], references: [id])
-  paidBy      User?          @relation("ExpensePaidBy", fields: [paidById], references: [id])
-  sourceEvent CalendarEvent? @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
-  claim       ExpenseClaim?  @relation(fields: [claimId], references: [id], onDelete: SetNull)
+  case            Case?          @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  user            User           @relation(fields: [userId], references: [id])
+  paidBy          User?          @relation("ExpensePaidBy", fields: [paidById], references: [id])
+  sourceEvent     CalendarEvent? @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
+  claim           ExpenseClaim?  @relation(fields: [claimId], references: [id], onDelete: SetNull)
+  paidFromAdvance CashAdvance?   @relation(fields: [paidFromAdvanceId], references: [id], onDelete: SetNull)
 
   @@index([sourceEventId])
   @@index([claimId])
+  @@index([paidFromAdvanceId])
 }
 
 /// One reimbursement round: lawyer submits many draft lines; owner approves the batch.
@@ -1109,6 +1138,30 @@ model PettyCashFund {
   updatedAt DateTime @updatedAt
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+}
+
+/// A cash float the owner hands a lawyer/staff member up front (เงินยืมสำรองจ่าย)
+/// so they can cover case costs without waiting on reimbursement. `remaining`
+/// is drawn down as expenses are logged against it via Expense.paidFromAdvanceId —
+/// those expenses skip the normal claim → approve → reimburse cycle since the
+/// cash already changed hands.
+model CashAdvance {
+  id           String   @id @default(uuid())
+  firmId       String
+  userId       String
+  amount       Float
+  remaining    Float
+  note         String?
+  issuedById   String
+  issuedAt     DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  firm     Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user     User      @relation("CashAdvanceRecipient", fields: [userId], references: [id])
+  issuedBy User      @relation("CashAdvanceIssuer", fields: [issuedById], references: [id])
+  expenses Expense[]
+
+  @@index([firmId, userId])
 }
 
 model TravelLog {

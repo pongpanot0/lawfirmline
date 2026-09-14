@@ -13,7 +13,7 @@ import {
   MONEY_STEP,
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, CaseItem } from '@/lib/api';
+import { api, ApiError, CaseItem, CashAdvanceItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ export default function NewExpensePage() {
   const searchParams = useSearchParams();
   const caseIdParam = searchParams.get('caseId') ?? '';
   const [cases, setCases] = useState<CaseItem[]>([]);
+  const [advances, setAdvances] = useState<CashAdvanceItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState<File | null>(null);
@@ -40,12 +41,18 @@ export default function NewExpensePage() {
     category: EXPENSE_CATEGORIES[0] as string,
     expensePurpose: '',
     caseId: '',
+    paidFromAdvanceId: '',
   });
 
   useEffect(() => {
     if (!token) return;
     api.getCases(token).then(setCases).catch(() => setCases([]));
+    api.listMyCashAdvances(token).then(setAdvances).catch(() => setAdvances([]));
   }, [token]);
+
+  const selectedAdvance = advances.find((a) => a.id === form.paidFromAdvanceId);
+  const advanceAmountExceeded =
+    !!selectedAdvance && !!form.amount && parseFloat(form.amount) > selectedAdvance.remaining;
 
   useEffect(() => {
     if (!caseIdParam) return;
@@ -70,6 +77,10 @@ export default function NewExpensePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
+    if (advanceAmountExceeded) {
+      setError(d.expenses.advanceExceeded);
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -81,6 +92,9 @@ export default function NewExpensePage() {
           category: form.category,
           expensePurpose: form.expensePurpose || undefined,
           caseId: form.caseId || undefined,
+          paidFromAdvanceId: form.paidFromAdvanceId || undefined,
+          // Advance-covered costs are recorded as settled server-side regardless
+          // of this — DRAFT only applies to the normal self-pay/reimburse path.
           status: ExpenseStatus.DRAFT,
         },
         receipt ?? undefined,
@@ -161,6 +175,28 @@ export default function NewExpensePage() {
               />
             </div>
 
+            {advances.length > 0 && (
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium">{d.expenses.paidFrom}</label>
+                <select
+                  value={form.paidFromAdvanceId}
+                  onChange={(e) => setForm({ ...form, paidFromAdvanceId: e.target.value })}
+                  className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                >
+                  <option value="">{d.expenses.paidFromSelf}</option>
+                  {advances.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {d.expenses.paidFromAdvance} — {d.expenses.remaining} ฿{a.remaining.toLocaleString()}
+                      {a.note ? ` (${a.note})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {advanceAmountExceeded && (
+                  <p className="mt-1 text-xs text-destructive">{d.expenses.advanceExceeded}</p>
+                )}
+              </div>
+            )}
+
             <div className="md:col-span-2">
               <label className="text-sm font-medium">{d.expenses.caseField}</label>
               <select
@@ -221,7 +257,10 @@ export default function NewExpensePage() {
               <Button type="button" variant="outline" onClick={() => router.push('/expenses')}>
                 {d.common.cancel}
               </Button>
-              <Button type="submit" disabled={submitting || !form.amount || !form.description.trim()}>
+              <Button
+                type="submit"
+                disabled={submitting || !form.amount || !form.description.trim() || advanceAmountExceeded}
+              >
                 {submitting ? d.expenses.submitting : d.expenses.saveDraft}
               </Button>
             </div>

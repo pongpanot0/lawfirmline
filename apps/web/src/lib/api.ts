@@ -327,6 +327,19 @@ export interface ExpenseItem {
   paidBy?: { firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string; courtName?: string | null } | null;
   receiptFilename?: string | null;
+  paidFromAdvanceId?: string | null;
+  paidFromAdvance?: { id: string; issuedById: string } | null;
+}
+
+export interface CashAdvanceItem {
+  id: string;
+  amount: number;
+  remaining: number;
+  note?: string | null;
+  issuedAt: string;
+  issuedById: string;
+  userId: string;
+  user?: { id: string; firstName: string; lastName: string };
 }
 
 export interface ExpenseClaimSummary {
@@ -783,6 +796,22 @@ export const api = {
 
   disableMfa: (token: string, password: string) =>
     request<{ success: boolean }>('/auth/mfa/disable', { method: 'POST', token, body: JSON.stringify({ password }) }),
+
+  logout: (refreshToken: string) =>
+    request<{ success: boolean }>('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }), refreshAuth: false }),
+
+  listSessions: (token: string) =>
+    request<import('@lawfirm/shared').SessionInfo[]>('/auth/sessions', { token }),
+
+  revokeSession: (token: string, id: string) =>
+    request<{ success: boolean }>(`/auth/sessions/${id}`, { method: 'DELETE', token }),
+
+  revokeOtherSessions: (token: string, refreshToken: string) =>
+    request<{ success: boolean }>('/auth/sessions/revoke-others', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ refreshToken }),
+    }),
 
   register: (data: Record<string, string>) =>
     request<import('@lawfirm/shared').LoginResponse>('/auth/register', {
@@ -1405,6 +1434,19 @@ export const api = {
 
   getPettyCash: (token: string) =>
     request<{ balance: number }>('/petty-cash', { token }),
+
+  issueCashAdvance: (token: string, userId: string, amount: number, note?: string) =>
+    request<CashAdvanceItem>('/cash-advances', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ userId, amount, note }),
+    }),
+
+  listCashAdvances: (token: string, userId?: string) =>
+    request<CashAdvanceItem[]>(`/cash-advances${userId ? `?userId=${userId}` : ''}`, { token }),
+
+  listMyCashAdvances: (token: string) =>
+    request<CashAdvanceItem[]>('/cash-advances/mine', { token }),
 
   getCaseKnowledge: (token: string, caseId: string) =>
     request<KnowledgeItem[]>(`/cases/${caseId}/knowledge`, { token }),

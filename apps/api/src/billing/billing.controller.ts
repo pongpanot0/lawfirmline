@@ -14,6 +14,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { BillingService } from './billing.service';
+import { CashAdvanceService } from './cash-advance.service';
 import {
   CreateTimeEntryDto,
   CreateExpenseDto,
@@ -22,6 +23,7 @@ import {
   UpdateExpenseStatusDto,
   UpdateExpenseClaimStatusDto,
   SubmitExpensesDto,
+  IssueCashAdvanceDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -41,6 +43,7 @@ export class BillingController {
   constructor(
     private billingService: BillingService,
     private fileStorage: FileStorageService,
+    private cashAdvanceService: CashAdvanceService,
   ) {}
 
   @Get('petty-cash')
@@ -48,6 +51,21 @@ export class BillingController {
   @Roles(Role.ADMIN)
   getPettyCash(@CurrentUser() user: AuthUser) {
     return this.billingService.getPettyCashBalance(user.firmId);
+  }
+
+  @Post('cash-advances')
+  issueCashAdvance(@CurrentUser() user: AuthUser, @Body() dto: IssueCashAdvanceDto) {
+    return this.cashAdvanceService.issue(user, dto);
+  }
+
+  @Get('cash-advances')
+  listCashAdvances(@CurrentUser() user: AuthUser, @Query('userId') userId?: string) {
+    return this.cashAdvanceService.list(user, userId);
+  }
+
+  @Get('cash-advances/mine')
+  listMyCashAdvances(@CurrentUser() user: AuthUser) {
+    return this.cashAdvanceService.listMineWithBalance(user);
   }
 
   @Get('finance/summary')

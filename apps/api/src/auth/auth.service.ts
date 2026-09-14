@@ -9,10 +9,25 @@ import { TenantService } from '../saas/tenant.service';
 import { SaasAuthService } from '../saas/saas-auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { MfaService } from './mfa.service';
+import { SessionService, SessionInfo } from './session.service';
 
 interface JwtPayload {
   sub: string;
   firmId: string;
+  jti?: string;
+}
+
+export interface RequestMeta {
+  userAgent?: string;
+  ip?: string;
+}
+
+/** Parses a JWT-style duration ("7d", "15m", "1h", "30s") into an absolute expiry Date. */
+function expiresInToDate(expiresIn: string): Date {
+  const match = /^(\d+)([smhd])$/.exec(expiresIn);
+  const unitMs: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+  const ms = match ? Number(match[1]) * unitMs[match[2]] : 7 * 86_400_000;
+  return new Date(Date.now() + ms);
 }
 
 @Injectable()
@@ -24,9 +39,10 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
     private mfa: MfaService,
+    private sessions: SessionService,
   ) {}
 
-  async login(dto: LoginDto, firmId?: string): Promise<LoginResult> {
+  async login(dto: LoginDto, firmId?: string, meta?: RequestMeta): Promise<LoginResult> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -46,10 +62,10 @@ export class AuthService {
       );
     }
 
-    return this.loginFromAuthUser(authUser);
+    return this.loginFromAuthUser(authUser, meta);
   }
 
-  async verifyMfaLogin(mfaToken: string, code: string, firmId?: string): Promise<LoginResponse> {
+  async verifyMfaLogin(mfaToken: string, code: string, firmId?: string, meta?: RequestMeta): Promise<LoginResponse> {
     const userId = this.mfa.verifyMfaToken(mfaToken);
     await this.mfa.verifyLoginCode(userId, code);
 
@@ -60,7 +76,7 @@ export class AuthService {
       );
     }
 
-    return this.loginFromAuthUser(authUser);
+    return this.loginFromAuthUser(authUser, meta);
   }
 
   async requestEnableMfa(userId: string, email: string): Promise<{ message: string }> {
@@ -82,14 +98,14 @@ export class AuthService {
     return { success: true };
   }
 
-  async register(dto: RegisterDto, tenantFirmId?: string | null): Promise<LoginResponse> {
+  async register(dto: RegisterDto, tenantFirmId?: string | null, meta?: RequestMeta): Promise<LoginResponse> {
     if (tenantFirmId) {
       throw new BadRequestException('Register from the main site, not a firm subdomain');
     }
     const authUser = await this.saasAuth.register(dto);
     return {
       accessToken: this.signAccessToken(authUser),
-      refreshToken: this.signRefreshToken(authUser),
+      refreshToken: await this.signRefreshToken(authUser, meta),
       user: authUser,
     };
   }
@@ -113,6 +129,9 @@ export class AuthService {
       const payload = this.jwt.verify(refreshToken, {
         secret: this.config.get<string>('JWT_REFRESH_SECRET'),
       }) as JwtPayload;
+      if (!payload.jti || !(await this.sessions.touch(payload.jti))) {
+        throw new UnauthorizedException();
+      }
       const authUser = await this.tenant.buildAuthUser(payload.sub, payload.firmId);
       if (!authUser) throw new UnauthorizedException();
       return { accessToken: this.signAccessToken(authUser) };
@@ -121,16 +140,56 @@ export class AuthService {
     }
   }
 
+  /** Revokes the session tied to this refresh token, so it can no longer mint access tokens. */
+  async logout(refreshToken: string): Promise<{ success: boolean }> {
+    try {
+      const payload = this.jwt.verify(refreshToken, {
+        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+        ignoreExpiration: true,
+      }) as JwtPayload;
+      if (payload.jti) await this.sessions.revokeByJti(payload.jti);
+    } catch {
+      // Malformed/foreign token — nothing to revoke, and logout should never fail client-side.
+    }
+    return { success: true };
+  }
+
+  async listSessions(userId: string): Promise<SessionInfo[]> {
+    return this.sessions.list(userId);
+  }
+
+  async revokeSession(userId: string, sessionId: string): Promise<{ success: boolean }> {
+    await this.sessions.revoke(userId, sessionId);
+    return { success: true };
+  }
+
+  /** "Log out of all other devices" — keeps the caller's own current session (identified by its refresh token) alive. */
+  async revokeOtherSessions(userId: string, currentRefreshToken?: string): Promise<{ success: boolean }> {
+    let exceptJti: string | undefined;
+    if (currentRefreshToken) {
+      try {
+        const payload = this.jwt.verify(currentRefreshToken, {
+          secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+        }) as JwtPayload;
+        exceptJti = payload.jti;
+      } catch {
+        // Ignore — falls through to revoking everything.
+      }
+    }
+    await this.sessions.revokeAll(userId, exceptJti);
+    return { success: true };
+  }
+
   async getMe(userId: string, firmId?: string): Promise<AuthUser> {
     const authUser = await this.tenant.buildAuthUser(userId, firmId);
     if (!authUser) throw new UnauthorizedException();
     return authUser;
   }
 
-  loginFromAuthUser(authUser: AuthUser): LoginResponse {
+  async loginFromAuthUser(authUser: AuthUser, meta?: RequestMeta): Promise<LoginResponse> {
     return {
       accessToken: this.signAccessToken(authUser),
-      refreshToken: this.signRefreshToken(authUser),
+      refreshToken: await this.signRefreshToken(authUser, meta),
       user: authUser,
     };
   }
@@ -150,12 +209,14 @@ export class AuthService {
     );
   }
 
-  private signRefreshToken(user: AuthUser): string {
+  private async signRefreshToken(user: AuthUser, meta?: RequestMeta): Promise<string> {
+    const expiresIn = (this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '7d') as `${number}${'s' | 'm' | 'h' | 'd'}`;
+    const jti = await this.sessions.issue(user.id, expiresInToDate(expiresIn), meta);
     return this.jwt.sign(
-      { sub: user.id, firmId: user.firmId },
+      { sub: user.id, firmId: user.firmId, jti },
       {
         secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: (this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '7d') as `${number}${'s' | 'm' | 'h' | 'd'}`,
+        expiresIn,
       },
     );
   }

@@ -5,6 +5,7 @@ import * as path from 'path';
 import { AuthUser, ExpenseClaimStatus, ExpenseStatus, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
+import { CashAdvanceService } from './cash-advance.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
@@ -32,6 +33,7 @@ export class BillingService {
   constructor(
     private prisma: PrismaService,
     private pettyCash: PettyCashService,
+    private cashAdvance: CashAdvanceService,
     private caseAccess: CaseAccessService,
     private config: ConfigService,
     private fileStorage: FileStorageService,
@@ -74,6 +76,7 @@ export class BillingService {
     user: { select: { id: true, firstName: true, lastName: true, role: true } },
     paidBy: { select: { id: true, firstName: true, lastName: true } },
     case: { select: { id: true, ownRef: true, title: true, courtName: true } },
+    paidFromAdvance: { select: { id: true, issuedById: true } },
   };
 
   private claimInclude = {
@@ -380,22 +383,41 @@ export class BillingService {
       if (!legalCase) throw new NotFoundException('Case not found');
     }
     await this.assertSourceEventOnCase(dto.sourceEventId, dto.caseId);
-    const expense = await this.prisma.expense.create({
-      data: {
-        caseId: dto.caseId ?? null,
-        userId: user.id,
-        amount: dto.amount,
-        description: dto.description,
-        category: dto.category,
-        expensePurpose: dto.expensePurpose,
-        date: dto.date ? new Date(dto.date) : new Date(),
-        sourceEventId: dto.sourceEventId ?? null,
-        // Standalone claims from /expenses start as drafts so the lawyer can
-        // tick, print, and only then send them to the owner.
-        status: dto.status ?? ExpenseStatus.DRAFT,
-      },
-      include: this.expenseInclude,
-    });
+
+    const baseData = {
+      caseId: dto.caseId ?? null,
+      userId: user.id,
+      amount: dto.amount,
+      description: dto.description,
+      category: dto.category,
+      expensePurpose: dto.expensePurpose,
+      date: dto.date ? new Date(dto.date) : new Date(),
+      sourceEventId: dto.sourceEventId ?? null,
+    };
+
+    const expense = dto.paidFromAdvanceId
+      ? await this.prisma.$transaction(async (tx) => {
+          await this.cashAdvance.consume(tx, user.firmId, user.id, dto.paidFromAdvanceId!, dto.amount);
+          return tx.expense.create({
+            data: {
+              ...baseData,
+              paidFromAdvanceId: dto.paidFromAdvanceId,
+              // Already covered by cash the owner handed over — nothing left to reimburse.
+              status: ExpenseStatus.PAID,
+              paidAt: new Date(),
+            },
+            include: this.expenseInclude,
+          });
+        })
+      : await this.prisma.expense.create({
+          data: {
+            ...baseData,
+            // Standalone claims from /expenses start as drafts so the lawyer can
+            // tick, print, and only then send them to the owner.
+            status: dto.status ?? ExpenseStatus.DRAFT,
+          },
+          include: this.expenseInclude,
+        });
     if (receipt) {
       await this.attachReceipt(expense.id, receipt);
       return this.prisma.expense.findUniqueOrThrow({

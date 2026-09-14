@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from '../saas/tenant.service';
 import { SaasAuthService } from '../saas/saas-auth.service';
 import { MfaService } from './mfa.service';
+import { SessionService } from './session.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -24,6 +25,14 @@ describe('AuthService', () => {
     requestEnable: jest.fn(),
     confirmEnable: jest.fn(),
     disable: jest.fn(),
+  };
+  const mockSessions = {
+    issue: jest.fn().mockResolvedValue('jti-1'),
+    touch: jest.fn().mockResolvedValue(true),
+    revokeByJti: jest.fn(),
+    revoke: jest.fn(),
+    revokeAll: jest.fn(),
+    list: jest.fn(),
   };
 
   const authUser = {
@@ -44,6 +53,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
         { provide: MfaService, useValue: mockMfa },
+        { provide: SessionService, useValue: mockSessions },
       ],
     }).compile();
     service = module.get(AuthService);
@@ -120,6 +130,57 @@ describe('AuthService', () => {
 
       expect(mockMfa.disable).toHaveBeenCalledWith('user-1');
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('refresh', () => {
+    it('rejects a well-formed refresh token whose session was revoked', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', firmId: 'firm-1', jti: 'jti-1' });
+      mockSessions.touch.mockResolvedValue(false);
+
+      await expect(service.refresh('refresh-token')).rejects.toThrow(UnauthorizedException);
+      expect(mockTenant.buildAuthUser).not.toHaveBeenCalled();
+    });
+
+    it('mints a new access token when the session is still live', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', firmId: 'firm-1', jti: 'jti-1' });
+      mockSessions.touch.mockResolvedValue(true);
+      mockTenant.buildAuthUser.mockResolvedValue(authUser);
+
+      const result = await service.refresh('refresh-token');
+
+      expect(mockSessions.touch).toHaveBeenCalledWith('jti-1');
+      expect(result).toEqual({ accessToken: 'signed-token' });
+    });
+  });
+
+  describe('logout', () => {
+    it('revokes the session tied to the refresh token', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', firmId: 'firm-1', jti: 'jti-1' });
+
+      const result = await service.logout('refresh-token');
+
+      expect(mockSessions.revokeByJti).toHaveBeenCalledWith('jti-1');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('never throws, even for a garbage token', async () => {
+      mockJwt.verify.mockImplementation(() => { throw new Error('bad token'); });
+
+      const result = await service.logout('garbage');
+
+      expect(mockSessions.revokeByJti).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('revokeOtherSessions', () => {
+    it('keeps the caller’s own session alive while revoking the rest', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', firmId: 'firm-1', jti: 'jti-current' });
+
+      await service.revokeOtherSessions('user-1', 'refresh-token');
+
+      expect(mockSessions.revokeAll).toHaveBeenCalledWith('user-1', 'jti-current');
     });
   });
 });
