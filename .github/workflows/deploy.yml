@@ -70,4 +70,8 @@ jobs:
             fi
             docker compose -f docker-compose.prod.yml pull api web
             docker compose -f docker-compose.prod.yml up -d
+            # Apply pending Prisma migrations from the image just deployed.
+            # migrate deploy is a no-op when nothing is pending, so running it
+            # on every deploy keeps schema and code in the same release.
+            docker compose -f docker-compose.prod.yml exec -T api pnpm prisma migrate deploy
             docker image prune -f
