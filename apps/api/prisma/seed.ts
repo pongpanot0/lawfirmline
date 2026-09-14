@@ -128,10 +128,14 @@ async function main() {
     })),
   });
 
-  await prisma.court.createMany({
-    data: DEFAULT_THAI_COURTS.map((name) => ({ name })),
-    skipDuplicates: true,
-  });
+  try {
+    await prisma.court.createMany({
+      data: DEFAULT_THAI_COURTS.map((name) => ({ name })),
+      skipDuplicates: true,
+    });
+  } catch (err) {
+    console.error('Skipping court seed data — Court.createMany failed:', err);
+  }
 
   const existingRules = await prisma.deadlineRule.count();
   if (existingRules === 0) {
