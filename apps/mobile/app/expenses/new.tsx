@@ -71,7 +71,7 @@ export default function NewExpenseScreen() {
       <Stack.Screen options={{ title: 'ค่าใช้จ่ายใหม่' }} />
       <KeyboardAvoidingView
         style={styles.screen}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
           <SectionLabel>จำนวนเงิน (บาท)</SectionLabel>

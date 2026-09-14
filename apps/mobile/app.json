@@ -11,7 +11,8 @@
       "bundleIdentifier": "co.lexflow.mobile"
     },
     "android": {
-      "package": "co.lexflow.mobile"
+      "package": "co.lexflow.mobile",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       "expo-router",

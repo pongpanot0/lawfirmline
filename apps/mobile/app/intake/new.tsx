@@ -58,7 +58,7 @@ export default function NewIntakeScreen() {
       <Stack.Screen options={{ title: 'รับเรื่องใหม่' }} />
       <KeyboardAvoidingView
         style={styles.screen}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
           <SectionLabel>ชื่อเรื่อง</SectionLabel>
