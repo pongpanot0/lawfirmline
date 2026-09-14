@@ -132,6 +132,17 @@ export class EmailService {
     this.logger.log(`Password reset email sent to ${maskEmail(to)}`);
   }
 
+  async sendMfaCodeEmail(to: string, code: string): Promise<void> {
+    if (!this.isConfigured()) return;
+    await this.send({
+      to,
+      subject: `รหัสยืนยันตัวตน ${code} / Your verification code — Samnuan`,
+      text: `รหัสยืนยันตัวตนของคุณคือ ${code}\nรหัสนี้ใช้ได้ 10 นาที และใช้ได้ครั้งเดียว หากคุณไม่ได้ขอรหัสนี้ ไม่ต้องดำเนินการใด ๆ\n\nYour verification code is ${code}\nThis code expires in 10 minutes and can only be used once. If you did not request this, you can ignore this email.`,
+      html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:auto;line-height:1.7"><h1>Samnuan</h1><h2>รหัสยืนยันตัวตน / Your verification code</h2><p style="font-size:32px;font-weight:700;letter-spacing:4px">${code}</p><p>รหัสนี้ใช้ได้ 10 นาที และใช้ได้ครั้งเดียว หากคุณไม่ได้ขอรหัสนี้ ไม่ต้องดำเนินการใด ๆ</p><p>This code expires in 10 minutes and can only be used once. If you did not request this, you can ignore this email.</p></div>`,
+    });
+    this.logger.log(`MFA code email sent to ${maskEmail(to)}`);
+  }
+
   async sendInvitationEmail(params: InvitationEmailParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(

@@ -3,11 +3,12 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
-import { AuthUser, LoginResponse } from '@lawfirm/shared';
+import { AuthUser, LoginResponse, LoginResult } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from '../saas/tenant.service';
 import { SaasAuthService } from '../saas/saas-auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { MfaService } from './mfa.service';
 
 interface JwtPayload {
   sub: string;
@@ -22,14 +23,20 @@ export class AuthService {
     private saasAuth: SaasAuthService,
     private jwt: JwtService,
     private config: ConfigService,
+    private mfa: MfaService,
   ) {}
 
-  async login(dto: LoginDto, firmId?: string): Promise<LoginResponse> {
+  async login(dto: LoginDto, firmId?: string): Promise<LoginResult> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.mfaEnabled) {
+      const mfaToken = await this.mfa.requestLoginChallenge(user.id, user.email);
+      return { mfaRequired: true, mfaToken };
     }
 
     const authUser = await this.tenant.buildAuthUser(user.id, firmId);
@@ -39,11 +46,40 @@ export class AuthService {
       );
     }
 
-    return {
-      accessToken: this.signAccessToken(authUser),
-      refreshToken: this.signRefreshToken(authUser),
-      user: authUser,
-    };
+    return this.loginFromAuthUser(authUser);
+  }
+
+  async verifyMfaLogin(mfaToken: string, code: string, firmId?: string): Promise<LoginResponse> {
+    const userId = this.mfa.verifyMfaToken(mfaToken);
+    await this.mfa.verifyLoginCode(userId, code);
+
+    const authUser = await this.tenant.buildAuthUser(userId, firmId);
+    if (!authUser) {
+      throw new UnauthorizedException(
+        firmId ? 'No membership for this firm' : 'No firm membership found',
+      );
+    }
+
+    return this.loginFromAuthUser(authUser);
+  }
+
+  async requestEnableMfa(userId: string, email: string): Promise<{ message: string }> {
+    await this.mfa.requestEnable(userId, email);
+    return { message: 'Verification code sent' };
+  }
+
+  async confirmEnableMfa(userId: string, code: string): Promise<{ success: boolean }> {
+    await this.mfa.confirmEnable(userId, code);
+    return { success: true };
+  }
+
+  async disableMfa(userId: string, password: string): Promise<{ success: boolean }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!(await bcrypt.compare(password, user.passwordHash))) {
+      throw new UnauthorizedException('Invalid password');
+    }
+    await this.mfa.disable(userId);
+    return { success: true };
   }
 
   async register(dto: RegisterDto, tenantFirmId?: string | null): Promise<LoginResponse> {

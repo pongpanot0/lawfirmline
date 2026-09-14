@@ -447,6 +447,7 @@ export interface AuthUser {
   currentPeriodEnd: string | null;
   maxUsers: number;
   aiCredits?: number;
+  mfaEnabled: boolean;
   /** @deprecated use firmRole */
   role?: Role;
 }
@@ -456,6 +457,14 @@ export interface LoginResponse {
   refreshToken: string;
   user: AuthUser;
 }
+
+/** Returned from POST /auth/login instead of LoginResponse when the account has email MFA on. */
+export interface MfaChallengeResponse {
+  mfaRequired: true;
+  mfaToken: string;
+}
+
+export type LoginResult = LoginResponse | MfaChallengeResponse;
 
 export interface SubscriptionSummary {
   status: SubscriptionStatus;

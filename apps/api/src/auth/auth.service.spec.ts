@@ -1,0 +1,125 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
+import { FirmRole } from '@lawfirm/shared';
+import { AuthService } from './auth.service';
+import { PrismaService } from '../prisma/prisma.module';
+import { TenantService } from '../saas/tenant.service';
+import { SaasAuthService } from '../saas/saas-auth.service';
+import { MfaService } from './mfa.service';
+
+describe('AuthService', () => {
+  let service: AuthService;
+  const mockPrisma = { user: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn() } };
+  const mockTenant = { buildAuthUser: jest.fn() };
+  const mockSaasAuth = {};
+  const mockJwt = { sign: jest.fn().mockReturnValue('signed-token'), verify: jest.fn() };
+  const mockConfig = { get: jest.fn() };
+  const mockMfa = {
+    requestLoginChallenge: jest.fn(),
+    verifyMfaToken: jest.fn(),
+    verifyLoginCode: jest.fn(),
+    requestEnable: jest.fn(),
+    confirmEnable: jest.fn(),
+    disable: jest.fn(),
+  };
+
+  const authUser = {
+    id: 'user-1', email: 'lawyer@example.test', firstName: 'A', lastName: 'B',
+    firmId: 'firm-1', firmSlug: 'firm', firmName: 'Firm', firmRole: FirmRole.LAWYER,
+    subscriptionStatus: 'TRIAL', subscriptionPlan: null, trialEndAt: null,
+    currentPeriodEnd: null, maxUsers: 5, mfaEnabled: false,
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantService, useValue: mockTenant },
+        { provide: SaasAuthService, useValue: mockSaasAuth },
+        { provide: JwtService, useValue: mockJwt },
+        { provide: ConfigService, useValue: mockConfig },
+        { provide: MfaService, useValue: mockMfa },
+      ],
+    }).compile();
+    service = module.get(AuthService);
+  });
+
+  describe('login', () => {
+    it('returns tokens directly when the account has no MFA', async () => {
+      const passwordHash = await bcrypt.hash('correct-horse', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', email: 'lawyer@example.test', passwordHash, mfaEnabled: false });
+      mockTenant.buildAuthUser.mockResolvedValue(authUser);
+
+      const result = await service.login({ email: 'lawyer@example.test', password: 'correct-horse' });
+
+      expect(result).toEqual(expect.objectContaining({ accessToken: 'signed-token', refreshToken: 'signed-token', user: authUser }));
+      expect(mockMfa.requestLoginChallenge).not.toHaveBeenCalled();
+    });
+
+    it('issues an MFA challenge instead of tokens when the account has MFA on — no token leaks before the code is checked', async () => {
+      const passwordHash = await bcrypt.hash('correct-horse', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', email: 'lawyer@example.test', passwordHash, mfaEnabled: true });
+      mockMfa.requestLoginChallenge.mockResolvedValue('mfa-token');
+
+      const result = await service.login({ email: 'lawyer@example.test', password: 'correct-horse' });
+
+      expect(result).toEqual({ mfaRequired: true, mfaToken: 'mfa-token' });
+      expect(mockMfa.requestLoginChallenge).toHaveBeenCalledWith('user-1', 'lawyer@example.test');
+      expect(mockTenant.buildAuthUser).not.toHaveBeenCalled();
+    });
+
+    it('rejects a wrong password before ever consulting MFA', async () => {
+      const passwordHash = await bcrypt.hash('correct-horse', 10);
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', passwordHash, mfaEnabled: true });
+
+      await expect(service.login({ email: 'lawyer@example.test', password: 'wrong' })).rejects.toThrow(UnauthorizedException);
+      expect(mockMfa.requestLoginChallenge).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('verifyMfaLogin', () => {
+    it('checks the token, then the code, then issues real tokens', async () => {
+      mockMfa.verifyMfaToken.mockReturnValue('user-1');
+      mockTenant.buildAuthUser.mockResolvedValue(authUser);
+
+      const result = await service.verifyMfaLogin('mfa-token', '123456');
+
+      expect(mockMfa.verifyMfaToken).toHaveBeenCalledWith('mfa-token');
+      expect(mockMfa.verifyLoginCode).toHaveBeenCalledWith('user-1', '123456');
+      expect(result).toEqual(expect.objectContaining({ accessToken: 'signed-token', user: authUser }));
+    });
+
+    it('never reaches account lookup when the code is wrong', async () => {
+      mockMfa.verifyMfaToken.mockReturnValue('user-1');
+      mockMfa.verifyLoginCode.mockRejectedValue(new Error('bad code'));
+
+      await expect(service.verifyMfaLogin('mfa-token', '000000')).rejects.toThrow('bad code');
+      expect(mockTenant.buildAuthUser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('disableMfa', () => {
+    it('requires the correct current password', async () => {
+      const passwordHash = await bcrypt.hash('correct-horse', 10);
+      mockPrisma.user.findUniqueOrThrow.mockResolvedValue({ id: 'user-1', passwordHash });
+
+      await expect(service.disableMfa('user-1', 'wrong')).rejects.toThrow(UnauthorizedException);
+      expect(mockMfa.disable).not.toHaveBeenCalled();
+    });
+
+    it('disables MFA once the password checks out', async () => {
+      const passwordHash = await bcrypt.hash('correct-horse', 10);
+      mockPrisma.user.findUniqueOrThrow.mockResolvedValue({ id: 'user-1', passwordHash });
+
+      const result = await service.disableMfa('user-1', 'correct-horse');
+
+      expect(mockMfa.disable).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual({ success: true });
+    });
+  });
+});

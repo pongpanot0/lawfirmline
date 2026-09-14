@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto, RefreshTokenDto } from './dto/login.dto';
 import { RegisterDto, ForgotPasswordDto, ResetPasswordDto } from './dto/register.dto';
+import { VerifyMfaLoginDto, MfaCodeDto, DisableMfaDto } from './dto/mfa.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '@lawfirm/shared';
@@ -40,6 +41,33 @@ export class AuthController {
   @SkipSubscription()
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Post('mfa/verify')
+  @SkipSubscription()
+  verifyMfa(@Body() dto: VerifyMfaLoginDto, @Req() req: TenantRequest) {
+    return this.authService.verifyMfaLogin(dto.mfaToken, dto.code, req.resolvedFirmId ?? undefined);
+  }
+
+  @Post('mfa/enable/request')
+  @UseGuards(JwtAuthGuard)
+  @SkipSubscription()
+  requestEnableMfa(@CurrentUser() user: AuthUser) {
+    return this.authService.requestEnableMfa(user.id, user.email);
+  }
+
+  @Post('mfa/enable/confirm')
+  @UseGuards(JwtAuthGuard)
+  @SkipSubscription()
+  confirmEnableMfa(@CurrentUser() user: AuthUser, @Body() dto: MfaCodeDto) {
+    return this.authService.confirmEnableMfa(user.id, dto.code);
+  }
+
+  @Post('mfa/disable')
+  @UseGuards(JwtAuthGuard)
+  @SkipSubscription()
+  disableMfa(@CurrentUser() user: AuthUser, @Body() dto: DisableMfaDto) {
+    return this.authService.disableMfa(user.id, dto.password);
   }
 
   @Get('me')

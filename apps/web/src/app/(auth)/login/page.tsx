@@ -9,17 +9,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { PasswordInput } from '@/components/auth/PasswordInput';
-import { ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 export default function LoginPage() {
   const d = useDashboardT();
-  const { login, user, loading, token } = useAuth();
+  const { login, applySession, user, loading, token } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  /** Set once the password checks out on an MFA account — the code step replaces the form. */
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
 
   useEffect(() => {
     if (loading || !user) return;
@@ -41,6 +45,10 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const res = await login(email.trim().toLowerCase(), password);
+      if ('mfaRequired' in res) {
+        setMfaToken(res.mfaToken);
+        return;
+      }
       if (redirectToFirmApp(res.user, res)) {
         return;
       }
@@ -51,6 +59,61 @@ export default function LoginPage() {
       setSubmitting(false);
     }
   };
+
+  const handleVerifyMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaToken) return;
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await api.verifyMfaLogin(mfaToken, code.trim());
+      applySession(res.accessToken, res.refreshToken, res.user);
+      if (redirectToFirmApp(res.user, res)) {
+        return;
+      }
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err instanceof ApiError && err.status === 400 ? d.auth.mfaInvalidCode : d.auth.connectionFailed);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (mfaToken) {
+    return (
+      <AuthShell title={d.auth.mfaTitle} description={d.auth.mfaSubtitle}>
+        <form onSubmit={handleVerifyMfa} className="space-y-4">
+          <div>
+            <label htmlFor="mfa-code" className="text-sm font-medium">{d.auth.mfaCodeLabel}</label>
+            <Input
+              id="mfa-code"
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              placeholder="123456"
+              className="mt-1 h-11 text-center text-lg tracking-[0.5em]"
+              autoFocus
+              required
+            />
+          </div>
+          {error && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+          <Button type="submit" className="h-11 w-full" disabled={submitting || code.length !== 6}>
+            {submitting ? d.auth.mfaVerifying : d.auth.mfaVerify}
+          </Button>
+          <button
+            type="button"
+            className="block w-full text-center text-sm text-primary hover:underline"
+            onClick={() => { setMfaToken(null); setCode(''); setError(''); }}
+          >
+            {d.auth.mfaBackToLogin}
+          </button>
+        </form>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell title={d.auth.signInTitle} description={d.auth.signInSubtitle}>
