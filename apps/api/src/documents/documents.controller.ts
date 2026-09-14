@@ -41,7 +41,7 @@ export class DocumentsController {
   @Post()
   @UseInterceptors(FileInterceptor('file'))
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.LAWYER)
   upload(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -53,7 +53,7 @@ export class DocumentsController {
   @Post(':documentId/versions')
   @UseInterceptors(FileInterceptor('file'))
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.LAWYER)
   uploadVersion(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,

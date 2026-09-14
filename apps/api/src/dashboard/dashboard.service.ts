@@ -205,4 +205,104 @@ export class DashboardService {
       pendingReimbursements: pendingReimbursementList,
     };
   }
+
+  /**
+   * Per-lawyer load for the team workload screen: who holds how much, so work
+   * can be rebalanced before someone drowns. Visible to every firm member by
+   * design — seeing the imbalance is the point; reassignment itself stays
+   * guarded by the task routes.
+   */
+  async getWorkload(user: AuthUser) {
+    const now = new Date();
+    const weekEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const lawyers = await this.prisma.user.findMany({
+      where: {
+        role: { in: ['ADMIN', 'LAWYER'] },
+        firmMembers: { some: { firmId: user.firmId } },
+      },
+      select: { id: true, firstName: true, lastName: true },
+      orderBy: { lastName: 'asc' },
+    });
+    const lawyerIds = lawyers.map((l) => l.id);
+
+    // A standalone todo has no case; scope it by the assignee being staff of
+    // this firm (the same tenancy rule TasksService.standaloneFirmScope uses).
+    const taskScope: Prisma.TaskWhereInput = {
+      assigneeId: { in: lawyerIds },
+      status: { not: 'DONE' },
+      OR: [{ caseId: null }, { case: { firmId: user.firmId } }],
+    };
+
+    const [openTasks, overdueTasks, openCases, weekHearings] = await Promise.all([
+      this.prisma.task.groupBy({
+        by: ['assigneeId'],
+        _count: { _all: true },
+        where: taskScope,
+      }),
+      this.prisma.task.groupBy({
+        by: ['assigneeId'],
+        _count: { _all: true },
+        where: { ...taskScope, dueDate: { lt: now } },
+      }),
+      this.prisma.case.groupBy({
+        by: ['leadLawyerId'],
+        _count: { _all: true },
+        where: {
+          firmId: user.firmId,
+          status: { not: 'CLOSED' },
+          leadLawyerId: { in: lawyerIds },
+        },
+      }),
+      // A hearing counts against whoever actually attends: the event's
+      // assignee when set, otherwise the case's lead lawyer.
+      this.prisma.calendarEvent.findMany({
+        where: {
+          case: { firmId: user.firmId },
+          type: 'COURT_DATE',
+          startAt: { gte: now, lt: weekEndsAt },
+        },
+        select: { assigneeId: true, case: { select: { leadLawyerId: true } } },
+      }),
+    ]);
+
+    const countBy = (rows: Array<{ assigneeId?: string | null; leadLawyerId?: string }>) => {
+      const map = new Map<string, number>();
+      for (const row of rows as Array<Record<string, unknown>>) {
+        const key = (row.assigneeId ?? row.leadLawyerId) as string | null;
+        if (key) map.set(key, (map.get(key) ?? 0) + Number((row as any)._count?._all ?? 1));
+      }
+      return map;
+    };
+    const openTaskCounts = countBy(openTasks as any);
+    const overdueCounts = countBy(overdueTasks as any);
+    const caseCounts = countBy(openCases as any);
+    const hearingCounts = new Map<string, number>();
+    for (const event of weekHearings) {
+      const key = event.assigneeId ?? event.case.leadLawyerId;
+      hearingCounts.set(key, (hearingCounts.get(key) ?? 0) + 1);
+    }
+
+    const members = lawyers
+      .map((lawyer) => ({
+        id: lawyer.id,
+        name: `${lawyer.firstName} ${lawyer.lastName}`.trim(),
+        openTasks: openTaskCounts.get(lawyer.id) ?? 0,
+        overdueTasks: overdueCounts.get(lawyer.id) ?? 0,
+        openCases: caseCounts.get(lawyer.id) ?? 0,
+        hearingsThisWeek: hearingCounts.get(lawyer.id) ?? 0,
+      }))
+      .sort((a, b) => b.openTasks - a.openTasks || b.overdueTasks - a.overdueTasks);
+
+    return {
+      asOf: now.toISOString(),
+      weekEndsAt: weekEndsAt.toISOString(),
+      totals: {
+        openTasks: members.reduce((sum, m) => sum + m.openTasks, 0),
+        overdueTasks: members.reduce((sum, m) => sum + m.overdueTasks, 0),
+        hearingsThisWeek: members.reduce((sum, m) => sum + m.hearingsThisWeek, 0),
+      },
+      members,
+    };
+  }
 }

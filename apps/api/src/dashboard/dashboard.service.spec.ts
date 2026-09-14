@@ -8,9 +8,18 @@ import { BillingService } from '../billing/billing.service';
 describe('DashboardService', () => {
   let service: DashboardService;
   const mockPrisma = {
-    case: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+    user: { findMany: jest.fn().mockResolvedValue([]) },
+    case: {
+      count: jest.fn().mockResolvedValue(0),
+      findMany: jest.fn().mockResolvedValue([]),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
     calendarEvent: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
-    task: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+    task: {
+      count: jest.fn().mockResolvedValue(0),
+      findMany: jest.fn().mockResolvedValue([]),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
     expense: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
     timeEntry: { findMany: jest.fn().mockResolvedValue([]) },
   };
@@ -147,5 +156,39 @@ describe('DashboardService', () => {
         onHold: null,
       },
     ]);
+  });
+
+  it('workload attributes a hearing to the event assignee, falling back to the lead lawyer, and sorts by open tasks', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'u-light', firstName: 'Nicha', lastName: 'C' },
+      { id: 'u-heavy', firstName: 'Arthit', lastName: 'T' },
+    ]);
+    mockPrisma.task.groupBy.mockImplementation(async ({ where }: any) =>
+      where.dueDate
+        ? [{ assigneeId: 'u-heavy', _count: { _all: 2 } }]
+        : [
+            { assigneeId: 'u-heavy', _count: { _all: 9 } },
+            { assigneeId: 'u-light', _count: { _all: 3 } },
+          ],
+    );
+    mockPrisma.case.groupBy.mockResolvedValue([
+      { leadLawyerId: 'u-heavy', _count: { _all: 4 } },
+    ]);
+    mockPrisma.calendarEvent.findMany.mockResolvedValue([
+      { assigneeId: 'u-light', case: { leadLawyerId: 'u-heavy' } },
+      { assigneeId: null, case: { leadLawyerId: 'u-heavy' } },
+    ]);
+
+    const result = await service.getWorkload(user);
+
+    expect(result.members.map((m: any) => m.id)).toEqual(['u-heavy', 'u-light']);
+    expect(result.members[0]).toMatchObject({
+      openTasks: 9,
+      overdueTasks: 2,
+      openCases: 4,
+      hearingsThisWeek: 1,
+    });
+    expect(result.members[1]).toMatchObject({ openTasks: 3, hearingsThisWeek: 1 });
+    expect(result.totals).toMatchObject({ openTasks: 12, overdueTasks: 2, hearingsThisWeek: 2 });
   });
 });

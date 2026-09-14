@@ -16,4 +16,10 @@ export class DashboardController {
   getStats(@CurrentUser() user: AuthUser) {
     return this.dashboardService.getStats(user);
   }
+
+  @Get('workload')
+  @SkipSubscription()
+  getWorkload(@CurrentUser() user: AuthUser) {
+    return this.dashboardService.getWorkload(user);
+  }
 }
