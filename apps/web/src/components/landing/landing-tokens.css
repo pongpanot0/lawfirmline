@@ -1,7 +1,10 @@
-/* Hallmark · pre-emit critique: P5 H5 E5 S4 R5 V4 */
-/* Hallmark · genre: modern-minimal · macrostructure: Bento Grid · F1 Bento knobs: tiles=9, spans=irregular, accent=corner-only
- * theme: Coral · enrichment: none (typography + Tier-A CSS notification card) · nav: N5 · footer: Ft2
- * contrast: AA pass — white/accent 4.94 · accent/paper 4.64 (accent darkened 62%→56% L)
+/* Hallmark · pre-emit critique: P5 H5 E5 S4 R4 V5 */
+/* Hallmark · macrostructure: Bento Grid · nav: N5 · footer: Ft2 · studied: yes · DNA-source: url
+ * source-url: https://era-residence.com · observed-fonts: ambroise-francois-std (classical serif display)
+ *   + Maison Neue Extended (tracked micro-labels) → translated: Trirong (Thai didone) + Inter/Noto Sans Thai
+ * DNA adopted: alternating full-bleed color acts (cream / dark plum / tinted), oversized classical
+ *   display, masked line reveals + parallax (GSAP). Accent hue stays Coral 32 — theme kept, dress changed.
+ * contrast: AA pass — white/accent 4.94 · accent/paper 4.64 · cream/band-dark 12+
  *
  * Scoped under .lf-landing only — the app's shared shadcn tokens in globals.css
  * (dashboard, portal, auth) are untouched.
@@ -24,8 +27,15 @@
   --color-focus: oklch(56% 0.185 32);
   --color-success: oklch(56% 0.13 152);
 
-  --font-display: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* Dark act — era-residence-style full-bleed band, kept in the coral hue family */
+  --color-band-dark: oklch(24% 0.045 32);
+  --color-band-dark-2: oklch(29% 0.05 32);
+  --color-band-ink: oklch(96% 0.01 55);
+  --color-band-ink-2: oklch(78% 0.02 45);
+  --color-band-rule: oklch(38% 0.04 32);
+
+  --font-display: 'Trirong', 'Inter', ui-serif, Georgia, serif;
+  --font-body: 'Inter', 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
 
   --space-3xs: 0.25rem;
   --space-2xs: 0.5rem;
@@ -43,8 +53,9 @@
   --text-lg: 1.25rem;
   --text-xl: 1.625rem;
   --text-2xl: 2rem;
-  --text-display-s: clamp(1.875rem, 3.4vw + 1rem, 2.5rem);
-  --text-display: clamp(2.375rem, 4.2vw + 1rem, 4rem);
+  --text-display-s: clamp(2.125rem, 4vw + 1rem, 3.25rem);
+  --text-display: clamp(2.625rem, 5vw + 1rem, 4.75rem);
+  --text-giant: clamp(4.5rem, 14vw, 13rem);
 
   --radius-tile: 20px;
   --radius-card: 16px;
@@ -64,13 +75,8 @@
   height: 100dvh;
   overflow-y: auto;
   overflow-x: clip;
-  scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  /* The floating nav sits in normal flow before the first section (it's
-     sticky, not fixed), so the snap-port's "start" must be pushed down by
-     its height — otherwise `mandatory` snapping auto-scrolls past it on
-     load to align the hero's top edge to the container's true top. */
   scroll-padding-top: 5rem;
 }
 
@@ -84,28 +90,17 @@
   box-sizing: border-box;
 }
 
-/* Every top-level section is a snap stop. .lf-snap forces a full-viewport
-   "slide" (short sections); .lf-snap-tall only floors the height so long
-   sections (bento, pricing) still anchor cleanly without being squeezed. */
-.lf-landing > section,
-.lf-landing > footer {
-  scroll-snap-align: start;
-}
-
+/* era-DNA: no snap slides — sections size to content, a cinematic long
+   scroll of alternating color acts. The hero alone keeps near-full height. */
 .lf-snap {
-  min-height: 100dvh;
+  min-height: calc(100dvh - 5rem);
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 
-.lf-snap-tall {
-  min-height: 100dvh;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .lf-landing {
-    scroll-snap-type: y proximity;
     scroll-behavior: auto;
   }
 }
@@ -154,18 +149,18 @@
 
 .lf-display {
   font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.12;
   overflow-wrap: anywhere;
   min-width: 0;
 }
 
 .lf-display-s {
   font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
   overflow-wrap: anywhere;
   min-width: 0;
 }
@@ -173,6 +168,63 @@
 .lf-lede {
   color: var(--color-ink-2);
   line-height: 1.6;
+}
+
+/* era-DNA micro-label: tiny, tracked-out, uppercase (Latin) */
+.lf-kicker {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+/* Masked line reveal — outer clips, inner slides up via GSAP */
+.lf-mask {
+  display: block;
+  overflow: clip;
+}
+
+.lf-mask > span {
+  display: block;
+}
+
+/* Oversized display word strip (era's ARCHITECTURE moment) */
+.lf-giant {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-giant);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-accent-soft);
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ---------- dark act ---------- */
+
+.lf-section--dark {
+  background: var(--color-band-dark);
+  color: var(--color-band-ink);
+}
+
+.lf-section--dark .lf-lede {
+  color: var(--color-band-ink-2);
+}
+
+.lf-section--dark .lf-kicker {
+  color: oklch(72% 0.12 32);
+}
+
+.lf-section--dark .lf-tour-frame {
+  border-color: var(--color-band-rule);
+  box-shadow: 0 32px 64px -24px oklch(10% 0.03 32 / 0.6);
+}
+
+.lf-section--dark .lf-tour-caption {
+  color: var(--color-band-ink-2);
 }
 
 /* ---------- buttons ---------- */

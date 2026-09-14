@@ -26,11 +26,17 @@ export function useLandingMotion() {
       const mm = gsap.matchMedia();
 
       mm.add('(prefers-reduced-motion: no-preference)', () => {
+        // Hero — era-DNA masked line reveal: title lines slide up out of an
+        // overflow-clipped mask, then the supporting content settles in.
         const heroTl = gsap.timeline({ defaults: { ease: 'power3.out', duration: 0.8 } });
         heroTl
           .from('[data-motion="hero-eyebrow"]', { opacity: 0, y: 14 })
-          .from('[data-motion="hero-title"]', { opacity: 0, y: 22 }, '-=0.55')
-          .from('[data-motion="hero-subtitle"]', { opacity: 0, y: 18 }, '-=0.55')
+          .from(
+            '[data-motion="hero-line"]',
+            { yPercent: 110, duration: 1, ease: 'power4.out', stagger: 0.14 },
+            '-=0.55',
+          )
+          .from('[data-motion="hero-subtitle"]', { opacity: 0, y: 18 }, '-=0.7')
           .from('[data-motion="hero-cta"]', { opacity: 0, y: 16 }, '-=0.5')
           .from('[data-motion="hero-note"]', { opacity: 0 }, '-=0.45')
           .from('[data-motion="hero-card"]', { opacity: 0, y: 32, scale: 0.96 }, '-=0.65');
@@ -81,6 +87,31 @@ export function useLandingMotion() {
           onEnter: (els) =>
             gsap.to(els, { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out', stagger: 0.08, overwrite: true }),
         });
+
+        // Tour parallax — after the entrance settles, the aux frames drift
+        // slower than the scroll (era-DNA depth without layout shift).
+        // yPercent, not y — the entrance timeline owns x/y, so the two never overwrite.
+        gsap.to('[data-motion="tour-aux-a"]', {
+          yPercent: 10,
+          ease: 'none',
+          scrollTrigger: { trigger: '[data-motion="tour-stage"]', scroller, start: 'top 70%', end: 'bottom top', scrub: 0.6 },
+        });
+        gsap.to('[data-motion="tour-aux-b"]', {
+          yPercent: -10,
+          ease: 'none',
+          scrollTrigger: { trigger: '[data-motion="tour-stage"]', scroller, start: 'top 70%', end: 'bottom top', scrub: 0.6 },
+        });
+
+        // Oversized display word scrubs sideways as it crosses the viewport.
+        gsap.fromTo(
+          '[data-motion="giant-word"]',
+          { xPercent: 4 },
+          {
+            xPercent: -18,
+            ease: 'none',
+            scrollTrigger: { trigger: '[data-motion="giant-word"]', scroller, start: 'top bottom', end: 'bottom top', scrub: 0.4 },
+          },
+        );
       });
 
       return () => mm.revert();
