@@ -8,7 +8,7 @@ import {
   useState,
   ReactNode,
 } from 'react';
-import { AuthUser, LoginResponse } from '@lawfirm/shared';
+import { AuthUser, LoginResult } from '@lawfirm/shared';
 import { api } from './api';
 import { clearCourtOffline } from './court-offline';
 import { clearCourtDayDrafts } from './court-day-draft';
@@ -20,7 +20,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<LoginResponse>;
+  login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => void;
   applySession: (accessToken: string, refreshToken: string, user?: AuthUser | null) => void;
 }
@@ -82,7 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const res: LoginResponse = await api.login(email, password);
+      const res: LoginResult = await api.login(email, password);
+      if ('mfaRequired' in res) return res;
       applySession(res.accessToken, res.refreshToken, res.user);
       return res;
     },

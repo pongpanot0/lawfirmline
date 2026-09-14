@@ -8,6 +8,7 @@ import { useAuth, getStoredToken } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { api, ApiError, LineIntegrationStatus, LinePersonalStatus, MailboxConnectionItem, NotificationPreferences } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
+import { MfaToggle } from '@/components/settings/MfaToggle';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -275,6 +276,13 @@ export default function SettingsPage() {
               <label className="text-sm font-medium">{d.settings.email}</label>
               <Input defaultValue={user?.email} className="mt-1" disabled />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>{d.settings.security}</CardTitle></CardHeader>
+          <CardContent>
+            <MfaToggle />
           </CardContent>
         </Card>
 

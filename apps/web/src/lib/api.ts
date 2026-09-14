@@ -764,10 +764,25 @@ export interface IntakePrecedentAnalysisItem {
 
 export const api = {
   login: (email: string, password: string) =>
-    request<import('@lawfirm/shared').LoginResponse>('/auth/login', {
+    request<import('@lawfirm/shared').LoginResult>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
+
+  verifyMfaLogin: (mfaToken: string, code: string) =>
+    request<import('@lawfirm/shared').LoginResponse>('/auth/mfa/verify', {
+      method: 'POST',
+      body: JSON.stringify({ mfaToken, code }),
+    }),
+
+  requestEnableMfa: (token: string) =>
+    request<{ message: string }>('/auth/mfa/enable/request', { method: 'POST', token }),
+
+  confirmEnableMfa: (token: string, code: string) =>
+    request<{ success: boolean }>('/auth/mfa/enable/confirm', { method: 'POST', token, body: JSON.stringify({ code }) }),
+
+  disableMfa: (token: string, password: string) =>
+    request<{ success: boolean }>('/auth/mfa/disable', { method: 'POST', token, body: JSON.stringify({ password }) }),
 
   register: (data: Record<string, string>) =>
     request<import('@lawfirm/shared').LoginResponse>('/auth/register', {

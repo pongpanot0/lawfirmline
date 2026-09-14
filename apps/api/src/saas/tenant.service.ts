@@ -59,6 +59,7 @@ export class TenantService {
       currentPeriodEnd: firm.currentPeriodEnd?.toISOString() ?? null,
       maxUsers: firm.maxUsers,
       aiCredits: user.aiCredits,
+      mfaEnabled: user.mfaEnabled,
       role: user.role as AuthUser['role'],
     };
   }

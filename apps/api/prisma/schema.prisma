@@ -407,6 +407,31 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+enum MfaPurpose {
+  /// Confirming the user's own address before mfaEnabled flips to true.
+  ENABLE
+  /// A per-login challenge, issued after the password already checked out.
+  LOGIN
+}
+
+/// A 6-digit email code, hashed at rest — brute-forceable in principle, so
+/// `attempts` caps how many guesses a code accepts before it is dead either
+/// way. Never store or log the plaintext code once it has been sent.
+model MfaCode {
+  id        String     @id @default(uuid())
+  userId    String
+  codeHash  String
+  purpose   MfaPurpose
+  attempts  Int        @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+}
+
 model User {
   id                    String    @id @default(uuid())
   email                 String    @unique
@@ -421,9 +446,13 @@ model User {
   lineConnectedAt       DateTime?
   /// Opt out of the evening "what do I have tomorrow" digest.
   dailyDigestEnabled    Boolean   @default(true)
+  /// Email one-time-code MFA. Off by default — never flip without the owner
+  /// of this account confirming a code first (see MfaService.confirmEnable).
+  mfaEnabled            Boolean   @default(false)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  mfaCodes                   MfaCode[]
   firmMembers                FirmMember[]
   sentInvitations            Invitation[]              @relation("SentInvitations")
   sentPortalInvitations      ClientPortalInvite[]      @relation("SentPortalInvitations")
