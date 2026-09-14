@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Bell, MapPin } from 'lucide-react-native';
+import { Bell, LayoutGrid, MapPin } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { useActions, useDashboardStats, useMyDay } from '@/api/hooks';
 import type { AgendaItem } from '@/api/types';
@@ -100,6 +100,9 @@ export default function MyDayScreen() {
           <Text style={styles.hello}>สวัสดี คุณ{user?.firstName ?? ''}</Text>
           <Text style={styles.date}>{thDateLong(new Date())}</Text>
         </View>
+        <Pressable style={styles.bell} hitSlop={8} onPress={() => router.push('/more')}>
+          <LayoutGrid size={19} color={colors.ink} />
+        </Pressable>
         <Pressable
           style={styles.bell}
           hitSlop={8}
@@ -195,7 +198,7 @@ export default function MyDayScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   bell: {
     width: 44,
     height: 44,

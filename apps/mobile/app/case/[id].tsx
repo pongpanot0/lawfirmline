@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -9,9 +10,10 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Check, FileText } from 'lucide-react-native';
+import { Camera, Check, FileText, ShieldCheck } from 'lucide-react-native';
 import { api } from '@/api/client';
-import { useCase, useCaseTasks, useToggleTask } from '@/api/hooks';
+import { openCaseDocument } from '@/api/files';
+import { useCase, useCaseTasks, useInsuranceClaim, useToggleTask } from '@/api/hooks';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
@@ -27,6 +29,14 @@ import { colors, radius, spacing } from '@/theme';
 
 const TABS = ['ภาพรวม', 'นัดหมาย', 'งาน', 'เอกสาร'] as const;
 type TabName = (typeof TABS)[number];
+
+const INSURANCE_STAGE_LABEL: Record<string, string> = {
+  CLAIM_FILED: 'ยื่นเคลมแล้ว',
+  DENIED_OR_PARTIAL: 'ปฏิเสธ/จ่ายบางส่วน',
+  DEMAND_SENT: 'ส่ง demand แล้ว',
+  OIC_COMPLAINT: 'ร้อง คปภ.',
+  SUIT_FILED: 'ฟ้องคดีแล้ว',
+};
 
 const STATUS_LABEL: Record<string, { label: string; tone: TagTone }> = {
   OPEN: { label: 'เปิด', tone: 'info' },
@@ -59,10 +69,12 @@ export default function CaseDetailScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<TabName>('ภาพรวม');
   const [reassigning, setReassigning] = useState<TaskItem | null>(null);
+  const [openingDoc, setOpeningDoc] = useState<string | null>(null);
 
   const caseQuery = useCase(id);
   const tasks = useCaseTasks(id);
   const toggle = useToggleTask();
+  const insurance = useInsuranceClaim(id);
   const events = useQuery({
     queryKey: ['case-events', id],
     queryFn: () =>
@@ -160,6 +172,28 @@ export default function CaseDetailScreen() {
           </Card>
         ) : null}
 
+        {tab === 'ภาพรวม' && insurance.data ? (
+          <Card style={{ marginTop: spacing.md }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <ShieldCheck size={16} color={colors.accentInk} />
+              <Text style={[styles.rowStrong, { flex: 1 }]}>สินไหมประกันภัย</Text>
+              <Tag tone="court">
+                {INSURANCE_STAGE_LABEL[insurance.data.stage] ?? insurance.data.stage}
+              </Tag>
+            </View>
+            <View style={styles.divider} />
+            <InfoRow label="บริษัทประกัน" value={insurance.data.insurerName} />
+            <InfoRow label="เลขเคลม" value={insurance.data.claimNumber} />
+            <InfoRow label="เลขกรมธรรม์" value={insurance.data.policyNumber} />
+            {insurance.data.demandLetterDeadline ? (
+              <InfoRow
+                label="กำหนด demand letter"
+                value={thDate(insurance.data.demandLetterDeadline)}
+              />
+            ) : null}
+          </Card>
+        ) : null}
+
         {tab === 'นัดหมาย' ? (
           <Card>
             {events.isLoading ? (
@@ -248,32 +282,65 @@ export default function CaseDetailScreen() {
         ) : null}
 
         {tab === 'เอกสาร' ? (
-          <Card>
-            {documents.isLoading ? (
-              <EmptyNote>กำลังโหลด…</EmptyNote>
-            ) : (documents.data?.length ?? 0) === 0 ? (
-              <EmptyNote>ไม่มีเอกสาร</EmptyNote>
-            ) : (
-              documents.data!.map((doc, index) => (
-                <View key={doc.id}>
-                  {index > 0 && <View style={styles.divider} />}
-                  <View style={styles.listRow}>
-                    <FileText size={16} color={colors.muted} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowStrong} numberOfLines={2}>
-                        {doc.name ?? doc.fileName ?? 'เอกสาร'}
-                      </Text>
-                      <Text style={styles.rowFaint}>
-                        {[doc.version ? `v${doc.version}` : null, doc.updatedAt ? thDate(doc.updatedAt) : null]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </Text>
+          <>
+            <Pressable
+              onPress={() => router.push(`/scan/${id}`)}
+              style={({ pressed }) => [styles.scanButton, pressed && { opacity: 0.8 }]}
+            >
+              <Camera size={17} color={colors.ink} />
+              <Text style={styles.scanText}>สแกนเอกสารด้วยกล้อง</Text>
+            </Pressable>
+            <Card>
+              {documents.isLoading ? (
+                <EmptyNote>กำลังโหลด…</EmptyNote>
+              ) : (documents.data?.length ?? 0) === 0 ? (
+                <EmptyNote>ไม่มีเอกสาร</EmptyNote>
+              ) : (
+                documents.data!.map((doc, index) => {
+                  const filename = doc.name ?? doc.fileName ?? 'เอกสาร';
+                  return (
+                    <View key={doc.id}>
+                      {index > 0 && <View style={styles.divider} />}
+                      <Pressable
+                        style={({ pressed }) => [styles.listRow, pressed && { opacity: 0.7 }]}
+                        disabled={openingDoc === doc.id}
+                        onPress={async () => {
+                          setOpeningDoc(doc.id);
+                          try {
+                            await openCaseDocument(id, doc.id, filename);
+                          } catch (error) {
+                            Alert.alert(
+                              'เปิดเอกสารไม่สำเร็จ',
+                              error instanceof Error ? error.message : 'ลองใหม่อีกครั้ง',
+                            );
+                          } finally {
+                            setOpeningDoc(null);
+                          }
+                        }}
+                      >
+                        <FileText size={16} color={colors.muted} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.rowStrong} numberOfLines={2}>
+                            {filename}
+                          </Text>
+                          <Text style={styles.rowFaint}>
+                            {openingDoc === doc.id
+                              ? 'กำลังดาวน์โหลด…'
+                              : [
+                                  doc.version ? `v${doc.version}` : null,
+                                  doc.updatedAt ? thDate(doc.updatedAt) : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ') || 'แตะเพื่อเปิด'}
+                          </Text>
+                        </View>
+                      </Pressable>
                     </View>
-                  </View>
-                </View>
-              ))
-            )}
-          </Card>
+                  );
+                })
+              )}
+            </Card>
+          </>
         ) : null}
       </ScrollView>
       <ReassignSheet caseId={id} task={reassigning} onClose={() => setReassigning(null)} />
@@ -335,4 +402,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxDone: { backgroundColor: colors.good, borderColor: colors.good },
+  scanButton: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.soft,
+    borderRadius: radius.button,
+    paddingVertical: 12,
+    marginBottom: spacing.sm,
+    minHeight: 48,
+  },
+  scanText: { fontWeight: '600', color: colors.ink, fontSize: 14 },
 });

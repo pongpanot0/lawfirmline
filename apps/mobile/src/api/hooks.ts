@@ -171,6 +171,100 @@ export function useWorkload() {
   });
 }
 
+export interface ClientListItem {
+  id: string;
+  name: string;
+  type: string | null;
+  contacts?: ClientContact[];
+  cases?: Array<{ id: string; ownRef: string; title: string; status: string }>;
+}
+
+export interface ClientContact {
+  id: string;
+  name: string;
+  nickname: string | null;
+  email: string | null;
+  phone: string | null;
+  position: string | null;
+}
+
+export function useClients(search: string) {
+  return useQuery({
+    queryKey: ['clients', search],
+    queryFn: () =>
+      api<ClientListItem[]>(
+        search ? `/clients?search=${encodeURIComponent(search)}` : '/clients',
+      ),
+  });
+}
+
+export function useClient(id: string) {
+  return useQuery({
+    queryKey: ['client', id],
+    queryFn: () => api<ClientListItem>(`/clients/${id}`),
+    enabled: !!id,
+  });
+}
+
+export interface ExpenseItem {
+  id: string;
+  amount: number;
+  description: string;
+  category: string | null;
+  status: string;
+  date: string;
+  billable?: boolean;
+  receiptPath?: string | null;
+  case?: { id: string; ownRef: string; title: string } | null;
+  user?: { id: string; firstName: string; lastName: string } | null;
+}
+
+export function useExpenses() {
+  return useQuery({
+    queryKey: ['expenses'],
+    queryFn: () => api<ExpenseItem[]>('/expenses'),
+  });
+}
+
+export function useSubmitExpenses() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (expenseIds: string[]) =>
+      api('/expenses/submit', { method: 'POST', body: { expenseIds } }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+  });
+}
+
+export function useCreateIntake() {
+  return useMutation({
+    mutationFn: (body: {
+      receivedDate: string;
+      title?: string;
+      clientName?: string;
+      matterType?: string;
+      description?: string;
+    }) => api('/intake', { method: 'POST', body }),
+  });
+}
+
+export interface InsuranceClaim {
+  id: string;
+  insurerName: string;
+  policyNumber: string | null;
+  claimNumber: string | null;
+  stage: string;
+  incidentDate: string;
+  demandLetterDeadline: string | null;
+}
+
+export function useInsuranceClaim(caseId: string) {
+  return useQuery({
+    queryKey: ['insurance-claim', caseId],
+    queryFn: () => api<InsuranceClaim | null>(`/cases/${caseId}/insurance-claim`),
+    enabled: !!caseId,
+  });
+}
+
 export function useCourtDay(eventId: string) {
   return useQuery({
     queryKey: ['court-day', eventId],

@@ -68,12 +68,12 @@ types. Web (`apps/web`) stays the surface for admin/setup work.
 
 ### Phase 2 — Documents, clients, money
 
-- [ ] Document scanner: camera capture → edge crop → multi-page PDF → upload to case folder
-- [ ] Document viewer (PDF/images) with offline cache of recently-opened files
-- [ ] Clients directory: call/LINE/email actions, client's cases
-- [ ] Expenses/Travel: photo receipt, amount capture, per-case billable flag, claim submission (existing claim flow)
-- [ ] Quick intake form → existing intake pipeline
-- [ ] Insurance claims status + field updates
+- [x] Document scanner: camera capture → multi-page PDF (pdf-lib) → upload to case folder (edge crop needs a dev-build lib; NOTE: upload is ADMIN-only by policy — open decision whether lawyers may upload from court)
+- [x] Document viewer — tap to download (auth) into cache and open via OS share sheet
+- [x] Clients directory: search, contacts with call/email actions, client's cases
+- [x] Expenses: photo receipt, amount, category chips, billable flag, submit-claim flow (per-case link + travel km TODO)
+- [x] Quick intake form → existing intake pipeline
+- [x] Insurance claims status card on case overview (field updates stay on web)
 
 ### Phase 3 — Team, reports, portal
 

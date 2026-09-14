@@ -91,6 +91,13 @@ export default function RootLayout() {
               <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
               <Stack.Screen name="case/[id]" options={{ title: 'คดี' }} />
               <Stack.Screen name="notifications" options={{ title: 'การแจ้งเตือน' }} />
+              <Stack.Screen name="more" options={{ title: 'อื่น ๆ' }} />
+              <Stack.Screen name="clients/index" options={{ title: 'ลูกความ' }} />
+              <Stack.Screen name="clients/[id]" options={{ title: 'ลูกความ' }} />
+              <Stack.Screen name="expenses/index" options={{ title: 'ค่าใช้จ่าย' }} />
+              <Stack.Screen name="expenses/new" options={{ title: 'ค่าใช้จ่ายใหม่' }} />
+              <Stack.Screen name="intake/new" options={{ title: 'รับเรื่องใหม่' }} />
+              <Stack.Screen name="scan/[caseId]" options={{ title: 'สแกนเอกสาร' }} />
               <Stack.Screen
                 name="court-day/[eventId]"
                 options={{ title: 'Court Day', headerShown: false }}
