@@ -3,8 +3,8 @@
  * source-url: https://era-residence.com · observed-fonts: ambroise-francois-std (classical serif display)
  *   + Maison Neue Extended (tracked micro-labels) → translated: Trirong (Thai didone) + Inter/Noto Sans Thai
  * DNA adopted: alternating full-bleed color acts (cream / dark plum / tinted), oversized classical
- *   display, masked line reveals + parallax (GSAP). Accent hue stays Coral 32 — theme kept, dress changed.
- * contrast: AA pass — white/accent 4.94 · accent/paper 4.64 · cream/band-dark 12+
+ *   display, masked line reveals + parallax (GSAP). Accent = app brand blue rgb(29,79,215) → oklch(49% .21 264).
+ * contrast: AA pass — white/accent 6.49 · accent/paper 6.09 · cream/band-dark 14.6
  *
  * Scoped under .lf-landing only — the app's shared shadcn tokens in globals.css
  * (dashboard, portal, auth) are untouched.
@@ -14,25 +14,26 @@
   --color-paper: oklch(97% 0.012 55);
   --color-paper-2: oklch(94.3% 0.015 50);
   --color-paper-3: oklch(100% 0 0);
-  --color-ink: oklch(23% 0.02 40);
-  --color-ink-2: oklch(46% 0.022 40);
+  --color-ink: oklch(24% 0.025 262);
+  --color-ink-2: oklch(46% 0.025 262);
   --color-rule: oklch(88% 0.014 50);
   --color-rule-2: oklch(80% 0.02 45);
 
-  --color-accent: oklch(56% 0.185 32);
-  --color-accent-2: oklch(50% 0.17 32);
-  --color-accent-soft: oklch(93% 0.03 32);
+  /* Brand blue — the app's rgb(29, 79, 215), matched in OKLCH */
+  --color-accent: oklch(49% 0.21 264);
+  --color-accent-2: oklch(43% 0.19 264);
+  --color-accent-soft: oklch(93% 0.03 260);
   --color-accent-line: color-mix(in oklab, var(--color-accent) 22%, transparent);
   --color-accent-ink: oklch(99% 0 0);
-  --color-focus: oklch(56% 0.185 32);
+  --color-focus: oklch(49% 0.21 264);
   --color-success: oklch(56% 0.13 152);
 
-  /* Dark act — era-residence-style full-bleed band, kept in the coral hue family */
-  --color-band-dark: oklch(24% 0.045 32);
-  --color-band-dark-2: oklch(29% 0.05 32);
+  /* Dark act — era-residence-style full-bleed band, now deep navy to match the brand */
+  --color-band-dark: oklch(24% 0.045 264);
+  --color-band-dark-2: oklch(29% 0.05 264);
   --color-band-ink: oklch(96% 0.01 55);
-  --color-band-ink-2: oklch(78% 0.02 45);
-  --color-band-rule: oklch(38% 0.04 32);
+  --color-band-ink-2: oklch(78% 0.02 260);
+  --color-band-rule: oklch(38% 0.04 264);
 
   --font-display: 'Trirong', 'Inter', ui-serif, Georgia, serif;
   --font-body: 'Inter', 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
@@ -228,12 +229,12 @@
 }
 
 .lf-section--dark .lf-kicker {
-  color: oklch(72% 0.12 32);
+  color: oklch(74% 0.1 264);
 }
 
 .lf-section--dark .lf-tour-frame {
   border-color: var(--color-band-rule);
-  box-shadow: 0 32px 64px -24px oklch(10% 0.03 32 / 0.6);
+  box-shadow: 0 32px 64px -24px oklch(10% 0.03 264 / 0.6);
 }
 
 .lf-section--dark .lf-tour-caption {
