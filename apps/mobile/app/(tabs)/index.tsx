@@ -8,7 +8,16 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Bell, LayoutGrid, MapPin } from 'lucide-react-native';
+import {
+  BarChart3,
+  Bell,
+  BookOpen,
+  Contact,
+  FilePlus2,
+  LayoutGrid,
+  MapPin,
+  Receipt,
+} from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { useActions, useDashboardStats, useMyDay } from '@/api/hooks';
 import type { AgendaItem } from '@/api/types';
@@ -23,6 +32,15 @@ import {
 } from '@/components/ui';
 import { thDateLong, thTime } from '@/format';
 import { colors, fonts, spacing } from '@/theme';
+
+// The most-used destinations from the "อื่นๆ" menu, surfaced one tap away.
+const SHORTCUTS = [
+  { route: '/intake/new', Icon: FilePlus2, label: 'รับเรื่อง' },
+  { route: '/expenses', Icon: Receipt, label: 'ค่าใช้จ่าย' },
+  { route: '/clients', Icon: Contact, label: 'ลูกความ' },
+  { route: '/reports', Icon: BarChart3, label: 'รายงาน' },
+  { route: '/knowledge', Icon: BookOpen, label: 'ความรู้' },
+] as const;
 
 const KIND_LABEL: Record<string, { label: string; tone: TagTone }> = {
   COURT_DATE: { label: 'นัดศาล', tone: 'court' },
@@ -129,6 +147,23 @@ export default function MyDayScreen() {
         <StatCard label="คดีเปิด" value={stats.data?.stats.openCases ?? '—'} />
       </View>
 
+      <View style={styles.shortcutRow}>
+        {SHORTCUTS.map((shortcut) => (
+          <Pressable
+            key={shortcut.route}
+            style={({ pressed }) => [styles.shortcut, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push(shortcut.route as never)}
+          >
+            <View style={styles.shortcutIcon}>
+              <shortcut.Icon size={19} color={colors.accentInk} />
+            </View>
+            <Text style={styles.shortcutLabel} numberOfLines={1}>
+              {shortcut.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       {myDay.isError ? (
         <View style={{ marginTop: spacing.lg }}>
           <ErrorNote
@@ -225,6 +260,23 @@ const styles = StyleSheet.create({
   hello: { fontSize: 24, fontFamily: fonts.bold, color: colors.ink },
   date: { fontSize: 13, color: colors.muted, marginTop: 2 },
   statRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  shortcutRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+  },
+  shortcut: { alignItems: 'center', gap: 4, flex: 1 },
+  shortcutIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shortcutLabel: { fontSize: 11, color: colors.muted, fontWeight: '600' },
   agendaRow: {
     flexDirection: 'row',
     gap: spacing.md,
