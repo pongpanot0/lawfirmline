@@ -163,8 +163,8 @@ export default function DashboardPage() {
         <KpiCard label={d.home.totalNetProfit} value={formatCurrency(data.stats.totalNetProfit)} icon={TrendingUp} change={d.home.profitHint} trend={data.stats.totalNetProfit >= 0 ? 'up' : 'down'} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="min-w-0 space-y-6 xl:col-span-2">
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
@@ -340,7 +340,7 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>{d.home.activeWork}</CardTitle>

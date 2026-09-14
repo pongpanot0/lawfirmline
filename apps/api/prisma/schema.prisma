@@ -296,6 +296,8 @@ model Firm {
   intakes            Intake[]
   emailThreads       EmailThread[]
   mailboxConnections MailboxConnection[]
+  playbookReleases   PlaybookRelease[]
+  importBatches      DataImportBatch[]
   expenseClaims      ExpenseClaim[]
 }
 
@@ -609,6 +611,7 @@ model Case {
   relatedIntakes     Intake[]                  @relation("CaseRelatedIntakes")
   dateSuggestions    DocumentDateSuggestion[]
   closingEmailDrafts ClosingEmailDraft[]
+  appliedPlaybooks   AppliedPlaybook[]
   insuranceClaim     InsuranceClaim?
   contactAccess      ContactCaseAccess[]
   messages           CaseMessage[]
@@ -958,6 +961,8 @@ model CalendarEvent {
   dateSuggestion     DocumentDateSuggestion?
   triggeredDeadlines DocumentDateSuggestion[] @relation("DateSuggestionTrigger")
   expenses           Expense[]
+  responsibility     EventResponsibility?
+  courtDay           CourtDay?
 
   @@index([startAt])
   @@index([assigneeId])
@@ -1274,6 +1279,18 @@ model TaskOnHold {
 }
 
 model PortalIntakeSubmission {
+  accessContactIds String[] @default([])
+  revokedContactIds String[] @default([])
+  officeOwnerId String?
+  scopeText String?
+  proposedDate DateTime?
+  agreedDate DateTime?
+  commitmentVersion Int @default(0)
+  acceptedCommitmentVersion Int?
+  agreementAcceptedAt DateTime?
+  deliveredAt DateTime?
+  deliveryAcknowledgedAt DateTime?
+  messages PortalRequestMessage[]
   id                  String    @id @default(uuid())
   clientId            String
   clientContactId     String
@@ -1569,4 +1586,84 @@ model MailboxConnection {
   @@unique([firmId, mailboxAddress])
   @@index([firmId])
   @@index([graphSubscriptionId])
+}
+
+/// Shared preparation and a single, retry-safe outcome for one court appointment.
+model CourtDay {
+  eventId     String        @id
+  version     Int           @default(0)
+  state       Json
+  result      Json?
+  completedAt DateTime?
+  updatedById String
+  updatedAt   DateTime      @updatedAt
+  event       CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+/// Acknowledgement is valid only for the event revision and responsible lawyer recorded here.
+model EventResponsibility {
+  eventId String @id
+  eventUpdatedAt DateTime
+  ownerId String
+  acceptedAt DateTime?
+  completedAt DateTime?
+  updatedAt DateTime @updatedAt
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model PortalRequestMessage {
+  id String @id @default(uuid())
+  submissionId String
+  requestKey String
+  contentHash String
+  authorId String
+  authorKind String
+  body String @db.Text
+  filename String?
+  storagePath String?
+  mimeType String?
+  size Int?
+  createdAt DateTime @default(now())
+  submission PortalIntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  @@unique([submissionId, authorId, requestKey])
+  @@index([submissionId, createdAt])
+}
+
+model PlaybookRelease {
+  id String @id @default(uuid())
+  firmId String
+  name String
+  workType String
+  version Int
+  steps Json
+  publishedById String
+  createdAt DateTime @default(now())
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  applications AppliedPlaybook[]
+  @@unique([firmId, name, version])
+}
+model AppliedPlaybook {
+  id String @id @default(uuid())
+  caseId String
+  releaseId String
+  taskIds String[] @default([])
+  appliedById String
+  startDate DateTime
+  createdAt DateTime @default(now())
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  release PlaybookRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  @@unique([caseId, releaseId])
+}
+model DataImportBatch {
+  id String @id @default(uuid())
+  firmId String
+  createdById String
+  rows Json
+  ledger Json?
+  status String @default("PREVIEW")
+  createdAt DateTime @default(now())
+  committedAt DateTime?
+  undoneAt DateTime?
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  @@index([firmId, createdAt])
 }

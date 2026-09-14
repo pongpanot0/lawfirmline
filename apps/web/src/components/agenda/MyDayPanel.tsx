@@ -1,5 +1,6 @@
 'use client';
 
+import { ActionCenter } from './ActionCenter';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CalendarClock, Car, Check, Gavel, ListTodo, Users } from 'lucide-react';
@@ -38,12 +39,14 @@ function AgendaRow({
   const Icon = KIND_ICON[item.kind] ?? CalendarClock;
   // An owner or senior sees the team's tasks here; the row says whose it is
   // so "done" is never pressed on someone else's work by mistake.
+  const { locale } = useLocale();
+  const courtDayUrl = item.kind === AgendaItemKind.COURT_DATE ? `/court-day/${item.entityId}` : item.url;
   const someoneElses = !!item.assigneeId && item.assigneeId !== viewerId;
 
   return (
     <div className="flex items-start gap-3 rounded-lg border border-transparent px-3 py-2.5 transition hover:border-border hover:bg-muted/50">
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <Link href={item.url} className="min-w-0 flex-1">
+      <Link href={courtDayUrl} className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="font-mono text-sm tabular-nums text-muted-foreground">
             {item.allDay ? d.myDay.allDay : bangkokTime(item.at)}
@@ -60,6 +63,7 @@ function AgendaRow({
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           <span>{d.myDay.kind[item.kind]}</span>
+          {item.kind === AgendaItemKind.COURT_DATE && <span className="font-medium text-primary">{locale === 'th' ? 'เปิดแฟ้มไปศาล →' : 'Open court file →'}</span>}
           {item.location && <span>· {item.location}</span>}
           {item.departBy && (
             <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-500">
@@ -75,7 +79,7 @@ function AgendaRow({
         A standalone todo belonging to someone else is refused by the API
         anyway, so the button was a dead end as well as a hazard.
       */}
-      {item.kind === AgendaItemKind.TASK && !someoneElses && (
+      {item.kind === AgendaItemKind.TASK && item.assigneeId === viewerId && !someoneElses && (
         <Button
           type="button"
           size="sm"
@@ -223,6 +227,8 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
   return (
     <div className="space-y-4">
       {showHeader && <PageHeader title={d.myDay.title} description={d.myDay.description} />}
+
+      {(token ?? getStoredToken()) && <ActionCenter token={(token ?? getStoredToken())!} />}
 
       {data.warnings.length > 0 && (
         <Card className="border-amber-500/40 bg-amber-500/5">

@@ -168,8 +168,8 @@ export class DeadlineRulesService {
    *   Postgres unique indexes do not treat NULL as equal, so `skipDuplicates`
    *   alone cannot stop a second manual fire.
    */
-  async applyTrigger(context: DeadlineTriggerContext): Promise<number> {
-    const rules = await this.prisma.deadlineRule.findMany({
+  async applyTrigger(context: DeadlineTriggerContext, client: PrismaClientLike = this.prisma): Promise<number> {
+    const rules = await client.deadlineRule.findMany({
       where: {
         trigger: context.trigger,
         isActive: true,
@@ -179,12 +179,13 @@ export class DeadlineRulesService {
     });
     if (rules.length === 0) return 0;
 
-    const openRules = await this.rulesWithoutPendingSuggestion(context.caseId, rules, context.triggerEventId);
+    const openRules = await this.rulesWithoutPendingSuggestion(context.caseId, rules, context.triggerEventId, client);
     if (openRules.length === 0) return 0;
 
     const holidays = await this.loadHolidays(
       context.triggerDate,
       Math.max(...openRules.map((r) => r.offsetDays)),
+      client,
     );
 
     const data = openRules.map((rule) => ({
@@ -207,7 +208,7 @@ export class DeadlineRulesService {
       createdById: context.createdById,
     }));
 
-    const result = await this.prisma.documentDateSuggestion.createMany({
+    const result = await client.documentDateSuggestion.createMany({
       data: data as never,
       skipDuplicates: true,
     });
@@ -223,8 +224,9 @@ export class DeadlineRulesService {
     caseId: string,
     rules: T[],
     triggerEventId: string | null,
+    client: PrismaClientLike = this.prisma,
   ): Promise<T[]> {
-    const existing = await this.prisma.documentDateSuggestion.findMany({
+    const existing = await client.documentDateSuggestion.findMany({
       where: {
         caseId,
         status: DateSuggestionStatus.PENDING,
@@ -274,12 +276,12 @@ export class DeadlineRulesService {
     return !isBangkokWeekend(date) && !holidays.has(bangkokDayKey(date));
   }
 
-  private async loadHolidays(from: Date, maxOffsetDays: number): Promise<Set<string>> {
+  private async loadHolidays(from: Date, maxOffsetDays: number, client: PrismaClientLike = this.prisma): Promise<Set<string>> {
     const start = bangkokDayStart(from);
     // Business-day counting can run well past the nominal offset, so load a
     // generous window rather than risk missing a holiday mid-count.
     const span = Math.min(maxOffsetDays, MAX_OFFSET_DAYS) * 2 + HOLIDAY_PADDING_DAYS;
-    const rows = await this.prisma.publicHoliday.findMany({
+    const rows = await client.publicHoliday.findMany({
       where: { date: { gte: start, lte: addBangkokDays(start, span) } },
       select: { date: true },
     });

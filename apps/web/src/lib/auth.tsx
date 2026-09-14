@@ -10,6 +10,8 @@ import {
 } from 'react';
 import { AuthUser, LoginResponse } from '@lawfirm/shared';
 import { api } from './api';
+import { clearCourtOffline } from './court-offline';
+import { clearCourtDayDrafts } from './court-day-draft';
 
 export const TOKEN_KEY = 'lawfirm_access_token';
 export const REFRESH_KEY = 'lawfirm_refresh_token';
@@ -87,7 +89,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applySession],
   );
 
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const identity = JSON.parse(localStorage.getItem('samnuan:offline-identity') ?? 'null');
+      if (identity && (identity.id !== user.id || identity.firmId !== user.firmId)) void clearCourtOffline();
+    } catch { void clearCourtOffline(); }
+  }, [user]);
+
   const logout = useCallback(() => {
+    clearCourtDayDrafts();
+    void clearCourtOffline();
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
     setToken(null);

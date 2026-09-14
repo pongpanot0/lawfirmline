@@ -1,5 +1,7 @@
 'use client';
 
+import { RequestWorkroom } from '@/components/portal/RequestWorkroom';
+import { workroomRequest } from '@/lib/workroom-api';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { api, type PortalSubmissionStaffEntry } from '@/lib/api';
@@ -12,15 +14,19 @@ import { Inbox } from 'lucide-react';
 export default function PortalSubmissionsPage() {
   const { token } = useAuth();
   const [items, setItems] = useState<PortalSubmissionStaffEntry[]>([]);
+  const [rooms, setRooms] = useState<{ id: string; title: string; referenceNumber: string }[]>([]);
+  const [selected, setSelected] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   const load = () => {
     if (!token) return;
     setLoading(true);
+    workroomRequest<typeof rooms>(token, true, '').then(setRooms).catch(e => setError(e.message));
     api
       .listPortalSubmissions(token)
       .then(setItems)
-      .catch(console.error)
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   };
 
@@ -28,8 +34,7 @@ export default function PortalSubmissionsPage() {
 
   const handleConvert = async (id: string) => {
     if (!token) return;
-    await api.convertPortalSubmission(token, id);
-    load();
+    try { await api.convertPortalSubmission(token, id); setSelected(id); load(); } catch(e) { setError(e instanceof Error ? e.message : 'รับเรื่องไม่สำเร็จ'); }
   };
 
   return (
@@ -39,6 +44,8 @@ export default function PortalSubmissionsPage() {
         <p className="text-sm text-muted-foreground">รายการเรื่องที่ลูกความส่งเข้ามาผ่านพอร์ทัล รอรับเข้าเป็นเรื่องรับ (F01)</p>
       </div>
 
+      {error && <p role="alert" className="mb-3 text-destructive">{error}</p>}
+      <div className="mb-5"><label className="block text-sm">เปิดห้องทำงานของคำขอ (รวมเรื่องที่รับเข้าแล้ว)<select className="mt-1 h-11 w-full rounded-lg border bg-background px-3" value={selected} onChange={e => setSelected(e.target.value)}><option value="">เลือกคำขอ</option>{rooms.map(r => <option key={r.id} value={r.id}>{r.referenceNumber} · {r.title}</option>)}</select></label>{selected && token && <RequestWorkroom key={selected} id={selected} token={token} staff />}</div>
       <Card>
         <CardContent className="p-0">
           {loading ? (

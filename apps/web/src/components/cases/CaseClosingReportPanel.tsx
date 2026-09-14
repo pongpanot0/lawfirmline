@@ -1,5 +1,6 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
 export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
   const { token } = useAuth();
+  const requestedDraftId = useSearchParams().get('draftId');
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
   const [drafts, setDrafts] = useState<ClosingEmailDraft[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -36,7 +38,8 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
       setDrafts(existing);
       // Come back to this page and the draft is here waiting, not a blank
       // panel inviting a second one.
-      const latest = existing[0];
+      const latest = requestedDraftId ? existing.find(item => item.id === requestedDraftId) : existing[0];
+      if (requestedDraftId && !latest) throw new Error('ไม่พบร่างที่เลือก กรุณาเปิดรายการร่างจากหน้าคดี');
       if (latest) {
         setDraft(latest);
         setSelectedIds(latest.selectedActivityIds ?? []);
@@ -46,7 +49,7 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [token, caseId]);
+  }, [token, caseId, requestedDraftId]);
 
   useEffect(() => {
     void load();

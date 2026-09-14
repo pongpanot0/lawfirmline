@@ -229,6 +229,7 @@ export default function SettingsPage() {
   return (
     <div>
       <PageHeader title={d.settings.title} description={d.settings.description} />
+      {user?.firmRole === 'OWNER' && <div className="flex flex-wrap gap-3"><Link href="/getting-started" className="inline-flex min-h-11 items-center rounded-lg border bg-card px-4 text-sm text-primary">เริ่มใช้และนำเข้าข้อมูล / Office setup</Link><Link href="/playbooks" className="inline-flex min-h-11 items-center rounded-lg border bg-card px-4 text-sm text-primary">Playbooks</Link></div>}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {user?.firmRole === 'OWNER' && (

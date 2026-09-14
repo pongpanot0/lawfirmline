@@ -3,6 +3,7 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -20,6 +21,7 @@ import { TenantService } from './tenant.service';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { CaseTypesService } from '../case-types/case-types.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
+import { EmailService } from '../notifications/email.service';
 
 @Injectable()
 export class SaasAuthService {
@@ -28,6 +30,7 @@ export class SaasAuthService {
     private tenant: TenantService,
     private caseTypes: CaseTypesService,
     private deadlineRules: DeadlineRulesService,
+    private email: EmailService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthUser> {
@@ -95,6 +98,10 @@ export class SaasAuthService {
   }
 
   async createPasswordResetToken(email: string): Promise<{ token: string } | null> {
+    // Fail uniformly before looking up the account if recovery cannot work.
+    if (process.env.NODE_ENV === 'production' && !this.email.isConfigured()) {
+      throw new ServiceUnavailableException('Password recovery is temporarily unavailable. Please contact your firm owner.');
+    }
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) return null;
 
@@ -104,6 +111,10 @@ export class SaasAuthService {
     await this.prisma.passwordResetToken.create({
       data: { userId: user.id, token, expiresAt },
     });
+
+    if (this.email.isConfigured()) {
+      await this.email.sendPasswordResetEmail(email, `${this.email.getAppUrl()}/reset-password?token=${encodeURIComponent(token)}`);
+    }
 
     return { token };
   }

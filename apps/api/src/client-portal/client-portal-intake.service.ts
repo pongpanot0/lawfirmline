@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+import { portalRequestScope } from './portal-workroom.service';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -28,8 +30,7 @@ export class ClientPortalIntakeService {
   }
 
   async submit(portalUser: PortalIdentity, dto: SubmitPortalIntakeDto, files: Express.Multer.File[] = []) {
-    const count = await this.prisma.portalIntakeSubmission.count();
-    const referenceNumber = `REQ-${String(count + 1).padStart(6, '0')}`;
+    const referenceNumber = `REQ-${randomUUID().toUpperCase()}`;
 
     const submission = await this.prisma.portalIntakeSubmission.create({
       data: {
@@ -74,7 +75,7 @@ export class ClientPortalIntakeService {
 
   async listMine(portalUser: PortalIdentity) {
     const submissions = await this.prisma.portalIntakeSubmission.findMany({
-      where: { clientContactId: portalUser.clientContactId },
+      where: portalRequestScope(portalUser),
       include: {
         intake: { select: { id: true, status: true, decision: true } },
         attachments: { select: { id: true, filename: true, size: true } },
@@ -85,12 +86,12 @@ export class ClientPortalIntakeService {
     const intakeIds = submissions.map((s) => s.intake?.id).filter((id): id is string => Boolean(id));
     const firmDocsByIntake = await this.loadFirmDocumentsByIntake(intakeIds);
 
-    return submissions.map((s) => this.toPortalEntry(s, firmDocsByIntake.get(s.intake?.id ?? '') ?? []));
+    return submissions.map((s) => this.toPortalEntry(s, s.clientContactId === portalUser.clientContactId ? firmDocsByIntake.get(s.intake?.id ?? '') ?? [] : []));
   }
 
   async getMine(portalUser: PortalIdentity, submissionId: string) {
     const submission = await this.prisma.portalIntakeSubmission.findFirst({
-      where: { id: submissionId, clientContactId: portalUser.clientContactId },
+      where: { id: submissionId, ...portalRequestScope(portalUser) },
       include: {
         intake: { select: { id: true, status: true, decision: true } },
         attachments: {
@@ -101,7 +102,7 @@ export class ClientPortalIntakeService {
     });
     if (!submission) throw new NotFoundException('Submission not found');
 
-    const firmDocuments = submission.intake
+    const firmDocuments = submission.intake && submission.clientContactId === portalUser.clientContactId
       ? await this.prisma.document.findMany({
           where: { intakeId: submission.intake.id, visibleToClient: true },
           select: { id: true, filename: true, mimeType: true, createdAt: true },
@@ -122,7 +123,7 @@ export class ClientPortalIntakeService {
       where: {
         id: attachmentId,
         portalIntakeSubmissionId: submissionId,
-        submission: { clientContactId: portalUser.clientContactId },
+        submission: portalRequestScope(portalUser),
       },
     });
     if (!attachment) throw new NotFoundException('Attachment not found');
@@ -131,10 +132,10 @@ export class ClientPortalIntakeService {
 
   async getFirmDocumentFile(portalUser: PortalIdentity, submissionId: string, documentId: string) {
     const submission = await this.prisma.portalIntakeSubmission.findFirst({
-      where: { id: submissionId, clientContactId: portalUser.clientContactId },
+      where: { id: submissionId, ...portalRequestScope(portalUser) },
       include: { intake: { select: { id: true } } },
     });
-    if (!submission?.intake) throw new NotFoundException('Document not found');
+    if (!submission?.intake || submission.clientContactId !== portalUser.clientContactId) throw new NotFoundException('Document not found');
 
     const document = await this.prisma.document.findFirst({
       where: {

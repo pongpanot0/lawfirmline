@@ -19,6 +19,7 @@ import { AI_CREDIT_COST, KnowledgeCategory } from '@lawfirm/shared';
 import { DocumentIntelligenceService } from './document-intelligence.service';
 import { DocumentsService } from '../documents/documents.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequireCredits } from '../common/decorators/require-credits.decorator';
@@ -31,21 +32,23 @@ export class IntelligenceController {
   constructor(
     private intelligenceService: DocumentIntelligenceService,
     private documentsService: DocumentsService,
+    private caseAccess: CaseAccessService,
   ) {}
 
   @Get('cases/:caseId/knowledge')
   @UseGuards(CaseAccessGuard)
-  findCaseKnowledge(@Param('caseId') caseId: string) {
-    return this.intelligenceService.findKnowledge(caseId);
+  findCaseKnowledge(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
+    return this.intelligenceService.findKnowledge(this.caseAccess.getCaseFilterForUser(user), caseId);
   }
 
   @Get('knowledge')
   findKnowledge(
+    @CurrentUser() user: AuthUser,
     @Query('caseId') caseId?: string,
     @Query('category') category?: KnowledgeCategory,
     @Query('search') search?: string,
   ) {
-    return this.intelligenceService.findKnowledge(caseId, category, search);
+    return this.intelligenceService.findKnowledge(this.caseAccess.getCaseFilterForUser(user), caseId, category, search);
   }
 
   @Post('documents/analyze-batch')

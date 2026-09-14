@@ -3,6 +3,10 @@ import { EventType } from '@lawfirm/shared';
 
 export class ConfirmDateSuggestionDto {
   @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
+  @IsOptional()
   @IsString()
   label?: string;
 

@@ -8,6 +8,8 @@ import { CalendarService } from '../calendar/calendar.service';
 describe('DateSuggestionsService', () => {
   let service: DateSuggestionsService;
   const mockPrisma = {
+    $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
     documentDateSuggestion: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
@@ -17,7 +19,8 @@ describe('DateSuggestionsService', () => {
   const mockCalendar = { createInternal: jest.fn() };
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+    mockPrisma.$transaction.mockImplementation(async callback => callback(mockPrisma));
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DateSuggestionsService,
@@ -66,7 +69,40 @@ describe('DateSuggestionsService', () => {
         startAt: pending.suggestedDate.toISOString(),
         type: EventType.COURT_DATE,
         reminderMinutes: undefined,
-      }, 'user-1');
+      }, 'user-1', mockPrisma);
+    });
+
+    it('locks the trigger before the suggestion and reads its current revision', async () => {
+      const current = { ...pending, triggerEventId: 'trigger-1', updatedAt: new Date('2026-09-12T00:00:00.000Z') };
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue(current);
+      mockCalendar.createInternal.mockResolvedValue({ id: 'event-1' });
+      await service.confirm('case-1', 'sug-1', 'user-1', { expectedUpdatedAt: current.updatedAt.toISOString() });
+      expect(mockPrisma.$queryRaw.mock.calls.map(call => call[0].join('?'))).toEqual([
+        'SELECT "id" FROM "CalendarEvent" WHERE "id" = ? FOR UPDATE',
+        'SELECT "id" FROM "DocumentDateSuggestion" WHERE "id" = ? FOR UPDATE',
+      ]);
+      expect(mockPrisma.documentDateSuggestion.findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it('rejects a stale browser revision after waiting for a reschedule', async () => {
+      const initial = { ...pending, triggerEventId: 'trigger-1', updatedAt: new Date('2026-09-12T00:00:00.000Z') };
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValueOnce(initial)
+        .mockResolvedValueOnce({ ...initial, updatedAt: new Date('2026-09-13T00:00:00.000Z') });
+      await expect(service.confirm('case-1', 'sug-1', 'user-1', { date: pending.suggestedDate.toISOString(), expectedUpdatedAt: initial.updatedAt.toISOString() })).rejects.toThrow(ConflictException);
+      expect(mockCalendar.createInternal).not.toHaveBeenCalled();
+    });
+
+    it('requires a reviewed revision for a rule-derived suggestion', async () => {
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue({ ...pending, triggerEventId: 'trigger-1' });
+      await expect(service.confirm('case-1', 'sug-1', 'user-1', {})).rejects.toThrow(ConflictException);
+      expect(mockCalendar.createInternal).not.toHaveBeenCalled();
+    });
+
+    it('does not create another event when confirmation wins while waiting for the lock', async () => {
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValueOnce(pending)
+        .mockResolvedValueOnce({ ...pending, status: DateSuggestionStatus.CONFIRMED });
+      await expect(service.confirm('case-1', 'sug-1', 'user-1', {})).rejects.toThrow(ConflictException);
+      expect(mockCalendar.createInternal).not.toHaveBeenCalled();
     });
 
     it('applies overrides on top of the stored values', async () => {
@@ -86,7 +122,7 @@ describe('DateSuggestionsService', () => {
         startAt: '2026-11-01T00:00:00.000Z',
         type: EventType.DEADLINE,
         reminderMinutes: undefined,
-      }, 'user-1');
+      }, 'user-1', mockPrisma);
     });
 
     it('marks the suggestion CONFIRMED, storing the created event id and reviewer', async () => {
@@ -145,6 +181,14 @@ describe('DateSuggestionsService', () => {
           reviewedById: 'user-1',
         }),
       });
+    });
+
+    it('does not dismiss a suggestion confirmed while waiting for the lock', async () => {
+      const row = { id: 'sug-1', caseId: 'case-1', status: DateSuggestionStatus.PENDING };
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValueOnce(row)
+        .mockResolvedValueOnce({ ...row, status: DateSuggestionStatus.CONFIRMED });
+      await expect(service.dismiss('case-1', 'sug-1', 'user-1')).rejects.toThrow(ConflictException);
+      expect(mockPrisma.documentDateSuggestion.update).not.toHaveBeenCalled();
     });
 
     it('throws ConflictException when already CONFIRMED', async () => {

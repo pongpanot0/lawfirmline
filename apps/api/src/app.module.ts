@@ -1,3 +1,4 @@
+import { PracticeSetupModule } from './practice-setup/practice-setup.module';
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -69,6 +70,7 @@ import { OutlookIntegrationModule } from './outlook-integration/outlook-integrat
     IntelligenceModule,
     TemplatesModule,
     OperationsModule,
+    PracticeSetupModule,
     ClosingEmailModule,
     AgendaModule,
     DeadlinesModule,

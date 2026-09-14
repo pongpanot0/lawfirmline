@@ -63,6 +63,7 @@ export function DateSuggestionsPanel({
     setError('');
     try {
       await api.confirmDateSuggestion(token, caseId, s.id, {
+        expectedUpdatedAt: s.updatedAt,
         label: draft.label,
         date: draft.date ? new Date(draft.date).toISOString() : undefined,
         eventType: draft.eventType,

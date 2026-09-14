@@ -35,7 +35,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           user={user}
           onLogout={() => {
             logout();
-            router.push('/login');
+            window.location.assign('/login');
           }}
         >
           {children}

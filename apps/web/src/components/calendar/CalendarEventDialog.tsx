@@ -1,5 +1,6 @@
 'use client';
 
+import { EventResponsibility } from './EventResponsibility';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -194,6 +195,7 @@ export function CalendarEventDialog({
             </div>
           ))}
         </dl>
+        <EventResponsibility eventId={event.id} startAt={event.startAt} type={event.type} onChanged={onSaved} />
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="button" onClick={() => setMode('edit')}>{d.common.edit}</Button>
           <Button type="button" variant="outline" onClick={onClose}>{d.common.close}</Button>
@@ -280,6 +282,7 @@ export function CalendarEventDialog({
             <Input
               required
               type="datetime-local"
+              disabled={!!savedId}
               value={form.startAt}
               onChange={(e) => setForm({ ...form, startAt: e.target.value })}
             />

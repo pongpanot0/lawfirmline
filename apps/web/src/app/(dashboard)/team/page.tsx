@@ -39,6 +39,7 @@ export default function TeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<FirmRole>(FirmRole.ASSISTANT);
   const [inviting, setInviting] = useState(false);
@@ -55,6 +56,7 @@ export default function TeamPage() {
       return;
     }
     setLoading(true);
+    setLoadError('');
     try {
       const [m, inv] = await Promise.all([
         api.getTeamMembers(token),
@@ -63,11 +65,11 @@ export default function TeamPage() {
       setMembers(m);
       setInvitations(inv);
     } catch (err) {
-      console.error(err);
+      setLoadError(d.common.loadFailed);
     } finally {
       setLoading(false);
     }
-  }, [token, isOwner]);
+  }, [token, isOwner, d.common.loadFailed]);
 
   useEffect(() => {
     loadTeam();
@@ -193,6 +195,10 @@ export default function TeamPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={d.team.title} description={d.team.description} />
+      {loadError && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+        <p className="text-sm text-destructive">{loadError}</p>
+        <Button variant="outline" onClick={loadTeam} disabled={loading}>{d.common.retry}</Button>
+      </div>}
 
       <Card>
         <CardHeader>
@@ -207,6 +213,8 @@ export default function TeamPage() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input
                 type="email"
+                aria-label={d.team.email}
+                autoComplete="email"
                 required
                 placeholder={d.team.emailPlaceholder}
                 value={inviteEmail}
@@ -214,6 +222,7 @@ export default function TeamPage() {
                 className="flex-1"
               />
               <select
+                aria-label={d.team.role}
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as FirmRole)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
@@ -227,13 +236,13 @@ export default function TeamPage() {
               </Button>
             </div>
           </form>
-          {inviteError && <p className="mt-2 text-sm text-destructive">{inviteError}</p>}
+          {inviteError && <p role="alert" className="mt-2 text-sm text-destructive">{inviteError}</p>}
           {inviteUrl && (
             <div className="mt-4 rounded-lg bg-muted p-3">
               <p className="text-xs font-medium text-muted-foreground">{d.team.shareLink}</p>
               <div className="mt-2 flex items-center gap-2">
-                <code className="flex-1 truncate text-xs">{inviteUrl}</code>
-                <Button type="button" variant="outline" size="sm" onClick={copyInviteUrl}>
+                <code className="min-w-0 flex-1 truncate text-xs">{inviteUrl}</code>
+                <Button type="button" variant="outline" size="sm" aria-label={d.team.shareLink} onClick={copyInviteUrl}>
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>

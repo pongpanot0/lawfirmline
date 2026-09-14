@@ -3,6 +3,9 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { redirectToFirmApp } from '@/lib/firm-slug';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,6 +16,7 @@ import { fmt } from '@/lib/i18n/dashboard';
 function InviteForm({ token }: { token: string }) {
   const d = useDashboardT();
   const router = useRouter();
+  const { applySession } = useAuth();
   const [info, setInfo] = useState<{ email: string; firmName: string } | null>(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', password: '' });
   const [error, setError] = useState('');
@@ -29,16 +33,16 @@ function InviteForm({ token }: { token: string }) {
     setError('');
     try {
       const res = await api.acceptInvitation({ token, ...form });
-      localStorage.setItem('lawfirm_access_token', res.accessToken);
-      localStorage.setItem('lawfirm_refresh_token', res.refreshToken);
-      router.push('/dashboard');
+      if (redirectToFirmApp(res.user, res)) return;
+      applySession(res.accessToken, res.refreshToken, res.user);
+      router.replace('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : d.auth.inviteFailed);
       setJoining(false);
     }
   };
 
-  if (error && !info) return <p className="text-destructive">{error}</p>;
+  if (error && !info) return <div className="mt-4 space-y-4"><p role="alert" className="text-destructive">{error}</p><Link href="/login" className="text-sm text-primary underline">{d.auth.backToSignIn}</Link></div>;
   if (!info) return <p className="text-muted-foreground">{d.auth.inviteLoading}</p>;
 
   return (
@@ -47,11 +51,11 @@ function InviteForm({ token }: { token: string }) {
         {fmt(d.auth.inviteJoin, { firm: info.firmName, email: info.email })}
       </p>
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <Input required placeholder={d.auth.firstName} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
-          <Input required placeholder={d.auth.lastName} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input required minLength={2} autoComplete="given-name" aria-label={d.auth.firstName} placeholder={d.auth.firstName} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+          <Input required minLength={2} autoComplete="family-name" aria-label={d.auth.lastName} placeholder={d.auth.lastName} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
         </div>
-        <Input required type="password" minLength={6} placeholder={d.auth.password} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        <Input required aria-label={d.auth.password} autoComplete="new-password" type="password" minLength={6} placeholder={d.auth.password} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}
