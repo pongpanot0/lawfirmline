@@ -73,5 +73,18 @@ jobs:
             # Apply pending Prisma migrations from the image just deployed.
             # migrate deploy is a no-op when nothing is pending, so running it
             # on every deploy keeps schema and code in the same release.
-            docker compose -f docker-compose.prod.yml exec -T api pnpm prisma migrate deploy
+            # The t4g.small OOM-kills the CLI if it races the app startup spike,
+            # so wait for boot to settle and retry a couple of times.
+            sleep 30
+            for attempt in 1 2 3; do
+              if docker compose -f docker-compose.prod.yml exec -T api pnpm prisma migrate deploy; then
+                break
+              elif [ "$attempt" = 3 ]; then
+                echo "migrate deploy failed after 3 attempts" >&2
+                exit 1
+              else
+                echo "migrate attempt $attempt failed; retrying in 30s" >&2
+                sleep 30
+              fi
+            done
             docker image prune -f
