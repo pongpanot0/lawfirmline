@@ -639,36 +639,47 @@ export class IntakeService {
     submissionId: string,
     dto: ConvertPortalSubmissionDto,
   ) {
-    const submission = await this.prisma.portalIntakeSubmission.findFirst({
-      where: { id: submissionId, client: { firmId: user.firmId } },
-    });
-    if (!submission) {
-      throw new NotFoundException('ไม่พบเรื่องที่ส่งจาก Portal นี้');
-    }
-    if (submission.intakeId) {
-      throw new BadRequestException('เรื่องนี้ถูกรับเข้าระบบไปแล้ว');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize conversion attempts for this submission, including retries.
+      await tx.$queryRaw`SELECT "id" FROM "PortalIntakeSubmission" WHERE "id" = ${submissionId} FOR UPDATE`;
+      const submission = await tx.portalIntakeSubmission.findFirst({
+        where: { id: submissionId, client: { firmId: user.firmId } },
+      });
+      if (!submission) {
+        throw new NotFoundException('ไม่พบเรื่องที่ส่งจาก Portal นี้');
+      }
+      if (submission.withdrawnByClient) {
+        throw new BadRequestException('เรื่องนี้ถูกถอนโดยลูกความแล้ว');
+      }
+      if (submission.intakeId) {
+        const existing = await tx.intake.findFirst({
+          where: { id: submission.intakeId, firmId: user.firmId },
+        });
+        if (!existing) throw new NotFoundException('ไม่พบเรื่องรับที่เชื่อมไว้');
+        return existing;
+      }
 
-    const intake = await this.prisma.intake.create({
-      data: {
-        firmId: user.firmId,
-        receivedById: user.id,
-        receivedDate: new Date(),
-        title: submission.title,
-        description: submission.detail,
-        referralChannel: ReferralChannel.PORTAL,
-        clientId: submission.clientId,
-        deadlineDate: dto.officePlannedDate ? new Date(dto.officePlannedDate) : undefined,
-        portalSubmissionId: submission.id,
-      },
-    });
+      const intake = await tx.intake.create({
+        data: {
+          firmId: user.firmId,
+          receivedById: user.id,
+          receivedDate: new Date(),
+          title: submission.title,
+          description: submission.detail,
+          referralChannel: ReferralChannel.PORTAL,
+          clientId: submission.clientId,
+          requestedResponseDate: submission.clientRequestedDate,
+          deadlineDate: dto.officePlannedDate ? new Date(dto.officePlannedDate) : undefined,
+          portalSubmissionId: submission.id,
+        },
+      });
 
-    await this.prisma.portalIntakeSubmission.update({
-      where: { id: submission.id },
-      data: { intakeId: intake.id },
+      await tx.portalIntakeSubmission.update({
+        where: { id: submission.id },
+        data: { intakeId: intake.id },
+      });
+      return intake;
     });
-
-    return intake;
   }
 
   async uploadAttachment(user: AuthUser, intakeId: string, file: Express.Multer.File) {

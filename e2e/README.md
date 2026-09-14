@@ -11,11 +11,29 @@ Playwright ทำสองอย่างในชุดเดียว: ถ่�
 pnpm e2e              # ทั้งหมด
 pnpm e2e:guide        # ถ่ายภาพทุกหน้า + สร้างสไลด์ docs/user-guide/index.html
 pnpm e2e:validation   # เฉพาะเทสต์ validation
+pnpm e2e:journeys     # สมัคร/login/คำเชิญ/กู้รหัสผ่าน + หน้าทำงานและ responsive
 pnpm e2e:pii          # เฉพาะเทสต์ PII
 pnpm e2e:report       # เปิดรายงาน HTML
 ```
 
 ตั้ง `E2E_WEB_URL` / `E2E_API_URL` ถ้าใช้พอร์ตอื่น
+
+## ชุดตรวจการใช้งานจริง (12 กันยายน 2026)
+
+```bash
+pnpm exec playwright test --project=journeys --project=workspace --project=validation
+```
+
+- `journeys` ใช้ browser session ใหม่ เปิดสำนักงานผ่านฟอร์มจริง สร้างลูกค้า/คดี/ค่าใช้จ่ายร่าง/งาน/งานย่อย ตอบรับคำเชิญ ออกจากระบบ และเข้าซ้ำ
+- ตรวจสิทธิ์ทนายทั้ง UI และ API และตรวจว่าบัญชีเจ้าของสำนักงานใหม่เปิดคดีของสำนักงาน seed ไม่ได้
+- ตรวจอีเมลซ้ำ ชื่อว่าง API ขาดการเชื่อมต่อ ลิงก์ผิด/ใช้ซ้ำ session handoff และภาษาข้าม subdomain
+- คำเชิญและ token กู้รหัสผ่านสร้างเป็น fixture ในฐานข้อมูล local เพื่อทดสอบการตอบรับโดยไม่ส่งอีเมลออกจริง
+- ทุกบัญชีใช้ `e2e-<random>@example.test` ล้างเฉพาะผู้ใช้และสำนักงานของรอบนั้นใน `finally` ไม่ reseed ฐานข้อมูล
+- `helpers/test-data.ts` ปฏิเสธฐานข้อมูลที่ไม่ใช่ localhost ส่วน `helpers/tenant-test.ts` ใช้ origin ที่ login ไปถึงจริง
+- `workspace` ตรวจเปิดหน้าหลังล็อกอิน 29 เส้นทาง + search + recovery จากทีมโหลดผิดพลาด + TH/EN ที่ 375 และ 1440px
+- `journeys` ตรวจหน้าสมัครและ login ที่ 320, 375, 414, 768, 1440px และแนบ screenshot ในรายงาน
+- การรันตรวจปกติไม่เขียนทับคู่มือผู้ใช้; `pnpm e2e:guide` เปิด `E2E_CAPTURE_GUIDE=1` สำหรับสร้างภาพคู่มือโดยเฉพาะ
+- เทสต์บันทึก draft ค่าใช้จ่าย ไม่กดส่งใบเบิก/จ่ายเงิน และไม่เรียกวิเคราะห์ AI หรือบริการที่คิดเครดิต
 
 ## โครงสร้าง
 
@@ -67,3 +85,7 @@ await capture(page, {
 
 **หมายเหตุ:** เทสต์ `เจ้าของสำนักงานอื่นเปิดคดีของเราไม่ได้` สมัครสำนักงานใหม่ทุกครั้งที่รัน จะทิ้งแถว
 `PII Outsider Firm` ไว้ใน dev DB — ล้างด้วย `pnpm db:seed` ได้
+
+### Court-day workflow
+
+`pnpm exec playwright test --project=court-day` exercises preparation, versioned file download, atomic hearing outcomes, duplicate requests, concurrent edits, tenant/case permissions, temporary draft recovery and TH/EN responsive layouts. It creates only local disposable firms and files and cleans them afterwards. The rollback proof uses the compiled API service in `apps/api/dist`; keep the API dev compiler running (or build the API first) with the current Prisma client and court-day migration applied. No email or AI requests are sent by this suite.

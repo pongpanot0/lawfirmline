@@ -1,5 +1,6 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Gavel, Plus } from 'lucide-react';
 import { DeadlineTrigger } from '@lawfirm/shared';
@@ -27,6 +28,7 @@ const MANUAL_TRIGGERS = [
 
 export function CaseCalendarPanel({ caseId }: { caseId: string }) {
   const d = useDashboardT();
+  const requestedEvent = useSearchParams().get('eventId');
   const { token } = useAuth();
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [legalCase, setLegalCase] = useState<CaseItem | null>(null);
@@ -71,6 +73,15 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
       .catch((err) => setLoadError(err instanceof Error ? err.message : d.common.loadFailed))
       .finally(() => setLoading(false));
   }, [token, caseId, month, reloadKey, d.common.loadFailed]);
+
+  useEffect(() => {
+    if (!requestedEvent || !token) return;
+    let active = true;
+    api.getCalendarEvent(token, requestedEvent).then(event => {
+      if (active && event.case?.id === caseId) setDialog({ event });
+    }).catch(err => { if (active) setLoadError(err.message); });
+    return () => { active = false; };
+  }, [requestedEvent, token, caseId]);
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -61,7 +61,7 @@ export function LandingPage() {
               {t.hero.subtitle}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center" data-motion="hero-cta">
-              <Link href="/login" className="lf-btn lf-btn--primary w-full sm:w-auto">
+              <Link href="/register" className="lf-btn lf-btn--primary w-full sm:w-auto">
                 {t.hero.ctaPrimary}
                 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -240,7 +240,7 @@ export function LandingPage() {
             {t.cta.subtitle}
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link href="/login" className="lf-btn lf-btn--on-accent w-full sm:w-auto">
+            <Link href="/register" className="lf-btn lf-btn--on-accent w-full sm:w-auto">
               {t.cta.tryFree}
             </Link>
             <a

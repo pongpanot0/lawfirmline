@@ -1,5 +1,6 @@
 'use client';
 
+import { RequestWorkroom } from '@/components/portal/RequestWorkroom';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -106,6 +107,8 @@ export default function PortalIntakeDetailPage() {
           {item.externalStatus}
         </Badge>
       </div>
+
+      {token && <RequestWorkroom id={id} token={token} />}
 
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_1fr]">
         <Card className="p-5">

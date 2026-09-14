@@ -1,3 +1,5 @@
+import { StaffWorkroomController, ClientWorkroomController } from './portal-workroom.controller';
+import { PortalWorkroomService } from './portal-workroom.service';
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
@@ -25,6 +27,7 @@ import { CasesModule } from '../cases/cases.module';
     CasesModule,
   ],
   controllers: [
+    StaffWorkroomController, ClientWorkroomController,
     ClientPortalAuthController,
     ClientPortalController,
     ClientPortalIntakeController,
@@ -33,6 +36,7 @@ import { CasesModule } from '../cases/cases.module';
     ClientPortalInviteController,
   ],
   providers: [
+    PortalWorkroomService,
     ClientPortalAuthService,
     ClientPortalService,
     ClientPortalIntakeService,

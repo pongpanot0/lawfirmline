@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { DateSuggestionStatus, EventType } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { Prisma } from '../generated/prisma';
 import { CalendarService } from '../calendar/calendar.service';
 import { ConfirmDateSuggestionDto } from './dto/date-suggestion.dto';
 
@@ -21,8 +22,8 @@ export class DateSuggestionsService {
     });
   }
 
-  private async findPendingOrThrow(caseId: string, id: string) {
-    const suggestion = await this.prisma.documentDateSuggestion.findUnique({ where: { id } });
+  private async findPendingOrThrow(caseId: string, id: string, db: Prisma.TransactionClient) {
+    const suggestion = await db.documentDateSuggestion.findUnique({ where: { id } });
     if (!suggestion || suggestion.caseId !== caseId) {
       throw new NotFoundException('Date suggestion not found');
     }
@@ -38,37 +39,56 @@ export class DateSuggestionsService {
     userId: string,
     overrides: ConfirmDateSuggestionDto,
   ) {
-    const suggestion = await this.findPendingOrThrow(caseId, id);
-
-    const event = await this.calendarService.createInternal({
-      caseId,
-      title: overrides.label ?? suggestion.label,
-      startAt: overrides.date ?? suggestion.suggestedDate.toISOString(),
-      type: (overrides.eventType ?? suggestion.eventType) as EventType,
-      reminderMinutes: overrides.reminderMinutes,
-    }, userId);
-
-    return this.prisma.documentDateSuggestion.update({
-      where: { id },
-      data: {
-        status: DateSuggestionStatus.CONFIRMED,
-        calendarEventId: event.id,
-        reviewedById: userId,
-        reviewedAt: new Date(),
-      },
+    return this.prisma.$transaction(async db => {
+      const suggestion = await this.lockPending(caseId, id, db);
+      if ((suggestion.triggerEventId && !overrides.expectedUpdatedAt) ||
+          (overrides.expectedUpdatedAt && suggestion.updatedAt.toISOString() !== overrides.expectedUpdatedAt)) {
+        throw new ConflictException('Date suggestion changed; review it again');
+      }
+      const event = await this.calendarService.createInternal({
+        caseId,
+        title: overrides.label ?? suggestion.label,
+        startAt: overrides.date ?? suggestion.suggestedDate.toISOString(),
+        type: (overrides.eventType ?? suggestion.eventType) as EventType,
+        reminderMinutes: overrides.reminderMinutes,
+      }, userId, db);
+      return db.documentDateSuggestion.update({
+        where: { id },
+        data: {
+          status: DateSuggestionStatus.CONFIRMED,
+          calendarEventId: event.id,
+          reviewedById: userId,
+          reviewedAt: new Date(),
+        },
+      });
     });
   }
 
-  async dismiss(caseId: string, id: string, userId: string) {
-    await this.findPendingOrThrow(caseId, id);
+  private async lockPending(caseId: string, id: string, db: Prisma.TransactionClient) {
+    const initial = await this.findPendingOrThrow(caseId, id, db);
+    // Match rescheduling's parent-before-suggestion lock order.
+    if (initial.triggerEventId) {
+      await db.$queryRaw`SELECT "id" FROM "CalendarEvent" WHERE "id" = ${initial.triggerEventId} FOR UPDATE`;
+    }
+    await db.$queryRaw`SELECT "id" FROM "DocumentDateSuggestion" WHERE "id" = ${id} FOR UPDATE`;
+    const current = await this.findPendingOrThrow(caseId, id, db);
+    if (current.triggerEventId !== initial.triggerEventId) {
+      throw new ConflictException('Date suggestion source changed; review it again');
+    }
+    return current;
+  }
 
-    return this.prisma.documentDateSuggestion.update({
-      where: { id },
-      data: {
-        status: DateSuggestionStatus.DISMISSED,
-        reviewedById: userId,
-        reviewedAt: new Date(),
-      },
+  async dismiss(caseId: string, id: string, userId: string) {
+    return this.prisma.$transaction(async db => {
+      await this.lockPending(caseId, id, db);
+      return db.documentDateSuggestion.update({
+        where: { id },
+        data: {
+          status: DateSuggestionStatus.DISMISSED,
+          reviewedById: userId,
+          reviewedAt: new Date(),
+        },
+      });
     });
   }
 }

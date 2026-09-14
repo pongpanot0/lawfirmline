@@ -1,3 +1,4 @@
+import { CaseAccessService } from '../common/services/case-access.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -31,6 +32,7 @@ describe('IntakeService attachments', () => {
         IntakeService,
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
         { provide: DocumentsService, useValue: mockDocumentsService },
@@ -148,6 +150,7 @@ describe('IntakeService draftNotice with analysisId', () => {
         IntakeService,
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
         { provide: DocumentsService, useValue: mockDocumentsService },
@@ -254,6 +257,7 @@ describe('IntakeService convertToCase', () => {
         IntakeService,
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
         { provide: DocumentsService, useValue: mockDocumentsService },
@@ -316,6 +320,7 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
         IntakeService,
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
         { provide: DocumentsService, useValue: mockDocumentsService },
@@ -407,6 +412,7 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
         IntakeService,
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
         { provide: DocumentsService, useValue: mockDocumentsService },
@@ -469,6 +475,7 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
         IntakeService,
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
         { provide: DocumentsService, useValue: mockDocumentsService },
@@ -673,6 +680,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
         IntakeService,
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
         { provide: DocumentsService, useValue: mockDocumentsService },
@@ -724,5 +732,76 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
       where: { intakeId: 'intake-1' },
       data: { caseId: 'case-1', intakeId: null },
     });
+  });
+});
+
+describe('IntakeService portal conversion', () => {
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+  let service: IntakeService;
+  const tx = {
+    $queryRaw: jest.fn(),
+    portalIntakeSubmission: { findFirst: jest.fn(), update: jest.fn() },
+    intake: { create: jest.fn(), findFirst: jest.fn() },
+  };
+  const prisma = { $transaction: jest.fn() };
+  const submission = {
+    id: 'submission-1', clientId: 'client-1', title: 'Review', detail: 'Contract',
+    clientRequestedDate: new Date('2026-09-20'), withdrawnByClient: false, intakeId: null,
+  };
+
+  beforeEach(async () => {
+    jest.resetAllMocks();
+    prisma.$transaction.mockImplementation((run) => run(tx));
+    tx.portalIntakeSubmission.findFirst.mockResolvedValue(submission);
+    tx.intake.create.mockResolvedValue({ id: 'intake-1' });
+    const module = await Test.createTestingModule({ providers: [
+      IntakeService,
+      { provide: PrismaService, useValue: prisma },
+      { provide: TasksService, useValue: {} },
+      { provide: ConfigService, useValue: {} },
+      { provide: IntakePrecedentAnalysisService, useValue: {} },
+      { provide: DocumentsService, useValue: {} },
+      { provide: FileStorageService, useValue: {} },
+      { provide: CaseAccessService, useValue: {} },
+    ] }).compile();
+    service = module.get(IntakeService);
+  });
+
+  it('locks before scoped recheck and saves requested and office dates independently in one transaction', async () => {
+    await expect(service.convertPortalSubmission(user, submission.id, { officePlannedDate: '2026-09-22' }))
+      .resolves.toEqual({ id: 'intake-1' });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    const [sql, id] = tx.$queryRaw.mock.calls[0];
+    expect(sql.join('?')).toContain('WHERE "id" = ? FOR UPDATE');
+    expect(id).toBe(submission.id);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.portalIntakeSubmission.findFirst.mock.invocationCallOrder[0]);
+    expect(tx.portalIntakeSubmission.findFirst).toHaveBeenCalledWith({ where: { id: submission.id, client: { firmId: user.firmId } } });
+    expect(tx.intake.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      requestedResponseDate: submission.clientRequestedDate,
+      deadlineDate: new Date('2026-09-22'),
+    }) });
+    expect(tx.portalIntakeSubmission.update).toHaveBeenCalledWith({ where: { id: submission.id }, data: { intakeId: 'intake-1' } });
+  });
+
+  it('returns the linked intake after a retry without creating another or changing its dates', async () => {
+    tx.portalIntakeSubmission.findFirst.mockResolvedValue({ ...submission, intakeId: 'intake-1' });
+    const existing = { id: 'intake-1', deadlineDate: new Date('2026-09-22') };
+    tx.intake.findFirst.mockResolvedValue(existing);
+    await expect(service.convertPortalSubmission(user, submission.id, { officePlannedDate: '2026-10-01' })).resolves.toEqual(existing);
+    expect(tx.intake.findFirst).toHaveBeenCalledWith({ where: { id: 'intake-1', firmId: user.firmId } });
+    expect(tx.intake.create).not.toHaveBeenCalled();
+    expect(tx.portalIntakeSubmission.update).not.toHaveBeenCalled();
+  });
+
+  it.each([['foreign firm', null, NotFoundException], ['withdrawn', { ...submission, withdrawnByClient: true }, BadRequestException]])
+    ('rejects %s submissions before creating intake', async (_label, value, error) => {
+      tx.portalIntakeSubmission.findFirst.mockResolvedValue(value);
+      await expect(service.convertPortalSubmission(user, submission.id, {})).rejects.toThrow(error as any);
+      expect(tx.intake.create).not.toHaveBeenCalled();
+    });
+
+  it('propagates linking failure from the transaction instead of reporting a successful conversion', async () => {
+    tx.portalIntakeSubmission.update.mockRejectedValue(new Error('link failed'));
+    await expect(service.convertPortalSubmission(user, submission.id, {})).rejects.toThrow('link failed');
   });
 });

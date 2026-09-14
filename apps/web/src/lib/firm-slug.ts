@@ -35,6 +35,7 @@ export function buildFirmHandoffUrl(opts: {
   accessToken: string;
   refreshToken: string;
   nextPath?: string;
+  locale?: string | null;
 }): string {
   const origin = buildFirmAppOrigin({
     firmSlug: opts.firmSlug,
@@ -42,12 +43,13 @@ export function buildFirmHandoffUrl(opts: {
     protocol: opts.protocol,
     rootDomain: rootDomain(),
   });
-  const hash = new URLSearchParams({
+  const params = new URLSearchParams({
     access_token: opts.accessToken,
     refresh_token: opts.refreshToken,
     next: opts.nextPath ?? '/dashboard',
-  }).toString();
-  return `${origin}/handoff#${hash}`;
+  });
+  if (opts.locale === 'th' || opts.locale === 'en') params.set('locale', opts.locale);
+  return `${origin}/handoff#${params.toString()}`;
 }
 
 /**
@@ -71,6 +73,7 @@ export function redirectToFirmApp(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       nextPath,
+      locale: localStorage.getItem('samnuan_locale'),
     }),
   );
   return true;

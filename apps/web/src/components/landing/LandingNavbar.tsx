@@ -51,7 +51,7 @@ export function LandingNavbar() {
             <Link href="/login" className="lf-btn lf-btn--outline !h-9 !px-4 !text-xs">
               {t.nav.login}
             </Link>
-            <Link href="/login" className="lf-btn lf-btn--primary !h-9 !px-4 !text-xs">
+            <Link href="/register" className="lf-btn lf-btn--primary !h-9 !px-4 !text-xs">
               {t.nav.tryFree}
             </Link>
           </div>
@@ -91,7 +91,7 @@ export function LandingNavbar() {
                 {t.nav.login}
               </Link>
             </div>
-            <Link href="/login" onClick={close} className="lf-btn lf-btn--primary mt-2 w-full">
+            <Link href="/register" onClick={close} className="lf-btn lf-btn--primary mt-2 w-full">
               {t.nav.tryFree}
             </Link>
           </nav>
