@@ -22,6 +22,13 @@
     ],
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e1ede5ad-5766-4852-8fe2-bb9222bccdfc"
+      }
+    },
+    "owner": "pongpanot_s"
   }
 }
