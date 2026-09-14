@@ -8,10 +8,11 @@ import { FirmRole } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
-import { api, ApiError, ExpenseClaimSummary } from '@/lib/api';
+import { api, ApiError, ExpenseClaimSummary, CashAdvanceItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
@@ -30,6 +31,10 @@ export default function ReimbursementsPage() {
   const { token, user } = useAuth();
   const [claims, setClaims] = useState<ExpenseClaimSummary[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [advances, setAdvances] = useState<CashAdvanceItem[]>([]);
+  const [advanceForm, setAdvanceForm] = useState({ userId: '', amount: '', note: '' });
+  const [issuingAdvance, setIssuingAdvance] = useState(false);
+  const [advanceError, setAdvanceError] = useState('');
   const [filter, setFilter] = useState(() => {
     if (typeof window === 'undefined') return '';
     const status = new URLSearchParams(window.location.search).get('status') ?? '';
@@ -60,10 +65,12 @@ export default function ReimbursementsPage() {
         ...(requesterFilter ? { userId: requesterFilter } : {}),
       }),
       api.getTeamMembers(authToken).catch(() => [] as TeamMember[]),
+      api.listCashAdvances(authToken).catch(() => [] as CashAdvanceItem[]),
     ])
-      .then(([rows, team]) => {
+      .then(([rows, team, advanceRows]) => {
         setClaims(rows);
         setMembers(team);
+        setAdvances(advanceRows);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
@@ -83,6 +90,28 @@ export default function ReimbursementsPage() {
     await api.updateExpenseClaimStatus(authToken, id, status);
     setLoading(true);
     load();
+  };
+
+  const issueAdvance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const authToken = token ?? getStoredToken();
+    if (!authToken || !advanceForm.userId || !advanceForm.amount) return;
+    setIssuingAdvance(true);
+    setAdvanceError('');
+    try {
+      await api.issueCashAdvance(
+        authToken,
+        advanceForm.userId,
+        parseFloat(advanceForm.amount),
+        advanceForm.note || undefined,
+      );
+      setAdvanceForm({ userId: '', amount: '', note: '' });
+      load();
+    } catch (err) {
+      setAdvanceError(err instanceof ApiError ? err.message : d.reimbursements.loadFailed);
+    } finally {
+      setIssuingAdvance(false);
+    }
   };
 
   const downloadReceipt = async (expenseId: string, filename: string) => {
@@ -220,6 +249,77 @@ export default function ReimbursementsPage() {
             : fmt(d.reimbursements.description, { amount: pendingTotal.toLocaleString() })
         }
       />
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>{d.reimbursements.advancesTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={issueAdvance} className="grid gap-3 sm:grid-cols-[1fr_auto_1fr_auto]">
+            <select
+              required
+              value={advanceForm.userId}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, userId: e.target.value })}
+              className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+            >
+              <option value="">{d.reimbursements.advancesSelectMember}</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.firstName} {m.lastName}
+                </option>
+              ))}
+            </select>
+            <Input
+              required
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder={d.reimbursements.amount}
+              value={advanceForm.amount}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })}
+              className="w-32"
+            />
+            <Input
+              placeholder={d.reimbursements.advancesNote}
+              value={advanceForm.note}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, note: e.target.value })}
+            />
+            <Button type="submit" size="sm" disabled={issuingAdvance}>
+              {d.reimbursements.advancesIssue}
+            </Button>
+          </form>
+          {advanceError && <p className="text-sm text-destructive">{advanceError}</p>}
+
+          {advances.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{d.reimbursements.advancesEmpty}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{d.reimbursements.advancesSelectMember}</TableHead>
+                  <TableHead>{d.reimbursements.advancesIssued}</TableHead>
+                  <TableHead>{d.reimbursements.advancesRemaining}</TableHead>
+                  <TableHead>{d.reimbursements.advancesNote}</TableHead>
+                  <TableHead>{d.reimbursements.advancesIssuedOn}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {advances.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell>{a.user ? `${a.user.firstName} ${a.user.lastName}` : '—'}</TableCell>
+                    <TableCell>{formatCurrency(a.amount)}</TableCell>
+                    <TableCell className={cn(a.remaining === 0 && 'text-muted-foreground')}>
+                      {formatCurrency(a.remaining)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{a.note ?? '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(a.issuedAt)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="-mx-3 mb-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
         {FILTERS.map((s) => (

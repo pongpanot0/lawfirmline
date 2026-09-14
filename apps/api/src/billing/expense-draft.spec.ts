@@ -5,6 +5,7 @@ import { AuthUser, ExpenseStatus, FirmRole } from '@lawfirm/shared';
 import { BillingService } from './billing.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
+import { CashAdvanceService } from './cash-advance.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { FileStorageService } from '../common/services/file-storage.service';
@@ -43,6 +44,7 @@ describe('BillingService — drafted expenses', () => {
     }),
   } as any;
   const mockPettyCash = { deduct: jest.fn() };
+  const mockCashAdvance = { consume: jest.fn() };
   const mockLine = { isConfigured: jest.fn().mockReturnValue(false), pushTo: jest.fn() };
   const mockCaseAccess = {
     getCaseFilterForUser: jest.fn().mockReturnValue({}),
@@ -59,6 +61,7 @@ describe('BillingService — drafted expenses', () => {
         BillingService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PettyCashService, useValue: mockPettyCash },
+        { provide: CashAdvanceService, useValue: mockCashAdvance },
         { provide: CaseAccessService, useValue: mockCaseAccess },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('./uploads') } },
         { provide: LineMessagingService, useValue: mockLine },
@@ -321,5 +324,54 @@ describe('BillingService — drafted expenses', () => {
         { userId: 'lawyer-9' },
       ]),
     );
+  });
+
+  describe('createStandaloneExpense — paid from a cash advance', () => {
+    it('records the cost as already PAID and never opens a claim, once the advance covers it', async () => {
+      mockPrisma.expense.create.mockResolvedValue({ id: 'expense-1' });
+
+      await service.createStandaloneExpense(lawyer, {
+        amount: 300,
+        description: 'ค่าธรรมเนียมศาล',
+        paidFromAdvanceId: 'advance-1',
+      } as never);
+
+      expect(mockCashAdvance.consume).toHaveBeenCalledWith(mockPrisma, 'firm-1', 'user-1', 'advance-1', 300);
+      expect(mockPrisma.expense.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            paidFromAdvanceId: 'advance-1',
+            status: ExpenseStatus.PAID,
+          }),
+        }),
+      );
+    });
+
+    it('never creates the expense when the advance cannot cover it', async () => {
+      mockCashAdvance.consume.mockRejectedValue(new BadRequestException('เงินสำรองจ่ายคงเหลือไม่พอ'));
+
+      await expect(
+        service.createStandaloneExpense(lawyer, {
+          amount: 99999,
+          description: 'ค่าใช้จ่ายเกินวงเงิน',
+          paidFromAdvanceId: 'advance-1',
+        } as never),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.expense.create).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the normal draft flow when no advance is named', async () => {
+      mockPrisma.expense.create.mockResolvedValue({ id: 'expense-2' });
+
+      await service.createStandaloneExpense(lawyer, {
+        amount: 300,
+        description: 'ค่าถ่ายเอกสาร',
+      } as never);
+
+      expect(mockCashAdvance.consume).not.toHaveBeenCalled();
+      expect(mockPrisma.expense.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: ExpenseStatus.DRAFT }) }),
+      );
+    });
   });
 });
