@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { MfaService } from './mfa.service';
+import { SessionService } from './session.service';
 import { SaasModule } from '../saas/saas.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -16,7 +17,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, MfaService],
+  providers: [AuthService, JwtStrategy, MfaService, SessionService],
   exports: [AuthService],
 })
 export class AuthModule {}

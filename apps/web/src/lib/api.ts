@@ -784,6 +784,22 @@ export const api = {
   disableMfa: (token: string, password: string) =>
     request<{ success: boolean }>('/auth/mfa/disable', { method: 'POST', token, body: JSON.stringify({ password }) }),
 
+  logout: (refreshToken: string) =>
+    request<{ success: boolean }>('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }), refreshAuth: false }),
+
+  listSessions: (token: string) =>
+    request<import('@lawfirm/shared').SessionInfo[]>('/auth/sessions', { token }),
+
+  revokeSession: (token: string, id: string) =>
+    request<{ success: boolean }>(`/auth/sessions/${id}`, { method: 'DELETE', token }),
+
+  revokeOtherSessions: (token: string, refreshToken: string) =>
+    request<{ success: boolean }>('/auth/sessions/revoke-others', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ refreshToken }),
+    }),
+
   register: (data: Record<string, string>) =>
     request<import('@lawfirm/shared').LoginResponse>('/auth/register', {
       method: 'POST',

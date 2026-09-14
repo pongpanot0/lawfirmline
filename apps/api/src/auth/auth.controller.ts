@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
-import { AuthService } from './auth.service';
+import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { AuthService, RequestMeta } from './auth.service';
 import { LoginDto, RefreshTokenDto } from './dto/login.dto';
 import { RegisterDto, ForgotPasswordDto, ResetPasswordDto } from './dto/register.dto';
 import { VerifyMfaLoginDto, MfaCodeDto, DisableMfaDto } from './dto/mfa.dto';
@@ -16,13 +16,13 @@ export class AuthController {
   @Post('login')
   @SkipSubscription()
   login(@Body() dto: LoginDto, @Req() req: TenantRequest) {
-    return this.authService.login(dto, req.resolvedFirmId ?? undefined);
+    return this.authService.login(dto, req.resolvedFirmId ?? undefined, requestMeta(req));
   }
 
   @Post('register')
   @SkipSubscription()
   register(@Body() dto: RegisterDto, @Req() req: TenantRequest) {
-    return this.authService.register(dto, req.resolvedFirmId);
+    return this.authService.register(dto, req.resolvedFirmId, requestMeta(req));
   }
 
   @Post('forgot-password')
@@ -46,7 +46,7 @@ export class AuthController {
   @Post('mfa/verify')
   @SkipSubscription()
   verifyMfa(@Body() dto: VerifyMfaLoginDto, @Req() req: TenantRequest) {
-    return this.authService.verifyMfaLogin(dto.mfaToken, dto.code, req.resolvedFirmId ?? undefined);
+    return this.authService.verifyMfaLogin(dto.mfaToken, dto.code, req.resolvedFirmId ?? undefined, requestMeta(req));
   }
 
   @Post('mfa/enable/request')
@@ -76,4 +76,35 @@ export class AuthController {
   getMe(@CurrentUser() user: AuthUser) {
     return this.authService.getMe(user.id, user.firmId);
   }
+
+  @Post('logout')
+  @SkipSubscription()
+  logout(@Body() dto: RefreshTokenDto) {
+    return this.authService.logout(dto.refreshToken);
+  }
+
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  @SkipSubscription()
+  listSessions(@CurrentUser() user: AuthUser) {
+    return this.authService.listSessions(user.id);
+  }
+
+  @Delete('sessions/:id')
+  @UseGuards(JwtAuthGuard)
+  @SkipSubscription()
+  revokeSession(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.authService.revokeSession(user.id, id);
+  }
+
+  @Post('sessions/revoke-others')
+  @UseGuards(JwtAuthGuard)
+  @SkipSubscription()
+  revokeOtherSessions(@CurrentUser() user: AuthUser, @Body() dto: RefreshTokenDto) {
+    return this.authService.revokeOtherSessions(user.id, dto.refreshToken);
+  }
+}
+
+function requestMeta(req: TenantRequest): RequestMeta {
+  return { userAgent: req.headers['user-agent'], ip: req.ip };
 }

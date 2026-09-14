@@ -432,6 +432,25 @@ model MfaCode {
   @@index([userId, purpose])
 }
 
+/// One row per issued refresh token. Access tokens stay stateless (never
+/// checked against this table) — revocation takes effect the next time the
+/// client calls /auth/refresh, within JWT_EXPIRES_IN of a revoke.
+model Session {
+  id         String    @id @default(uuid())
+  userId     String
+  jti        String    @unique
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  revokedAt  DateTime?
+  expiresAt  DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 model User {
   id                    String    @id @default(uuid())
   email                 String    @unique
@@ -453,6 +472,7 @@ model User {
   updatedAt             DateTime  @updatedAt
 
   mfaCodes                   MfaCode[]
+  sessions                   Session[]
   firmMembers                FirmMember[]
   sentInvitations            Invitation[]              @relation("SentInvitations")
   sentPortalInvitations      ClientPortalInvite[]      @relation("SentPortalInvitations")
