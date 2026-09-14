@@ -64,6 +64,12 @@ jobs:
             aws ecr get-login-password --region ap-southeast-7 \
               | docker login --username AWS --password-stdin 905418334683.dkr.ecr.ap-southeast-7.amazonaws.com
             export IMAGE_TAG=${{ env.IMAGE_TAG }}
+            # Free disk before pulling — old tagged images accumulate and the
+            # t4g volume fills up (deploys were failing with ENOSPC). -a removes
+            # every image not used by a running container; safe mid-deploy.
+            docker image prune -af
+            docker builder prune -af
+            df -h /
             # Keep IMAGE_TAG in .env so next manual compose uses the same tag
             if grep -q '^IMAGE_TAG=' .env; then
               sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${IMAGE_TAG}/" .env
