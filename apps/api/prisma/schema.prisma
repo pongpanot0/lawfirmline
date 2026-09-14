@@ -443,7 +443,8 @@ model User {
   submittedExpenseClaims     ExpenseClaim[]            @relation("ExpenseClaimSubmitter")
   reviewedExpenseClaims      ExpenseClaim[]            @relation("ExpenseClaimReviewer")
   paidExpenseClaims          ExpenseClaim[]            @relation("ExpenseClaimPayer")
-  knowledge                  CaseKnowledge[]
+  knowledge                  CaseKnowledge[]           @relation("CaseKnowledgeCreator")
+  reviewedKnowledge          CaseKnowledge[]           @relation("CaseKnowledgeReviewer")
   intakeAttachments          IntakeAttachment[]
   intakePrecedentAnalyses    IntakePrecedentAnalysis[]
   caseActivities             CaseActivity[]
@@ -879,10 +880,11 @@ model Document {
   case            Case?                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
   intake          Intake?                  @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   uploadedBy      User                     @relation(fields: [uploadedById], references: [id])
-  versions        DocumentVersion[]
-  knowledge       CaseKnowledge[]
-  dateSuggestions DocumentDateSuggestion[]
-  publications    DocumentPublication[]
+  versions           DocumentVersion[]
+  knowledge          CaseKnowledge[]
+  knowledgeCitations KnowledgeCitation[]
+  dateSuggestions    DocumentDateSuggestion[]
+  publications       DocumentPublication[]
 
   @@index([intakeId])
 }
@@ -1078,18 +1080,52 @@ model TravelLog {
 }
 
 model CaseKnowledge {
-  id          String            @id @default(uuid())
-  caseId      String
-  documentId  String?
-  title       String
-  summary     String            @db.Text
-  category    KnowledgeCategory @default(SUMMARY)
-  createdById String
-  createdAt   DateTime          @default(now())
+  id           String            @id @default(uuid())
+  caseId       String
+  documentId   String?
+  title        String
+  summary      String            @db.Text
+  category     KnowledgeCategory @default(SUMMARY)
+  createdById  String
+  createdAt    DateTime          @default(now())
+  /// Set once a lawyer has checked the citations against the source and
+  /// confirmed the summary is accurate — never set by the analysis itself.
+  reviewedById String?
+  reviewedAt   DateTime?
+  /// Contradictions or gaps the AI noticed in the source documents, e.g.
+  /// [{ "type": "CONFLICT" | "MISSING", "description": "..." }]. Advisory
+  /// only — never blocks saving or reading the analysis.
+  flags        Json?
 
-  case      Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
-  createdBy User      @relation(fields: [createdById], references: [id])
+  case       Case                @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  document   Document?           @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdBy  User                @relation("CaseKnowledgeCreator", fields: [createdById], references: [id])
+  reviewedBy User?               @relation("CaseKnowledgeReviewer", fields: [reviewedById], references: [id])
+  citations  KnowledgeCitation[]
+}
+
+/// A single fact from an AI analysis, pinned to the exact document, version
+/// and (when available) page it came from, with the verbatim sentence it was
+/// read from. Only ever created after the quote is confirmed to appear in the
+/// extracted document text — a citation that cannot be found in the source is
+/// dropped rather than stored, so every row here is checkable by a lawyer.
+model KnowledgeCitation {
+  id              String   @id @default(uuid())
+  knowledgeId     String
+  documentId      String
+  documentVersion Int
+  page            Int?
+  /// The fact in the lawyer's own reading order, e.g. "ค่าเสียหายที่เรียกร้อง 500,000 บาท".
+  statement       String   @db.Text
+  /// The verbatim sentence `statement` was read from — always checked to
+  /// appear in the extracted document text before this row is created.
+  quote           String   @db.Text
+  createdAt       DateTime @default(now())
+
+  knowledge CaseKnowledge @relation(fields: [knowledgeId], references: [id], onDelete: Cascade)
+  document  Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeId])
 }
 
 model DocumentDateSuggestion {

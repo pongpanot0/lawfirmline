@@ -13,6 +13,8 @@ describe('DocumentIntelligenceService — date extraction', () => {
   const mockPrisma = {
     case: { findUnique: jest.fn() },
     documentDateSuggestion: { create: jest.fn() },
+    document: { findUnique: jest.fn() },
+    caseKnowledge: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
   };
   const mockConfig = { get: jest.fn() };
 
@@ -262,6 +264,191 @@ describe('DocumentIntelligenceService — date extraction', () => {
       expect(body).not.toContain('1234567890123');
       expect(body).not.toContain('081-234-5678');
       expect(body).toContain('2026-03-30');
+    });
+  });
+
+  describe('extractFactsWithAI', () => {
+    it('returns no facts or flags when OPENAI_API_KEY is not set', async () => {
+      mockConfig.get.mockReturnValue(undefined);
+      expect(await service.extractFactsWithAI('[หน้า 1]\nข้อความ')).toEqual({ facts: [], flags: [] });
+    });
+
+    it('keeps a fact whose quote appears verbatim in the source, with its page', async () => {
+      mockConfig.get.mockReturnValue('test-key');
+      const sourceText = '[หน้า 3]\nจำเลยรับสารภาพว่าได้กระทำผิดจริง';
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                facts: [{ statement: 'จำเลยรับสารภาพ', page: 3, quote: 'จำเลยรับสารภาพว่าได้กระทำผิดจริง' }],
+                flags: [],
+              }),
+            },
+          }],
+        }),
+      } as Response);
+
+      const result = await service.extractFactsWithAI(sourceText);
+
+      expect(result).toEqual({
+        facts: [{ statement: 'จำเลยรับสารภาพ', page: 3, quote: 'จำเลยรับสารภาพว่าได้กระทำผิดจริง' }],
+        flags: [],
+      });
+    });
+
+    it('drops a fact whose quote cannot be found in the source — never invents a citation', async () => {
+      mockConfig.get.mockReturnValue('test-key');
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                facts: [{ statement: 'ข้ออ้างที่ไม่มีในเอกสาร', page: 1, quote: 'ข้อความที่ไม่เคยปรากฏในไฟล์นี้เลย' }],
+                flags: [],
+              }),
+            },
+          }],
+        }),
+      } as Response);
+
+      const result = await service.extractFactsWithAI('[หน้า 1]\nเนื้อหาจริงในเอกสาร');
+      expect(result.facts).toEqual([]);
+    });
+
+    it('tolerates re-wrapped whitespace in the quote', async () => {
+      mockConfig.get.mockReturnValue('test-key');
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                facts: [{ statement: 'ข้อเท็จจริง', page: null, quote: 'บรรทัดหนึ่ง   บรรทัดสอง' }],
+                flags: [],
+              }),
+            },
+          }],
+        }),
+      } as Response);
+
+      const result = await service.extractFactsWithAI('บรรทัดหนึ่ง\nบรรทัดสอง');
+      expect(result.facts).toHaveLength(1);
+    });
+
+    it('keeps only well-formed flags', async () => {
+      mockConfig.get.mockReturnValue('test-key');
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                facts: [],
+                flags: [
+                  { type: 'CONFLICT', description: 'วันที่ในสองเอกสารไม่ตรงกัน' },
+                  { type: 'NOT_A_REAL_TYPE', description: 'should be dropped' },
+                  { type: 'MISSING', description: '' },
+                ],
+              }),
+            },
+          }],
+        }),
+      } as Response);
+
+      const result = await service.extractFactsWithAI('text');
+      expect(result.flags).toEqual([{ type: 'CONFLICT', description: 'วันที่ในสองเอกสารไม่ตรงกัน' }]);
+    });
+  });
+
+  describe('analyzeDocument — citations', () => {
+    beforeEach(() => {
+      mockPrisma.case.findUnique.mockResolvedValue({ id: 'case-1' });
+      jest.spyOn(service, 'extractText').mockResolvedValue('[หน้า 1]\nข้อเท็จจริงในเอกสาร');
+      jest.spyOn(service, 'summarizeWithAI').mockResolvedValue('สรุปผล');
+    });
+
+    it('attaches verified citations pinned to the document version when a documentId is given', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue({ version: 2 });
+      jest.spyOn(service, 'extractFactsWithAI').mockResolvedValue({
+        facts: [{ statement: 'ข้อเท็จจริง', page: 1, quote: 'ข้อเท็จจริงในเอกสาร' }],
+        flags: [{ type: 'MISSING', description: 'ไม่มีลายเซ็นผู้รับรอง' }],
+      });
+      mockPrisma.caseKnowledge.create.mockResolvedValue({ id: 'k-1' });
+
+      await service.analyzeDocument(Buffer.from('x'), 'text/plain', 'case-1', 'user-1', 'doc-1');
+
+      expect(mockPrisma.caseKnowledge.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          flags: [{ type: 'MISSING', description: 'ไม่มีลายเซ็นผู้รับรอง' }],
+          citations: {
+            create: [{
+              documentId: 'doc-1',
+              documentVersion: 2,
+              page: 1,
+              statement: 'ข้อเท็จจริง',
+              quote: 'ข้อเท็จจริงในเอกสาร',
+            }],
+          },
+        }),
+      }));
+    });
+
+    it('skips fact extraction entirely for an ad-hoc analysis with no documentId', async () => {
+      const extractFacts = jest.spyOn(service, 'extractFactsWithAI');
+      mockPrisma.caseKnowledge.create.mockResolvedValue({ id: 'k-1' });
+
+      await service.analyzeDocument(Buffer.from('x'), 'text/plain', 'case-1', 'user-1');
+
+      expect(extractFacts).not.toHaveBeenCalled();
+      expect(mockPrisma.document.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.caseKnowledge.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ citations: undefined, flags: undefined }),
+      }));
+    });
+
+    it('keeps the summary when fact extraction fails', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue({ version: 1 });
+      jest.spyOn(service, 'extractFactsWithAI').mockRejectedValue(new Error('boom'));
+      mockPrisma.caseKnowledge.create.mockResolvedValue({ id: 'k-1' });
+
+      const result = await service.analyzeDocument(Buffer.from('x'), 'text/plain', 'case-1', 'user-1', 'doc-1');
+
+      expect(result).toEqual({ id: 'k-1' });
+      expect(mockPrisma.caseKnowledge.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ citations: undefined, flags: undefined }),
+      }));
+    });
+  });
+
+  describe('reviewKnowledge', () => {
+    it('throws NotFoundException when the knowledge does not belong to this case', async () => {
+      mockPrisma.caseKnowledge.findFirst.mockResolvedValue(null);
+      await expect(service.reviewKnowledge('case-1', 'k-1', 'user-1')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.caseKnowledge.update).not.toHaveBeenCalled();
+    });
+
+    it('marks the analysis reviewed without touching the summary when none is given', async () => {
+      mockPrisma.caseKnowledge.findFirst.mockResolvedValue({ id: 'k-1' });
+      mockPrisma.caseKnowledge.update.mockResolvedValue({ id: 'k-1', reviewedById: 'user-1' });
+
+      await service.reviewKnowledge('case-1', 'k-1', 'user-1');
+
+      const data = mockPrisma.caseKnowledge.update.mock.calls[0][0].data;
+      expect(data.reviewedById).toBe('user-1');
+      expect(data.reviewedAt).toBeInstanceOf(Date);
+      expect(data.summary).toBeUndefined();
+    });
+
+    it('lets the lawyer correct the summary as part of approving it', async () => {
+      mockPrisma.caseKnowledge.findFirst.mockResolvedValue({ id: 'k-1' });
+      mockPrisma.caseKnowledge.update.mockResolvedValue({ id: 'k-1' });
+
+      await service.reviewKnowledge('case-1', 'k-1', 'user-1', '  สรุปที่แก้ไขแล้ว  ');
+
+      expect(mockPrisma.caseKnowledge.update.mock.calls[0][0].data.summary).toBe('สรุปที่แก้ไขแล้ว');
     });
   });
 

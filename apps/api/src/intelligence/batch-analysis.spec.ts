@@ -164,7 +164,7 @@ describe('case knowledge visibility', () => {
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { case: caseFilter, caseId: 'requested-case' },
       include: expect.objectContaining({
-        document: { select: { id: true, filename: true } },
+        document: { select: { id: true, filename: true, version: true } },
       }),
     }));
   });

@@ -1,10 +1,12 @@
 import { BatchAnalysisDto } from './dto/batch-analysis.dto';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ClassifyChecklistDto } from './dto/classify-checklist.dto';
+import { ReviewKnowledgeDto } from './dto/review-knowledge.dto';
 import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Query,
   UseGuards,
@@ -39,6 +41,17 @@ export class IntelligenceController {
   @UseGuards(CaseAccessGuard)
   findCaseKnowledge(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
     return this.intelligenceService.findKnowledge(this.caseAccess.getCaseFilterForUser(user), caseId);
+  }
+
+  @Patch('cases/:caseId/knowledge/:id')
+  @UseGuards(CaseAccessGuard)
+  reviewKnowledge(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('id') id: string,
+    @Body() dto: ReviewKnowledgeDto,
+  ) {
+    return this.intelligenceService.reviewKnowledge(caseId, id, user.id, dto.summary);
   }
 
   @Get('knowledge')
