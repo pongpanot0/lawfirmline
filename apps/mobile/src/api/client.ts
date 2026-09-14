@@ -5,8 +5,10 @@ import * as SecureStore from 'expo-secure-store';
  * (single-flight so parallel queries don't race the refresh), and throws
  * an ApiError the screens can show as-is.
  */
+// Defaults to the production API; set EXPO_PUBLIC_API_URL (e.g. to
+// http://<lan-ip>:3001) when developing against a local backend.
 export const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
+  process.env.EXPO_PUBLIC_API_URL ?? 'https://api.samnuan.com';
 
 const ACCESS_KEY = 'lexflow.accessToken';
 const REFRESH_KEY = 'lexflow.refreshToken';

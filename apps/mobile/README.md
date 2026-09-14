@@ -15,8 +15,8 @@ EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3001 pnpm start
 ```
 
 Open in Expo Go (scan the QR) or an iOS simulator (`pnpm ios`).
-`EXPO_PUBLIC_API_URL` defaults to `http://localhost:3001`, which only works on a simulator —
-a physical phone needs your machine's LAN IP.
+`EXPO_PUBLIC_API_URL` defaults to `https://api.samnuan.com` (production). Set it to
+your machine's LAN IP to develop against a local backend.
 
 ## What's here (Phase 1)
 
