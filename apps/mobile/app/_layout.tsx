@@ -2,12 +2,16 @@ import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
+import { useFonts, Anuphan_600SemiBold, Anuphan_700Bold } from '@expo-google-fonts/anuphan';
 import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { AuthProvider, useAuth } from '@/api/auth';
+import { registerForPush } from '@/api/push';
+import { LockGate } from '@/components/LockGate';
 import { Loading } from '@/components/ui';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 // Cache-first everywhere: render what we have instantly, refetch behind it.
 // gcTime must outlive a court day offline, hence 7 days.
@@ -23,6 +27,15 @@ const queryClient = new QueryClient({
 
 const persister = createAsyncStoragePersister({ storage: AsyncStorage });
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { ready, user } = useAuth();
   const segments = useSegments();
@@ -35,11 +48,28 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     else if (user && inAuthGroup) router.replace('/(tabs)');
   }, [ready, user, segments, router]);
 
+  // Register the device for push once a session exists.
+  useEffect(() => {
+    if (user) registerForPush();
+  }, [user?.id]);
+
+  // A tapped push carries the in-app route it is about, e.g. /court-day/<id>.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const url = response.notification.request.content.data?.url;
+      if (typeof url === 'string' && url.startsWith('/')) router.push(url as never);
+    });
+    return () => sub.remove();
+  }, [router]);
+
   if (!ready) return <Loading />;
   return <>{children}</>;
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({ Anuphan_600SemiBold, Anuphan_700Bold });
+  if (!fontsLoaded) return <Loading />;
+
   return (
     <PersistQueryClientProvider
       client={queryClient}
@@ -47,23 +77,26 @@ export default function RootLayout() {
     >
       <AuthProvider>
         <AuthGate>
-          <StatusBar style="dark" />
-          <Stack
-            screenOptions={{
-              headerStyle: { backgroundColor: colors.bg },
-              headerTintColor: colors.ink,
-              headerTitleStyle: { fontWeight: '700' },
-              contentStyle: { backgroundColor: colors.bg },
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-            <Stack.Screen name="case/[id]" options={{ title: 'คดี' }} />
-            <Stack.Screen
-              name="court-day/[eventId]"
-              options={{ title: 'Court Day', headerShown: false }}
-            />
-          </Stack>
+          <LockGate>
+            <StatusBar style="dark" />
+            <Stack
+              screenOptions={{
+                headerStyle: { backgroundColor: colors.bg },
+                headerTintColor: colors.ink,
+                headerTitleStyle: { fontFamily: fonts.bold },
+                contentStyle: { backgroundColor: colors.bg },
+              }}
+            >
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+              <Stack.Screen name="case/[id]" options={{ title: 'คดี' }} />
+              <Stack.Screen name="notifications" options={{ title: 'การแจ้งเตือน' }} />
+              <Stack.Screen
+                name="court-day/[eventId]"
+                options={{ title: 'Court Day', headerShown: false }}
+              />
+            </Stack>
+          </LockGate>
         </AuthGate>
       </AuthProvider>
     </PersistQueryClientProvider>

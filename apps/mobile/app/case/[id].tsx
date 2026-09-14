@@ -12,7 +12,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Check, FileText } from 'lucide-react-native';
 import { api } from '@/api/client';
 import { useCase, useCaseTasks, useToggleTask } from '@/api/hooks';
-import type { CalendarEventItem } from '@/api/types';
+import { ReassignSheet } from '@/components/ReassignSheet';
+import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
   Card,
   EmptyNote,
@@ -57,6 +58,7 @@ export default function CaseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [tab, setTab] = useState<TabName>('ภาพรวม');
+  const [reassigning, setReassigning] = useState<TaskItem | null>(null);
 
   const caseQuery = useCase(id);
   const tasks = useCaseTasks(id);
@@ -206,7 +208,11 @@ export default function CaseDetailScreen() {
                 return (
                   <View key={task.id}>
                     {index > 0 && <View style={styles.divider} />}
-                    <View style={styles.listRow}>
+                    <Pressable
+                      style={styles.listRow}
+                      onLongPress={() => !done && setReassigning({ ...task, caseId: id })}
+                      delayLongPress={350}
+                    >
                       <Pressable
                         hitSlop={10}
                         onPress={() => toggle.mutate({ task: { ...task, caseId: id }, done: !done })}
@@ -221,18 +227,19 @@ export default function CaseDetailScreen() {
                         >
                           {task.title}
                         </Text>
-                        {task.assignee ? (
-                          <Text style={styles.rowFaint}>
-                            {task.assignee.firstName} {task.assignee.lastName}
-                          </Text>
-                        ) : null}
+                        <Text style={styles.rowFaint}>
+                          {task.assignee
+                            ? `${task.assignee.firstName} ${task.assignee.lastName}`
+                            : 'ยังไม่มีผู้รับผิดชอบ'}
+                          {!done ? ' · กดค้างเพื่อมอบหมาย' : ''}
+                        </Text>
                       </View>
                       {task.dueDate && !done ? (
                         <Tag tone={new Date(task.dueDate) < new Date() ? 'due' : 'plain'}>
                           {thDate(task.dueDate)}
                         </Tag>
                       ) : null}
-                    </View>
+                    </Pressable>
                   </View>
                 );
               })
@@ -269,6 +276,7 @@ export default function CaseDetailScreen() {
           </Card>
         ) : null}
       </ScrollView>
+      <ReassignSheet caseId={id} task={reassigning} onClose={() => setReassigning(null)} />
     </>
   );
 }

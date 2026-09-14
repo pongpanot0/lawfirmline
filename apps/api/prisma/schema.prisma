@@ -466,6 +466,23 @@ model User {
   reviewedDateSuggestions    DocumentDateSuggestion[]  @relation("DateSuggestionReviewer")
   dailyDigestLogs            DailyDigestLog[]
   assignedEvents             CalendarEvent[]           @relation("EventAssignee")
+  deviceTokens               DeviceToken[]
+}
+
+/// A mobile device's Expo push token. One row per device; a token moves to
+/// whoever logged in on that device last, so a shared iPad never pushes a
+/// previous user's cases.
+model DeviceToken {
+  id         String   @id @default(uuid())
+  userId     String
+  token      String   @unique
+  platform   String
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model CaseType {

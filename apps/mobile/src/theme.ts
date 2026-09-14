@@ -26,6 +26,15 @@ export const colors = {
   nightMuted: '#7E8AA0',
 } as const;
 
+/**
+ * Anuphan carries headings and numbers (the mockups' display face); body text
+ * stays on the system font, which renders Thai well on both platforms.
+ */
+export const fonts = {
+  semibold: 'Anuphan_600SemiBold',
+  bold: 'Anuphan_700Bold',
+} as const;
+
 export const radius = { card: 12, pill: 999, button: 10 } as const;
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 

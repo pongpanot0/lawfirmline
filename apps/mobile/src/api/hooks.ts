@@ -108,6 +108,62 @@ export function useToggleTask() {
   });
 }
 
+/** Action Center: everything waiting on someone — the app's notification feed. */
+export interface ActionItem {
+  id: string;
+  kind: string;
+  title: string;
+  detail: string | null;
+  caseRef: string | null;
+  owner: string | null;
+  dueAt: string | null;
+  url: string;
+}
+
+export function useActions() {
+  return useQuery({
+    queryKey: ['actions'],
+    queryFn: () => api<{ items: ActionItem[]; limited: boolean }>('/agenda/actions'),
+  });
+}
+
+export interface Lawyer {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+export function useLawyers() {
+  return useQuery({
+    queryKey: ['lawyers'],
+    queryFn: () => api<Lawyer[]>('/users/lawyers'),
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useReassignTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      caseId,
+      taskId,
+      assigneeId,
+    }: {
+      caseId: string;
+      taskId: string;
+      assigneeId: string;
+    }) =>
+      api(`/cases/${caseId}/tasks/${taskId}/reassign`, {
+        method: 'PATCH',
+        body: { assigneeId },
+      }),
+    onSettled: (_data, _error, { caseId }) => {
+      queryClient.invalidateQueries({ queryKey: ['case-tasks', caseId] });
+      queryClient.invalidateQueries({ queryKey: ['workload'] });
+    },
+  });
+}
+
 export function useWorkload() {
   return useQuery({
     queryKey: ['workload'],

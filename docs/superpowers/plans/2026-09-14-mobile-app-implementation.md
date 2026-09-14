@@ -49,11 +49,11 @@ types. Web (`apps/web`) stays the surface for admin/setup work.
 
 - [x] Scaffold `apps/mobile` (Expo, TS, ESLint config from repo), wire pnpm workspace + CI
 - [x] API client generated/typed from `packages/shared`; auth flow (login, refresh, multi-firm switch)
-- [ ] Secure storage + biometric app lock
+- [x] Secure storage + biometric app lock (Face ID/passcode gate, re-lock after 1 min in background)
 - [x] TanStack Query + AsyncStorage persistence (MMKV requires a dev build; revisit); offline mutation queue still TODO
-- [ ] Push notification plumbing (B1, B2) end-to-end on dev build
-- [ ] Design tokens: navy `#182B49`, brass `#A67C2E`, semantic green/red; fonts Anuphan + IBM Plex Sans Thai; icons **Lucide** (`lucide-react-native`); large touch targets (min 44pt)
-- [ ] TH/EN + Buddhist-era date utils; camera + file upload helper (documents storage)
+- [x] Push notification plumbing (B1 device-token API + B2 push in reminder scheduler; delivery needs a dev build — Expo Go dropped remote push)
+- [x] Design tokens: navy `#182B49`, brass `#A67C2E`, semantic green/red; fonts Anuphan + IBM Plex Sans Thai; icons **Lucide** (`lucide-react-native`); large touch targets (min 44pt)
+- [~] TH-only + Buddhist-era date utils done; camera + file upload helper (documents storage)
 
 ### Phase 1 — Lawyer's day (MVP release)
 
@@ -62,8 +62,8 @@ types. Web (`apps/web`) stays the surface for admin/setup work.
 - [x] **Cases** — list with search/filter (Own Ref, status, Case Owner); detail with 4 tabs: overview / hearings / tasks / documents
 - [x] **Calendar + deadlines** — month/day views, court + deadline merge, Outlook sync indicator
 - [x] **Tasks** (optimistic tick; assign/reminders TODO) — my tasks, optimistic tick, assign, due reminders
-- [ ] **Notifications center** — in-app list + push deep links
-- [x] **Team Workload dashboard** (B3 endpoint shipped; inline reassign TODO) — per-person load bars, overload flags, tap-through to person's task list, reassign inline
+- [x] **Notifications center** — Action Center feed (/agenda/actions) + bell badge + push deep links
+- [x] **Team Workload dashboard** (B3 shipped; reassign via long-press on case task rows) — per-person load bars, overload flags, tap-through to person's task list, reassign inline
 - [ ] QA pass with `josh-qa`-style checklist; release TestFlight/internal track
 
 ### Phase 2 — Documents, clients, money

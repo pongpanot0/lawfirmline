@@ -3,6 +3,7 @@ import { ReminderScheduler } from './reminder.scheduler';
 import { PrismaService } from '../prisma/prisma.service';
 import { LineMessagingService } from './line-messaging.service';
 import { LineLinkService } from './line-link.service';
+import { PushService } from './push.service';
 
 const NOW = new Date('2026-09-07T03:00:00Z');
 
@@ -14,6 +15,7 @@ describe('ReminderScheduler', () => {
   };
   const mockLine = { sendText: jest.fn().mockResolvedValue(true) };
   const mockLink = { getLineUserIdsForEvent: jest.fn().mockResolvedValue(['L1']) };
+  const mockPush = { sendToUsers: jest.fn().mockResolvedValue(false) };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -22,6 +24,7 @@ describe('ReminderScheduler', () => {
     mockPrisma.reminderLog.create.mockResolvedValue({});
     mockLine.sendText.mockResolvedValue(true);
     mockLink.getLineUserIdsForEvent.mockResolvedValue(['L1']);
+    mockPush.sendToUsers.mockResolvedValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -29,6 +32,7 @@ describe('ReminderScheduler', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: LineMessagingService, useValue: mockLine },
         { provide: LineLinkService, useValue: mockLink },
+        { provide: PushService, useValue: mockPush },
       ],
     }).compile();
     scheduler = module.get(ReminderScheduler);

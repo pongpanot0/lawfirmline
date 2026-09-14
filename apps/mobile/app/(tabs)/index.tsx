@@ -8,9 +8,9 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MapPin } from 'lucide-react-native';
+import { Bell, MapPin } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
-import { useDashboardStats, useMyDay } from '@/api/hooks';
+import { useActions, useDashboardStats, useMyDay } from '@/api/hooks';
 import type { AgendaItem } from '@/api/types';
 import {
   Card,
@@ -22,7 +22,7 @@ import {
   TagTone,
 } from '@/components/ui';
 import { thDateLong, thTime } from '@/format';
-import { colors, spacing } from '@/theme';
+import { colors, fonts, spacing } from '@/theme';
 
 const KIND_LABEL: Record<string, { label: string; tone: TagTone }> = {
   COURT_DATE: { label: 'นัดศาล', tone: 'court' },
@@ -68,6 +68,8 @@ export default function MyDayScreen() {
   const router = useRouter();
   const myDay = useMyDay();
   const stats = useDashboardStats();
+  const actions = useActions();
+  const pendingActions = actions.data?.items.length ?? 0;
 
   const openItem = (item: AgendaItem) => {
     if (item.kind === 'COURT_DATE') router.push(`/court-day/${item.entityId}`);
@@ -93,8 +95,26 @@ export default function MyDayScreen() {
         />
       }
     >
-      <Text style={styles.hello}>สวัสดี คุณ{user?.firstName ?? ''}</Text>
-      <Text style={styles.date}>{thDateLong(new Date())}</Text>
+      <View style={styles.headerRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.hello}>สวัสดี คุณ{user?.firstName ?? ''}</Text>
+          <Text style={styles.date}>{thDateLong(new Date())}</Text>
+        </View>
+        <Pressable
+          style={styles.bell}
+          hitSlop={8}
+          onPress={() => router.push('/notifications')}
+        >
+          <Bell size={20} color={colors.ink} />
+          {pendingActions > 0 ? (
+            <View style={styles.bellBadge}>
+              <Text style={styles.bellBadgeText}>
+                {pendingActions > 99 ? '99+' : pendingActions}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
 
       <View style={styles.statRow}>
         <StatCard label="นัดวันนี้" value={courtToday.length} />
@@ -175,7 +195,31 @@ export default function MyDayScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  hello: { fontSize: 24, fontWeight: '700', color: colors.ink },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  bell: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.soft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 0,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 9,
+    backgroundColor: colors.warn,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: colors.bg,
+  },
+  bellBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  hello: { fontSize: 24, fontFamily: fonts.bold, color: colors.ink },
   date: { fontSize: 13, color: colors.muted, marginTop: 2 },
   statRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
   agendaRow: {
