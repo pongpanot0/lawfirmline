@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as sgMail from '@sendgrid/mail';
 import { maskEmail } from '@lawfirm/shared';
+
+const RESEND_API_URL = 'https://api.resend.com/emails';
 
 function escapeHtml(value: string): string {
   return value
@@ -64,17 +65,7 @@ export class EmailService {
   private readonly apiKeyConfigured: boolean;
 
   constructor(private config: ConfigService) {
-    const skipTlsVerify = this.config.get<string>('SENDGRID_SKIP_TLS_VERIFY') === 'true';
-    if (skipTlsVerify) {
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-      this.logger.warn('SendGrid TLS verification disabled (SENDGRID_SKIP_TLS_VERIFY) — dev only');
-    }
-
-    const apiKey = this.config.get<string>('SENDGRID_API_KEY')?.trim();
-    this.apiKeyConfigured = Boolean(apiKey);
-    if (apiKey) {
-      sgMail.setApiKey(apiKey);
-    }
+    this.apiKeyConfigured = Boolean(this.getApiKey());
   }
 
   isConfigured(): boolean {
@@ -93,6 +84,10 @@ export class EmailService {
     return corsOrigin.split(',')[0].trim().replace(/\/$/, '');
   }
 
+  private getApiKey(): string | undefined {
+    return this.config.get<string>('RESEND_API_KEY')?.trim() || undefined;
+  }
+
   private getFromEmail(): string | undefined {
     return this.config.get<string>('SENDGRID_FROM_EMAIL')?.trim() || undefined;
   }
@@ -101,12 +96,35 @@ export class EmailService {
     return this.config.get<string>('SENDGRID_FROM_NAME')?.trim() || 'LexFlow';
   }
 
+  /** Every outgoing email goes through here — the one place that talks to Resend. */
+  private async send(message: { to: string; subject: string; text: string; html: string }): Promise<void> {
+    const res = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.getApiKey()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `${this.getFromName()} <${this.getFromEmail()}>`,
+        to: message.to,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        `Resend error ${res.status}: ${(body as { message?: string }).message ?? 'unknown error'}`,
+      );
+    }
+  }
+
   async sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
     if (!this.isConfigured()) return;
     const safeUrl = escapeHtml(resetUrl);
-    await sgMail.send({
+    await this.send({
       to,
-      from: { email: this.getFromEmail()!, name: this.getFromName() },
       subject: 'ตั้งรหัสผ่านใหม่ / Reset your password — Samnuan',
       text: `ตั้งรหัสผ่านใหม่ / Reset your password\n\n${resetUrl}\n\nลิงก์ใช้ได้ 1 ชั่วโมง หากคุณไม่ได้ขอเปลี่ยนรหัสผ่าน ไม่ต้องดำเนินการใด ๆ\nThis link expires in one hour. If you did not request this, you can ignore this email.`,
       html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:auto;line-height:1.7"><h1>Samnuan</h1><h2>ตั้งรหัสผ่านใหม่ / Reset your password</h2><p><a href="${safeUrl}">ตั้งรหัสผ่านใหม่ / Reset password</a></p><p>ลิงก์ใช้ได้ 1 ชั่วโมง หากคุณไม่ได้ขอเปลี่ยนรหัสผ่าน ไม่ต้องดำเนินการใด ๆ</p><p>This link expires in one hour. If you did not request this, you can ignore this email.</p></div>`,
@@ -117,12 +135,11 @@ export class EmailService {
   async sendInvitationEmail(params: InvitationEmailParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `SendGrid not configured (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL); skipped email to ${params.to}`,
+        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped email to ${params.to}`,
       );
       return;
     }
 
-    const fromEmail = this.getFromEmail()!;
     const expiresLabel = params.expiresAt.toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'short',
@@ -152,21 +169,15 @@ export class EmailService {
     `.trim();
 
     try {
-      await sgMail.send({
+      await this.send({
         to: params.to,
-        from: { email: fromEmail, name: this.getFromName() },
         subject: `Invitation to join ${params.firmName} on LexFlow`,
         text,
         html,
       });
       this.logger.log(`Invitation email sent to ${maskEmail(params.to)}`);
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'object' && error && 'response' in error
-            ? JSON.stringify((error as { response?: { body?: unknown } }).response?.body)
-            : 'Unknown SendGrid error';
+      const message = error instanceof Error ? error.message : 'Unknown email error';
       this.logger.error(`Failed to send invitation email to ${maskEmail(params.to)}: ${message}`);
       throw error;
     }
@@ -175,12 +186,11 @@ export class EmailService {
   async sendClientPortalMagicLinkEmail(params: ClientPortalMagicLinkParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `SendGrid not configured (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL); skipped portal login email to ${params.to}`,
+        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped portal login email to ${params.to}`,
       );
       return;
     }
 
-    const fromEmail = this.getFromEmail()!;
     const expiresLabel = params.expiresAt.toLocaleTimeString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
@@ -208,21 +218,15 @@ export class EmailService {
     `.trim();
 
     try {
-      await sgMail.send({
+      await this.send({
         to: params.to,
-        from: { email: fromEmail, name: this.getFromName() },
         subject: `Sign in to your ${params.firmName} client portal`,
         text,
         html,
       });
       this.logger.log(`Client portal magic link email sent to ${maskEmail(params.to)}`);
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'object' && error && 'response' in error
-            ? JSON.stringify((error as { response?: { body?: unknown } }).response?.body)
-            : 'Unknown SendGrid error';
+      const message = error instanceof Error ? error.message : 'Unknown email error';
       this.logger.error(
         `Failed to send client portal magic link email to ${maskEmail(params.to)}: ${message}`,
       );
@@ -233,12 +237,11 @@ export class EmailService {
   async sendClientPortalInviteEmail(params: ClientPortalInviteEmailParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `SendGrid not configured (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL); skipped portal invite email to ${params.to}`,
+        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped portal invite email to ${params.to}`,
       );
       return;
     }
 
-    const fromEmail = this.getFromEmail()!;
     const expiresLabel = params.expiresAt.toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'short',
@@ -267,21 +270,15 @@ export class EmailService {
     `.trim();
 
     try {
-      await sgMail.send({
+      await this.send({
         to: params.to,
-        from: { email: fromEmail, name: this.getFromName() },
         subject: `You're invited to the ${params.firmName} client portal`,
         text,
         html,
       });
       this.logger.log(`Client portal invite email sent to ${maskEmail(params.to)}`);
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'object' && error && 'response' in error
-            ? JSON.stringify((error as { response?: { body?: unknown } }).response?.body)
-            : 'Unknown SendGrid error';
+      const message = error instanceof Error ? error.message : 'Unknown email error';
       this.logger.error(`Failed to send client portal invite email to ${maskEmail(params.to)}: ${message}`);
       throw error;
     }
@@ -291,12 +288,11 @@ export class EmailService {
   async sendDailyDigestEmail(params: DailyDigestEmailParams): Promise<boolean> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `SendGrid not configured; skipped daily digest email to ${maskEmail(params.to)}`,
+        `Email provider not configured; skipped daily digest email to ${maskEmail(params.to)}`,
       );
       return false;
     }
 
-    const fromEmail = this.getFromEmail()!;
     const subject = `งานพรุ่งนี้ (${params.dayLabel})`;
 
     const text = [
@@ -331,9 +327,8 @@ export class EmailService {
     `.trim();
 
     try {
-      await sgMail.send({
+      await this.send({
         to: params.to,
-        from: { email: fromEmail, name: this.getFromName() },
         subject,
         text,
         html,
@@ -342,7 +337,7 @@ export class EmailService {
     } catch (error) {
       this.logger.error(
         `Failed to send daily digest email to ${maskEmail(params.to)}: ${
-          error instanceof Error ? error.message : 'Unknown SendGrid error'
+          error instanceof Error ? error.message : 'Unknown email error'
         }`,
       );
       return false;
@@ -352,12 +347,11 @@ export class EmailService {
   async sendDocumentPublishedEmail(params: DocumentPublishedEmailParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `SendGrid not configured (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL); skipped document-published email to ${maskEmail(params.to)}`,
+        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped document-published email to ${maskEmail(params.to)}`,
       );
       return;
     }
 
-    const fromEmail = this.getFromEmail()!;
 
     const text = [
       `${params.firmName} has published a new document for you: ${params.documentTitle}`,
@@ -379,21 +373,15 @@ export class EmailService {
     `.trim();
 
     try {
-      await sgMail.send({
+      await this.send({
         to: params.to,
-        from: { email: fromEmail, name: this.getFromName() },
         subject: `New document from ${params.firmName}: ${params.documentTitle}`,
         text,
         html,
       });
       this.logger.log(`Document-published email sent to ${maskEmail(params.to)}`);
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'object' && error && 'response' in error
-            ? JSON.stringify((error as { response?: { body?: unknown } }).response?.body)
-            : 'Unknown SendGrid error';
+      const message = error instanceof Error ? error.message : 'Unknown email error';
       this.logger.error(`Failed to send document-published email to ${maskEmail(params.to)}: ${message}`);
     }
   }

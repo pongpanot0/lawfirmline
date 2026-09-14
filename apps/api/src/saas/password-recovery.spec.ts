@@ -44,17 +44,24 @@ describe('password recovery delivery', () => {
 });
 
 import { ConfigService } from '@nestjs/config';
-import * as sgMail from '@sendgrid/mail';
-jest.mock('@sendgrid/mail', () => ({ setApiKey: jest.fn(), send: jest.fn().mockResolvedValue([]) }));
 
 describe('recovery email transport', () => {
-  beforeEach(() => jest.clearAllMocks());
+  let fetchMock: jest.Mock;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'email-1' }) });
+    global.fetch = fetchMock as unknown as typeof fetch;
+  });
   it('hands the recovery link to the configured sender without making a live send', async () => {
-    const values: Record<string, string> = { SENDGRID_API_KEY: 'test-key', SENDGRID_FROM_EMAIL: 'support@example.test', SENDGRID_FROM_NAME: 'Samnuan' };
+    const values: Record<string, string> = { RESEND_API_KEY: 'test-key', SENDGRID_FROM_EMAIL: 'support@example.test', SENDGRID_FROM_NAME: 'Samnuan' };
     const email = new EmailService({ get: (key: string) => values[key] } as ConfigService);
     await email.sendPasswordResetEmail('recipient@example.test', 'https://samnuan.example/reset-password?token=test-token');
-    expect(sgMail.send).toHaveBeenCalledWith(expect.objectContaining({
-      to: 'recipient@example.test', from: { email: 'support@example.test', name: 'Samnuan' },
+    expect(fetchMock).toHaveBeenCalledWith('https://api.resend.com/emails', expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer test-key' }),
+    }));
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toEqual(expect.objectContaining({
+      to: 'recipient@example.test', from: 'Samnuan <support@example.test>',
       text: expect.stringContaining('https://samnuan.example/reset-password?token=test-token'),
       html: expect.stringContaining('Reset password'),
     }));
@@ -62,6 +69,6 @@ describe('recovery email transport', () => {
   it('does not call the provider when email is not configured', async () => {
     const email = new EmailService({ get: () => undefined } as unknown as ConfigService);
     await email.sendPasswordResetEmail('recipient@example.test', 'https://samnuan.example/reset-password?token=test-token');
-    expect(sgMail.send).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

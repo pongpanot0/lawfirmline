@@ -1,24 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import * as sgMail from '@sendgrid/mail';
 import { EmailService } from './email.service';
-
-jest.mock('@sendgrid/mail', () => ({
-  setApiKey: jest.fn(),
-  send: jest.fn(),
-}));
 
 describe('EmailService', () => {
   let service: EmailService;
   const config: Record<string, string> = {
-    SENDGRID_API_KEY: 'test-key',
+    RESEND_API_KEY: 'test-key',
     SENDGRID_FROM_EMAIL: 'noreply@example.com',
   };
   const mockConfig = { get: jest.fn((key: string) => config[key]) };
+  let fetchMock: jest.Mock;
+
+  function lastRequestBody() {
+    return JSON.parse(fetchMock.mock.calls[0][1].body as string);
+  }
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    (sgMail.send as jest.Mock).mockResolvedValue(undefined);
+    fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'email-1' }) });
+    global.fetch = fetchMock as unknown as typeof fetch;
     const module: TestingModule = await Test.createTestingModule({
       providers: [EmailService, { provide: ConfigService, useValue: mockConfig }],
     }).compile();
@@ -35,9 +35,9 @@ describe('EmailService', () => {
         portalUrl: 'https://example.com/portal',
       });
 
-      const call = (sgMail.send as jest.Mock).mock.calls[0][0];
-      expect(call.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
-      expect(call.html).not.toContain('<script>alert(1)</script>');
+      const body = lastRequestBody();
+      expect(body.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+      expect(body.html).not.toContain('<script>alert(1)</script>');
     });
   });
 
@@ -51,10 +51,40 @@ describe('EmailService', () => {
         expiresAt: new Date(),
       });
 
-      const call = (sgMail.send as jest.Mock).mock.calls[0][0];
-      expect(call.html).toContain('&lt;b&gt;hi&lt;/b&gt;');
-      expect(call.html).toContain('&lt;i&gt;firm&lt;/i&gt;');
-      expect(call.html).not.toContain('<b>hi</b>');
+      const body = lastRequestBody();
+      expect(body.html).toContain('&lt;b&gt;hi&lt;/b&gt;');
+      expect(body.html).toContain('&lt;i&gt;firm&lt;/i&gt;');
+      expect(body.html).not.toContain('<b>hi</b>');
     });
+  });
+
+  it('posts to the Resend API with the configured API key and from address', async () => {
+    await service.sendPasswordResetEmail('user@example.com', 'https://example.com/reset');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.resend.com/emails',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' }),
+      }),
+    );
+    const body = lastRequestBody();
+    expect(body.from).toBe('LexFlow <noreply@example.com>');
+    expect(body.to).toBe('user@example.com');
+  });
+
+  it('throws with the Resend error message when the request fails', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 422, json: async () => ({ message: 'invalid from address' }) });
+
+    await expect(
+      service.sendInvitationEmail({
+        to: 'user@example.com',
+        firmName: 'Firm',
+        inviterName: 'Owner',
+        inviteUrl: 'https://example.com/invite',
+        role: 'LAWYER',
+        expiresAt: new Date(),
+      }),
+    ).rejects.toThrow('Resend error 422: invalid from address');
   });
 });
