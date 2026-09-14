@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Moon, Sun, Bell, Key, Building2, Sparkles, Copy, ExternalLink, Mail, Shield, Tags, Timer, CalendarOff, Scale, ChevronRight } from 'lucide-react';
+import { Moon, Sun, Bell, Key, Building2, Sparkles, Copy, ExternalLink, Mail, Shield, Tags, Timer, CalendarOff, Scale, History, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth, getStoredToken } from '@/lib/auth';
@@ -23,6 +23,7 @@ const OFFICE_LINKS = [
   { href: '/admin/deadline-rules', icon: Timer, labelKey: 'deadlineRules' as const },
   { href: '/admin/holidays', icon: CalendarOff, labelKey: 'holidays' as const },
   { href: '/admin/courts', icon: Scale, labelKey: 'courts' as const },
+  { href: '/admin/audit-log', icon: History, labelKey: 'auditLog' as const },
 ];
 
 export default function SettingsPage() {

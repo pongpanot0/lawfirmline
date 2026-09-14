@@ -32,6 +32,19 @@ describe('AuditLogService', () => {
     expect(result).toEqual({ items: [{ id: 'log-1' }], total: 1 });
   });
 
+  it('includes the acting user\'s name so an entry is readable without a second lookup', async () => {
+    mockPrisma.auditLog.findMany.mockResolvedValue([]);
+    mockPrisma.auditLog.count.mockResolvedValue(0);
+
+    await service.list('firm-1', {});
+
+    expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: { user: { select: { firstName: true, lastName: true } } },
+      }),
+    );
+  });
+
   it('filters by action when provided', async () => {
     mockPrisma.auditLog.findMany.mockResolvedValue([]);
     mockPrisma.auditLog.count.mockResolvedValue(0);

@@ -272,6 +272,20 @@ export interface CourtItem {
   isActive: boolean;
 }
 
+export interface AuditLogItem {
+  id: string;
+  action: string;
+  userId: string | null;
+  user: { firstName: string; lastName: string } | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AuditLogResult {
+  items: AuditLogItem[];
+  total: number;
+}
+
 export interface CaseMessageEntry {
   id: string;
   senderType: 'STAFF' | 'CONTACT';
@@ -1226,6 +1240,15 @@ export const api = {
 
   getCourts: (token: string, activeOnly = true) =>
     request<CourtItem[]>(`/courts?activeOnly=${activeOnly}`, { token }),
+
+  getAuditLogs: (token: string, params?: { action?: string; cursor?: string; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.action) query.set('action', params.action);
+    if (params?.cursor) query.set('cursor', params.cursor);
+    if (params?.limit) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return request<AuditLogResult>(`/admin/audit-logs${qs ? `?${qs}` : ''}`, { token });
+  },
 
   createCourt: (token: string, data: Record<string, unknown>) =>
     request<CourtItem>('/courts', { method: 'POST', token, body: JSON.stringify(data) }),
