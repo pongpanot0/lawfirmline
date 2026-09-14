@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { IntakeDocumentsController } from './intake-documents.controller';
 import { DocumentsService } from './documents.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('IntakeDocumentsController', () => {
   let controller: IntakeDocumentsController;
@@ -15,7 +16,10 @@ describe('IntakeDocumentsController', () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IntakeDocumentsController],
-      providers: [{ provide: DocumentsService, useValue: mockService }],
+      providers: [
+        { provide: DocumentsService, useValue: mockService },
+        { provide: FileStorageService, useValue: {} },
+      ],
     }).compile();
     controller = module.get(IntakeDocumentsController);
   });

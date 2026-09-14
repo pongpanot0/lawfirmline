@@ -7,6 +7,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { Role, FirmRole } from '@lawfirm/shared';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('DocumentsController role restrictions', () => {
   let controller: DocumentsController;
@@ -17,6 +18,7 @@ describe('DocumentsController role restrictions', () => {
       controllers: [DocumentsController],
       providers: [
         { provide: DocumentsService, useValue: {} },
+        { provide: FileStorageService, useValue: {} },
         Reflector,
       ],
     })

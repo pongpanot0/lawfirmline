@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 /**
  * A cost drafted after a hearing is a note, not a claim. What matters is that
@@ -61,6 +62,7 @@ describe('BillingService — drafted expenses', () => {
         { provide: CaseAccessService, useValue: mockCaseAccess },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('./uploads') } },
         { provide: LineMessagingService, useValue: mockLine },
+        { provide: FileStorageService, useValue: {} },
       ],
     }).compile();
     service = module.get(BillingService);

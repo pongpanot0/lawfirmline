@@ -4,6 +4,7 @@ import { OutlookSyncService } from './outlook-sync.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookGraphClient } from './outlook-graph.client';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('OutlookSyncService', () => {
   let service: OutlookSyncService;
@@ -16,6 +17,7 @@ describe('OutlookSyncService', () => {
   const mockConnections = { getValidAccessToken: jest.fn() };
   const mockGraph = { getInboxDelta: jest.fn(), getAttachments: jest.fn() };
   const mockConfig = { get: jest.fn().mockReturnValue('./test-uploads') };
+  const mockFileStorage = { put: jest.fn().mockResolvedValue('outlook/test-uploads/attachment.bin') };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -27,6 +29,7 @@ describe('OutlookSyncService', () => {
         { provide: OutlookConnectionsService, useValue: mockConnections },
         { provide: OutlookGraphClient, useValue: mockGraph },
         { provide: ConfigService, useValue: mockConfig },
+        { provide: FileStorageService, useValue: mockFileStorage },
       ],
     }).compile();
     service = module.get(OutlookSyncService);

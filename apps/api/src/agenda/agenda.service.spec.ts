@@ -171,7 +171,11 @@ describe('AgendaService', () => {
     await service.getMyDay(user);
 
     expect(mockPrisma.calendarEvent.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ case: { firmId: 'firm-1' } }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({
+          case: { AND: [{ firmId: 'firm-1' }, { status: { not: 'CLOSED' } }] },
+        }),
+      }),
     );
     const taskWhere = mockPrisma.task.findMany.mock.calls[0][0].where;
     expect(taskWhere.AND).toEqual(

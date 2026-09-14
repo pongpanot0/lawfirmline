@@ -102,7 +102,9 @@ describe('ClientPortalIntakeService', () => {
 
       expect(mockPrisma.portalIntakeSubmission.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ clientContactId: 'contact-1' }),
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([{ clientContactId: 'contact-1' }]),
+          }),
         }),
       );
     });
@@ -115,6 +117,7 @@ describe('ClientPortalIntakeService', () => {
           title: 'ท',
           submittedAt: new Date(),
           withdrawnByClient: false,
+          clientContactId: 'contact-1',
           intake: { id: 'intake-1', status: 'ASSESSING', decision: 'PENDING' },
           attachments: [{ id: 'a1', filename: 'mine.pdf', size: 10 }],
         },
@@ -143,6 +146,7 @@ describe('ClientPortalIntakeService', () => {
     it('rejects documents that are not visible to the client', async () => {
       mockPrisma.portalIntakeSubmission.findFirst.mockResolvedValue({
         id: 'sub-1',
+        clientContactId: 'contact-1',
         intake: { id: 'intake-1' },
       });
       mockPrisma.document.findFirst.mockResolvedValue(null);
