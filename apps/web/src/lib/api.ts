@@ -1371,6 +1371,13 @@ export const api = {
   getCaseKnowledge: (token: string, caseId: string) =>
     request<KnowledgeItem[]>(`/cases/${caseId}/knowledge`, { token }),
 
+  reviewCaseKnowledge: (token: string, caseId: string, id: string, summary?: string) =>
+    request<KnowledgeItem>(`/cases/${caseId}/knowledge/${id}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(summary !== undefined ? { summary } : {}),
+    }),
+
   getKnowledge: (
     token: string,
     params?: { caseId?: string; category?: string; search?: string },
@@ -1917,8 +1924,22 @@ export interface TravelResult {
   fromCache: boolean;
 }
 
+export interface KnowledgeCitationItem {
+  id: string;
+  documentVersion: number;
+  page: number | null;
+  statement: string;
+  quote: string;
+  document: { id: string; filename: string; version: number };
+}
+
+export interface KnowledgeFlagItem {
+  type: 'CONFLICT' | 'MISSING';
+  description: string;
+}
+
 export interface KnowledgeItem {
-  document?: { id: string; filename: string } | null;
+  document?: { id: string; filename: string; version: number } | null;
   id: string;
   title: string;
   summary: string;
@@ -1926,6 +1947,10 @@ export interface KnowledgeItem {
   createdAt: string;
   case: { id: string; ownRef: string; title: string };
   createdBy: { firstName: string; lastName: string };
+  reviewedBy?: { firstName: string; lastName: string } | null;
+  reviewedAt?: string | null;
+  flags?: KnowledgeFlagItem[] | null;
+  citations?: KnowledgeCitationItem[];
 }
 
 export interface DateSuggestionItem {
