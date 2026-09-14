@@ -48,10 +48,11 @@ export function PricingSection() {
   });
 
   return (
-    <section id="pricing" className="lf-section lf-snap-tall">
+    <section id="pricing" className="lf-section">
       <div className="lf-shell">
         <div className="lf-section-head lf-section-head--center">
-          <h2 className="lf-display-s text-2xl sm:text-3xl">{p.title}</h2>
+          <span className="lf-kicker">Pricing</span>
+          <h2 className="lf-display-s mt-3" style={{ fontSize: 'var(--text-display-s)' }}>{p.title}</h2>
           <p className="lf-lede mt-3">{p.subtitle}</p>
         </div>
 

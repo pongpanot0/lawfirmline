@@ -47,14 +47,12 @@ export function LandingPage() {
               </span>
               {t.hero.badge}
             </span>
-            <h1
-              className="lf-display mt-4 text-[2.25rem] sm:text-[2.75rem] md:text-[3.25rem]"
-              style={{ fontSize: 'var(--text-display)' }}
-              data-motion="hero-title"
-            >
-              {t.hero.title}
-              <span className="block" style={{ color: 'var(--color-accent)' }}>
-                {t.hero.titleHighlight}
+            <h1 className="lf-display mt-4" style={{ fontSize: 'var(--text-display)' }}>
+              <span className="lf-mask">
+                <span data-motion="hero-line">{t.hero.title}</span>
+              </span>
+              <span className="lf-mask" style={{ color: 'var(--color-accent)' }}>
+                <span data-motion="hero-line">{t.hero.titleHighlight}</span>
               </span>
             </h1>
             <p className="lf-lede mt-5 max-w-lg text-base sm:text-lg" data-motion="hero-subtitle">
@@ -117,11 +115,13 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Product tour — the real app, not a mockup. GSAP converges the two supporting
-          screens onto the main dashboard shot as this section enters the viewport. */}
-      <section className="lf-shell lf-snap">
+      {/* Product tour — a full-bleed dark act (era DNA). The real app, not a mockup;
+          GSAP converges the two supporting screens onto the main dashboard shot. */}
+      <section className="lf-section lf-section--dark">
+        <div className="lf-shell">
         <div className="lf-section-head lf-section-head--center">
-          <h2 className="lf-display-s text-2xl sm:text-3xl">{t.tour.title}</h2>
+          <span className="lf-kicker">The Product</span>
+          <h2 className="lf-display-s mt-3" style={{ fontSize: 'var(--text-display-s)' }}>{t.tour.title}</h2>
           <p className="lf-lede mt-3">{t.tour.subtitle}</p>
         </div>
         <div className="lf-tour-stage" data-motion="tour-stage">
@@ -142,13 +142,14 @@ export function LandingPage() {
             />
           </figure>
         </div>
+        </div>
       </section>
 
       {/* Problems + features — one Bento block: pain points as small tiles, product tiles as the anchors */}
-      <section id="features" className="lf-section lf-section--paper2 lf-snap-tall">
+      <section id="features" className="lf-section lf-section--paper2">
         <div className="lf-shell">
           <div className="lf-section-head lf-section-head--center">
-            <h2 className="lf-display-s text-2xl sm:text-3xl">{t.features.title}</h2>
+            <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{t.features.title}</h2>
             <p className="lf-lede mt-3">{t.features.subtitle}</p>
           </div>
 
@@ -227,16 +228,23 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* Oversized display word — era's "ARCHITECTURE" moment, scrubbed sideways on scroll */}
+      <div aria-hidden className="overflow-clip pb-2 pt-10" style={{ overflowX: 'clip' }}>
+        <p className="lf-giant" data-motion="giant-word">
+          Samnuan · สำนวน · Samnuan
+        </p>
+      </div>
+
       <PricingSection />
 
       {/* CTA — one visual anchor (trial), one supporting link (demo) */}
       <section
         id="trial"
-        className="lf-section--tight lf-snap"
+        className="lf-section"
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >
         <div className="lf-shell text-center">
-          <h2 className="lf-display-s text-2xl sm:text-3xl">{t.cta.title}</h2>
+          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{t.cta.title}</h2>
           <p className="mx-auto mt-3 max-w-xl text-sm sm:text-base" style={{ color: 'oklch(99% 0 0 / 0.85)' }}>
             {t.cta.subtitle}
           </p>
