@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '@/api/auth';
+import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { ApiError } from '@/api/client';
 import { Button } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme';
@@ -17,6 +18,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const keyboardHeight = useKeyboardHeight();
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
@@ -37,8 +39,8 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.screen, keyboardHeight > 0 && { paddingBottom: keyboardHeight }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.form}>
         <Text style={styles.brand}>LexFlow</Text>

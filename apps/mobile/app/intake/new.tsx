@@ -11,6 +11,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCreateIntake } from '@/api/hooks';
 import { Button, SectionLabel } from '@/components/ui';
 import { isoDay } from '@/format';
+import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { colors, radius, spacing } from '@/theme';
 
 /**
@@ -24,6 +25,7 @@ export default function NewIntakeScreen() {
   const [clientName, setClientName] = useState('');
   const [matterType, setMatterType] = useState('');
   const [description, setDescription] = useState('');
+  const keyboardHeight = useKeyboardHeight();
 
   const submit = () => {
     if (!title.trim() && !description.trim()) {
@@ -58,9 +60,9 @@ export default function NewIntakeScreen() {
       <Stack.Screen options={{ title: 'รับเรื่องใหม่' }} />
       <KeyboardAvoidingView
         style={styles.screen}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 + keyboardHeight }}>
           <SectionLabel>ชื่อเรื่อง</SectionLabel>
           <TextInput
             style={styles.input}

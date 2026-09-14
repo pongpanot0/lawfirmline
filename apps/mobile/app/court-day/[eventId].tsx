@@ -16,6 +16,7 @@ import { useCourtDay, useSaveCourtDay } from '@/api/hooks';
 import type { CourtDayState } from '@/api/types';
 import { Loading, Tag } from '@/components/ui';
 import { thDateLong, thTime } from '@/format';
+import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { colors, radius, spacing, TOUCH } from '@/theme';
 
 /**
@@ -31,6 +32,7 @@ export default function CourtDayScreen() {
 
   const [draft, setDraft] = useState<CourtDayState | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const keyboardHeight = useKeyboardHeight();
 
   // Adopt the server state once; afterwards the draft is the source of truth
   // until saved, so a background refetch never clobbers typing.
@@ -81,7 +83,7 @@ export default function CourtDayScreen() {
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backButton}>
@@ -96,7 +98,7 @@ export default function CourtDayScreen() {
           {completed ? <Tag tone="ok">บันทึกผลแล้ว</Tag> : <Tag tone="court">พร้อม offline</Tag>}
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 24, gap: spacing.md }}>
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 24 + keyboardHeight, gap: spacing.md }}>
           <View style={styles.card}>
             <Text style={styles.label}>คดี</Text>
             <Text style={styles.ref}>{event.case?.ownRef ?? ''}</Text>

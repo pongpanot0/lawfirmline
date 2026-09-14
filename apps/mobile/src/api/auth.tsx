@@ -13,6 +13,12 @@ interface AuthContextValue {
   /** null while restoring the session from SecureStore. */
   ready: boolean;
   user: AuthUserInfo | null;
+  /**
+   * True when the session came from storage at cold start (someone may have
+   * picked up the phone) — the case the biometric gate protects. A session
+   * created by typing the password just now needs no second challenge.
+   */
+  restored: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -22,6 +28,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AuthUserInfo | null>(null);
+  const [restored, setRestored] = useState(false);
 
   // Cache-first: a stored token means "logged in" immediately; /auth/me
   // then refreshes the profile (and a dead token logs the user out).
@@ -32,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (accessToken) {
           const me = await api<AuthUserInfo>('/auth/me');
           setUser(me);
+          setRestored(true);
         }
       } catch {
         await clearTokens();
@@ -47,17 +55,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: { email, password },
     });
     await setTokens(res.accessToken, res.refreshToken);
+    setRestored(false);
     setUser(res.user ?? (await api<AuthUserInfo>('/auth/me')));
   }, []);
 
   const logout = useCallback(async () => {
     await clearTokens();
     setUser(null);
+    setRestored(false);
   }, []);
 
   const value = useMemo(
-    () => ({ ready, user, login, logout }),
-    [ready, user, login, logout],
+    () => ({ ready, user, restored, login, logout }),
+    [ready, user, restored, login, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

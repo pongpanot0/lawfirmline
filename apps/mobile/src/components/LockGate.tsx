@@ -9,17 +9,29 @@ import { colors, spacing } from '@/theme';
 const RELOCK_AFTER_MS = 60 * 1000;
 
 /**
- * Biometric/passcode gate over the whole app. Devices without any enrolled
+ * Biometric/passcode gate. It challenges in exactly two situations:
+ * a cold start that RESTORED a stored session (someone else may hold the
+ * phone), and returning from >1 minute in the background while signed in.
+ * A session created by typing the password just now is never re-challenged,
+ * and no prompt ever appears before login. Devices without enrolled
  * security skip the gate — the OS cannot challenge what does not exist.
  */
 export function LockGate({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  const [locked, setLocked] = useState(true);
-  const [supported, setSupported] = useState<boolean | null>(null);
+  const { user, restored } = useAuth();
+  const [locked, setLocked] = useState(false);
   const backgroundedAt = useRef<number | null>(null);
+  const challengedRestore = useRef(false);
+  const challenging = useRef(false);
 
   const challenge = useCallback(async () => {
+    if (challenging.current) return;
+    challenging.current = true;
     try {
+      const level = await LocalAuthentication.getEnrolledLevelAsync();
+      if (level === LocalAuthentication.SecurityLevel.NONE) {
+        setLocked(false);
+        return;
+      }
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'ปลดล็อก LexFlow',
         cancelLabel: 'ยกเลิก',
@@ -27,22 +39,28 @@ export function LockGate({ children }: { children: React.ReactNode }) {
       if (result.success) setLocked(false);
     } catch {
       // stay locked; the button lets the user retry
+    } finally {
+      challenging.current = false;
     }
   }, []);
 
+  // Cold start with a restored session: lock once and challenge.
   useEffect(() => {
-    (async () => {
-      const level = await LocalAuthentication.getEnrolledLevelAsync();
-      const hasSecurity = level !== LocalAuthentication.SecurityLevel.NONE;
-      setSupported(hasSecurity);
-      if (!hasSecurity) setLocked(false);
-      else await challenge();
-    })();
-  }, [challenge]);
+    if (user && restored && !challengedRestore.current) {
+      challengedRestore.current = true;
+      setLocked(true);
+      challenge();
+    }
+    if (!user) {
+      setLocked(false);
+      challengedRestore.current = false;
+    }
+  }, [user, restored, challenge]);
 
+  // Re-lock after a long stay in the background, only while signed in.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (!supported) return;
+      if (!user) return;
       if (state === 'background') backgroundedAt.current = Date.now();
       if (state === 'active' && backgroundedAt.current) {
         if (Date.now() - backgroundedAt.current > RELOCK_AFTER_MS) {
@@ -53,10 +71,9 @@ export function LockGate({ children }: { children: React.ReactNode }) {
       }
     });
     return () => sub.remove();
-  }, [supported, challenge]);
+  }, [user, challenge]);
 
-  // No session yet — the login screen is its own gate.
-  if (!user || !locked || supported === false) return <>{children}</>;
+  if (!user || !locked) return <>{children}</>;
 
   return (
     <View style={styles.screen}>

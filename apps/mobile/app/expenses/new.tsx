@@ -19,6 +19,7 @@ import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
 import { createExpense } from '@/api/files';
 import { Button, Card, SectionLabel } from '@/components/ui';
 import { isoDay } from '@/format';
+import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { colors, radius, spacing } from '@/theme';
 
 export default function NewExpenseScreen() {
@@ -30,6 +31,7 @@ export default function NewExpenseScreen() {
   const [billable, setBillable] = useState(true);
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const keyboardHeight = useKeyboardHeight();
 
   const snapReceipt = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -71,9 +73,9 @@ export default function NewExpenseScreen() {
       <Stack.Screen options={{ title: 'ค่าใช้จ่ายใหม่' }} />
       <KeyboardAvoidingView
         style={styles.screen}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 + keyboardHeight }}>
           <SectionLabel>จำนวนเงิน (บาท)</SectionLabel>
           <TextInput
             style={[styles.input, styles.amountInput]}
