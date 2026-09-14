@@ -13,8 +13,15 @@ import { useQuery } from '@tanstack/react-query';
 import { Camera, Check, FileText, ShieldCheck } from 'lucide-react-native';
 import { api } from '@/api/client';
 import { openCaseDocument } from '@/api/files';
-import { useCase, useCaseTasks, useInsuranceClaim, useToggleTask } from '@/api/hooks';
+import {
+  useCase,
+  useCaseTasks,
+  useCreateCaseTask,
+  useInsuranceClaim,
+  useToggleTask,
+} from '@/api/hooks';
 import { ReassignSheet } from '@/components/ReassignSheet';
+import { QuickAdd } from '@/components/QuickAdd';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
   Card,
@@ -74,6 +81,7 @@ export default function CaseDetailScreen() {
   const caseQuery = useCase(id);
   const tasks = useCaseTasks(id);
   const toggle = useToggleTask();
+  const createTask = useCreateCaseTask(id);
   const insurance = useInsuranceClaim(id);
   const events = useQuery({
     queryKey: ['case-events', id],
@@ -232,6 +240,13 @@ export default function CaseDetailScreen() {
 
         {tab === 'งาน' ? (
           <Card>
+            <View style={{ marginBottom: spacing.sm }}>
+              <QuickAdd
+                placeholder="เพิ่มงานในคดีนี้…"
+                onSubmit={(title) => createTask.mutate(title)}
+                busy={createTask.isPending}
+              />
+            </View>
             {tasks.isLoading ? (
               <EmptyNote>กำลังโหลด…</EmptyNote>
             ) : (tasks.data?.length ?? 0) === 0 ? (

@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import { useCalendarRange } from '@/api/hooks';
 import type { CalendarEventItem } from '@/api/types';
 import { Card, EmptyNote, ErrorNote, SectionLabel, Tag } from '@/components/ui';
@@ -129,7 +129,17 @@ export default function CalendarScreen() {
         </View>
       ) : null}
 
-      <SectionLabel>{thDate(new Date(selected))}</SectionLabel>
+      <View style={styles.dayHead}>
+        <SectionLabel>{thDate(new Date(selected))}</SectionLabel>
+        <Pressable
+          style={styles.addButton}
+          hitSlop={8}
+          onPress={() => router.push(`/event/new?date=${selected}`)}
+        >
+          <Plus size={16} color={colors.bg} />
+          <Text style={styles.addText}>เพิ่มนัด</Text>
+        </Pressable>
+      </View>
       <Card>
         {selectedEvents.length === 0 ? (
           <EmptyNote>ไม่มีนัดหมายวันนี้</EmptyNote>
@@ -206,6 +216,22 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: colors.accent,
   },
+  dayHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.ink,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginBottom: 6,
+  },
+  addText: { color: colors.bg, fontSize: 13, fontWeight: '600' },
   divider: { height: 1, backgroundColor: colors.soft },
   eventRow: {
     flexDirection: 'row',

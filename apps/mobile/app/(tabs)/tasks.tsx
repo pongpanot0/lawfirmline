@@ -8,9 +8,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
-import { useTodos, useToggleTask } from '@/api/hooks';
+import { useCreateTodo, useTodos, useToggleTask } from '@/api/hooks';
 import type { TaskItem } from '@/api/types';
 import { Card, EmptyNote, ErrorNote, Loading, Tag } from '@/components/ui';
+import { QuickAdd } from '@/components/QuickAdd';
 import { thDate } from '@/format';
 import { colors, spacing, TOUCH } from '@/theme';
 
@@ -65,6 +66,7 @@ export default function TasksScreen() {
   const router = useRouter();
   const todos = useTodos();
   const toggle = useToggleTask();
+  const create = useCreateTodo();
 
   if (todos.isLoading) return <Loading />;
 
@@ -88,6 +90,15 @@ export default function TasksScreen() {
           contentContainerStyle={{ padding: spacing.lg }}
           refreshing={todos.isRefetching}
           onRefresh={() => todos.refetch()}
+          ListHeaderComponent={
+            <View style={{ marginBottom: spacing.md }}>
+              <QuickAdd
+                placeholder="เพิ่มงานส่วนตัว…"
+                onSubmit={(title) => create.mutate(title)}
+                busy={create.isPending}
+              />
+            </View>
+          }
           renderItem={({ item }) => (
             <Card style={{ marginBottom: spacing.sm }}>
               <TaskRow

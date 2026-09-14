@@ -108,6 +108,51 @@ export function useToggleTask() {
   });
 }
 
+export function useCreateTodo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (title: string) =>
+      api('/todos', { method: 'POST', body: { title } }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['my-day'] });
+    },
+  });
+}
+
+export function useCreateCaseTask(caseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (title: string) =>
+      api(`/cases/${caseId}/tasks`, { method: 'POST', body: { title } }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['case-tasks', caseId] });
+      queryClient.invalidateQueries({ queryKey: ['workload'] });
+    },
+  });
+}
+
+export interface CreateEventBody {
+  caseId: string;
+  title: string;
+  startAt: string;
+  type?: string;
+  courtName?: string;
+}
+
+export function useCreateEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateEventBody) =>
+      api('/calendar/events', { method: 'POST', body }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar'] });
+      queryClient.invalidateQueries({ queryKey: ['case-events'] });
+      queryClient.invalidateQueries({ queryKey: ['my-day'] });
+    },
+  });
+}
+
 /** Action Center: everything waiting on someone — the app's notification feed. */
 export interface ActionItem {
   id: string;

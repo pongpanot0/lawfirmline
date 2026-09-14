@@ -17,6 +17,7 @@ import { Camera } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
 import { createExpense } from '@/api/files';
+import { CasePicker, CaseRef } from '@/components/CasePicker';
 import { Button, Card, SectionLabel } from '@/components/ui';
 import { isoDay } from '@/format';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
@@ -29,6 +30,7 @@ export default function NewExpenseScreen() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
   const [billable, setBillable] = useState(true);
+  const [caseRef, setCaseRef] = useState<CaseRef | null>(null);
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const keyboardHeight = useKeyboardHeight();
@@ -54,6 +56,7 @@ export default function NewExpenseScreen() {
         category,
         date: isoDay(new Date()),
         billable,
+        caseId: caseRef?.id,
         receiptUri: receiptUri ?? undefined,
       });
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
@@ -94,6 +97,9 @@ export default function NewExpenseScreen() {
             value={description}
             onChangeText={setDescription}
           />
+
+          <SectionLabel>คดี</SectionLabel>
+          <CasePicker value={caseRef} onChange={setCaseRef} allowNone />
 
           <SectionLabel>ประเภท</SectionLabel>
           <View style={styles.chips}>
