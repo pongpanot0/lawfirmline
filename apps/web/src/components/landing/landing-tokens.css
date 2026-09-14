@@ -1,6 +1,7 @@
-/* Hallmark · pre-emit critique: P5 H4 E4 S4 R5 V4 */
+/* Hallmark · pre-emit critique: P5 H5 E5 S4 R5 V4 */
 /* Hallmark · genre: modern-minimal · macrostructure: Bento Grid · F1 Bento knobs: tiles=9, spans=irregular, accent=corner-only
  * theme: Coral · enrichment: none (typography + Tier-A CSS notification card) · nav: N5 · footer: Ft2
+ * contrast: AA pass — white/accent 4.94 · accent/paper 4.64 (accent darkened 62%→56% L)
  *
  * Scoped under .lf-landing only — the app's shared shadcn tokens in globals.css
  * (dashboard, portal, auth) are untouched.
@@ -15,11 +16,12 @@
   --color-rule: oklch(88% 0.014 50);
   --color-rule-2: oklch(80% 0.02 45);
 
-  --color-accent: oklch(62% 0.19 32);
-  --color-accent-2: oklch(70% 0.15 32);
+  --color-accent: oklch(56% 0.185 32);
+  --color-accent-2: oklch(50% 0.17 32);
   --color-accent-soft: oklch(93% 0.03 32);
+  --color-accent-line: color-mix(in oklab, var(--color-accent) 22%, transparent);
   --color-accent-ink: oklch(99% 0 0);
-  --color-focus: oklch(62% 0.19 32);
+  --color-focus: oklch(56% 0.185 32);
   --color-success: oklch(56% 0.13 152);
 
   --font-display: 'Inter', ui-sans-serif, system-ui, sans-serif;
@@ -88,7 +90,6 @@
 .lf-landing > section,
 .lf-landing > footer {
   scroll-snap-align: start;
-  scroll-snap-stop: always;
 }
 
 .lf-snap {
@@ -276,6 +277,12 @@
   color: var(--color-ink-2);
 }
 
+.lf-chip--on-accent {
+  background: oklch(99% 0 0 / 0.12);
+  border-color: oklch(99% 0 0 / 0.35);
+  color: var(--color-accent-ink);
+}
+
 /* ---------- bento grid ---------- */
 
 .lf-bento {
@@ -302,9 +309,11 @@
   transform: translateY(-2px);
 }
 
+/* Accent stays corner-only: the 2x2 anchor tile carries the accent wash;
+   every other feature tile is plain paper with a hairline. */
 .lf-tile--feature {
-  background: var(--color-accent-soft);
-  border-color: oklch(62% 0.19 32 / 0.18);
+  background: var(--color-paper-3);
+  border-color: var(--color-rule);
 }
 
 .lf-tile--feature:hover {
@@ -314,7 +323,11 @@
 .lf-tile--anchor {
   grid-column: span 2;
   grid-row: span 2;
-  justify-content: center;
+}
+
+.lf-tile--anchor.lf-tile--feature {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-line);
 }
 
 .lf-tile--wide {

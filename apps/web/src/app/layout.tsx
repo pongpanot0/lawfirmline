@@ -2,11 +2,33 @@ import type { Metadata, Viewport } from 'next';
 import { AuthProvider } from '@/lib/auth';
 import { ThemeProvider } from '@/lib/theme';
 import { LocaleProvider } from '@/components/landing/LocaleProvider';
+import { FacebookPixel } from '@/components/FacebookPixel';
 import './globals.css';
 
+const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'samnuan.com';
+const title = 'Samnuan — ระบบจัดการสำนักงานกฎหมาย';
+const description =
+  'จัดการคดี นัดหมายศาล เอกสาร และการแจ้งเตือนลูกความในระบบเดียว — ไม่พลาดนัดศาล ลดงาน Admin';
+
 export const metadata: Metadata = {
-  title: 'Samnuan — Legal Case Management',
-  description: 'Modern case management SaaS for Thai law firms',
+  metadataBase: new URL(`https://${rootDomain}`),
+  title,
+  description,
+  openGraph: {
+    title,
+    description,
+    url: '/',
+    siteName: 'Samnuan',
+    locale: 'th_TH',
+    type: 'website',
+    images: [{ url: '/marketing/og.png', width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title,
+    description,
+    images: ['/marketing/og.png'],
+  },
   icons: {
     icon: '/brand/samnuan-icon.png',
     apple: '/brand/samnuan-icon.png',
@@ -31,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LocaleProvider>
             <AuthProvider>{children}</AuthProvider>
           </LocaleProvider>
+          <FacebookPixel />
         </ThemeProvider>
       </body>
     </html>

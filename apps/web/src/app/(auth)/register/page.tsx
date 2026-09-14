@@ -12,6 +12,7 @@ import { PasswordInput } from '@/components/auth/PasswordInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fbTrack } from '@/components/FacebookPixel';
 
 export default function RegisterPage() {
   const d = useDashboardT();
@@ -42,6 +43,7 @@ export default function RegisterPage() {
     setError('');
     try {
       const res = await api.register({ ...form, firmName: form.firmName.trim(), firstName: form.firstName.trim(), lastName: form.lastName.trim(), email: form.email.trim().toLowerCase() });
+      fbTrack('CompleteRegistration');
       if (redirectToFirmApp(res.user, res)) return;
       applySession(res.accessToken, res.refreshToken, res.user);
       router.replace('/dashboard');

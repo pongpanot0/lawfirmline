@@ -13,8 +13,9 @@ export const landingCopy = {
     hero: {
       badge: 'Early Access — 10 สำนักงานแรก',
       title: 'ระบบจัดการสำนักงานกฎหมาย',
-      titleHighlight: 'ที่ช่วยให้คุณไม่พลาดนัดศาลและลดงาน Admin',
+      titleHighlight: 'ไม่พลาดนัดศาล ลดงาน Admin',
       subtitle: 'จัดการคดี นัดหมาย เอกสาร และการแจ้งเตือนลูกความในระบบเดียว',
+      cardTitle: 'วันนี้ที่สำนักงาน',
       ctaPrimary: 'ขอทดลองใช้งานฟรี',
       ctaSecondary: 'ขอนัด Demo',
       note: 'ทดลองใช้ฟรี 30 วัน · ไม่ต้องใช้บัตรเครดิต',
@@ -80,14 +81,9 @@ export const landingCopy = {
       yearlyNote: 'เรียกเก็บ {amount} ฿/ปี',
       tryFree: 'ทดลองใช้ฟรี',
       contactSales: 'ติดต่อทีมขาย',
-      chartMonthly: 'เปรียบเทียบราคารายเดือน',
-      chartMonthlyDesc: 'ราคาแพ็กเกจแต่ละระดับ (บาท/เดือน)',
-      chartPerUser: 'ต้นทุนต่อ User',
-      chartPerUserDesc: 'ยิ่งทีมใหญ่ ต้นทุนต่อคนยิ่งคุ้ม',
       tablePackage: 'Package',
       tableUsers: 'Users',
       tablePrice: 'ราคา',
-      perUserTooltip: '/ user',
       plans: {
         solo: {
           users: '1 User',
@@ -109,13 +105,13 @@ export const landingCopy = {
       },
     },
     cta: {
-      title: 'ทดลองใช้งาน',
+      title: 'เริ่มใช้ Samnuan ฟรี 30 วัน',
       subtitle: 'รับสิทธิ์ Early Access สำหรับ 10 สำนักงานแรก — เริ่มจัดการคดีอย่างเป็นระบบวันนี้',
       demo: 'ขอนัด Demo',
       tryFree: 'ทดลองใช้งานฟรี',
       demoSubject: 'ขอนัด Demo Samnuan',
     },
-    footer: '© 2025 Samnuan — ระบบจัดการสำนักงานกฎหมาย',
+    footer: '© 2026 Samnuan — ระบบจัดการสำนักงานกฎหมาย',
   },
   en: {
     nav: {
@@ -129,8 +125,9 @@ export const landingCopy = {
     hero: {
       badge: 'Early Access — First 10 firms',
       title: 'Law firm management',
-      titleHighlight: 'Never miss a court date. Cut admin work.',
-      subtitle: 'Manage cases, appointments, documents, and client notifications in one place.',
+      titleHighlight: 'Never miss a court date.',
+      subtitle: 'Manage cases, appointments, documents, and client notifications in one place — and cut the admin work.',
+      cardTitle: 'Today at your firm',
       ctaPrimary: 'Start free trial',
       ctaSecondary: 'Book a demo',
       note: '30-day free trial · No credit card required',
@@ -196,14 +193,9 @@ export const landingCopy = {
       yearlyNote: 'Billed {amount} THB/year',
       tryFree: 'Start free trial',
       contactSales: 'Contact sales',
-      chartMonthly: 'Monthly price comparison',
-      chartMonthlyDesc: 'Plan pricing (THB/month)',
-      chartPerUser: 'Cost per user',
-      chartPerUserDesc: 'Larger teams get better value per seat',
       tablePackage: 'Package',
       tableUsers: 'Users',
       tablePrice: 'Price',
-      perUserTooltip: '/ user',
       plans: {
         solo: {
           users: '1 User',
@@ -225,13 +217,13 @@ export const landingCopy = {
       },
     },
     cta: {
-      title: 'Get started',
+      title: 'Try Samnuan free for 30 days',
       subtitle: 'Early Access for the first 10 firms — start managing cases systematically today.',
       demo: 'Book a demo',
       tryFree: 'Start free trial',
       demoSubject: 'Samnuan Demo Request',
     },
-    footer: '© 2025 Samnuan — Legal practice management',
+    footer: '© 2026 Samnuan — Legal practice management',
   },
 } as const;
 

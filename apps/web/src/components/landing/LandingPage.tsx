@@ -86,7 +86,7 @@ export function LandingPage() {
                 style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)', boxShadow: '0 8px 24px oklch(23% 0.02 40 / 0.08)' }}
               >
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
-                  {t.features.items[0].title}
+                  {t.hero.cardTitle}
                 </p>
                 <ul className="mt-4 space-y-3">
                   {[
@@ -161,27 +161,44 @@ export function LandingPage() {
                   className={`lf-tile lf-tile--feature ${featureSpans[i]}`}
                   data-motion="bento-tile"
                 >
-                  <span className="lf-tile-icon">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <h3 className="mt-4 text-lg font-semibold" style={{ color: 'var(--color-ink)' }}>
-                    {feature.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--color-ink-2)' }}>
+                  <div className="flex items-center gap-3">
+                    <span className="lf-tile-icon">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <h3 className="text-lg font-semibold" style={{ color: 'var(--color-ink)' }}>
+                      {feature.title}
+                    </h3>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-ink-2)' }}>
                     {feature.description}
                   </p>
-                  <ul className="mt-4 flex flex-wrap gap-2">
-                    {feature.highlights.map((item) => (
-                      <li
-                        key={item}
-                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-                        style={{ background: 'var(--color-paper-3)', color: 'var(--color-ink-2)' }}
-                      >
-                        <Check className="h-3 w-3" style={{ color: 'var(--color-success)' }} />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
+                  {i === 0 ? (
+                    <ul className="mt-5 space-y-2.5">
+                      {feature.highlights.map((item) => (
+                        <li
+                          key={item}
+                          className="flex items-center gap-3 rounded-xl border p-3 text-sm font-medium"
+                          style={{ borderColor: 'var(--color-accent-line)', background: 'var(--color-paper-3)', color: 'var(--color-ink)' }}
+                        >
+                          <Check className="h-4 w-4 shrink-0" style={{ color: 'var(--color-success)' }} />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <ul className="mt-4 flex flex-wrap gap-2">
+                      {feature.highlights.map((item) => (
+                        <li
+                          key={item}
+                          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+                          style={{ background: 'var(--color-paper-2)', color: 'var(--color-ink-2)' }}
+                        >
+                          <Check className="h-3 w-3" style={{ color: 'var(--color-success)' }} />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </article>
               );
             })}
@@ -210,22 +227,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Audience — hairline chip row */}
-      <section className="lf-section--tight lf-snap">
-        <div className="lf-shell text-center">
-          <p className="text-sm font-semibold" style={{ color: 'var(--color-ink-2)' }}>
-            {t.audience.title}
-          </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-            {t.audience.items.map((item) => (
-              <span key={item} className="lf-chip">
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
-
       <PricingSection />
 
       {/* CTA — one visual anchor (trial), one supporting link (demo) */}
@@ -239,6 +240,16 @@ export function LandingPage() {
           <p className="mx-auto mt-3 max-w-xl text-sm sm:text-base" style={{ color: 'oklch(99% 0 0 / 0.85)' }}>
             {t.cta.subtitle}
           </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <span className="text-xs font-semibold" style={{ color: 'oklch(99% 0 0 / 0.7)' }}>
+              {t.audience.title}
+            </span>
+            {t.audience.items.map((item) => (
+              <span key={item} className="lf-chip lf-chip--on-accent !py-1.5 !text-xs">
+                {item}
+              </span>
+            ))}
+          </div>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/register" className="lf-btn lf-btn--on-accent w-full sm:w-auto">
               {t.cta.tryFree}
