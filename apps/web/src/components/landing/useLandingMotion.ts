@@ -53,23 +53,25 @@ export function useLandingMotion() {
             scroller,
           },
         });
+        // "ค่อยๆ ลอยเข้ามา" — a slow, weightless drift: long durations,
+        // gentle ease, small travel. The stack settles like paper landing.
         tourTl
           .fromTo(
             '[data-motion="tour-main"]',
-            { opacity: 0, y: 70, scale: 0.94 },
-            { opacity: 1, y: 0, scale: 1, duration: 0.9, ease: 'power3.out' },
+            { opacity: 0, y: 90, scale: 0.96 },
+            { opacity: 1, y: 0, scale: 1, duration: 1.7, ease: 'power2.out' },
           )
           .fromTo(
             '[data-motion="tour-aux-a"]',
             { opacity: 0, x: 26, y: 18, rotate: 0 },
-            { opacity: 1, x: 0, y: 0, rotate: -6, duration: 0.7, ease: 'power2.out' },
-            '-=0.4',
+            { opacity: 1, x: 0, y: 0, rotate: -6, duration: 1.4, ease: 'power2.out' },
+            '-=1.1',
           )
           .fromTo(
             '[data-motion="tour-aux-b"]',
             { opacity: 0, x: -26, y: -18, rotate: 0 },
-            { opacity: 1, x: 0, y: 0, rotate: 5, duration: 0.7, ease: 'power2.out' },
-            '-=0.55',
+            { opacity: 1, x: 0, y: 0, rotate: 5, duration: 1.4, ease: 'power2.out' },
+            '-=1.2',
           );
 
         gsap.set('[data-motion="bento-tile"]', { opacity: 0, y: 24 });

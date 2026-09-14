@@ -117,7 +117,7 @@ export function LandingPage() {
 
       {/* Product tour — a full-bleed dark act (era DNA). The real app, not a mockup;
           GSAP converges the two supporting screens onto the main dashboard shot. */}
-      <section className="lf-section lf-section--dark">
+      <section className="lf-section lf-section--dark lf-snap">
         <div className="lf-shell">
         <div className="lf-section-head lf-section-head--center">
           <span className="lf-kicker">The Product</span>
@@ -240,7 +240,7 @@ export function LandingPage() {
       {/* CTA — one visual anchor (trial), one supporting link (demo) */}
       <section
         id="trial"
-        className="lf-section"
+        className="lf-section lf-snap"
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >
         <div className="lf-shell text-center">
