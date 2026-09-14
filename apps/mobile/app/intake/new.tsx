@@ -3,9 +3,12 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
+  View,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useCreateIntake } from '@/api/hooks';
@@ -13,6 +16,16 @@ import { Button, SectionLabel } from '@/components/ui';
 import { isoDay } from '@/format';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { colors, radius, spacing } from '@/theme';
+
+// Same keys/labels as the web intake's matter-type dropdown.
+const MATTER_TYPES = [
+  { value: 'CIVIL', label: 'แพ่ง' },
+  { value: 'CRIMINAL', label: 'อาญา' },
+  { value: 'ADMINISTRATIVE', label: 'ปกครอง' },
+  { value: 'MEDICAL', label: 'ทางการแพทย์' },
+  { value: 'LABOR', label: 'แรงงาน' },
+  { value: 'OTHER', label: 'อื่นๆ' },
+] as const;
 
 /**
  * Quick capture while talking to a client outside the office — just enough
@@ -23,7 +36,7 @@ export default function NewIntakeScreen() {
   const createIntake = useCreateIntake();
   const [title, setTitle] = useState('');
   const [clientName, setClientName] = useState('');
-  const [matterType, setMatterType] = useState('');
+  const [matterType, setMatterType] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const keyboardHeight = useKeyboardHeight();
 
@@ -37,7 +50,7 @@ export default function NewIntakeScreen() {
         receivedDate: isoDay(new Date()),
         title: title.trim() || undefined,
         clientName: clientName.trim() || undefined,
-        matterType: matterType.trim() || undefined,
+        matterType: matterType ?? undefined,
         description: description.trim() || undefined,
       },
       {
@@ -80,13 +93,23 @@ export default function NewIntakeScreen() {
             onChangeText={setClientName}
           />
           <SectionLabel>ประเภทเรื่อง</SectionLabel>
-          <TextInput
-            style={styles.input}
-            placeholder="เช่น ละเมิด, ผิดสัญญา, ประกันภัย"
-            placeholderTextColor={colors.faint}
-            value={matterType}
-            onChangeText={setMatterType}
-          />
+          <View style={styles.chips}>
+            {MATTER_TYPES.map((option) => (
+              <Pressable
+                key={option.value}
+                onPress={() =>
+                  setMatterType((current) => (current === option.value ? null : option.value))
+                }
+                style={[styles.chip, matterType === option.value && styles.chipOn]}
+              >
+                <Text
+                  style={[styles.chipText, matterType === option.value && styles.chipTextOn]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
           <SectionLabel>รายละเอียดเบื้องต้น</SectionLabel>
           <TextInput
             style={[styles.input, styles.multiline]}
@@ -117,4 +140,16 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   multiline: { minHeight: 110, textAlignVertical: 'top' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  chipText: { fontSize: 13, color: colors.muted, fontWeight: '600' },
+  chipTextOn: { color: colors.bg },
 });

@@ -13,6 +13,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useCreateEvent } from '@/api/hooks';
 import { CasePicker, CaseRef } from '@/components/CasePicker';
+import { DatePicker } from '@/components/DatePicker';
 import { Button, SectionLabel } from '@/components/ui';
 import { isoDay } from '@/format';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
@@ -48,9 +49,9 @@ export default function NewEventScreen() {
       Alert.alert('กรอกไม่ครบ', 'ใส่ชื่อนัดหมายก่อนบันทึก');
       return;
     }
-    const startAt = new Date(`${day.trim()}T${time.trim() || '09:00'}:00`);
+    const startAt = new Date(`${day}T${time.trim() || '09:00'}:00`);
     if (Number.isNaN(startAt.getTime())) {
-      Alert.alert('วันที่ไม่ถูกต้อง', 'ใช้รูปแบบ ค.ศ. เช่น 2026-09-14 และเวลา 09:00');
+      Alert.alert('เวลาไม่ถูกต้อง', 'ใช้รูปแบบเวลา เช่น 09:00');
       return;
     }
     createEvent.mutate(
@@ -125,28 +126,30 @@ export default function NewEventScreen() {
             </>
           ) : null}
 
-          <View style={styles.datetimeRow}>
-            <View style={{ flex: 3 }}>
-              <SectionLabel>วันที่ (ค.ศ. ปี-เดือน-วัน)</SectionLabel>
-              <TextInput
-                style={styles.input}
-                placeholder="2026-09-14"
-                placeholderTextColor={colors.faint}
-                value={day}
-                onChangeText={setDay}
-              />
-            </View>
-            <View style={{ flex: 2 }}>
-              <SectionLabel>เวลา</SectionLabel>
-              <TextInput
-                style={styles.input}
-                placeholder="09:00"
-                placeholderTextColor={colors.faint}
-                keyboardType="numbers-and-punctuation"
-                value={time}
-                onChangeText={setTime}
-              />
-            </View>
+          <SectionLabel>วันที่</SectionLabel>
+          <DatePicker value={day} onChange={setDay} />
+
+          <SectionLabel>เวลา</SectionLabel>
+          <View style={styles.chips}>
+            {['09:00', '10:00', '13:30', '14:00'].map((preset) => (
+              <Pressable
+                key={preset}
+                onPress={() => setTime(preset)}
+                style={[styles.chip, time === preset && styles.chipOn]}
+              >
+                <Text style={[styles.chipText, time === preset && styles.chipTextOn]}>
+                  {preset}
+                </Text>
+              </Pressable>
+            ))}
+            <TextInput
+              style={[styles.input, styles.timeInput]}
+              placeholder="อื่นๆ 00:00"
+              placeholderTextColor={colors.faint}
+              keyboardType="numbers-and-punctuation"
+              value={time}
+              onChangeText={setTime}
+            />
           </View>
 
           <View style={{ marginTop: spacing.xl }}>
@@ -182,5 +185,5 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipText: { fontSize: 13, color: colors.muted, fontWeight: '600' },
   chipTextOn: { color: colors.bg },
-  datetimeRow: { flexDirection: 'row', gap: spacing.md },
+  timeInput: { width: 110, paddingVertical: 8 },
 });

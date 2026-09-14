@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { useExpenses, useSubmitExpenses } from '@/api/hooks';
@@ -21,6 +22,7 @@ export default function ExpensesScreen() {
   const { user } = useAuth();
   const expenses = useExpenses();
   const submit = useSubmitExpenses();
+  const insets = useSafeAreaInsets();
 
   if (expenses.isLoading) return <Loading />;
 
@@ -88,7 +90,7 @@ export default function ExpensesScreen() {
         />
       )}
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: spacing.md + insets.bottom }]}>
         {drafts.length > 0 ? (
           <Button
             title={`ส่งเบิก ${drafts.length} รายการ`}
@@ -125,7 +127,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     padding: spacing.lg,
-    paddingBottom: 28,
     gap: spacing.sm,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
