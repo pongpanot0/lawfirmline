@@ -47,23 +47,23 @@ types. Web (`apps/web`) stays the surface for admin/setup work.
 
 ### Phase 0 — Foundation (blocking everything)
 
-- [ ] Scaffold `apps/mobile` (Expo, TS, ESLint config from repo), wire pnpm workspace + CI
-- [ ] API client generated/typed from `packages/shared`; auth flow (login, refresh, multi-firm switch)
+- [x] Scaffold `apps/mobile` (Expo, TS, ESLint config from repo), wire pnpm workspace + CI
+- [x] API client generated/typed from `packages/shared`; auth flow (login, refresh, multi-firm switch)
 - [ ] Secure storage + biometric app lock
-- [ ] TanStack Query + MMKV persistence; offline mutation queue
+- [x] TanStack Query + AsyncStorage persistence (MMKV requires a dev build; revisit); offline mutation queue still TODO
 - [ ] Push notification plumbing (B1, B2) end-to-end on dev build
 - [ ] Design tokens: navy `#182B49`, brass `#A67C2E`, semantic green/red; fonts Anuphan + IBM Plex Sans Thai; icons **Lucide** (`lucide-react-native`); large touch targets (min 44pt)
 - [ ] TH/EN + Buddhist-era date utils; camera + file upload helper (documents storage)
 
 ### Phase 1 — Lawyer's day (MVP release)
 
-- [ ] **My Day** — today's hearings, due tasks, stat cards (dashboard + agenda APIs)
-- [ ] **Court Day mode** — offline-prefetched bundle (B4): case header, required docs, checklist, hearing-result note + next-hearing capture; dark high-contrast screen
-- [ ] **Cases** — list with search/filter (Own Ref, status, Case Owner); detail with 4 tabs: overview / hearings / tasks / documents
-- [ ] **Calendar + deadlines** — month/day views, court + deadline merge, Outlook sync indicator
-- [ ] **Tasks** — my tasks, optimistic tick, assign, due reminders
+- [x] **My Day** — today's hearings, due tasks, stat cards (dashboard + agenda APIs)
+- [x] **Court Day mode** (checklist/notes/outcome save; B4 bundle prefetch still TODO) — offline-prefetched bundle (B4): case header, required docs, checklist, hearing-result note + next-hearing capture; dark high-contrast screen
+- [x] **Cases** — list with search/filter (Own Ref, status, Case Owner); detail with 4 tabs: overview / hearings / tasks / documents
+- [x] **Calendar + deadlines** — month/day views, court + deadline merge, Outlook sync indicator
+- [x] **Tasks** (optimistic tick; assign/reminders TODO) — my tasks, optimistic tick, assign, due reminders
 - [ ] **Notifications center** — in-app list + push deep links
-- [ ] **Team Workload dashboard** (B3) — per-person load bars, overload flags, tap-through to person's task list, reassign inline
+- [x] **Team Workload dashboard** (B3 endpoint shipped; inline reassign TODO) — per-person load bars, overload flags, tap-through to person's task list, reassign inline
 - [ ] QA pass with `josh-qa`-style checklist; release TestFlight/internal track
 
 ### Phase 2 — Documents, clients, money
