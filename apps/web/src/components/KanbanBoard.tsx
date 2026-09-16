@@ -92,6 +92,11 @@ export function KanbanBoard({
   const [handoffReviewerId, setHandoffReviewerId] = useState('');
   const [rejectTaskId, setRejectTaskId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  // HTML5 drag-and-drop between columns. Only the three plain statuses are
+  // drop targets — review columns are reached via the handoff/review flows.
+  const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+  const DROPPABLE_STATUSES: TaskStatus[] = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE];
 
   const columns: { status: TaskStatus; label: string; color: string }[] = [
     { status: TaskStatus.TODO, label: d.todos.columnTodo, color: 'border-t-muted-foreground/40' },
@@ -161,7 +166,19 @@ export function KanbanBoard({
         ].filter(Boolean);
 
         return (
-          <div key={task.id} className={`rounded-lg border bg-card p-3 shadow-soft ${priorityBar}`}>
+          <div
+            key={task.id}
+            draggable={canSetPlainStatus}
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              setDragTaskId(task.id);
+            }}
+            onDragEnd={() => {
+              setDragTaskId(null);
+              setDragOverStatus(null);
+            }}
+            className={`rounded-lg border bg-card p-3 shadow-soft ${priorityBar} ${canSetPlainStatus ? 'cursor-grab active:cursor-grabbing' : ''} ${dragTaskId === task.id ? 'opacity-50' : ''}`}
+          >
             {onOpen ? (
               <button
                 type="button"
@@ -420,7 +437,23 @@ export function KanbanBoard({
         return (
           <div
             key={col.status}
-            className={`rounded-xl border bg-muted/40 ${col.color} border-t-4`}
+            onDragOver={(e) => {
+              if (!dragTaskId || !DROPPABLE_STATUSES.includes(col.status)) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              setDragOverStatus(col.status);
+            }}
+            onDragLeave={() => setDragOverStatus((cur) => (cur === col.status ? null : cur))}
+            onDrop={(e) => {
+              e.preventDefault();
+              const id = dragTaskId;
+              setDragTaskId(null);
+              setDragOverStatus(null);
+              if (!id || !DROPPABLE_STATUSES.includes(col.status)) return;
+              const task = tasks.find((t) => t.id === id);
+              if (task && task.status !== col.status) onStatusChange(id, col.status);
+            }}
+            className={`rounded-xl border bg-muted/40 ${col.color} border-t-4 transition ${dragOverStatus === col.status && dragTaskId ? 'ring-2 ring-primary/60 bg-primary/5' : ''}`}
           >
             <div className="border-b px-4 py-3">
               <h3 className="text-sm font-semibold text-foreground">
