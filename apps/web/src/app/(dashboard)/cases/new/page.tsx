@@ -435,11 +435,14 @@ export default function NewCasePage() {
           {step === 0 && (
             <div className="space-y-6">
               <section className="space-y-3" aria-label="ประเภทคดี">
-                <div>
-                  <h3 className="text-sm font-semibold">ประเภทคดี</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    เลือกประเภทที่ตรงกับคดี เพื่อแสดงเฉพาะข้อมูลที่เกี่ยวข้อง
-                  </p>
+                <div className="flex items-start gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">1</span>
+                  <div>
+                    <h3 className="text-sm font-semibold">ประเภทคดี</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      เลือกประเภทที่ตรงกับคดี เพื่อแสดงเฉพาะข้อมูลที่เกี่ยวข้อง
+                    </p>
+                  </div>
                 </div>
                 {loadingTypes ? (
                   <p role="status" className="text-sm text-muted-foreground">
@@ -474,8 +477,11 @@ export default function NewCasePage() {
                       >
                         <span className="flex items-center justify-between gap-2 font-medium">
                           {type.name}
-                          <span aria-hidden="true">
-                            {form.caseTypeId === type.id ? '✓' : '○'}
+                          <span
+                            aria-hidden="true"
+                            className={`flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${form.caseTypeId === type.id ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40 text-transparent'}`}
+                          >
+                            ✓
                           </span>
                         </span>
                         {type.description && (
@@ -489,7 +495,11 @@ export default function NewCasePage() {
                 )}
               </section>
 
-              <section className="space-y-4" aria-label="ลูกค้าและชื่อคดี">
+              <section className="space-y-4 border-t border-border pt-5" aria-label="ลูกค้าและชื่อคดี">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">2</span>
+                  <h3 className="text-sm font-semibold">ลูกค้าและชื่อคดี</h3>
+                </div>
                 <div>
                   <label htmlFor="client-combobox" className={fieldLabel}>
                     ลูกค้า{' '}
@@ -637,7 +647,8 @@ export default function NewCasePage() {
                 className="space-y-4 border-t border-border pt-5"
                 aria-labelledby="court-heading"
               >
-                <h3 id="court-heading" className="font-semibold">
+                <h3 id="court-heading" className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">3</span>
                   ข้อมูลศาลและหมายเลขคดี
                 </h3>
                 <p className="text-xs text-muted-foreground">
@@ -916,7 +927,7 @@ export default function NewCasePage() {
                   aria-label="ข้อมูลเฉพาะประเภทคดี"
                 >
                   <div>
-                    <h3 className="font-semibold">ข้อมูลเฉพาะประเภทคดี</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">4</span>ข้อมูลเฉพาะประเภทคดี</h3>
                     <p className="text-sm text-muted-foreground">
                       รายละเอียดที่เกี่ยวข้องกับประเภทคดีที่เลือก
                     </p>

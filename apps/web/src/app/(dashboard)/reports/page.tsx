@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BarChart3, PieChart, TrendingUp } from 'lucide-react';
+import { BarChart3, PieChart, TrendingUp, Briefcase, CheckCircle2, Clock } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import {
   api,
@@ -54,14 +54,17 @@ function MiniBarChart({ items }: { items: Array<{ label: string; value: number }
     // only aligns children, it doesn't stretch them, so without `h-full`
     // below every column collapses to its label's height and every bar
     // renders at 0px regardless of the percentage.
-    <div className="flex h-32 gap-2">
+    <div className="flex h-36 gap-3 border-b border-border pb-px">
       {items.slice(0, 6).map((item) => (
         <div key={item.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
+          <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">
+            {item.value >= 1000 ? `${Math.round(item.value / 1000)}k` : item.value}
+          </span>
           <div
-            className="w-full rounded-t bg-primary/70"
-            style={{ height: `${Math.max((item.value / max) * 100, 8)}%` }}
+            className="w-full max-w-14 rounded-t-md bg-gradient-to-t from-primary/80 to-primary/45"
+            style={{ height: `${Math.max((item.value / max) * 100, 6)}%` }}
           />
-          <span className="truncate text-[10px] text-muted-foreground">{item.label}</span>
+          <span className="w-full truncate text-center text-[10px] text-muted-foreground">{item.label}</span>
         </div>
       ))}
     </div>
@@ -180,18 +183,21 @@ export default function ReportsPage() {
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
+          icon={Briefcase}
           label={d.reports.casesClosedYtd}
           value={data.kpis.casesClosedYtd}
           trend={data.kpis.casesClosedChange >= 0 ? 'up' : 'down'}
           change={changeLabel}
         />
         <KpiCard
+          icon={CheckCircle2}
           label={d.reports.completionRate}
           value={`${data.kpis.winRate}%`}
           trend="neutral"
           change={d.reports.completionRateHint}
         />
         <KpiCard
+          icon={Clock}
           label={d.reports.avgCaseDuration}
           value={
             data.kpis.avgCaseDurationMonths != null
@@ -202,6 +208,7 @@ export default function ReportsPage() {
         />
         {finance && (
           <KpiCard
+            icon={TrendingUp}
             label={d.reports.netProfit}
             value={formatCurrency(finance.netProfit)}
             trend={finance.netProfit >= 0 ? 'up' : 'down'}

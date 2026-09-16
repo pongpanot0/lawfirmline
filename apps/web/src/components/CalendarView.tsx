@@ -98,7 +98,10 @@ export function CalendarView({
       </div>
       <div className="grid grid-cols-7 gap-px bg-border p-px">
         {weekdays.map((w, i) => (
-          <div key={i} className="bg-muted px-2 py-2 text-center text-xs font-medium text-muted-foreground">
+          <div
+            key={i}
+            className={`px-2 py-2 text-center text-xs font-medium ${i === 0 || i === 6 ? 'bg-rose-50/60 text-rose-500 dark:bg-rose-950/20 dark:text-rose-400' : 'bg-muted text-muted-foreground'}`}
+          >
             {w}
           </div>
         ))}
@@ -114,7 +117,7 @@ export function CalendarView({
             <div
               key={i}
               onClick={() => day && onDayClick?.(new Date(year, monthIndex, day))}
-              className={`min-h-24 cursor-pointer p-1 transition hover:bg-accent/50 ${holidayName ? 'bg-rose-50 dark:bg-rose-950/20' : 'bg-card'} ${isToday ? 'ring-2 ring-inset ring-primary' : ''}`}
+              className={`min-h-24 cursor-pointer p-1.5 transition hover:bg-accent/50 ${holidayName ? 'bg-rose-50 dark:bg-rose-950/20' : i % 7 === 0 || i % 7 === 6 ? 'bg-muted/40' : 'bg-card'} ${isToday ? 'ring-2 ring-inset ring-primary' : ''}`}
             >
               {day && (
                 <>

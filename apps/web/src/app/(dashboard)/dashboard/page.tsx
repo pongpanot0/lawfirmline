@@ -199,7 +199,7 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>{d.home.caseProfitByCase}</CardTitle>
+              <CardTitle className="flex items-center gap-2"><TrendingUp className="size-4 text-muted-foreground" aria-hidden />{d.home.caseProfitByCase}</CardTitle>
               <Link href="/reports" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
             </CardHeader>
             <CardContent className="p-0">
@@ -265,7 +265,7 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>{d.home.upcomingCourt}</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Gavel className="size-4 text-muted-foreground" aria-hidden />{d.home.upcomingCourt}</CardTitle>
               <Link href="/court-schedule" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
             </CardHeader>
             <CardContent className="p-0">
@@ -310,7 +310,7 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{d.home.recentActivities}</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Activity className="size-4 text-muted-foreground" aria-hidden />{d.home.recentActivities}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="relative space-y-0">
