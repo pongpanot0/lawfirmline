@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { canAssignFirmRole } from '@lawfirm/shared';
 import { api, ClientItem, ApiError, IntakeItem, FieldSuggestion, UserItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 
@@ -292,26 +293,17 @@ export default function NewIntakePage() {
               <p className="mt-0.5 text-xs text-muted-foreground">
                 มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณ — ตัวคุณเป็นผู้รับเรื่องอยู่แล้ว
               </p>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                {assignable.map((u) => (
-                  <label key={u.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={assignedIds.includes(u.id)}
-                      onChange={() =>
-                        setAssignedIds((prev) =>
-                          prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id],
-                        )
-                      }
-                    />
-                    {u.firstName} {u.lastName}
-                    {u.firmRole && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        {FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole}
-                      </span>
-                    )}
-                  </label>
-                ))}
+              <div className="mt-2">
+                <MultiUserSelect
+                  users={assignable}
+                  value={assignedIds}
+                  onChange={setAssignedIds}
+                  placeholder="เลือกผู้รับผิดชอบ — เลือกได้หลายคน"
+                  renderExtra={(u) => (u.firmRole ? (FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole) : '')}
+                />
+                {assignedIds.length > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">เลือกแล้ว {assignedIds.length} คน</p>
+                )}
               </div>
             </div>
           )}
