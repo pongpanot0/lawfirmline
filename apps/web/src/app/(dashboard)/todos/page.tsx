@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { priorityLabel } from '@/lib/task-detail';
 import { PageLoading } from '@/components/ui/misc';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 
 function TodosPageContent() {
   const d = useDashboardT();
@@ -279,17 +280,28 @@ function TodosPageContent() {
               </select>
               <div>
                 <label className="mb-1 block text-sm font-medium">ไฟล์แนบ</label>
-                <input
-                  type="file"
+                <DocumentDropZone
                   multiple
                   accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.docx,.xlsx,.txt"
-                  onChange={(e) => setNewFiles(Array.from(e.target.files ?? []))}
-                  className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                  hint="PDF, รูปภาพ, DOCX, XLSX, TXT · ไม่เกิน 10MB"
+                  onFiles={(files) => setNewFiles((prev) => [...prev, ...files])}
                 />
                 {newFiles.length > 0 && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {newFiles.length} ไฟล์: {newFiles.map((f) => f.name).join(', ')}
-                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {newFiles.map((f, i) => (
+                      <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs">
+                        <span className="truncate">{f.name}</span>
+                        <button
+                          type="button"
+                          aria-label={`เอา ${f.name} ออก`}
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setNewFiles((prev) => prev.filter((_, x) => x !== i))}
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
               <Button type="submit" disabled={creating}>{d.todos.create}</Button>
