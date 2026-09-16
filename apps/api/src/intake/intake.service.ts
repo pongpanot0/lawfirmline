@@ -731,7 +731,7 @@ export class IntakeService {
     // the controller's FileInterceptor config) rejects an oversized upload first.
     // Kept as defense-in-depth for any future direct/non-HTTP caller of this method.
     if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      throw new BadRequestException('ไฟล์มีขนาดใหญ่เกิน 10MB');
+      throw new BadRequestException('ไฟล์มีขนาดใหญ่เกิน 30MB');
     }
 
     const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

@@ -283,7 +283,7 @@ function TodosPageContent() {
                 <DocumentDropZone
                   multiple
                   accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.docx,.xlsx,.txt"
-                  hint="PDF, รูปภาพ, DOCX, XLSX, TXT · ไม่เกิน 10MB"
+                  hint="PDF, รูปภาพ, DOCX, XLSX, TXT · ไม่เกิน 30MB"
                   onFiles={(files) => setNewFiles((prev) => [...prev, ...files])}
                 />
                 {newFiles.length > 0 && (

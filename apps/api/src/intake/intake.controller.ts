@@ -127,7 +127,7 @@ export class IntakeController {
   }
 
   @Post(':id/attachments')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 30 * 1024 * 1024 } }))
   uploadAttachment(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,

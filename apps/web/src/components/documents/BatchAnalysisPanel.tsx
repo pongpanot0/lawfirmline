@@ -77,7 +77,7 @@ export function BatchAnalysisPanel({
           file.size > 10 * 1024 * 1024,
       )
     ) {
-      setError('รองรับ PDF ที่มีข้อความ และ TXT ขนาดไม่เกิน 10MB ต่อไฟล์');
+      setError('รองรับ PDF ที่มีข้อความ และ TXT ขนาดไม่เกิน 30MB ต่อไฟล์');
       return;
     }
     if (!caseId) {
@@ -89,7 +89,7 @@ export function BatchAnalysisPanel({
         next.length > 10 ||
         next.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024
       ) {
-        setError('เลือกไม่เกิน 10 ไฟล์ รวมไม่เกิน 50MB');
+        setError('เลือกไม่เกิน 10 ไฟล์ รวมไม่เกิน 100MB');
         return;
       }
       onFilesChange?.(next);
@@ -169,7 +169,7 @@ export function BatchAnalysisPanel({
       <h2 className="font-semibold">วิเคราะห์เนื้อหาไฟล์ด้วย AI</h2>
       <p className="text-sm text-muted-foreground">
         อ่านไฟล์ที่เลือกแล้วสรุปเนื้อหาและดึงวันสำคัญ (คนละบริการกับการประเมินเรื่องในหน้ารับเรื่อง) ·
-        PDF/TXT ไม่เกิน 10MB ต่อไฟล์
+        PDF/TXT ไม่เกิน 30MB ต่อไฟล์
       </p>
       {!caseId && (
         <p className="text-xs text-muted-foreground">
@@ -184,7 +184,7 @@ export function BatchAnalysisPanel({
         disabled={disabled}
         label="ลากไฟล์มาวาง หรือคลิกเลือกหลายไฟล์"
         loadingLabel={progress || 'กำลังอัปโหลด...'}
-        hint="PDF / TXT ไม่เกิน 10MB ต่อไฟล์ · สูงสุด 10 ไฟล์"
+        hint="PDF / TXT ไม่เกิน 30MB ต่อไฟล์ · สูงสุด 10 ไฟล์"
         onFiles={(incoming) => void addFiles(incoming)}
       />
       {rows.length > 0 && (

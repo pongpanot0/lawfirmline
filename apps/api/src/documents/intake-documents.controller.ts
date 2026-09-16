@@ -38,7 +38,7 @@ export class IntakeDocumentsController {
   }
 
   @Post()
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 30 * 1024 * 1024 } }))
   upload(
     @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,
@@ -48,7 +48,7 @@ export class IntakeDocumentsController {
   }
 
   @Post(':documentId/versions')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 30 * 1024 * 1024 } }))
   uploadVersion(
     @CurrentUser() user: AuthUser,
     @Param('intakeId') intakeId: string,

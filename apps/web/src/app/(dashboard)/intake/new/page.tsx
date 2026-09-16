@@ -193,22 +193,45 @@ export default function NewIntakePage() {
         กรอกแค่ชื่อเรื่องกับลูกค้า แล้วไปเติมรายละเอียดต่อที่หน้าเรื่อง
       </p>
 
-      <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-4 sm:p-6 shadow-sm">
-        <fieldset disabled={submitting} className="min-w-0 space-y-5">
-          <div>
-            <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
-            <input
-              id="intake-title"
-              required
-              value={form.title}
-              onChange={(e) => set('title', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              placeholder="เช่น เรียกเงินคืนจากผู้รับเหมา"
-            />
-          </div>
+      <form onSubmit={handleSubmit}>
+        <fieldset disabled={submitting} className="min-w-0 space-y-4">
+          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">1</span>
+              <h2 className="font-semibold">เรื่องที่รับ</h2>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
+                <input
+                  id="intake-title"
+                  required
+                  value={form.title}
+                  onChange={(e) => set('title', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="เช่น เรียกเงินคืนจากผู้รับเหมา"
+                />
+              </div>
+              <div>
+                <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
+                <input
+                  id="intake-receivedDate"
+                  type="date"
+                  required
+                  value={form.receivedDate}
+                  onChange={(e) => set('receivedDate', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+          </section>
 
-          <div className="space-y-3">
-            <h2 className="font-semibold">ลูกค้า</h2>
+          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">2</span>
+              <h2 className="font-semibold">ลูกค้า</h2>
+            </div>
+            <div className="space-y-3">
             <div>
               <label htmlFor="intake-clientId" className="block text-sm font-medium">ลูกค้าในระบบ (ถ้ามี)</label>
               <select
@@ -263,48 +286,42 @@ export default function NewIntakePage() {
                     placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท"
                   />
                 </div>
-                <div>
-                  <label htmlFor="intake-clientType" className="block text-sm font-medium">ประเภทลูกค้า</label>
-                  <select
-                    id="intake-clientType"
-                    value={form.clientType}
-                    onChange={(e) => set('clientType', e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="INDIVIDUAL">บุคคลธรรมดา</option>
-                    <option value="COMPANY">นิติบุคคล</option>
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="intake-contactName" className="block text-sm font-medium">ชื่อผู้ติดต่อ</label>
-                  <input
-                    id="intake-contactName"
-                    value={form.contactName}
-                    onChange={(e) => set('contactName', e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                    placeholder="ถ้าไม่กรอกจะใช้ชื่อลูกค้า"
-                  />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="intake-clientType" className="block text-sm font-medium">ประเภทลูกค้า</label>
+                    <select
+                      id="intake-clientType"
+                      value={form.clientType}
+                      onChange={(e) => set('clientType', e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="INDIVIDUAL">บุคคลธรรมดา</option>
+                      <option value="COMPANY">นิติบุคคล</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="intake-contactName" className="block text-sm font-medium">ชื่อผู้ติดต่อ</label>
+                    <input
+                      id="intake-contactName"
+                      value={form.contactName}
+                      onChange={(e) => set('contactName', e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="ถ้าไม่กรอกจะใช้ชื่อลูกค้า"
+                    />
+                  </div>
                 </div>
               </div>
             )}
-          </div>
-
-          <div>
-            <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
-            <input
-              id="intake-receivedDate"
-              type="date"
-              required
-              value={form.receivedDate}
-              onChange={(e) => set('receivedDate', e.target.value)}
-              className="mt-1 w-full max-w-xs rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
+            </div>
+          </section>
 
           {assignable.length > 0 && (
-            <div>
-              <span className="block text-sm font-medium">ทีมผู้รับผิดชอบ</span>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+            <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+              <div className="mb-1 flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">3</span>
+                <h2 className="font-semibold">ทีมผู้รับผิดชอบ</h2>
+              </div>
+              <p className="text-xs text-muted-foreground">
                 มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณ — ตัวคุณเป็นผู้รับเรื่องอยู่แล้ว
               </p>
               <div className="mt-2">
@@ -319,14 +336,14 @@ export default function NewIntakePage() {
                   <p className="mt-1 text-xs text-muted-foreground">เลือกแล้ว {assignedIds.length} คน</p>
                 )}
               </div>
-            </div>
+            </section>
           )}
 
           {error && (
             <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
           )}
 
-          <div className="flex items-center justify-between border-t pt-4">
+          <div className="flex items-center justify-between rounded-xl border bg-card p-4 shadow-sm">
             <Button type="button" variant="outline" disabled={submitting || !!createdIntakeId} onClick={() => router.push('/intake')}>
               ยกเลิก
             </Button>

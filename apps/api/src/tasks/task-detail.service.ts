@@ -13,7 +13,7 @@ import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { TasksService } from './tasks.service';
 import { CreateSubtaskDto, CreateTaskCommentDto } from './dto/task-detail.dto';
 
-export const TASK_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const TASK_ATTACHMENT_MAX_BYTES = 30 * 1024 * 1024;
 export const TASK_ATTACHMENT_MIME_TYPES = new Set([
   'application/pdf',
   'image/png',
@@ -114,7 +114,7 @@ export class TaskDetailService {
       throw new BadRequestException('รองรับเฉพาะ PDF, รูปภาพ, DOCX, XLSX, TXT');
     }
     if (file.size > TASK_ATTACHMENT_MAX_BYTES) {
-      throw new BadRequestException('ไฟล์มีขนาดใหญ่เกิน 10MB');
+      throw new BadRequestException('ไฟล์มีขนาดใหญ่เกิน 30MB');
     }
     const filename = decodeUploadFilename(file.originalname);
     const ext = path.extname(filename).toLowerCase().slice(0, 10);

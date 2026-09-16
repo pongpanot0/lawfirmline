@@ -98,15 +98,22 @@ export class DocumentIntelligenceService {
     return ANALYZE_COST;
   }
 
+  /** Postgres text columns reject \u0000, and some PDFs emit it — strip here so every caller is safe. */
+  private stripNullChars(text: string): string {
+    return text.replace(/\u0000/g, '');
+  }
+
   async extractText(fileBuffer: Buffer, mimeType: string): Promise<string> {
     if (mimeType === 'application/pdf') {
       const parser = new PDFParse({ data: fileBuffer });
       try {
         const data = await parser.getText();
-        return data.pages
-          .filter((page) => page.text.trim())
-          .map((page) => `[หน้า ${page.num}]\n${page.text}`)
-          .join('\n\n');
+        return this.stripNullChars(
+          data.pages
+            .filter((page) => page.text.trim())
+            .map((page) => `[หน้า ${page.num}]\n${page.text}`)
+            .join('\n\n'),
+        );
       } finally {
         await parser.destroy();
       }
@@ -116,7 +123,7 @@ export class DocumentIntelligenceService {
     ) {
       throw new BadRequestException('ยังไม่รองรับการอ่านข้อความ DOCX กรุณาแปลงเป็น PDF ที่มีข้อความหรือ TXT ก่อน');
     }
-    if (mimeType === 'text/plain') return fileBuffer.toString('utf-8');
+    if (mimeType === 'text/plain') return this.stripNullChars(fileBuffer.toString('utf-8'));
     throw new Error(`Unsupported file type: ${mimeType}`);
   }
 
@@ -537,8 +544,8 @@ export class DocumentIntelligenceService {
     caseId?: string,
   ) {
     if (!files.length || files.length > 10) throw new BadRequestException('เลือก 1–10 ไฟล์ต่อครั้ง');
-    if (files.some((file) => file.buffer.length > 10 * 1024 * 1024) || files.reduce((sum, file) => sum + file.buffer.length, 0) > 50 * 1024 * 1024) {
-      throw new BadRequestException('ไม่เกิน 10MB ต่อไฟล์ และ 50MB รวมต่อครั้ง');
+    if (files.some((file) => file.buffer.length > 30 * 1024 * 1024) || files.reduce((sum, file) => sum + file.buffer.length, 0) > 100 * 1024 * 1024) {
+      throw new BadRequestException('ไม่เกิน 30MB ต่อไฟล์ และ 100MB รวมต่อครั้ง');
     }
     const excerpts: string[] = [];
     const truncatedFiles: string[] = [];

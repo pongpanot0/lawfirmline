@@ -66,7 +66,7 @@ export class IntelligenceController {
 
   @Post('documents/analyze-batch')
   @RequireCredits(5)
-  @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024, files: 10 } }), AiCreditsInterceptor)
+  @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 30 * 1024 * 1024, files: 10 } }), AiCreditsInterceptor)
   analyzeDraftBatch(@CurrentUser() user: AuthUser, @UploadedFiles() files: Express.Multer.File[]) {
     return this.intelligenceService.analyzeBatch((files ?? []).map((file) => ({ buffer: file.buffer, mimeType: file.mimetype, filename: decodeUploadFilename(file.originalname) })), user.id);
   }

@@ -703,7 +703,7 @@ export default function IntakeDetailPage() {
       await loadDocuments();
       setSelectedAttachmentIds((previous) => [...new Set([...previous, ...uploadedIds])].slice(0, 10));
     } catch { failures.push('โหลดรายการล่าสุดไม่สำเร็จ กรุณาโหลดหน้าใหม่ก่อนอัปโหลดซ้ำ'); }
-    if (failures.length) setFileError(`ไฟล์ที่ไม่สำเร็จ: ${failures.join(', ')} · รองรับ PDF ไม่เกิน 10MB ต่อไฟล์`);
+    if (failures.length) setFileError(`ไฟล์ที่ไม่สำเร็จ: ${failures.join(', ')} · รองรับ PDF ไม่เกิน 30MB ต่อไฟล์`);
     setUploadingFiles(false);
   };
 
@@ -1038,7 +1038,7 @@ export default function IntakeDetailPage() {
                 disabled={analyzing}
                 label="ลากไฟล์ PDF มาวาง หรือคลิกเลือก"
                 loadingLabel="กำลังอัปโหลด..."
-                hint={`แนบได้เฉพาะ PDF ไม่เกิน 10MB · เลือกวิเคราะห์ได้สูงสุด ${AI_UPLOAD_MAX_FILES} ไฟล์`}
+                hint={`แนบได้เฉพาะ PDF ไม่เกิน 30MB · เลือกวิเคราะห์ได้สูงสุด ${AI_UPLOAD_MAX_FILES} ไฟล์`}
                 onFiles={(files) => void handleUploadFiles(files)}
               />
             )}
@@ -1113,7 +1113,7 @@ export default function IntakeDetailPage() {
               พร้อม {matchedExpectedDocuments.length}/{expectedDocuments.length}
               {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตาม checklist'}
               {' · '}ติ๊กเองได้ · จับคู่ชื่อไฟล์อัตโนมัติ · หรือกด「ให้ AI แนะนำประเภท」แล้วยืนยัน
-              {' · '}แนบได้เฉพาะ PDF ไม่เกิน 10MB · เลือกวิเคราะห์ได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์ · แนะนำประเภท {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิต
+              {' · '}แนบได้เฉพาะ PDF ไม่เกิน 30MB · เลือกวิเคราะห์ได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์ · แนะนำประเภท {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิต
             </p>
             {classifyError && (
               <p className="mt-2 text-sm text-destructive" role="alert">{classifyError}</p>
