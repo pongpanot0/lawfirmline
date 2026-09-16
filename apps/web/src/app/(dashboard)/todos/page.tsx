@@ -39,6 +39,8 @@ function TodosPageContent() {
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newPriority, setNewPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const fmtUploadFailed = (n: number) => `สร้างงานแล้ว แต่แนบไฟล์ไม่สำเร็จ ${n} ไฟล์ — แนบใหม่ได้ในหน้ารายละเอียดงาน`;
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [usersLoadError, setUsersLoadError] = useState('');
@@ -130,14 +132,26 @@ function TodosPageContent() {
         dueDate: newDueDate || undefined,
         priority: newPriority,
       });
+      // Attachments ride along with the create; a failed file surfaces as a
+      // warning on the detail drawer rather than losing the task itself.
+      let failedUploads = 0;
+      for (const file of newFiles) {
+        try {
+          await api.uploadTaskAttachment(token, created.id, file);
+        } catch {
+          failedUploads += 1;
+        }
+      }
+      if (failedUploads > 0) setError(fmtUploadFailed(failedUploads));
       setNewTitle('');
       setNewAssigneeId('');
       setNewDueDate('');
       setNewPriority(TaskPriority.MEDIUM);
+      setNewFiles([]);
       setShowForm(false);
       loadTasks();
-      // Straight into the detail drawer: subtasks (1-2-3) and file/photo
-      // attachments live there, so the flow continues without re-opening.
+      // Straight into the detail drawer: subtasks (1-2-3) and the uploaded
+      // attachments are there, so the flow continues without re-opening.
       taskParam.open(created.id);
     } catch {
       // Keep what was typed: the retry should not start from a blank field.
@@ -263,6 +277,21 @@ function TodosPageContent() {
                   <option key={p} value={p}>{priorityLabel(d, p)}</option>
                 ))}
               </select>
+              <div>
+                <label className="mb-1 block text-sm font-medium">ไฟล์แนบ</label>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.docx,.xlsx,.txt"
+                  onChange={(e) => setNewFiles(Array.from(e.target.files ?? []))}
+                  className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                />
+                {newFiles.length > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {newFiles.length} ไฟล์: {newFiles.map((f) => f.name).join(', ')}
+                  </p>
+                )}
+              </div>
               <Button type="submit" disabled={creating}>{d.todos.create}</Button>
             </form>
           </aside>
