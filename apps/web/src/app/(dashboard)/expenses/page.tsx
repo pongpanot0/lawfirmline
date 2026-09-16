@@ -152,8 +152,7 @@ export default function ExpensesPage() {
 
   if (!finance) return null;
 
-  const showDraftCheckbox = draftExpenses.length > 0 && (!statusFilter || statusFilter === 'DRAFT');
-  const colSpan = (showDraftCheckbox ? 1 : 0) + (isOwner ? 1 : 0) + 4;
+  const colSpan = (isOwner ? 1 : 0) + 5;
 
   return (
     <div>
@@ -264,43 +263,102 @@ export default function ExpensesPage() {
         )}
       </div>
 
-      <Card>
+      {/* Step 1 — drafts waiting to be claimed. Only rows here are selectable,
+          so the checkbox never appears next to something already submitted. */}
+      <Card className="mb-6">
         <CardHeader className="flex-row items-center justify-between gap-3">
           <div>
             <CardTitle>{d.expenses.savedDrafts}</CardTitle>
-            {draftExpenses.length > 0 && (
-              <p className="mt-1 text-xs text-muted-foreground">{d.expenses.savedDraftsHint}</p>
-            )}
+            <p className="mt-1 text-xs text-muted-foreground">{d.expenses.savedDraftsHint}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {selectedDraftIds.length > 0 && (
-              <Button size="sm" onClick={openClaimSheet}>
-                <FileText className="h-4 w-4" />
-                {fmt(d.expenses.prepareClaimCount, { count: selectedDraftIds.length })}
-              </Button>
-            )}
-            {isOwner && (
-              <Link href="/admin/reimbursements">
-                <Button variant="outline" size="sm">
-                  {d.expenses.approve}
-                </Button>
-              </Link>
-            )}
-          </div>
+          <Button size="sm" onClick={openClaimSheet} disabled={selectedDraftIds.length === 0}>
+            <FileText className="h-4 w-4" />
+            {selectedDraftIds.length > 0
+              ? fmt(d.expenses.prepareClaimCount, { count: selectedDraftIds.length })
+              : d.expenses.prepareClaim}
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                {showDraftCheckbox && (
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={draftExpenses.length > 0 && selectedDraftIds.length === draftExpenses.length}
-                      onChange={toggleAllDrafts}
-                      aria-label={d.expenses.selectAll}
-                    />
-                  </TableHead>
-                )}
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={draftExpenses.length > 0 && selectedDraftIds.length === draftExpenses.length}
+                    onChange={toggleAllDrafts}
+                    aria-label={d.expenses.selectAll}
+                  />
+                </TableHead>
+                <TableHead>{d.expenses.descriptionField}</TableHead>
+                {isOwner && <TableHead>{d.expenses.requester}</TableHead>}
+                <TableHead>{d.expenses.caseField}</TableHead>
+                <TableHead>{d.expenses.amount}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {draftExpenses.length === 0 ? (
+                <TableEmptyRow
+                  colSpan={colSpan}
+                  title={d.expenses.empty}
+                  description="เพิ่มค่าใช้จ่ายแล้วติ๊กเลือกรายการเพื่อจัดทำใบเบิก"
+                />
+              ) : (
+                draftExpenses.map((e) => (
+                  <TableRow key={e.id} className={selectedDraftIds.includes(e.id) ? 'bg-primary/5' : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedDraftIds.includes(e.id)}
+                        onChange={() => toggleDraft(e.id)}
+                        aria-label={e.description}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm font-medium">{e.description}</p>
+                      <p className="text-xs text-muted-foreground">{e.category}</p>
+                      {e.receiptFilename && (
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                          onClick={() => downloadReceipt(e.id, e.receiptFilename!)}
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          {d.expenses.viewReceipt}
+                        </button>
+                      )}
+                    </TableCell>
+                    {isOwner && (
+                      <TableCell className="text-sm text-muted-foreground">
+                        {e.user.firstName} {e.user.lastName}
+                      </TableCell>
+                    )}
+                    <TableCell className="text-sm text-muted-foreground">
+                      {e.case?.ownRef ?? d.expenses.general}
+                    </TableCell>
+                    <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Step 2 — already-submitted history, read-only. */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-3">
+          <CardTitle>{d.expenses.submittedList}</CardTitle>
+          {isOwner && (
+            <Link href="/admin/reimbursements">
+              <Button variant="outline" size="sm">
+                {d.expenses.approveClaims}
+              </Button>
+            </Link>
+          )}
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
                 <TableHead>{d.expenses.descriptionField}</TableHead>
                 {isOwner && <TableHead>{d.expenses.requester}</TableHead>}
                 <TableHead>{d.expenses.caseField}</TableHead>
@@ -309,85 +367,39 @@ export default function ExpensesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {expenses.length === 0 ? (
-                <TableEmptyRow
-                  colSpan={colSpan}
-                  title={d.expenses.empty}
-                  description="เพิ่มค่าใช้จ่ายแล้วติ๊กเลือกรายการเพื่อจัดทำใบเบิก"
-                />
+              {submittedExpenses.length === 0 ? (
+                <TableEmptyRow colSpan={colSpan} title={d.expenses.empty} />
               ) : (
-                <>
-                  {draftExpenses.map((e) => (
-                    <TableRow key={e.id} className={selectedDraftIds.includes(e.id) ? 'bg-primary/5' : undefined}>
-                      {showDraftCheckbox && (
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedDraftIds.includes(e.id)}
-                            onChange={() => toggleDraft(e.id)}
-                            aria-label={e.description}
-                          />
-                        </TableCell>
+                submittedExpenses.map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell>
+                      <p className="text-sm font-medium">{e.description}</p>
+                      <p className="text-xs text-muted-foreground">{e.category}</p>
+                      {e.receiptFilename && (
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                          onClick={() => downloadReceipt(e.id, e.receiptFilename!)}
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          {d.expenses.viewReceipt}
+                        </button>
                       )}
-                      <TableCell>
-                        <p className="text-sm font-medium">{e.description}</p>
-                        <p className="text-xs text-muted-foreground">{e.category}</p>
-                        {e.receiptFilename && (
-                          <button
-                            type="button"
-                            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary"
-                            onClick={() => downloadReceipt(e.id, e.receiptFilename!)}
-                          >
-                            <Paperclip className="h-3 w-3" />
-                            {d.expenses.viewReceipt}
-                          </button>
-                        )}
-                      </TableCell>
-                      {isOwner && (
-                        <TableCell className="text-sm text-muted-foreground">
-                          {e.user.firstName} {e.user.lastName}
-                        </TableCell>
-                      )}
+                    </TableCell>
+                    {isOwner && (
                       <TableCell className="text-sm text-muted-foreground">
-                        {e.case?.ownRef ?? d.expenses.general}
+                        {e.user.firstName} {e.user.lastName}
                       </TableCell>
-                      <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
-                      <TableCell>
-                        <ExpenseStatusBadge status={e.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {submittedExpenses.map((e) => (
-                    <TableRow key={e.id}>
-                      {showDraftCheckbox && <TableCell />}
-                      <TableCell>
-                        <p className="text-sm font-medium">{e.description}</p>
-                        <p className="text-xs text-muted-foreground">{e.category}</p>
-                        {e.receiptFilename && (
-                          <button
-                            type="button"
-                            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary"
-                            onClick={() => downloadReceipt(e.id, e.receiptFilename!)}
-                          >
-                            <Paperclip className="h-3 w-3" />
-                            {d.expenses.viewReceipt}
-                          </button>
-                        )}
-                      </TableCell>
-                      {isOwner && (
-                        <TableCell className="text-sm text-muted-foreground">
-                          {e.user.firstName} {e.user.lastName}
-                        </TableCell>
-                      )}
-                      <TableCell className="text-sm text-muted-foreground">
-                        {e.case?.ownRef ?? d.expenses.general}
-                      </TableCell>
-                      <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
-                      <TableCell>
-                        <ExpenseStatusBadge status={e.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </>
+                    )}
+                    <TableCell className="text-sm text-muted-foreground">
+                      {e.case?.ownRef ?? d.expenses.general}
+                    </TableCell>
+                    <TableCell className="font-medium">{formatCurrency(e.amount)}</TableCell>
+                    <TableCell>
+                      <ExpenseStatusBadge status={e.status} />
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>

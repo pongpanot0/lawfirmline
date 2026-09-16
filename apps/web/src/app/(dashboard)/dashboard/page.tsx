@@ -410,14 +410,14 @@ export default function DashboardPage() {
               <CardTitle>{d.home.tasksDue}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="flex items-center gap-2 text-sm">
+              <Link href="/my-day" className="flex items-center gap-2 text-sm hover:underline">
                 <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
                 <span>{fmt(d.home.overdueTasks, { count: data.stats.overdueTasks })}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
+              </Link>
+              <Link href="/todos" className="flex items-center gap-2 text-sm hover:underline">
                 <CheckCircle2 className="h-4 w-4 text-primary" />
                 <span>{fmt(d.home.myTasks, { count: data.stats.myTasks })}</span>
-              </div>
+              </Link>
             </CardContent>
           </Card>
         </div>

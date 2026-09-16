@@ -156,6 +156,7 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [scope, setScope] = useState<'mine' | 'team'>('mine');
 
   const load = useCallback(() => {
     const authToken = token ?? getStoredToken();
@@ -224,9 +225,47 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
 
   if (!data) return null;
 
+  // An owner/senior is served the team's items too. "งง" fix: default to the
+  // viewer's own items and let them switch to the whole team's explicitly.
+  const isMine = (item: AgendaItem) => !item.assigneeId || item.assigneeId === viewerId;
+  const seesOthers =
+    [...data.overdue, ...data.todayItems, ...data.tomorrow, ...data.upcoming.flatMap((day) => day.items)].some(
+      (item) => !isMine(item),
+    );
+  const keep = (items: AgendaItem[]) => (seesOthers && scope === 'mine' ? items.filter(isMine) : items);
+  const overdue = keep(data.overdue);
+  const todayItems = keep(data.todayItems);
+  const tomorrow = keep(data.tomorrow);
+  const upcoming = data.upcoming
+    .map((day) => ({ ...day, items: keep(day.items) }))
+    .filter((day) => day.items.length > 0);
+
   return (
     <div className="space-y-4">
-      {showHeader && <PageHeader title={d.myDay.title} description={d.myDay.description} />}
+      {showHeader && (
+        <PageHeader
+          title={d.myDay.title}
+          description={d.myDay.description}
+          actions={
+            seesOthers ? (
+              <div role="tablist" aria-label={d.myDay.title} className="flex rounded-lg border border-border p-0.5">
+                {(['mine', 'team'] as const).map((s) => (
+                  <button
+                    key={s}
+                    role="tab"
+                    type="button"
+                    aria-selected={scope === s}
+                    onClick={() => setScope(s)}
+                    className={`rounded-md px-2.5 py-1 text-xs ${scope === s ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                  >
+                    {s === 'mine' ? d.todos.scopeMine : d.todos.scopeTeam}
+                  </button>
+                ))}
+              </div>
+            ) : undefined
+          }
+        />
+      )}
 
       {(token ?? getStoredToken()) && <ActionCenter token={(token ?? getStoredToken())!} />}
 
@@ -248,10 +287,10 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
         </Card>
       )}
 
-      {data.overdue.length > 0 && (
+      {overdue.length > 0 && (
         <Section
           title={d.myDay.overdue}
-          items={data.overdue}
+          items={overdue}
           tone="danger"
           onComplete={handleComplete}
           completingId={completingId}
@@ -260,26 +299,26 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
       )}
       <Section
         title={d.myDay.today}
-        items={data.todayItems}
+        items={todayItems}
         onComplete={handleComplete}
         completingId={completingId}
         viewerId={viewerId}
       />
       <Section
         title={d.myDay.tomorrow}
-        items={data.tomorrow}
+        items={tomorrow}
         onComplete={handleComplete}
         completingId={completingId}
         viewerId={viewerId}
       />
 
-      {data.upcoming.length > 0 && (
+      {upcoming.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">{d.myDay.upcoming}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pt-0">
-            {data.upcoming.map((day) => (
+            {upcoming.map((day) => (
               <div key={day.date}>
                 <p className="px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {bangkokDayLabel(day.date, dateLocale(locale))}
