@@ -1,7 +1,7 @@
 'use client';
 
-import { MyDayPanel } from '@/components/agenda/MyDayPanel';
+import { CalendarWorkspace } from '@/components/calendar/CalendarWorkspace';
 
 export default function MyDayPage() {
-  return <MyDayPanel />;
+  return <CalendarWorkspace defaultView="day" />;
 }

@@ -138,7 +138,7 @@ export default function DashboardPage() {
             </div>
           }
         />
-        <MyDayPanel showHeader={false} />
+        <MyDayPanel />
       </div>
     );
   }

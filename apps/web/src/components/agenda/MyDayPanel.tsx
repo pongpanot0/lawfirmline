@@ -7,7 +7,6 @@ import { AlertTriangle, CalendarClock, Car, Check, Gavel, ListTodo, Users } from
 import { AgendaItemKind, TaskStatus } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, AgendaItem, MyDayResponse } from '@/lib/api';
-import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/misc';
@@ -148,7 +147,7 @@ function Section({
  * coming. It loads its own data so it can be dropped anywhere a lawyer lands —
  * its own page, or the home screen for anyone who is not the firm owner.
  */
-export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
+export function MyDayPanel() {
   const { token, user } = useAuth();
   const viewerId = user?.id;
   const { locale, d } = useLocale();
@@ -214,7 +213,6 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
   if (error) {
     return (
       <div className="space-y-6">
-        {showHeader && <PageHeader title={d.myDay.title} description={d.myDay.description} />}
         <p role="alert" className="text-sm text-destructive">{error}</p>
         <Button size="sm" variant="outline" onClick={load}>
           {d.common.retry}
@@ -242,37 +240,21 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
 
   return (
     <div className="space-y-4">
-      {showHeader && (
-        <PageHeader
-          title={d.myDay.title}
-          description={d.myDay.description}
-          actions={
-            <div className="flex items-center gap-2">
-              {seesOthers && (
-                <div role="tablist" aria-label={d.myDay.title} className="flex rounded-lg border border-border p-0.5">
-                  {(['mine', 'team'] as const).map((s) => (
-                    <button
-                      key={s}
-                      role="tab"
-                      type="button"
-                      aria-selected={scope === s}
-                      onClick={() => setScope(s)}
-                      className={`rounded-md px-2.5 py-1 text-xs ${scope === s ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-                    >
-                      {s === 'mine' ? d.todos.scopeMine : d.todos.scopeTeam}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <Link href="/court-schedule">
-                <Button size="sm" variant="outline">
-                  <CalendarClock className="h-4 w-4" />
-                  {d.calendar.title}
-                </Button>
-              </Link>
-            </div>
-          }
-        />
+      {seesOthers && (
+        <div role="tablist" aria-label={d.myDay.title} className="flex w-fit rounded-lg border border-border p-0.5">
+          {(['mine', 'team'] as const).map((s) => (
+            <button
+              key={s}
+              role="tab"
+              type="button"
+              aria-selected={scope === s}
+              onClick={() => setScope(s)}
+              className={`rounded-md px-2.5 py-1 text-xs ${scope === s ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              {s === 'mine' ? d.todos.scopeMine : d.todos.scopeTeam}
+            </button>
+          ))}
+        </div>
       )}
 
       {(token ?? getStoredToken()) && <ActionCenter token={(token ?? getStoredToken())!} />}
