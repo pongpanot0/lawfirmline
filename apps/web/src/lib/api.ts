@@ -152,6 +152,9 @@ export interface WorkloadSummary {
   leadCount: number;
   buddyCount: number;
   nearDeadlineCount: number;
+  /** Case count weighted by claimed amount (ทุนทรัพย์); lead 1x, buddy 0.5x. */
+  weightedScore: number;
+  claimedTotal: number;
 }
 
 export interface WorkloadCaseItem {

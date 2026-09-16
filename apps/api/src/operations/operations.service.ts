@@ -7,6 +7,7 @@ interface ActiveCaseRow {
   id: string;
   title: string;
   status: string;
+  claimedAmount: number | null;
   leadLawyerId: string;
   assignments: { userId: string }[];
   tasks: { dueDate: Date | null }[];
@@ -24,6 +25,7 @@ export class OperationsService {
         id: true,
         title: true,
         status: true,
+        claimedAmount: true,
         leadLawyerId: true,
         assignments: {
           where: { assignmentType: AssignmentType.BUDDY },
@@ -59,6 +61,19 @@ export class OperationsService {
     return Math.floor((nearest.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   }
 
+  /**
+   * A case's weight leans on its claimed amount (ทุนทรัพย์): a 20M-baht suit
+   * is not the same load as a 50k one. Tiers, not a formula, so the number
+   * stays explainable to the owner reading the dashboard.
+   */
+  private caseWeight(claimedAmount: number | null): number {
+    const amt = claimedAmount ?? 0;
+    if (amt >= 10_000_000) return 4;
+    if (amt >= 1_000_000) return 3;
+    if (amt >= 100_000) return 2;
+    return 1;
+  }
+
   private async getFirmMembers(firmId: string) {
     return this.prisma.user.findMany({
       where: {
@@ -82,6 +97,8 @@ export class OperationsService {
       let leadCount = 0;
       let buddyCount = 0;
       let nearDeadlineCount = 0;
+      let weightedScore = 0;
+      let claimedTotal = 0;
 
       for (const c of cases) {
         const isLead = c.leadLawyerId === m.id;
@@ -90,6 +107,9 @@ export class OperationsService {
 
         if (isLead) leadCount++;
         if (isBuddy) buddyCount++;
+        // Lead carries the case; a buddy carries half of it.
+        weightedScore += this.caseWeight(c.claimedAmount) * (isLead ? 1 : 0.5);
+        claimedTotal += c.claimedAmount ?? 0;
 
         const days = this.nearestDeadlineDays(now, c.calendarEvents, c.tasks);
         if (days !== null && days <= nearDeadlineDays) nearDeadlineCount++;
@@ -102,10 +122,12 @@ export class OperationsService {
         leadCount,
         buddyCount,
         nearDeadlineCount,
+        weightedScore: Math.round(weightedScore * 10) / 10,
+        claimedTotal,
       };
     });
 
-    return summary.sort((a, b) => a.leadCount + a.buddyCount - (b.leadCount + b.buddyCount));
+    return summary.sort((a, b) => a.weightedScore - b.weightedScore);
   }
 
   async getWorkloadDetail(user: AuthUser, targetUserId: string, query: WorkloadQueryDto) {

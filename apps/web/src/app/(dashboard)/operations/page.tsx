@@ -22,8 +22,8 @@ import { Users, Scale, AlarmClock, PauseCircle, Sparkles, SlidersHorizontal, Mou
 type WorkloadLevelKey = 'levelLight' | 'levelMedium' | 'levelHeavy';
 
 function workloadLevel(total: number): { key: WorkloadLevelKey; variant: 'success' | 'warning' | 'destructive' } {
-  if (total <= 3) return { key: 'levelLight', variant: 'success' };
-  if (total <= 7) return { key: 'levelMedium', variant: 'warning' };
+  if (total <= 4) return { key: 'levelLight', variant: 'success' };
+  if (total <= 9) return { key: 'levelMedium', variant: 'warning' };
   return { key: 'levelHeavy', variant: 'destructive' };
 }
 
@@ -147,12 +147,12 @@ export default function OperationsPage() {
   useEffect(loadOnHold, [token, isOwner]);
 
   const enriched = useMemo(
-    () => summary.map((s) => ({ ...s, total: s.leadCount + s.buddyCount })),
+    () => summary.map((s) => ({ ...s, total: s.leadCount + s.buddyCount, score: s.weightedScore ?? s.leadCount + s.buddyCount })),
     [summary],
   );
-  const maxTotal = useMemo(() => Math.max(1, ...enriched.map((s) => s.total)), [enriched]);
+  const maxTotal = useMemo(() => Math.max(1, ...enriched.map((s) => s.score)), [enriched]);
   const sorted = useMemo(
-    () => [...enriched].sort((a, b) => (sortDesc ? b.total - a.total : a.total - b.total)),
+    () => [...enriched].sort((a, b) => (sortDesc ? b.score - a.score : a.score - b.score)),
     [enriched, sortDesc],
   );
 
@@ -163,7 +163,7 @@ export default function OperationsPage() {
   const recommended = useMemo(() => {
     if (enriched.length === 0) return null;
     return [...enriched].sort((a, b) => {
-      if (a.total !== b.total) return a.total - b.total;
+      if (a.score !== b.score) return a.score - b.score;
       return a.nearDeadlineCount - b.nearDeadlineCount;
     })[0];
   }, [enriched]);
@@ -309,7 +309,13 @@ export default function OperationsPage() {
                               <div className="mb-1">
                                 <span className="font-medium">{fmt(d.operations.caseCount, { count: s.total })}</span>
                               </div>
-                              <WorkloadBar total={s.total} max={maxTotal} />
+                              <WorkloadBar total={s.score} max={maxTotal} />
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {fmt(d.operations.weightLine, {
+                                  score: s.score,
+                                  amount: s.claimedTotal > 0 ? `฿${s.claimedTotal.toLocaleString('th-TH')}` : '—',
+                                })}
+                              </p>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {fmt(d.operations.roleSummary, { lead: s.leadCount, buddy: s.buddyCount })}
