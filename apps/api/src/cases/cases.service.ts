@@ -47,6 +47,12 @@ export class CasesService {
     if (query.caseTypeId) {
       where.caseTypeId = query.caseTypeId;
     }
+    if (query.userId) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        { OR: [{ leadLawyerId: query.userId }, { assignments: { some: { userId: query.userId } } }] },
+      ];
+    }
     if (query.search) {
       const term = query.search.trim();
       const searchFilter: Prisma.CaseWhereInput = {

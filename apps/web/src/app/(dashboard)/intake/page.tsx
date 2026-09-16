@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, ClipboardList } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, IntakeItem } from '@/lib/api';
+import { api, IntakeItem, UserItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
@@ -36,7 +36,10 @@ export default function IntakePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+
   const [statusFilter, setStatusFilter] = useState('');
+  const [personFilter, setPersonFilter] = useState('');
+  const [lawyers, setLawyers] = useState<UserItem[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -48,6 +51,19 @@ export default function IntakePage() {
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [token, statusFilter, reloadKey]);
+
+  useEffect(() => {
+    if (!token) return;
+    api.getLawyers(token).then(setLawyers).catch(() => setLawyers([]));
+  }, [token]);
+
+  // "รายคน": the intake payload already carries assignedUserIds and receivedBy,
+  // so the person filter is applied client-side.
+  const visibleIntakes = personFilter
+    ? intakes.filter(
+        (i) => (i.assignedUserIds ?? []).includes(personFilter) || i.receivedBy?.id === personFilter,
+      )
+    : intakes;
 
   return (
     <div>
@@ -74,6 +90,17 @@ export default function IntakePage() {
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
+          <select
+            aria-label="กรองตามผู้รับผิดชอบ"
+            value={personFilter}
+            onChange={(e) => setPersonFilter(e.target.value)}
+            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            <option value="">ทุกคน</option>
+            {lawyers.map((u) => (
+              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+            ))}
+          </select>
         </CardContent>
       </Card>
 
@@ -83,7 +110,7 @@ export default function IntakePage() {
             <div className="p-4"><LoadFailed onRetry={() => setReloadKey((k) => k + 1)} /></div>
           ) : loading ? (
             <div className="p-4"><PageLoading title="กำลังโหลดเรื่องรับเข้า" lines={3} /></div>
-          ) : intakes.length === 0 ? (
+          ) : visibleIntakes.length === 0 ? (
             <EmptyState
               icon={ClipboardList}
               title="ยังไม่มีเรื่องที่รับ"
@@ -92,7 +119,7 @@ export default function IntakePage() {
             />
           ) : (
             <div className="divide-y">
-              {intakes.map((item) => (
+              {visibleIntakes.map((item) => (
                 <div
                   key={item.id}
                   className="flex cursor-pointer items-center gap-4 px-4 py-3 hover:bg-muted/50"

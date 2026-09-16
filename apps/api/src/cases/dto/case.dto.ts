@@ -323,6 +323,11 @@ export class UpdateParticipantDto {
 }
 
 export class CaseQueryDto {
+  /** Show only cases this member works on (lead or buddy). */
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
   @IsOptional()
   @IsEnum(CaseStatus)
   status?: CaseStatus;

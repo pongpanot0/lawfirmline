@@ -53,6 +53,7 @@ function CasesPageContent() {
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState('');
+  const [lawyerFilter, setLawyerFilter] = useState('');
   const [page, setPage] = useState(0);
   const [sortAsc, setSortAsc] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -67,14 +68,14 @@ function CasesPageContent() {
     setLoading(true);
     setLoadError(false);
     api
-      .getCases(token, { search: search || undefined, status: statusFilter || undefined })
+      .getCases(token, { search: search || undefined, status: statusFilter || undefined, userId: lawyerFilter || undefined })
       .then((result) => {
         setCases(result);
         setSelected(new Set());
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [token, search, statusFilter, reloadKey]);
+  }, [token, search, statusFilter, lawyerFilter, reloadKey]);
 
   useEffect(() => {
     if (!token) return;
@@ -221,6 +222,17 @@ function CasesPageContent() {
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
+            ))}
+          </select>
+          <select
+            aria-label="กรองตามทนาย"
+            value={lawyerFilter}
+            onChange={(e) => { setLawyerFilter(e.target.value); setPage(0); }}
+            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            <option value="">ทุกคน</option>
+            {lawyers.map((u) => (
+              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
             ))}
           </select>
           <details className="group relative ml-auto max-md:hidden">

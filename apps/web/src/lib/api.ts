@@ -958,12 +958,13 @@ export const api = {
 
   getCases: (
     token: string,
-    params?: { status?: string; search?: string; caseTypeId?: string },
+    params?: { status?: string; search?: string; caseTypeId?: string; userId?: string },
   ) => {
     const query = new URLSearchParams();
     if (params?.status) query.set('status', params.status);
     if (params?.search) query.set('search', params.search);
     if (params?.caseTypeId) query.set('caseTypeId', params.caseTypeId);
+    if (params?.userId) query.set('userId', params.userId);
     const qs = query.toString();
     return request<CaseItem[]>(`/cases${qs ? `?${qs}` : ''}`, { token });
   },

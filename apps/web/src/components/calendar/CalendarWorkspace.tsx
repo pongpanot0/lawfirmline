@@ -42,6 +42,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   const [users, setUsers] = useState<UserItem[]>([]);
   const [month, setMonth] = useState(new Date());
   const [holidays, setHolidays] = useState<PublicHolidayItem[]>([]);
+  const [personFilter, setPersonFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [dialog, setDialog] = useState<
@@ -76,7 +77,11 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
       .finally(() => setLoading(false));
   }, [token, view, loadEvents, reloadKey, d.common.loadFailed]);
 
-  const upcoming = events
+  // "รายคน": events carry assigneeId; ones with no explicit assignee follow the
+  // case's lead lawyer, so they stay visible only under "ทุกคน".
+  const visibleEvents = personFilter ? events.filter((e) => e.assigneeId === personFilter) : events;
+
+  const upcoming = visibleEvents
     .filter((e) => new Date(e.startAt) >= new Date())
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
     .slice(0, 5);
@@ -102,6 +107,19 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                 </button>
               ))}
             </div>
+            {view === 'month' && (
+              <select
+                aria-label="กรองตามผู้รับผิดชอบ"
+                value={personFilter}
+                onChange={(e) => setPersonFilter(e.target.value)}
+                className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
+              >
+                <option value="">ทุกคน</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                ))}
+              </select>
+            )}
             {view === 'month' && (
               <Button size="sm" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
                 <Plus className="h-4 w-4" />
@@ -132,7 +150,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
               <Card>
                 <CardContent className="p-4">
                   <CalendarView
-                    events={events}
+                    events={visibleEvents}
                     holidays={holidays}
                     month={month}
                     onMonthChange={setMonth}
