@@ -3,13 +3,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { api, ClientItem, ApiError, IntakeItem, FieldSuggestion } from '@/lib/api';
+import { canAssignFirmRole } from '@lawfirm/shared';
+import { api, ClientItem, ApiError, IntakeItem, FieldSuggestion, UserItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 
+const FIRM_ROLE_LABELS: Record<string, string> = {
+  OWNER: 'เจ้าของ',
+  SENIOR_LAWYER: 'ทนายอาวุโส',
+  LAWYER: 'ทนายความ',
+  ASSISTANT: 'ผู้ช่วย',
+};
+
 export default function NewIntakePage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -21,6 +29,14 @@ export default function NewIntakePage() {
   const [clientsLoading, setClientsLoading] = useState(true);
   const [clientsRetry, setClientsRetry] = useState(0);
   const [files, setFiles] = useState<File[]>([]);
+  const [lawyers, setLawyers] = useState<UserItem[]>([]);
+  const [assignedIds, setAssignedIds] = useState<string[]>([]);
+  // Same rule as the intake detail page and the API: assign only roles below yours.
+  const assignable = user
+    ? lawyers.filter(
+        (u) => u.id !== user.id && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole),
+      )
+    : [];
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [createdIntakeId, setCreatedIntakeId] = useState<string | null>(null);
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
@@ -37,6 +53,11 @@ export default function NewIntakePage() {
     receivedDate: today,
   });
   const [suggestions, setSuggestions] = useState<FieldSuggestion[]>([]);
+
+  useEffect(() => {
+    if (!token) return;
+    api.getLawyers(token).then(setLawyers).catch(() => setLawyers([]));
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -129,6 +150,7 @@ export default function NewIntakePage() {
         preLitigationType: 'GENERAL',
         preLitigationStatus: 'NOT_STARTED',
       };
+      if (assignedIds.length > 0) payload.assignedUserIds = assignedIds;
       if (clientId) {
         payload.clientId = clientId;
         if (clientDisplayName) payload.clientName = clientDisplayName;
@@ -263,6 +285,36 @@ export default function NewIntakePage() {
               className="mt-1 w-full max-w-xs rounded-lg border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
+
+          {assignable.length > 0 && (
+            <div>
+              <span className="block text-sm font-medium">ทีมผู้รับผิดชอบ</span>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณ — ตัวคุณเป็นผู้รับเรื่องอยู่แล้ว
+              </p>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                {assignable.map((u) => (
+                  <label key={u.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={assignedIds.includes(u.id)}
+                      onChange={() =>
+                        setAssignedIds((prev) =>
+                          prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id],
+                        )
+                      }
+                    />
+                    {u.firstName} {u.lastName}
+                    {u.firmRole && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        {FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole}
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && (
             <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>

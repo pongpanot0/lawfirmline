@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
 import { TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
@@ -25,7 +26,12 @@ function TodosPageContent() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const searchParams = useSearchParams();
+  // ?new=1 (the topbar's quick-create) lands with the drawer already open.
   const [showForm, setShowForm] = useState(false);
+  useEffect(() => {
+    if (searchParams.has('new')) setShowForm(true);
+  }, [searchParams]);
   const [newTitle, setNewTitle] = useState('');
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [newDueDate, setNewDueDate] = useState('');

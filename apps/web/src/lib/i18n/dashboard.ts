@@ -151,6 +151,12 @@ export const dashboardCopy = {
     topbar: {
       searchPlaceholder: 'ค้นหาคดี ลูกค้า...',
       newCase: 'สร้างคดีใหม่',
+      createMenu: 'สร้างใหม่',
+      newIntake: 'รับเรื่องใหม่',
+      newTask: 'เพิ่มงาน',
+      newEvent: 'เพิ่มนัดศาล/นัดหมาย',
+      newExpense: 'เพิ่มค่าใช้จ่าย',
+      newClient: 'เพิ่มลูกค้า',
     },
     trial: {
       daysRemaining: 'ทดลองใช้: เหลือ {days} วัน',
@@ -1165,6 +1171,12 @@ export const dashboardCopy = {
     },
     topbar: {
       searchPlaceholder: 'Search cases, clients...',
+      createMenu: 'Create',
+      newIntake: 'New intake',
+      newTask: 'New task',
+      newEvent: 'New appointment',
+      newExpense: 'New expense',
+      newClient: 'New client',
       newCase: 'New Case',
     },
     trial: {
