@@ -206,6 +206,7 @@ export default function OperationsPage() {
         </TabsList>
 
         <TabsContent value="workload">
+          <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabWorkloadHint}</p>
           {recommended && (
             <div className="mb-4 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -227,6 +228,9 @@ export default function OperationsPage() {
                   })}
                 </span>
               </p>
+              <Link href={`/todos?new=1&assignee=${recommended.userId}`} className="ml-auto shrink-0">
+                <Button size="sm">{d.operations.assignNow}</Button>
+              </Link>
             </div>
           )}
 
@@ -345,6 +349,9 @@ export default function OperationsPage() {
                       <p className="font-semibold">
                         {detail.firstName} {detail.lastName}
                       </p>
+                      <Link href={`/todos?new=1&assignee=${selectedUserId}`} className="ml-auto">
+                        <Button size="sm" variant="outline">{d.operations.assignTask}</Button>
+                      </Link>
                     </div>
                     {detail.cases.length === 0 ? (
                       <InlineEmptyState title={d.operations.noActiveCasesTitle} description={d.operations.noActiveCasesDesc} />
@@ -393,6 +400,7 @@ export default function OperationsPage() {
         </TabsContent>
 
         <TabsContent value="pairing">
+          <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabPairingHint}</p>
           <Card>
             <CardContent className="p-0">
               {pairingLoading ? (
@@ -428,6 +436,7 @@ export default function OperationsPage() {
         </TabsContent>
 
         <TabsContent value="onhold">
+          <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabOnHoldHint}</p>
           <Card>
             <CardContent className="p-0">
               {onHoldLoading ? (

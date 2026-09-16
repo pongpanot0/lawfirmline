@@ -31,6 +31,9 @@ function TodosPageContent() {
   const [showForm, setShowForm] = useState(false);
   useEffect(() => {
     if (searchParams.has('new')) setShowForm(true);
+    // ?assignee=<id> (from the workload dashboard) pre-picks who gets the task.
+    const assignee = searchParams.get('assignee');
+    if (assignee) setNewAssigneeId(assignee);
   }, [searchParams]);
   const [newTitle, setNewTitle] = useState('');
   const [newAssigneeId, setNewAssigneeId] = useState('');
