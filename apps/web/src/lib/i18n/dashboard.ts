@@ -58,7 +58,7 @@ export const dashboardCopy = {
     },
     myDay: {
       title: 'วันของฉัน',
-      description: 'นัดหมาย งาน และวันครบกำหนดที่คุณรับผิดชอบหรือดูแลอยู่ รวมไว้ที่เดียว',
+      description: 'สิ่งที่ต้องทำวันนี้–พรุ่งนี้ของคุณ ทั้งนัดและงาน — ดูปฏิทินทั้งเดือนที่ "ตารางศาล"',
       overdue: 'เลยกำหนด',
       today: 'วันนี้',
       tomorrow: 'พรุ่งนี้',
@@ -447,7 +447,7 @@ export const dashboardCopy = {
     },
     calendar: {
       title: 'ตารางศาล',
-      description: 'จัดการนัดศาล ไกล่เกลี่ย และการประชุม',
+      description: 'ปฏิทินรายเดือนของทั้งสำนักงาน — เพิ่มและจัดการนัดศาล ไกล่เกลี่ย และการประชุม',
       addEvent: 'เพิ่มนัด',
       loading: 'กำลังโหลดปฏิทิน...',
       upcomingReminders: 'การแจ้งเตือนที่จะถึง',
@@ -1073,7 +1073,7 @@ export const dashboardCopy = {
     },
     myDay: {
       title: 'My Day',
-      description: 'Every appointment, task and deadline you own or oversee, in one place.',
+      description: 'What you need to do today and tomorrow — appointments and tasks. For the month view, see Court Schedule.',
       overdue: 'Overdue',
       today: 'Today',
       tomorrow: 'Tomorrow',
@@ -1462,7 +1462,7 @@ export const dashboardCopy = {
     },
     calendar: {
       title: 'Court Schedule',
-      description: 'Manage hearings, mediations, and meetings',
+      description: 'The whole firm\'s month calendar — add and manage hearings, mediations, and meetings',
       addEvent: 'Add Event',
       loading: 'Loading calendar...',
       upcomingReminders: 'Upcoming Reminders',

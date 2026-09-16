@@ -247,22 +247,30 @@ export function MyDayPanel({ showHeader = true }: { showHeader?: boolean }) {
           title={d.myDay.title}
           description={d.myDay.description}
           actions={
-            seesOthers ? (
-              <div role="tablist" aria-label={d.myDay.title} className="flex rounded-lg border border-border p-0.5">
-                {(['mine', 'team'] as const).map((s) => (
-                  <button
-                    key={s}
-                    role="tab"
-                    type="button"
-                    aria-selected={scope === s}
-                    onClick={() => setScope(s)}
-                    className={`rounded-md px-2.5 py-1 text-xs ${scope === s ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-                  >
-                    {s === 'mine' ? d.todos.scopeMine : d.todos.scopeTeam}
-                  </button>
-                ))}
-              </div>
-            ) : undefined
+            <div className="flex items-center gap-2">
+              {seesOthers && (
+                <div role="tablist" aria-label={d.myDay.title} className="flex rounded-lg border border-border p-0.5">
+                  {(['mine', 'team'] as const).map((s) => (
+                    <button
+                      key={s}
+                      role="tab"
+                      type="button"
+                      aria-selected={scope === s}
+                      onClick={() => setScope(s)}
+                      className={`rounded-md px-2.5 py-1 text-xs ${scope === s ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                    >
+                      {s === 'mine' ? d.todos.scopeMine : d.todos.scopeTeam}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <Link href="/court-schedule">
+                <Button size="sm" variant="outline">
+                  <CalendarClock className="h-4 w-4" />
+                  {d.calendar.title}
+                </Button>
+              </Link>
+            </div>
           }
         />
       )}

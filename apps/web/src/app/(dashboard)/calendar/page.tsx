@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Bell } from 'lucide-react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { api, CalendarEventItem, CaseItem, UserItem } from '@/lib/api';
 import { CalendarView } from '@/components/CalendarView';
@@ -74,10 +75,17 @@ export default function CourtSchedulePage() {
         title={d.calendar.title}
         description={d.calendar.description}
         actions={
-          <Button size="sm" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
-            <Plus className="h-4 w-4" />
-            {d.calendar.addEvent}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href="/my-day">
+              <Button size="sm" variant="outline">
+                {d.myDay.title}
+              </Button>
+            </Link>
+            <Button size="sm" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
+              <Plus className="h-4 w-4" />
+              {d.calendar.addEvent}
+            </Button>
+          </div>
         }
       />
 
