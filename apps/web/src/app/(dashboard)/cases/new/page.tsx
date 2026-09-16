@@ -68,6 +68,7 @@ export default function NewCasePage() {
     title: '',
     clientId: '',
     clientName: '',
+    clientType: 'INDIVIDUAL',
     useTmpClient: false,
     courtName: '',
     courtLevel: CourtLevel.TRIAL as CourtLevel,
@@ -283,10 +284,18 @@ export default function NewCasePage() {
         payload.clientId = form.clientId;
         const client = clients.find((c) => c.id === form.clientId);
         if (client) payload.clientName = client.name;
+      } else if (!form.useTmpClient && form.clientName.trim()) {
+        // A typed-in new client becomes a real registry entry (with its
+        // chosen type) so it shows up in the client list from day one.
+        const createdClient = await api.createClient(token!, {
+          name: form.clientName.trim(),
+          type: form.clientType,
+          contacts: [{ name: form.clientName.trim(), isPrimary: true }],
+        });
+        payload.clientId = createdClient.id;
+        payload.clientName = createdClient.name;
       } else {
-        payload.clientName = form.useTmpClient
-          ? TMP_CLIENT_PLACEHOLDER
-          : form.clientName.trim() || TMP_CLIENT_PLACEHOLDER;
+        payload.clientName = TMP_CLIENT_PLACEHOLDER;
       }
       if (
         form.addInitialActivity &&
@@ -507,9 +516,19 @@ export default function NewCasePage() {
                     }
                   />
                   {!form.clientId && form.clientName.trim() && !form.useTmpClient && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      บันทึกชื่อในคดีนี้ โดยยังไม่สร้างทะเบียนลูกค้า
-                    </p>
+                    <div className="mt-2 space-y-1">
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        ลูกค้าใหม่ — เลือกประเภท (สร้างทะเบียนลูกค้าให้อัตโนมัติตอนบันทึก)
+                      </label>
+                      <select
+                        value={form.clientType}
+                        onChange={(e) => setForm({ ...form, clientType: e.target.value })}
+                        className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="INDIVIDUAL">บุคคลธรรมดา</option>
+                        <option value="COMPANY">นิติบุคคล</option>
+                      </select>
+                    </div>
                   )}
                   <label className="mt-3 flex items-start gap-2 text-sm">
                     <input

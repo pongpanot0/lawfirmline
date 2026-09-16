@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger , ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 const IAPP_BASE_URL = 'https://api.iapp.co.th/v3/store/data/thai-legal';
@@ -49,7 +49,7 @@ export class IappLegalClient {
     const apiKey = this.getApiKey();
     if (!apiKey) {
       this.logger.error('IAPP_API_KEY not set — cannot search precedents');
-      throw new Error('IAPP_API_KEY ยังไม่ได้ตั้งค่า ไม่สามารถค้นหาฎีกาได้');
+      throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่าบริการค้นหาฎีกา (IAPP_API_KEY) — ติดต่อผู้ดูแลระบบ');
     }
 
     const params = new URLSearchParams({ query });

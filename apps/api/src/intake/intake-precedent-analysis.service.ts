@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AI_CREDIT_COST, AuthUser, RedactionCounts, redactForAi } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
@@ -123,7 +124,8 @@ export class IntakePrecedentAnalysisService {
   ): Promise<string> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
-      throw new Error('OPENAI_API_KEY not configured');
+      // Surface a real message instead of a blank 500 when the key is absent.
+      throw new ServiceUnavailableException('ยังไม่ได้ตั้งค่า AI (OPENAI_API_KEY) — ติดต่อผู้ดูแลระบบ');
     }
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {

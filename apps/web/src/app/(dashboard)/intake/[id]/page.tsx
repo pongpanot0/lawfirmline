@@ -230,38 +230,47 @@ function IntakeAssignees({
   };
 
   return (
-    <div className="space-y-2">
-      {assignedIds.length === 0 && <p className="text-sm text-muted-foreground">ยังไม่ได้มอบหมาย</p>}
-      <ul className="space-y-1">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {assignedIds.length === 0 && (
+          <p className="text-sm text-muted-foreground">ยังไม่ได้มอบหมาย — เลือกทีมจากเมนูด้านล่าง</p>
+        )}
         {assignedIds.map((uid) => {
           const u = byId.get(uid);
+          const name = u ? `${u.firstName} ${u.lastName}` : uid;
           const removable = !busy && intake.status !== 'CONVERTED';
           return (
-            <li key={uid} className="flex items-center gap-2 text-sm">
-              <span>{u ? `${u.firstName} ${u.lastName}` : uid}</span>
+            <span
+              key={uid}
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 py-1 pl-1 pr-2 text-sm"
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                {u ? `${u.firstName[0]}${u.lastName[0]}` : '?'}
+              </span>
+              <span className="font-medium">{name}</span>
               {u?.firmRole && (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole}
                 </span>
               )}
               {removable && (
                 <button
                   type="button"
-                  aria-label={`เอา ${u ? `${u.firstName} ${u.lastName}` : uid} ออก`}
-                  className="text-xs text-muted-foreground hover:text-destructive"
+                  aria-label={`เอา ${name} ออก`}
+                  className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => save(assignedIds.filter((x) => x !== uid))}
                 >
-                  เอาออก
+                  ×
                 </button>
               )}
-            </li>
+            </span>
           );
         })}
-      </ul>
+      </div>
       {intake.status !== 'CONVERTED' && (
         <select
           aria-label="มอบหมายให้"
-          className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+          className="h-9 w-full max-w-xs rounded-lg border border-dashed border-input bg-transparent px-3 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground"
           value=""
           disabled={busy || assignable.length === 0}
           onChange={(e) => {

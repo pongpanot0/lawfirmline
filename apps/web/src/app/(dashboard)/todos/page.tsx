@@ -124,7 +124,7 @@ function TodosPageContent() {
     setCreating(true);
     setError('');
     try {
-      await api.createTodo(token, {
+      const created = await api.createTodo(token, {
         title: newTitle.trim(),
         assigneeId: newAssigneeId || undefined,
         dueDate: newDueDate || undefined,
@@ -136,6 +136,9 @@ function TodosPageContent() {
       setNewPriority(TaskPriority.MEDIUM);
       setShowForm(false);
       loadTasks();
+      // Straight into the detail drawer: subtasks (1-2-3) and file/photo
+      // attachments live there, so the flow continues without re-opening.
+      taskParam.open(created.id);
     } catch {
       // Keep what was typed: the retry should not start from a blank field.
       setError(d.todos.createFailed);

@@ -16,6 +16,8 @@ export interface CalendarEventData {
 
 interface CalendarViewProps {
   events: CalendarEventData[];
+  /** Public holidays; days matching get a tint and the holiday name. */
+  holidays?: { date: string; name: string }[];
   month: Date;
   onMonthChange: (month: Date) => void;
   onDayClick?: (date: Date) => void;
@@ -31,6 +33,7 @@ const typeColors: Record<string, string> = {
 
 export function CalendarView({
   events,
+  holidays = [],
   month,
   onMonthChange,
   onDayClick,
@@ -61,6 +64,12 @@ export function CalendarView({
 
   const getEventsForDay = (day: number) =>
     monthEvents.filter((e) => new Date(e.startAt).getDate() === day);
+
+  const holidayByDay = new Map<number, string>();
+  for (const h of holidays) {
+    const hd = new Date(h.date);
+    if (hd.getFullYear() === year && hd.getMonth() === monthIndex) holidayByDay.set(hd.getDate(), h.name);
+  }
 
   const monthName = month.toLocaleDateString(loc, { month: 'long', year: 'numeric' });
   const weekdays = Array.from({ length: 7 }, (_, i) =>
@@ -95,6 +104,7 @@ export function CalendarView({
         ))}
         {days.map((day, i) => {
           const dayEvents = day ? getEventsForDay(day) : [];
+          const holidayName = day ? holidayByDay.get(day) : undefined;
           const isToday =
             day === new Date().getDate() &&
             monthIndex === new Date().getMonth() &&
@@ -104,7 +114,7 @@ export function CalendarView({
             <div
               key={i}
               onClick={() => day && onDayClick?.(new Date(year, monthIndex, day))}
-              className={`min-h-24 cursor-pointer bg-card p-1 transition hover:bg-accent/50 ${isToday ? 'ring-2 ring-inset ring-primary' : ''}`}
+              className={`min-h-24 cursor-pointer p-1 transition hover:bg-accent/50 ${holidayName ? 'bg-rose-50 dark:bg-rose-950/20' : 'bg-card'} ${isToday ? 'ring-2 ring-inset ring-primary' : ''}`}
             >
               {day && (
                 <>
@@ -125,6 +135,11 @@ export function CalendarView({
                   >
                     {day}
                   </button>
+                  {holidayName && (
+                    <p className="mt-0.5 truncate text-[10px] font-medium text-rose-600 dark:text-rose-400" title={holidayName}>
+                      {holidayName}
+                    </p>
+                  )}
                   <div className="mt-1 space-y-0.5">
                     {dayEvents.slice(0, 2).map((e) => (
                       <button

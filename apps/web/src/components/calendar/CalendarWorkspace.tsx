@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Bell } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, CalendarEventItem, CaseItem, UserItem } from '@/lib/api';
+import { api, CalendarEventItem, CaseItem, UserItem, PublicHolidayItem } from '@/lib/api';
 import { CalendarView } from '@/components/CalendarView';
 import { CalendarEventDialog } from '@/components/calendar/CalendarEventDialog';
 import { MyDayPanel } from '@/components/agenda/MyDayPanel';
@@ -41,6 +41,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [month, setMonth] = useState(new Date());
+  const [holidays, setHolidays] = useState<PublicHolidayItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [dialog, setDialog] = useState<
@@ -53,6 +54,11 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     // Lawyers only: the picker names who is attending a hearing.
     api.getLawyers(token).then(setUsers).catch(console.error);
   }, [token]);
+
+  useEffect(() => {
+    if (!token || view !== 'month') return;
+    api.getPublicHolidays(token, month.getFullYear()).then(setHolidays).catch(() => setHolidays([]));
+  }, [token, view, month]);
 
   const loadEvents = useCallback(async () => {
     if (!token) return;
@@ -127,6 +133,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                 <CardContent className="p-4">
                   <CalendarView
                     events={events}
+                    holidays={holidays}
                     month={month}
                     onMonthChange={setMonth}
                     onDayClick={(date) => setDialog({ event: null, defaultDate: date })}

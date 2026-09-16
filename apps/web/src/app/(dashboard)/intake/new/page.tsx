@@ -50,6 +50,7 @@ export default function NewIntakePage() {
     clientId: '',
     clientContactId: '',
     clientName: '',
+    clientType: 'INDIVIDUAL',
     contactName: '',
     receivedDate: today,
   });
@@ -119,6 +120,7 @@ export default function NewIntakePage() {
         const contactName = form.contactName.trim() || newClientName;
         const createdClient = await api.createClient(token, {
           name: newClientName,
+          type: form.clientType,
           contacts: [{ name: contactName, isPrimary: true }],
         });
         clientId = createdClient.id;
@@ -260,6 +262,18 @@ export default function NewIntakePage() {
                     className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                     placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท"
                   />
+                </div>
+                <div>
+                  <label htmlFor="intake-clientType" className="block text-sm font-medium">ประเภทลูกค้า</label>
+                  <select
+                    id="intake-clientType"
+                    value={form.clientType}
+                    onChange={(e) => set('clientType', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="INDIVIDUAL">บุคคลธรรมดา</option>
+                    <option value="COMPANY">นิติบุคคล</option>
+                  </select>
                 </div>
                 <div>
                   <label htmlFor="intake-contactName" className="block text-sm font-medium">ชื่อผู้ติดต่อ</label>
