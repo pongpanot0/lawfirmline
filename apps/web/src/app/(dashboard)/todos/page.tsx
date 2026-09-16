@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
-import { TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { canAssignFirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
@@ -43,6 +43,11 @@ function TodosPageContent() {
   const [layout, setLayout] = useTaskLayout();
   const [scope, setScope] = useState<'mine' | 'team' | 'review'>('mine');
   const taskParam = useTaskParam();
+  // Creating a task for someone else follows the firm hierarchy: only roles
+  // below yours (assigning to yourself is the empty default option).
+  const assignableUsers = user
+    ? users.filter((u) => u.id !== user.id && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole))
+    : [];
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
 
   const loadTasks = () => {
@@ -230,7 +235,7 @@ function TodosPageContent() {
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               >
                 <option value="">{d.todos.assignToMe}</option>
-                {users.map((u) => (
+                {assignableUsers.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.firstName} {u.lastName}
                   </option>

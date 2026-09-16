@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { X, Paperclip, Trash2, Download } from 'lucide-react';
-import { normalizeTaskLabels, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { canAssignFirmRole, normalizeTaskLabels, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { api, ApiError, TaskDetail, UserItem } from '@/lib/api';
 import { formatBytes, downloadTaskAttachment, priorityLabel } from '@/lib/task-detail';
 import { useAuth } from '@/lib/auth';
@@ -26,7 +26,7 @@ const STATUS_OPTIONS: TaskStatus[] = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, T
 
 export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate }: Props) {
   const d = useDashboardT();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -273,9 +273,16 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 <label htmlFor="td-assignee" className={label}>{d.taskDetail.assignee}</label>
                 <select id="td-assignee" value={task.assignee?.id ?? ''} disabled={busy} onChange={(e) => e.target.value && patch({ assigneeId: e.target.value })} className={field}>
                   <option value="">{d.taskDetail.unassigned}</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                  ))}
+                  {users
+                    .filter(
+                      (u) =>
+                        u.id === user?.id ||
+                        u.id === task.assignee?.id ||
+                        (!!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)),
+                    )
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                    ))}
                 </select>
               </div>
               <div>

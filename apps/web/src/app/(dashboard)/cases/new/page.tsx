@@ -24,6 +24,7 @@ import {
   FieldSuggestion,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import type { CaseFieldSchema } from '@lawfirm/shared';
 import {
   ActivityType,
@@ -160,15 +161,6 @@ export default function NewCasePage() {
   useEffect(() => {
     if (step > 0) headingRef.current?.focus();
   }, [step]);
-
-  const toggleBuddy = (id: string) => {
-    setForm((prev) => ({
-      ...prev,
-      buddyIds: prev.buddyIds.includes(id)
-        ? prev.buddyIds.filter((x) => x !== id)
-        : [...prev.buddyIds, id],
-    }));
-  };
 
   const displayClientName = () => {
     if (form.clientId) {
@@ -1009,43 +1001,21 @@ export default function NewCasePage() {
                     : 'เลือกผู้รับผิดชอบหลัก 1 คน โดยดูภาระงานประกอบได้'}
                 </p>
               </div>
-              <details className="rounded-lg border border-border p-4">
-                <summary className="cursor-pointer text-sm font-medium">
-                  เพิ่มทนายผู้ช่วย (ไม่บังคับ)
-                  {form.buddyIds.length > 0
-                    ? ` · เลือก ${form.buddyIds.length} คน`
-                    : ''}
-                </summary>
-                <div className="mt-3 space-y-2">
-                  {lawyers
-                    .filter((l) => l.id !== form.leadLawyerId)
-                    .map((l) => (
-                      <label
-                        key={l.id}
-                        className="flex items-start gap-2 rounded-lg p-2 text-sm hover:bg-muted"
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-1"
-                          checked={form.buddyIds.includes(l.id)}
-                          onChange={() => toggleBuddy(l.id)}
-                        />
-                        <span>
-                          {l.firstName} {l.lastName}
-                          <span className="block text-xs text-muted-foreground">
-                            {workloadLabel(l.id)}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  {lawyers.filter((l) => l.id !== form.leadLawyerId).length ===
-                    0 && (
-                    <p className="text-sm text-muted-foreground">
-                      ไม่มีทนายคนอื่นให้เลือก
-                    </p>
-                  )}
-                </div>
-              </details>
+              <div>
+                <label className={fieldLabel}>
+                  ทีมผู้รับผิดชอบเพิ่มเติม (ไม่บังคับ)
+                </label>
+                <MultiUserSelect
+                  users={lawyers.filter((l) => l.id !== form.leadLawyerId)}
+                  value={form.buddyIds}
+                  onChange={(ids) => setForm({ ...form, buddyIds: ids })}
+                  placeholder="เลือกทนายผู้ช่วย — เลือกได้หลายคน"
+                  renderExtra={(l) => workloadLabel(l.id) || ''}
+                />
+                {form.buddyIds.length > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">เลือกแล้ว {form.buddyIds.length} คน</p>
+                )}
+              </div>
               <section
                 className="rounded-lg border border-border bg-muted/30 p-4"
                 aria-labelledby="review-heading"

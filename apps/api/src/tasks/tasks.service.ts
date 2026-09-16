@@ -11,6 +11,7 @@ import {
   AssignmentType,
   AuthUser,
   FirmRole,
+  canAssignFirmRole,
   TaskLogAction,
   TaskPriority,
   TaskStatus,
@@ -238,12 +239,30 @@ export class TasksService {
     return task;
   }
 
+  /**
+   * Standalone todos follow the firm hierarchy: you may hand work only to
+   * yourself or to members whose role is strictly below yours. Case tasks
+   * are governed by the lead/owner rules instead.
+   */
+  private async assertCanAssignTodo(user: AuthUser, assigneeId: string) {
+    if (assigneeId === user.id) return;
+    const member = await this.prisma.firmMember.findFirst({
+      where: { firmId: user.firmId, userId: assigneeId },
+      select: { role: true },
+    });
+    if (!member) throw new NotFoundException('ผู้รับมอบหมายไม่ได้อยู่ในสำนักงานนี้');
+    if (!canAssignFirmRole(user.firmRole, member.role as FirmRole)) {
+      throw new ForbiddenException('มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณเท่านั้น');
+    }
+  }
+
   async create(
     user: AuthUser,
     caseId: string | null,
     dto: CreateTaskDto,
     source: TaskSource = TaskSource.WEB,
   ) {
+    if (!caseId && dto.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
     const task = await this.prisma.task.create({
       data: {
         caseId,
@@ -310,6 +329,9 @@ export class TasksService {
       this.assertLeadOrOwner(user, legalCase);
     }
 
+    if (dto.assigneeId && !task.caseId && dto.assigneeId !== task.assigneeId) {
+      await this.assertCanAssignTodo(user, dto.assigneeId);
+    }
     if (dto.assigneeId && task.caseId) {
       const legalCase = await this.prisma.case.findUnique({ where: { id: task.caseId } });
       if (!legalCase) throw new NotFoundException('Case not found');
