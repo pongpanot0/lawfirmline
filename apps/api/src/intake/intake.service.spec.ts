@@ -64,12 +64,12 @@ describe('IntakeService attachments', () => {
       expect(mockPrisma.intakeAttachment.create).not.toHaveBeenCalled();
     });
 
-    it('rejects a PDF larger than the 10MB limit', async () => {
+    it('rejects a PDF larger than the 30MB limit', async () => {
       mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1' });
       const file = {
         originalname: 'big.pdf',
         mimetype: 'application/pdf',
-        size: 10 * 1024 * 1024 + 1,
+        size: 30 * 1024 * 1024 + 1,
         buffer: Buffer.from('x'),
       } as any;
 

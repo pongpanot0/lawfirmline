@@ -74,7 +74,7 @@ describe('IappLegalClient', () => {
     it('throws when no api key is configured, so the caller does not charge credit for an empty result', async () => {
       mockConfig.get.mockReturnValue(undefined);
       await expect(client.searchPrecedents('คำค้น')).rejects.toThrow(
-        'IAPP_API_KEY ยังไม่ได้ตั้งค่า ไม่สามารถค้นหาฎีกาได้',
+        'ยังไม่ได้ตั้งค่าบริการค้นหาฎีกา (IAPP_API_KEY)',
       );
     });
   });

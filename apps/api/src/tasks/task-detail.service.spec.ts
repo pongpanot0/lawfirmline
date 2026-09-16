@@ -49,11 +49,11 @@ describe('TaskDetailService', () => {
     expect(mockStorage.put).not.toHaveBeenCalled();
   });
 
-  it('uploadAttachment rejects a file over 10MB before touching storage', async () => {
+  it('uploadAttachment rejects a file over 30MB before touching storage', async () => {
     mockTasks.assertAccess.mockResolvedValue({ id: 't1', caseId: null, parentId: null });
     const file = {
       mimetype: 'application/pdf',
-      size: 10 * 1024 * 1024 + 1,
+      size: 30 * 1024 * 1024 + 1,
       buffer: Buffer.from('x'),
       originalname: 'big.pdf',
     } as any;
