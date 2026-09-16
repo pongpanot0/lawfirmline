@@ -17,6 +17,7 @@ import { PageLoading, TableEmptyRow } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatCurrency } from '@/lib/utils';
 import { fmt } from '@/lib/i18n/dashboard';
+import { downloadPettyCashCsv } from '@/lib/petty-cash-csv';
 
 const STATUS_FILTERS = ['', 'DRAFT', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
@@ -164,10 +165,26 @@ export default function ExpensesPage() {
             : `บันทึก เบิก และติดตามค่าใช้จ่ายของ ${finance.firmName}`
         }
         actions={
-          <Button size="sm" onClick={() => router.push('/expenses/new')}>
-            <Plus className="h-4 w-4" />
-            {d.expenses.newTitle}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={expenses.length === 0}
+              onClick={() =>
+                downloadPettyCashCsv({
+                  firmName: finance.firmName,
+                  requesterName: user ? `${user.firstName} ${user.lastName}` : '',
+                  expenses,
+                })
+              }
+            >
+              Export CSV
+            </Button>
+            <Button size="sm" onClick={() => router.push('/expenses/new')}>
+              <Plus className="h-4 w-4" />
+              {d.expenses.newTitle}
+            </Button>
+          </div>
         }
       />
 

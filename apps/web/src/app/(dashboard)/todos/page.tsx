@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, TaskItem, UserItem } from '@/lib/api';
@@ -201,14 +201,21 @@ function TodosPageContent() {
       </Card>
 
       {showForm && (
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <form onSubmit={handleCreate} className="flex flex-wrap items-center gap-3">
+        <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={d.todos.addTodo}>
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowForm(false)} />
+          <aside className="relative flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-border bg-card p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold">{d.todos.addTodo}</h2>
+              <button type="button" aria-label={d.common.close} onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreate} className="flex flex-col gap-3">
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder={d.todos.titlePlaceholder}
-                className="min-w-[200px] flex-1"
+                autoFocus
                 required
               />
               <select
@@ -239,10 +246,10 @@ function TodosPageContent() {
                   <option key={p} value={p}>{priorityLabel(d, p)}</option>
                 ))}
               </select>
-              <Button type="submit" size="sm" disabled={creating}>{d.todos.create}</Button>
+              <Button type="submit" disabled={creating}>{d.todos.create}</Button>
             </form>
-          </CardContent>
-        </Card>
+          </aside>
+        </div>
       )}
 
       {loadError ? (

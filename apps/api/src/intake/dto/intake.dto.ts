@@ -179,6 +179,11 @@ export class UpdateIntakeDto {
   receivedDate?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  assignedUserIds?: string[];
+
+  @IsOptional()
   @Trim()
   @IsString()
   title?: string;

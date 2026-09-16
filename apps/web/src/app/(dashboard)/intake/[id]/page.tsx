@@ -1,6 +1,6 @@
 'use client';
 
-import { AI_CREDIT_COST, AI_UPLOAD_MAX_FILES } from '@lawfirm/shared';
+import { AI_CREDIT_COST, AI_UPLOAD_MAX_FILES, canAssignFirmRole, FirmRole } from '@lawfirm/shared';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -176,6 +176,110 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
     <div className="flex gap-2 py-1.5 border-b last:border-0">
       <span className="w-40 shrink-0 text-sm text-muted-foreground">{label}</span>
       <span className="text-sm">{value ?? '—'}</span>
+    </div>
+  );
+}
+
+const FIRM_ROLE_LABELS: Record<string, string> = {
+  OWNER: 'เจ้าของ',
+  SENIOR_LAWYER: 'ทนายอาวุโส',
+  LAWYER: 'ทนายความ',
+  ASSISTANT: 'ผู้ช่วย',
+};
+
+/**
+ * Assign firm members to this intake. The dropdown offers only members whose
+ * firm role is strictly below the current user's (owner > senior > lawyer >
+ * assistant) — the API enforces the same rule.
+ */
+function IntakeAssignees({
+  intake,
+  lawyers,
+  currentUser,
+  onSave,
+}: {
+  intake: IntakeItem;
+  lawyers: UserItem[];
+  currentUser: { id: string; firmRole: FirmRole } | null;
+  onSave: (ids: string[]) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const assignedIds = intake.assignedUserIds ?? [];
+  const byId = new Map(lawyers.map((u) => [u.id, u]));
+  const assignable = currentUser
+    ? lawyers.filter(
+        (u) =>
+          !assignedIds.includes(u.id) &&
+          u.id !== currentUser.id &&
+          u.firmRole != null &&
+          canAssignFirmRole(currentUser.firmRole, u.firmRole),
+      )
+    : [];
+
+  const save = async (ids: string[]) => {
+    setBusy(true);
+    setError('');
+    try {
+      await onSave(ids);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'บันทึกผู้รับผิดชอบไม่สำเร็จ');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {assignedIds.length === 0 && <p className="text-sm text-muted-foreground">ยังไม่ได้มอบหมาย</p>}
+      <ul className="space-y-1">
+        {assignedIds.map((uid) => {
+          const u = byId.get(uid);
+          const removable = !busy && intake.status !== 'CONVERTED';
+          return (
+            <li key={uid} className="flex items-center gap-2 text-sm">
+              <span>{u ? `${u.firstName} ${u.lastName}` : uid}</span>
+              {u?.firmRole && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  {FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole}
+                </span>
+              )}
+              {removable && (
+                <button
+                  type="button"
+                  aria-label={`เอา ${u ? `${u.firstName} ${u.lastName}` : uid} ออก`}
+                  className="text-xs text-muted-foreground hover:text-destructive"
+                  onClick={() => save(assignedIds.filter((x) => x !== uid))}
+                >
+                  เอาออก
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {intake.status !== 'CONVERTED' && (
+        <select
+          aria-label="มอบหมายให้"
+          className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+          value=""
+          disabled={busy || assignable.length === 0}
+          onChange={(e) => {
+            if (e.target.value) save([...assignedIds, e.target.value]);
+          }}
+        >
+          <option value="">
+            {assignable.length === 0 ? 'ไม่มีสมาชิกบทบาทต่ำกว่าให้มอบหมาย' : '+ มอบหมายให้...'}
+          </option>
+          {assignable.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.firstName} {u.lastName}
+              {u.firmRole ? ` (${FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole})` : ''}
+            </option>
+          ))}
+        </select>
+      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }
@@ -1251,6 +1355,22 @@ export default function IntakeDetailPage() {
           <CardHeader><CardTitle className="text-base">ลูกค้า</CardTitle></CardHeader>
           <CardContent className="space-y-0">
             <InfoRow label="ลูกค้า" value={intake.client?.name ?? intake.clientName} />
+          </CardContent>
+        </Card>
+
+        <Card className="sm:col-span-2">
+          <CardHeader><CardTitle className="text-base">ผู้รับผิดชอบ</CardTitle></CardHeader>
+          <CardContent>
+            <IntakeAssignees
+              intake={intake}
+              lawyers={lawyers}
+              currentUser={user}
+              onSave={async (ids) => {
+                if (!token || !id) return;
+                await api.updateIntake(token, id, { assignedUserIds: ids });
+                await reload();
+              }}
+            />
           </CardContent>
         </Card>
 

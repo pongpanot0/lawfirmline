@@ -141,6 +141,8 @@ export interface UserItem {
   firstName: string;
   lastName: string;
   role: import('@lawfirm/shared').Role;
+  /** Role within the current firm; null when the membership row is missing. */
+  firmRole?: import('@lawfirm/shared').FirmRole | null;
 }
 
 export interface WorkloadSummary {

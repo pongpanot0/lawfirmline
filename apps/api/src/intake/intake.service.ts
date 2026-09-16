@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser, redactForAi, AI_CREDIT_COST, AI_UPLOAD_MAX_BYTES } from '@lawfirm/shared';
+import { AuthUser, redactForAi, AI_CREDIT_COST, AI_UPLOAD_MAX_BYTES, canAssignFirmRole, FirmRole } from '@lawfirm/shared';
 import * as path from 'path';
 import { AssignmentType, ReferralChannel } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
@@ -119,6 +119,10 @@ export class IntakeService {
         throw new BadRequestException('ไม่พบคดีที่เลือกไว้ในสำนักงานนี้');
       }
     }
+    await this.assertCanAssign(
+      user,
+      (dto.assignedUserIds ?? []).filter((uid) => uid !== user.id),
+    );
     return this.prisma.intake.create({
       data: {
         firmId: user.firmId,
@@ -167,8 +171,36 @@ export class IntakeService {
     });
   }
 
+  /**
+   * Assignment follows the firm hierarchy: you may hand work only to members
+   * whose role is strictly below yours (owner > senior > lawyer > assistant).
+   * Keeping yourself or already-assigned members on the list is always fine.
+   */
+  private async assertCanAssign(user: AuthUser, newIds: string[]) {
+    if (newIds.length === 0) return;
+    const members = await this.prisma.firmMember.findMany({
+      where: { firmId: user.firmId, userId: { in: newIds } },
+      select: { userId: true, role: true },
+    });
+    const byId = new Map(members.map((m) => [m.userId, m.role]));
+    for (const targetId of newIds) {
+      const targetRole = byId.get(targetId);
+      if (!targetRole) throw new BadRequestException('ผู้รับมอบหมายไม่ได้อยู่ในสำนักงานนี้');
+      if (!canAssignFirmRole(user.firmRole, targetRole as FirmRole)) {
+        throw new BadRequestException('มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณเท่านั้น');
+      }
+    }
+  }
+
   async update(user: AuthUser, id: string, dto: UpdateIntakeDto) {
-    await this.findOne(user, id);
+    const existing = await this.findOne(user, id);
+    if (dto.assignedUserIds) {
+      const already = new Set([...(existing.assignedUserIds ?? []), user.id]);
+      await this.assertCanAssign(
+        user,
+        dto.assignedUserIds.filter((uid) => !already.has(uid)),
+      );
+    }
     if (dto.relatedCaseId) {
       const relatedCase = await this.prisma.case.findFirst({
         where: { id: dto.relatedCaseId, firmId: user.firmId },
@@ -182,6 +214,7 @@ export class IntakeService {
       where: { id },
       data: {
         receivedDate: dto.receivedDate ? new Date(dto.receivedDate) : undefined,
+        assignedUserIds: dto.assignedUserIds,
         title: dto.title,
         referralType: dto.referralType as any,
         referralChannel: dto.referralChannel as any,

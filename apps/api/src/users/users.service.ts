@@ -67,9 +67,13 @@ export class UsersService {
         role: { in: ['ADMIN', 'LAWYER'] },
         firmMembers: { some: { firmId } },
       },
+      include: { firmMembers: { where: { firmId }, select: { role: true } } },
       orderBy: { lastName: 'asc' },
     });
-    return users.map((u) => this.sanitize(u));
+    return users.map((u) => {
+      const { firmMembers, ...rest } = u;
+      return { ...this.sanitize(rest), firmRole: firmMembers[0]?.role ?? null };
+    });
   }
 
   async findAllByFirm(
