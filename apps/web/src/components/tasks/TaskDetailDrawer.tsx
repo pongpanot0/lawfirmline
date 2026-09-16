@@ -35,6 +35,8 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [description, setDescription] = useState('');
   const [labelDraft, setLabelDraft] = useState('');
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [subtaskDue, setSubtaskDue] = useState('');
+  const [subtaskAssigneeId, setSubtaskAssigneeId] = useState('');
   const [comment, setComment] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -343,16 +345,49 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   {task.subtasks.length === 0 && <li className="px-3 py-2 text-xs text-muted-foreground">{d.taskDetail.noSubtasks}</li>}
                 </ul>
                 <form
-                  className="mt-2 flex gap-2"
+                  className="mt-2 flex flex-wrap items-center gap-2"
                   onSubmit={(e) => {
                     e.preventDefault();
                     const t = subtaskTitle.trim();
                     if (!t) return;
+                    const payload = {
+                      title: t,
+                      dueDate: subtaskDue || undefined,
+                      assigneeId: subtaskAssigneeId || undefined,
+                    };
                     setSubtaskTitle('');
-                    void run(() => api.createSubtask(token!, task.id, { title: t }));
+                    setSubtaskDue('');
+                    setSubtaskAssigneeId('');
+                    void run(() => api.createSubtask(token!, task.id, payload));
                   }}
                 >
-                  <input value={subtaskTitle} disabled={busy} onChange={(e) => setSubtaskTitle(e.target.value)} placeholder={d.taskDetail.subtaskPlaceholder} className={`${field} mt-0`} />
+                  <input value={subtaskTitle} disabled={busy} onChange={(e) => setSubtaskTitle(e.target.value)} placeholder={d.taskDetail.subtaskPlaceholder} className={`${field} mt-0 min-w-[160px] flex-1`} />
+                  <select
+                    aria-label={d.taskDetail.assignee}
+                    value={subtaskAssigneeId}
+                    disabled={busy}
+                    onChange={(e) => setSubtaskAssigneeId(e.target.value)}
+                    className={`${field} mt-0 w-auto`}
+                  >
+                    <option value="">{d.taskDetail.assignee}</option>
+                    {users
+                      .filter(
+                        (u) =>
+                          u.id === user?.id ||
+                          (!!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)),
+                      )
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                      ))}
+                  </select>
+                  <input
+                    type="date"
+                    aria-label={d.taskDetail.dueDate}
+                    value={subtaskDue}
+                    disabled={busy}
+                    onChange={(e) => setSubtaskDue(e.target.value)}
+                    className={`${field} mt-0 w-auto`}
+                  />
                   <Button type="submit" size="sm" variant="outline" disabled={busy || !subtaskTitle.trim()}>{d.taskDetail.addSubtask}</Button>
                 </form>
               </section>

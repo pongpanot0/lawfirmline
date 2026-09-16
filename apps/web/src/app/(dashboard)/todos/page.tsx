@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
 import { canAssignFirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
@@ -30,9 +30,14 @@ function TodosPageContent() {
   const searchParams = useSearchParams();
   // ?new=1 (the topbar's quick-create) lands with the drawer already open.
   const [showForm, setShowForm] = useState(false);
+  // Read once: `new`/`assignee` describe how the page was entered, and the
+  // param lingers in the URL while the user works (e.g. the detail drawer
+  // adds ?task=), so re-running would reopen the form behind their back.
+  const consumedEntryParams = useRef(false);
   useEffect(() => {
+    if (consumedEntryParams.current) return;
+    consumedEntryParams.current = true;
     if (searchParams.has('new')) setShowForm(true);
-    // ?assignee=<id> (from the workload dashboard) pre-picks who gets the task.
     const assignee = searchParams.get('assignee');
     if (assignee) setNewAssigneeId(assignee);
   }, [searchParams]);
@@ -41,6 +46,12 @@ function TodosPageContent() {
   const [newDueDate, setNewDueDate] = useState('');
   const [newPriority, setNewPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [newStatus, setNewStatus] = useState<TaskStatus>(TaskStatus.TODO);
+  const [newDescription, setNewDescription] = useState('');
+  const [newLabels, setNewLabels] = useState<string[]>([]);
+  const [labelDraft, setLabelDraft] = useState('');
+  const [newSubtasks, setNewSubtasks] = useState<{ title: string; assigneeId: string; dueDate: string }[]>([]);
+  const [subDraft, setSubDraft] = useState({ title: '', assigneeId: '', dueDate: '' });
   const fmtUploadFailed = (n: number) => `สร้างงานแล้ว แต่แนบไฟล์ไม่สำเร็จ ${n} ไฟล์ — แนบใหม่ได้ในหน้ารายละเอียดงาน`;
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
@@ -132,7 +143,21 @@ function TodosPageContent() {
         assigneeId: newAssigneeId || undefined,
         dueDate: newDueDate || undefined,
         priority: newPriority,
+        status: newStatus,
+        description: newDescription.trim() || undefined,
+        labels: newLabels.length ? newLabels : undefined,
       });
+      for (const sub of newSubtasks) {
+        try {
+          await api.createSubtask(token, created.id, {
+            title: sub.title,
+            assigneeId: sub.assigneeId || undefined,
+            dueDate: sub.dueDate || undefined,
+          });
+        } catch {
+          // Subtask failures surface in the detail drawer that opens next.
+        }
+      }
       // Attachments ride along with the create; a failed file surfaces as a
       // warning on the detail drawer rather than losing the task itself.
       let failedUploads = 0;
@@ -148,6 +173,12 @@ function TodosPageContent() {
       setNewAssigneeId('');
       setNewDueDate('');
       setNewPriority(TaskPriority.MEDIUM);
+      setNewStatus(TaskStatus.TODO);
+      setNewDescription('');
+      setNewLabels([]);
+      setLabelDraft('');
+      setNewSubtasks([]);
+      setSubDraft({ title: '', assigneeId: '', dueDate: '' });
       setNewFiles([]);
       setShowForm(false);
       loadTasks();
@@ -242,7 +273,7 @@ function TodosPageContent() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <form onSubmit={handleCreate} className="flex flex-col gap-3">
+            <form onSubmit={handleCreate} className="flex flex-col gap-4">
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
@@ -250,34 +281,157 @@ function TodosPageContent() {
                 autoFocus
                 required
               />
-              <select
-                value={newAssigneeId}
-                onChange={(e) => setNewAssigneeId(e.target.value)}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-              >
-                <option value="">{d.todos.assignToMe}</option>
-                {assignableUsers.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.firstName} {u.lastName}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={newDueDate}
-                onChange={(e) => setNewDueDate(e.target.value)}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-              />
-              <select
-                value={newPriority}
-                onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
-                aria-label={d.todos.priority}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-              >
-                {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
-                  <option key={p} value={p}>{priorityLabel(d, p)}</option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.status}</label>
+                  <select
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value as TaskStatus)}
+                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                  >
+                    {[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE].map((st) => (
+                      <option key={st} value={st}>
+                        {st === TaskStatus.TODO ? d.todos.columnTodo : st === TaskStatus.IN_PROGRESS ? d.todos.columnInProgress : d.todos.columnDone}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">{d.todos.priority}</label>
+                  <div className="mt-1 flex gap-1.5">
+                    {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        aria-pressed={newPriority === p}
+                        onClick={() => setNewPriority(p)}
+                        className={`rounded-full border px-3 py-1.5 text-xs ${newPriority === p ? 'border-primary bg-primary/10 font-medium text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
+                      >
+                        {priorityLabel(d, p)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.assignee}</label>
+                  <select
+                    value={newAssigneeId}
+                    onChange={(e) => setNewAssigneeId(e.target.value)}
+                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                  >
+                    <option value="">{d.todos.assignToMe}</option>
+                    {assignableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.dueDate}</label>
+                  <input
+                    type="date"
+                    value={newDueDate}
+                    onChange={(e) => setNewDueDate(e.target.value)}
+                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Label</label>
+                {newLabels.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {newLabels.map((l) => (
+                      <span key={l} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                        {l}
+                        <button type="button" aria-label={`เอา ${l} ออก`} className="text-muted-foreground hover:text-destructive" onClick={() => setNewLabels((prev) => prev.filter((x) => x !== l))}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <input
+                  value={labelDraft}
+                  onChange={(e) => setLabelDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const l = labelDraft.trim();
+                      if (l && !newLabels.includes(l)) setNewLabels((prev) => [...prev, l]);
+                      setLabelDraft('');
+                    }
+                  }}
+                  placeholder={d.taskDetail.labelPlaceholder}
+                  className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.description}</label>
+                <textarea
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder={d.taskDetail.descriptionPlaceholder}
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.subtasks}</label>
+                {newSubtasks.length > 0 && (
+                  <ul className="mt-1 divide-y divide-border rounded-lg border border-border">
+                    {newSubtasks.map((sub, i) => {
+                      const who = assignableUsers.find((u) => u.id === sub.assigneeId);
+                      return (
+                        <li key={`${sub.title}-${i}`} className="flex items-center gap-2 px-3 py-2 text-sm">
+                          <span className="flex-1 truncate">{sub.title}</span>
+                          {who && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{who.firstName}</span>}
+                          {sub.dueDate && <span className="text-xs text-muted-foreground">{sub.dueDate}</span>}
+                          <button type="button" aria-label={`เอา ${sub.title} ออก`} className="text-muted-foreground hover:text-destructive" onClick={() => setNewSubtasks((prev) => prev.filter((_, x) => x !== i))}>×</button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <div className="mt-1 space-y-2 rounded-lg border border-dashed border-border p-2">
+                  <input
+                    value={subDraft.title}
+                    onChange={(e) => setSubDraft({ ...subDraft, title: e.target.value })}
+                    placeholder={d.taskDetail.subtaskPlaceholder}
+                    className="h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      aria-label={d.taskDetail.assignee}
+                      value={subDraft.assigneeId}
+                      onChange={(e) => setSubDraft({ ...subDraft, assigneeId: e.target.value })}
+                      className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-card px-2 text-sm"
+                    >
+                      <option value="">{d.todos.assignToMe}</option>
+                      {assignableUsers.map((u) => (
+                        <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="date"
+                      aria-label={d.taskDetail.dueDate}
+                      value={subDraft.dueDate}
+                      onChange={(e) => setSubDraft({ ...subDraft, dueDate: e.target.value })}
+                      className="h-9 rounded-lg border border-input bg-card px-2 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!subDraft.title.trim()}
+                      onClick={() => {
+                        setNewSubtasks((prev) => [...prev, { ...subDraft, title: subDraft.title.trim() }]);
+                        setSubDraft({ title: '', assigneeId: '', dueDate: '' });
+                      }}
+                    >
+                      {d.taskDetail.addSubtask}
+                    </Button>
+                  </div>
+                </div>
+              </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">ไฟล์แนบ</label>
                 <DocumentDropZone
