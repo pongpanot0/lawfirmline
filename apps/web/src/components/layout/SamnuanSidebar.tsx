@@ -21,7 +21,6 @@ import {
   X,
   ClipboardList,
   ListTodo,
-  CalendarCheck,
   Mail,
   type LucideIcon,
 } from 'lucide-react';
@@ -53,7 +52,6 @@ const NAV_GROUPS = [
 const NAV_ITEMS = [
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true, group: 'firm', children: [] as const },
-  { href: '/my-day', labelKey: 'myDay' as const, icon: CalendarCheck, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work', children: [] as const },
   {
     href: '/intake',
