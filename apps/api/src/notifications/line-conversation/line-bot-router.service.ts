@@ -5,18 +5,21 @@ import { LineConversationStoreService } from './line-conversation-store.service'
 import { LineIntakeFlowService } from './flows/line-intake-flow.service';
 import { LineTaskFlowService } from './flows/line-task-flow.service';
 import { LineTodoFlowService } from './flows/line-todo-flow.service';
+import { LineExpenseFlowService } from './flows/line-expense-flow.service';
 import { ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
 
 const MAIN_MENU_QUICK_REPLY: QuickReplyItem[] = [
   { label: '📋 สร้าง Case', text: 'สร้าง Case' },
   { label: '✅ เพิ่ม Task ในคดี', text: 'เพิ่ม Task' },
   { label: '📝 สร้าง Todo', text: 'สร้าง Todo' },
+  { label: '💸 บันทึกค่าใช้จ่าย', text: 'บันทึกค่าใช้จ่าย' },
 ];
 
 const MENU_SELECTION_MAP: Record<string, FlowType> = {
   'สร้าง Case': FlowType.CASE,
   'เพิ่ม Task': FlowType.TASK,
   'สร้าง Todo': FlowType.TODO,
+  'บันทึกค่าใช้จ่าย': FlowType.EXPENSE,
 };
 
 @Injectable()
@@ -30,6 +33,7 @@ export class LineBotRouterService {
     private intakeFlow: LineIntakeFlowService,
     private taskFlow: LineTaskFlowService,
     private todoFlow: LineTodoFlowService,
+    private expenseFlow: LineExpenseFlowService,
   ) {}
 
   async route(
@@ -100,6 +104,7 @@ export class LineBotRouterService {
     if (existing.flowType === FlowType.CASE) return this.intakeFlow.handle(updated, text);
     if (existing.flowType === FlowType.TASK) return this.taskFlow.handle(updated, text);
     if (existing.flowType === FlowType.TODO) return this.todoFlow.handle(updated, text);
+    if (existing.flowType === FlowType.EXPENSE) return this.expenseFlow.handle(updated, text);
   }
 
   /**
@@ -112,9 +117,25 @@ export class LineBotRouterService {
     messageId: string,
     target: ConversationTarget,
   ): Promise<void> {
-    void lineUserId;
-    void messageId;
-    void target;
+    const session = this.store.get(lineUserId);
+    if (
+      session?.flowType !== FlowType.EXPENSE ||
+      session.step !== ConversationStep.EXPENSE_RECEIPT
+    ) {
+      return;
+    }
+    const updated = this.store.update(lineUserId, { target });
+    if (!updated) return;
+    const image = await this.line.getMessageContent(messageId);
+    if (!image) {
+      if (target.replyToken) {
+        await this.line.replyWithQuickReply(target.replyToken, 'ดาวน์โหลดรูปไม่สำเร็จครับ ลองส่งใหม่อีกครั้ง');
+      } else {
+        await this.line.pushTo(lineUserId, 'ดาวน์โหลดรูปไม่สำเร็จครับ ลองส่งใหม่อีกครั้ง');
+      }
+      return;
+    }
+    await this.expenseFlow.handleImage(updated, image);
   }
 
   private async showMainMenu(lineUserId: string, target: ConversationTarget): Promise<void> {

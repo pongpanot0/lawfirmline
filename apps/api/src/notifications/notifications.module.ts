@@ -18,6 +18,9 @@ import { LineNotificationService } from './line-conversation/line-notification.s
 import { LineIntakeFlowService } from './line-conversation/flows/line-intake-flow.service';
 import { LineTaskFlowService } from './line-conversation/flows/line-task-flow.service';
 import { LineTodoFlowService } from './line-conversation/flows/line-todo-flow.service';
+import { LineExpenseFlowService } from './line-conversation/flows/line-expense-flow.service';
+import { BillingModule } from '../billing/billing.module';
+import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { IntakeModule } from '../intake/intake.module';
 import { TasksModule } from '../tasks/tasks.module';
 import { ClientsModule } from '../clients/clients.module';
@@ -35,6 +38,8 @@ import { AgendaModule } from '../agenda/agenda.module';
     UsersModule,
     forwardRef(() => SaasModule),
     AgendaModule,
+    forwardRef(() => BillingModule),
+    IntelligenceModule,
   ],
   controllers: [LineController, DevicesController],
   providers: [
@@ -55,6 +60,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     LineIntakeFlowService,
     LineTaskFlowService,
     LineTodoFlowService,
+    LineExpenseFlowService,
   ],
   exports: [
     PushService,
