@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { IntakeController } from './intake.controller';
 import { IntakeService } from './intake.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';

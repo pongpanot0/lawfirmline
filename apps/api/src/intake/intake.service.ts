@@ -10,6 +10,7 @@ import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.serv
 import { DocumentsService } from '../documents/documents.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import {
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -38,6 +39,7 @@ export class IntakeService {
     private documentsService: DocumentsService,
     private fileStorage: FileStorageService,
     private caseAccess: CaseAccessService,
+    private assignmentNotifier: AssignmentNotifierService,
   ) {}
 
   private intakeInclude = {
@@ -123,7 +125,7 @@ export class IntakeService {
       user,
       (dto.assignedUserIds ?? []).filter((uid) => uid !== user.id),
     );
-    return this.prisma.intake.create({
+    const created = await this.prisma.intake.create({
       data: {
         firmId: user.firmId,
         receivedById: user.id,
@@ -152,6 +154,17 @@ export class IntakeService {
       },
       include: this.intakeInclude,
     });
+
+    if (dto.assignedUserIds?.length) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: dto.assignedUserIds,
+        actorUserId: user.id,
+        summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${created.title}`,
+        entityPath: `/intake/${created.id}`,
+      });
+    }
+
+    return created;
   }
 
   /**
@@ -194,12 +207,11 @@ export class IntakeService {
 
   async update(user: AuthUser, id: string, dto: UpdateIntakeDto) {
     const existing = await this.findOne(user, id);
+    let newlyAssigned: string[] = [];
     if (dto.assignedUserIds) {
       const already = new Set([...(existing.assignedUserIds ?? []), user.id]);
-      await this.assertCanAssign(
-        user,
-        dto.assignedUserIds.filter((uid) => !already.has(uid)),
-      );
+      newlyAssigned = dto.assignedUserIds.filter((uid) => !already.has(uid));
+      await this.assertCanAssign(user, newlyAssigned);
     }
     if (dto.relatedCaseId) {
       const relatedCase = await this.prisma.case.findFirst({
@@ -210,7 +222,7 @@ export class IntakeService {
       }
     }
     await this.resetConfirmationForEditedFields(id, dto);
-    return this.prisma.intake.update({
+    const updated = await this.prisma.intake.update({
       where: { id },
       data: {
         receivedDate: dto.receivedDate ? new Date(dto.receivedDate) : undefined,
@@ -247,6 +259,17 @@ export class IntakeService {
       },
       include: this.intakeInclude,
     });
+
+    if (newlyAssigned.length) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: newlyAssigned,
+        actorUserId: user.id,
+        summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${updated.title}`,
+        entityPath: `/intake/${updated.id}`,
+      });
+    }
+
+    return updated;
   }
 
   /**

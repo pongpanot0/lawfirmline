@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { TasksModule } from '../tasks/tasks.module';
 import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { IntakeService } from './intake.service';
@@ -9,7 +10,7 @@ import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { DocumentsModule } from '../documents/documents.module';
 
 @Module({
-  imports: [TasksModule, IntelligenceModule, DocumentsModule],
+  imports: [TasksModule, IntelligenceModule, DocumentsModule, forwardRef(() => NotificationsModule)],
   controllers: [IntakeController],
   providers: [
     IntakeService,

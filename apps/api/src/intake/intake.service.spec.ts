@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IntakeService } from './intake.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
@@ -30,6 +31,7 @@ describe('IntakeService attachments', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
@@ -148,6 +150,7 @@ describe('IntakeService draftNotice with analysisId', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
@@ -255,6 +258,7 @@ describe('IntakeService convertToCase', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
@@ -318,6 +322,7 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
@@ -410,6 +415,7 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
@@ -473,6 +479,7 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
@@ -678,6 +685,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
@@ -756,6 +764,7 @@ describe('IntakeService portal conversion', () => {
     tx.intake.create.mockResolvedValue({ id: 'intake-1' });
     const module = await Test.createTestingModule({ providers: [
       IntakeService,
+      { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
       { provide: PrismaService, useValue: prisma },
       { provide: TasksService, useValue: {} },
       { provide: ConfigService, useValue: {} },
