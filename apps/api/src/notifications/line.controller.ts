@@ -6,12 +6,16 @@ import {
   Headers,
   HttpCode,
   Logger,
+  Param,
   Post,
   RawBodyRequest,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -48,6 +52,18 @@ export class LineController {
     private contactLineLink: ContactLineLinkService,
     private router: LineBotRouterService,
   ) {}
+
+  @Get('line-assets/home-v2/:size')
+  @SkipSubscription()
+  serveHomeImagemap(@Param('size') size: string, @Res() res: Response) {
+    if (!['240', '300', '460', '700', '1040'].includes(size)) {
+      return res.status(404).end();
+    }
+    const bytes = readFileSync(join(__dirname, '..', '..', 'public', 'line-assets', 'home-v2', size));
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Content-Length', String(bytes.byteLength));
+    return res.end(bytes);
+  }
 
   @Post('line/webhook')
   @HttpCode(200)

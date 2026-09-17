@@ -109,7 +109,17 @@ describe('ContactLineLinkService', () => {
       expect(mockPrisma.clientContact.findFirst).not.toHaveBeenCalled();
     });
 
+    it('returns null when this LINE user is already a linked staff account', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'admin-1' });
+
+      const result = await service.handleIncomingMessage('U123', 'LF-XXXXXX');
+
+      expect(result).toBeNull();
+      expect(mockPrisma.clientContact.findFirst).not.toHaveBeenCalled();
+    });
+
     it('links the LINE user when a valid, unexpired code matches', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.clientContact.findFirst.mockImplementation(({ where }: any) => {
         if (where.lineLinkCode) {
           return Promise.resolve({

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AgendaItem, AuthUser } from '@lawfirm/shared';
 import { AgendaService } from '../../agenda/agenda.service';
-import { LineMessagingService, QuickReplyItem } from '../line-messaging.service';
+import { LineMessagingService } from '../line-messaging.service';
 import { LineAuthContextService } from './line-auth-context.service';
 import { LineConversationStoreService } from './line-conversation-store.service';
 import { LineIntakeFlowService } from './flows/line-intake-flow.service';
@@ -11,15 +11,6 @@ import { LineTodoFlowService } from './flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './flows/line-expense-flow.service';
 import { LineAdvanceFlowService } from './flows/line-advance-flow.service';
 import { ConversationSession, ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
-
-const MAIN_MENU_QUICK_REPLY: QuickReplyItem[] = [
-  { label: '📋 สร้าง Case', text: 'สร้าง Case' },
-  { label: '✅ เพิ่ม Task ในคดี', text: 'เพิ่ม Task' },
-  { label: '📝 สร้าง Todo', text: 'สร้าง Todo' },
-  { label: '💸 บันทึกค่าใช้จ่าย', text: 'บันทึกค่าใช้จ่าย' },
-  { label: '💰 เบิกล่วงหน้า', text: 'เบิกล่วงหน้า' },
-  { label: '📊 งานของฉันวันนี้', text: 'งานของฉันวันนี้' },
-];
 
 const MYDAY_COMMAND = 'งานของฉันวันนี้';
 const MYDAY_SECTION_LIMIT = 5;
@@ -227,11 +218,10 @@ export class LineBotRouterService {
   }
 
   private async showMainMenu(lineUserId: string, target: ConversationTarget): Promise<void> {
-    const text = 'สวัสดีครับ ผมลอว์ 🤖 จะให้ช่วยอะไรดีครับ?';
     if (target.replyToken) {
-      await this.line.replyWithQuickReply(target.replyToken, text, MAIN_MENU_QUICK_REPLY);
+      await this.line.replyHomeMenu(target.replyToken);
     } else {
-      await this.line.pushTo(lineUserId, text, MAIN_MENU_QUICK_REPLY);
+      await this.line.pushHomeMenu(lineUserId);
     }
   }
 

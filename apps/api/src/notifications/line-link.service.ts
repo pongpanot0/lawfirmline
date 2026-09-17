@@ -104,6 +104,12 @@ export class LineLinkService {
     const trimmed = text.trim().toUpperCase();
     if (!LINK_CODE_PATTERN.test(trimmed)) return null;
 
+    const alreadyLinked = await this.prisma.user.findUnique({
+      where: { lineUserId },
+      select: { id: true },
+    });
+    if (alreadyLinked) return null;
+
     if (!this.limiter.recordAttempt(lineUserId)) {
       return '❌ พยายามเชื่อมต่อบ่อยเกินไป กรุณาลองใหม่ภายหลัง';
     }

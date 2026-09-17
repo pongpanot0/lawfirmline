@@ -107,6 +107,12 @@ export class ContactLineLinkService {
     const trimmed = text.trim().toUpperCase();
     if (!LINK_CODE_PATTERN.test(trimmed)) return null;
 
+    const staff = await this.prisma.user.findUnique({
+      where: { lineUserId },
+      select: { id: true },
+    });
+    if (staff) return null;
+
     if (!this.limiter.recordAttempt(lineUserId)) {
       return '❌ พยายามเชื่อมต่อบ่อยเกินไป กรุณาลองใหม่ภายหลัง';
     }
