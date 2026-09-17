@@ -110,6 +110,26 @@ export class LineMessagingService {
     }
   }
 
+  /** Download a message's binary content (e.g. a sent photo). Null on any failure. */
+  async getMessageContent(messageId: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+    const token = await this.getAccessToken();
+    if (!token) return null;
+    try {
+      const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        this.logger.warn(`LINE content download failed: ${res.status}`);
+        return null;
+      }
+      const buffer = Buffer.from(await res.arrayBuffer());
+      return { buffer, contentType: res.headers.get('content-type') ?? 'application/octet-stream' };
+    } catch (err) {
+      this.logger.error('LINE content download error', err);
+      return null;
+    }
+  }
+
   async sendText(message: string, targetUserIds?: string[]): Promise<boolean> {
     if (!this.isConfigured()) {
       this.logger.warn(`LINE not configured. Message: ${message}`);

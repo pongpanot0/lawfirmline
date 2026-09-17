@@ -30,6 +30,7 @@ interface LineWebhookBody {
     replyToken?: string;
     source?: { userId?: string; type?: string; groupId?: string; roomId?: string };
     message?: {
+      id?: string;
       type: string;
       text?: string;
       mention?: { mentionees: Array<{ type: string; isSelf?: boolean }> };
@@ -71,6 +72,25 @@ export class LineController {
             event.replyToken,
             '👋 สวัสดี! เพื่อเชื่อมต่อบัญชี LexFlow กรุณาไปที่ Settings → LINE แล้วส่งรหัสเชื่อมต่อ (เช่น LF-XXXXXX) มาที่แชทนี้',
           );
+        }
+      }
+
+      if (
+        event.type === 'message' &&
+        event.message?.type === 'image' &&
+        event.source?.userId &&
+        event.message.id
+      ) {
+        const sourceType = (event.source.type as 'user' | 'group' | 'room') ?? 'user';
+        try {
+          await this.router.routeImage(event.source.userId, event.message.id, {
+            replyToken: event.replyToken,
+            sourceType,
+            groupId: event.source.groupId,
+            roomId: event.source.roomId,
+          });
+        } catch (err) {
+          this.logger.error('Error processing LINE image event', err);
         }
       }
 

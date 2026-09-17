@@ -102,6 +102,21 @@ export class LineBotRouterService {
     if (existing.flowType === FlowType.TODO) return this.todoFlow.handle(updated, text);
   }
 
+  /**
+   * A photo message. Only meaningful inside a flow step that expects one
+   * (the expense receipt step, wired in the expense flow task) — everything
+   * else ignores it silently so ambient photos in groups never trigger the bot.
+   */
+  async routeImage(
+    lineUserId: string,
+    messageId: string,
+    target: ConversationTarget,
+  ): Promise<void> {
+    void lineUserId;
+    void messageId;
+    void target;
+  }
+
   private async showMainMenu(lineUserId: string, target: ConversationTarget): Promise<void> {
     const text = 'สวัสดีครับ ผมลอว์ 🤖 จะให้ช่วยอะไรดีครับ?';
     if (target.replyToken) {
