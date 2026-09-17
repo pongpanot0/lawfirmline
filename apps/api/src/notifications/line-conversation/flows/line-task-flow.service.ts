@@ -31,7 +31,11 @@ export class LineTaskFlowService {
 
   async start(session: ConversationSession): Promise<void> {
     this.store.update(session.lineUserId, { step: ConversationStep.TASK_CASE_SEARCH, data: {} });
-    await this.reply(session, 'เพิ่มงานในคดี — พิมพ์ชื่อคดีหรือเลขคดี (ดำ/แดง) เพื่อค้นหาครับ');
+    await this.reply(
+      session,
+      'เพิ่มงาน — พิมพ์ชื่อคดีหรือเลขคดี (ดำ/แดง) เพื่อค้นหา หรือพิมพ์ "ข้าม" ถ้าเป็นงานนอกคดีครับ',
+      [{ label: 'ข้าม (งานนอกคดี)', text: 'ข้าม' }],
+    );
   }
 
   async handle(session: ConversationSession, text: string): Promise<void> {
@@ -43,6 +47,14 @@ export class LineTaskFlowService {
 
     switch (session.step) {
       case ConversationStep.TASK_CASE_SEARCH: {
+        if (text === 'ข้าม') {
+          this.store.update(session.lineUserId, {
+            data: { ...session.data },
+            step: ConversationStep.TASK_TITLE,
+          });
+          await this.reply(session, 'ชื่องานที่จะมอบหมายคืออะไรครับ?');
+          return;
+        }
         const authUser = await this.authContext.resolve(session.lineUserId);
         if (!authUser) {
           await this.reply(session, 'เกิดข้อผิดพลาดในการยืนยันตัวตน กรุณาลองใหม่อีกครั้งครับ');
@@ -175,26 +187,32 @@ export class LineTaskFlowService {
 
   private async create(session: ConversationSession): Promise<void> {
     const data = session.data as {
-      caseId: string;
-      caseLabel: string;
+      caseId?: string;
+      caseLabel?: string;
       title: string;
       assigneeId?: string;
       assigneeLabel?: string;
       dueDate?: string;
     };
+    // Assigning a standalone task to someone else checks the caller's firm
+    // role, so the full AuthUser is needed — the minimal cast has no role.
+    const authUser =
+      (await this.authContext.resolve(session.lineUserId)) ??
+      ({ id: session.userId, firmId: session.firmId } as unknown as AuthUser);
     await this.tasks.create(
-      { id: session.userId, firmId: session.firmId } as unknown as AuthUser,
-      data.caseId,
+      authUser,
+      data.caseId ?? null,
       { title: data.title, assigneeId: data.assigneeId, dueDate: data.dueDate },
       TaskSource.LINE,
     );
     this.store.clear(session.lineUserId);
-    await this.reply(session, `เพิ่มงานในคดี "${data.caseLabel}" สำเร็จแล้วครับ ✅`);
+    const where = data.caseId ? `ในคดี "${data.caseLabel}"` : 'นอกคดี';
+    await this.reply(session, `เพิ่มงาน${where}สำเร็จแล้วครับ ✅`);
     await this.notify.notifyCreated({
       target: session.target,
-      summaryText: `✅ งานใหม่ในคดี "${data.caseLabel}": ${data.title}${data.assigneeLabel ? `\nผู้รับผิดชอบ: ${data.assigneeLabel}` : ''}`,
+      summaryText: `✅ งานใหม่${where}: ${data.title}${data.assigneeLabel ? `\nผู้รับผิดชอบ: ${data.assigneeLabel}` : ''}`,
       assigneeUserId: data.assigneeId,
-      entityPath: `/cases/${data.caseId}`,
+      entityPath: data.caseId ? `/cases/${data.caseId}` : '/todos',
     });
   }
 
