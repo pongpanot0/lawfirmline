@@ -12,6 +12,7 @@ import { CreateCaseDto, UpdateCaseDto, CaseQueryDto, UpdateCaseAssignmentsDto } 
 import { CloseCaseDto } from './dto/close-case.dto';
 import { Prisma } from '../generated/prisma';
 import { CaseActivitiesService } from './case-activities.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 
 @Injectable()
 export class CasesService {
@@ -19,6 +20,7 @@ export class CasesService {
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
     private activitiesService: CaseActivitiesService,
+    private assignmentNotifier: AssignmentNotifierService,
   ) {}
 
   private caseInclude = {
@@ -269,11 +271,28 @@ export class CasesService {
       );
     }
 
+    if (dto.leadLawyerId && dto.leadLawyerId !== user.id) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: [dto.leadLawyerId],
+        actorUserId: user.id,
+        summaryText: `⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี\nคดี: ${created.title}`,
+        entityPath: `/cases/${created.id}`,
+      });
+    }
+    if (buddyIds.length) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: buddyIds,
+        actorUserId: user.id,
+        summaryText: `⚖️ คุณได้รับมอบหมายเข้าทีมคดี\nคดี: ${created.title}`,
+        entityPath: `/cases/${created.id}`,
+      });
+    }
+
     return created;
   }
 
   async update(user: AuthUser, id: string, dto: UpdateCaseDto) {
-    await this.findOne(user, id);
+    const before = await this.findOne(user, id);
 
     if (dto.leadLawyerId) {
       if (user.firmRole !== FirmRole.OWNER) {
@@ -288,7 +307,7 @@ export class CasesService {
     }
 
     const { customFields, ...rest } = dto;
-    return this.prisma.case.update({
+    const updated = await this.prisma.case.update({
       where: { id },
       data: {
         ...rest,
@@ -297,6 +316,21 @@ export class CasesService {
       },
       include: this.caseInclude,
     });
+
+    if (
+      dto.leadLawyerId &&
+      dto.leadLawyerId !== before.leadLawyerId &&
+      dto.leadLawyerId !== user.id
+    ) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: [dto.leadLawyerId],
+        actorUserId: user.id,
+        summaryText: `⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี\nคดี: ${updated.title}`,
+        entityPath: `/cases/${id}`,
+      });
+    }
+
+    return updated;
   }
 
   async updateAssignments(user: AuthUser, id: string, dto: UpdateCaseAssignmentsDto) {
@@ -308,6 +342,14 @@ export class CasesService {
     const buddyIds = [
       ...new Set(dto.buddyIds.filter((uid) => uid !== legalCase.leadLawyerId)),
     ];
+
+    // Snapshot before the delete+recreate below so only genuinely new
+    // buddies get a DM, not everyone re-written into the table.
+    const previousBuddies = await this.prisma.caseAssignment.findMany({
+      where: { caseId: id, assignmentType: AssignmentType.BUDDY },
+      select: { userId: true },
+    });
+    const previousBuddyIds = new Set(previousBuddies.map((b) => b.userId));
 
     if (buddyIds.length) {
       const firmMembers = await this.prisma.firmMember.count({
@@ -335,7 +377,19 @@ export class CasesService {
         : []),
     ]);
 
-    return this.prisma.case.findUnique({ where: { id }, include: this.caseInclude });
+    const result = await this.prisma.case.findUnique({ where: { id }, include: this.caseInclude });
+
+    const newBuddyIds = buddyIds.filter((uid) => !previousBuddyIds.has(uid));
+    if (newBuddyIds.length) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: newBuddyIds,
+        actorUserId: user.id,
+        summaryText: `⚖️ คุณได้รับมอบหมายเข้าทีมคดี\nคดี: ${result?.title ?? legalCase.title}`,
+        entityPath: `/cases/${id}`,
+      });
+    }
+
+    return result;
   }
 
   async close(user: AuthUser, id: string, dto: CloseCaseDto) {

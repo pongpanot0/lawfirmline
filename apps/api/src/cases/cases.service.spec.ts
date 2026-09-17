@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FirmRole } from '@lawfirm/shared';
 import { CasesService } from './cases.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseActivitiesService } from './case-activities.service';
@@ -20,6 +21,7 @@ describe('CasesService.findOne', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CasesService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
         { provide: CaseActivitiesService, useValue: mockActivities },
