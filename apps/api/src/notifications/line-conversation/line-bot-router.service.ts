@@ -1,17 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { LineMessagingService, QuickReplyItem } from '../line-messaging.service';
+import { LineMessagingService } from '../line-messaging.service';
 import { LineAuthContextService } from './line-auth-context.service';
 import { LineConversationStoreService } from './line-conversation-store.service';
 import { LineIntakeFlowService } from './flows/line-intake-flow.service';
 import { LineTaskFlowService } from './flows/line-task-flow.service';
 import { LineTodoFlowService } from './flows/line-todo-flow.service';
 import { ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
-
-const MAIN_MENU_QUICK_REPLY: QuickReplyItem[] = [
-  { label: '📋 สร้าง Case', text: 'สร้าง Case' },
-  { label: '✅ เพิ่ม Task ในคดี', text: 'เพิ่ม Task' },
-  { label: '📝 สร้าง Todo', text: 'สร้าง Todo' },
-];
 
 const MENU_SELECTION_MAP: Record<string, FlowType> = {
   'สร้าง Case': FlowType.CASE,
@@ -103,11 +97,10 @@ export class LineBotRouterService {
   }
 
   private async showMainMenu(lineUserId: string, target: ConversationTarget): Promise<void> {
-    const text = 'สวัสดีครับ ผมลอว์ 🤖 จะให้ช่วยอะไรดีครับ?';
     if (target.replyToken) {
-      await this.line.replyWithQuickReply(target.replyToken, text, MAIN_MENU_QUICK_REPLY);
+      await this.line.replyHomeMenu(target.replyToken);
     } else {
-      await this.line.pushTo(lineUserId, text, MAIN_MENU_QUICK_REPLY);
+      await this.line.pushHomeMenu(lineUserId);
     }
   }
 

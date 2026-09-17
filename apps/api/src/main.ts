@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { config } from 'dotenv';
-import { resolve } from 'path';
+import { join, resolve } from 'path';
 import { AppModule } from './app.module';
 import { PayloadTooLargeFilter } from './common/filters/payload-too-large.filter';
 import { DEFAULT_ROOT_DOMAIN } from '@lawfirm/shared';
@@ -24,7 +25,14 @@ function isAllowedOrigin(origin: string | undefined, allowed: string[], rootDoma
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+  app.useStaticAssets(join(__dirname, '..', 'public'), {
+    setHeaders: (res, filePath) => {
+      if (/\/line-assets\/home[^/]*\/\d+$/.test(filePath)) {
+        res.setHeader('Content-Type', 'image/jpeg');
+      }
+    },
+  });
 
   const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:3005')
     .split(',')

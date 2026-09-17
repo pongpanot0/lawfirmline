@@ -45,20 +45,40 @@ describe('LineLinkService.handleIncomingMessage', () => {
     expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
   });
 
-  it('returns the rate-limit message and does not query when the limiter rejects the attempt', async () => {
+  it('returns null when this LINE user is already a linked staff account', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'admin-1' });
+
+    const result = await service.handleIncomingMessage('U-line-1', 'LF-XXXXXX');
+
+    expect(result).toBeNull();
+    expect(mockLimiter.recordAttempt).not.toHaveBeenCalled();
+    expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+      where: { lineUserId: 'U-line-1' },
+      select: { id: true },
+    });
+  });
+
+  it('returns the rate-limit message and does not look up a code when the limiter rejects the attempt', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(null);
     mockLimiter.recordAttempt.mockReturnValue(false);
 
     const result = await service.handleIncomingMessage('U-line-1', 'LF-ABC123');
 
     expect(result).toContain('พยายามเชื่อมต่อบ่อยเกินไป');
-    expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+      where: { lineUserId: 'U-line-1' },
+      select: { id: true },
+    });
   });
 
   it('returns the generic failure message when a matching staff user is found but the code has expired', async () => {
-    mockPrisma.user.findUnique.mockResolvedValueOnce({
-      id: 'user-1',
-      lineLinkCodeExpiresAt: new Date(Date.now() - 1000),
-    });
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'user-1',
+        lineLinkCodeExpiresAt: new Date(Date.now() - 1000),
+      });
 
     const result = await service.handleIncomingMessage('U-line-1', 'LF-ABC123');
 
