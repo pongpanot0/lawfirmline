@@ -1,4 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AgendaItem, AuthUser } from '@lawfirm/shared';
+import { AgendaService } from '../../agenda/agenda.service';
 import { LineMessagingService, QuickReplyItem } from '../line-messaging.service';
 import { LineAuthContextService } from './line-auth-context.service';
 import { LineConversationStoreService } from './line-conversation-store.service';
@@ -15,7 +18,11 @@ const MAIN_MENU_QUICK_REPLY: QuickReplyItem[] = [
   { label: '📝 สร้าง Todo', text: 'สร้าง Todo' },
   { label: '💸 บันทึกค่าใช้จ่าย', text: 'บันทึกค่าใช้จ่าย' },
   { label: '💰 เบิกล่วงหน้า', text: 'เบิกล่วงหน้า' },
+  { label: '📊 งานของฉันวันนี้', text: 'งานของฉันวันนี้' },
 ];
+
+const MYDAY_COMMAND = 'งานของฉันวันนี้';
+const MYDAY_SECTION_LIMIT = 5;
 
 const MENU_SELECTION_MAP: Record<string, FlowType> = {
   'สร้าง Case': FlowType.CASE,
@@ -38,6 +45,8 @@ export class LineBotRouterService {
     private todoFlow: LineTodoFlowService,
     private expenseFlow: LineExpenseFlowService,
     private advanceFlow: LineAdvanceFlowService,
+    private agenda: AgendaService,
+    private config: ConfigService,
   ) {}
 
   async route(
@@ -56,6 +65,11 @@ export class LineBotRouterService {
       const authUser = await this.auth.resolve(lineUserId);
       if (!authUser) {
         await this.replyUnlinked(lineUserId, target);
+        return;
+      }
+
+      if (text === MYDAY_COMMAND) {
+        await this.replyMyDay(authUser, lineUserId, target);
         return;
       }
 
@@ -88,6 +102,11 @@ export class LineBotRouterService {
     }
 
     if (existing.flowType === null) {
+      if (text === MYDAY_COMMAND) {
+        this.store.update(lineUserId, { target });
+        await this.replyMyDay(authUser, lineUserId, target);
+        return;
+      }
       // Awaiting the user's menu choice.
       const flowType = MENU_SELECTION_MAP[text];
       if (!flowType) {
@@ -114,6 +133,51 @@ export class LineBotRouterService {
     if (existing.flowType === FlowType.TODO) return this.todoFlow.handle(updated, text);
     if (existing.flowType === FlowType.EXPENSE) return this.expenseFlow.handle(updated, text);
     if (existing.flowType === FlowType.ADVANCE) return this.advanceFlow.handle(updated, text);
+  }
+
+  private async replyMyDay(
+    authUser: AuthUser,
+    lineUserId: string,
+    target: ConversationTarget,
+  ): Promise<void> {
+    const day = await this.agenda.getMyDay(authUser);
+    const webUrl = this.config.get<string>('WEB_APP_URL') ?? 'http://localhost:3000';
+
+    const section = (icon: string, title: string, items: AgendaItem[]): string | null => {
+      if (!items.length) return null;
+      const lines = items.slice(0, MYDAY_SECTION_LIMIT).map((item) => {
+        const time = item.allDay
+          ? ''
+          : `${new Date(item.at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })} `;
+        const caseRef = item.caseRef ? ` — ${item.caseRef}` : '';
+        return `• ${time}${item.title}${caseRef}`;
+      });
+      const more = items.length > MYDAY_SECTION_LIMIT
+        ? [`…และอีก ${items.length - MYDAY_SECTION_LIMIT} รายการ`]
+        : [];
+      return [`${icon} ${title} ${items.length} รายการ`, ...lines, ...more].join('\n');
+    };
+
+    const dateLabel = new Date(`${day.today}T00:00:00+07:00`).toLocaleDateString('th-TH', {
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'Asia/Bangkok',
+    });
+    const sections = [
+      section('⏰', 'เลยกำหนด', day.overdue),
+      section('📅', 'วันนี้', day.todayItems),
+    ].filter((s): s is string => s !== null);
+
+    const body = sections.length
+      ? sections.join('\n\n')
+      : 'วันนี้ไม่มีนัดหมายและไม่มีงานค้างครับ 🎉';
+    const text = `📊 งานของฉันวันนี้ (${dateLabel})\n\n${body}\n\n🔗 ${webUrl}/my-day`;
+
+    if (target.replyToken) {
+      await this.line.replyWithQuickReply(target.replyToken, text);
+    } else {
+      await this.line.pushTo(lineUserId, text);
+    }
   }
 
   private startFlow(flowType: FlowType, session: ConversationSession): Promise<void> {
