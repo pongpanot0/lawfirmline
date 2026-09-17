@@ -3,6 +3,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { ConfigService } from '@nestjs/config';
 import { AuthUser, ExpenseStatus, FirmRole } from '@lawfirm/shared';
 import { BillingService } from './billing.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CashAdvanceService } from './cash-advance.service';
@@ -59,6 +60,7 @@ describe('BillingService — drafted expenses', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BillingService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PettyCashService, useValue: mockPettyCash },
         { provide: CashAdvanceService, useValue: mockCashAdvance },

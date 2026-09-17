@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { CashAdvanceService } from './cash-advance.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { PrismaService } from '../prisma/prisma.module';
 
 describe('CashAdvanceService', () => {
@@ -16,7 +17,7 @@ describe('CashAdvanceService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CashAdvanceService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [CashAdvanceService, { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } }, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
     service = module.get(CashAdvanceService);
   });

@@ -3,10 +3,14 @@ import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
 import { IssueCashAdvanceDto } from './dto/billing.dto';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 
 @Injectable()
 export class CashAdvanceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private assignmentNotifier: AssignmentNotifierService,
+  ) {}
 
   async issue(owner: AuthUser, dto: IssueCashAdvanceDto) {
     if (owner.firmRole !== FirmRole.OWNER) {
@@ -17,7 +21,7 @@ export class CashAdvanceService {
     });
     if (!member) throw new NotFoundException('User is not a member of this firm');
 
-    return this.prisma.cashAdvance.create({
+    const advance = await this.prisma.cashAdvance.create({
       data: {
         firmId: owner.firmId,
         userId: dto.userId,
@@ -28,6 +32,15 @@ export class CashAdvanceService {
       },
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
     });
+
+    await this.assignmentNotifier.notifyAssigned({
+      userIds: [dto.userId],
+      actorUserId: owner.id,
+      summaryText: `💰 คุณได้รับเงินสำรองจ่าย ฿${dto.amount.toLocaleString('th-TH')}${dto.note ? `\nหมายเหตุ: ${dto.note}` : ''}`,
+      entityPath: '/expenses/new',
+    });
+
+    return advance;
   }
 
   /** Everyone sees their own advances; the owner sees the whole firm's. */

@@ -9,6 +9,7 @@ import { CashAdvanceService } from './cash-advance.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import {
   CreateTimeEntryDto,
   CreateExpenseDto,
@@ -38,6 +39,7 @@ export class BillingService {
     private config: ConfigService,
     private fileStorage: FileStorageService,
     private line: LineMessagingService,
+    private assignmentNotifier: AssignmentNotifierService,
   ) {}
 
   private decodeOriginalFilename(originalname: string): string {
@@ -626,11 +628,29 @@ export class BillingService {
       data.paidById = user.id;
     }
 
-    return this.prisma.expense.update({
+    const updated = await this.prisma.expense.update({
       where: { id: expenseId },
       data,
       include: this.expenseInclude,
     });
+
+    const amountLabel = `฿${expense.amount.toLocaleString('th-TH')}`;
+    const requesterCopy: Partial<Record<ExpenseStatus, string>> = {
+      [ExpenseStatus.APPROVED]: `✅ รายการเบิก ${amountLabel} ของคุณได้รับอนุมัติแล้ว`,
+      [ExpenseStatus.PAID]: `💰 รายการเบิก ${amountLabel} ของคุณจ่ายแล้ว`,
+      [ExpenseStatus.REJECTED]: `❌ รายการเบิก ${amountLabel} ของคุณถูกปฏิเสธ`,
+    };
+    const copy = requesterCopy[dto.status];
+    if (copy) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: [expense.userId],
+        actorUserId: user.id,
+        summaryText: copy,
+        entityPath: '/expenses',
+      });
+    }
+
+    return updated;
   }
 
   async submitExpensesForApproval(user: AuthUser, expenseIds: string[]) {
@@ -805,6 +825,23 @@ export class BillingService {
         include: this.claimInclude,
       });
     });
+
+    const total = claim.expenses.reduce((sum, e) => sum + e.amount, 0);
+    const claimLabel = `ใบเบิก ${claim.expenses.length} รายการ รวม ฿${total.toLocaleString('th-TH')}`;
+    const submitterCopy: Partial<Record<ExpenseClaimStatus, string>> = {
+      [ExpenseClaimStatus.APPROVED]: `✅ ${claimLabel} ของคุณได้รับอนุมัติแล้ว`,
+      [ExpenseClaimStatus.PAID]: `💰 ${claimLabel} ของคุณจ่ายแล้ว`,
+      [ExpenseClaimStatus.REJECTED]: `❌ ${claimLabel} ของคุณถูกปฏิเสธ`,
+    };
+    const copy = submitterCopy[next];
+    if (copy) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: [claim.submittedById],
+        actorUserId: user.id,
+        summaryText: copy,
+        entityPath: '/expenses/claim',
+      });
+    }
 
     return this.summarizeClaim(updated);
   }
