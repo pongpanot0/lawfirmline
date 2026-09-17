@@ -19,6 +19,7 @@ import { LineIntakeFlowService } from './line-conversation/flows/line-intake-flo
 import { LineTaskFlowService } from './line-conversation/flows/line-task-flow.service';
 import { LineTodoFlowService } from './line-conversation/flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './line-conversation/flows/line-expense-flow.service';
+import { LineAdvanceFlowService } from './line-conversation/flows/line-advance-flow.service';
 import { BillingModule } from '../billing/billing.module';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { IntakeModule } from '../intake/intake.module';
@@ -61,6 +62,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     LineTaskFlowService,
     LineTodoFlowService,
     LineExpenseFlowService,
+    LineAdvanceFlowService,
   ],
   exports: [
     PushService,

@@ -6,13 +6,15 @@ import { LineIntakeFlowService } from './flows/line-intake-flow.service';
 import { LineTaskFlowService } from './flows/line-task-flow.service';
 import { LineTodoFlowService } from './flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './flows/line-expense-flow.service';
-import { ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
+import { LineAdvanceFlowService } from './flows/line-advance-flow.service';
+import { ConversationSession, ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
 
 const MAIN_MENU_QUICK_REPLY: QuickReplyItem[] = [
   { label: '📋 สร้าง Case', text: 'สร้าง Case' },
   { label: '✅ เพิ่ม Task ในคดี', text: 'เพิ่ม Task' },
   { label: '📝 สร้าง Todo', text: 'สร้าง Todo' },
   { label: '💸 บันทึกค่าใช้จ่าย', text: 'บันทึกค่าใช้จ่าย' },
+  { label: '💰 เบิกล่วงหน้า', text: 'เบิกล่วงหน้า' },
 ];
 
 const MENU_SELECTION_MAP: Record<string, FlowType> = {
@@ -20,6 +22,7 @@ const MENU_SELECTION_MAP: Record<string, FlowType> = {
   'เพิ่ม Task': FlowType.TASK,
   'สร้าง Todo': FlowType.TODO,
   'บันทึกค่าใช้จ่าย': FlowType.EXPENSE,
+  'เบิกล่วงหน้า': FlowType.ADVANCE,
 };
 
 @Injectable()
@@ -34,6 +37,7 @@ export class LineBotRouterService {
     private taskFlow: LineTaskFlowService,
     private todoFlow: LineTodoFlowService,
     private expenseFlow: LineExpenseFlowService,
+    private advanceFlow: LineAdvanceFlowService,
   ) {}
 
   async route(
@@ -55,15 +59,22 @@ export class LineBotRouterService {
         return;
       }
 
-      this.store.start({
+      // A rich-menu tap (or typed command) with no session starts its flow
+      // directly instead of bouncing through the menu.
+      const directFlow = MENU_SELECTION_MAP[text];
+      const started = this.store.start({
         lineUserId,
         userId: authUser.id,
         firmId: authUser.firmId,
-        flowType: null,
+        flowType: directFlow ?? null,
         step: ConversationStep.SELECT_ACTION,
         data: {},
         target,
       });
+      if (directFlow) {
+        await this.startFlow(directFlow, started);
+        return;
+      }
       await this.showMainMenu(lineUserId, target);
       return;
     }
@@ -89,10 +100,7 @@ export class LineBotRouterService {
         this.logger.warn(`Session for ${lineUserId} expired before flow could start`);
         return;
       }
-      if (flowType === FlowType.CASE) return this.intakeFlow.start(updated);
-      if (flowType === FlowType.TASK) return this.taskFlow.start(updated);
-      if (flowType === FlowType.TODO) return this.todoFlow.start(updated);
-      return;
+      return this.startFlow(flowType, updated);
     }
 
     // An action flow is active — refresh the target (replyToken changes every turn) and delegate.
@@ -105,6 +113,22 @@ export class LineBotRouterService {
     if (existing.flowType === FlowType.TASK) return this.taskFlow.handle(updated, text);
     if (existing.flowType === FlowType.TODO) return this.todoFlow.handle(updated, text);
     if (existing.flowType === FlowType.EXPENSE) return this.expenseFlow.handle(updated, text);
+    if (existing.flowType === FlowType.ADVANCE) return this.advanceFlow.handle(updated, text);
+  }
+
+  private startFlow(flowType: FlowType, session: ConversationSession): Promise<void> {
+    switch (flowType) {
+      case FlowType.CASE:
+        return this.intakeFlow.start(session);
+      case FlowType.TASK:
+        return this.taskFlow.start(session);
+      case FlowType.TODO:
+        return this.todoFlow.start(session);
+      case FlowType.EXPENSE:
+        return this.expenseFlow.start(session);
+      case FlowType.ADVANCE:
+        return this.advanceFlow.start(session);
+    }
   }
 
   /**
