@@ -3,6 +3,7 @@ import { Readable } from 'stream';
 import { TaskDetailController } from './task-detail.controller';
 import { TaskDetailService } from './task-detail.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 
 describe('TaskDetailController download', () => {
   it('streams with nosniff, safe mime and attachment disposition', async () => {
@@ -19,6 +20,7 @@ describe('TaskDetailController download', () => {
       providers: [
         { provide: TaskDetailService, useValue: detail },
         { provide: FileStorageService, useValue: storage },
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
       ],
     }).compile();
     const controller = module.get(TaskDetailController);
@@ -44,6 +46,7 @@ describe('TaskDetailController download', () => {
       providers: [
         { provide: TaskDetailService, useValue: detail },
         { provide: FileStorageService, useValue: storage },
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
       ],
     }).compile();
     const controller = module.get(TaskDetailController);

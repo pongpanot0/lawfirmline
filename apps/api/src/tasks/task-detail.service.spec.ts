@@ -5,6 +5,7 @@ import { TaskDetailService } from './task-detail.service';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 
 describe('TaskDetailService', () => {
   let service: TaskDetailService;
@@ -26,6 +27,7 @@ describe('TaskDetailService', () => {
         { provide: TasksService, useValue: mockTasks },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockStorage },
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
       ],
     }).compile();
     service = module.get(TaskDetailService);

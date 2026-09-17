@@ -20,6 +20,7 @@ import {
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
 import {
@@ -39,6 +40,7 @@ export class TasksService {
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
     private fileStorage: FileStorageService,
+    private assignmentNotifier: AssignmentNotifierService,
   ) {}
 
   private taskInclude = {
@@ -293,6 +295,15 @@ export class TasksService {
       }
     }
 
+    if (dto.assigneeId && dto.assigneeId !== user.id) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: [dto.assigneeId],
+        actorUserId: user.id,
+        summaryText: `📌 คุณได้รับมอบหมายงานใหม่\nงาน: ${dto.title}`,
+        entityPath: caseId ? `/cases/${caseId}` : '/todos',
+      });
+    }
+
     return this.findOne(task.id);
   }
 
@@ -349,7 +360,7 @@ export class TasksService {
       }
     }
 
-    return this.prisma.task.update({
+    const updated = await this.prisma.task.update({
       where: { id },
       data: {
         ...dto,
@@ -358,6 +369,17 @@ export class TasksService {
       },
       include: this.taskInclude,
     });
+
+    if (dto.assigneeId && dto.assigneeId !== task.assigneeId && dto.assigneeId !== user.id) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: [dto.assigneeId],
+        actorUserId: user.id,
+        summaryText: `📌 คุณได้รับมอบหมายงานใหม่\nงาน: ${task.title}`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+      });
+    }
+
+    return updated;
   }
 
   async remove(id: string, caseId?: string) {
@@ -494,6 +516,15 @@ export class TasksService {
       note: dto.reason,
     });
     await this.logActivity(caseId, `ตีกลับงาน "${task.title}": ${dto.reason}`, user.id);
+
+    if (returnToUserId !== user.id) {
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: [returnToUserId],
+        actorUserId: user.id,
+        summaryText: `🔁 งานถูกตีกลับให้แก้ไข\nงาน: ${task.title}\nเหตุผล: ${dto.reason}`,
+        entityPath: `/cases/${caseId}`,
+      });
+    }
 
     return this.findOne(taskId);
   }

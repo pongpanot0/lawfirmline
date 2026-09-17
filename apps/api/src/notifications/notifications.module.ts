@@ -29,7 +29,7 @@ import { AgendaModule } from '../agenda/agenda.module';
 @Module({
   imports: [
     IntakeModule,
-    TasksModule,
+    forwardRef(() => TasksModule),
     forwardRef(() => ClientsModule),
     forwardRef(() => CasesModule),
     UsersModule,
