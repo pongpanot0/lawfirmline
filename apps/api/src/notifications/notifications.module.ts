@@ -5,6 +5,7 @@ import { PushService } from './push.service';
 import { ReminderScheduler } from './reminder.scheduler';
 import { DailyDigestScheduler } from './daily-digest.scheduler';
 import { LineMessagingService } from './line-messaging.service';
+import { AssignmentNotifierService } from './assignment-notifier.service';
 import { LineLinkService } from './line-link.service';
 import { LinkCodeAttemptLimiterService } from './link-code-attempt-limiter.service';
 import { EmailService } from './email.service';
@@ -41,6 +42,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     ReminderScheduler,
     DailyDigestScheduler,
     LineMessagingService,
+    AssignmentNotifierService,
     LineLinkService,
     LinkCodeAttemptLimiterService,
     EmailService,
@@ -57,6 +59,7 @@ import { AgendaModule } from '../agenda/agenda.module';
   exports: [
     PushService,
     LineMessagingService,
+    AssignmentNotifierService,
     LineLinkService,
     EmailService,
     ContactLineLinkService,
