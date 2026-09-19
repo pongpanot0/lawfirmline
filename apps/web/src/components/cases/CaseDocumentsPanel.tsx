@@ -15,6 +15,10 @@ import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { documentCategoryLabel } from '@/lib/stage-labels';
+import { DocumentCategory } from '@lawfirm/shared';
+
+const DOCUMENT_CATEGORY_VALUES = Object.values(DocumentCategory);
 
 export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const d = useDashboardT();
@@ -29,6 +33,9 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [rendered, setRendered] = useState<{ name: string; content: string } | null>(null);
   const [error, setError] = useState('');
+  /** หมวดที่จะติดให้ไฟล์ถัดไปที่อัปโหลด และหมวดที่กำลังกรองอยู่ */
+  const [uploadCategory, setUploadCategory] = useState('OTHER');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const dropRef = useRef<DocumentDropZoneHandle>(null);
   const [suggestionsKey, setSuggestionsKey] = useState(0);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
@@ -50,7 +57,9 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const load = () => {
     if (!token || !id) return;
     Promise.all([
-      api.getDocuments(token, id) as Promise<DocumentItem[]>,
+      api.getDocuments(token, id, {
+        category: categoryFilter || undefined,
+      }) as Promise<DocumentItem[]>,
       api.getDocumentTemplates(token),
     ])
       .then(([docs, tmpls]) => {
@@ -62,7 +71,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [token, id]);
+  useEffect(() => { load(); }, [token, id, categoryFilter]);
 
 
   useEffect(() => () => {
@@ -139,7 +148,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
     setUploading(true);
     setError('');
     try {
-      await api.uploadDocument(token, id, file);
+      await api.uploadDocument(token, id, file, { category: uploadCategory });
       load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : d.caseDocuments.uploadFailed);
@@ -190,10 +199,50 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
 
   return (
     <div>
-      <h2 className="mb-6 text-xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h2>
+      <h2 className="mb-4 text-xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h2>
+
+      {/* กรองตามหมวด — คดีใหญ่มีเอกสารหลายร้อยชิ้น ชื่อไฟล์ล้วนหาไม่เจอ */}
+      <div className="mb-6 flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => setCategoryFilter('')}
+          className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+            categoryFilter === '' ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground'
+          }`}
+        >
+          ทั้งหมด
+        </button>
+        {DOCUMENT_CATEGORY_VALUES.map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setCategoryFilter(value)}
+            className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+              categoryFilter === value
+                ? 'bg-primary text-primary-foreground'
+                : 'border bg-card text-muted-foreground hover:border-primary/40'
+            }`}
+          >
+            {documentCategoryLabel(value, 'th')}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.uploadDocument}</h2>
+        {/* หมวดติดตอนอัปโหลด — ถามทีหลังคือไม่มีใครกลับมาตอบ */}
+        <label className="mb-3 block text-sm">
+          <span className="mb-1 block font-medium text-muted-foreground">หมวดเอกสาร</span>
+          <select
+            value={uploadCategory}
+            onChange={(e) => setUploadCategory(e.target.value)}
+            className="h-9 w-full max-w-xs rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            {DOCUMENT_CATEGORY_VALUES.map((value) => (
+              <option key={value} value={value}>{documentCategoryLabel(value, 'th')}</option>
+            ))}
+          </select>
+        </label>
         <DocumentDropZone
           ref={dropRef}
           onFile={handleUpload}

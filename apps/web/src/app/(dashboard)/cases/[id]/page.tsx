@@ -89,7 +89,9 @@ import {
   CourtItem,
   ApiError,
   IntakePrecedentAnalysisItem,
+  type CaseOutstandingResult,
 } from '@/lib/api';
+import { caseStageOptions } from '@/lib/stage-labels';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
@@ -166,6 +168,11 @@ export default function CaseDetailPage() {
   const [closingCase, setClosingCase] = useState(false);
   const [reopeningCase, setReopeningCase] = useState(false);
   const [closeError, setCloseError] = useState('');
+  const [closingOutcome, setClosingOutcome] = useState('');
+  /** ของค้างตอนกดปิดคดี — โหลดตอนเปิดฟอร์ม ไม่ใช่ทุกครั้งที่หน้า render */
+  const [outstanding, setOutstanding] = useState<CaseOutstandingResult | null>(null);
+  const [ackOutstanding, setAckOutstanding] = useState(false);
+  const [savingStage, setSavingStage] = useState(false);
   const [editingTeam, setEditingTeam] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
   const [teamError, setTeamError] = useState('');
@@ -318,14 +325,42 @@ export default function CaseDetailPage() {
     setClosingCase(true);
     setCloseError('');
     try {
-      await api.closeCase(token, id, closingSummary.trim());
+      await api.closeCase(token, id, closingSummary.trim(), {
+        outcome: closingOutcome || undefined,
+        acknowledgeOutstanding: ackOutstanding || undefined,
+      });
       setShowCloseForm(false);
       setClosingSummary('');
+      setAckOutstanding(false);
       loadCase();
     } catch (err) {
       setCloseError(err instanceof ApiError ? err.message : 'ปิดคดีไม่สำเร็จ');
     } finally {
       setClosingCase(false);
+    }
+  };
+
+  const handleStageChange = async (stage: string) => {
+    if (!token || !id || stage === legalCase?.stage) return;
+    setSavingStage(true);
+    try {
+      await api.updateCase(token, id, { stage });
+      loadCase();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingStage(false);
+    }
+  };
+
+  const handleArchiveCase = async () => {
+    if (!token || !id) return;
+    if (!confirm('เก็บคดีนี้เข้าคลัง? ยังค้นเจอและเปิดกลับได้')) return;
+    try {
+      await api.archiveCase(token, id);
+      loadCase();
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -530,14 +565,52 @@ export default function CaseDetailPage() {
             <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
           </Button>
         </div>
-        {legalCase.status !== CaseStatus.CLOSED ? (
+        {/* ขั้นตอนในกระบวนพิจารณา — แยกจากสถานะงานด้านบน */}
+        <div className="mt-4">
+          <p className="text-xs font-medium text-muted-foreground">ขั้นตอนคดี</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {caseStageOptions('th').map((option, index) => {
+              const currentIndex = legalCase.stage
+                ? caseStageOptions('th').findIndex((o) => o.value === legalCase.stage)
+                : -1;
+              const isCurrent = option.value === legalCase.stage;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={savingStage}
+                  onClick={() => handleStageChange(option.value)}
+                  className={`min-h-9 rounded-lg px-3 py-1 text-xs transition ${
+                    isCurrent
+                      ? 'bg-primary text-primary-foreground font-medium'
+                      : index < currentIndex
+                        ? 'bg-primary/10 text-primary'
+                        : 'border bg-card text-muted-foreground hover:border-primary/40'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {legalCase.status !== CaseStatus.CLOSED && legalCase.status !== 'ARCHIVED' ? (
           <Button
             variant="outline"
             size="sm"
             className="mt-3"
-            onClick={() => {
+            onClick={async () => {
               setCloseError('');
               setShowCloseForm(true);
+              setAckOutstanding(false);
+              if (token && id) {
+                try {
+                  setOutstanding(await api.getCaseOutstanding(token, id));
+                } catch {
+                  setOutstanding(null);
+                }
+              }
             }}
           >
             <Lock className="h-4 w-4" />
@@ -557,6 +630,11 @@ export default function CaseDetailPage() {
               <LockOpen className="h-4 w-4" />
               {reopeningCase ? 'กำลังเปิด...' : 'เปิดคดีอีกครั้ง'}
             </Button>
+            {legalCase.status === CaseStatus.CLOSED && (
+              <Button variant="ghost" size="sm" onClick={handleArchiveCase}>
+                เก็บเข้าคลัง
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -574,6 +652,49 @@ export default function CaseDetailPage() {
               <p className="text-sm text-muted-foreground">
                 กรุณาสรุปผลคดี ข้อตกลง หรือบันทึกสำคัญก่อนปิดคดี
               </p>
+
+              {/* ของค้าง: ปิดคดีทับของค้างเงียบ ๆ คือการซ่อน ไม่ใช่ทำให้เสร็จ */}
+              {outstanding && outstanding.total > 0 && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                  <p className="font-medium text-amber-700">
+                    ยังมีของค้าง {outstanding.total} รายการ
+                  </p>
+                  <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                    {outstanding.openTasks.map((t) => (
+                      <li key={t.id}>• งานค้าง: {t.title}</li>
+                    ))}
+                    {outstanding.upcomingEvents.map((e) => (
+                      <li key={e.id}>• วันนัดข้างหน้า: {e.title} ({formatDate(e.startAt)})</li>
+                    ))}
+                    {outstanding.unapprovedDocuments.map((docItem) => (
+                      <li key={docItem.id}>• เอกสารยังไม่อนุมัติ: {docItem.filename}</li>
+                    ))}
+                  </ul>
+                  <label className="mt-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={ackOutstanding}
+                      onChange={(e) => setAckOutstanding(e.target.checked)}
+                    />
+                    ตรวจแล้ว และยืนยันจะปิดคดี
+                  </label>
+                </div>
+              )}
+
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium">ผลของคดี</span>
+                <select
+                  value={closingOutcome}
+                  onChange={(e) => setClosingOutcome(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                >
+                  <option value="">ไม่ระบุ</option>
+                  <option value="WON">ชนะคดี</option>
+                  <option value="SETTLED">ตกลงกันได้</option>
+                  <option value="LOST">แพ้คดี</option>
+                  <option value="WITHDRAWN">ถอนฟ้อง / ยุติ</option>
+                </select>
+              </label>
               <textarea
                 required
                 rows={5}
@@ -584,7 +705,10 @@ export default function CaseDetailPage() {
               />
               {closeError && <p className="text-sm text-destructive">{closeError}</p>}
               <div className="flex gap-2">
-                <Button type="submit" disabled={closingCase}>
+                <Button
+                  type="submit"
+                  disabled={closingCase || (!!outstanding && outstanding.total > 0 && !ackOutstanding)}
+                >
                   {closingCase ? 'กำลังปิดคดี...' : 'ยืนยันปิดคดี'}
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setShowCloseForm(false)}>

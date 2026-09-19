@@ -57,6 +57,8 @@ export class ClientPortalService {
         ownRef: true,
         title: true,
         status: true,
+        // ลูกความเห็นแถบความคืบหน้าจากขั้นตอนจริง ไม่ใช่เดาจากสถานะงาน
+        stage: true,
         courtName: true,
         openedAt: true,
       },
@@ -223,6 +225,8 @@ export class ClientPortalService {
         ownRef: true,
         title: true,
         status: true,
+        // ลูกความเห็นแถบความคืบหน้าจากขั้นตอนจริง ไม่ใช่เดาจากสถานะงาน
+        stage: true,
         courtName: true,
         openedAt: true,
       },

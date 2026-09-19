@@ -9,6 +9,8 @@ import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 describe('IntakeService attachments', () => {
   let service: IntakeService;
@@ -34,6 +36,8 @@ describe('IntakeService attachments', () => {
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -153,6 +157,8 @@ describe('IntakeService draftNotice with analysisId', () => {
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -262,6 +268,8 @@ describe('IntakeService convertToCase', () => {
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -409,6 +417,8 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -502,6 +512,8 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -566,6 +578,8 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -598,7 +612,10 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
       data: { caseId: 'case-1' },
     });
     expect(mockPrisma.intake.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'intake-1' }, data: { status: 'CONVERTED' } }),
+      expect.objectContaining({
+        where: { id: 'intake-1' },
+        data: expect.objectContaining({ status: 'CONVERTED' }),
+      }),
     );
     expect(result).toEqual(expect.objectContaining({ id: 'case-1' }));
   });
@@ -772,6 +789,8 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -850,6 +869,8 @@ describe('IntakeService portal conversion', () => {
       IntakeService,
       { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
       { provide: PrismaService, useValue: prisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
       { provide: TasksService, useValue: {} },
       { provide: ConfigService, useValue: {} },
       { provide: IntakePrecedentAnalysisService, useValue: {} },

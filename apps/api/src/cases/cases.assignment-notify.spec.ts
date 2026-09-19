@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
 
 describe('CasesService assignment notifications', () => {
   let service: CasesService;
@@ -25,6 +26,7 @@ describe('CasesService assignment notifications', () => {
       providers: [
         CasesService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
         {
           provide: CaseAccessService,
           useValue: {

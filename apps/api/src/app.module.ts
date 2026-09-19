@@ -38,6 +38,7 @@ import { AgendaModule } from './agenda/agenda.module';
 import { DeadlinesModule } from './deadlines/deadlines.module';
 import { HolidaysModule } from './holidays/holidays.module';
 import { EmailIntakeModule } from './email-intake/email-intake.module';
+import { ConflictCheckModule } from './conflict-check/conflict-check.module';
 import { DocumentReviewModule } from './document-review/document-review.module';
 import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
 
@@ -82,6 +83,7 @@ import { OutlookIntegrationModule } from './outlook-integration/outlook-integrat
     EmailIntakeModule,
     DocumentReviewModule,
     OutlookIntegrationModule,
+    ConflictCheckModule,
   ],
   providers: [
     {

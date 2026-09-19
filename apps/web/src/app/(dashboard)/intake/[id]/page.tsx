@@ -11,6 +11,10 @@ import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, UserItem, A
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
+import { IntakeStageBar } from '@/components/intake/IntakeStageBar';
+import { ConflictCheckPanel } from '@/components/intake/ConflictCheckPanel';
+import { DocumentRequestChecklist } from '@/components/intake/DocumentRequestChecklist';
+import { IntakeFollowUpPanel } from '@/components/intake/IntakeFollowUpPanel';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -343,6 +347,7 @@ export default function IntakeDetailPage() {
   const [noticeResult, setNoticeResult] = useState('');
   const [noticeContent, setNoticeContent] = useState('');
   const [noticeReviewed, setNoticeReviewed] = useState(false);
+  const [noticeAckMissingDocs, setNoticeAckMissingDocs] = useState(false);
   const [drafting, setDrafting] = useState(false);
 
   const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([]);
@@ -379,6 +384,8 @@ export default function IntakeDetailPage() {
   const [converting, setConverting] = useState(false);
   const [convertError, setConvertError] = useState('');
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
+  /** จำนวนเอกสารที่ required และยังไม่ได้รับ — ใช้เตือนก่อนออกหนังสือ */
+  const [missingDocCount, setMissingDocCount] = useState(0);
 
   const loadDocuments = useCallback(async () => {
     if (!token || !id) return;
@@ -488,6 +495,9 @@ export default function IntakeDetailPage() {
         noticeResult: noticeResult || undefined,
         noticeContent: noticeContent || undefined,
         noticeContentReviewed: noticeContent ? noticeReviewed : undefined,
+        // เอกสารยังไม่ครบ: ฝั่ง API จะปฏิเสธถ้าไม่ได้รับทราบ — หน้าจอแสดง
+        // จำนวนที่ขาดไว้แล้วข้าง ๆ ปุ่ม ติ๊กแล้วจึงส่งค่านี้ไป
+        acknowledgeMissingDocuments: noticeAckMissingDocs || undefined,
       });
       await reload();
       setModal(null);
@@ -1373,6 +1383,27 @@ export default function IntakeDetailPage() {
           </CardContent>
         </Card>
 
+        {/* ขั้นตอน → ตรวจ conflict → เอกสาร → ติดตาม: ลำดับที่งานรับเรื่องเดินจริง */}
+        <div className="space-y-4 sm:col-span-2">
+          {token && (
+            <>
+              <IntakeStageBar intake={intake} token={token} onChanged={reload} />
+              <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />
+              <DocumentRequestChecklist
+                intakeId={intake.id}
+                token={token}
+                onChanged={(result) => setMissingDocCount(result.missingCount)}
+              />
+              <IntakeFollowUpPanel
+                intake={intake}
+                token={token}
+                lawyers={lawyers}
+                onChanged={reload}
+              />
+            </>
+          )}
+        </div>
+
         {/* ออกบิลได้ตั้งแต่ยังไม่เปิดคดี — ค่าที่ปรึกษาหรือค่าดำเนินการก่อนฟ้อง */}
         <div className="sm:col-span-2">
           <InvoicePanel target={{ intakeId: intake.id }} customers={intake.customers ?? []} />
@@ -1809,12 +1840,37 @@ export default function IntakeDetailPage() {
                       </label>
                     )}
                   </div>
+
+                  {/* เอกสารที่ขอไว้ยังไม่ครบ — ออกหนังสือได้ แต่ต้องรู้ว่าขาดอะไร */}
+                  {!intake.noticeIssuedAt && missingDocCount > 0 && (
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+                      <p className="text-sm font-medium text-amber-700">
+                        ยังขาดเอกสารที่ขอไว้ {missingDocCount} รายการ
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        ออกหนังสือโดยเอกสารไม่ครบคือสาเหตุที่มักต้องออกฉบับที่สอง
+                        ถ้าเรื่องเร่งจริงให้ยืนยันด้านล่าง
+                      </p>
+                      <label className="mt-2 flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={noticeAckMissingDocs}
+                          onChange={(e) => setNoticeAckMissingDocs(e.target.checked)}
+                        />
+                        ทราบว่ายังขาดเอกสาร และยืนยันจะออกหนังสือ
+                      </label>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setModal(null)}>ยกเลิก</Button>
                   <Button
                     onClick={handleNotice}
-                    disabled={submitting || (!!noticeContent && !noticeReviewed)}
+                    disabled={
+                      submitting ||
+                      (!!noticeContent && !noticeReviewed) ||
+                      (!intake.noticeIssuedAt && missingDocCount > 0 && !noticeAckMissingDocs)
+                    }
                   >
                     {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
                   </Button>

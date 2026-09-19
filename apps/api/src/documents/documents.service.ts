@@ -2,15 +2,19 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AuthUser } from '@lawfirm/shared';
+import { ActivityType, AuthUser, DocumentCategory } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
+import { DocumentMetadataDto, DocumentQueryDto } from './dto/document-metadata.dto';
+import { Prisma } from '../generated/prisma';
 
 @Injectable()
 export class DocumentsService {
   constructor(
     private prisma: PrismaService,
     private fileStorage: FileStorageService,
+    private caseFeed: CaseFeedService,
   ) {}
 
   private async verifyDocument(caseId: string, documentId: string) {
@@ -29,16 +33,52 @@ export class DocumentsService {
     return intake;
   }
 
-  async findByCase(caseId: string) {
+  async findByCase(caseId: string, query: DocumentQueryDto = {}) {
+    const where: Prisma.DocumentWhereInput = { caseId };
+    if (query.category) where.category = query.category as never;
+    if (query.tag) where.tags = { has: query.tag };
+    if (query.search) {
+      where.filename = { contains: query.search.trim(), mode: 'insensitive' };
+    }
+
     return this.prisma.document.findMany({
-      where: { caseId },
+      where,
       include: {
         uploadedBy: {
           select: { id: true, firstName: true, lastName: true },
         },
         versions: { orderBy: { version: 'desc' } },
       },
-      orderBy: { createdAt: 'desc' },
+      // เอกสารศาลเรียงด้วยวันที่บนหน้าเอกสาร ถ้ามี — ไม่ใช่วันที่อัปโหลด
+      orderBy: [{ documentDate: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  /** ชุดหมวดที่คดีนี้มีจริง พร้อมจำนวน — ใช้ทำแถบกรองที่ไม่โชว์หมวดว่าง */
+  async categoryCounts(caseId: string) {
+    const rows = await this.prisma.document.groupBy({
+      by: ['category'],
+      where: { caseId },
+      _count: { _all: true },
+    });
+    return rows.map((row) => ({ category: row.category, count: row._count._all }));
+  }
+
+  /** แก้หมวด/วันที่/tag ของเอกสารที่อัปโหลดไปแล้ว */
+  async updateMetadata(
+    user: AuthUser,
+    caseId: string,
+    documentId: string,
+    dto: DocumentMetadataDto,
+  ) {
+    await this.verifyDocument(caseId, documentId);
+    return this.prisma.document.update({
+      where: { id: documentId },
+      data: {
+        category: dto.category as never,
+        documentDate: dto.documentDate ? new Date(dto.documentDate) : undefined,
+        tags: dto.tags,
+      },
     });
   }
 
@@ -121,6 +161,7 @@ export class DocumentsService {
     user: AuthUser,
     caseId: string,
     file: Express.Multer.File,
+    meta: DocumentMetadataDto = {},
   ) {
     const document = await this.prisma.document.create({
       data: {
@@ -129,6 +170,9 @@ export class DocumentsService {
         storagePath: '',
         mimeType: file.mimetype,
         version: 1,
+        category: (meta.category ?? DocumentCategory.OTHER) as never,
+        documentDate: meta.documentDate ? new Date(meta.documentDate) : undefined,
+        tags: meta.tags ?? [],
         uploadedById: user.id,
       },
     });
@@ -151,6 +195,14 @@ export class DocumentsService {
         mimeType: file.mimetype,
         createdById: user.id,
       },
+    });
+
+    await this.caseFeed.log({
+      caseId,
+      userId: user.id,
+      type: ActivityType.DOCUMENT,
+      title: `อัปโหลดเอกสาร: ${updated.filename}`,
+      description: updated.category !== 'OTHER' ? `หมวด: ${updated.category}` : undefined,
     });
 
     return updated;

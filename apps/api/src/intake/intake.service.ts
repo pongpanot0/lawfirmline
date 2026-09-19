@@ -1,9 +1,20 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ConfigService } from '@nestjs/config';
-import { AuthUser, redactForAi, AI_CREDIT_COST, AI_UPLOAD_MAX_BYTES, canAssignFirmRole, FirmRole } from '@lawfirm/shared';
+import {
+  ActivityType,
+  AuthUser,
+  DocRequestStatus,
+  IntakeStage,
+  redactForAi,
+  AI_CREDIT_COST,
+  AI_UPLOAD_MAX_BYTES,
+  canAssignFirmRole,
+  FirmRole,
+} from '@lawfirm/shared';
 import * as path from 'path';
 import { AssignmentType, ReferralChannel } from '../generated/prisma';
+import { INTAKE_STAGE_ORDER } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
@@ -11,6 +22,8 @@ import { DocumentsService } from '../documents/documents.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
 import {
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -19,7 +32,14 @@ import {
   NoticeDto,
   ConvertToCaseDto,
   IntakeQueryDto,
+  IntakeStatus,
   IntakeDecision,
+  CreateFollowUpDto,
+  NoResponseDto,
+  UpdateIntakeStageDto,
+  CreateDocumentRequestDto,
+  BulkCreateDocumentRequestsDto,
+  UpdateDocumentRequestDto,
   PreLitigationStatus,
   CustomerShareDto,
 } from './dto/intake.dto';
@@ -41,6 +61,8 @@ export class IntakeService {
     private fileStorage: FileStorageService,
     private caseAccess: CaseAccessService,
     private assignmentNotifier: AssignmentNotifierService,
+    private conflictCheck: ConflictCheckService,
+    private caseFeed: CaseFeedService,
   ) {}
 
   /** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่าย; ถ้าไม่มีใครถูกตั้งเป็นหลัก ให้รายแรกเป็นหลัก */
@@ -85,6 +107,17 @@ export class IntakeService {
     emailThreads: {
       select: { id: true, subject: true, fromName: true, fromAddress: true, lastMessageAt: true },
     },
+    documentRequests: { orderBy: [{ required: 'desc' as const }, { requestedAt: 'asc' as const }] },
+    followUps: {
+      take: 10,
+      orderBy: { createdAt: 'desc' as const },
+      include: { createdBy: { select: { firstName: true, lastName: true } } },
+    },
+    conflictChecks: {
+      take: 5,
+      orderBy: { checkedAt: 'desc' as const },
+      include: { checkedBy: { select: { firstName: true, lastName: true } } },
+    },
   };
 
   async findAll(user: AuthUser, query: IntakeQueryDto) {
@@ -97,6 +130,27 @@ export class IntakeService {
     if (query.status) {
       where.status = query.status;
     }
+    if (query.stage) {
+      where.stage = query.stage;
+    }
+    if (query.followUpOwnerId) {
+      where.followUpOwnerId = query.followUpOwnerId;
+    }
+    if (query.followUpOverdue) {
+      // เรื่องที่ยังเปิดอยู่และ (นัดติดตามเลยกำหนด หรือไม่เคยนัดเลย)
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { status: { notIn: [IntakeStatus.CONVERTED, IntakeStatus.REJECTED] } },
+        { OR: [{ nextFollowUpAt: { lte: new Date() } }, { nextFollowUpAt: null }] },
+      ];
+    }
+    if (query.stalledDays) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { status: { notIn: [IntakeStatus.CONVERTED, IntakeStatus.REJECTED] } },
+        { stageChangedAt: { lte: daysAgo(query.stalledDays) } },
+      ];
+    }
     if (query.search) {
       const term = query.search.trim();
       where.AND = [
@@ -106,6 +160,8 @@ export class IntakeService {
             { title: { contains: term, mode: 'insensitive' } },
             { clientName: { contains: term, mode: 'insensitive' } },
             { referralName: { contains: term, mode: 'insensitive' } },
+            { contactName: { contains: term, mode: 'insensitive' } },
+            { opposingParty: { contains: term, mode: 'insensitive' } },
           ],
         },
       ];
@@ -122,7 +178,7 @@ export class IntakeService {
       this.prisma.intake.count({ where }),
     ]);
 
-    return { items, total, page, limit };
+    return { items: items.map(withAging), total, page, limit };
   }
 
   async findOne(user: AuthUser, id: string) {
@@ -133,6 +189,192 @@ export class IntakeService {
     });
     if (!intake) throw new NotFoundException('Intake not found');
     return intake;
+  }
+
+  /**
+   * บันทึกการติดตามหนึ่งครั้ง แล้วเลื่อนนัดครั้งถัดไป
+   *
+   * lead ที่เงียบหายเพราะไม่มีใครถือ ไม่ใช่เพราะไม่มีใครอยากติดตาม —
+   * ทุกครั้งที่ติดตามจึงต้องตอบให้ได้ว่า "ครั้งถัดไปเมื่อไร ใครถือ"
+   */
+  async addFollowUp(user: AuthUser, id: string, dto: CreateFollowUpDto) {
+    await this.findOne(user, id);
+    const now = new Date();
+    const nextDueAt = dto.nextDueAt ? new Date(dto.nextDueAt) : null;
+
+    const [followUp] = await this.prisma.$transaction([
+      this.prisma.intakeFollowUp.create({
+        data: {
+          intakeId: id,
+          note: dto.note,
+          contacted: dto.contacted ?? true,
+          nextDueAt,
+          createdById: user.id,
+        },
+        include: { createdBy: { select: { firstName: true, lastName: true } } },
+      }),
+      this.prisma.intake.update({
+        where: { id },
+        data: {
+          lastFollowUpAt: now,
+          nextFollowUpAt: nextDueAt,
+          followUpOwnerId: dto.nextOwnerId ?? undefined,
+        },
+      }),
+    ]);
+
+    return followUp;
+  }
+
+  /**
+   * ย้ายขั้นตอนของงานรับเรื่อง
+   *
+   * ไม่บังคับให้เดินตามลำดับ — งานจริงถอยกลับได้ (ปรึกษาแล้วต้องขอเอกสารเพิ่ม)
+   * แต่ทุกครั้งที่ย้าย ต้องรู้ว่าย้ายเมื่อไร เพื่อให้ aging ตอบได้ว่าค้างกี่วัน
+   */
+  async updateStage(user: AuthUser, id: string, dto: UpdateIntakeStageDto) {
+    const intake = await this.findOne(user, id);
+    if (intake.stage === dto.stage) return intake;
+
+    const updated = await this.prisma.intake.update({
+      where: { id },
+      data: { stage: dto.stage as never, stageChangedAt: new Date() },
+      include: this.intakeInclude,
+    });
+
+    if (dto.note?.trim()) {
+      await this.prisma.intakeFollowUp.create({
+        data: {
+          intakeId: id,
+          note: `[${intake.stage} → ${dto.stage}] ${dto.note.trim()}`,
+          contacted: false,
+          createdById: user.id,
+        },
+      });
+    }
+
+    return updated;
+  }
+
+  /** เอกสารที่ยังขาดและจำเป็น — ตัวกั้นก่อนออกหนังสือ/เปิดคดี */
+  async missingDocuments(user: AuthUser, id: string) {
+    await this.findOne(user, id);
+    const requests = await this.prisma.intakeDocumentRequest.findMany({
+      where: { intakeId: id },
+      orderBy: [{ required: 'desc' }, { requestedAt: 'asc' }],
+    });
+    const missing = requests.filter(
+      (r) =>
+        r.required &&
+        r.status !== DocRequestStatus.RECEIVED &&
+        r.status !== DocRequestStatus.NOT_APPLICABLE,
+    );
+    return { requests, missing, missingCount: missing.length };
+  }
+
+  async addDocumentRequests(
+    user: AuthUser,
+    id: string,
+    dto: BulkCreateDocumentRequestsDto | CreateDocumentRequestDto,
+  ) {
+    await this.findOne(user, id);
+    const items = 'items' in dto ? dto.items : [dto];
+    if (!items.length) throw new BadRequestException('ต้องระบุเอกสารอย่างน้อยหนึ่งรายการ');
+
+    await this.prisma.intakeDocumentRequest.createMany({
+      data: items.map((item) => ({
+        intakeId: id,
+        name: item.name.trim(),
+        required: item.required ?? true,
+        note: item.note,
+        dueDate: item.dueDate ? new Date(item.dueDate) : null,
+        createdById: user.id,
+      })),
+    });
+
+    // ขอเอกสารแล้วก็คือกำลังรอเอกสาร — ไม่ต้องให้คนมาย้ายขั้นตอนเองอีกที
+    if (
+      this.stageIsBefore(await this.currentStage(id), IntakeStage.WAITING_DOCUMENTS)
+    ) {
+      await this.prisma.intake.update({
+        where: { id },
+        data: { stage: IntakeStage.WAITING_DOCUMENTS as never, stageChangedAt: new Date() },
+      });
+    }
+
+    return this.missingDocuments(user, id);
+  }
+
+  async updateDocumentRequest(
+    user: AuthUser,
+    id: string,
+    requestId: string,
+    dto: UpdateDocumentRequestDto,
+  ) {
+    await this.findOne(user, id);
+    const existing = await this.prisma.intakeDocumentRequest.findFirst({
+      where: { id: requestId, intakeId: id },
+    });
+    if (!existing) throw new NotFoundException('ไม่พบรายการเอกสารนี้');
+
+    const receiving = dto.status === DocRequestStatus.RECEIVED;
+    await this.prisma.intakeDocumentRequest.update({
+      where: { id: requestId },
+      data: {
+        status: dto.status as never,
+        note: dto.note,
+        required: dto.required,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        documentId: dto.documentId,
+        receivedAt: receiving ? (existing.receivedAt ?? new Date()) : dto.status ? null : undefined,
+      },
+    });
+    return this.missingDocuments(user, id);
+  }
+
+  async removeDocumentRequest(user: AuthUser, id: string, requestId: string) {
+    await this.findOne(user, id);
+    const deleted = await this.prisma.intakeDocumentRequest.deleteMany({
+      where: { id: requestId, intakeId: id },
+    });
+    if (!deleted.count) throw new NotFoundException('ไม่พบรายการเอกสารนี้');
+    return this.missingDocuments(user, id);
+  }
+
+  private async currentStage(id: string): Promise<IntakeStage> {
+    const row = await this.prisma.intake.findUnique({ where: { id }, select: { stage: true } });
+    return (row?.stage ?? IntakeStage.NEW_INQUIRY) as IntakeStage;
+  }
+
+  private stageIsBefore(current: IntakeStage, target: IntakeStage) {
+    return INTAKE_STAGE_ORDER.indexOf(current) < INTAKE_STAGE_ORDER.indexOf(target);
+  }
+
+  listFollowUps(user: AuthUser, id: string) {
+    return this.findOne(user, id).then(() =>
+      this.prisma.intakeFollowUp.findMany({
+        where: { intakeId: id },
+        include: { createdBy: { select: { firstName: true, lastName: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+  }
+
+  /** ติดต่อไปแล้วไม่ตอบ — ปิดวงจรของ lead ไว้ก่อน แต่ยังค้นเจอและเปิดต่อได้ */
+  async markNoResponse(user: AuthUser, id: string, dto: NoResponseDto) {
+    const intake = await this.findOne(user, id);
+    if (intake.status === IntakeStatus.CONVERTED) {
+      throw new BadRequestException('เรื่องนี้แปลงเป็นคดีแล้ว');
+    }
+    return this.prisma.intake.update({
+      where: { id },
+      data: {
+        status: IntakeStatus.NO_RESPONSE as never,
+        statusChangedAt: new Date(),
+        decisionNotes: dto.note ?? intake.decisionNotes,
+      },
+      include: this.intakeInclude,
+    });
   }
 
   async create(user: AuthUser, dto: CreateIntakeDto) {
@@ -173,6 +415,8 @@ export class IntakeService {
         isOngoingElsewhere: dto.isOngoingElsewhere ?? false,
         externalCaseNumber: dto.externalCaseNumber,
         currentStageNote: dto.currentStageNote,
+        nextFollowUpAt: dto.nextFollowUpAt ? new Date(dto.nextFollowUpAt) : undefined,
+        followUpOwnerId: dto.followUpOwnerId,
         preLitigationType: dto.preLitigationType as any,
         preLitigationStatus: dto.preLitigationStatus as any,
         preLitigationNotes: dto.preLitigationNotes,
@@ -323,6 +567,9 @@ export class IntakeService {
         assessorId: dto.assessorId ?? user.id,
         assessedAt: new Date(),
         status: 'ASSESSING' as any,
+        statusChangedAt: new Date(),
+        stage: IntakeStage.SCREENING as never,
+        stageChangedAt: new Date(),
         assessmentNotes: dto.assessmentNotes,
         caseStrength: dto.caseStrength,
       },
@@ -351,6 +598,13 @@ export class IntakeService {
       data: {
         decidedAt: new Date(),
         status: status as any,
+        statusChangedAt: new Date(),
+        stage: (status === 'ACCEPTED'
+          ? IntakeStage.PROPOSAL
+          : status === 'CONSULTED'
+            ? IntakeStage.CONSULTED
+            : IntakeStage.CLOSED) as never,
+        stageChangedAt: new Date(),
         decision: dto.decision as any,
         decisionNotes: dto.decisionNotes,
         clientDecision: dto.clientDecision,
@@ -368,6 +622,18 @@ export class IntakeService {
       );
     }
 
+    // ออกหนังสือโดยเอกสารยังไม่ครบคือสาเหตุที่ต้องออกหนังสือฉบับที่สอง
+    // ข้ามได้ถ้าเรื่องเร่ง แต่ต้องกดรับทราบว่ายังขาดอะไร
+    if (!existing.noticeIssuedAt) {
+      const { missing } = await this.missingDocuments(user, id);
+      if (missing.length && !dto.acknowledgeMissingDocuments) {
+        throw new BadRequestException({
+          message: `ยังขาดเอกสารที่ขอไว้ ${missing.length} รายการ — ตรวจแล้วยืนยันอีกครั้งเพื่อออกหนังสือ`,
+          missing: missing.map((m) => ({ id: m.id, name: m.name, status: m.status })),
+        });
+      }
+    }
+
     const updated = await this.prisma.intake.update({
       where: { id },
       data: {
@@ -376,6 +642,8 @@ export class IntakeService {
         noticeDeadline: dto.noticeDeadline ? new Date(dto.noticeDeadline) : undefined,
         noticeResult: dto.noticeResult,
         noticeContent: dto.noticeContent,
+        stage: IntakeStage.PRE_LITIGATION_NOTICE as never,
+        stageChangedAt: new Date(),
         preLitigationStatus:
           existing.preLitigationStatus === PreLitigationStatus.NOT_STARTED
             ? (PreLitigationStatus.NOTICE_SENT as any)
@@ -482,6 +750,27 @@ export class IntakeService {
     return data.choices?.[0]?.message?.content ?? '';
   }
 
+  /**
+   * ไม่ให้เปิดคดีโดยยังไม่ได้ตรวจผลประโยชน์ขัดกัน
+   *
+   * ข้ามได้ แต่ต้องพิมพ์เหตุผล — เพราะบางเรื่องเร่งจริง และระบบไม่ควรตัดสินใจ
+   * แทนทนาย. สิ่งที่ห้ามคือ "ข้ามแบบไม่มีใครรู้"
+   */
+  private async assertConflictCleared(user: AuthUser, intakeId: string, overrideReason?: string) {
+    const latest = await this.conflictCheck.latestForIntake(intakeId);
+    const cleared = latest?.result === 'CLEAR';
+    if (cleared) return { latest, overridden: false as const };
+
+    if (!overrideReason?.trim()) {
+      throw new BadRequestException(
+        latest
+          ? `ผลตรวจ conflict ล่าสุดคือ ${latest.result} — ต้องระบุเหตุผลที่ยังเปิดคดี`
+          : 'ยังไม่ได้ตรวจผลประโยชน์ขัดกัน (conflict check) สำหรับเรื่องนี้',
+      );
+    }
+    return { latest, overridden: true as const };
+  }
+
   async convertToCase(user: AuthUser, id: string, dto: ConvertToCaseDto) {
     const intake = await this.findOne(user, id);
 
@@ -494,6 +783,8 @@ export class IntakeService {
     if (intake.status === 'CONVERTED' && intake.relatedCaseId) {
       return this.prisma.case.findUnique({ where: { id: intake.relatedCaseId } });
     }
+
+    await this.assertConflictCleared(user, intake.id, dto.conflictOverrideReason);
 
     if (intake.relatedCaseId) {
       return this.attachToExistingCase(user, intake, dto);
@@ -594,9 +885,24 @@ export class IntakeService {
       });
     }
 
+    if (dto.conflictOverrideReason?.trim()) {
+      await this.caseFeed.log({
+        caseId: newCase.id,
+        userId: user.id,
+        type: ActivityType.NOTE,
+        title: 'เปิดคดีโดยข้ามผลตรวจ conflict',
+        description: dto.conflictOverrideReason.trim(),
+      });
+    }
+
     await this.prisma.intake.update({
       where: { id },
-      data: { status: 'CONVERTED' as any },
+      data: {
+        status: 'CONVERTED' as any,
+        statusChangedAt: new Date(),
+        stage: IntakeStage.CLOSED as never,
+        stageChangedAt: new Date(),
+      },
     });
 
     const assigneeIds = (intake.assignedUserIds ?? []).filter(
@@ -691,7 +997,12 @@ export class IntakeService {
 
     await this.prisma.intake.update({
       where: { id: intake.id },
-      data: { status: 'CONVERTED' as any },
+      data: {
+        status: 'CONVERTED' as any,
+        statusChangedAt: new Date(),
+        stage: IntakeStage.CLOSED as never,
+        stageChangedAt: new Date(),
+      },
     });
 
     const assigneeIds = (intake.assignedUserIds ?? []).filter(
@@ -861,4 +1172,39 @@ export class IntakeService {
     await this.prisma.intakeAttachment.delete({ where: { id: attachmentId } });
     return { deleted: true };
   }
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function daysAgo(days: number): Date {
+  return new Date(Date.now() - days * MS_PER_DAY);
+}
+
+function wholeDaysSince(from: Date | null | undefined, now = Date.now()): number | null {
+  if (!from) return null;
+  return Math.max(0, Math.floor((now - new Date(from).getTime()) / MS_PER_DAY));
+}
+
+/**
+ * เติมอายุของเรื่องให้ทุกแถวในรายการ — เพราะคำถามของหน้า intake ไม่ใช่
+ * "อยู่สถานะอะไร" แต่เป็น "ค้างมากี่วันแล้ว และเลยนัดติดตามไหม"
+ */
+export function withAging<
+  T extends {
+    createdAt: Date;
+    statusChangedAt?: Date | null;
+    stageChangedAt?: Date | null;
+    nextFollowUpAt?: Date | null;
+  },
+>(intake: T) {
+  const now = Date.now();
+  return {
+    ...intake,
+    ageDays: wholeDaysSince(intake.createdAt, now) ?? 0,
+    daysInStatus: wholeDaysSince(intake.statusChangedAt ?? intake.createdAt, now) ?? 0,
+    daysInStage: wholeDaysSince(intake.stageChangedAt ?? intake.createdAt, now) ?? 0,
+    followUpOverdueDays: intake.nextFollowUpAt
+      ? Math.max(0, Math.floor((now - new Date(intake.nextFollowUpAt).getTime()) / MS_PER_DAY))
+      : null,
+  };
 }

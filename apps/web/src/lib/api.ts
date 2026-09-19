@@ -224,6 +224,10 @@ export interface CaseItem {
   folderId?: string;
   title: string;
   status: import('@lawfirm/shared').CaseStatus;
+  /** ขั้นตอนในกระบวนพิจารณา — แยกจาก status */
+  stage?: import('@lawfirm/shared').CaseStage;
+  stageChangedAt?: string;
+  outcome?: import('@lawfirm/shared').CaseOutcome;
   clientId?: string | null;
   clientName?: string | null;
   courtName?: string | null;
@@ -661,6 +665,21 @@ export interface IntakeItem {
   assignedUserIds?: string[];
   deadlineDate?: string | null;
   status: string;
+  /** ขั้นตอนของงานรับเรื่อง — แยกจาก status ที่บอกผลลัพธ์ */
+  stage?: string;
+  stageChangedAt?: string;
+  statusChangedAt?: string;
+  nextFollowUpAt?: string | null;
+  followUpOwnerId?: string | null;
+  lastFollowUpAt?: string | null;
+  /** เติมจากฝั่ง API ในรายการ intake */
+  ageDays?: number;
+  daysInStatus?: number;
+  daysInStage?: number;
+  followUpOverdueDays?: number | null;
+  documentRequests?: IntakeDocumentRequestItem[];
+  followUps?: IntakeFollowUpItem[];
+  conflictChecks?: ConflictCheckRecord[];
   decision: string;
   preLitigationType: string;
   preLitigationStatus: string;
@@ -806,6 +825,73 @@ export interface IntakePrecedentAnalysisItem {
   creditsCost: number;
   createdAt: string;
   errorMessage?: string | null;
+}
+
+export interface ConflictMatchItem {
+  kind: 'CLIENT' | 'CLIENT_CONTACT' | 'CASE_PARTY' | 'CASE_CLIENT_NAME' | 'INTAKE_PARTY';
+  term: string;
+  name: string;
+  side?: string;
+  role?: string;
+  caseId?: string;
+  caseTitle?: string;
+  ownRef?: string;
+  caseStatus?: string;
+  intakeId?: string;
+  intakeTitle?: string;
+  clientId?: string;
+}
+
+export interface ConflictSearchResult {
+  terms: string[];
+  matches: ConflictMatchItem[];
+  matchCount: number;
+  suggestedResult: 'CLEAR' | 'POTENTIAL_CONFLICT' | 'CONFLICT' | 'NEEDS_REVIEW';
+}
+
+export interface ConflictCheckRecord {
+  id: string;
+  intakeId: string | null;
+  searchTerms: string[];
+  matches: ConflictMatchItem[];
+  matchCount: number;
+  result: 'CLEAR' | 'POTENTIAL_CONFLICT' | 'CONFLICT' | 'NEEDS_REVIEW';
+  notes: string | null;
+  checkedAt: string;
+  checkedBy?: { firstName: string; lastName: string };
+}
+
+export interface IntakeDocumentRequestItem {
+  id: string;
+  name: string;
+  required: boolean;
+  status: 'REQUESTED' | 'RECEIVED' | 'MISSING' | 'NOT_APPLICABLE';
+  note: string | null;
+  dueDate: string | null;
+  documentId: string | null;
+  receivedAt: string | null;
+}
+
+export interface IntakeDocumentRequestsResult {
+  requests: IntakeDocumentRequestItem[];
+  missing: IntakeDocumentRequestItem[];
+  missingCount: number;
+}
+
+export interface IntakeFollowUpItem {
+  id: string;
+  note: string;
+  contacted: boolean;
+  nextDueAt: string | null;
+  createdAt: string;
+  createdBy?: { firstName: string; lastName: string };
+}
+
+export interface CaseOutstandingResult {
+  openTasks: Array<{ id: string; title: string; status: string; dueDate: string | null }>;
+  upcomingEvents: Array<{ id: string; title: string; startAt: string; type: string }>;
+  unapprovedDocuments: Array<{ id: string; filename: string; category: string }>;
+  total: number;
 }
 
 export const api = {
@@ -986,10 +1072,19 @@ export const api = {
 
   getCases: (
     token: string,
-    params?: { status?: string; search?: string; caseTypeId?: string; userId?: string },
+    params?: {
+      status?: string;
+      stage?: string;
+      search?: string;
+      party?: string;
+      caseTypeId?: string;
+      userId?: string;
+    },
   ) => {
     const query = new URLSearchParams();
     if (params?.status) query.set('status', params.status);
+    if (params?.stage) query.set('stage', params.stage);
+    if (params?.party) query.set('party', params.party);
     if (params?.search) query.set('search', params.search);
     if (params?.caseTypeId) query.set('caseTypeId', params.caseTypeId);
     if (params?.userId) query.set('userId', params.userId);
@@ -1017,11 +1112,117 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  closeCase: (token: string, id: string, closingSummary: string) =>
+  closeCase: (
+    token: string,
+    id: string,
+    closingSummary: string,
+    options: { outcome?: string; acknowledgeOutstanding?: boolean } = {},
+  ) =>
     request<CaseItem>(`/cases/${id}/close`, {
       method: 'POST',
       token,
-      body: JSON.stringify({ closingSummary }),
+      body: JSON.stringify({ closingSummary, ...options }),
+    }),
+
+  getCaseOutstanding: (token: string, id: string) =>
+    request<CaseOutstandingResult>(`/cases/${id}/outstanding`, { token }),
+
+  archiveCase: (token: string, id: string) =>
+    request<CaseItem>(`/cases/${id}/archive`, { method: 'POST', token }),
+
+  /** ค้นชื่อทั่วสำนักงาน — ใช้ทั้ง conflict check และ "คนนี้อยู่คดีไหนบ้าง" */
+  conflictSearch: (token: string, terms: string[]) =>
+    request<ConflictSearchResult>(
+      `/conflict-check/search?${terms.map((t) => `terms=${encodeURIComponent(t)}`).join('&')}`,
+      { token },
+    ),
+
+  listConflictChecks: (token: string, intakeId?: string) =>
+    request<ConflictCheckRecord[]>(
+      `/conflict-check${intakeId ? `?intakeId=${intakeId}` : ''}`,
+      { token },
+    ),
+
+  recordConflictCheck: (
+    token: string,
+    data: { terms: string[]; intakeId?: string; result: string; notes?: string },
+  ) =>
+    request<ConflictCheckRecord>('/conflict-check', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  updateIntakeStage: (token: string, id: string, stage: string, note?: string) =>
+    request<IntakeItem>(`/intake/${id}/stage`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ stage, note }),
+    }),
+
+  getIntakeDocumentRequests: (token: string, id: string) =>
+    request<IntakeDocumentRequestsResult>(`/intake/${id}/document-requests`, { token }),
+
+  addIntakeDocumentRequests: (
+    token: string,
+    id: string,
+    items: Array<{ name: string; required?: boolean; dueDate?: string; note?: string }>,
+  ) =>
+    request<IntakeDocumentRequestsResult>(`/intake/${id}/document-requests`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ items }),
+    }),
+
+  updateIntakeDocumentRequest: (
+    token: string,
+    id: string,
+    requestId: string,
+    data: { status?: string; note?: string; dueDate?: string; required?: boolean },
+  ) =>
+    request<IntakeDocumentRequestsResult>(`/intake/${id}/document-requests/${requestId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  removeIntakeDocumentRequest: (token: string, id: string, requestId: string) =>
+    request<IntakeDocumentRequestsResult>(`/intake/${id}/document-requests/${requestId}`, {
+      method: 'DELETE',
+      token,
+    }),
+
+  addIntakeFollowUp: (
+    token: string,
+    id: string,
+    data: { note: string; contacted?: boolean; nextDueAt?: string; nextOwnerId?: string },
+  ) =>
+    request<IntakeFollowUpItem>(`/intake/${id}/follow-ups`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  listIntakeFollowUps: (token: string, id: string) =>
+    request<IntakeFollowUpItem[]>(`/intake/${id}/follow-ups`, { token }),
+
+  markIntakeNoResponse: (token: string, id: string, note?: string) =>
+    request<IntakeItem>(`/intake/${id}/no-response`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ note }),
+    }),
+
+  updateDocumentMetadata: (
+    token: string,
+    caseId: string,
+    documentId: string,
+    data: { category?: string; documentDate?: string; tags?: string[] },
+  ) =>
+    request<DocumentItem>(`/cases/${caseId}/documents/${documentId}/metadata`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
     }),
 
   reopenCase: (token: string, id: string) =>
@@ -1452,8 +1653,22 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
-  getDocuments: (token: string, caseId: string) =>
-    request<DocumentItem[]>(`/cases/${caseId}/documents`, { token }),
+  getDocuments: (
+    token: string,
+    caseId: string,
+    filters: { category?: string; tag?: string; search?: string } = {},
+  ) => {
+    const qs = new URLSearchParams(
+      Object.entries(filters).filter(([, v]) => !!v) as [string, string][],
+    ).toString();
+    return request<DocumentItem[]>(`/cases/${caseId}/documents${qs ? `?${qs}` : ''}`, { token });
+  },
+
+  getDocumentCategoryCounts: (token: string, caseId: string) =>
+    request<Array<{ category: string; count: number }>>(
+      `/cases/${caseId}/documents/category-counts`,
+      { token },
+    ),
 
   getTimeEntries: (token: string, caseId: string) =>
     request<TimeEntryItem[]>(`/cases/${caseId}/billing/time-entries`, { token }),
@@ -1660,9 +1875,17 @@ export const api = {
       token,
     }),
 
-  uploadDocument: (token: string, caseId: string, file: File) => {
+  uploadDocument: (
+    token: string,
+    caseId: string,
+    file: File,
+    meta?: { category?: string; documentDate?: string; tags?: string[] },
+  ) => {
     const form = new FormData();
     form.append('file', file);
+    if (meta?.category) form.append('category', meta.category);
+    if (meta?.documentDate) form.append('documentDate', meta.documentDate);
+    if (meta?.tags?.length) form.append('tags', meta.tags.join(','));
     return request<DocumentItem>(`/cases/${caseId}/documents`, {
       method: 'POST',
       token,
@@ -1815,9 +2038,24 @@ export const api = {
   deleteParticipant: (token: string, caseId: string, participantId: string) =>
     request(`/cases/${caseId}/participants/${participantId}`, { method: 'DELETE', token }),
 
-  getIntakes: (token: string, params?: { status?: string; page?: number; limit?: number }) => {
+  getIntakes: (
+    token: string,
+    params?: {
+      status?: string;
+      stage?: string;
+      page?: number;
+      limit?: number;
+      followUpOwnerId?: string;
+      followUpOverdue?: boolean;
+      stalledDays?: number;
+    },
+  ) => {
     const query = new URLSearchParams();
     if (params?.status) query.set('status', params.status);
+    if (params?.stage) query.set('stage', params.stage);
+    if (params?.followUpOwnerId) query.set('followUpOwnerId', params.followUpOwnerId);
+    if (params?.followUpOverdue) query.set('followUpOverdue', 'true');
+    if (params?.stalledDays != null) query.set('stalledDays', String(params.stalledDays));
     if (params?.page != null) query.set('page', String(params.page));
     if (params?.limit != null) query.set('limit', String(params.limit));
     const qs = query.toString();
@@ -2222,6 +2460,9 @@ export interface DocumentItem {
   filename: string;
   mimeType: string;
   version: number;
+  category?: string;
+  documentDate?: string | null;
+  tags?: string[];
   visibleToClient: boolean;
   createdAt: string;
   uploadedBy: { firstName: string; lastName: string };

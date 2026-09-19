@@ -51,6 +51,21 @@ enum CourtLevel {
   SUPREME
 }
 
+/// ขั้นตอนของคดีในกระบวนพิจารณา — แยกจาก `CaseStatus` ที่บอกเพียงว่างานยัง
+/// เดินอยู่หรือไม่. สองเรื่องนี้ตอบคำถามต่างกัน: คดีที่ `PENDING` อยู่ขั้น
+/// `HEARING` ก็ได้ หรืออยู่ขั้น `ENFORCEMENT` ก็ได้.
+enum CaseStage {
+  INTAKE_REVIEW
+  FACT_GATHERING
+  PRE_LITIGATION
+  FILING
+  MEDIATION
+  HEARING
+  AWAITING_JUDGMENT
+  ENFORCEMENT
+  CLOSING
+}
+
 enum CaseStatus {
   OPEN
   DRAFTING
@@ -58,6 +73,7 @@ enum CaseStatus {
   IN_PROGRESS
   PENDING
   CLOSED
+  ARCHIVED
 }
 
 enum CaseOutcome {
@@ -68,7 +84,32 @@ enum CaseOutcome {
   IN_PROGRESS
 }
 
+/// ขั้นตอนของงานรับเรื่อง — แยกจาก `IntakeStatus` ที่บอกผลลัพธ์ (รับ/ไม่รับ/
+/// แปลงเป็นคดี/ไม่ตอบ). เรื่องที่ `RECEIVED` อยู่ขั้น `SCREENING` ก็ได้ หรือ
+/// `WAITING_DOCUMENTS` ก็ได้ — คำถาม "ค้างอยู่ตรงไหน" ตอบด้วยอันนี้
+enum IntakeStage {
+  NEW_INQUIRY
+  CONTACTED
+  SCREENING
+  CONFLICT_CHECK
+  CONSULT_SCHEDULED
+  CONSULTED
+  WAITING_DOCUMENTS
+  PRE_LITIGATION_NOTICE
+  PROPOSAL
+  CLOSED
+}
+
+/// สถานะเอกสารที่ขอจากลูกความก่อนเปิดคดี/ออกหนังสือ
+enum DocRequestStatus {
+  REQUESTED
+  RECEIVED
+  MISSING
+  NOT_APPLICABLE
+}
+
 enum IntakeStatus {
+  NO_RESPONSE
   RECEIVED
   ASSESSING
   ACCEPTED
@@ -252,7 +293,32 @@ enum AnalysisStatus {
   FAILED
 }
 
+/// หมวดเอกสารในคดี — คดีใหญ่มีเอกสารหลายร้อยชิ้น ค้นด้วยชื่อไฟล์ล้วนไม่ไหว
+enum DocumentCategory {
+  PLEADING
+  EVIDENCE
+  CONTRACT
+  CORRESPONDENCE
+  COURT_ORDER
+  IDENTITY
+  MEDICAL
+  FINANCIAL
+  INTERNAL
+  OTHER
+}
+
+enum ConflictResult {
+  CLEAR
+  POTENTIAL_CONFLICT
+  CONFLICT
+  NEEDS_REVIEW
+}
+
 enum ActivityType {
+  STATUS_CHANGE
+  STAGE_CHANGE
+  ASSIGNMENT
+  DOCUMENT
   COURT_DATE
   CLIENT_MEETING
   FILING
@@ -301,6 +367,7 @@ model Firm {
   importBatches      DataImportBatch[]
   expenseClaims      ExpenseClaim[]
   invoices           Invoice[]
+  conflictChecks     ConflictCheck[]
 }
 
 model FirmMember {
@@ -503,6 +570,10 @@ model User {
   intakePrecedentAnalyses    IntakePrecedentAnalysis[]
   caseActivities             CaseActivity[]
   receivedIntakes            Intake[]                  @relation("IntakeReceiver")
+  followUpIntakes            Intake[]                  @relation("IntakeFollowUpOwner")
+  intakeFollowUps            IntakeFollowUp[]          @relation("IntakeFollowUpAuthor")
+  intakeDocRequests          IntakeDocumentRequest[]   @relation("DocRequestAuthor")
+  conflictChecks             ConflictCheck[]           @relation("ConflictChecker")
   assessedIntakes            Intake[]                  @relation("IntakeAssessor")
   createdClosingEmailDrafts  ClosingEmailDraft[]       @relation("ClosingEmailDraftCreator")
   approvedClosingEmailDrafts ClosingEmailDraft[]       @relation("ClosingEmailDraftApprover")
@@ -644,6 +715,8 @@ model Case {
   title              String
   description        String?
   status             CaseStatus  @default(OPEN)
+  stage              CaseStage   @default(INTAKE_REVIEW)
+  stageChangedAt     DateTime    @default(now())
   outcome            CaseOutcome @default(IN_PROGRESS)
   clientId           String?
   clientName         String?
@@ -698,6 +771,7 @@ model Case {
   @@unique([firmId, folderId])
   @@index([firmId])
   @@index([clientId])
+  @@index([firmId, stage])
 }
 
 model Intake {
@@ -726,6 +800,14 @@ model Intake {
   deadlineDate          DateTime?
   portalSubmissionId    String?             @unique
   status                IntakeStatus        @default(RECEIVED)
+  stage                 IntakeStage         @default(NEW_INQUIRY)
+  stageChangedAt        DateTime            @default(now())
+  /// เวลาที่เข้าสถานะปัจจุบัน — ใช้คำนวณว่าค้างในขั้นนี้มากี่วัน (aging)
+  statusChangedAt       DateTime            @default(now())
+  /// ติดตามครั้งถัดไป: lead ที่เงียบต้องมีคนและวันกำกับ ไม่ใช่ปล่อยให้หาย
+  nextFollowUpAt        DateTime?
+  followUpOwnerId       String?
+  lastFollowUpAt        DateTime?
   assessorId            String?
   assessedAt            DateTime?
   assessmentNotes       String?             @db.Text
@@ -753,6 +835,10 @@ model Intake {
   firm                   Firm                      @relation(fields: [firmId], references: [id], onDelete: Cascade)
   receivedBy             User                      @relation("IntakeReceiver", fields: [receivedById], references: [id])
   assessor               User?                     @relation("IntakeAssessor", fields: [assessorId], references: [id])
+  followUpOwner          User?                     @relation("IntakeFollowUpOwner", fields: [followUpOwnerId], references: [id])
+  followUps              IntakeFollowUp[]
+  conflictChecks         ConflictCheck[]
+  documentRequests       IntakeDocumentRequest[]
   client                 Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   case                   Case?
   portalIntakeSubmission PortalIntakeSubmission?
@@ -768,6 +854,76 @@ model Intake {
   @@index([firmId])
   @@index([clientId])
   @@index([relatedCaseId])
+  @@index([firmId, status, statusChangedAt])
+  @@index([firmId, stage, stageChangedAt])
+  @@index([nextFollowUpAt])
+}
+
+/// ประวัติการติดตาม lead หนึ่งครั้ง — ทำไปแล้วอะไร และนัดติดตามรอบถัดไปเมื่อไร
+model IntakeFollowUp {
+  id          String   @id @default(uuid())
+  intakeId    String
+  note        String   @db.Text
+  contacted   Boolean  @default(true)
+  nextDueAt   DateTime?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  intake    Intake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("IntakeFollowUpAuthor", fields: [createdById], references: [id])
+
+  @@index([intakeId, createdAt])
+}
+
+/// เอกสารหนึ่งรายการที่ขอจากลูกความในขั้นรับเรื่อง
+///
+/// ต้องรู้ว่า "ขออะไรไปแล้ว ได้อะไรมาแล้ว ยังขาดอะไร" ก่อนออกหนังสือหรือเปิดคดี
+/// — ไม่ใช่ไปพบว่าขาดเอกสารตอนที่ต้องยื่นแล้ว
+model IntakeDocumentRequest {
+  id          String           @id @default(uuid())
+  intakeId    String
+  name        String
+  /// เอกสารที่ไม่ required ขาดได้โดยไม่กั้นการออกหนังสือ
+  required    Boolean          @default(true)
+  status      DocRequestStatus @default(REQUESTED)
+  note        String?
+  dueDate     DateTime?
+  /// ไฟล์ที่รับมาแล้ว ถ้าผูกไว้
+  documentId  String?
+  requestedAt DateTime         @default(now())
+  receivedAt  DateTime?
+  createdById String
+  updatedAt   DateTime         @updatedAt
+
+  intake    Intake    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdBy User      @relation("DocRequestAuthor", fields: [createdById], references: [id])
+
+  @@index([intakeId, status])
+}
+
+/// ผลการตรวจผลประโยชน์ขัดกันหนึ่งครั้ง (conflict check) — เก็บทั้งคำค้น ผลที่
+/// ระบบเจอ และคำตัดสินของทนาย เพราะสิ่งที่ต้องพิสูจน์ย้อนหลังได้คือ "ตรวจแล้ว
+/// และตัดสินใจอย่างนี้" ไม่ใช่แค่ผลลัพธ์สุดท้าย
+model ConflictCheck {
+  id           String         @id @default(uuid())
+  firmId       String
+  intakeId     String?
+  searchTerms  String[]
+  /// ผลที่ค้นเจอตอนนั้น (snapshot) — ข้อมูลต้นทางเปลี่ยนภายหลังได้
+  matches      Json
+  matchCount   Int            @default(0)
+  result       ConflictResult @default(NEEDS_REVIEW)
+  notes        String?        @db.Text
+  checkedById  String
+  checkedAt    DateTime       @default(now())
+
+  firm      Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  intake    Intake? @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  checkedBy User    @relation("ConflictChecker", fields: [checkedById], references: [id])
+
+  @@index([firmId, checkedAt])
+  @@index([intakeId])
 }
 
 model IntakeAttachment {
@@ -955,6 +1111,10 @@ model Document {
   storagePath     String
   mimeType        String
   version         Int      @default(1)
+  category        DocumentCategory @default(OTHER)
+  /// วันที่บนหน้าเอกสาร (ไม่ใช่วันอัปโหลด) — เอกสารศาลเรียงด้วยวันที่นี้
+  documentDate    DateTime?
+  tags            String[] @default([])
   uploadedById    String
   visibleToClient Boolean  @default(false)
   createdAt       DateTime @default(now())
@@ -969,8 +1129,10 @@ model Document {
   dateSuggestions    DocumentDateSuggestion[]
   publications       DocumentPublication[]
   chunks             DocumentChunk[]
+  intakeRequests     IntakeDocumentRequest[]
 
   @@index([intakeId])
+  @@index([caseId, category])
 }
 
 model DocumentVersion {

@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { DocumentsService } from './documents.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -42,6 +43,7 @@ describe('DocumentsService', () => {
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockFileStorage },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -110,6 +112,7 @@ describe('DocumentsService — intake-scoped methods', () => {
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockFileStorage },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -204,6 +207,7 @@ describe('DocumentsService.adoptIntakeAttachments', () => {
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockFileStorage },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -292,6 +296,7 @@ describe('DocumentsService.removeFromIntake', () => {
         DocumentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockFileStorage },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
       ],
     }).compile();
     service = module.get(DocumentsService);

@@ -208,6 +208,114 @@ export enum CaseStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   PENDING = 'PENDING',
   CLOSED = 'CLOSED',
+  ARCHIVED = 'ARCHIVED',
+}
+
+/**
+ * ขั้นตอนของคดีในกระบวนพิจารณา — คนละเรื่องกับ {@link CaseStatus} ที่บอกเพียงว่า
+ * งานยังเดินอยู่หรือไม่. เรียงตามลำดับที่คดีเดินจริง; `CASE_STAGE_ORDER`
+ * ใช้ลำดับนี้วาดแถบความคืบหน้า.
+ */
+export enum CaseStage {
+  INTAKE_REVIEW = 'INTAKE_REVIEW',
+  FACT_GATHERING = 'FACT_GATHERING',
+  PRE_LITIGATION = 'PRE_LITIGATION',
+  FILING = 'FILING',
+  MEDIATION = 'MEDIATION',
+  HEARING = 'HEARING',
+  AWAITING_JUDGMENT = 'AWAITING_JUDGMENT',
+  ENFORCEMENT = 'ENFORCEMENT',
+  CLOSING = 'CLOSING',
+}
+
+export enum CaseOutcome {
+  WON = 'WON',
+  LOST = 'LOST',
+  SETTLED = 'SETTLED',
+  WITHDRAWN = 'WITHDRAWN',
+  IN_PROGRESS = 'IN_PROGRESS',
+}
+
+export const CASE_STAGE_ORDER: CaseStage[] = [
+  CaseStage.INTAKE_REVIEW,
+  CaseStage.FACT_GATHERING,
+  CaseStage.PRE_LITIGATION,
+  CaseStage.FILING,
+  CaseStage.MEDIATION,
+  CaseStage.HEARING,
+  CaseStage.AWAITING_JUDGMENT,
+  CaseStage.ENFORCEMENT,
+  CaseStage.CLOSING,
+];
+
+/**
+ * ขั้นตอนของงานรับเรื่อง — แยกจากผลลัพธ์ (IntakeStatus)
+ * เรียงตามลำดับที่งานเดินจริง
+ */
+export enum IntakeStage {
+  NEW_INQUIRY = 'NEW_INQUIRY',
+  CONTACTED = 'CONTACTED',
+  SCREENING = 'SCREENING',
+  CONFLICT_CHECK = 'CONFLICT_CHECK',
+  CONSULT_SCHEDULED = 'CONSULT_SCHEDULED',
+  CONSULTED = 'CONSULTED',
+  WAITING_DOCUMENTS = 'WAITING_DOCUMENTS',
+  PRE_LITIGATION_NOTICE = 'PRE_LITIGATION_NOTICE',
+  PROPOSAL = 'PROPOSAL',
+  CLOSED = 'CLOSED',
+}
+
+export const INTAKE_STAGE_ORDER: IntakeStage[] = [
+  IntakeStage.NEW_INQUIRY,
+  IntakeStage.CONTACTED,
+  IntakeStage.SCREENING,
+  IntakeStage.CONFLICT_CHECK,
+  IntakeStage.CONSULT_SCHEDULED,
+  IntakeStage.CONSULTED,
+  IntakeStage.WAITING_DOCUMENTS,
+  IntakeStage.PRE_LITIGATION_NOTICE,
+  IntakeStage.PROPOSAL,
+  IntakeStage.CLOSED,
+];
+
+export enum DocRequestStatus {
+  REQUESTED = 'REQUESTED',
+  RECEIVED = 'RECEIVED',
+  MISSING = 'MISSING',
+  NOT_APPLICABLE = 'NOT_APPLICABLE',
+}
+
+/** เอกสารที่สำนักงานขอบ่อยที่สุด — ใช้เป็นปุ่มเติม checklist เร็ว ไม่ใช่ข้อบังคับ */
+export const COMMON_INTAKE_DOCUMENTS = [
+  'สำเนาบัตรประชาชน',
+  'สำเนาทะเบียนบ้าน',
+  'สัญญา / เอกสารข้อตกลง',
+  'ใบเสร็จ / หลักฐานการชำระเงิน',
+  'เวชระเบียน / ใบรับรองแพทย์',
+  'หนังสือโต้ตอบ',
+  'ภาพถ่าย',
+  'หลักฐานการสนทนา (LINE / แชท)',
+  'หนังสือมอบอำนาจ',
+] as const;
+
+export enum DocumentCategory {
+  PLEADING = 'PLEADING',
+  EVIDENCE = 'EVIDENCE',
+  CONTRACT = 'CONTRACT',
+  CORRESPONDENCE = 'CORRESPONDENCE',
+  COURT_ORDER = 'COURT_ORDER',
+  IDENTITY = 'IDENTITY',
+  MEDICAL = 'MEDICAL',
+  FINANCIAL = 'FINANCIAL',
+  INTERNAL = 'INTERNAL',
+  OTHER = 'OTHER',
+}
+
+export enum ConflictResult {
+  CLEAR = 'CLEAR',
+  POTENTIAL_CONFLICT = 'POTENTIAL_CONFLICT',
+  CONFLICT = 'CONFLICT',
+  NEEDS_REVIEW = 'NEEDS_REVIEW',
 }
 
 export enum CourtLevel {
@@ -327,6 +435,11 @@ export enum KnowledgeCategory {
 }
 
 export enum ActivityType {
+  /** ลงให้อัตโนมัติเมื่อสถานะ/ขั้นตอน/ผู้รับผิดชอบ/เอกสารเปลี่ยน — ไม่ใช่สิ่งที่คนกรอกเอง */
+  STATUS_CHANGE = 'STATUS_CHANGE',
+  STAGE_CHANGE = 'STAGE_CHANGE',
+  ASSIGNMENT = 'ASSIGNMENT',
+  DOCUMENT = 'DOCUMENT',
   COURT_DATE = 'COURT_DATE',
   CLIENT_MEETING = 'CLIENT_MEETING',
   FILING = 'FILING',
