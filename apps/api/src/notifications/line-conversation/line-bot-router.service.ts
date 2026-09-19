@@ -11,17 +11,21 @@ import { LineTodoFlowService } from './flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './flows/line-expense-flow.service';
 import { LineAdvanceFlowService } from './flows/line-advance-flow.service';
 import { ConversationSession, ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
+import {
+  CANCEL_COMMAND,
+  MENU_COMMAND,
+  MENU_HINT,
+  MENU_QUICK_REPLY,
+  MENU_SELECTION_MAP,
+  MYDAY_COMMAND,
+} from './line-menu';
 
-const MYDAY_COMMAND = 'งานของฉันวันนี้';
 const MYDAY_SECTION_LIMIT = 5;
 
-const MENU_SELECTION_MAP: Record<string, FlowType> = {
-  'สร้าง Case': FlowType.CASE,
-  'เพิ่ม Task': FlowType.TASK,
-  'สร้าง Todo': FlowType.TODO,
-  'บันทึกค่าใช้จ่าย': FlowType.EXPENSE,
-  'เบิกล่วงหน้า': FlowType.ADVANCE,
-};
+/** Which chat a message came from — a session belongs to one chat, not to a user. */
+export function chatKey(target: ConversationTarget): string {
+  return target.groupId ?? target.roomId ?? 'user';
+}
 
 @Injectable()
 export class LineBotRouterService {
@@ -46,27 +50,39 @@ export class LineBotRouterService {
     target: ConversationTarget,
     mentionsBot: boolean,
   ): Promise<void> {
-    const existing = this.store.get(lineUserId);
+    const stored = this.store.get(lineUserId);
+    // A session started in another chat must not swallow messages here.
+    const existing = stored && chatKey(stored.target) === chatKey(target) ? stored : undefined;
     const isGroupOrRoom = target.sourceType === 'group' || target.sourceType === 'room';
 
-    if (!existing) {
-      // In a group/room, only react to a fresh mention — never to ambient chatter.
-      if (isGroupOrRoom && !mentionsBot) return;
+    // In a group/room, only react to a fresh mention — never to ambient chatter.
+    if (!existing && isGroupOrRoom && !mentionsBot) return;
 
-      const authUser = await this.auth.resolve(lineUserId);
-      if (!authUser) {
-        await this.replyUnlinked(lineUserId, target);
-        return;
-      }
+    const authUser = await this.auth.resolve(lineUserId);
+    if (!authUser) {
+      if (existing) this.store.clear(lineUserId);
+      await this.replyUnlinked(lineUserId, target);
+      return;
+    }
 
-      if (text === MYDAY_COMMAND) {
-        await this.replyMyDay(authUser, lineUserId, target);
-        return;
-      }
+    // My-day answers from anywhere and leaves an in-progress flow untouched.
+    if (text === MYDAY_COMMAND) {
+      if (existing) this.store.update(lineUserId, { target });
+      await this.replyMyDay(authUser, lineUserId, target);
+      return;
+    }
 
-      // A rich-menu tap (or typed command) with no session starts its flow
-      // directly instead of bouncing through the menu.
-      const directFlow = MENU_SELECTION_MAP[text];
+    // Menu / cancel / a menu tap always win over the current step: a button the
+    // bot itself put on screen must never be mistaken for an answer.
+    if (text === CANCEL_COMMAND) {
+      if (existing) this.store.clear(lineUserId);
+      await this.showMainMenu(lineUserId, target, existing ? 'ยกเลิกรายการแล้วครับ' : undefined);
+      return;
+    }
+
+    const directFlow = MENU_SELECTION_MAP[text];
+    if (text === MENU_COMMAND || directFlow) {
+      const interrupted = Boolean(existing?.flowType);
       const started = this.store.start({
         lineUserId,
         userId: authUser.id,
@@ -77,6 +93,12 @@ export class LineBotRouterService {
         target,
       });
       if (directFlow) {
+        if (interrupted) {
+          await this.line.pushTo(
+            chatKey(target) === 'user' ? lineUserId : chatKey(target),
+            'ออกจากรายการที่ทำค้างไว้ แล้วเริ่มรายการใหม่ให้ครับ',
+          );
+        }
         await this.startFlow(directFlow, started);
         return;
       }
@@ -84,39 +106,38 @@ export class LineBotRouterService {
       return;
     }
 
-    // A session exists. Re-check auth defensively (e.g. account was unlinked mid-conversation).
-    const authUser = await this.auth.resolve(lineUserId);
-    if (!authUser) {
-      this.store.clear(lineUserId);
-      await this.replyUnlinked(lineUserId, target);
+    if (!existing || existing.flowType === null) {
+      if (!existing) {
+        this.store.start({
+          lineUserId,
+          userId: authUser.id,
+          firmId: authUser.firmId,
+          flowType: null,
+          step: ConversationStep.SELECT_ACTION,
+          data: {},
+          target,
+        });
+      } else {
+        this.store.update(lineUserId, { target });
+      }
+      // Nothing matched a command — say so instead of silently re-sending a picture.
+      await this.showMainMenu(
+        lineUserId,
+        target,
+        `ยังไม่เข้าใจคำว่า "${text.slice(0, 40)}" ครับ`,
+      );
       return;
-    }
-
-    if (existing.flowType === null) {
-      if (text === MYDAY_COMMAND) {
-        this.store.update(lineUserId, { target });
-        await this.replyMyDay(authUser, lineUserId, target);
-        return;
-      }
-      // Awaiting the user's menu choice.
-      const flowType = MENU_SELECTION_MAP[text];
-      if (!flowType) {
-        this.store.update(lineUserId, { target });
-        await this.showMainMenu(lineUserId, target);
-        return;
-      }
-      const updated = this.store.update(lineUserId, { flowType, target });
-      if (!updated) {
-        this.logger.warn(`Session for ${lineUserId} expired before flow could start`);
-        return;
-      }
-      return this.startFlow(flowType, updated);
     }
 
     // An action flow is active — refresh the target (replyToken changes every turn) and delegate.
     const updated = this.store.update(lineUserId, { target });
     if (!updated) {
       this.logger.warn(`Session for ${lineUserId} expired before message could be routed`);
+      await this.showMainMenu(
+        lineUserId,
+        target,
+        'รายการที่ทำค้างไว้หมดเวลาแล้วครับ (เกิน 10 นาที) เริ่มใหม่ได้เลย',
+      );
       return;
     }
     if (existing.flowType === FlowType.CASE) return this.intakeFlow.handle(updated, text);
@@ -165,9 +186,9 @@ export class LineBotRouterService {
     const text = `📊 งานของฉันวันนี้ (${dateLabel})\n\n${body}\n\n🔗 ${webUrl}/my-day`;
 
     if (target.replyToken) {
-      await this.line.replyWithQuickReply(target.replyToken, text);
+      await this.line.replyWithQuickReply(target.replyToken, text, MENU_QUICK_REPLY);
     } else {
-      await this.line.pushTo(lineUserId, text);
+      await this.line.pushTo(lineUserId, text, MENU_QUICK_REPLY);
     }
   }
 
@@ -188,8 +209,8 @@ export class LineBotRouterService {
 
   /**
    * A photo message. Only meaningful inside a flow step that expects one
-   * (the expense receipt step, wired in the expense flow task) — everything
-   * else ignores it silently so ambient photos in groups never trigger the bot.
+   * (the expense receipt step) — everything else is ignored silently so
+   * ambient photos in groups never trigger the bot.
    */
   async routeImage(
     lineUserId: string,
@@ -199,7 +220,8 @@ export class LineBotRouterService {
     const session = this.store.get(lineUserId);
     if (
       session?.flowType !== FlowType.EXPENSE ||
-      session.step !== ConversationStep.EXPENSE_RECEIPT
+      session.step !== ConversationStep.EXPENSE_RECEIPT ||
+      chatKey(session.target) !== chatKey(target)
     ) {
       return;
     }
@@ -217,11 +239,25 @@ export class LineBotRouterService {
     await this.expenseFlow.handleImage(updated, image);
   }
 
-  private async showMainMenu(lineUserId: string, target: ConversationTarget): Promise<void> {
+  /** The home menu: the picture (3 cards) plus buttons for every command. */
+  private async showMainMenu(
+    lineUserId: string,
+    target: ConversationTarget,
+    notice?: string,
+  ): Promise<void> {
+    if (notice) {
+      const text = `${notice}\n\n${MENU_HINT}`;
+      if (target.replyToken) {
+        await this.line.replyWithQuickReply(target.replyToken, text, MENU_QUICK_REPLY);
+      } else {
+        await this.line.pushTo(lineUserId, text, MENU_QUICK_REPLY);
+      }
+      return;
+    }
     if (target.replyToken) {
-      await this.line.replyHomeMenu(target.replyToken);
+      await this.line.replyHomeMenu(target.replyToken, MENU_QUICK_REPLY);
     } else {
-      await this.line.pushHomeMenu(lineUserId);
+      await this.line.pushHomeMenu(lineUserId, MENU_QUICK_REPLY);
     }
   }
 

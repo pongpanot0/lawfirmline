@@ -8,7 +8,16 @@ import { LineMessagingService } from '../../line-messaging.service';
 import { LineNotificationService } from '../line-notification.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
 import { ConversationSession, ConversationStep } from '../line-conversation.types';
-import { renderSummary, buildFieldPickerQuickReply, CONFIRM_QUICK_REPLY, FieldSpec } from './flow-confirmation.util';
+import {
+  renderSummary,
+  buildFieldPickerQuickReply,
+  pickQuickReply,
+  resolvePick,
+  withEscape,
+  CONFIRM_QUICK_REPLY,
+  FieldSpec,
+} from './flow-confirmation.util';
+import { parseFlexibleDate, formatIsoDate, dateQuickReply, DATE_HELP } from './date-parse.util';
 import { QuickReplyItem } from '../../line-messaging.service';
 
 const FIELDS: FieldSpec[] = [
@@ -20,7 +29,7 @@ const FIELDS: FieldSpec[] = [
     label: 'ผู้รับผิดชอบ',
     format: (value) => (Array.isArray(value) && value.length ? value.join(', ') : '(ไม่ระบุ)'),
   },
-  { key: 'deadlineDate', label: 'วันครบกำหนด' },
+  { key: 'deadlineDate', label: 'วันครบกำหนด', format: formatIsoDate },
 ];
 
 @Injectable()
@@ -67,21 +76,21 @@ export class LineIntakeFlowService {
           });
           await this.reply(
             session,
-            `ไม่พบลูกความที่ตรงกับ "${text}" ครับ จะบันทึกเป็นชื่อ "${text}" ไปก่อนนะครับ\n\n▶︎ ต่อไป: มีรายละเอียดคดีเพิ่มเติมไหมครับ? พิมพ์รายละเอียด หรือพิมพ์ "ข้าม" ถ้าไม่มี`,
+            `ไม่พบลูกความที่ตรงกับ "${text}" ครับ จะบันทึกเป็นชื่อ "${text}" ไปก่อนนะครับ\n\n▶︎ ต่อไป: มีรายละเอียดคดีเพิ่มเติมไหมครับ?`,
+            [{ label: 'ข้าม', text: 'ข้าม' }],
           );
           return;
         }
+        const clients = results.slice(0, 10).map((c) => ({ id: c.id, label: c.name }));
         this.store.update(session.lineUserId, {
           step: ConversationStep.CASE_CLIENT_PICK,
-          searchResults: results.slice(0, 12).map((c) => ({ id: c.id, label: c.name })),
+          searchResults: clients,
+          data: { ...session.data, clientName: text },
         });
         await this.reply(
           session,
-          'เลือกลูกความ หรือพิมพ์ "ไม่เจอ" เพื่อใช้ชื่อที่พิมพ์ไปแทน',
-          [
-            ...results.slice(0, 12).map((c) => ({ label: c.name.slice(0, 20), text: c.name })),
-            { label: 'ไม่เจอ', text: 'ไม่เจอ' },
-          ],
+          'เลือกลูกความครับ (ถ้าไม่มีในรายการ กด "ไม่เจอ" เพื่อใช้ชื่อที่พิมพ์ไป)',
+          pickQuickReply(clients, [{ label: 'ไม่เจอ', text: 'ไม่เจอ' }]),
         );
         return;
       }
@@ -91,12 +100,16 @@ export class LineIntakeFlowService {
           await this.reply(session, 'พิมพ์ชื่อลูกความอีกครั้งครับ');
           return;
         }
-        const picked = session.searchResults?.find((r) => r.label === text);
+        const picked = resolvePick(session.searchResults, text);
         this.store.update(session.lineUserId, {
-          data: { ...session.data, clientId: picked?.id, clientName: text },
+          data: {
+            ...session.data,
+            clientId: picked?.id,
+            clientName: picked?.label ?? (session.data.clientName as string | undefined) ?? text,
+          },
           step: ConversationStep.CASE_DESCRIPTION,
         });
-        await this.reply(session, 'มีรายละเอียดเพิ่มเติมไหมครับ? (หรือพิมพ์ "ข้าม")');
+        await this.reply(session, 'มีรายละเอียดเพิ่มเติมไหมครับ?', [{ label: 'ข้าม', text: 'ข้าม' }]);
         return;
       }
       case ConversationStep.CASE_DESCRIPTION: {
@@ -118,10 +131,10 @@ export class LineIntakeFlowService {
         }
         if (text === 'ไม่ระบุ') {
           this.store.update(session.lineUserId, { step: ConversationStep.CASE_DEADLINE });
-          await this.reply(session, 'คดีนี้มีวันครบกำหนด (deadline) ไหมครับ? พิมพ์วันที่ เช่น 2026-09-15 หรือพิมพ์ "ข้าม" ถ้าไม่มี');
+          await this.reply(session, `คดีนี้มีวันครบกำหนด (deadline) ไหมครับ?\n${DATE_HELP}`, dateQuickReply());
           return;
         }
-        const picked = session.searchResults?.find((r) => r.label === text);
+        const picked = resolvePick(session.searchResults, text);
         if (!picked) {
           await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
           return;
@@ -157,18 +170,19 @@ export class LineIntakeFlowService {
           return;
         }
         this.store.update(session.lineUserId, { step: ConversationStep.CASE_DEADLINE });
-        await this.reply(session, 'คดีนี้มีวันครบกำหนด (deadline) ไหมครับ? พิมพ์วันที่ เช่น 2026-09-15 หรือพิมพ์ "ข้าม" ถ้าไม่มี');
+        await this.reply(session, `คดีนี้มีวันครบกำหนด (deadline) ไหมครับ?\n${DATE_HELP}`, dateQuickReply());
         return;
       }
       case ConversationStep.CASE_DEADLINE: {
+        let deadlineDate: string | undefined;
         if (text !== 'ข้าม') {
-          const isValidDate = !isNaN(new Date(text).getTime());
-          if (!isValidDate) {
-            await this.reply(session, 'รูปแบบวันที่ไม่ถูกต้อง กรุณาพิมพ์ใหม่ เช่น 2026-09-15 (หรือพิมพ์ "ข้าม")');
+          const parsed = parseFlexibleDate(text);
+          if (!parsed) {
+            await this.reply(session, `ยังอ่านวันที่ไม่ออกครับ — ${DATE_HELP}`, dateQuickReply());
             return;
           }
+          deadlineDate = parsed;
         }
-        const deadlineDate = text === 'ข้าม' ? undefined : text;
         const data = { ...session.data, deadlineDate };
         this.store.update(session.lineUserId, { data, step: ConversationStep.CASE_CONFIRM });
         await this.confirmStep(session, data);
@@ -213,12 +227,24 @@ export class LineIntakeFlowService {
         }
         this.store.update(session.lineUserId, { editingField: field, step: ConversationStep.CASE_EDIT_VALUE });
         const label = FIELDS.find((f) => f.key === field)!.label;
-        await this.reply(session, `กรอกค่าใหม่สำหรับ "${label}" ครับ`);
+        await this.reply(
+          session,
+          `กรอกค่าใหม่สำหรับ "${label}" ครับ`,
+          field === 'deadlineDate' ? dateQuickReply() : undefined,
+        );
         return;
       }
       case ConversationStep.CASE_EDIT_VALUE: {
         const field = session.editingField!;
-        const data = { ...session.data, [field]: text };
+        let value: string | undefined = text;
+        if (field === 'deadlineDate') {
+          value = text === 'ข้าม' ? undefined : (parseFlexibleDate(text) ?? undefined);
+          if (text !== 'ข้าม' && !value) {
+            await this.reply(session, `ยังอ่านวันที่ไม่ออกครับ — ${DATE_HELP}`, dateQuickReply());
+            return;
+          }
+        }
+        const data = { ...session.data, [field]: value };
         this.store.update(session.lineUserId, { data, step: ConversationStep.CASE_CONFIRM, editingField: undefined });
         await this.confirmStep(session, data);
         return;
@@ -229,10 +255,15 @@ export class LineIntakeFlowService {
   private async showAssigneePage(session: ConversationSession, offset: number): Promise<void> {
     const { items, hasMore } = await this.users.findAllByFirm(session.firmId, offset, 12);
     this.store.update(session.lineUserId, { searchResults: items });
-    const buttons = items.map((u) => ({ label: u.label.slice(0, 20), text: u.label }));
-    if (hasMore) buttons.push({ label: 'ดูเพิ่มเติม', text: 'ดูเพิ่มเติม' });
-    buttons.push({ label: 'ไม่ระบุ', text: 'ไม่ระบุ' });
-    await this.reply(session, 'มีผู้รับผิดชอบร่วมไหมครับ? (เลือกได้หลายคน)', buttons);
+    const extra = [
+      ...(hasMore ? [{ label: 'ดูเพิ่มเติม', text: 'ดูเพิ่มเติม' }] : []),
+      { label: 'ไม่ระบุ', text: 'ไม่ระบุ' },
+    ];
+    await this.reply(
+      session,
+      'มีผู้รับผิดชอบร่วมไหมครับ? (เลือกได้หลายคน)',
+      pickQuickReply(items, extra),
+    );
   }
 
   private async confirmStep(session: ConversationSession, data: Record<string, unknown>): Promise<void> {
@@ -274,10 +305,11 @@ export class LineIntakeFlowService {
   }
 
   private async reply(session: ConversationSession, text: string, quickReply?: QuickReplyItem[]): Promise<void> {
+    const items = withEscape(quickReply);
     if (session.target.replyToken) {
-      await this.line.replyWithQuickReply(session.target.replyToken, text, quickReply);
+      await this.line.replyWithQuickReply(session.target.replyToken, text, items);
     } else {
-      await this.line.pushTo(session.lineUserId, text, quickReply);
+      await this.line.pushTo(session.lineUserId, text, items);
     }
   }
 }

@@ -7,12 +7,21 @@ import { LineMessagingService, QuickReplyItem } from '../../line-messaging.servi
 import { LineNotificationService } from '../line-notification.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
 import { ConversationSession, ConversationStep } from '../line-conversation.types';
-import { renderSummary, buildFieldPickerQuickReply, CONFIRM_QUICK_REPLY, FieldSpec } from './flow-confirmation.util';
+import {
+  renderSummary,
+  buildFieldPickerQuickReply,
+  pickQuickReply,
+  resolvePick,
+  withEscape,
+  CONFIRM_QUICK_REPLY,
+  FieldSpec,
+} from './flow-confirmation.util';
+import { parseFlexibleDate, formatIsoDate, dateQuickReply, DATE_HELP } from './date-parse.util';
 
 const FIELDS: FieldSpec[] = [
   { key: 'title', label: 'ชื่องาน' },
   { key: 'assigneeLabel', label: 'ผู้รับผิดชอบ' },
-  { key: 'dueDate', label: 'กำหนดส่ง' },
+  { key: 'dueDate', label: 'กำหนดส่ง', format: formatIsoDate },
 ];
 
 @Injectable()
@@ -54,27 +63,38 @@ export class LineTodoFlowService {
           await this.showAssigneePage(session, nextOffset);
           return;
         }
-        const picked = session.searchResults?.find((r) => r.label === text);
+        const picked = resolvePick(session.searchResults, text);
         if (!picked) {
           await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
           return;
         }
+        const withAssignee = { ...session.data, assigneeId: picked.id, assigneeLabel: picked.label };
+        if (session.editingField === 'assigneeLabel') {
+          this.store.update(session.lineUserId, {
+            data: withAssignee,
+            step: ConversationStep.TODO_CONFIRM,
+            editingField: undefined,
+          });
+          await this.confirmStep(session, withAssignee);
+          return;
+        }
         this.store.update(session.lineUserId, {
-          data: { ...session.data, assigneeId: picked.id, assigneeLabel: picked.label },
+          data: withAssignee,
           step: ConversationStep.TODO_DUE_DATE,
         });
-        await this.reply(session, 'กำหนดส่งวันไหนครับ? (YYYY-MM-DD หรือพิมพ์ "ข้าม")');
+        await this.reply(session, `กำหนดส่งวันไหนครับ?\n${DATE_HELP}`, dateQuickReply());
         return;
       }
       case ConversationStep.TODO_DUE_DATE: {
+        let dueDate: string | undefined;
         if (text !== 'ข้าม') {
-          const isValidDate = !isNaN(new Date(text).getTime());
-          if (!isValidDate) {
-            await this.reply(session, 'รูปแบบวันที่ไม่ถูกต้อง กรุณาพิมพ์ใหม่ เช่น 2026-09-15 (หรือพิมพ์ "ข้าม")');
+          const parsed = parseFlexibleDate(text);
+          if (!parsed) {
+            await this.reply(session, `ยังอ่านวันที่ไม่ออกครับ — ${DATE_HELP}`, dateQuickReply());
             return;
           }
+          dueDate = parsed;
         }
-        const dueDate = text === 'ข้าม' ? undefined : text;
         const data = { ...session.data, dueDate };
         this.store.update(session.lineUserId, { data, step: ConversationStep.TODO_CONFIRM });
         await this.confirmStep(session, data);
@@ -103,17 +123,30 @@ export class LineTodoFlowService {
           this.store.update(session.lineUserId, {
             step: ConversationStep.TODO_ASSIGNEE_PICK,
             pagingOffset: 0,
+            editingField: 'assigneeLabel',
           });
           await this.showAssigneePage(session, 0);
           return;
         }
         this.store.update(session.lineUserId, { editingField: field, step: ConversationStep.TODO_EDIT_VALUE });
-        await this.reply(session, `กรอกค่าใหม่สำหรับ "${FIELDS.find((f) => f.key === field)!.label}" ครับ`);
+        await this.reply(
+          session,
+          `กรอกค่าใหม่สำหรับ "${FIELDS.find((f) => f.key === field)!.label}" ครับ`,
+          field === 'dueDate' ? dateQuickReply() : undefined,
+        );
         return;
       }
       case ConversationStep.TODO_EDIT_VALUE: {
         const field = session.editingField!;
-        const data = { ...session.data, [field]: text };
+        let value: string | undefined = text;
+        if (field === 'dueDate') {
+          value = text === 'ข้าม' ? undefined : (parseFlexibleDate(text) ?? undefined);
+          if (text !== 'ข้าม' && !value) {
+            await this.reply(session, `ยังอ่านวันที่ไม่ออกครับ — ${DATE_HELP}`, dateQuickReply());
+            return;
+          }
+        }
+        const data = { ...session.data, [field]: value };
         this.store.update(session.lineUserId, { data, step: ConversationStep.TODO_CONFIRM, editingField: undefined });
         await this.confirmStep(session, data);
         return;
@@ -124,9 +157,8 @@ export class LineTodoFlowService {
   private async showAssigneePage(session: ConversationSession, offset: number): Promise<void> {
     const { items, hasMore } = await this.users.findAllByFirm(session.firmId, offset, 12);
     this.store.update(session.lineUserId, { searchResults: items });
-    const buttons = items.map((u) => ({ label: u.label.slice(0, 20), text: u.label }));
-    if (hasMore) buttons.push({ label: 'ดูเพิ่มเติม', text: 'ดูเพิ่มเติม' });
-    await this.reply(session, 'มอบหมายให้ใครครับ?', buttons);
+    const extra = hasMore ? [{ label: 'ดูเพิ่มเติม', text: 'ดูเพิ่มเติม' }] : [];
+    await this.reply(session, 'มอบหมายให้ใครครับ?', pickQuickReply(items, extra));
   }
 
   private async confirmStep(session: ConversationSession, data: Record<string, unknown>): Promise<void> {
@@ -148,14 +180,16 @@ export class LineTodoFlowService {
       target: session.target,
       summaryText: `📝 Todo ใหม่: ${data.title}${data.assigneeLabel ? `\nผู้รับผิดชอบ: ${data.assigneeLabel}` : ''}`,
       assigneeUserId: data.assigneeId,
+      entityPath: '/todos',
     });
   }
 
   private async reply(session: ConversationSession, text: string, quickReply?: QuickReplyItem[]): Promise<void> {
+    const items = withEscape(quickReply);
     if (session.target.replyToken) {
-      await this.line.replyWithQuickReply(session.target.replyToken, text, quickReply);
+      await this.line.replyWithQuickReply(session.target.replyToken, text, items);
     } else {
-      await this.line.pushTo(session.lineUserId, text, quickReply);
+      await this.line.pushTo(session.lineUserId, text, items);
     }
   }
 }

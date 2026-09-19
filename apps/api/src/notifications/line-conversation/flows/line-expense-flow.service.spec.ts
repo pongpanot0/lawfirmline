@@ -14,6 +14,7 @@ describe('LineExpenseFlowService', () => {
   const cases = { findAll: jest.fn() } as any;
   const extraction = { extractReceipt: jest.fn() } as any;
   const line = { replyWithQuickReply: jest.fn(), pushTo: jest.fn() } as any;
+  const notify = { notifyCreated: jest.fn() } as any;
   const authContext = {
     resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1', firmRole: 'LAWYER' }),
   } as any;
@@ -45,7 +46,7 @@ describe('LineExpenseFlowService', () => {
     jest.clearAllMocks();
     billing.createStandaloneExpense.mockResolvedValue({ id: 'e1' });
     sessionState = baseSession();
-    svc = new LineExpenseFlowService(billing, cases, extraction, line, store, authContext);
+    svc = new LineExpenseFlowService(billing, cases, extraction, line, store, authContext, notify);
   });
 
   it('manual path: skip receipt, amount with commas, description, skip case, confirm submits', async () => {
@@ -76,7 +77,7 @@ describe('LineExpenseFlowService', () => {
     sessionState.step = ConversationStep.EXPENSE_AMOUNT;
     await svc.handle(sessionState, 'abc');
     expect(sessionState.step).toBe(ConversationStep.EXPENSE_AMOUNT);
-    expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('ตัวเลข'), undefined);
+    expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('ตัวเลข'), expect.any(Array));
   });
 
   it('AI path: image extraction prefills amount and description', async () => {
@@ -96,7 +97,28 @@ describe('LineExpenseFlowService', () => {
     await svc.handleImage(sessionState, { buffer: Buffer.from('x'), contentType: 'image/jpeg' });
     expect(sessionState.step).toBe(ConversationStep.EXPENSE_AMOUNT);
     expect(sessionState.data.receiptBase64).toBeDefined();
-    expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('เครดิต AI ไม่พอ'), undefined);
+    expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('เครดิต AI ไม่พอ'), expect.any(Array));
+  });
+
+  it('edits one field from the confirm step instead of restarting', async () => {
+    sessionState.step = ConversationStep.EXPENSE_CONFIRM;
+    sessionState.data = { amount: 100, description: 'ค่าน้ำมัน' };
+    await svc.handle(sessionState, 'แก้ไข');
+    expect(sessionState.step).toBe(ConversationStep.EXPENSE_EDIT_PICK_FIELD);
+    await svc.handle(sessionState, 'แก้:amount');
+    expect(sessionState.step).toBe(ConversationStep.EXPENSE_EDIT_VALUE);
+    await svc.handle(sessionState, '250');
+    expect(sessionState.step).toBe(ConversationStep.EXPENSE_CONFIRM);
+    expect(sessionState.data).toMatchObject({ amount: 250, description: 'ค่าน้ำมัน' });
+  });
+
+  it('notifies the chat after submitting', async () => {
+    sessionState.step = ConversationStep.EXPENSE_CONFIRM;
+    sessionState.data = { amount: 300, description: 'ค่าส่งเอกสาร' };
+    await svc.handle(sessionState, 'ยืนยัน');
+    expect(notify.notifyCreated).toHaveBeenCalledWith(
+      expect.objectContaining({ entityPath: '/expenses' }),
+    );
   });
 
   it('attaches the photo as a receipt file on submit', async () => {
