@@ -1580,6 +1580,11 @@ model CaseMessage {
   senderUserId    String?
   senderContactId String?
   body            String            @db.Text
+  /// ไฟล์ที่แนบมากับข้อความ — ลูกความส่งเอกสารเพิ่มเข้ามาได้ในสายเดียวกัน
+  filename        String?
+  storagePath     String?
+  mimeType        String?
+  size            Int?
   createdAt       DateTime          @default(now())
 
   case          Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)

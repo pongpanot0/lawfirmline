@@ -308,6 +308,10 @@ export interface CaseMessageEntry {
   senderUserId: string | null;
   senderContactId: string | null;
   body: string;
+  /** ไฟล์ที่แนบมากับข้อความ — ลูกความส่งเอกสารเพิ่มเข้ามาได้ */
+  filename?: string | null;
+  mimeType?: string | null;
+  size?: number | null;
   createdAt: string;
 }
 
@@ -490,6 +494,10 @@ export interface TaskDetail extends TaskItem {
   subtasks: TaskSubtaskItem[];
   attachments: TaskAttachmentItem[];
   comments: TaskCommentItem[];
+}
+
+export function caseMessageAttachmentUrl(caseId: string, messageId: string) {
+  return `${API_URL}/cases/${caseId}/messages/${messageId}/attachment`;
 }
 
 export function taskAttachmentDownloadUrl(taskId: string, attachmentId: string) {
@@ -1338,12 +1346,24 @@ export const api = {
   getCaseMessages: (token: string, caseId: string) =>
     request<CaseMessageEntry[]>(`/cases/${caseId}/messages`, { token }),
 
-  sendCaseMessage: (token: string, caseId: string, body: string) =>
-    request<CaseMessageEntry>(`/cases/${caseId}/messages`, {
+  sendCaseMessage: (token: string, caseId: string, body: string, file?: File) => {
+    if (file) {
+      const form = new FormData();
+      form.append('body', body);
+      form.append('file', file);
+      // ปล่อยให้ browser ใส่ Content-Type เองพร้อม boundary
+      return request<CaseMessageEntry>(`/cases/${caseId}/messages`, {
+        method: 'POST',
+        token,
+        body: form,
+      });
+    }
+    return request<CaseMessageEntry>(`/cases/${caseId}/messages`, {
       method: 'POST',
       token,
       body: JSON.stringify({ body }),
-    }),
+    });
+  },
 
   getInsuranceClaim: (token: string, caseId: string) =>
     request<InsuranceClaimItem>(`/cases/${caseId}/insurance-claim`, { token }),

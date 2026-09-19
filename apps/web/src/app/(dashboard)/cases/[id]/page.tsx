@@ -683,17 +683,6 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {activeTab === 'messages' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-messages"
-          aria-labelledby="case-tab-messages"
-          className="min-w-0"
-        >
-          <CaseMessagesPanel caseId={id} />
-        </div>
-      )}
-
       {activeTab === 'closing-report' && (
         <div
           role="tabpanel"
@@ -1294,9 +1283,10 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-      {/* ข้อมูลประกันอยู่ในภาพรวม เพราะมันคือข้อมูลของคดี ไม่ใช่งานแยกอีกหน้า */}
-      <div className="mt-6">
+      {/* ข้อมูลประกันและสายติดต่อลูกความอยู่ในภาพรวม เพราะเป็นข้อมูลของคดี ไม่ใช่งานแยกอีกหน้า */}
+      <div className="mt-6 space-y-6">
         <CaseInsurancePanel caseId={id} />
+        <CaseMessagesPanel caseId={id} />
       </div>
       </div>
       )}
