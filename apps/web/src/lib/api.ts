@@ -172,11 +172,10 @@ export interface WorkloadDetail {
   cases: WorkloadCaseItem[];
 }
 
+/** ทีมที่ทำคดีร่วมกัน — สองคนขึ้นไป ไม่จำกัดแค่คู่ */
 export interface PairingEntry {
-  userAId: string;
-  userAName: string;
-  userBId: string;
-  userBName: string;
+  key: string;
+  members: { id: string; name: string }[];
   count: number;
 }
 

@@ -53,3 +53,52 @@ describe('OperationsService.getOnHoldTasks', () => {
     expect(result[0].followerName).toBe('สมหญิง รักงาน');
   });
 });
+
+describe('OperationsService.getPairing', () => {
+  const mockPrisma = { case: { findMany: jest.fn() }, user: { findMany: jest.fn() } } as any;
+  const service = new OperationsService(mockPrisma);
+  const user = { id: 'u1', firmId: 'firm-1' } as any;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'a', firstName: 'A', lastName: 'Aa' },
+      { id: 'b', firstName: 'B', lastName: 'Bb' },
+      { id: 'c', firstName: 'C', lastName: 'Cc' },
+    ]);
+  });
+
+  it('counts a three-person case as one team, not three pairs', async () => {
+    mockPrisma.case.findMany.mockResolvedValue([
+      { leadLawyerId: 'a', assignments: [{ userId: 'b' }, { userId: 'c' }] },
+    ]);
+
+    const teams = await service.getPairing(user);
+
+    expect(teams).toHaveLength(1);
+    expect(teams[0].members.map((m: any) => m.id)).toEqual(['a', 'b', 'c']);
+    expect(teams[0].count).toBe(1);
+  });
+
+  it('keeps a team of three separate from the pair inside it', async () => {
+    mockPrisma.case.findMany.mockResolvedValue([
+      { leadLawyerId: 'a', assignments: [{ userId: 'b' }, { userId: 'c' }] },
+      { leadLawyerId: 'a', assignments: [{ userId: 'b' }] },
+      { leadLawyerId: 'b', assignments: [{ userId: 'a' }] },
+    ]);
+
+    const teams = await service.getPairing(user);
+
+    // a+b ทำด้วยกัน 2 คดี (ไม่ว่าใครเป็นหัวหน้า), a+b+c อีก 1 คดี
+    expect(teams.map((t: any) => [t.members.map((m: any) => m.id).join('+'), t.count])).toEqual([
+      ['a+b', 2],
+      ['a+b+c', 1],
+    ]);
+  });
+
+  it('ignores a case nobody shares', async () => {
+    mockPrisma.case.findMany.mockResolvedValue([{ leadLawyerId: 'a', assignments: [] }]);
+
+    expect(await service.getPairing(user)).toEqual([]);
+  });
+});

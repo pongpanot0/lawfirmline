@@ -166,6 +166,10 @@ export class OperationsService {
     };
   }
 
+  /**
+   * ทีมที่ทำคดีร่วมกัน — นับตามชุดคนจริงของแต่ละคดี ไม่ใช่จับคู่ทีละสองคน
+   * คดีที่มีสามคนคือทีมสามคนหนึ่งทีม ไม่ใช่คู่สามคู่ที่ดูเหมือนคนละเรื่องกัน
+   */
   async getPairing(user: AuthUser) {
     const cases = await this.prisma.case.findMany({
       where: { firmId: user.firmId },
@@ -178,24 +182,20 @@ export class OperationsService {
       },
     });
 
-    const pairCounts = new Map<string, number>();
+    const teamCounts = new Map<string, number>();
     for (const c of cases) {
-      const participantIds = [...new Set([c.leadLawyerId, ...c.assignments.map((a) => a.userId)])];
-      for (let i = 0; i < participantIds.length; i++) {
-        for (let j = i + 1; j < participantIds.length; j++) {
-          const key = [participantIds[i], participantIds[j]].sort().join(':');
-          pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
-        }
-      }
+      const memberIds = [...new Set([c.leadLawyerId, ...c.assignments.map((a) => a.userId)])].sort();
+      // คดีที่ทำคนเดียวไม่ใช่การทำงานร่วมกัน
+      if (memberIds.length < 2) continue;
+      const key = memberIds.join(':');
+      teamCounts.set(key, (teamCounts.get(key) ?? 0) + 1);
     }
 
-    if (pairCounts.size === 0) return [];
+    if (teamCounts.size === 0) return [];
 
     const userIds = new Set<string>();
-    for (const key of pairCounts.keys()) {
-      const [a, b] = key.split(':');
-      userIds.add(a);
-      userIds.add(b);
+    for (const key of teamCounts.keys()) {
+      for (const id of key.split(':')) userIds.add(id);
     }
     const users = await this.prisma.user.findMany({
       where: { id: { in: [...userIds] } },
@@ -203,18 +203,16 @@ export class OperationsService {
     });
     const nameById = new Map(users.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
 
-    return [...pairCounts.entries()]
+    return [...teamCounts.entries()]
       .map(([key, count]) => {
-        const [userAId, userBId] = key.split(':');
+        const memberIds = key.split(':');
         return {
-          userAId,
-          userAName: nameById.get(userAId) ?? 'Unknown',
-          userBId,
-          userBName: nameById.get(userBId) ?? 'Unknown',
+          key,
+          members: memberIds.map((id) => ({ id, name: nameById.get(id) ?? 'Unknown' })),
           count,
         };
       })
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count || a.members.length - b.members.length);
   }
 
   async getOnHoldTasks(user: AuthUser) {
