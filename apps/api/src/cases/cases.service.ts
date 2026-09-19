@@ -29,6 +29,17 @@ export class CasesService {
     },
     caseType: { select: { id: true, name: true } },
     client: { select: { id: true, name: true } },
+    customers: {
+      orderBy: [{ isPrimary: 'desc' as const }, { createdAt: 'asc' as const }],
+      select: {
+        id: true,
+        customerId: true,
+        sharePercent: true,
+        isPrimary: true,
+        note: true,
+        customer: { select: { id: true, name: true } },
+      },
+    },
     assignments: {
       include: {
         user: {

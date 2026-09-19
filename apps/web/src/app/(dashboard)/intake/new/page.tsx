@@ -41,6 +41,11 @@ export default function NewIntakePage() {
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [createdIntakeId, setCreatedIntakeId] = useState<string | null>(null);
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
+  // ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน (เช่น บริษัทประกัน) ต่างจากลูกความที่เราว่าความให้
+  const [sameCustomer, setSameCustomer] = useState(true);
+  const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string }[]>([
+    { customerId: '', sharePercent: '' },
+  ]);
   const now = new Date();
   const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
 
@@ -158,6 +163,17 @@ export default function NewIntakePage() {
         payload.clientId = clientId;
         if (clientDisplayName) payload.clientName = clientDisplayName;
       }
+      // ไม่ส่ง customers = ลูกค้าคนเดียวกับลูกความ (ฝั่ง API เติมให้ตอนแปลงเป็นคดี)
+      if (!sameCustomer) {
+        const picked = customers.filter((c) => c.customerId);
+        if (picked.length) {
+          payload.customers = picked.map((c, index) => ({
+            customerId: c.customerId,
+            sharePercent: c.sharePercent ? Number(c.sharePercent) : undefined,
+            isPrimary: index === 0,
+          }));
+        }
+      }
       const created = createdIntakeId
         ? { id: createdIntakeId }
         : ((await api.createIntake(token, payload)) as IntakeItem);
@@ -190,7 +206,7 @@ export default function NewIntakePage() {
     <div className="mx-auto w-full max-w-2xl pb-20">
       <h1 className="mb-1 text-2xl font-bold">รับเรื่องใหม่</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        กรอกแค่ชื่อเรื่องกับลูกค้า แล้วไปเติมรายละเอียดต่อที่หน้าเรื่อง
+        กรอกแค่ชื่อเรื่องกับลูกความ แล้วไปเติมรายละเอียดต่อที่หน้าเรื่อง
       </p>
 
       <form onSubmit={handleSubmit}>
@@ -229,18 +245,18 @@ export default function NewIntakePage() {
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">2</span>
-              <h2 className="font-semibold">ลูกค้า</h2>
+              <h2 className="font-semibold">ลูกความ (เราว่าความให้ใคร)</h2>
             </div>
             <div className="space-y-3">
             <div>
-              <label htmlFor="intake-clientId" className="block text-sm font-medium">ลูกค้าในระบบ (ถ้ามี)</label>
+              <label htmlFor="intake-clientId" className="block text-sm font-medium">ลูกความในระบบ (ถ้ามี)</label>
               <select
                 id="intake-clientId"
                 value={form.clientId}
                 onChange={(e) => handleClientChange(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="">ลูกค้าใหม่ / ยังไม่ระบุ</option>
+                <option value="">ลูกความใหม่ / ยังไม่ระบุ</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -274,10 +290,10 @@ export default function NewIntakePage() {
             {!form.clientId && (
               <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
                 <p className="text-sm text-muted-foreground">
-                  กรอกชื่อแล้วระบบจะสร้างลูกค้าให้อัตโนมัติตอนบันทึก — เติมข้อมูลอื่นทีหลังได้
+                  กรอกชื่อแล้วระบบจะสร้างลูกความให้อัตโนมัติตอนบันทึก — เติมข้อมูลอื่นทีหลังได้
                 </p>
                 <div>
-                  <label htmlFor="intake-clientName" className="block text-sm font-medium">ชื่อลูกค้า</label>
+                  <label htmlFor="intake-clientName" className="block text-sm font-medium">ชื่อลูกความ</label>
                   <input
                     id="intake-clientName"
                     value={form.clientName}
@@ -288,7 +304,7 @@ export default function NewIntakePage() {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="intake-clientType" className="block text-sm font-medium">ประเภทลูกค้า</label>
+                    <label htmlFor="intake-clientType" className="block text-sm font-medium">ประเภทลูกความ</label>
                     <select
                       id="intake-clientType"
                       value={form.clientType}
@@ -306,7 +322,7 @@ export default function NewIntakePage() {
                       value={form.contactName}
                       onChange={(e) => set('contactName', e.target.value)}
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                      placeholder="ถ้าไม่กรอกจะใช้ชื่อลูกค้า"
+                      placeholder="ถ้าไม่กรอกจะใช้ชื่อลูกความ"
                     />
                   </div>
                 </div>
@@ -315,10 +331,84 @@ export default function NewIntakePage() {
             </div>
           </section>
 
+          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">3</span>
+              <h2 className="font-semibold">ลูกค้า (ผู้ว่าจ้าง / วางบิล)</h2>
+            </div>
+            <p className="mb-3 text-sm text-muted-foreground">
+              คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน
+            </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={sameCustomer}
+                onChange={(e) => setSameCustomer(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+              />
+              ลูกค้าคนเดียวกับลูกความ
+            </label>
+            {!sameCustomer && (
+              <div className="mt-3 space-y-2">
+                {customers.map((row, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <select
+                      aria-label={`ลูกค้ารายที่ ${index + 1}`}
+                      value={row.customerId}
+                      onChange={(e) =>
+                        setCustomers((rows) =>
+                          rows.map((r, i) => (i === index ? { ...r, customerId: e.target.value } : r)),
+                        )
+                      }
+                      className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">เลือกลูกค้า</option>
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
+                      value={row.sharePercent}
+                      onChange={(e) =>
+                        setCustomers((rows) =>
+                          rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
+                        )
+                      }
+                      inputMode="decimal"
+                      placeholder="%"
+                      className="w-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    {customers.length > 1 && (
+                      <button
+                        type="button"
+                        aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
+                        onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
+                        className="px-2 text-sm text-muted-foreground"
+                      >
+                        ลบ
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
+                  className="text-sm underline"
+                >
+                  + เพิ่มผู้จ่ายอีกราย
+                </button>
+                <p className="text-xs text-muted-foreground">
+                  เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
+                </p>
+              </div>
+            )}
+          </section>
+
           {assignable.length > 0 && (
             <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
               <div className="mb-1 flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">3</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">4</span>
                 <h2 className="font-semibold">ทีมผู้รับผิดชอบ</h2>
               </div>
               <p className="text-xs text-muted-foreground">

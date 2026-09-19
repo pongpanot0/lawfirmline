@@ -180,6 +180,11 @@ export class CreateInvoiceDto {
   @IsString()
   invoiceNumber?: string;
 
+  /** ลูกค้าที่วางบิล — ค่าว่างจะใช้ลูกค้าหลักของคดี */
+  @IsOptional()
+  @IsUUID()
+  billToCustomerId?: string;
+
   @IsOptional()
   @IsDateString()
   dueAt?: string;

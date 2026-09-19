@@ -541,6 +541,7 @@ export class BillingService {
             client: { select: { name: true } },
           },
         },
+        billToCustomer: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -553,6 +554,12 @@ export class BillingService {
       totalAmount: invoice.totalAmount,
       dueAt: invoice.dueAt,
       ownRef: invoice.case.ownRef,
+      // ลิสต์ใบแจ้งหนี้ต้องโชว์คนที่ถูกวางบิล (ลูกค้า) ไม่ใช่ลูกความของคดี
+      customerName:
+        invoice.billToCustomer?.name ??
+        invoice.case.client?.name ??
+        invoice.case.clientName ??
+        invoice.case.title,
       clientName: invoice.case.client?.name ?? invoice.case.clientName ?? invoice.case.title,
     }));
   }
@@ -903,6 +910,17 @@ export class BillingService {
     const count = await this.prisma.invoice.count();
     const invoiceNumber = dto.invoiceNumber ?? `INV-${String(count + 1).padStart(5, '0')}`;
 
+    // วางบิลไปที่ลูกค้า (ผู้ว่าจ้าง) ไม่ใช่ลูกความ — ถ้าไม่ระบุ ใช้ลูกค้าหลักของคดี
+    const billToCustomerId =
+      dto.billToCustomerId ??
+      (
+        await this.prisma.caseCustomer.findFirst({
+          where: { caseId },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          select: { customerId: true },
+        })
+      )?.customerId;
+
     return this.prisma.invoice.create({
       data: {
         caseId,
@@ -910,9 +928,10 @@ export class BillingService {
         totalAmount,
         dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
         createdById: user.id,
+        billToCustomerId,
         lineItems: { create: lineItems },
       },
-      include: { lineItems: true },
+      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
     });
   }
 }
