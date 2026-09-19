@@ -3,5 +3,5 @@
 import { CalendarWorkspace } from '@/components/calendar/CalendarWorkspace';
 
 export default function CourtSchedulePage() {
-  return <CalendarWorkspace defaultView="month" />;
+  return <CalendarWorkspace defaultView="agenda" />;
 }

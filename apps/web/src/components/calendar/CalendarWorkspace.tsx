@@ -7,6 +7,7 @@ import { api, CalendarEventItem, CaseItem, UserItem, PublicHolidayItem } from '@
 import { CalendarView } from '@/components/CalendarView';
 import { CalendarEventDialog } from '@/components/calendar/CalendarEventDialog';
 import { MyDayPanel } from '@/components/agenda/MyDayPanel';
+import { FirmDayAgenda } from '@/components/calendar/FirmDayAgenda';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,7 @@ const EVENT_COLORS: Record<string, string> = {
  * with two views — "วันของฉัน" (your today/tomorrow agenda) and the firm's
  * month calendar. The route only picks which view opens first.
  */
-export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month' }) {
+export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month' | 'agenda' }) {
   const d = useDashboardT();
   const EVENT_TYPE_LABELS: Record<string, string> = {
     COURT_DATE: d.calendar.typeCourtDate,
@@ -36,7 +37,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     OTHER: d.calendar.typeOther,
   };
   const { token } = useAuth();
-  const [view, setView] = useState<'day' | 'month'>(defaultView);
+  const [view, setView] = useState<'day' | 'month' | 'agenda'>(defaultView);
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -57,7 +58,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   }, [token]);
 
   useEffect(() => {
-    if (!token || view !== 'month') return;
+    if (!token || view === 'day') return;
     api.getPublicHolidays(token, month.getFullYear()).then(setHolidays).catch(() => setHolidays([]));
   }, [token, view, month]);
 
@@ -69,7 +70,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   }, [token, month]);
 
   useEffect(() => {
-    if (!token || view !== 'month') return;
+    if (!token || view === 'day') return;
     setLoading(true);
     setLoadError('');
     Promise.all([loadEvents(), api.getCases(token).then(setCases)])
@@ -89,12 +90,18 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   return (
     <div>
       <PageHeader
-        title={view === 'day' ? d.myDay.title : d.calendar.title}
-        description={view === 'day' ? d.myDay.description : d.calendar.description}
+        title={view === 'day' ? d.myDay.title : view === 'agenda' ? 'ตารางรายวันของสำนักงาน' : d.calendar.title}
+        description={
+          view === 'day'
+            ? d.myDay.description
+            : view === 'agenda'
+              ? 'ใครไปไหนวันไหน เรียงตามวัน พร้อมเตือนเมื่อมีคนถูกจองซ้อน'
+              : d.calendar.description
+        }
         actions={
           <div className="flex items-center gap-2">
             <div role="tablist" aria-label={d.calendar.title} className="flex rounded-lg border border-border p-0.5">
-              {(['day', 'month'] as const).map((v) => (
+              {(['day', 'agenda', 'month'] as const).map((v) => (
                 <button
                   key={v}
                   role="tab"
@@ -103,11 +110,11 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                   onClick={() => setView(v)}
                   className={`rounded-md px-2.5 py-1 text-xs ${view === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
                 >
-                  {v === 'day' ? d.myDay.title : d.calendar.title}
+                  {v === 'day' ? d.myDay.title : v === 'agenda' ? 'ตารางรายวัน' : d.calendar.title}
                 </button>
               ))}
             </div>
-            {view === 'month' && (
+            {view !== 'day' && (
               <select
                 aria-label="กรองตามผู้รับผิดชอบ"
                 value={personFilter}
@@ -120,7 +127,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                 ))}
               </select>
             )}
-            {view === 'month' && (
+            {view !== 'day' && (
               <Button size="sm" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
                 <Plus className="h-4 w-4" />
                 {d.calendar.addEvent}
@@ -132,6 +139,27 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
 
       {view === 'day' ? (
         <MyDayPanel />
+      ) : view === 'agenda' ? (
+        <Card>
+          <CardContent className="p-4">
+            {loading ? (
+              <PageLoading title={d.calendar.loading} lines={2} />
+            ) : loadError ? (
+              <div className="space-y-3">
+                <p role="alert" className="text-sm text-destructive">{loadError}</p>
+                <Button size="sm" variant="outline" onClick={() => setReloadKey((n) => n + 1)}>
+                  {d.common.retry}
+                </Button>
+              </div>
+            ) : (
+              <FirmDayAgenda
+                events={visibleEvents}
+                users={users}
+                onEventClick={(event) => setDialog({ event })}
+              />
+            )}
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-4">
           <div className="lg:col-span-3">
