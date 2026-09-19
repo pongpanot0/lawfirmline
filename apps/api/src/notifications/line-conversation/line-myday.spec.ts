@@ -61,7 +61,7 @@ describe('LineBotRouter my-day command', () => {
     expect(line.replyWithQuickReply.mock.calls[0][1]).toContain('🎉');
   });
 
-  it('does not hijack the text mid-flow', async () => {
+  it('answers mid-flow without destroying the in-progress flow', async () => {
     const session = {
       lineUserId: 'L1', userId: 'u1', firmId: 'f1',
       flowType: FlowType.EXPENSE, step: ConversationStep.EXPENSE_DESCRIPTION,
@@ -69,8 +69,12 @@ describe('LineBotRouter my-day command', () => {
     };
     store.get.mockReturnValue(session);
     store.update.mockReturnValue(session);
+    agenda.getMyDay.mockResolvedValue({
+      today: '2026-09-17', overdue: [], todayItems: [], tomorrow: [], upcoming: [], warnings: [],
+    });
     await router.route('L1', 'งานของฉันวันนี้', target, false);
-    expect(agenda.getMyDay).not.toHaveBeenCalled();
-    expect(expenseFlow.handle).toHaveBeenCalled();
+    expect(agenda.getMyDay).toHaveBeenCalled();
+    expect(expenseFlow.handle).not.toHaveBeenCalled();
+    expect(store.clear).not.toHaveBeenCalled();
   });
 });

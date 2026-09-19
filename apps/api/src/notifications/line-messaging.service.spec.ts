@@ -13,7 +13,7 @@ describe('linePublicBaseUrl', () => {
 });
 
 describe('buildHomeImagemap', () => {
-  it('builds a single full-screen LINE imagemap with three tap zones', () => {
+  it('builds a single full-screen LINE imagemap: three cards plus a menu zone', () => {
     const message = buildHomeImagemap('https://dating-scouts-liking.ngrok-free.dev/');
 
     expect(message).toEqual({
@@ -25,8 +25,24 @@ describe('buildHomeImagemap', () => {
         { type: 'message', text: 'สร้าง Case', area: { x: 0, y: 640, width: 347, height: 400 } },
         { type: 'message', text: 'เพิ่ม Task', area: { x: 347, y: 640, width: 346, height: 400 } },
         { type: 'message', text: 'สร้าง Todo', area: { x: 693, y: 640, width: 347, height: 400 } },
+        { type: 'message', text: 'เมนู', area: { x: 0, y: 0, width: 1040, height: 640 } },
       ],
     });
+  });
+
+  it('carries quick replies, using postback actions when a payload is given', () => {
+    const message = buildHomeImagemap('https://example.test', [
+      { label: 'เมนู', text: 'เมนู' },
+      { label: 'คดี A', text: 'คดี A', data: 'pick:c1' },
+    ]) as any;
+
+    expect(message.quickReply.items).toEqual([
+      { type: 'action', action: { type: 'message', label: 'เมนู', text: 'เมนู' } },
+      {
+        type: 'action',
+        action: { type: 'postback', label: 'คดี A', data: 'pick:c1', displayText: 'คดี A' },
+      },
+    ]);
   });
 });
 

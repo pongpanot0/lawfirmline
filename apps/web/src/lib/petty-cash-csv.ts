@@ -1,5 +1,8 @@
 import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
 import type { ExpenseItem } from '@/lib/api';
+import { buildZip, safeFileName, type ZipEntry } from './zip.ts';
+
+const RECEIPT_DIR = 'ใบเสร็จ';
 
 const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
@@ -26,10 +29,12 @@ export function buildPettyCashCsv(opts: {
   firmName: string;
   requesterName: string;
   expenses: ExpenseItem[];
+  /** expense id → path of its receipt inside the exported archive. */
+  receiptPaths?: Map<string, string>;
 }): string {
   const cats: string[] = [...EXPENSE_CATEGORIES];
   const items = [...opts.expenses].sort((a, b) => a.date.localeCompare(b.date));
-  const width = 3 + cats.length;
+  const width = 4 + cats.length; // + the receipt-file column
   const pad = (row: string[]) => [...row, ...Array(Math.max(0, width - row.length)).fill('')].map(cell).join(',');
 
   const first = items[0]?.date;
@@ -41,7 +46,7 @@ export function buildPettyCashCsv(opts: {
     pad(['ใบเบิกเงินสดย่อย']),
     pad([period, '', `ชื่อ ${opts.requesterName}`]),
     pad([]),
-    pad(['วันที่', 'รายการ', 'คดี', ...cats]),
+    pad(['วันที่', 'รายการ', 'คดี', ...cats, 'ไฟล์ใบเสร็จ']),
   ];
 
   const totals = new Map<string, number>(cats.map((c) => [c, 0]));
@@ -54,6 +59,7 @@ export function buildPettyCashCsv(opts: {
         e.description,
         e.case?.ownRef ?? '',
         ...cats.map((c) => (c === cat ? money(e.amount) : '')),
+        opts.receiptPaths?.get(e.id) ?? (e.receiptFilename ? 'ดาวน์โหลดไม่สำเร็จ' : ''),
       ]),
     );
   }
@@ -68,16 +74,67 @@ export function buildPettyCashCsv(opts: {
   return '﻿' + rows.join('\r\n') + '\r\n';
 }
 
-export function downloadPettyCashCsv(opts: {
-  firmName: string;
-  requesterName: string;
-  expenses: ExpenseItem[];
-}) {
-  const blob = new Blob([buildPettyCashCsv(opts)], { type: 'text/csv;charset=utf-8' });
+/** Where an expense's receipt lives inside the archive — stable and readable. */
+export function receiptPathFor(expense: ExpenseItem): string {
+  const ext = expense.receiptFilename?.includes('.')
+    ? expense.receiptFilename.slice(expense.receiptFilename.lastIndexOf('.') + 1).toLowerCase()
+    : 'jpg';
+  const base = safeFileName(
+    `${thaiShortDate(expense.date)}-${expense.description}-${expense.id.slice(0, 6)}`,
+    expense.id,
+  );
+  return `${RECEIPT_DIR}/${base}.${ext}`;
+}
+
+function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `เบิกเงินสดย่อย-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * The voucher plus its evidence. Expenses with a receipt are fetched and packed
+ * next to the CSV, which names each file — a receipt that cannot be downloaded
+ * is marked in the sheet instead of silently vanishing. With nothing attached
+ * this stays a plain .csv.
+ */
+export async function downloadPettyCashCsv(opts: {
+  firmName: string;
+  requesterName: string;
+  expenses: ExpenseItem[];
+  fetchReceipt?: (expenseId: string) => Promise<Blob>;
+}) {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const withReceipts = opts.expenses.filter((e) => e.receiptFilename);
+
+  if (!withReceipts.length || !opts.fetchReceipt) {
+    const csv = buildPettyCashCsv(opts);
+    triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `เบิกเงินสดย่อย-${stamp}.csv`);
+    return { receipts: 0, failed: 0 };
+  }
+
+  const receiptPaths = new Map<string, string>();
+  const files: ZipEntry[] = [];
+  let failed = 0;
+  for (const expense of withReceipts) {
+    try {
+      const blob = await opts.fetchReceipt(expense.id);
+      const path = receiptPathFor(expense);
+      files.push({ name: path, data: new Uint8Array(await blob.arrayBuffer()) });
+      receiptPaths.set(expense.id, path);
+    } catch {
+      failed++;
+    }
+  }
+
+  const csv = buildPettyCashCsv({ ...opts, receiptPaths });
+  const zip = buildZip([
+    { name: `เบิกเงินสดย่อย-${stamp}.csv`, data: new TextEncoder().encode(csv) },
+    ...files,
+  ]);
+  triggerDownload(zip, `เบิกเงินสดย่อย-${stamp}.zip`);
+  return { receipts: files.length, failed };
 }

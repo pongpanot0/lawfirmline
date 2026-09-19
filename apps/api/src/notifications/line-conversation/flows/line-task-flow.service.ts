@@ -9,12 +9,21 @@ import { LineNotificationService } from '../line-notification.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
 import { LineAuthContextService } from '../line-auth-context.service';
 import { ConversationSession, ConversationStep } from '../line-conversation.types';
-import { renderSummary, buildFieldPickerQuickReply, CONFIRM_QUICK_REPLY, FieldSpec } from './flow-confirmation.util';
+import {
+  renderSummary,
+  buildFieldPickerQuickReply,
+  pickQuickReply,
+  resolvePick,
+  withEscape,
+  CONFIRM_QUICK_REPLY,
+  FieldSpec,
+} from './flow-confirmation.util';
+import { parseFlexibleDate, formatIsoDate, dateQuickReply, DATE_HELP } from './date-parse.util';
 
 const FIELDS: FieldSpec[] = [
   { key: 'title', label: 'ชื่องาน' },
   { key: 'assigneeLabel', label: 'ผู้รับผิดชอบ' },
-  { key: 'dueDate', label: 'กำหนดส่ง' },
+  { key: 'dueDate', label: 'กำหนดส่ง', format: formatIsoDate },
 ];
 
 @Injectable()
@@ -62,23 +71,32 @@ export class LineTaskFlowService {
         }
         const results = await this.cases.findAll(authUser, { search: text });
         if (!results.length) {
-          await this.reply(session, `ไม่พบคดีที่ตรงกับ "${text}" ลองพิมพ์คำอื่นดูครับ`);
+          await this.reply(session, `ไม่พบคดีที่ตรงกับ "${text}" ลองพิมพ์คำอื่นดูครับ`, [
+            { label: 'ข้าม (งานนอกคดี)', text: 'ข้าม' },
+          ]);
           return;
         }
-        const page = results.slice(0, 13);
+        const page = results.slice(0, 10).map((c) => ({ id: c.id, label: c.title }));
         this.store.update(session.lineUserId, {
           step: ConversationStep.TASK_CASE_PICK,
-          searchResults: page.map((c) => ({ id: c.id, label: c.title })),
+          searchResults: page,
         });
         await this.reply(
           session,
           'เลือกคดีครับ',
-          page.map((c) => ({ label: c.title.slice(0, 20), text: c.title })),
+          pickQuickReply(page, [{ label: 'ค้นหาใหม่', text: 'ค้นหาใหม่' }]),
         );
         return;
       }
       case ConversationStep.TASK_CASE_PICK: {
-        const picked = session.searchResults?.find((r) => r.label === text);
+        if (text === 'ค้นหาใหม่') {
+          this.store.update(session.lineUserId, { step: ConversationStep.TASK_CASE_SEARCH });
+          await this.reply(session, 'พิมพ์ชื่อคดีหรือเลขคดีอีกครั้งครับ', [
+            { label: 'ข้าม (งานนอกคดี)', text: 'ข้าม' },
+          ]);
+          return;
+        }
+        const picked = resolvePick(session.searchResults, text);
         if (!picked) {
           await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
           return;
@@ -106,27 +124,38 @@ export class LineTaskFlowService {
           await this.showAssigneePage(session, nextOffset);
           return;
         }
-        const picked = session.searchResults?.find((r) => r.label === text);
+        const picked = resolvePick(session.searchResults, text);
         if (!picked) {
           await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
           return;
         }
+        const withAssignee = { ...session.data, assigneeId: picked.id, assigneeLabel: picked.label };
+        if (session.editingField === 'assigneeLabel') {
+          this.store.update(session.lineUserId, {
+            data: withAssignee,
+            step: ConversationStep.TASK_CONFIRM,
+            editingField: undefined,
+          });
+          await this.confirmStep(session, withAssignee);
+          return;
+        }
         this.store.update(session.lineUserId, {
-          data: { ...session.data, assigneeId: picked.id, assigneeLabel: picked.label },
+          data: withAssignee,
           step: ConversationStep.TASK_DUE_DATE,
         });
-        await this.reply(session, 'กำหนดส่งงานวันไหนครับ? (รูปแบบ YYYY-MM-DD หรือพิมพ์ "ข้าม")');
+        await this.reply(session, `กำหนดส่งงานวันไหนครับ?\n${DATE_HELP}`, dateQuickReply());
         return;
       }
       case ConversationStep.TASK_DUE_DATE: {
+        let dueDate: string | undefined;
         if (text !== 'ข้าม') {
-          const isValidDate = !isNaN(new Date(text).getTime());
-          if (!isValidDate) {
-            await this.reply(session, 'รูปแบบวันที่ไม่ถูกต้อง กรุณาพิมพ์ใหม่ เช่น 2026-09-15 (หรือพิมพ์ "ข้าม")');
+          const parsed = parseFlexibleDate(text);
+          if (!parsed) {
+            await this.reply(session, `ยังอ่านวันที่ไม่ออกครับ — ${DATE_HELP}`, dateQuickReply());
             return;
           }
+          dueDate = parsed;
         }
-        const dueDate = text === 'ข้าม' ? undefined : text;
         const data = { ...session.data, dueDate };
         this.store.update(session.lineUserId, { data, step: ConversationStep.TASK_CONFIRM });
         await this.confirmStep(session, data);
@@ -155,17 +184,30 @@ export class LineTaskFlowService {
           this.store.update(session.lineUserId, {
             step: ConversationStep.TASK_ASSIGNEE_PICK,
             pagingOffset: 0,
+            editingField: 'assigneeLabel',
           });
           await this.showAssigneePage(session, 0);
           return;
         }
         this.store.update(session.lineUserId, { editingField: field, step: ConversationStep.TASK_EDIT_VALUE });
-        await this.reply(session, `กรอกค่าใหม่สำหรับ "${FIELDS.find((f) => f.key === field)!.label}" ครับ`);
+        await this.reply(
+          session,
+          `กรอกค่าใหม่สำหรับ "${FIELDS.find((f) => f.key === field)!.label}" ครับ`,
+          field === 'dueDate' ? dateQuickReply() : undefined,
+        );
         return;
       }
       case ConversationStep.TASK_EDIT_VALUE: {
         const field = session.editingField!;
-        const data = { ...session.data, [field]: text };
+        let value: string | undefined = text;
+        if (field === 'dueDate') {
+          value = text === 'ข้าม' ? undefined : (parseFlexibleDate(text) ?? undefined);
+          if (text !== 'ข้าม' && !value) {
+            await this.reply(session, `ยังอ่านวันที่ไม่ออกครับ — ${DATE_HELP}`, dateQuickReply());
+            return;
+          }
+        }
+        const data = { ...session.data, [field]: value };
         this.store.update(session.lineUserId, { data, step: ConversationStep.TASK_CONFIRM, editingField: undefined });
         await this.confirmStep(session, data);
         return;
@@ -176,9 +218,8 @@ export class LineTaskFlowService {
   private async showAssigneePage(session: ConversationSession, offset: number): Promise<void> {
     const { items, hasMore } = await this.users.findAllByFirm(session.firmId, offset, 12);
     this.store.update(session.lineUserId, { searchResults: items });
-    const buttons = items.map((u) => ({ label: u.label.slice(0, 20), text: u.label }));
-    if (hasMore) buttons.push({ label: 'ดูเพิ่มเติม', text: 'ดูเพิ่มเติม' });
-    await this.reply(session, 'มอบหมายให้ใครครับ?', buttons);
+    const extra = hasMore ? [{ label: 'ดูเพิ่มเติม', text: 'ดูเพิ่มเติม' }] : [];
+    await this.reply(session, 'มอบหมายให้ใครครับ?', pickQuickReply(items, extra));
   }
 
   private async confirmStep(session: ConversationSession, data: Record<string, unknown>): Promise<void> {
@@ -217,10 +258,11 @@ export class LineTaskFlowService {
   }
 
   private async reply(session: ConversationSession, text: string, quickReply?: QuickReplyItem[]): Promise<void> {
+    const items = withEscape(quickReply);
     if (session.target.replyToken) {
-      await this.line.replyWithQuickReply(session.target.replyToken, text, quickReply);
+      await this.line.replyWithQuickReply(session.target.replyToken, text, items);
     } else {
-      await this.line.pushTo(session.lineUserId, text, quickReply);
+      await this.line.pushTo(session.lineUserId, text, items);
     }
   }
 }

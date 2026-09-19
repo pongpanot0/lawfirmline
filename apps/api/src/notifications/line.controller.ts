@@ -32,6 +32,7 @@ interface LineWebhookBody {
   events?: Array<{
     type: string;
     replyToken?: string;
+    postback?: { data?: string };
     source?: { userId?: string; type?: string; groupId?: string; roomId?: string };
     message?: {
       id?: string;
@@ -88,6 +89,27 @@ export class LineController {
             event.replyToken,
             '👋 สวัสดี! เพื่อเชื่อมต่อบัญชี LexFlow กรุณาไปที่ Settings → LINE แล้วส่งรหัสเชื่อมต่อ (เช่น LF-XXXXXX) มาที่แชทนี้',
           );
+        }
+      }
+
+      // A postback only ever comes from a button this bot drew, so it is always
+      // meant for the bot — no mention needed, even in a group.
+      if (event.type === 'postback' && event.source?.userId && event.postback?.data) {
+        const sourceType = (event.source.type as 'user' | 'group' | 'room') ?? 'user';
+        try {
+          await this.router.route(
+            event.source.userId,
+            event.postback.data,
+            {
+              replyToken: event.replyToken,
+              sourceType,
+              groupId: event.source.groupId,
+              roomId: event.source.roomId,
+            },
+            true,
+          );
+        } catch (err) {
+          this.logger.error('Error processing LINE postback event', err);
         }
       }
 

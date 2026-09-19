@@ -17,6 +17,8 @@ export class LineNotificationService {
     summaryText: string;
     assigneeUserId?: string | null;
     entityPath?: string;
+    /** Headline of the direct message to the assignee/recipient. */
+    dmHeadline?: string;
   }): Promise<void> {
     const webUrl = this.config.get<string>('WEB_APP_URL') ?? 'http://localhost:3000';
     const link = params.entityPath ? `${webUrl}${params.entityPath}` : null;
@@ -30,9 +32,10 @@ export class LineNotificationService {
     if (params.assigneeUserId) {
       const assignee = await this.prisma.user.findUnique({ where: { id: params.assigneeUserId } });
       if (assignee?.lineUserId) {
+        const headline = params.dmHeadline ?? '📌 คุณได้รับมอบหมายงานใหม่';
         const assigneeMessage = link
-          ? `📌 คุณได้รับมอบหมายงานใหม่\n\n${params.summaryText}\n\n🔗 ${link}`
-          : `📌 คุณได้รับมอบหมายงานใหม่\n\n${params.summaryText}`;
+          ? `${headline}\n\n${params.summaryText}\n\n🔗 ${link}`
+          : `${headline}\n\n${params.summaryText}`;
         await this.line.pushTo(assignee.lineUserId, assigneeMessage);
       }
     }
