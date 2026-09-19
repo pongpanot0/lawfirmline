@@ -190,16 +190,21 @@ export class RagService {
       latencyMs: Date.now() - embedStarted,
     });
 
+    // Hybrid retrieval: cosine similarity + trigram keyword match.
+    // word_similarity scores the best-matching region of the chunk against the
+    // question, so it stays meaningful for Thai text (no word boundaries) and
+    // is not diluted by chunk length. Weights favor the semantic signal.
     const vector = `[${vectors[0].join(',')}]`;
     const rows = await this.prisma.$queryRaw<
       Array<{ documentId: string; filename: string; pageStart: number | null; pageEnd: number | null; content: string; score: number }>
     >(Prisma.sql`
       SELECT c."documentId", d."filename", c."pageStart", c."pageEnd", c."content",
-             1 - (c."embedding" <=> ${vector}::vector) AS score
+             0.75 * (1 - (c."embedding" <=> ${vector}::vector))
+             + 0.25 * word_similarity(${redactedQuestion}, c."content") AS score
       FROM "DocumentChunk" c
       JOIN "Document" d ON d."id" = c."documentId"
       WHERE c."caseId" = ${caseId} AND c."embedding" IS NOT NULL
-      ORDER BY c."embedding" <=> ${vector}::vector
+      ORDER BY score DESC
       LIMIT ${TOP_K}
     `);
 

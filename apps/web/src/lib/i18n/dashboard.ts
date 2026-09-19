@@ -914,7 +914,11 @@ export const dashboardCopy = {
       updateFailed: 'อัปเดตสถานะไม่สำเร็จ กรุณาลองใหม่',
     },
     caseCalendar: {
-      title: 'ปฏิทินคดี',
+      title: 'ไทม์ไลน์และปฏิทินคดี',
+      viewTimeline: 'ไทม์ไลน์',
+      viewCalendar: 'ปฏิทิน',
+      gapDays: 'ห่างจากเหตุการณ์ก่อนหน้า {days} วัน',
+      emptyTimeline: 'ยังไม่มีเหตุการณ์ในคดีนี้',
     },
     caseDocuments: {
       title: 'คลังเอกสาร',
@@ -1942,7 +1946,11 @@ export const dashboardCopy = {
       updateFailed: 'Failed to update status, please try again',
     },
     caseCalendar: {
-      title: 'Case Calendar',
+      title: 'Case Timeline & Calendar',
+      viewTimeline: 'Timeline',
+      viewCalendar: 'Calendar',
+      gapDays: '{days} days since previous event',
+      emptyTimeline: 'No events in this case yet',
     },
     caseDocuments: {
       title: 'Document Library',

@@ -497,6 +497,7 @@ model User {
   cashAdvancesReceived       CashAdvance[]             @relation("CashAdvanceRecipient")
   cashAdvancesIssued         CashAdvance[]             @relation("CashAdvanceIssuer")
   knowledge                  CaseKnowledge[]           @relation("CaseKnowledgeCreator")
+  legalQueries               LegalQuery[]              @relation("LegalQueryCreator")
   reviewedKnowledge          CaseKnowledge[]           @relation("CaseKnowledgeReviewer")
   intakeAttachments          IntakeAttachment[]
   intakePrecedentAnalyses    IntakePrecedentAnalysis[]
@@ -691,6 +692,7 @@ model Case {
   messages           CaseMessage[]
   customers          CaseCustomer[]
   chunks             DocumentChunk[]
+  legalQueries       LegalQuery[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -1919,5 +1921,28 @@ model AiRun {
   createdAt    DateTime @default(now())
 
   @@index([firmId, createdAt])
+  @@index([caseId, createdAt])
+}
+
+/// One "ถามกฎหมายไทย" run: selected verified facts + question → iApp deka
+/// search. Stored separately from facts (LEGAL is never a FACT — spec §2).
+model LegalQuery {
+  id          String   @id @default(uuid())
+  caseId      String
+  firmId      String?
+  question    String   @db.Text
+  /// KnowledgeCitation ids the user selected as input facts.
+  citationIds Json
+  /// Snapshot of the selected fact statements at ask time.
+  factsText   Json
+  /// Normalized iApp deka results (dekaId, headnote, citedStatutes, sourceUrl).
+  results     Json
+  provider    String   @default("iapp")
+  createdById String
+  createdAt   DateTime @default(now())
+
+  case      Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdBy User @relation("LegalQueryCreator", fields: [createdById], references: [id])
+
   @@index([caseId, createdAt])
 }

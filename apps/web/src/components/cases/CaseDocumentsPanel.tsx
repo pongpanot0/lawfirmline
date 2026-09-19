@@ -1,6 +1,7 @@
 'use client';
 
 import { CaseKnowledgePanel } from '@/components/documents/CaseKnowledgePanel';
+import { CaseEvidenceSection } from '@/components/cases/CaseEvidenceSection';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Upload, Eye, Download, Sparkles, CalendarSearch, ClipboardCheck } from 'lucide-react';
@@ -346,6 +347,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
         </div>
       </div>
 
+      <CaseEvidenceSection caseId={id} refreshKey={analysisRevision} />
       <CaseKnowledgePanel caseId={id} refreshKey={analysisRevision} />
       {preview && (
         <DocumentPreviewModal
