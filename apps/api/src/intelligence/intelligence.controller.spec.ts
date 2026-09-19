@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 import { REQUIRE_CREDITS_KEY } from '../common/decorators/require-credits.decorator';
 
 describe('IntelligenceController', () => {
@@ -21,6 +22,7 @@ describe('IntelligenceController', () => {
         { provide: DocumentsService, useValue: {} },
         { provide: PrismaService, useValue: {} },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn() } },
+        { provide: FileStorageService, useValue: {} },
         Reflector,
       ],
     })

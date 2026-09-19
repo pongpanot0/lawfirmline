@@ -10,6 +10,7 @@ import { REQUIRE_CREDITS_KEY } from '../common/decorators/require-credits.decora
 import { PrismaService } from '../prisma/prisma.module';
 import { DocumentsService } from '../documents/documents.service';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 
 jest.mock('pdf-parse', () => ({ PDFParse: jest.fn() }));
 
@@ -124,6 +125,7 @@ describe('selected document batch analysis', () => {
       { analyzeBatch } as unknown as DocumentIntelligenceService,
       { getFilePath } as unknown as DocumentsService,
       {} as unknown as CaseAccessService,
+      {} as unknown as FileStorageService,
     );
     await expect(
       controller.analyzeExistingBatch({ id: 'user' } as any, 'allowed-case', {
@@ -157,7 +159,7 @@ describe('case knowledge visibility', () => {
     );
     const caseFilter = { firmId: 'firm-1' };
     const caseAccess = { getCaseFilterForUser: jest.fn().mockReturnValue(caseFilter) } as unknown as CaseAccessService;
-    const controller = new IntelligenceController(service, {} as DocumentsService, caseAccess);
+    const controller = new IntelligenceController(service, {} as DocumentsService, caseAccess, {} as FileStorageService);
     const guards = Reflect.getMetadata('__guards__', controller.findCaseKnowledge);
     expect(guards).toContain(CaseAccessGuard);
     await controller.findCaseKnowledge({ id: 'user' } as any, 'requested-case');

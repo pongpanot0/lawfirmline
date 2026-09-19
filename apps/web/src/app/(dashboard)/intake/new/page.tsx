@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { canAssignFirmRole } from '@lawfirm/shared';
 import { api, ClientItem, ApiError, IntakeItem, FieldSuggestion, UserItem } from '@/lib/api';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
+import { InsurerSelect } from '@/components/InsurerSelect';
 import { Button } from '@/components/ui/button';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
@@ -429,12 +430,10 @@ export default function NewIntakePage() {
             <div className="space-y-3">
               <div>
                 <label htmlFor="intake-insurerName" className="block text-sm font-medium">บริษัทประกัน</label>
-                <input
+                <InsurerSelect
                   id="intake-insurerName"
                   value={form.insurerName}
-                  onChange={(e) => set('insurerName', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="เช่น บริษัท วิริยะประกันภัย จำกัด (มหาชน)"
+                  onChange={(name) => set('insurerName', name)}
                 />
               </div>
               {form.insurerName.trim() && (
