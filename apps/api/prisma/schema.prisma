@@ -711,6 +711,10 @@ model Intake {
   matterType            String?
   opposingParty         String?
   incidentDate          DateTime?
+  /// งานประกัน: กรอกได้ตั้งแต่รับเรื่อง แล้วตามไปเปิดเคลมให้ตอนแปลงเป็นคดี
+  insurerName           String?
+  policyNumber          String?
+  claimNumber           String?
   description           String?             @db.Text
   estimatedDamage       Float?
   contactName           String?

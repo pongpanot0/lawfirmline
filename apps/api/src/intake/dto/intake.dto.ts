@@ -143,6 +143,21 @@ export class CreateIntakeDto {
   opposingParty?: string;
 
   @IsOptional()
+  @Trim()
+  @IsString()
+  insurerName?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  policyNumber?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  claimNumber?: string;
+
+  @IsOptional()
   @IsDateString()
   incidentDate?: string;
 
@@ -253,6 +268,21 @@ export class UpdateIntakeDto {
   @Trim()
   @IsString()
   opposingParty?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  insurerName?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  policyNumber?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  claimNumber?: string;
 
   @IsOptional()
   @IsDateString()

@@ -683,17 +683,6 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {activeTab === 'insurance' && (
-        <div
-          role="tabpanel"
-          id="case-tabpanel-insurance"
-          aria-labelledby="case-tab-insurance"
-          className="min-w-0"
-        >
-          <CaseInsurancePanel caseId={id} />
-        </div>
-      )}
-
       {activeTab === 'messages' && (
         <div
           role="tabpanel"
@@ -1303,6 +1292,11 @@ export default function CaseDetailPage() {
           </Card>
 
         </div>
+      </div>
+
+      {/* ข้อมูลประกันอยู่ในภาพรวม เพราะมันคือข้อมูลของคดี ไม่ใช่งานแยกอีกหน้า */}
+      <div className="mt-6">
+        <CaseInsurancePanel caseId={id} />
       </div>
       </div>
       )}

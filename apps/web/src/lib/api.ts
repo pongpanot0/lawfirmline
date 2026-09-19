@@ -642,6 +642,9 @@ export interface IntakeItem {
   contactName?: string | null;
   matterType?: string | null;
   opposingParty?: string | null;
+  insurerName?: string | null;
+  policyNumber?: string | null;
+  claimNumber?: string | null;
   incidentDate?: string | null;
   description?: string | null;
   estimatedDamage?: number | null;

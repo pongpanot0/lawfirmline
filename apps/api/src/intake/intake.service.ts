@@ -161,6 +161,9 @@ export class IntakeService {
         clientName: dto.clientName,
         matterType: dto.matterType,
         opposingParty: dto.opposingParty,
+        insurerName: dto.insurerName,
+        policyNumber: dto.policyNumber,
+        claimNumber: dto.claimNumber,
         incidentDate: dto.incidentDate ? new Date(dto.incidentDate) : undefined,
         description: dto.description,
         estimatedDamage: dto.estimatedDamage,
@@ -262,6 +265,9 @@ export class IntakeService {
         contactName: dto.contactName,
         matterType: dto.matterType,
         opposingParty: dto.opposingParty,
+        insurerName: dto.insurerName,
+        policyNumber: dto.policyNumber,
+        claimNumber: dto.claimNumber,
         incidentDate: dto.incidentDate ? new Date(dto.incidentDate) : undefined,
         description: dto.description,
         estimatedDamage: dto.estimatedDamage,
@@ -573,6 +579,20 @@ export class IntakeService {
     });
 
     await this.carryFilesOntoCase(intake.id, newCase.id);
+
+    // งานประกันที่กรอกบริษัทมาตั้งแต่รับเรื่อง เปิดเคลมให้เลย ไม่ต้องไปกรอกซ้ำที่คดี
+    if (intake.insurerName) {
+      await this.prisma.insuranceClaim.create({
+        data: {
+          caseId: newCase.id,
+          insurerName: intake.insurerName,
+          policyNumber: intake.policyNumber,
+          claimNumber: intake.claimNumber,
+          incidentDate: intake.incidentDate ?? new Date(),
+          createdById: user.id,
+        },
+      });
+    }
 
     await this.prisma.intake.update({
       where: { id },

@@ -238,6 +238,7 @@ describe('IntakeService convertToCase', () => {
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    insuranceClaim: { create: jest.fn() },
     document: {
       updateMany: jest.fn(),
       createMany: jest.fn(),
@@ -324,8 +325,39 @@ describe('IntakeService convertToCase', () => {
     mockPrisma.case.create.mockResolvedValue({ id: 'case-1', leadLawyerId: 'user-1' });
     mockPrisma.intake.update.mockResolvedValue({});
     mockPrisma.intakePrecedentAnalysis.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.insuranceClaim.create.mockResolvedValue({});
     mockTasksService.create.mockResolvedValue({});
   };
+
+  it('opens the insurance claim from what was recorded at intake', async () => {
+    arrangeConvert({
+      clientId: 'client-a',
+      customers: [],
+      insurerName: 'บริษัท วิริยะประกันภัย จำกัด (มหาชน)',
+      policyNumber: 'POL-001',
+      claimNumber: 'CLM-9',
+      incidentDate: new Date('2026-01-15'),
+    });
+
+    await service.convertToCase(user, 'intake-1', {} as any);
+
+    expect(mockPrisma.insuranceClaim.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        caseId: 'case-1',
+        insurerName: 'บริษัท วิริยะประกันภัย จำกัด (มหาชน)',
+        policyNumber: 'POL-001',
+        claimNumber: 'CLM-9',
+      }),
+    });
+  });
+
+  it('opens no claim for a case that is not insurance work', async () => {
+    arrangeConvert({ clientId: 'client-a', customers: [], insurerName: null });
+
+    await service.convertToCase(user, 'intake-1', {} as any);
+
+    expect(mockPrisma.insuranceClaim.create).not.toHaveBeenCalled();
+  });
 
   it('carries the intake customers onto the case, leaving the client untouched', async () => {
     arrangeConvert({

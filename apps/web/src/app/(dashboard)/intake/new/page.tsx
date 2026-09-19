@@ -54,6 +54,9 @@ export default function NewIntakePage() {
     title: '',
     referralName: '',
     clientId: '',
+    insurerName: '',
+    policyNumber: '',
+    claimNumber: '',
     clientContactId: '',
     clientName: '',
     clientType: 'INDIVIDUAL',
@@ -163,6 +166,12 @@ export default function NewIntakePage() {
       if (clientId) {
         payload.clientId = clientId;
         if (clientDisplayName) payload.clientName = clientDisplayName;
+      }
+      // งานประกัน: กรอกตั้งแต่รับเรื่อง ระบบเปิดเคลมให้เองตอนแปลงเป็นคดี
+      if (form.insurerName.trim()) {
+        payload.insurerName = form.insurerName.trim();
+        if (form.policyNumber.trim()) payload.policyNumber = form.policyNumber.trim();
+        if (form.claimNumber.trim()) payload.claimNumber = form.claimNumber.trim();
       }
       // ไม่ส่ง customers = ลูกค้าคนเดียวกับลูกความ (ฝั่ง API เติมให้ตอนแปลงเป็นคดี)
       if (!sameCustomer) {
@@ -409,10 +418,54 @@ export default function NewIntakePage() {
             )}
           </section>
 
+          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">4</span>
+              <h2 className="font-semibold">ประกันภัย (ถ้ามี)</h2>
+            </div>
+            <p className="mb-3 text-sm text-muted-foreground">
+              กรอกบริษัทประกันไว้ ระบบจะเปิดการติดตามเคลมให้เองตอนแปลงเป็นคดี
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="intake-insurerName" className="block text-sm font-medium">บริษัทประกัน</label>
+                <input
+                  id="intake-insurerName"
+                  value={form.insurerName}
+                  onChange={(e) => set('insurerName', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="เช่น บริษัท วิริยะประกันภัย จำกัด (มหาชน)"
+                />
+              </div>
+              {form.insurerName.trim() && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="intake-policyNumber" className="block text-sm font-medium">เลขกรมธรรม์</label>
+                    <input
+                      id="intake-policyNumber"
+                      value={form.policyNumber}
+                      onChange={(e) => set('policyNumber', e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="intake-claimNumber" className="block text-sm font-medium">เลขเคลม</label>
+                    <input
+                      id="intake-claimNumber"
+                      value={form.claimNumber}
+                      onChange={(e) => set('claimNumber', e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
           {assignable.length > 0 && (
             <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
               <div className="mb-1 flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">4</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">5</span>
                 <h2 className="font-semibold">ทีมผู้รับผิดชอบ</h2>
               </div>
               <p className="text-xs text-muted-foreground">
