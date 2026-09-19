@@ -229,6 +229,29 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
     });
 
+    it('refuses an expense the firm decided to absorb', async () => {
+      // billable: false จึงหลุดจาก where ของ createInvoice
+      mockPrisma.expense.findMany.mockResolvedValue([]);
+
+      await expect(
+        billing.createInvoice(user, 'case-1', { expenseIds: ['e1'] } as any),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
+    });
+
+    it('only asks the database for expenses that are billable and unbilled', async () => {
+      mockPrisma.expense.findMany.mockResolvedValue([
+        { id: 'e1', description: 'ค่าเดินทาง', amount: 500 },
+      ]);
+
+      await billing.createInvoice(user, 'case-1', { expenseIds: ['e1'] } as any);
+
+      expect(mockPrisma.expense.findMany.mock.calls[0][0].where).toMatchObject({
+        billable: true,
+        invoiceId: null,
+      });
+    });
+
     it('refuses an invoice with nothing on it', async () => {
       await expect(billing.createInvoice(user, 'case-1', {} as any)).rejects.toThrow(
         BadRequestException,

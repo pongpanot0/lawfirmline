@@ -1100,6 +1100,8 @@ model Expense {
   paidFromAdvanceId String?
   /// Optional receipt photo uploaded with the claim.
   receiptFilename    String?
+  /// false = สำนักงานออกเอง ไม่ผลักไปเก็บกับลูกค้า
+  billable           Boolean       @default(true)
   /// ใบแจ้งหนี้ที่เก็บเงินรายการนี้ไปแล้ว — กันออกบิลซ้ำ
   invoiceId          String?
   receiptStoragePath String?

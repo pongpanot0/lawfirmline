@@ -565,6 +565,25 @@ export class BillingService {
     }));
   }
 
+  /**
+   * สลับว่าค่าใช้จ่ายรายการนี้ผลักไปเก็บกับลูกค้าหรือสำนักงานออกเอง
+   * รายการที่ออกบิลไปแล้วแก้ไม่ได้ ต้องไปแก้ที่ใบแจ้งหนี้แทน
+   */
+  async setExpenseBillable(user: AuthUser, expenseId: string, billable: boolean) {
+    const expense = await this.prisma.expense.findFirst({
+      where: { id: expenseId, ...this.getFirmExpenseFilter(user.firmId) },
+    });
+    if (!expense) throw new NotFoundException('Expense not found');
+    if (expense.invoiceId) {
+      throw new BadRequestException('รายการนี้ออกใบแจ้งหนี้ไปแล้ว แก้ที่ใบแจ้งหนี้แทน');
+    }
+    return this.prisma.expense.update({
+      where: { id: expenseId },
+      data: { billable },
+      select: { id: true, billable: true },
+    });
+  }
+
   async updateExpenseStatus(
     user: AuthUser,
     expenseId: string,
@@ -911,7 +930,12 @@ export class BillingService {
         orderBy: { date: 'asc' },
       }),
       this.prisma.expense.findMany({
-        where: { caseId, invoiceId: null, status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] } },
+        where: {
+          caseId,
+          invoiceId: null,
+          billable: true,
+          status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] },
+        },
         orderBy: { date: 'asc' },
       }),
       this.prisma.case.findUnique({
@@ -988,6 +1012,7 @@ export class BillingService {
               id: { in: dto.expenseIds },
               caseId,
               invoiceId: null,
+              billable: true,
               status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] },
             },
             orderBy: { date: 'asc' },
@@ -1000,7 +1025,9 @@ export class BillingService {
       throw new BadRequestException('บันทึกเวลาบางรายการถูกออกบิลไปแล้ว หรือไม่ได้อยู่ในคดีนี้');
     }
     if (billedExpenses.length !== (dto.expenseIds?.length ?? 0)) {
-      throw new BadRequestException('ค่าใช้จ่ายบางรายการถูกออกบิลไปแล้ว ยังไม่อนุมัติ หรือไม่ได้อยู่ในคดีนี้');
+      throw new BadRequestException(
+        'ค่าใช้จ่ายบางรายการถูกออกบิลไปแล้ว ยังไม่อนุมัติ ตั้งเป็นสำนักงานออกเอง หรือไม่ได้อยู่ในคดีนี้',
+      );
     }
 
     const lineItems = [

@@ -21,6 +21,7 @@ import {
   CreateStandaloneExpenseDto,
   CreateInvoiceDto,
   UpdateExpenseStatusDto,
+  SetExpenseBillableDto,
   UpdateExpenseClaimStatusDto,
   SubmitExpensesDto,
   IssueCashAdvanceDto,
@@ -145,6 +146,15 @@ export class BillingController {
     @Body() dto: UpdateExpenseClaimStatusDto,
   ) {
     return this.billingService.updateExpenseClaimStatus(user, claimId, dto);
+  }
+
+  @Patch('expenses/:expenseId/billable')
+  setExpenseBillable(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId') expenseId: string,
+    @Body() dto: SetExpenseBillableDto,
+  ) {
+    return this.billingService.setExpenseBillable(user, expenseId, dto.billable);
   }
 
   @Patch('expenses/:expenseId/status')

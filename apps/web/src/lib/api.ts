@@ -343,6 +343,10 @@ export interface ExpenseItem {
   paidBy?: { firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string; courtName?: string | null } | null;
   receiptFilename?: string | null;
+  /** false = สำนักงานออกเอง ไม่ผลักไปเก็บกับลูกค้า */
+  billable?: boolean;
+  /** ตั้งแล้วแปลว่าออกใบแจ้งหนี้ไปแล้ว แก้ไม่ได้ */
+  invoiceId?: string | null;
   paidFromAdvanceId?: string | null;
   paidFromAdvance?: { id: string; issuedById: string } | null;
 }
@@ -1426,6 +1430,13 @@ export const api = {
 
   getInvoices: (token: string, caseId: string) =>
     request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, { token }),
+
+  setExpenseBillable: (token: string, expenseId: string, billable: boolean) =>
+    request<{ id: string; billable: boolean }>(`/expenses/${expenseId}/billable`, {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify({ billable }),
+    }),
 
   getInvoiceDraft: (token: string, caseId: string) =>
     request<InvoiceDraft>(`/cases/${caseId}/billing/invoices/draft`, { token }),

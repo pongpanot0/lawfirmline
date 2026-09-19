@@ -187,6 +187,12 @@ export class InvoiceSplitDto {
   sharePercent!: number;
 }
 
+/** true = ผลักไปเก็บกับลูกค้า, false = สำนักงานออกเอง */
+export class SetExpenseBillableDto {
+  @IsBoolean()
+  billable!: boolean;
+}
+
 export class CreateInvoiceDto {
   @IsOptional()
   @IsString()

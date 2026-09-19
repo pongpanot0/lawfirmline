@@ -130,6 +130,21 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   };
   const splitPreview = allocateShares(invoiceTotal, customers.map(shareOf));
 
+  // ค่าใช้จ่ายที่สำนักงานออกเอง จะไม่โผล่ในรายการที่รอเก็บเงิน
+  const handleSetBillable = async (expenseId: string, billable: boolean) => {
+    if (!token) return;
+    setExpenses((rows) => rows.map((row) => (row.id === expenseId ? { ...row, billable } : row)));
+    try {
+      await api.setExpenseBillable(token, expenseId, billable);
+      load();
+    } catch {
+      // ย้อนกลับเมื่อบันทึกไม่ผ่าน ไม่งั้นหน้าจอจะโกหกว่าตั้งไว้แล้ว
+      setExpenses((rows) =>
+        rows.map((row) => (row.id === expenseId ? { ...row, billable: !billable } : row)),
+      );
+    }
+  };
+
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !id) return;
@@ -279,9 +294,24 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                   {formatDate(e.date)}
                 </p>
               </div>
-              <div className="text-right">
-                <p className="font-medium">฿{e.amount.toLocaleString()}</p>
-                <ExpenseStatusBadge status={e.status} />
+              <div className="flex items-center gap-3 text-right">
+                {/* ออกบิลไปแล้วเปลี่ยนไม่ได้ ต้องไปแก้ที่ใบแจ้งหนี้ */}
+                {!e.invoiceId && (
+                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <input
+                      type="checkbox"
+                      aria-label={`สำนักงานออกเอง: ${e.description}`}
+                      checked={e.billable === false}
+                      onChange={(ev) => handleSetBillable(e.id, !ev.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-slate-300"
+                    />
+                    สำนักงานออกเอง
+                  </label>
+                )}
+                <div>
+                  <p className="font-medium">฿{e.amount.toLocaleString()}</p>
+                  <ExpenseStatusBadge status={e.status} />
+                </div>
               </div>
             </div>
           ))}
