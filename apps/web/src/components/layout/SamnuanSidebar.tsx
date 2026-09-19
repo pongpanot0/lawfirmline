@@ -23,6 +23,7 @@ import {
   ListTodo,
   Mail,
   type LucideIcon,
+  Sparkles,
 } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
@@ -78,6 +79,7 @@ const NAV_ITEMS = [
       { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true },
     ],
   },
+  { href: '/ai-usage', labelKey: 'aiUsage' as const, icon: Sparkles, ownerOnly: true, group: 'firm', children: [] as const },
   { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true, group: 'firm', children: [] as const },
   { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false, group: 'firm', children: [] as const },
 ] as const;

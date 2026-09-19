@@ -1577,6 +1577,9 @@ export const api = {
       body: JSON.stringify({ question }),
     }),
 
+  getAiUsageSummary: (token: string, days = 30) =>
+    request<AiUsageSummary>(`/ai-usage/summary?days=${days}`, { token }),
+
   askLegal: (token: string, caseId: string, question: string, citationIds: string[]) =>
     request<LegalQueryItem>(`/cases/${caseId}/legal/ask`, {
       method: 'POST',
@@ -2128,6 +2131,22 @@ export interface KnowledgeCitationItem {
   statement: string;
   quote: string;
   document: { id: string; filename: string; version: number };
+}
+
+export interface AiUsageBucket {
+  runs: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedUsd: number;
+}
+
+export interface AiUsageSummary {
+  days: number;
+  total: AiUsageBucket;
+  errors: number;
+  byOperation: Array<AiUsageBucket & { key: string }>;
+  byModel: Array<AiUsageBucket & { key: string }>;
+  byCase: Array<AiUsageBucket & { caseId: string; ownRef: string | null; title: string | null }>;
 }
 
 export interface LegalQueryItem {

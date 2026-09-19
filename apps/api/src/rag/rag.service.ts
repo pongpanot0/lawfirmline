@@ -113,7 +113,11 @@ export class RagService {
     firmId?: string | null,
   ): Promise<void> {
     const buffer = await this.fileStorage.getBuffer(doc.storagePath);
-    const text = await this.intelligence.extractText(buffer, doc.mimeType);
+    const text = await this.intelligence.extractTextWithOcr(buffer, doc.mimeType, {
+      caseId,
+      documentId: doc.id,
+      firmId: firmId ?? undefined,
+    });
     if (!text.trim()) return;
 
     // Redact before chunking: chunks are stored redacted, so both the DB copy

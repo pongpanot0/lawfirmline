@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, KnowledgeItem, LegalQueryItem } from '@/lib/api';
+import { api, DocumentItem, KnowledgeItem, LegalQueryItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,9 +22,21 @@ const SECTION_LABELS: Record<Section, string> = {
   legal: 'กฎหมายไทย',
 };
 
+/** MIME types the RAG pipeline can read — mirrors INDEXABLE_MIME_TYPES on the API. */
+const READABLE_MIME_TYPES = ['application/pdf', 'text/plain'];
+
 function AskSection({ caseId }: { caseId: string }) {
   const { token } = useAuth();
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [question, setQuestion] = useState('');
+
+  useEffect(() => {
+    if (!token) return;
+    api.getDocuments(token, caseId).then(setDocuments).catch(console.error);
+  }, [token, caseId]);
+
+  const readable = documents.filter((doc) => READABLE_MIME_TYPES.includes(doc.mimeType));
+  const unreadable = documents.length - readable.length;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AskResult | null>(null);
@@ -59,6 +71,29 @@ function AskSection({ caseId }: { caseId: string }) {
           <CardTitle className="text-sm">ถามจากสำนวนคดี (AI)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="rounded-md bg-muted/40 p-3">
+            <p className="text-xs font-medium text-muted-foreground">
+              AI ตอบจากเอกสารในคดีนี้ ({readable.length} ไฟล์)
+            </p>
+            {readable.length ? (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {readable.map((doc) => (
+                  <span key={doc.id} className="rounded-full border border-border bg-background px-2 py-0.5 text-xs">
+                    {doc.filename}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">
+                ยังไม่มีเอกสารที่ AI อ่านได้ — อัปโหลด PDF หรือ TXT ในแท็บเอกสารก่อน
+              </p>
+            )}
+            {unreadable > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                อีก {unreadable} ไฟล์เป็นชนิดที่ AI ยังอ่านไม่ได้ (รองรับ PDF และ TXT)
+              </p>
+            )}
+          </div>
           <form
             className="flex gap-2"
             onSubmit={(e) => {
