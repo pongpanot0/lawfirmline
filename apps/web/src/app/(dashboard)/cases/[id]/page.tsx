@@ -57,6 +57,11 @@ const CaseBillingPanel = dynamic(
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
 );
 
+const CaseAskAiPanel = dynamic(
+  () => import('@/components/cases/CaseAskAiPanel'),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
 const CaseInsurancePanel = dynamic(
   () => import('@/components/cases/CaseInsurancePanel').then((m) => m.CaseInsurancePanel),
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
@@ -680,6 +685,17 @@ export default function CaseDetailPage() {
           className="min-w-0"
         >
           <CaseBillingPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'ask-ai' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-ask-ai"
+          aria-labelledby="case-tab-ask-ai"
+          className="min-w-0"
+        >
+          <CaseAskAiPanel caseId={id} />
         </div>
       )}
 

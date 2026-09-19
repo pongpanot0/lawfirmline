@@ -690,6 +690,7 @@ model Case {
   contactAccess      ContactCaseAccess[]
   messages           CaseMessage[]
   customers          CaseCustomer[]
+  chunks             DocumentChunk[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -965,6 +966,7 @@ model Document {
   knowledgeCitations KnowledgeCitation[]
   dateSuggestions    DocumentDateSuggestion[]
   publications       DocumentPublication[]
+  chunks             DocumentChunk[]
 
   @@index([intakeId])
 }
@@ -1877,4 +1879,45 @@ model DataImportBatch {
   undoneAt DateTime?
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
   @@index([firmId, createdAt])
+}
+
+/// A page-anchored slice of an extracted document, embedded for RAG retrieval.
+/// Content is stored AFTER redactForAi(), so it is safe to send to the model.
+model DocumentChunk {
+  id              String                       @id @default(uuid())
+  caseId          String
+  documentId      String
+  documentVersion Int                          @default(1)
+  chunkIndex      Int
+  pageStart       Int?
+  pageEnd         Int?
+  content         String                       @db.Text
+  embedding       Unsupported("vector(1536)")?
+  createdAt       DateTime                     @default(now())
+
+  case     Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([caseId])
+}
+
+/// One outbound AI model call — for cost/usage accounting per firm/case.
+model AiRun {
+  id           String   @id @default(uuid())
+  provider     String   @default("openai")
+  model        String
+  operation    String
+  firmId       String?
+  caseId       String?
+  documentId   String?
+  userId       String?
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  latencyMs    Int      @default(0)
+  status       String   @default("success")
+  createdAt    DateTime @default(now())
+
+  @@index([firmId, createdAt])
+  @@index([caseId, createdAt])
 }

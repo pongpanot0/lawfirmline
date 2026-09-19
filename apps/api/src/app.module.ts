@@ -28,6 +28,7 @@ import { ClientPortalModule } from './client-portal/client-portal.module';
 import { CourtsModule } from './courts/courts.module';
 import { TravelModule } from './travel/travel.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
+import { RagModule } from './rag/rag.module';
 import { TemplatesModule } from './templates/templates.module';
 import { HealthModule } from './health/health.module';
 import { OperationsModule } from './operations/operations.module';
@@ -68,6 +69,7 @@ import { OutlookIntegrationModule } from './outlook-integration/outlook-integrat
     CourtsModule,
     TravelModule,
     IntelligenceModule,
+    RagModule,
     TemplatesModule,
     OperationsModule,
     PracticeSetupModule,
