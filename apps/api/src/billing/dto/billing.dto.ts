@@ -2,6 +2,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ArrayMinSize,
   IsNotEmpty,
   IsBoolean,
   IsDateString,
@@ -175,6 +176,17 @@ export class InvoiceLineItemDto {
   unitPrice!: number;
 }
 
+/** ผู้จ่ายหนึ่งรายและสัดส่วนที่รับผิดชอบ — หนึ่งรายคือหนึ่งใบแจ้งหนี้ */
+export class InvoiceSplitDto {
+  @IsUUID()
+  customerId!: string;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  sharePercent!: number;
+}
+
 export class CreateInvoiceDto {
   @IsOptional()
   @IsString()
@@ -184,6 +196,17 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsUUID()
   billToCustomerId?: string;
+
+  /**
+   * แบ่งบิลให้ผู้จ่ายหลายราย — ไม่ส่งมาจะใช้ลูกค้าของคดีตามสัดส่วนที่บันทึกไว้
+   * ส่ง billToCustomerId มาด้วยกันไม่ได้ เพราะขัดกันเอง
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceSplitDto)
+  splits?: InvoiceSplitDto[];
 
   @IsOptional()
   @IsDateString()

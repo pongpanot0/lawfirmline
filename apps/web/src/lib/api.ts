@@ -1427,6 +1427,14 @@ export const api = {
   getInvoices: (token: string, caseId: string) =>
     request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, { token }),
 
+  // คืนเป็น array เสมอ: คดีที่มีผู้ว่าจ้างหลายรายได้ใบแจ้งหนี้รายละใบ
+  createInvoice: (token: string, caseId: string, data: CreateInvoiceInput) =>
+    request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getExpenseSummary: (token: string, caseId: string) =>
     request<{ totalSpent: number; revenue: number; profit: number }>(
       `/cases/${caseId}/billing/summary`,
@@ -2131,6 +2139,15 @@ export interface InvoiceItem {
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+  /** ลูกค้าที่ถูกวางบิล — ว่างได้ในใบเก่าที่ออกก่อนแยกลูกค้าออกจากลูกความ */
+  billToCustomer?: { id: string; name: string } | null;
+}
+
+export interface CreateInvoiceInput {
+  lineItems: { description: string; quantity: number; unitPrice: number }[];
+  dueAt?: string;
+  /** แบ่งบิลหลายราย — ไม่ส่งมาจะใช้ลูกค้าของคดีตามสัดส่วนที่บันทึกไว้ */
+  splits?: { customerId: string; sharePercent: number }[];
 }
 
 export interface PortalSubmissionStaffEntry {

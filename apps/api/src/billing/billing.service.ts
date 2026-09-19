@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthUser, ExpenseClaimStatus, ExpenseStatus, FirmRole } from '@lawfirm/shared';
+import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CashAdvanceService } from './cash-advance.service';
@@ -893,12 +894,43 @@ export class BillingService {
   async getInvoices(caseId: string) {
     return this.prisma.invoice.findMany({
       where: { caseId },
-      include: { lineItems: true },
+      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
 
+  /**
+   * แบ่งยอดตามสัดส่วน แล้วโยนเศษสตางค์ที่ปัดทิ้งไปไว้กับรายสุดท้าย
+   * ผลรวมของทุกใบต้องเท่ากับยอดเต็มเป๊ะ ไม่งั้นบัญชีจะขาดหรือเกินทุกครั้งที่หารไม่ลงตัว
+   */
+  private allocate(total: number, shares: number[]): number[] {
+    const sumShares = shares.reduce((sum, share) => sum + share, 0);
+    if (sumShares <= 0) {
+      throw new BadRequestException('สัดส่วนที่แบ่งบิลต้องมากกว่า 0');
+    }
+    const amounts = shares.map((share) => Math.round((total * share * 100) / sumShares) / 100);
+    const allocated = amounts.reduce((sum, amount) => sum + amount, 0);
+    amounts[amounts.length - 1] = Math.round((amounts[amounts.length - 1] + total - allocated) * 100) / 100;
+    return amounts;
+  }
+
+  /** เลขใบแจ้งหนี้มาจาก sequence ของ Postgres — count() เดิมชนกันเมื่อออกหลายใบรวดเดียว */
+  private async nextInvoiceNumbers(tx: Prisma.TransactionClient, howMany: number) {
+    const rows = await tx.$queryRaw<{ n: bigint }[]>`
+      SELECT nextval('invoice_number_seq') AS n FROM generate_series(1, ${howMany})
+    `;
+    return rows.map((row) => `INV-${String(row.n).padStart(5, '0')}`);
+  }
+
+  /**
+   * ออกใบแจ้งหนี้ — คืนเป็น array เสมอ เพราะคดีที่มีผู้ว่าจ้างหลายรายจะได้ใบละราย
+   * วางบิลไปที่ลูกค้า (ผู้ว่าจ้าง) ไม่ใช่ลูกความ
+   */
   async createInvoice(user: AuthUser, caseId: string, dto: CreateInvoiceDto) {
+    if (dto.splits && dto.billToCustomerId) {
+      throw new BadRequestException('ระบุ splits กับ billToCustomerId พร้อมกันไม่ได้');
+    }
+
     const lineItems = dto.lineItems.map((item) => ({
       description: item.description,
       quantity: item.quantity,
@@ -907,31 +939,74 @@ export class BillingService {
     }));
     const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
 
-    const count = await this.prisma.invoice.count();
-    const invoiceNumber = dto.invoiceNumber ?? `INV-${String(count + 1).padStart(5, '0')}`;
+    const caseCustomers = await this.prisma.caseCustomer.findMany({
+      where: { caseId },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      select: { customerId: true, sharePercent: true },
+    });
 
-    // วางบิลไปที่ลูกค้า (ผู้ว่าจ้าง) ไม่ใช่ลูกความ — ถ้าไม่ระบุ ใช้ลูกค้าหลักของคดี
-    const billToCustomerId =
-      dto.billToCustomerId ??
-      (
-        await this.prisma.caseCustomer.findFirst({
-          where: { caseId },
-          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-          select: { customerId: true },
-        })
-      )?.customerId;
+    // ผู้รับบิล: ตามที่สั่งมา > ลูกค้าของคดี > ไม่มีเลยก็ออกใบเดียวแบบไม่ผูกลูกค้า
+    const recipients: { customerId: string | null; sharePercent: number }[] = dto.splits
+      ? dto.splits.map((split) => ({ customerId: split.customerId, sharePercent: split.sharePercent }))
+      : dto.billToCustomerId
+        ? [{ customerId: dto.billToCustomerId, sharePercent: 100 }]
+        : caseCustomers.length
+          ? caseCustomers.map((customer) => ({
+              customerId: customer.customerId,
+              // สัดส่วนที่ยังไม่ตกลงกัน ถือว่าหารเท่ากับรายอื่นที่ก็ยังไม่ตกลง
+              sharePercent: customer.sharePercent ?? 100 / caseCustomers.length,
+            }))
+          : [{ customerId: null, sharePercent: 100 }];
 
-    return this.prisma.invoice.create({
-      data: {
-        caseId,
-        invoiceNumber,
-        totalAmount,
-        dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
-        createdById: user.id,
-        billToCustomerId,
-        lineItems: { create: lineItems },
-      },
-      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+    if (dto.splits) {
+      const known = new Set(caseCustomers.map((customer) => customer.customerId));
+      const stranger = dto.splits.find((split) => !known.has(split.customerId));
+      if (stranger) {
+        throw new BadRequestException('วางบิลได้เฉพาะลูกค้าที่อยู่ในคดีนี้');
+      }
+    }
+
+    const amounts =
+      recipients.length === 1
+        ? [totalAmount]
+        : this.allocate(totalAmount, recipients.map((recipient) => recipient.sharePercent));
+
+    return this.prisma.$transaction(async (tx) => {
+      const numbers =
+        recipients.length === 1 && dto.invoiceNumber
+          ? [dto.invoiceNumber]
+          : await this.nextInvoiceNumbers(tx, recipients.length);
+
+      return Promise.all(
+        recipients.map((recipient, index) =>
+          tx.invoice.create({
+            data: {
+              caseId,
+              invoiceNumber: numbers[index],
+              totalAmount: amounts[index],
+              dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
+              createdById: user.id,
+              billToCustomerId: recipient.customerId,
+              lineItems: {
+                create:
+                  recipients.length === 1
+                    ? lineItems
+                    : // ponytail: ใบที่แบ่งจ่ายสรุปเป็นบรรทัดเดียว รายละเอียดงานดูได้ที่คดี
+                      // แตกเป็นรายบรรทัดเมื่อลูกค้าขอเห็น breakdown ในใบของตัวเอง
+                      [
+                        {
+                          description: `ส่วนแบ่ง ${recipient.sharePercent}% ของค่าดำเนินคดี`,
+                          quantity: 1,
+                          unitPrice: amounts[index],
+                          amount: amounts[index],
+                        },
+                      ],
+              },
+            },
+            include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+          }),
+        ),
+      );
     });
   }
 }

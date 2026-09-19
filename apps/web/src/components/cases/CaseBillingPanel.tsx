@@ -12,7 +12,8 @@ import {
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { api, InvoiceItem, TimeEntryItem, ExpenseItem } from '@/lib/api';
+import { api, InvoiceItem, TimeEntryItem, ExpenseItem, CustomerShareItem } from '@/lib/api';
+import { allocateShares } from '@/lib/invoice-split';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
@@ -43,6 +44,18 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
     expensePurpose: '',
   });
 
+  // ลูกค้า (ผู้ว่าจ้าง) ของคดี — คนที่ใบแจ้งหนี้จะไปถึง ไม่ใช่ลูกความ
+  const [customers, setCustomers] = useState<CustomerShareItem[]>([]);
+  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
+  const [invoiceError, setInvoiceError] = useState('');
+  const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
+  const [invoiceDueAt, setInvoiceDueAt] = useState('');
+  const [invoiceItems, setInvoiceItems] = useState([
+    { description: '', quantity: '1', unitPrice: '' },
+  ]);
+  // สัดส่วนที่แก้เฉพาะใบนี้ ไม่กระทบสัดส่วนที่บันทึกไว้กับคดี
+  const [shareOverrides, setShareOverrides] = useState<Record<string, string>>({});
+
   const load = () => {
     if (!token || !id) return;
     Promise.all([
@@ -50,8 +63,10 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       api.getInvoices(token, id),
       api.getCaseExpenses(token, id),
       api.getExpenseSummary(token, id).catch(() => ({ totalSpent: 0, revenue: 0, profit: 0 })),
+      api.getCase(token, id).catch(() => null),
     ])
-      .then(([entries, invs, exps, summary]) => {
+      .then(([entries, invs, exps, summary, detail]) => {
+        setCustomers(detail?.customers ?? []);
         setTimeEntries(entries);
         setInvoices(invs);
         setExpenses(exps);
@@ -84,6 +99,57 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       load();
     } catch (err) {
       setExpenseError(err instanceof Error ? err.message : 'บันทึกค่าใช้จ่ายไม่สำเร็จ กรุณาลองใหม่');
+    }
+  };
+
+  const invoiceTotal = invoiceItems.reduce(
+    (sum, item) => sum + (parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0),
+    0,
+  );
+
+  // สัดส่วนที่ยังไม่ตกลงกัน ถือว่าหารเท่ากับรายอื่นที่ยังไม่ตกลง — ตรงกับฝั่ง API
+  const shareOf = (customer: CustomerShareItem) => {
+    const override = shareOverrides[customer.customerId];
+    if (override !== undefined && override !== '') return parseFloat(override) || 0;
+    return customer.sharePercent ?? 100 / customers.length;
+  };
+  const splitPreview = allocateShares(invoiceTotal, customers.map(shareOf));
+
+  const handleCreateInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !id) return;
+    setInvoiceError('');
+    const lineItems = invoiceItems
+      .filter((item) => item.description.trim() && parseFloat(item.unitPrice) > 0)
+      .map((item) => ({
+        description: item.description.trim(),
+        quantity: parseFloat(item.quantity) || 1,
+        unitPrice: parseFloat(item.unitPrice),
+      }));
+    if (!lineItems.length) {
+      setInvoiceError('ใส่รายการอย่างน้อยหนึ่งบรรทัด พร้อมจำนวนเงิน');
+      return;
+    }
+    setInvoiceSubmitting(true);
+    try {
+      await api.createInvoice(token, id, {
+        lineItems,
+        dueAt: invoiceDueAt || undefined,
+        // ส่งสัดส่วนไปเฉพาะตอนแบ่งจ่ายจริง ไม่งั้นปล่อยให้ API ใช้ของคดี
+        splits:
+          customers.length > 1
+            ? customers.map((c) => ({ customerId: c.customerId, sharePercent: shareOf(c) }))
+            : undefined,
+      });
+      setInvoiceItems([{ description: '', quantity: '1', unitPrice: '' }]);
+      setInvoiceDueAt('');
+      setShareOverrides({});
+      setShowInvoiceForm(false);
+      load();
+    } catch (err) {
+      setInvoiceError(err instanceof Error ? err.message : 'ออกใบแจ้งหนี้ไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setInvoiceSubmitting(false);
     }
   };
 
@@ -247,11 +313,147 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 font-semibold">{d.caseBilling.invoices}</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-semibold">{d.caseBilling.invoices}</h2>
+          <button
+            type="button"
+            onClick={() => { setShowInvoiceForm((open) => !open); setInvoiceError(''); }}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+          >
+            {showInvoiceForm ? 'ยกเลิก' : '+ ออกใบแจ้งหนี้'}
+          </button>
+        </div>
+
+        {showInvoiceForm && (
+          <form onSubmit={handleCreateInvoice} className="mb-5 space-y-3 rounded-lg border border-slate-200 p-4">
+            <div className="space-y-2">
+              {invoiceItems.map((item, index) => (
+                <div key={index} className="flex flex-wrap items-center gap-2">
+                  <input
+                    aria-label={`รายการที่ ${index + 1}`}
+                    value={item.description}
+                    onChange={(e) =>
+                      setInvoiceItems((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, description: e.target.value } : r)),
+                      )
+                    }
+                    placeholder="เช่น ค่าว่าความศาลชั้นต้น"
+                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  />
+                  <input
+                    aria-label={`จำนวนของรายการที่ ${index + 1}`}
+                    value={item.quantity}
+                    onChange={(e) =>
+                      setInvoiceItems((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, quantity: e.target.value } : r)),
+                      )
+                    }
+                    inputMode="decimal"
+                    className="w-16 rounded-lg border border-slate-200 px-2 py-2 text-sm"
+                  />
+                  <input
+                    aria-label={`ราคาต่อหน่วยของรายการที่ ${index + 1}`}
+                    value={item.unitPrice}
+                    onChange={(e) =>
+                      setInvoiceItems((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, unitPrice: e.target.value } : r)),
+                      )
+                    }
+                    inputMode="decimal"
+                    placeholder="ราคา"
+                    className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  />
+                  {invoiceItems.length > 1 && (
+                    <button
+                      type="button"
+                      aria-label={`ลบรายการที่ ${index + 1}`}
+                      onClick={() => setInvoiceItems((rows) => rows.filter((_, i) => i !== index))}
+                      className="px-1 text-sm text-slate-400"
+                    >
+                      ลบ
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setInvoiceItems((rows) => [...rows, { description: '', quantity: '1', unitPrice: '' }])
+                }
+                className="text-sm underline"
+              >
+                + เพิ่มรายการ
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+              <label className="text-sm text-slate-500">
+                ครบกำหนดชำระ{' '}
+                <input
+                  aria-label="ครบกำหนดชำระ"
+                  type="date"
+                  value={invoiceDueAt}
+                  onChange={(e) => setInvoiceDueAt(e.target.value)}
+                  className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                />
+              </label>
+              <p className="text-sm">รวม <span className="font-semibold">{formatCurrency(invoiceTotal)}</span></p>
+            </div>
+
+            {customers.length > 1 && (
+              <div className="space-y-2 rounded-lg bg-slate-50 p-3">
+                <p className="text-sm font-medium">แบ่งบิล {customers.length} ใบ</p>
+                {customers.map((customer, index) => (
+                  <div key={customer.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="min-w-0 flex-1 truncate">{customer.customer.name}</span>
+                    <input
+                      aria-label={`สัดส่วนของ ${customer.customer.name}`}
+                      value={shareOverrides[customer.customerId] ?? String(shareOf(customer))}
+                      onChange={(e) =>
+                        setShareOverrides((rows) => ({ ...rows, [customer.customerId]: e.target.value }))
+                      }
+                      inputMode="decimal"
+                      className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm"
+                    />
+                    <span className="text-slate-400">%</span>
+                    <span className="w-28 text-right font-medium">{formatCurrency(splitPreview[index] ?? 0)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {customers.length === 1 && (
+              <p className="text-sm text-slate-500">วางบิลที่ {customers[0].customer.name}</p>
+            )}
+            {customers.length === 0 && (
+              <p className="text-sm text-amber-600">
+                คดีนี้ยังไม่ได้ระบุลูกค้า (ผู้ว่าจ้าง) — ใบแจ้งหนี้จะออกโดยไม่ผูกกับใคร
+              </p>
+            )}
+
+            {invoiceError && <p role="alert" className="text-sm text-red-600">{invoiceError}</p>}
+            <button
+              type="submit"
+              disabled={invoiceSubmitting}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {invoiceSubmitting
+                ? 'กำลังออก…'
+                : customers.length > 1
+                  ? `ออกใบแจ้งหนี้ ${customers.length} ใบ`
+                  : 'ออกใบแจ้งหนี้'}
+            </button>
+          </form>
+        )}
+
         <div className="space-y-2">
           {invoices.map((inv) => (
             <div key={inv.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
-              <span className="font-medium">{inv.invoiceNumber}</span>
+              <div className="min-w-0">
+                <span className="font-medium">{inv.invoiceNumber}</span>
+                {inv.billToCustomer && (
+                  <p className="truncate text-xs text-slate-400">{inv.billToCustomer.name}</p>
+                )}
+              </div>
               <div className="text-right">
                 <p>฿{inv.totalAmount.toLocaleString()}</p>
                 <p className="text-xs text-slate-400">{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</p>
