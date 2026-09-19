@@ -129,4 +129,24 @@ describe('ClosingEmailService.renderDraft', () => {
     expect(result.bodyText).toContain('ศาลพิพากษาให้ชนะคดี');
     expect(result.bodyText).not.toContain('ไม่ควรถูกรวม');
   });
+
+  it('gives a skeleton to type into when the lawyer drafts without picking events', () => {
+    const draft = service.renderDraft(
+      {
+        title: 'คดีทดสอบ',
+        ownRef: 'TSBREF20260007',
+        customerRef: null,
+        clientName: 'นาย สมชาย',
+        courtName: null,
+        closingSummary: null,
+        activities: [],
+      } as any,
+      [],
+    );
+
+    // ร่างเปล่าต้องเป็นโครงที่เขียนต่อได้ ไม่ใช่ข้อความบ่นว่ายังไม่ได้เลือกอะไร
+    expect(draft.bodyText).toContain('(พิมพ์ลำดับการดำเนินงานที่นี่)');
+    expect(draft.bodyText).toContain('(พิมพ์ผลที่ได้รับที่นี่)');
+    expect(draft.subject).toContain('TSBREF20260007');
+  });
 });

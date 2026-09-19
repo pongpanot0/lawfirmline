@@ -175,13 +175,13 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
           <Button
             className="mt-4"
             onClick={handleGenerate}
-            disabled={busy !== null || activities.length === 0}
+            disabled={busy !== null}
           >
             {busy === 'generate'
               ? 'กำลังสร้าง...'
-              : draft
-                ? 'สร้างร่างใหม่จากที่เลือก'
-                : 'สร้างร่าง'}
+              : selectedIds.length
+                ? `สร้างร่างจาก ${selectedIds.length} เหตุการณ์`
+                : 'เขียนร่างเอง'}
           </Button>
           {draft && (
             <p className="mt-2 text-xs text-muted-foreground">
@@ -255,7 +255,7 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              เลือกเหตุการณ์แล้วกด &quot;สร้างร่าง&quot;
+              เลือกเหตุการณ์แล้วกดสร้างร่าง หรือกด &quot;เขียนร่างเอง&quot; เพื่อได้โครงเปล่าไว้พิมพ์เอง
             </p>
           )}
         </CardContent>
