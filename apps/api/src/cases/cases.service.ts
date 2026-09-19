@@ -13,6 +13,7 @@ import { CloseCaseDto } from './dto/close-case.dto';
 import { Prisma } from '../generated/prisma';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { CLIENT_CONTACT_SELECT } from '../clients/client-contact.select';
 
 @Injectable()
 export class CasesService {
@@ -113,7 +114,10 @@ export class CasesService {
           select: {
             id: true,
             name: true,
-            contacts: { orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }] },
+            contacts: {
+              select: CLIENT_CONTACT_SELECT,
+              orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }],
+            },
           },
         },
       },

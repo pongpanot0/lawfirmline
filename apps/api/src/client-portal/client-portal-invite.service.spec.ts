@@ -5,6 +5,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ClientPortalInviteService } from './client-portal-invite.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { EmailService } from '../notifications/email.service';
+import { LineMessagingService } from '../notifications/line-messaging.service';
 
 describe('ClientPortalInviteService', () => {
   let service: ClientPortalInviteService;
@@ -17,8 +18,10 @@ describe('ClientPortalInviteService', () => {
   const mockConfig = { get: jest.fn() };
   const mockEmail = {
     getAppUrl: jest.fn().mockReturnValue('https://app.example.com'),
+    isConfigured: jest.fn().mockReturnValue(true),
     sendClientPortalInviteEmail: jest.fn().mockResolvedValue(undefined),
   };
+  const mockLine = { pushTo: jest.fn().mockResolvedValue(true) };
 
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
@@ -31,6 +34,7 @@ describe('ClientPortalInviteService', () => {
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
         { provide: EmailService, useValue: mockEmail },
+        { provide: LineMessagingService, useValue: mockLine },
       ],
     }).compile();
     service = module.get(ClientPortalInviteService);
@@ -42,20 +46,82 @@ describe('ClientPortalInviteService', () => {
       await expect(service.createInvite(user, 'contact-1')).rejects.toThrow(NotFoundException);
     });
 
-    it('rejects a contact with no email on file', async () => {
+    it('still issues a copyable link for a contact with no email and no LINE', async () => {
       mockPrisma.clientContact.findFirst.mockResolvedValue({
         id: 'contact-1',
         email: null,
+        lineUserId: null,
         name: 'Somchai',
         client: { name: 'Acme', firm: { name: 'LexFlow' } },
       });
-      await expect(service.createInvite(user, 'contact-1')).rejects.toThrow(BadRequestException);
+      mockPrisma.clientPortalInvite.create.mockResolvedValue({ id: 'invite-1', expiresAt: new Date() });
+
+      const result = await service.createInvite(user, 'contact-1');
+
+      expect(mockEmail.sendClientPortalInviteEmail).not.toHaveBeenCalled();
+      expect(mockLine.pushTo).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ emailSent: false, lineSent: false });
+      expect(result.inviteUrl).toContain('https://app.example.com/portal/invite/');
+    });
+
+    it('invites a contact who only has LINE, pushing the link over LINE', async () => {
+      mockPrisma.clientContact.findFirst.mockResolvedValue({
+        id: 'contact-1',
+        email: null,
+        lineUserId: 'U-line-1',
+        name: 'Somchai',
+        client: { name: 'Acme', firm: { name: 'LexFlow' } },
+      });
+      mockPrisma.clientPortalInvite.create.mockResolvedValue({ id: 'invite-1', expiresAt: new Date() });
+
+      const result = await service.createInvite(user, 'contact-1');
+
+      expect(mockEmail.sendClientPortalInviteEmail).not.toHaveBeenCalled();
+      expect(mockLine.pushTo).toHaveBeenCalledWith('U-line-1', expect.stringContaining(result.inviteUrl));
+      expect(result).toMatchObject({ emailSent: false, lineSent: true });
+      expect(result.inviteUrl).toContain('https://app.example.com/portal/invite/');
+    });
+
+    it('still returns a copyable link when the invite email fails to send', async () => {
+      mockPrisma.clientContact.findFirst.mockResolvedValue({
+        id: 'contact-1',
+        email: 'somchai@example.com',
+        lineUserId: null,
+        name: 'Somchai',
+        client: { name: 'Acme', firm: { name: 'LexFlow' } },
+      });
+      mockPrisma.clientPortalInvite.create.mockResolvedValue({ id: 'invite-1', expiresAt: new Date() });
+      mockEmail.sendClientPortalInviteEmail.mockRejectedValueOnce(new Error('smtp down'));
+
+      const result = await service.createInvite(user, 'contact-1');
+
+      expect(result.emailSent).toBe(false);
+      expect(result.inviteUrl).toContain('/portal/invite/');
+    });
+
+    it('skips sending when email is not configured but still returns the link', async () => {
+      mockPrisma.clientContact.findFirst.mockResolvedValue({
+        id: 'contact-1',
+        email: 'somchai@example.com',
+        lineUserId: null,
+        name: 'Somchai',
+        client: { name: 'Acme', firm: { name: 'LexFlow' } },
+      });
+      mockPrisma.clientPortalInvite.create.mockResolvedValue({ id: 'invite-1', expiresAt: new Date() });
+      mockEmail.isConfigured.mockReturnValueOnce(false);
+
+      const result = await service.createInvite(user, 'contact-1');
+
+      expect(mockEmail.sendClientPortalInviteEmail).not.toHaveBeenCalled();
+      expect(result.emailSent).toBe(false);
+      expect(result.inviteUrl).toContain('/portal/invite/');
     });
 
     it('creates an invite and emails the contact', async () => {
       mockPrisma.clientContact.findFirst.mockResolvedValue({
         id: 'contact-1',
         email: 'somchai@example.com',
+        lineUserId: null,
         name: 'Somchai',
         client: { name: 'Acme', firm: { name: 'LexFlow' } },
       });

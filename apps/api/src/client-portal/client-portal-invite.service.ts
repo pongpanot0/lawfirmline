@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { EmailService } from '../notifications/email.service';
+import { LineMessagingService } from '../notifications/line-messaging.service';
 
 interface PortalTokenPayload {
   sub: string;
@@ -21,6 +22,7 @@ export class ClientPortalInviteService {
     private jwt: JwtService,
     private config: ConfigService,
     private email: EmailService,
+    private line: LineMessagingService,
   ) {}
 
   async createInvite(user: AuthUser, clientContactId: string) {
@@ -29,10 +31,6 @@ export class ClientPortalInviteService {
       include: { client: { include: { firm: true } } },
     });
     if (!contact) throw new NotFoundException('Contact not found');
-    if (!contact.email) {
-      throw new BadRequestException('This contact has no email address on file');
-    }
-
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -41,18 +39,34 @@ export class ClientPortalInviteService {
     });
 
     const inviteUrl = `${this.email.getAppUrl()}/portal/invite/${token}`;
-    try {
-      await this.email.sendClientPortalInviteEmail({
-        to: contact.email,
-        contactName: contact.name,
-        clientName: contact.client.name,
-        firmName: contact.client.firm.name,
-        inviteUrl,
-        expiresAt,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to send client portal invite email to contact ${contact.id}: ${message}`);
+
+    let emailSent = false;
+    if (contact.email && this.email.isConfigured()) {
+      try {
+        await this.email.sendClientPortalInviteEmail({
+          to: contact.email,
+          contactName: contact.name,
+          clientName: contact.client.name,
+          firmName: contact.client.firm.name,
+          inviteUrl,
+          expiresAt,
+        });
+        emailSent = true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Failed to send client portal invite email to contact ${contact.id}: ${message}`,
+        );
+      }
+    }
+
+    let lineSent = false;
+    if (contact.lineUserId) {
+      lineSent = await this.line.pushTo(
+        contact.lineUserId,
+        `${contact.client.firm.name} เชิญคุณเข้าใช้พอร์ทัลลูกค้า\n` +
+          `เปิดลิงก์นี้เพื่อเริ่มใช้งาน (ลิงก์หมดอายุ ${expiresAt.toLocaleDateString('th-TH')})\n${inviteUrl}`,
+      );
     }
 
     await this.prisma.auditLog.create({
@@ -60,11 +74,11 @@ export class ClientPortalInviteService {
         firmId: user.firmId,
         userId: user.id,
         action: 'CLIENT_PORTAL_INVITE_SENT',
-        metadata: { clientContactId: contact.id, inviteId: invite.id },
+        metadata: { clientContactId: contact.id, inviteId: invite.id, emailSent, lineSent },
       },
     });
 
-    return { id: invite.id, expiresAt: invite.expiresAt };
+    return { id: invite.id, expiresAt: invite.expiresAt, inviteUrl, emailSent, lineSent };
   }
 
   async getInvite(token: string) {

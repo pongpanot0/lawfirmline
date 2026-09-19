@@ -253,6 +253,8 @@ export interface InsuranceClaimItem {
 export interface ClientContactItem {
   id?: string;
   name: string;
+  nickname?: string | null;
+  notes?: string | null;
   email?: string | null;
   phone?: string | null;
   position?: string | null;
@@ -1282,7 +1284,13 @@ export const api = {
     ),
 
   sendPortalInvite: (token: string, clientContactId: string) =>
-    request<{ id: string; expiresAt: string }>('/client-portal/invites', {
+    request<{
+      id: string;
+      expiresAt: string;
+      inviteUrl: string;
+      emailSent: boolean;
+      lineSent: boolean;
+    }>('/client-portal/invites', {
       method: 'POST',
       token,
       body: JSON.stringify({ clientContactId }),

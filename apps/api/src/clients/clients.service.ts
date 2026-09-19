@@ -3,6 +3,7 @@ import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
+import { CLIENT_CONTACT_SELECT } from './client-contact.select';
 
 @Injectable()
 export class ClientsService {
@@ -12,7 +13,10 @@ export class ClientsService {
   ) {}
 
   private include = {
-    contacts: { orderBy: [{ isPrimary: 'desc' as const }, { name: 'asc' as const }] },
+    contacts: {
+      select: CLIENT_CONTACT_SELECT,
+      orderBy: [{ isPrimary: 'desc' as const }, { name: 'asc' as const }],
+    },
     _count: { select: { cases: true } },
   };
 
@@ -65,9 +69,11 @@ export class ClientsService {
         contacts: {
           create: contacts.map((c, i) => ({
             name: c.name,
+            nickname: c.nickname,
             email: c.email,
             phone: c.phone,
             position: c.position,
+            notes: c.notes,
             isPrimary: c.isPrimary ?? i === 0,
             portalEnabled: c.portalEnabled ?? false,
           })),
@@ -91,9 +97,11 @@ export class ClientsService {
         for (const [i, c] of dto.contacts.entries()) {
           const data = {
             name: c.name,
+            nickname: c.nickname,
             email: c.email,
             phone: c.phone,
             position: c.position,
+            notes: c.notes,
             isPrimary: c.isPrimary ?? i === 0,
             portalEnabled: c.portalEnabled ?? false,
           };

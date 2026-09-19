@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Star } from 'lucide-react';
+import { Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Star, Copy, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ClientItem, ContactCaseAccessEntry } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -53,7 +53,7 @@ export default function ClientsPage() {
 
   const openEditContact = (c: ClientItem['contacts'][number]) => {
     setEditingContactId(c.id ?? null);
-    setContactForm({ name: c.name, nickname: (c as any).nickname ?? '', email: c.email ?? '', phone: c.phone ?? '', position: c.position ?? '', isPrimary: c.isPrimary ?? false, notes: (c as any).notes ?? '' });
+    setContactForm({ name: c.name, nickname: c.nickname ?? '', email: c.email ?? '', phone: c.phone ?? '', position: c.position ?? '', isPrimary: c.isPrimary ?? false, notes: c.notes ?? '' });
     setShowContactForm(true);
   };
 
@@ -69,12 +69,15 @@ export default function ClientsPage() {
           c.id === editingContactId ? { ...c, ...contactForm } : c
         );
       } else {
-        updatedContacts = [...selected.contacts, { ...contactForm, dateAdded: new Date().toISOString() }];
+        updatedContacts = [...selected.contacts, contactForm];
       }
+      setContactError(null);
       const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
       setSelected(updated);
       setShowContactForm(false);
       setEditingContactId(null);
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : 'บันทึกบุคคลติดต่อไม่สำเร็จ');
     } finally {
       setSavingContact(false);
     }
@@ -83,8 +86,13 @@ export default function ClientsPage() {
   const deleteContact = async (contactId: string) => {
     if (!token || !selected || !confirm('ลบบุคคลติดต่อนี้?')) return;
     const updatedContacts = selected.contacts.filter((c) => c.id !== contactId);
-    const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
-    setSelected(updated);
+    setContactError(null);
+    try {
+      const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
+      setSelected(updated);
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : 'ลบบุคคลติดต่อไม่สำเร็จ');
+    }
   };
 
   const togglePortalAccess = async (contactId: string, next: boolean) => {
@@ -92,26 +100,47 @@ export default function ClientsPage() {
     const updatedContacts = selected.contacts.map((c) =>
       c.id === contactId ? { ...c, portalEnabled: next } : c,
     );
-    const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
-    setSelected(updated);
+    setContactError(null);
+    try {
+      const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
+      setSelected(updated);
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : 'อัปเดตสิทธิ์พอร์ทัลไม่สำเร็จ');
+    }
   };
 
   const [invitingContactId, setInvitingContactId] = useState<string | null>(null);
-  const [inviteSentFor, setInviteSentFor] = useState<Record<string, boolean>>({});
-  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSentFor, setInviteSentFor] = useState<
+    Record<string, { inviteUrl: string; emailSent: boolean; lineSent: boolean }>
+  >({});
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [copiedInviteFor, setCopiedInviteFor] = useState<string | null>(null);
 
   const sendPortalInvite = async (contactId: string) => {
     if (!token) return;
     setInvitingContactId(contactId);
-    setInviteError(null);
+    setContactError(null);
     try {
-      await api.sendPortalInvite(token, contactId);
-      setInviteSentFor((prev) => ({ ...prev, [contactId]: true }));
+      const invite = await api.sendPortalInvite(token, contactId);
+      setInviteSentFor((prev) => ({
+        ...prev,
+        [contactId]: {
+          inviteUrl: invite.inviteUrl,
+          emailSent: invite.emailSent,
+          lineSent: invite.lineSent,
+        },
+      }));
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'ส่งคำเชิญไม่สำเร็จ');
+      setContactError(err instanceof Error ? err.message : 'ส่งคำเชิญไม่สำเร็จ');
     } finally {
       setInvitingContactId(null);
     }
+  };
+
+  const copyInviteLink = async (contactId: string, inviteUrl: string) => {
+    await navigator.clipboard.writeText(inviteUrl);
+    setCopiedInviteFor(contactId);
+    setTimeout(() => setCopiedInviteFor((id) => (id === contactId ? null : id)), 2000);
   };
 
   const [lineStatus, setLineStatus] = useState<Record<string, { connected: boolean }>>({});
@@ -297,25 +326,26 @@ export default function ClientsPage() {
                 </Card>
               )}
 
-              {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
+              {contactError && <p className="text-sm text-destructive">{contactError}</p>}
 
               {/* Contact list */}
               {selected.contacts.map((c, i) => (
                 <Card key={c.id ?? i}>
-                  <CardContent className="flex items-start justify-between gap-3 p-4">
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <User className="mt-0.5 h-4 w-4 text-muted-foreground" />
                       <div>
                         <p className="font-medium flex items-center gap-2">
                           {c.name}
-                          {(c as any).nickname && <span className="text-muted-foreground font-normal text-sm">({(c as any).nickname})</span>}
+                          {c.nickname && <span className="text-muted-foreground font-normal text-sm">({c.nickname})</span>}
                           {c.isPrimary && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
                         </p>
                         {c.position && <p className="text-xs text-muted-foreground">{c.position}</p>}
                         <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
                           {c.phone && <p className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</p>}
                           {c.email && <p className="flex items-center gap-1"><Mail className="h-3 w-3" />{c.email}</p>}
-                          {(c as any).notes && <p className="text-xs italic">{(c as any).notes}</p>}
+                          {c.notes && <p className="text-xs italic">{c.notes}</p>}
                         </div>
                       </div>
                     </div>
@@ -325,7 +355,7 @@ export default function ClientsPage() {
                           {c.portalEnabled ? 'เปิดพอร์ทัลแล้ว' : 'เปิดพอร์ทัล'}
                         </Button>
                       )}
-                      {c.id && c.email && !c.portalEnabled && (
+                      {c.id && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -335,9 +365,11 @@ export default function ClientsPage() {
                         >
                           {invitingContactId === c.id
                             ? 'กำลังส่ง...'
-                            : inviteSentFor[c.id]
-                              ? 'ส่งคำเชิญแล้ว'
-                              : 'ส่งคำเชิญเข้าใช้พอร์ทัล'}
+                            : c.portalEnabled
+                              ? 'สร้างลิงก์เข้าใช้ใหม่'
+                              : c.email || lineStatus[c.id]?.connected
+                                ? 'ส่งคำเชิญเข้าใช้พอร์ทัล'
+                                : 'สร้างลิงก์คำเชิญ'}
                         </Button>
                       )}
                       {c.id && lineStatus[c.id] && (
@@ -360,6 +392,37 @@ export default function ClientsPage() {
                         </Button>
                       )}
                     </div>
+                    </div>
+
+                    {c.id && inviteSentFor[c.id] && (
+                      <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            inviteSentFor[c.id!].emailSent ? `ส่งอีเมลแล้ว (${c.email})` : null,
+                            inviteSentFor[c.id!].lineSent ? 'ส่งทาง LINE แล้ว' : null,
+                          ].filter(Boolean).join(' · ') ||
+                            'คัดลอกลิงก์ด้านล่างส่งให้ลูกค้าทาง LINE เองได้เลย'}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 truncate rounded bg-background px-2 py-1 text-xs">
+                            {inviteSentFor[c.id!].inviteUrl}
+                          </code>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 shrink-0 text-xs"
+                            onClick={() => copyInviteLink(c.id!, inviteSentFor[c.id!].inviteUrl)}
+                          >
+                            {copiedInviteFor === c.id ? (
+                              <><Check className="mr-1 h-3 w-3" />คัดลอกแล้ว</>
+                            ) : (
+                              <><Copy className="mr-1 h-3 w-3" />คัดลอกลิงก์</>
+                            )}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">ลิงก์ใช้ได้ 7 วัน</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
