@@ -1560,6 +1560,23 @@ export const api = {
     return request<KnowledgeItem[]>(`/knowledge${qs ? `?${qs}` : ''}`, { token });
   },
 
+  askCase: (token: string, caseId: string, question: string) =>
+    request<{
+      answer: string;
+      sources: Array<{
+        documentId: string;
+        filename: string;
+        pageStart: number | null;
+        pageEnd: number | null;
+        snippet: string;
+        score: number;
+      }>;
+    }>(`/cases/${caseId}/ai/ask`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ question }),
+    }),
+
   analyzeDocument: (token: string, caseId: string, file: File, title?: string) => {
     const form = new FormData();
     form.append('file', file);

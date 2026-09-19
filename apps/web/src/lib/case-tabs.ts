@@ -4,6 +4,7 @@ export const CASE_TAB_IDS = [
   'calendar',
   'documents',
   'billing',
+  'ask-ai',
   'closing-report',
 ] as const;
 
@@ -15,6 +16,7 @@ export const CASE_TAB_LABELS: Record<CaseTabId, string> = {
   calendar: 'ปฏิทิน',
   documents: 'เอกสาร',
   billing: 'ค่าใช้จ่าย',
+  'ask-ai': 'ถาม AI',
   'closing-report': 'รายงานปิดงาน',
 };
 

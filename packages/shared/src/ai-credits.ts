@@ -10,6 +10,8 @@ export const AI_CREDIT_COST = {
   DOCUMENT_ANALYSIS: 5,
   PRECEDENT_ANALYSIS: 10,
   DRAFT_NOTICE: 5,
+  /** ถาม-ตอบจากสำนวนคดี (RAG) — one question, sources included. */
+  RAG_QA: 1,
 } as const;
 
 /** MIME types document analysis can read. */
