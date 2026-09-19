@@ -192,18 +192,6 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
     <div>
       <h2 className="mb-6 text-xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h2>
 
-      <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
-        <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.uploadDocument}</h2>
-        <DocumentDropZone
-          ref={dropRef}
-          onFile={handleUpload}
-          loading={uploading}
-          loadingLabel={d.caseDocuments.uploading}
-          label={d.documents.dropHint}
-          hint={d.documents.fileTypesHint}
-        />
-      </div>
-
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
       <DateSuggestionsPanel
@@ -235,6 +223,16 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
 
       <div className="rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{fmt(d.caseDocuments.filesCount, { count: documents.length })}</h2>
+        <div className="mb-4">
+          <DocumentDropZone
+            ref={dropRef}
+            onFile={handleUpload}
+            loading={uploading}
+            loadingLabel={d.caseDocuments.uploading}
+            label={d.documents.dropHint}
+            hint={d.documents.fileTypesHint}
+          />
+        </div>
         <div className="space-y-2">
           {documents.map((doc) => (
             <div

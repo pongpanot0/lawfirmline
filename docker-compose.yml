@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector/pgvector = official postgres image + pgvector extension,
+    # required by the RAG DocumentChunk table. Same PG16 data format.
+    image: pgvector/pgvector:pg16
     container_name: lawfirm-postgres
     restart: unless-stopped
     environment:
