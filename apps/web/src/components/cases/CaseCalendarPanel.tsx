@@ -9,6 +9,7 @@ import { api, CalendarEventItem, CaseItem, UserItem } from '@/lib/api';
 import { CalendarView } from '@/components/CalendarView';
 import { CalendarEventDialog } from '@/components/calendar/CalendarEventDialog';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
+import { CaseTimelineView } from '@/components/cases/CaseTimelineView';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -34,6 +35,7 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
   const [legalCase, setLegalCase] = useState<CaseItem | null>(null);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [month, setMonth] = useState(new Date());
+  const [view, setView] = useState<'timeline' | 'calendar'>('timeline');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -61,8 +63,16 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
 
   useEffect(() => {
     if (!token || !caseId) return;
-    const from = new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
-    const to = new Date(month.getFullYear(), month.getMonth() + 2, 0).toISOString();
+    // Timeline shows the whole case history; the calendar only needs the
+    // visible month plus its neighbours.
+    const from =
+      view === 'timeline'
+        ? new Date(2000, 0, 1).toISOString()
+        : new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
+    const to =
+      view === 'timeline'
+        ? new Date(new Date().getFullYear() + 3, 0, 1).toISOString()
+        : new Date(month.getFullYear(), month.getMonth() + 2, 0).toISOString();
     setLoading(true);
     setLoadError('');
     api
@@ -72,7 +82,7 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : d.common.loadFailed))
       .finally(() => setLoading(false));
-  }, [token, caseId, month, reloadKey, d.common.loadFailed]);
+  }, [token, caseId, month, view, reloadKey, d.common.loadFailed]);
 
   useEffect(() => {
     if (!requestedEvent || !token) return;
@@ -113,6 +123,23 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold tracking-tight text-foreground">{d.caseCalendar.title}</h2>
+        <div role="group" aria-label={d.caseCalendar.title} className="flex rounded-md border border-border p-0.5">
+          {(['timeline', 'calendar'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              onClick={() => setView(v)}
+              className={
+                view === v
+                  ? 'rounded px-3 py-1 text-sm font-semibold bg-primary text-primary-foreground'
+                  : 'rounded px-3 py-1 text-sm text-muted-foreground hover:text-foreground'
+              }
+            >
+              {v === 'timeline' ? d.caseCalendar.viewTimeline : d.caseCalendar.viewCalendar}
+            </button>
+          ))}
+        </div>
         <Button size="sm" onClick={() => setDialog({ event: null, defaultDate: new Date() })}>
           <Plus className="h-4 w-4" />
           {d.calendar.addEventForCase}
@@ -182,6 +209,11 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
             {d.common.retry}
           </Button>
         </div>
+      ) : view === 'timeline' ? (
+        <CaseTimelineView
+          events={events}
+          onEventClick={(event) => setDialog({ event })}
+        />
       ) : (
         <CalendarView
           events={events}

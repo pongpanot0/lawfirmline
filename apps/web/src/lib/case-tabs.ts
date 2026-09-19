@@ -13,10 +13,10 @@ export type CaseTabId = (typeof CASE_TAB_IDS)[number];
 export const CASE_TAB_LABELS: Record<CaseTabId, string> = {
   overview: 'ภาพรวม',
   tasks: 'งาน',
-  calendar: 'ปฏิทิน',
+  calendar: 'ไทม์ไลน์',
   documents: 'เอกสาร',
   billing: 'ค่าใช้จ่าย',
-  'ask-ai': 'ถาม AI',
+  'ask-ai': 'AI',
   'closing-report': 'รายงานปิดงาน',
 };
 

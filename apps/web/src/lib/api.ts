@@ -1577,6 +1577,16 @@ export const api = {
       body: JSON.stringify({ question }),
     }),
 
+  askLegal: (token: string, caseId: string, question: string, citationIds: string[]) =>
+    request<LegalQueryItem>(`/cases/${caseId}/legal/ask`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ question, citationIds }),
+    }),
+
+  listLegalQueries: (token: string, caseId: string) =>
+    request<LegalQueryItem[]>(`/cases/${caseId}/legal`, { token }),
+
   analyzeDocument: (token: string, caseId: string, file: File, title?: string) => {
     const form = new FormData();
     form.append('file', file);
@@ -2118,6 +2128,24 @@ export interface KnowledgeCitationItem {
   statement: string;
   quote: string;
   document: { id: string; filename: string; version: number };
+}
+
+export interface LegalQueryItem {
+  id: string;
+  question: string;
+  citationIds: string[];
+  factsText: string[];
+  results: Array<{
+    dekaId: string;
+    headnote: string;
+    citedStatutes: string[];
+    courtLevel: string | null;
+    judgmentDate: string | null;
+    sourceUrl: string;
+  }>;
+  provider: string;
+  createdAt: string;
+  createdBy: { firstName: string; lastName: string };
 }
 
 export interface KnowledgeFlagItem {
