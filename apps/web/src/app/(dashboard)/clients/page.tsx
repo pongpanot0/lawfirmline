@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Star } from 'lucide-react';
+import { Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Star, Copy, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ClientItem, ContactCaseAccessEntry } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -97,21 +97,37 @@ export default function ClientsPage() {
   };
 
   const [invitingContactId, setInvitingContactId] = useState<string | null>(null);
-  const [inviteSentFor, setInviteSentFor] = useState<Record<string, boolean>>({});
+  const [inviteSentFor, setInviteSentFor] = useState<
+    Record<string, { inviteUrl: string; emailSent: boolean; lineSent: boolean }>
+  >({});
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [copiedInviteFor, setCopiedInviteFor] = useState<string | null>(null);
 
   const sendPortalInvite = async (contactId: string) => {
     if (!token) return;
     setInvitingContactId(contactId);
     setInviteError(null);
     try {
-      await api.sendPortalInvite(token, contactId);
-      setInviteSentFor((prev) => ({ ...prev, [contactId]: true }));
+      const invite = await api.sendPortalInvite(token, contactId);
+      setInviteSentFor((prev) => ({
+        ...prev,
+        [contactId]: {
+          inviteUrl: invite.inviteUrl,
+          emailSent: invite.emailSent,
+          lineSent: invite.lineSent,
+        },
+      }));
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : 'ส่งคำเชิญไม่สำเร็จ');
     } finally {
       setInvitingContactId(null);
     }
+  };
+
+  const copyInviteLink = async (contactId: string, inviteUrl: string) => {
+    await navigator.clipboard.writeText(inviteUrl);
+    setCopiedInviteFor(contactId);
+    setTimeout(() => setCopiedInviteFor((id) => (id === contactId ? null : id)), 2000);
   };
 
   const [lineStatus, setLineStatus] = useState<Record<string, { connected: boolean }>>({});
@@ -302,7 +318,8 @@ export default function ClientsPage() {
               {/* Contact list */}
               {selected.contacts.map((c, i) => (
                 <Card key={c.id ?? i}>
-                  <CardContent className="flex items-start justify-between gap-3 p-4">
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <User className="mt-0.5 h-4 w-4 text-muted-foreground" />
                       <div>
@@ -325,7 +342,7 @@ export default function ClientsPage() {
                           {c.portalEnabled ? 'เปิดพอร์ทัลแล้ว' : 'เปิดพอร์ทัล'}
                         </Button>
                       )}
-                      {c.id && c.email && !c.portalEnabled && (
+                      {c.id && (c.email || lineStatus[c.id]?.connected) && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -335,8 +352,8 @@ export default function ClientsPage() {
                         >
                           {invitingContactId === c.id
                             ? 'กำลังส่ง...'
-                            : inviteSentFor[c.id]
-                              ? 'ส่งคำเชิญแล้ว'
+                            : c.portalEnabled
+                              ? 'สร้างลิงก์เข้าใช้ใหม่'
                               : 'ส่งคำเชิญเข้าใช้พอร์ทัล'}
                         </Button>
                       )}
@@ -360,6 +377,37 @@ export default function ClientsPage() {
                         </Button>
                       )}
                     </div>
+                    </div>
+
+                    {c.id && inviteSentFor[c.id] && (
+                      <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            inviteSentFor[c.id!].emailSent ? `ส่งอีเมลแล้ว (${c.email})` : null,
+                            inviteSentFor[c.id!].lineSent ? 'ส่งทาง LINE แล้ว' : null,
+                          ].filter(Boolean).join(' · ') ||
+                            'ยังส่งอัตโนมัติไม่ได้ — คัดลอกลิงก์ด้านล่างส่งให้ลูกค้าเองได้เลย'}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 truncate rounded bg-background px-2 py-1 text-xs">
+                            {inviteSentFor[c.id!].inviteUrl}
+                          </code>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 shrink-0 text-xs"
+                            onClick={() => copyInviteLink(c.id!, inviteSentFor[c.id!].inviteUrl)}
+                          >
+                            {copiedInviteFor === c.id ? (
+                              <><Check className="mr-1 h-3 w-3" />คัดลอกแล้ว</>
+                            ) : (
+                              <><Copy className="mr-1 h-3 w-3" />คัดลอกลิงก์</>
+                            )}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">ลิงก์ใช้ได้ 7 วัน</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

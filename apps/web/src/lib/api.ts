@@ -1282,7 +1282,13 @@ export const api = {
     ),
 
   sendPortalInvite: (token: string, clientContactId: string) =>
-    request<{ id: string; expiresAt: string }>('/client-portal/invites', {
+    request<{
+      id: string;
+      expiresAt: string;
+      inviteUrl: string;
+      emailSent: boolean;
+      lineSent: boolean;
+    }>('/client-portal/invites', {
       method: 'POST',
       token,
       body: JSON.stringify({ clientContactId }),
