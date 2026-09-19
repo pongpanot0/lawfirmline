@@ -6,6 +6,7 @@ import { FirmRole } from '@lawfirm/shared';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { ClientContactDto } from './dto/client.dto';
+import { CLIENT_CONTACT_SELECT } from './client-contact.select';
 
 describe('ClientsService.update contact upsert', () => {
   let service: ClientsService;
@@ -95,8 +96,7 @@ describe('ClientsService.update contact upsert', () => {
 
 describe('ClientsService contact round-trip shape', () => {
   it('returns contacts in a shape that ClientContactDto accepts back', async () => {
-    const service = new ClientsService({} as any, {} as any);
-    const select = (service as any).contactSelect as Record<string, true>;
+    const select: Record<string, true> = CLIENT_CONTACT_SELECT;
 
     // The clients page edits contacts by sending the fetched list straight back
     // to PUT /clients/:id, and the global ValidationPipe rejects unknown keys.
@@ -123,8 +123,7 @@ describe('ClientsService contact round-trip shape', () => {
   });
 
   it('never exposes passwordHash or LINE link tokens on a contact', () => {
-    const service = new ClientsService({} as any, {} as any);
-    const select = (service as any).contactSelect as Record<string, true>;
+    const select: Record<string, true> = CLIENT_CONTACT_SELECT;
 
     for (const secret of ['passwordHash', 'lineUserId', 'lineLinkCode', 'lineLinkCodeExpiresAt']) {
       expect(select[secret]).toBeUndefined();

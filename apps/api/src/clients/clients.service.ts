@@ -3,6 +3,7 @@ import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
+import { CLIENT_CONTACT_SELECT } from './client-contact.select';
 
 @Injectable()
 export class ClientsService {
@@ -11,27 +12,9 @@ export class ClientsService {
     private caseAccess: CaseAccessService,
   ) {}
 
-  /**
-   * Contacts are edited by sending the list straight back to PUT /clients/:id,
-   * so this must stay in sync with ClientContactDto — any extra field here is
-   * rejected by the whitelisting ValidationPipe on the way back in (and
-   * passwordHash / LINE link tokens have no business reaching the browser).
-   */
-  private contactSelect = {
-    id: true,
-    name: true,
-    nickname: true,
-    email: true,
-    phone: true,
-    position: true,
-    isPrimary: true,
-    portalEnabled: true,
-    notes: true,
-  };
-
   private include = {
     contacts: {
-      select: this.contactSelect,
+      select: CLIENT_CONTACT_SELECT,
       orderBy: [{ isPrimary: 'desc' as const }, { name: 'asc' as const }],
     },
     _count: { select: { cases: true } },
