@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ExpenseStatus } from '@lawfirm/shared';
 import { BillingService } from '../../../billing/billing.service';
 import { CasesService } from '../../../cases/cases.service';
 import {
@@ -7,10 +6,20 @@ import {
   ReceiptExtractionService,
 } from '../../../intelligence/receipt-extraction.service';
 import { LineMessagingService, QuickReplyItem } from '../../line-messaging.service';
+import { LineNotificationService } from '../line-notification.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
 import { LineAuthContextService } from '../line-auth-context.service';
 import { ConversationSession, ConversationStep } from '../line-conversation.types';
-import { renderSummary, CONFIRM_QUICK_REPLY, FieldSpec } from './flow-confirmation.util';
+import {
+  renderSummary,
+  buildFieldPickerQuickReply,
+  pickQuickReply,
+  resolvePick,
+  withEscape,
+  CONFIRM_QUICK_REPLY,
+  SKIP_QUICK_REPLY,
+  FieldSpec,
+} from './flow-confirmation.util';
 
 const FIELDS: FieldSpec[] = [
   { key: 'amount', label: 'ยอดเงิน', format: (v) => `฿${Number(v).toLocaleString('th-TH')}` },
@@ -34,6 +43,7 @@ export class LineExpenseFlowService {
     private line: LineMessagingService,
     private store: LineConversationStoreService,
     private authContext: LineAuthContextService,
+    private notify: LineNotificationService,
   ) {}
 
   async start(session: ConversationSession): Promise<void> {
@@ -66,8 +76,9 @@ export class LineExpenseFlowService {
         await this.reply(
           session,
           mode === 'manual'
-            ? 'ส่งรูปใบเสร็จมาได้เลยครับ หรือพิมพ์ "ข้าม" ถ้าไม่มีรูป'
-            : 'ส่งรูปใบเสร็จมาได้เลยครับ (พิมพ์ "ข้าม" เพื่อเปลี่ยนเป็นกรอกเอง)',
+            ? 'ส่งรูปใบเสร็จมาได้เลยครับ หรือกด "ข้าม" ถ้าไม่มีรูป'
+            : 'ส่งรูปใบเสร็จมาได้เลยครับ (กด "ข้าม" เพื่อเปลี่ยนเป็นกรอกเอง)',
+          [{ label: 'ข้าม (ไม่มีรูป)', text: 'ข้าม' }],
         );
         return;
       }
@@ -80,7 +91,9 @@ export class LineExpenseFlowService {
           await this.reply(session, 'ยอดเงินเท่าไหร่ครับ? (ตัวเลข เช่น 1500)');
           return;
         }
-        await this.reply(session, 'ส่งรูปใบเสร็จเป็นรูปภาพ หรือพิมพ์ "ข้าม" ครับ');
+        await this.reply(session, 'ส่งรูปใบเสร็จเป็นรูปภาพ หรือกด "ข้าม" ครับ', [
+          { label: 'ข้าม (ไม่มีรูป)', text: 'ข้าม' },
+        ]);
         return;
       }
       case ConversationStep.EXPENSE_AMOUNT: {
@@ -103,7 +116,8 @@ export class LineExpenseFlowService {
         });
         await this.reply(
           session,
-          'ผูกกับคดีไหนครับ? พิมพ์ชื่อคดีเพื่อค้นหา หรือพิมพ์ "ข้าม" ถ้าเป็นค่าใช้จ่ายทั่วไป',
+          'ผูกกับคดีไหนครับ? พิมพ์ชื่อคดีเพื่อค้นหา หรือกด "ข้าม" ถ้าเป็นค่าใช้จ่ายทั่วไป',
+          [{ label: 'ข้าม (ไม่ผูกคดี)', text: 'ข้าม' }],
         );
         return;
       }
@@ -121,23 +135,30 @@ export class LineExpenseFlowService {
         }
         const results = await this.cases.findAll(authUser, { search: text });
         if (!results.length) {
-          await this.reply(session, `ไม่พบคดีที่ตรงกับ "${text}" ลองพิมพ์คำอื่น หรือพิมพ์ "ข้าม" ครับ`);
+          await this.reply(session, `ไม่พบคดีที่ตรงกับ "${text}" ลองพิมพ์คำอื่น หรือกด "ข้าม" ครับ`, SKIP_QUICK_REPLY);
           return;
         }
-        const page = results.slice(0, 13);
+        const page = results.slice(0, 10).map((c) => ({ id: c.id, label: c.title }));
         this.store.update(session.lineUserId, {
           step: ConversationStep.EXPENSE_CASE_PICK,
-          searchResults: page.map((c) => ({ id: c.id, label: c.title })),
+          searchResults: page,
         });
         await this.reply(
           session,
           'เลือกคดีครับ',
-          page.map((c) => ({ label: c.title.slice(0, 20), text: c.title })),
+          pickQuickReply(page, [{ label: 'ค้นหาใหม่', text: 'ค้นหาใหม่' }]),
         );
         return;
       }
       case ConversationStep.EXPENSE_CASE_PICK: {
-        const picked = session.searchResults?.find((r) => r.label === text);
+        if (text === 'ค้นหาใหม่') {
+          this.store.update(session.lineUserId, { step: ConversationStep.EXPENSE_CASE_SEARCH });
+          await this.reply(session, 'พิมพ์ชื่อคดีอีกครั้งครับ', [
+            { label: 'ข้าม (ไม่ผูกคดี)', text: 'ข้าม' },
+          ]);
+          return;
+        }
+        const picked = resolvePick(session.searchResults, text);
         if (!picked) {
           await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ');
           return;
@@ -152,9 +173,48 @@ export class LineExpenseFlowService {
           await this.create(session);
           return;
         }
-        // ponytail: no per-field edit sub-machine — any other reply restarts at the amount step
-        this.store.update(session.lineUserId, { step: ConversationStep.EXPENSE_AMOUNT });
-        await this.reply(session, 'แก้ไขได้เลยครับ — ยอดเงินเท่าไหร่ครับ?');
+        this.store.update(session.lineUserId, { step: ConversationStep.EXPENSE_EDIT_PICK_FIELD });
+        await this.reply(session, 'จะแก้ไขข้อมูลไหนครับ?', buildFieldPickerQuickReply(FIELDS));
+        return;
+      }
+      case ConversationStep.EXPENSE_EDIT_PICK_FIELD: {
+        const field = text.startsWith('แก้:') ? text.slice(4) : null;
+        if (!field || !FIELDS.some((f) => f.key === field)) {
+          await this.reply(session, 'กรุณาเลือกจากปุ่มที่บอทให้มาครับ', buildFieldPickerQuickReply(FIELDS));
+          return;
+        }
+        if (field === 'caseLabel') {
+          this.store.update(session.lineUserId, { step: ConversationStep.EXPENSE_CASE_SEARCH });
+          await this.reply(session, 'พิมพ์ชื่อคดีเพื่อค้นหาครับ', [
+            { label: 'ข้าม (ไม่ผูกคดี)', text: 'ข้าม' },
+          ]);
+          return;
+        }
+        this.store.update(session.lineUserId, {
+          editingField: field,
+          step: ConversationStep.EXPENSE_EDIT_VALUE,
+        });
+        await this.reply(session, `กรอกค่าใหม่สำหรับ "${FIELDS.find((f) => f.key === field)!.label}" ครับ`);
+        return;
+      }
+      case ConversationStep.EXPENSE_EDIT_VALUE: {
+        const field = session.editingField!;
+        let value: string | number = text;
+        if (field === 'amount') {
+          const amount = Number(text.replace(/,/g, ''));
+          if (!Number.isFinite(amount) || amount <= 0) {
+            await this.reply(session, 'ขอเป็นตัวเลขมากกว่า 0 ครับ');
+            return;
+          }
+          value = amount;
+        }
+        const data = { ...session.data, [field]: value };
+        this.store.update(session.lineUserId, {
+          data,
+          step: ConversationStep.EXPENSE_CONFIRM,
+          editingField: undefined,
+        });
+        await this.confirmStep(session, data);
         return;
       }
       default: {
@@ -267,23 +327,24 @@ export class LineExpenseFlowService {
         } as Express.Multer.File)
       : undefined;
 
-    // Draft first, then submit through the normal claim pipeline so the
-    // expense lands in the owner's approval queue (and the existing
-    // claim-submitted owner notification fires).
-    const expense = await this.billing.createStandaloneExpense(
+    // Stays a draft: the lawyer reviews it on /expenses and sends the claim
+    // from there, exactly like an expense typed into the web app.
+    await this.billing.createStandaloneExpense(
       authUser,
       { amount: data.amount, description: data.description, caseId: data.caseId } as never,
       receipt,
     );
-    await this.billing.updateExpenseStatus(authUser, expense.id, {
-      status: ExpenseStatus.PENDING,
-    } as never);
 
     this.store.clear(session.lineUserId);
     await this.reply(
       session,
-      `บันทึกค่าใช้จ่ายสำเร็จแล้วครับ ✅ ฿${data.amount.toLocaleString('th-TH')} — ส่งเบิกให้เจ้าของสำนักงานแล้ว`,
+      `บันทึกค่าใช้จ่ายเป็นฉบับร่างแล้วครับ ✅ ฿${data.amount.toLocaleString('th-TH')}\nตรวจแล้วกดส่งเบิกได้ที่หน้าค่าใช้จ่ายบนเว็บครับ`,
     );
+    await this.notify.notifyCreated({
+      target: session.target,
+      summaryText: `💸 ค่าใช้จ่ายใหม่ (ฉบับร่าง): ฿${data.amount.toLocaleString('th-TH')} — ${data.description}`,
+      entityPath: '/expenses',
+    });
   }
 
   private async reply(
@@ -291,10 +352,11 @@ export class LineExpenseFlowService {
     text: string,
     quickReply?: QuickReplyItem[],
   ): Promise<void> {
+    const items = withEscape(quickReply);
     if (session.target.replyToken) {
-      await this.line.replyWithQuickReply(session.target.replyToken, text, quickReply);
+      await this.line.replyWithQuickReply(session.target.replyToken, text, items);
     } else {
-      await this.line.pushTo(session.lineUserId, text, quickReply);
+      await this.line.pushTo(session.lineUserId, text, items);
     }
   }
 }

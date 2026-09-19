@@ -13,6 +13,7 @@ describe('LineAdvanceFlowService', () => {
     }),
   } as any;
   const line = { replyWithQuickReply: jest.fn(), pushTo: jest.fn() } as any;
+  const notify = { notifyCreated: jest.fn() } as any;
   const authContext = { resolve: jest.fn() } as any;
 
   let sessionState: ConversationSession;
@@ -40,14 +41,14 @@ describe('LineAdvanceFlowService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sessionState = baseSession();
-    svc = new LineAdvanceFlowService(cashAdvance, users, line, store, authContext);
+    svc = new LineAdvanceFlowService(cashAdvance, users, line, store, authContext, notify);
   });
 
   it('refuses non-owners at start and clears the session', async () => {
     authContext.resolve.mockResolvedValue({ id: 'u2', firmId: 'f1', firmRole: 'LAWYER' });
     await svc.start(sessionState);
     expect(store.clear).toHaveBeenCalledWith('L1');
-    expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('เฉพาะเจ้าของ'), undefined);
+    expect(line.pushTo).toHaveBeenCalledWith('L1', expect.stringContaining('เฉพาะเจ้าของ'), expect.any(Array));
     expect(users.findAllByFirm).not.toHaveBeenCalled();
   });
 
@@ -68,5 +69,27 @@ describe('LineAdvanceFlowService', () => {
       { userId: 'u2', amount: 5000, note: undefined },
     );
     expect(store.clear).toHaveBeenCalledWith('L1');
+    expect(notify.notifyCreated).toHaveBeenCalledWith(
+      expect.objectContaining({ assigneeUserId: 'u2', dmHeadline: expect.stringContaining('เงินสำรอง') }),
+    );
+  });
+
+  it('picks by postback id, so duplicate names cannot pick the wrong person', async () => {
+    authContext.resolve.mockResolvedValue({ id: 'owner-1', firmId: 'f1', firmRole: 'OWNER' });
+    await svc.start(sessionState);
+    await svc.handle(sessionState, 'pick:u2');
+    expect(sessionState.step).toBe(ConversationStep.ADVANCE_AMOUNT);
+    expect(sessionState.data).toMatchObject({ userId: 'u2' });
+  });
+
+  it('edits a single field from the confirm step', async () => {
+    sessionState.step = ConversationStep.ADVANCE_CONFIRM;
+    sessionState.data = { userId: 'u2', userLabel: 'สมชาย ทนาย', amount: 1000 };
+    await svc.handle(sessionState, 'แก้ไข');
+    expect(sessionState.step).toBe(ConversationStep.ADVANCE_EDIT_PICK_FIELD);
+    await svc.handle(sessionState, 'แก้:amount');
+    await svc.handle(sessionState, '2000');
+    expect(sessionState.step).toBe(ConversationStep.ADVANCE_CONFIRM);
+    expect(sessionState.data).toMatchObject({ amount: 2000, userId: 'u2' });
   });
 });

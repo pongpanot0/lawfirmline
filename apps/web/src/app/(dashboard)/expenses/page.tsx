@@ -92,6 +92,30 @@ export default function ExpensesPage() {
     [expenses],
   );
 
+  const [exporting, setExporting] = useState(false);
+
+  const exportPettyCash = async () => {
+    const authToken = token ?? getStoredToken();
+    setExporting(true);
+    try {
+      const result = await downloadPettyCashCsv({
+        firmName: finance?.firmName ?? '',
+        requesterName: user ? `${user.firstName} ${user.lastName}` : '',
+        expenses,
+        fetchReceipt: authToken
+          ? (expenseId) => api.downloadExpenseReceipt(authToken, expenseId)
+          : undefined,
+      });
+      if (result.failed > 0) {
+        setError(`ดาวน์โหลดรูปใบเสร็จไม่สำเร็จ ${result.failed} รายการ (ไฟล์อื่นถูกรวมไว้แล้ว)`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : d.expenses.loadFailed);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const downloadReceipt = async (expenseId: string, filename: string) => {
     const authToken = token ?? getStoredToken();
     if (!authToken) return;
@@ -168,16 +192,10 @@ export default function ExpensesPage() {
             <Button
               size="sm"
               variant="outline"
-              disabled={expenses.length === 0}
-              onClick={() =>
-                downloadPettyCashCsv({
-                  firmName: finance.firmName,
-                  requesterName: user ? `${user.firstName} ${user.lastName}` : '',
-                  expenses,
-                })
-              }
+              disabled={expenses.length === 0 || exporting}
+              onClick={exportPettyCash}
             >
-              Export CSV
+              {exporting ? 'กำลังรวมไฟล์…' : 'Export CSV'}
             </Button>
             <Button size="sm" onClick={() => router.push('/expenses/new')}>
               <Plus className="h-4 w-4" />

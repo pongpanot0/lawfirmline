@@ -4,7 +4,13 @@ import { createHmac, timingSafeEqual } from 'crypto';
 
 export interface QuickReplyItem {
   label: string;
+  /** What the chat shows — and, for plain buttons, what the bot receives. */
   text: string;
+  /**
+   * Postback payload. When present the button sends this instead of the text,
+   * so a pick never depends on a label that may be duplicated or truncated.
+   */
+  data?: string;
 }
 
 export interface CarouselColumn {
@@ -23,16 +29,33 @@ export function linePublicBaseUrl(apiPublicUrl?: string): string {
   return LINE_PUBLIC_FALLBACK;
 }
 
+function withQuickReply<T extends object>(message: T, quickReply?: QuickReplyItem[]) {
+  return { ...message, ...buildQuickReply(quickReply) };
+}
+
 function buildMessage(text: string, quickReply?: QuickReplyItem[]) {
   return {
     type: 'text',
     text,
+    ...buildQuickReply(quickReply),
+  };
+}
+
+function buildQuickReply(quickReply?: QuickReplyItem[]) {
+  return {
     ...(quickReply?.length
       ? {
           quickReply: {
             items: quickReply.slice(0, 13).map((item) => ({
               type: 'action',
-              action: { type: 'message', label: item.label.slice(0, 20), text: item.text },
+              action: item.data
+                ? {
+                    type: 'postback',
+                    label: item.label.slice(0, 20),
+                    data: item.data,
+                    displayText: item.text,
+                  }
+                : { type: 'message', label: item.label.slice(0, 20), text: item.text },
             })),
           },
         }
@@ -40,9 +63,9 @@ function buildMessage(text: string, quickReply?: QuickReplyItem[]) {
   };
 }
 
-export function buildHomeImagemap(baseUrl: string) {
+export function buildHomeImagemap(baseUrl: string, quickReply?: QuickReplyItem[]) {
   const base = baseUrl.replace(/\/$/, '');
-  return {
+  return withQuickReply({
     type: 'imagemap',
     baseUrl: `${base}/line-assets/home-v2`,
     altText: 'เมนู',
@@ -51,8 +74,11 @@ export function buildHomeImagemap(baseUrl: string) {
       { type: 'message', text: 'สร้าง Case', area: { x: 0, y: 640, width: 347, height: 400 } },
       { type: 'message', text: 'เพิ่ม Task', area: { x: 347, y: 640, width: 346, height: 400 } },
       { type: 'message', text: 'สร้าง Todo', area: { x: 693, y: 640, width: 347, height: 400 } },
+      // The artwork above the cards is a single "show me the menu" target
+      // rather than dead space.
+      { type: 'message', text: 'เมนู', area: { x: 0, y: 0, width: 1040, height: 640 } },
     ],
-  };
+  }, quickReply);
 }
 
 export function buildCarouselMessage(altText: string, columns: CarouselColumn[]) {
@@ -291,15 +317,15 @@ export class LineMessagingService {
     );
   }
 
-  async replyHomeMenu(replyToken: string): Promise<boolean> {
+  async replyHomeMenu(replyToken: string, quickReply?: QuickReplyItem[]): Promise<boolean> {
     return this.postReply(
       replyToken,
-      [buildHomeImagemap(this.homeImagemapBaseUrl())],
+      [buildHomeImagemap(this.homeImagemapBaseUrl(), quickReply)],
       'LINE home imagemap reply',
     );
   }
 
-  async pushHomeMenu(targetId: string): Promise<boolean> {
+  async pushHomeMenu(targetId: string, quickReply?: QuickReplyItem[]): Promise<boolean> {
     if (!this.isConfigured()) return false;
 
     const token = await this.getAccessToken();
@@ -311,7 +337,7 @@ export class LineMessagingService {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: targetId,
-          messages: [buildHomeImagemap(this.homeImagemapBaseUrl())],
+          messages: [buildHomeImagemap(this.homeImagemapBaseUrl(), quickReply)],
         }),
       });
 
