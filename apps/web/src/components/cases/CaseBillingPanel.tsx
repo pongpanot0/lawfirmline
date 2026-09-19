@@ -12,7 +12,7 @@ import {
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { api, InvoiceItem, TimeEntryItem, ExpenseItem, CustomerShareItem } from '@/lib/api';
+import { api, InvoiceItem, TimeEntryItem, ExpenseItem, CustomerShareItem, InvoiceDraft } from '@/lib/api';
 import { allocateShares } from '@/lib/invoice-split';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -50,9 +50,13 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const [invoiceError, setInvoiceError] = useState('');
   const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
   const [invoiceDueAt, setInvoiceDueAt] = useState('');
-  const [invoiceItems, setInvoiceItems] = useState([
-    { description: '', quantity: '1', unitPrice: '' },
-  ]);
+  // งานในคดีที่ยังไม่ถูกเก็บเงิน — ยอดของใบแจ้งหนี้ตั้งต้นจากตรงนี้
+  const [draft, setDraft] = useState<InvoiceDraft | null>(null);
+  const [pickedTimeIds, setPickedTimeIds] = useState<string[]>([]);
+  const [pickedExpenseIds, setPickedExpenseIds] = useState<string[]>([]);
+  const [invoiceItems, setInvoiceItems] = useState<
+    { description: string; quantity: string; unitPrice: string }[]
+  >([]);
   // สัดส่วนที่แก้เฉพาะใบนี้ ไม่กระทบสัดส่วนที่บันทึกไว้กับคดี
   const [shareOverrides, setShareOverrides] = useState<Record<string, string>>({});
 
@@ -64,9 +68,14 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       api.getCaseExpenses(token, id),
       api.getExpenseSummary(token, id).catch(() => ({ totalSpent: 0, revenue: 0, profit: 0 })),
       api.getCase(token, id).catch(() => null),
+      api.getInvoiceDraft(token, id).catch(() => null),
     ])
-      .then(([entries, invs, exps, summary, detail]) => {
+      .then(([entries, invs, exps, summary, detail, invoiceDraft]) => {
         setCustomers(detail?.customers ?? []);
+        setDraft(invoiceDraft);
+        // ติ๊กงานที่ยังไม่เก็บเงินไว้ให้ทั้งหมด ผู้ใช้ค่อยเอาออกทีหลัง
+        setPickedTimeIds((invoiceDraft?.timeEntries ?? []).map((e) => e.id));
+        setPickedExpenseIds((invoiceDraft?.expenses ?? []).map((e) => e.id));
         setTimeEntries(entries);
         setInvoices(invs);
         setExpenses(exps);
@@ -102,10 +111,16 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
     }
   };
 
-  const invoiceTotal = invoiceItems.reduce(
+  const pickedTime = (draft?.timeEntries ?? []).filter((e) => pickedTimeIds.includes(e.id));
+  const pickedExpenses = (draft?.expenses ?? []).filter((e) => pickedExpenseIds.includes(e.id));
+  const manualTotal = invoiceItems.reduce(
     (sum, item) => sum + (parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0),
     0,
   );
+  const invoiceTotal =
+    pickedTime.reduce((sum, e) => sum + e.amount, 0) +
+    pickedExpenses.reduce((sum, e) => sum + e.amount, 0) +
+    manualTotal;
 
   // สัดส่วนที่ยังไม่ตกลงกัน ถือว่าหารเท่ากับรายอื่นที่ยังไม่ตกลง — ตรงกับฝั่ง API
   const shareOf = (customer: CustomerShareItem) => {
@@ -126,14 +141,16 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         quantity: parseFloat(item.quantity) || 1,
         unitPrice: parseFloat(item.unitPrice),
       }));
-    if (!lineItems.length) {
-      setInvoiceError('ใส่รายการอย่างน้อยหนึ่งบรรทัด พร้อมจำนวนเงิน');
+    if (!lineItems.length && !pickedTimeIds.length && !pickedExpenseIds.length) {
+      setInvoiceError('เลือกงานในคดีที่จะเก็บเงิน หรือเพิ่มรายการเอง');
       return;
     }
     setInvoiceSubmitting(true);
     try {
       await api.createInvoice(token, id, {
-        lineItems,
+        lineItems: lineItems.length ? lineItems : undefined,
+        timeEntryIds: pickedTimeIds.length ? pickedTimeIds : undefined,
+        expenseIds: pickedExpenseIds.length ? pickedExpenseIds : undefined,
         dueAt: invoiceDueAt || undefined,
         // ส่งสัดส่วนไปเฉพาะตอนแบ่งจ่ายจริง ไม่งั้นปล่อยให้ API ใช้ของคดี
         splits:
@@ -141,7 +158,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
             ? customers.map((c) => ({ customerId: c.customerId, sharePercent: shareOf(c) }))
             : undefined,
       });
-      setInvoiceItems([{ description: '', quantity: '1', unitPrice: '' }]);
+      setInvoiceItems([]);
       setInvoiceDueAt('');
       setShareOverrides({});
       setShowInvoiceForm(false);
@@ -326,6 +343,57 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
         {showInvoiceForm && (
           <form onSubmit={handleCreateInvoice} className="mb-5 space-y-3 rounded-lg border border-slate-200 p-4">
+            {(draft?.timeEntries.length || draft?.expenses.length) ? (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">งานในคดีที่ยังไม่ได้เก็บเงิน</p>
+                {draft.timeEntries.map((entry) => (
+                  <label key={entry.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={pickedTimeIds.includes(entry.id)}
+                      onChange={(e) =>
+                        setPickedTimeIds((ids) =>
+                          e.target.checked ? [...ids, entry.id] : ids.filter((i) => i !== entry.id),
+                        )
+                      }
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {entry.description || 'ค่าทนายความ'}
+                      <span className="text-slate-400"> · {entry.hours} ชม. × {formatCurrency(entry.rate)}</span>
+                    </span>
+                    <span className="font-medium">{formatCurrency(entry.amount)}</span>
+                  </label>
+                ))}
+                {draft.expenses.map((expense) => (
+                  <label key={expense.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={pickedExpenseIds.includes(expense.id)}
+                      onChange={(e) =>
+                        setPickedExpenseIds((ids) =>
+                          e.target.checked ? [...ids, expense.id] : ids.filter((i) => i !== expense.id),
+                        )
+                      }
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {expense.description}
+                      <span className="text-slate-400"> · ค่าใช้จ่าย</span>
+                    </span>
+                    <span className="font-medium">{formatCurrency(expense.amount)}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                คดีนี้ยังไม่มีบันทึกเวลาหรือค่าใช้จ่ายที่รอเก็บเงิน
+                {draft?.agreedFee
+                  ? ` — ค่าจ้างที่ตกลงไว้คือ ${formatCurrency(draft.agreedFee)}`
+                  : ''}
+              </p>
+            )}
+
             <div className="space-y-2">
               {invoiceItems.map((item, index) => (
                 <div key={index} className="flex flex-wrap items-center gap-2">
@@ -378,11 +446,22 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
               <button
                 type="button"
                 onClick={() =>
-                  setInvoiceItems((rows) => [...rows, { description: '', quantity: '1', unitPrice: '' }])
+                  setInvoiceItems((rows) => [
+                    ...rows,
+                    {
+                      description: '',
+                      quantity: '1',
+                      // ไม่มีงานให้เก็บเงินและยังไม่เคยเพิ่มบรรทัดเอง ตั้งต้นด้วยค่าจ้างที่ตกลงไว้
+                      unitPrice:
+                        !rows.length && !pickedTime.length && !pickedExpenses.length && draft?.agreedFee
+                          ? String(draft.agreedFee)
+                          : '',
+                    },
+                  ])
                 }
                 className="text-sm underline"
               >
-                + เพิ่มรายการ
+                + เพิ่มรายการที่ไม่ได้อยู่ในคดี
               </button>
             </div>
 

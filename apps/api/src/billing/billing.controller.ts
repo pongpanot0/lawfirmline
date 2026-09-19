@@ -204,6 +204,12 @@ export class BillingController {
     return this.billingService.getInvoices(caseId);
   }
 
+  @Get('cases/:caseId/billing/invoices/draft')
+  @UseGuards(CaseAccessGuard)
+  getInvoiceDraft(@Param('caseId') caseId: string) {
+    return this.billingService.getInvoiceDraft(caseId);
+  }
+
   @Post('cases/:caseId/billing/invoices')
   @UseGuards(CaseAccessGuard)
   createInvoice(

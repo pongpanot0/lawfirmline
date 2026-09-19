@@ -24,6 +24,9 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
   const mockPrisma = {
     caseCustomer: { findMany: jest.fn() },
     invoice: { create: jest.fn() },
+    timeEntry: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
+    expense: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
+    case: { findUnique: jest.fn() },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(async (arg: any) =>
       typeof arg === 'function' ? arg(mockPrisma) : Promise.all(arg),
@@ -37,7 +40,12 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
     mockPrisma.$queryRaw.mockImplementation(async (_s: unknown, howMany: number) =>
       Array.from({ length: howMany }, () => ({ n: BigInt(nextNumber++) })),
     );
-    mockPrisma.invoice.create.mockImplementation(async ({ data }: any) => data);
+    mockPrisma.invoice.create.mockImplementation(async ({ data }: any) => ({
+      id: `invoice-${data.invoiceNumber}`,
+      ...data,
+    }));
+    mockPrisma.timeEntry.findMany.mockResolvedValue([]);
+    mockPrisma.expense.findMany.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -154,5 +162,90 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
 
     expect(invoices).toHaveLength(1);
     expect((invoices[0] as any).billToCustomerId).toBeNull();
+  });
+
+  describe('ยอดที่เรียกเก็บมาจากงานในคดี', () => {
+    beforeEach(() => {
+      mockPrisma.caseCustomer.findMany.mockResolvedValue([
+        { customerId: 'viriyah', sharePercent: 100 },
+      ]);
+    });
+
+    it('prices the work from the database, not from what the client sent', async () => {
+      mockPrisma.timeEntry.findMany.mockResolvedValue([
+        { id: 't1', description: 'ว่าความนัดสืบพยาน', hours: 6, rate: 2500 },
+      ]);
+      mockPrisma.expense.findMany.mockResolvedValue([
+        { id: 'e1', description: 'ค่าเดินทางไปศาล', amount: 1200 },
+      ]);
+
+      const invoices = await billing.createInvoice(user, 'case-1', {
+        timeEntryIds: ['t1'],
+        expenseIds: ['e1'],
+      } as any);
+
+      expect((invoices[0] as any).totalAmount).toBe(16200);
+      expect((invoices[0] as any).lineItems.create).toEqual([
+        { description: 'ว่าความนัดสืบพยาน', quantity: 6, unitPrice: 2500, amount: 15000 },
+        { description: 'ค่าเดินทางไปศาล', quantity: 1, unitPrice: 1200, amount: 1200 },
+      ]);
+    });
+
+    it('marks the billed work so it cannot be charged a second time', async () => {
+      mockPrisma.timeEntry.findMany.mockResolvedValue([
+        { id: 't1', description: 'ว่าความ', hours: 1, rate: 1000 },
+      ]);
+
+      await billing.createInvoice(user, 'case-1', { timeEntryIds: ['t1'] } as any);
+
+      expect(mockPrisma.timeEntry.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['t1'] } },
+        data: { invoiceId: 'invoice-INV-00001' },
+      });
+    });
+
+    it('links the split work to the primary payer invoice only, never twice', async () => {
+      mockPrisma.caseCustomer.findMany.mockResolvedValue([
+        { customerId: 'viriyah', sharePercent: 60 },
+        { customerId: 'bangkok', sharePercent: 40 },
+      ]);
+      mockPrisma.timeEntry.findMany.mockResolvedValue([
+        { id: 't1', description: 'ว่าความ', hours: 1, rate: 1000 },
+      ]);
+
+      await billing.createInvoice(user, 'case-1', { timeEntryIds: ['t1'] } as any);
+
+      expect(mockPrisma.timeEntry.updateMany).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.timeEntry.updateMany.mock.calls[0][0].data.invoiceId).toBe('invoice-INV-00001');
+    });
+
+    it('refuses work that another invoice already charged for', async () => {
+      // ถูกออกบิลไปแล้ว จึงหลุดจาก where invoiceId: null
+      mockPrisma.timeEntry.findMany.mockResolvedValue([]);
+
+      await expect(
+        billing.createInvoice(user, 'case-1', { timeEntryIds: ['t1'] } as any),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses an invoice with nothing on it', async () => {
+      await expect(billing.createInvoice(user, 'case-1', {} as any)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('still accepts a hand-written line alongside the work from the case', async () => {
+      mockPrisma.timeEntry.findMany.mockResolvedValue([
+        { id: 't1', description: 'ว่าความ', hours: 1, rate: 1000 },
+      ]);
+
+      const invoices = await billing.createInvoice(user, 'case-1', {
+        timeEntryIds: ['t1'],
+        lineItems: [{ description: 'ค่าธรรมเนียมศาล', quantity: 1, unitPrice: 500 }],
+      } as any);
+
+      expect((invoices[0] as any).totalAmount).toBe(1500);
+    });
   });
 });

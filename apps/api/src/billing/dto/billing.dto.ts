@@ -212,8 +212,22 @@ export class CreateInvoiceDto {
   @IsDateString()
   dueAt?: string;
 
+  /** รายการที่พิมพ์เอง — เว้นได้ถ้าเก็บเงินจากงานในคดีล้วน ๆ */
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InvoiceLineItemDto)
-  lineItems!: InvoiceLineItemDto[];
+  lineItems?: InvoiceLineItemDto[];
+
+  /** บันทึกเวลาในคดีที่จะเก็บเงินรอบนี้ — ราคาอ่านจาก DB ไม่เชื่อค่าที่ส่งมา */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  timeEntryIds?: string[];
+
+  /** ค่าใช้จ่ายที่อนุมัติแล้วและจะผลักไปเก็บกับลูกค้า */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  expenseIds?: string[];
 }

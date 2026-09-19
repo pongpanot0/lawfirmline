@@ -1065,11 +1065,16 @@ model TimeEntry {
   description String?
   date        DateTime @default(now())
   billable    Boolean  @default(true)
+  /// ใบแจ้งหนี้ที่เก็บเงินรายการนี้ไปแล้ว — กันออกบิลซ้ำ
+  invoiceId   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id])
+  case    Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id])
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
 }
 
 model Expense {
@@ -1095,6 +1100,8 @@ model Expense {
   paidFromAdvanceId String?
   /// Optional receipt photo uploaded with the claim.
   receiptFilename    String?
+  /// ใบแจ้งหนี้ที่เก็บเงินรายการนี้ไปแล้ว — กันออกบิลซ้ำ
+  invoiceId          String?
   receiptStoragePath String?
   receiptMimeType    String?
   createdAt      DateTime      @default(now())
@@ -1107,9 +1114,12 @@ model Expense {
   claim           ExpenseClaim?  @relation(fields: [claimId], references: [id], onDelete: SetNull)
   paidFromAdvance CashAdvance?   @relation(fields: [paidFromAdvanceId], references: [id], onDelete: SetNull)
 
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
   @@index([sourceEventId])
   @@index([claimId])
   @@index([paidFromAdvanceId])
+  @@index([invoiceId])
 }
 
 /// One reimbursement round: lawyer submits many draft lines; owner approves the batch.
@@ -1336,6 +1346,8 @@ model Invoice {
 
   case          Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
   createdBy     User              @relation("InvoiceCreator", fields: [createdById], references: [id])
+  timeEntries   TimeEntry[]
+  expenses      Expense[]
   billToCustomer Client?          @relation("InvoiceBillTo", fields: [billToCustomerId], references: [id], onDelete: SetNull)
   lineItems     InvoiceLineItem[]
 

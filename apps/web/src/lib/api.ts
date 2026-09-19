@@ -1427,6 +1427,9 @@ export const api = {
   getInvoices: (token: string, caseId: string) =>
     request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, { token }),
 
+  getInvoiceDraft: (token: string, caseId: string) =>
+    request<InvoiceDraft>(`/cases/${caseId}/billing/invoices/draft`, { token }),
+
   // คืนเป็น array เสมอ: คดีที่มีผู้ว่าจ้างหลายรายได้ใบแจ้งหนี้รายละใบ
   createInvoice: (token: string, caseId: string, data: CreateInvoiceInput) =>
     request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, {
@@ -2143,8 +2146,25 @@ export interface InvoiceItem {
   billToCustomer?: { id: string; name: string } | null;
 }
 
+export interface InvoiceDraft {
+  timeEntries: {
+    id: string;
+    date: string;
+    description?: string | null;
+    hours: number;
+    rate: number;
+    amount: number;
+    userName: string;
+  }[];
+  expenses: { id: string; date: string; description: string; category?: string | null; amount: number }[];
+  /** ค่าจ้างที่ตกลงไว้กับคดี ใช้ตั้งต้นเมื่อยังไม่มีบันทึกเวลา */
+  agreedFee: number | null;
+}
+
 export interface CreateInvoiceInput {
-  lineItems: { description: string; quantity: number; unitPrice: number }[];
+  lineItems?: { description: string; quantity: number; unitPrice: number }[];
+  timeEntryIds?: string[];
+  expenseIds?: string[];
   dueAt?: string;
   /** แบ่งบิลหลายราย — ไม่ส่งมาจะใช้ลูกค้าของคดีตามสัดส่วนที่บันทึกไว้ */
   splits?: { customerId: string; sharePercent: number }[];
