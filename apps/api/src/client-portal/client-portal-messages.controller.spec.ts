@@ -30,7 +30,7 @@ describe('ClientPortalMessagesController', () => {
   it('delegates create to service.createFromPortal', async () => {
     mockService.createFromPortal.mockResolvedValue({ id: 'msg-1' });
     const result = await controller.create(portalUser, 'case-1', { body: 'hi' });
-    expect(mockService.createFromPortal).toHaveBeenCalledWith(portalUser, 'case-1', 'hi');
+    expect(mockService.createFromPortal).toHaveBeenCalledWith(portalUser, 'case-1', 'hi', undefined);
     expect(result).toEqual({ id: 'msg-1' });
   });
 });

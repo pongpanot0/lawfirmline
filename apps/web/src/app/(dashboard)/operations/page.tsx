@@ -426,12 +426,17 @@ export default function OperationsPage() {
                     <TableBody>
                       {pairing.length === 0 ? (
                         <TableEmptyRow colSpan={2} title={d.operations.emptyPairingTitle} description={d.operations.emptyPairingDesc} />
-                      ) : pairing.map((p) => (
-                        <TableRow key={`${p.userAId}:${p.userBId}`}>
+                      ) : pairing.map((team) => (
+                        <TableRow key={team.key}>
                           <TableCell className="font-medium">
-                            {p.userAName} + {p.userBName}
+                            {team.members.map((m) => m.name).join(' + ')}
+                            {team.members.length > 2 && (
+                              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                {team.members.length} คน
+                              </span>
+                            )}
                           </TableCell>
-                          <TableCell>{p.count}</TableCell>
+                          <TableCell>{team.count}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

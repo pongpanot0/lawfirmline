@@ -2,6 +2,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ArrayMinSize,
   IsNotEmpty,
   IsBoolean,
   IsDateString,
@@ -175,17 +176,64 @@ export class InvoiceLineItemDto {
   unitPrice!: number;
 }
 
+/** ผู้จ่ายหนึ่งรายและสัดส่วนที่รับผิดชอบ — หนึ่งรายคือหนึ่งใบแจ้งหนี้ */
+export class InvoiceSplitDto {
+  @IsUUID()
+  customerId!: string;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  sharePercent!: number;
+}
+
+/** true = ผลักไปเก็บกับลูกค้า, false = สำนักงานออกเอง */
+export class SetExpenseBillableDto {
+  @IsBoolean()
+  billable!: boolean;
+}
+
 export class CreateInvoiceDto {
   @IsOptional()
   @IsString()
   invoiceNumber?: string;
 
+  /** ลูกค้าที่วางบิล — ค่าว่างจะใช้ลูกค้าหลักของคดี */
+  @IsOptional()
+  @IsUUID()
+  billToCustomerId?: string;
+
+  /**
+   * แบ่งบิลให้ผู้จ่ายหลายราย — ไม่ส่งมาจะใช้ลูกค้าของคดีตามสัดส่วนที่บันทึกไว้
+   * ส่ง billToCustomerId มาด้วยกันไม่ได้ เพราะขัดกันเอง
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceSplitDto)
+  splits?: InvoiceSplitDto[];
+
   @IsOptional()
   @IsDateString()
   dueAt?: string;
 
+  /** รายการที่พิมพ์เอง — เว้นได้ถ้าเก็บเงินจากงานในคดีล้วน ๆ */
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InvoiceLineItemDto)
-  lineItems!: InvoiceLineItemDto[];
+  lineItems?: InvoiceLineItemDto[];
+
+  /** บันทึกเวลาในคดีที่จะเก็บเงินรอบนี้ — ราคาอ่านจาก DB ไม่เชื่อค่าที่ส่งมา */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  timeEntryIds?: string[];
+
+  /** ค่าใช้จ่ายที่อนุมัติแล้วและจะผลักไปเก็บกับลูกค้า */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  expenseIds?: string[];
 }

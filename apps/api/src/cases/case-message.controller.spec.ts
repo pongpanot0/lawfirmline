@@ -33,7 +33,7 @@ describe('CaseMessageController', () => {
   it('delegates create to service.createFromStaff', async () => {
     mockService.createFromStaff.mockResolvedValue({ id: 'msg-1' });
     const result = await controller.create(user, 'case-1', { body: 'hello' });
-    expect(mockService.createFromStaff).toHaveBeenCalledWith(user, 'case-1', 'hello');
+    expect(mockService.createFromStaff).toHaveBeenCalledWith(user, 'case-1', 'hello', undefined);
     expect(result).toEqual({ id: 'msg-1' });
   });
 });

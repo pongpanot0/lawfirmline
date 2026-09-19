@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { IntakeStatus, IntakeDecision, CreateIntakeDto } from './intake.dto';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';

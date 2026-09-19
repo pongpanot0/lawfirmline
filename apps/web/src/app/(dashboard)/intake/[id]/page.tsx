@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, UserItem, ApiError, ChecklistClassificationSuggestion } from '@/lib/api';
+import { formatCustomers, customersSameAsClient } from '@/lib/customers';
+import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
@@ -1361,11 +1363,20 @@ export default function IntakeDetailPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">ลูกค้า</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">ลูกความ / ลูกค้า</CardTitle></CardHeader>
           <CardContent className="space-y-0">
-            <InfoRow label="ลูกค้า" value={intake.client?.name ?? intake.clientName} />
+            <InfoRow label="ลูกความ" value={intake.client?.name ?? intake.clientName} />
+            {/* ลูกค้า = ผู้ว่าจ้างที่เราวางบิล ซ่อนไว้เมื่อเป็นคนเดียวกับลูกความ */}
+            {!customersSameAsClient(intake.customers, intake.clientId) && (
+              <InfoRow label="ลูกค้า (ผู้ว่าจ้าง)" value={formatCustomers(intake.customers)} />
+            )}
           </CardContent>
         </Card>
+
+        {/* ออกบิลได้ตั้งแต่ยังไม่เปิดคดี — ค่าที่ปรึกษาหรือค่าดำเนินการก่อนฟ้อง */}
+        <div className="sm:col-span-2">
+          <InvoicePanel target={{ intakeId: intake.id }} customers={intake.customers ?? []} />
+        </div>
 
         <Card className="sm:col-span-2">
           <CardHeader><CardTitle className="text-base">ผู้รับผิดชอบ</CardTitle></CardHeader>

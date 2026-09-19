@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientPortalGuard } from './client-portal.guard';
 import { CurrentPortalUser } from './current-portal-user.decorator';
 import { PortalIdentity } from './client-portal-jwt.strategy';
@@ -18,11 +28,14 @@ export class ClientPortalMessagesController {
   }
 
   @Post()
+  // ลูกความส่งเอกสารเพิ่มเข้ามาในสายข้อความเดียวกันได้
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
   create(
     @CurrentPortalUser() portalUser: PortalIdentity,
     @Param('caseId') caseId: string,
     @Body() dto: CreateCaseMessageDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.messages.createFromPortal(portalUser, caseId, dto.body);
+    return this.messages.createFromPortal(portalUser, caseId, dto.body ?? '', file);
   }
 }

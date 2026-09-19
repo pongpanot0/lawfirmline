@@ -21,6 +21,7 @@ import {
   IntakeQueryDto,
   IntakeDecision,
   PreLitigationStatus,
+  CustomerShareDto,
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 
@@ -42,6 +43,17 @@ export class IntakeService {
     private assignmentNotifier: AssignmentNotifierService,
   ) {}
 
+  /** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่าย; ถ้าไม่มีใครถูกตั้งเป็นหลัก ให้รายแรกเป็นหลัก */
+  private customerRows(customers: CustomerShareDto[]) {
+    const hasPrimary = customers.some((c) => c.isPrimary);
+    return customers.map((c, index) => ({
+      customerId: c.customerId,
+      sharePercent: c.sharePercent ?? null,
+      isPrimary: c.isPrimary ?? (!hasPrimary && index === 0),
+      note: c.note ?? null,
+    }));
+  }
+
   private intakeInclude = {
     receivedBy: {
       select: { id: true, firstName: true, lastName: true, email: true },
@@ -50,6 +62,17 @@ export class IntakeService {
       select: { id: true, firstName: true, lastName: true, email: true },
     },
     client: { select: { id: true, name: true } },
+    customers: {
+      orderBy: [{ isPrimary: 'desc' as const }, { createdAt: 'asc' as const }],
+      select: {
+        id: true,
+        customerId: true,
+        sharePercent: true,
+        isPrimary: true,
+        note: true,
+        customer: { select: { id: true, name: true } },
+      },
+    },
     case: { select: { id: true, ownRef: true, title: true, status: true } },
     relatedCase: { select: { id: true, ownRef: true, title: true, status: true } },
     attachments: {
@@ -138,6 +161,9 @@ export class IntakeService {
         clientName: dto.clientName,
         matterType: dto.matterType,
         opposingParty: dto.opposingParty,
+        insurerName: dto.insurerName,
+        policyNumber: dto.policyNumber,
+        claimNumber: dto.claimNumber,
         incidentDate: dto.incidentDate ? new Date(dto.incidentDate) : undefined,
         description: dto.description,
         estimatedDamage: dto.estimatedDamage,
@@ -151,6 +177,9 @@ export class IntakeService {
         preLitigationStatus: dto.preLitigationStatus as any,
         preLitigationNotes: dto.preLitigationNotes,
         settlementOfferAmount: dto.settlementOfferAmount,
+        customers: dto.customers?.length
+          ? { create: this.customerRows(dto.customers) }
+          : undefined,
       },
       include: this.intakeInclude,
     });
@@ -236,6 +265,9 @@ export class IntakeService {
         contactName: dto.contactName,
         matterType: dto.matterType,
         opposingParty: dto.opposingParty,
+        insurerName: dto.insurerName,
+        policyNumber: dto.policyNumber,
+        claimNumber: dto.claimNumber,
         incidentDate: dto.incidentDate ? new Date(dto.incidentDate) : undefined,
         description: dto.description,
         estimatedDamage: dto.estimatedDamage,
@@ -256,6 +288,12 @@ export class IntakeService {
         preLitigationStatus: dto.preLitigationStatus as any,
         preLitigationNotes: dto.preLitigationNotes,
         settlementOfferAmount: dto.settlementOfferAmount,
+        customers: dto.customers
+          ? {
+              deleteMany: {},
+              create: this.customerRows(dto.customers),
+            }
+          : undefined,
       },
       include: this.intakeInclude,
     });
@@ -508,6 +546,19 @@ export class IntakeService {
         description: this.buildCaseDescription(intake),
         clientId: intake.clientId ?? undefined,
         clientName: intake.clientName ?? undefined,
+        // ลูกค้า (ผู้ว่าจ้าง/ผู้จ่าย) ตามมาจาก intake; ถ้าไม่ได้ระบุไว้ ให้ลูกความเป็นลูกค้าเอง
+        customers: intake.customers?.length
+          ? {
+              create: intake.customers.map((c) => ({
+                customerId: c.customerId,
+                sharePercent: c.sharePercent,
+                isPrimary: c.isPrimary,
+                note: c.note,
+              })),
+            }
+          : intake.clientId
+            ? { create: [{ customerId: intake.clientId, sharePercent: 100, isPrimary: true }] }
+            : undefined,
         referralSource: intake.referralName ?? undefined,
         status: 'OPEN' as any,
         leadLawyerId: dto.leadLawyerId ?? user.id,
@@ -528,6 +579,20 @@ export class IntakeService {
     });
 
     await this.carryFilesOntoCase(intake.id, newCase.id);
+
+    // งานประกันที่กรอกบริษัทมาตั้งแต่รับเรื่อง เปิดเคลมให้เลย ไม่ต้องไปกรอกซ้ำที่คดี
+    if (intake.insurerName) {
+      await this.prisma.insuranceClaim.create({
+        data: {
+          caseId: newCase.id,
+          insurerName: intake.insurerName,
+          policyNumber: intake.policyNumber,
+          claimNumber: intake.claimNumber,
+          incidentDate: intake.incidentDate ?? new Date(),
+          createdById: user.id,
+        },
+      });
+    }
 
     await this.prisma.intake.update({
       where: { id },

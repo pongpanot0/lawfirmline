@@ -10,8 +10,9 @@ import {
   Max,
   Min,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export enum IntakeStatus {
   RECEIVED = 'RECEIVED',
@@ -73,6 +74,27 @@ export enum ReferralChannel {
 const Trim = () =>
   Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
 
+/** ลูกค้า (ผู้ว่าจ้าง/ผู้จ่ายเงิน) — ต่างจากลูกความ (clientId) ที่เราว่าความให้ */
+export class CustomerShareDto {
+  @IsUUID()
+  customerId!: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  sharePercent?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  note?: string;
+}
+
 export class CreateIntakeDto {
   @IsDateString()
   receivedDate!: string;
@@ -100,6 +122,12 @@ export class CreateIntakeDto {
   clientId?: string;
 
   @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerShareDto)
+  customers?: CustomerShareDto[];
+
+  @IsOptional()
   @Trim()
   @IsString()
   clientName?: string;
@@ -113,6 +141,21 @@ export class CreateIntakeDto {
   @Trim()
   @IsString()
   opposingParty?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  insurerName?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  policyNumber?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  claimNumber?: string;
 
   @IsOptional()
   @IsDateString()
@@ -206,6 +249,12 @@ export class UpdateIntakeDto {
   clientId?: string;
 
   @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerShareDto)
+  customers?: CustomerShareDto[];
+
+  @IsOptional()
   @Trim()
   @IsString()
   clientName?: string;
@@ -219,6 +268,21 @@ export class UpdateIntakeDto {
   @Trim()
   @IsString()
   opposingParty?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  insurerName?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  policyNumber?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  claimNumber?: string;
 
   @IsOptional()
   @IsDateString()

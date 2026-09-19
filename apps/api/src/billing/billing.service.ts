@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthUser, ExpenseClaimStatus, ExpenseStatus, FirmRole } from '@lawfirm/shared';
+import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CashAdvanceService } from './cash-advance.service';
@@ -531,7 +532,11 @@ export class BillingService {
   async getFirmInvoices(user: AuthUser) {
     const caseFilter = this.caseAccess.getCaseFilterForFinancials(user);
     const invoices = await this.prisma.invoice.findMany({
-      where: { case: caseFilter },
+      where: {
+        firmId: user.firmId,
+        // ใบที่ผูกกับคดีต้องผ่านสิทธิ์ของคดีนั้น ส่วนใบที่ไม่มีคดีเป็นของสำนักงาน
+        OR: [{ case: caseFilter }, { caseId: null }],
+      },
       include: {
         case: {
           select: {
@@ -541,6 +546,8 @@ export class BillingService {
             client: { select: { name: true } },
           },
         },
+        intake: { select: { title: true, clientName: true } },
+        billToCustomer: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -552,9 +559,41 @@ export class BillingService {
       status: invoice.status,
       totalAmount: invoice.totalAmount,
       dueAt: invoice.dueAt,
-      ownRef: invoice.case.ownRef,
-      clientName: invoice.case.client?.name ?? invoice.case.clientName ?? invoice.case.title,
+      ownRef: invoice.case?.ownRef ?? null,
+      // ใบที่ไม่มีคดีอ้างชื่อเรื่องที่รับเข้ามาแทน ไม่มีทั้งคู่ก็เป็นใบที่ออกเปล่า
+      subject: invoice.case?.title ?? invoice.intake?.title ?? 'ใบแจ้งหนี้ที่ออกเปล่า',
+      // ลิสต์ใบแจ้งหนี้ต้องโชว์คนที่ถูกวางบิล (ลูกค้า) ไม่ใช่ลูกความของคดี
+      customerName:
+        invoice.billToCustomer?.name ??
+        invoice.case?.client?.name ??
+        invoice.case?.clientName ??
+        invoice.intake?.clientName ??
+        '—',
+      clientName:
+        invoice.case?.client?.name ??
+        invoice.case?.clientName ??
+        invoice.intake?.clientName ??
+        '—',
     }));
+  }
+
+  /**
+   * สลับว่าค่าใช้จ่ายรายการนี้ผลักไปเก็บกับลูกค้าหรือสำนักงานออกเอง
+   * รายการที่ออกบิลไปแล้วแก้ไม่ได้ ต้องไปแก้ที่ใบแจ้งหนี้แทน
+   */
+  async setExpenseBillable(user: AuthUser, expenseId: string, billable: boolean) {
+    const expense = await this.prisma.expense.findFirst({
+      where: { id: expenseId, ...this.getFirmExpenseFilter(user.firmId) },
+    });
+    if (!expense) throw new NotFoundException('Expense not found');
+    if (expense.invoiceId) {
+      throw new BadRequestException('รายการนี้ออกใบแจ้งหนี้ไปแล้ว แก้ที่ใบแจ้งหนี้แทน');
+    }
+    return this.prisma.expense.update({
+      where: { id: expenseId },
+      data: { billable },
+      select: { id: true, billable: true },
+    });
   }
 
   async updateExpenseStatus(
@@ -886,33 +925,290 @@ export class BillingService {
   async getInvoices(caseId: string) {
     return this.prisma.invoice.findMany({
       where: { caseId },
-      include: { lineItems: true },
+      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async createInvoice(user: AuthUser, caseId: string, dto: CreateInvoiceDto) {
-    const lineItems = dto.lineItems.map((item) => ({
-      description: item.description,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      amount: item.quantity * item.unitPrice,
-    }));
+  /**
+   * เรื่องที่รับเข้ามายังไม่มี guard ของตัวเองเหมือนคดี จึงเช็คสิทธิ์ตรงนี้
+   * ก่อนอ่านหรือออกใบแจ้งหนี้ของมัน
+   */
+  async assertIntakeAccess(user: AuthUser, intakeId: string) {
+    const filter = await this.caseAccess.getIntakeFilterForUser(user);
+    const intake = await this.prisma.intake.findFirst({
+      where: { id: intakeId, ...filter },
+      select: { id: true },
+    });
+    if (!intake) throw new NotFoundException('Intake not found');
+  }
+
+  /** ใบแจ้งหนี้ที่ออกจากเรื่องที่รับเข้ามา ยังไม่ได้เปิดเป็นคดี */
+  async getIntakeInvoices(intakeId: string) {
+    return this.prisma.invoice.findMany({
+      where: { intakeId },
+      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** ใบที่ออกเปล่า ไม่ผูกคดีและไม่ผูกเรื่อง */
+  async getStandaloneInvoices(user: AuthUser) {
+    return this.prisma.invoice.findMany({
+      where: { firmId: user.firmId, caseId: null, intakeId: null },
+      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * งานในคดีที่ยังไม่ถูกเก็บเงิน — ใบแจ้งหนี้ควรตั้งต้นจากตรงนี้ ไม่ใช่ให้พิมพ์ยอดเอง
+   * ค่าใช้จ่ายที่ยังไม่อนุมัติไม่นับ เพราะยังไม่รู้ว่าสำนักงานจะรับรองหรือไม่
+   */
+  async getInvoiceDraft(caseId: string) {
+    const [timeEntries, expenses, legalCase] = await Promise.all([
+      this.prisma.timeEntry.findMany({
+        where: { caseId, invoiceId: null, billable: true },
+        include: { user: { select: { firstName: true, lastName: true } } },
+        orderBy: { date: 'asc' },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          caseId,
+          invoiceId: null,
+          billable: true,
+          status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] },
+        },
+        orderBy: { date: 'asc' },
+      }),
+      this.prisma.case.findUnique({
+        where: { id: caseId },
+        select: { estimatedFee: true, actualFee: true },
+      }),
+    ]);
+
+    return {
+      timeEntries: timeEntries.map((entry) => ({
+        id: entry.id,
+        date: entry.date,
+        description: entry.description,
+        hours: entry.hours,
+        rate: entry.rate,
+        amount: entry.hours * entry.rate,
+        userName: `${entry.user.firstName} ${entry.user.lastName}`.trim(),
+      })),
+      expenses: expenses.map((expense) => ({
+        id: expense.id,
+        date: expense.date,
+        description: expense.description,
+        category: expense.category,
+        amount: expense.amount,
+      })),
+      // ค่าจ้างที่ตกลงไว้กับคดี ใช้เป็นตัวตั้งเมื่อยังไม่มีบันทึกเวลา
+      agreedFee: legalCase?.actualFee ?? legalCase?.estimatedFee ?? null,
+    };
+  }
+
+  /**
+   * แบ่งยอดตามสัดส่วน แล้วโยนเศษสตางค์ที่ปัดทิ้งไปไว้กับรายสุดท้าย
+   * ผลรวมของทุกใบต้องเท่ากับยอดเต็มเป๊ะ ไม่งั้นบัญชีจะขาดหรือเกินทุกครั้งที่หารไม่ลงตัว
+   */
+  private allocate(total: number, shares: number[]): number[] {
+    const sumShares = shares.reduce((sum, share) => sum + share, 0);
+    if (sumShares <= 0) {
+      throw new BadRequestException('สัดส่วนที่แบ่งบิลต้องมากกว่า 0');
+    }
+    const amounts = shares.map((share) => Math.round((total * share * 100) / sumShares) / 100);
+    const allocated = amounts.reduce((sum, amount) => sum + amount, 0);
+    amounts[amounts.length - 1] = Math.round((amounts[amounts.length - 1] + total - allocated) * 100) / 100;
+    return amounts;
+  }
+
+  /** เลขใบแจ้งหนี้มาจาก sequence ของ Postgres — count() เดิมชนกันเมื่อออกหลายใบรวดเดียว */
+  private async nextInvoiceNumbers(tx: Prisma.TransactionClient, howMany: number) {
+    const rows = await tx.$queryRaw<{ n: bigint }[]>`
+      SELECT nextval('invoice_number_seq') AS n FROM generate_series(1, ${howMany})
+    `;
+    return rows.map((row) => `INV-${String(row.n).padStart(5, '0')}`);
+  }
+
+  /**
+   * ออกใบแจ้งหนี้ — คืนเป็น array เสมอ เพราะคดีที่มีผู้ว่าจ้างหลายรายจะได้ใบละราย
+   * วางบิลไปที่ลูกค้า (ผู้ว่าจ้าง) ไม่ใช่ลูกความ
+   */
+  /**
+   * ออกใบแจ้งหนี้ — เอกสารที่ส่งให้ลูกค้า จึงไม่จำเป็นต้องมีคดี
+   * ผูกกับคดี, ผูกกับเรื่องที่รับเข้ามา หรือออกเปล่าให้ลูกค้าดูก่อนก็ได้
+   */
+  async createInvoice(
+    user: AuthUser,
+    target: { caseId?: string; intakeId?: string },
+    dto: CreateInvoiceDto,
+  ) {
+    const { caseId, intakeId } = target;
+    if (dto.splits && dto.billToCustomerId) {
+      throw new BadRequestException('ระบุ splits กับ billToCustomerId พร้อมกันไม่ได้');
+    }
+
+    // งานที่บันทึกเวลา/เบิกไว้มีได้เฉพาะในคดี — เงียบ ๆ ทิ้งไปจะกลายเป็นออกบิลขาด
+    if (!caseId && (dto.timeEntryIds?.length || dto.expenseIds?.length)) {
+      throw new BadRequestException('เก็บเงินจากบันทึกเวลาและค่าใช้จ่ายได้เฉพาะใบที่ออกจากคดี');
+    }
+
+    // ยอดของงานในคดีอ่านจาก DB เสมอ — ราคาที่ client ส่งมาเชื่อไม่ได้
+    const [billedTime, billedExpenses] = await Promise.all([
+      caseId && dto.timeEntryIds?.length
+        ? this.prisma.timeEntry.findMany({
+            where: { id: { in: dto.timeEntryIds }, caseId, invoiceId: null },
+            orderBy: { date: 'asc' },
+          })
+        : [],
+      caseId && dto.expenseIds?.length
+        ? this.prisma.expense.findMany({
+            where: {
+              id: { in: dto.expenseIds },
+              caseId,
+              invoiceId: null,
+              billable: true,
+              status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] },
+            },
+            orderBy: { date: 'asc' },
+          })
+        : [],
+    ]);
+
+    // รายการที่หายไประหว่างทางแปลว่ามีคนออกบิลไปแล้ว หรือไม่ได้อยู่ในคดีนี้
+    if (billedTime.length !== (dto.timeEntryIds?.length ?? 0)) {
+      throw new BadRequestException('บันทึกเวลาบางรายการถูกออกบิลไปแล้ว หรือไม่ได้อยู่ในคดีนี้');
+    }
+    if (billedExpenses.length !== (dto.expenseIds?.length ?? 0)) {
+      throw new BadRequestException(
+        'ค่าใช้จ่ายบางรายการถูกออกบิลไปแล้ว ยังไม่อนุมัติ ตั้งเป็นสำนักงานออกเอง หรือไม่ได้อยู่ในคดีนี้',
+      );
+    }
+
+    const lineItems = [
+      ...billedTime.map((entry) => ({
+        description: entry.description || 'ค่าทนายความ',
+        quantity: entry.hours,
+        unitPrice: entry.rate,
+        amount: entry.hours * entry.rate,
+      })),
+      ...billedExpenses.map((expense) => ({
+        description: expense.description,
+        quantity: 1,
+        unitPrice: expense.amount,
+        amount: expense.amount,
+      })),
+      ...(dto.lineItems ?? []).map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        amount: item.quantity * item.unitPrice,
+      })),
+    ];
+    // ใบที่ออกจากคดีหรือ intake ต้องมีรายการ ส่วนใบเปล่าที่ทำไว้ให้ลูกค้าดูก่อน ยังไม่มีก็ได้
+    if (!lineItems.length && (caseId || intakeId)) {
+      throw new BadRequestException('ใบแจ้งหนี้ต้องมีรายการอย่างน้อยหนึ่งบรรทัด');
+    }
     const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
 
-    const count = await this.prisma.invoice.count();
-    const invoiceNumber = dto.invoiceNumber ?? `INV-${String(count + 1).padStart(5, '0')}`;
+    // ลูกค้าของงาน: จากคดีก่อน ไม่มีคดีก็จากเรื่องที่รับเข้ามา
+    const caseCustomers = caseId
+      ? await this.prisma.caseCustomer.findMany({
+          where: { caseId },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          select: { customerId: true, sharePercent: true },
+        })
+      : intakeId
+        ? await this.prisma.intakeCustomer.findMany({
+            where: { intakeId },
+            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+            select: { customerId: true, sharePercent: true },
+          })
+        : [];
 
-    return this.prisma.invoice.create({
-      data: {
-        caseId,
-        invoiceNumber,
-        totalAmount,
-        dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
-        createdById: user.id,
-        lineItems: { create: lineItems },
-      },
-      include: { lineItems: true },
+    // ผู้รับบิล: ตามที่สั่งมา > ลูกค้าของคดี > ไม่มีเลยก็ออกใบเดียวแบบไม่ผูกลูกค้า
+    const recipients: { customerId: string | null; sharePercent: number }[] = dto.splits
+      ? dto.splits.map((split) => ({ customerId: split.customerId, sharePercent: split.sharePercent }))
+      : dto.billToCustomerId
+        ? [{ customerId: dto.billToCustomerId, sharePercent: 100 }]
+        : caseCustomers.length
+          ? caseCustomers.map((customer) => ({
+              customerId: customer.customerId,
+              // สัดส่วนที่ยังไม่ตกลงกัน ถือว่าหารเท่ากับรายอื่นที่ก็ยังไม่ตกลง
+              sharePercent: customer.sharePercent ?? 100 / caseCustomers.length,
+            }))
+          : [{ customerId: null, sharePercent: 100 }];
+
+    if (dto.splits) {
+      const known = new Set(caseCustomers.map((customer) => customer.customerId));
+      const stranger = dto.splits.find((split) => !known.has(split.customerId));
+      if (stranger) {
+        throw new BadRequestException('วางบิลได้เฉพาะลูกค้าที่อยู่ในงานนี้');
+      }
+    }
+
+    const amounts =
+      recipients.length === 1
+        ? [totalAmount]
+        : this.allocate(totalAmount, recipients.map((recipient) => recipient.sharePercent));
+
+    return this.prisma.$transaction(async (tx) => {
+      const numbers =
+        recipients.length === 1 && dto.invoiceNumber
+          ? [dto.invoiceNumber]
+          : await this.nextInvoiceNumbers(tx, recipients.length);
+
+      const invoices = await Promise.all(
+        recipients.map((recipient, index) =>
+          tx.invoice.create({
+            data: {
+              firmId: user.firmId,
+              caseId,
+              intakeId,
+              invoiceNumber: numbers[index],
+              totalAmount: amounts[index],
+              dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
+              createdById: user.id,
+              billToCustomerId: recipient.customerId,
+              lineItems: {
+                create:
+                  recipients.length === 1
+                    ? lineItems
+                    : // ponytail: ใบที่แบ่งจ่ายสรุปเป็นบรรทัดเดียว รายละเอียดงานดูได้ที่คดี
+                      // แตกเป็นรายบรรทัดเมื่อลูกค้าขอเห็น breakdown ในใบของตัวเอง
+                      [
+                        {
+                          description: `ส่วนแบ่ง ${recipient.sharePercent}% ของค่าดำเนินคดี`,
+                          quantity: 1,
+                          unitPrice: amounts[index],
+                          amount: amounts[index],
+                        },
+                      ],
+              },
+            },
+            include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+          }),
+        ),
+      );
+
+      // งานถูกเก็บเงินครั้งเดียวแม้จะแบ่งเป็นหลายใบ จึงผูกไว้กับใบของผู้จ่ายหลัก
+      const primaryInvoiceId = invoices[0].id;
+      if (billedTime.length) {
+        await tx.timeEntry.updateMany({
+          where: { id: { in: billedTime.map((entry) => entry.id) } },
+          data: { invoiceId: primaryInvoiceId },
+        });
+      }
+      if (billedExpenses.length) {
+        await tx.expense.updateMany({
+          where: { id: { in: billedExpenses.map((expense) => expense.id) } },
+          data: { invoiceId: primaryInvoiceId },
+        });
+      }
+
+      return invoices;
     });
   }
 }

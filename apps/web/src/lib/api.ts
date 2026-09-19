@@ -172,11 +172,10 @@ export interface WorkloadDetail {
   cases: WorkloadCaseItem[];
 }
 
+/** ทีมที่ทำคดีร่วมกัน — สองคนขึ้นไป ไม่จำกัดแค่คู่ */
 export interface PairingEntry {
-  userAId: string;
-  userAName: string;
-  userBId: string;
-  userBName: string;
+  key: string;
+  members: { id: string; name: string }[];
   count: number;
 }
 
@@ -208,6 +207,16 @@ export interface CalendarEventItem {
   case?: { id: string; ownRef: string; title: string; courtName?: string | null };
 }
 
+/** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน ต่างจากลูกความ (client) ที่เราว่าความให้ */
+export interface CustomerShareItem {
+  id: string;
+  customerId: string;
+  sharePercent?: number | null;
+  isPrimary: boolean;
+  note?: string | null;
+  customer: { id: string; name: string };
+}
+
 export interface CaseItem {
   id: string;
   ownRef: string;
@@ -230,6 +239,7 @@ export interface CaseItem {
   leadLawyer: { firstName: string; lastName: string };
   caseType?: { id: string; name: string; fieldSchema?: unknown } | null;
   client?: { id: string; name: string } | null;
+  customers?: CustomerShareItem[];
 }
 
 export interface InsuranceClaimItem {
@@ -299,6 +309,10 @@ export interface CaseMessageEntry {
   senderUserId: string | null;
   senderContactId: string | null;
   body: string;
+  /** ไฟล์ที่แนบมากับข้อความ — ลูกความส่งเอกสารเพิ่มเข้ามาได้ */
+  filename?: string | null;
+  mimeType?: string | null;
+  size?: number | null;
   createdAt: string;
 }
 
@@ -334,6 +348,10 @@ export interface ExpenseItem {
   paidBy?: { firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string; courtName?: string | null } | null;
   receiptFilename?: string | null;
+  /** false = สำนักงานออกเอง ไม่ผลักไปเก็บกับลูกค้า */
+  billable?: boolean;
+  /** ตั้งแล้วแปลว่าออกใบแจ้งหนี้ไปแล้ว แก้ไม่ได้ */
+  invoiceId?: string | null;
   paidFromAdvanceId?: string | null;
   paidFromAdvance?: { id: string; issuedById: string } | null;
 }
@@ -477,6 +495,10 @@ export interface TaskDetail extends TaskItem {
   subtasks: TaskSubtaskItem[];
   attachments: TaskAttachmentItem[];
   comments: TaskCommentItem[];
+}
+
+export function caseMessageAttachmentUrl(caseId: string, messageId: string) {
+  return `${API_URL}/cases/${caseId}/messages/${messageId}/attachment`;
 }
 
 export function taskAttachmentDownloadUrl(taskId: string, attachmentId: string) {
@@ -629,6 +651,9 @@ export interface IntakeItem {
   contactName?: string | null;
   matterType?: string | null;
   opposingParty?: string | null;
+  insurerName?: string | null;
+  policyNumber?: string | null;
+  claimNumber?: string | null;
   incidentDate?: string | null;
   description?: string | null;
   estimatedDamage?: number | null;
@@ -655,6 +680,7 @@ export interface IntakeItem {
   receivedBy?: { id: string; firstName: string; lastName: string };
   assessor?: { id: string; firstName: string; lastName: string } | null;
   client?: { id: string; name: string } | null;
+  customers?: CustomerShareItem[];
   case?: { id: string; ownRef: string; title: string } | null;
   relatedCase?: { id: string; ownRef: string; title: string; status: string } | null;
   createdAt: string;
@@ -1327,12 +1353,24 @@ export const api = {
   getCaseMessages: (token: string, caseId: string) =>
     request<CaseMessageEntry[]>(`/cases/${caseId}/messages`, { token }),
 
-  sendCaseMessage: (token: string, caseId: string, body: string) =>
-    request<CaseMessageEntry>(`/cases/${caseId}/messages`, {
+  sendCaseMessage: (token: string, caseId: string, body: string, file?: File) => {
+    if (file) {
+      const form = new FormData();
+      form.append('body', body);
+      form.append('file', file);
+      // ปล่อยให้ browser ใส่ Content-Type เองพร้อม boundary
+      return request<CaseMessageEntry>(`/cases/${caseId}/messages`, {
+        method: 'POST',
+        token,
+        body: form,
+      });
+    }
+    return request<CaseMessageEntry>(`/cases/${caseId}/messages`, {
       method: 'POST',
       token,
       body: JSON.stringify({ body }),
-    }),
+    });
+  },
 
   getInsuranceClaim: (token: string, caseId: string) =>
     request<InsuranceClaimItem>(`/cases/${caseId}/insurance-claim`, { token }),
@@ -1422,6 +1460,44 @@ export const api = {
 
   getInvoices: (token: string, caseId: string) =>
     request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, { token }),
+
+  setExpenseBillable: (token: string, expenseId: string, billable: boolean) =>
+    request<{ id: string; billable: boolean }>(`/expenses/${expenseId}/billable`, {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify({ billable }),
+    }),
+
+  getIntakeInvoices: (token: string, intakeId: string) =>
+    request<InvoiceItem[]>(`/intakes/${intakeId}/billing/invoices`, { token }),
+
+  createIntakeInvoice: (token: string, intakeId: string, data: CreateInvoiceInput) =>
+    request<InvoiceItem[]>(`/intakes/${intakeId}/billing/invoices`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getStandaloneInvoices: (token: string) =>
+    request<InvoiceItem[]>('/invoices/standalone', { token }),
+
+  createStandaloneInvoice: (token: string, data: CreateInvoiceInput) =>
+    request<InvoiceItem[]>('/invoices', {
+      token,
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getInvoiceDraft: (token: string, caseId: string) =>
+    request<InvoiceDraft>(`/cases/${caseId}/billing/invoices/draft`, { token }),
+
+  // คืนเป็น array เสมอ: คดีที่มีผู้ว่าจ้างหลายรายได้ใบแจ้งหนี้รายละใบ
+  createInvoice: (token: string, caseId: string, data: CreateInvoiceInput) =>
+    request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   getExpenseSummary: (token: string, caseId: string) =>
     request<{ totalSpent: number; revenue: number; profit: number }>(
@@ -2127,6 +2203,34 @@ export interface InvoiceItem {
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+  /** ลูกค้าที่ถูกวางบิล — ว่างได้ในใบเก่าที่ออกก่อนแยกลูกค้าออกจากลูกความ */
+  billToCustomer?: { id: string; name: string } | null;
+}
+
+export interface InvoiceDraft {
+  timeEntries: {
+    id: string;
+    date: string;
+    description?: string | null;
+    hours: number;
+    rate: number;
+    amount: number;
+    userName: string;
+  }[];
+  expenses: { id: string; date: string; description: string; category?: string | null; amount: number }[];
+  /** ค่าจ้างที่ตกลงไว้กับคดี ใช้ตั้งต้นเมื่อยังไม่มีบันทึกเวลา */
+  agreedFee: number | null;
+}
+
+export interface CreateInvoiceInput {
+  lineItems?: { description: string; quantity: number; unitPrice: number }[];
+  timeEntryIds?: string[];
+  expenseIds?: string[];
+  /** ใบที่ออกเปล่าไม่มีงานให้อ้างลูกค้า จึงระบุตรง ๆ */
+  billToCustomerId?: string;
+  dueAt?: string;
+  /** แบ่งบิลหลายราย — ไม่ส่งมาจะใช้ลูกค้าของคดีตามสัดส่วนที่บันทึกไว้ */
+  splits?: { customerId: string; sharePercent: number }[];
 }
 
 export interface PortalSubmissionStaffEntry {

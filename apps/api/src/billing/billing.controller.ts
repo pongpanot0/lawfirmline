@@ -21,6 +21,7 @@ import {
   CreateStandaloneExpenseDto,
   CreateInvoiceDto,
   UpdateExpenseStatusDto,
+  SetExpenseBillableDto,
   UpdateExpenseClaimStatusDto,
   SubmitExpensesDto,
   IssueCashAdvanceDto,
@@ -147,6 +148,15 @@ export class BillingController {
     return this.billingService.updateExpenseClaimStatus(user, claimId, dto);
   }
 
+  @Patch('expenses/:expenseId/billable')
+  setExpenseBillable(
+    @CurrentUser() user: AuthUser,
+    @Param('expenseId') expenseId: string,
+    @Body() dto: SetExpenseBillableDto,
+  ) {
+    return this.billingService.setExpenseBillable(user, expenseId, dto.billable);
+  }
+
   @Patch('expenses/:expenseId/status')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
@@ -204,6 +214,12 @@ export class BillingController {
     return this.billingService.getInvoices(caseId);
   }
 
+  @Get('cases/:caseId/billing/invoices/draft')
+  @UseGuards(CaseAccessGuard)
+  getInvoiceDraft(@Param('caseId') caseId: string) {
+    return this.billingService.getInvoiceDraft(caseId);
+  }
+
   @Post('cases/:caseId/billing/invoices')
   @UseGuards(CaseAccessGuard)
   createInvoice(
@@ -211,6 +227,33 @@ export class BillingController {
     @Param('caseId') caseId: string,
     @Body() dto: CreateInvoiceDto,
   ) {
-    return this.billingService.createInvoice(user, caseId, dto);
+    return this.billingService.createInvoice(user, { caseId }, dto);
+  }
+
+  @Get('intakes/:intakeId/billing/invoices')
+  async getIntakeInvoices(@CurrentUser() user: AuthUser, @Param('intakeId') intakeId: string) {
+    await this.billingService.assertIntakeAccess(user, intakeId);
+    return this.billingService.getIntakeInvoices(intakeId);
+  }
+
+  @Post('intakes/:intakeId/billing/invoices')
+  async createIntakeInvoice(
+    @CurrentUser() user: AuthUser,
+    @Param('intakeId') intakeId: string,
+    @Body() dto: CreateInvoiceDto,
+  ) {
+    await this.billingService.assertIntakeAccess(user, intakeId);
+    return this.billingService.createInvoice(user, { intakeId }, dto);
+  }
+
+  /** ใบที่ออกเปล่า ให้ลูกค้าดูก่อนจะมีคดีหรือเรื่อง */
+  @Get('invoices/standalone')
+  getStandaloneInvoices(@CurrentUser() user: AuthUser) {
+    return this.billingService.getStandaloneInvoices(user);
+  }
+
+  @Post('invoices')
+  createStandaloneInvoice(@CurrentUser() user: AuthUser, @Body() dto: CreateInvoiceDto) {
+    return this.billingService.createInvoice(user, {}, dto);
   }
 }

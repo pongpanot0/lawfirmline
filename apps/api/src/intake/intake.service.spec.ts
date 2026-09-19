@@ -238,6 +238,7 @@ describe('IntakeService convertToCase', () => {
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
+    insuranceClaim: { create: jest.fn() },
     document: {
       updateMany: jest.fn(),
       createMany: jest.fn(),
@@ -302,6 +303,89 @@ describe('IntakeService convertToCase', () => {
       where: { intakeId: 'intake-1' },
       data: { caseId: 'case-1' },
     });
+  });
+
+  // ลูกค้า (ผู้ว่าจ้าง/ผู้จ่าย) ต้องแยกจากลูกความ: วิริยะจ้างเราให้ว่าความให้นาย A
+  const baseIntake = {
+    id: 'intake-1',
+    firmId: 'firm-1',
+    title: 'คดีทดสอบ',
+    clientName: 'นาย A',
+    matterType: 'ประกันภัย',
+    description: null,
+    referralName: null,
+    deadlineDate: null,
+    assignedUserIds: [],
+  };
+
+  const arrangeConvert = (intake: Record<string, unknown>) => {
+    mockPrisma.intake.findFirst.mockResolvedValue({ ...baseIntake, ...intake });
+    mockPrisma.firm.findUnique.mockResolvedValue({ ownRefPrefix: 'TSBREF' });
+    mockPrisma.case.findMany.mockResolvedValue([]);
+    mockPrisma.case.create.mockResolvedValue({ id: 'case-1', leadLawyerId: 'user-1' });
+    mockPrisma.intake.update.mockResolvedValue({});
+    mockPrisma.intakePrecedentAnalysis.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.insuranceClaim.create.mockResolvedValue({});
+    mockTasksService.create.mockResolvedValue({});
+  };
+
+  it('opens the insurance claim from what was recorded at intake', async () => {
+    arrangeConvert({
+      clientId: 'client-a',
+      customers: [],
+      insurerName: 'บริษัท วิริยะประกันภัย จำกัด (มหาชน)',
+      policyNumber: 'POL-001',
+      claimNumber: 'CLM-9',
+      incidentDate: new Date('2026-01-15'),
+    });
+
+    await service.convertToCase(user, 'intake-1', {} as any);
+
+    expect(mockPrisma.insuranceClaim.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        caseId: 'case-1',
+        insurerName: 'บริษัท วิริยะประกันภัย จำกัด (มหาชน)',
+        policyNumber: 'POL-001',
+        claimNumber: 'CLM-9',
+      }),
+    });
+  });
+
+  it('opens no claim for a case that is not insurance work', async () => {
+    arrangeConvert({ clientId: 'client-a', customers: [], insurerName: null });
+
+    await service.convertToCase(user, 'intake-1', {} as any);
+
+    expect(mockPrisma.insuranceClaim.create).not.toHaveBeenCalled();
+  });
+
+  it('carries the intake customers onto the case, leaving the client untouched', async () => {
+    arrangeConvert({
+      clientId: 'client-a',
+      customers: [
+        { customerId: 'viriyah', sharePercent: 60, isPrimary: true, note: null },
+        { customerId: 'insurer-b', sharePercent: 40, isPrimary: false, note: null },
+      ],
+    });
+
+    await service.convertToCase(user, 'intake-1', {} as any);
+
+    const data = mockPrisma.case.create.mock.calls[0][0].data;
+    expect(data.clientId).toBe('client-a');
+    expect(data.customers.create).toEqual([
+      { customerId: 'viriyah', sharePercent: 60, isPrimary: true, note: null },
+      { customerId: 'insurer-b', sharePercent: 40, isPrimary: false, note: null },
+    ]);
+  });
+
+  it('makes the client the sole customer when no customer was named at intake', async () => {
+    arrangeConvert({ clientId: 'client-a', customers: [] });
+
+    await service.convertToCase(user, 'intake-1', {} as any);
+
+    expect(mockPrisma.case.create.mock.calls[0][0].data.customers.create).toEqual([
+      { customerId: 'client-a', sharePercent: 100, isPrimary: true },
+    ]);
   });
 });
 

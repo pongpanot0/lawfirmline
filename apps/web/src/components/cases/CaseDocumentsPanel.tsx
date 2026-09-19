@@ -201,15 +201,6 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
           label={d.documents.dropHint}
           hint={d.documents.fileTypesHint}
         />
-        <Button
-          type="button"
-          disabled={uploading}
-          onClick={() => dropRef.current?.open()}
-          className="mt-3 w-full"
-        >
-          <Upload className="h-4 w-4" />
-          {uploading ? d.caseDocuments.uploading : d.caseDocuments.uploadDocument}
-        </Button>
       </div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}

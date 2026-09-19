@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { LineLinkService } from '../notifications/line-link.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseMessageRateLimiterService } from './case-message-rate-limiter.service';
 import { BadRequestException } from '@nestjs/common';
 
@@ -21,6 +22,7 @@ describe('CaseMessageService', () => {
   const mockLine = { pushTo: jest.fn() };
   const mockLineLink = { getLineUserIdsForCase: jest.fn() };
   const mockRateLimiter = { recordSend: jest.fn().mockReturnValue(true) };
+  const mockFiles = { put: jest.fn().mockResolvedValue('case-messages/c1/f'), getBuffer: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
   const portalUser = { clientContactId: 'contact-1', clientId: 'client-1', firmId: 'firm-1', name: 'x', email: 'x@x.com' };
 
@@ -36,6 +38,7 @@ describe('CaseMessageService', () => {
         { provide: LineMessagingService, useValue: mockLine },
         { provide: LineLinkService, useValue: mockLineLink },
         { provide: CaseMessageRateLimiterService, useValue: mockRateLimiter },
+        { provide: FileStorageService, useValue: mockFiles },
       ],
     }).compile();
     service = module.get(CaseMessageService);
@@ -118,6 +121,39 @@ describe('CaseMessageService', () => {
         data: { caseId: 'case-1', senderType: 'CONTACT', senderContactId: 'contact-1', body: 'hi' },
       });
       expect(mockLine.pushTo).toHaveBeenCalledWith('U-staff-1', expect.stringContaining('hi'));
+    });
+
+    it('stores a document the client sent, keeping the Thai filename readable', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1' });
+      mockPrisma.caseMessage.create.mockResolvedValue({ id: 'msg-3', filename: 'สัญญา.pdf' });
+      mockLineLink.getLineUserIdsForCase.mockResolvedValue([]);
+      const file = {
+        // multer ส่งชื่อไฟล์มาเป็น latin1 ชื่อไทยจะเพี้ยนถ้าไม่แปลง
+        originalname: Buffer.from('สัญญา.pdf', 'utf8').toString('latin1'),
+        mimetype: 'application/pdf',
+        size: 2048,
+        buffer: Buffer.from('pdf'),
+      } as any;
+
+      await service.createFromPortal(portalUser, 'case-1', '', file);
+
+      expect(mockFiles.put).toHaveBeenCalled();
+      expect(mockPrisma.caseMessage.create.mock.calls[0][0].data).toMatchObject({
+        filename: 'สัญญา.pdf',
+        mimeType: 'application/pdf',
+        size: 2048,
+      });
+    });
+
+    it('tells staff a file arrived when the client sent no words with it', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1' });
+      mockPrisma.caseMessage.create.mockResolvedValue({ id: 'msg-4', filename: 'ใบเสร็จ.pdf' });
+      mockLineLink.getLineUserIdsForCase.mockResolvedValue(['U-staff-1']);
+      const file = { originalname: 'x.pdf', mimetype: 'application/pdf', size: 1, buffer: Buffer.from('x') } as any;
+
+      await service.createFromPortal(portalUser, 'case-1', '', file);
+
+      expect(mockLine.pushTo).toHaveBeenCalledWith('U-staff-1', expect.stringContaining('ใบเสร็จ.pdf'));
     });
 
     it('throws BadRequestException when the rate limiter denies and does not create the message', async () => {

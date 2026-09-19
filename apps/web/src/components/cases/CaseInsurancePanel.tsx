@@ -9,7 +9,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, InsuranceClaimItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
-import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
+import { PageLoading } from '@/components/ui/misc';
 
 export function CaseInsurancePanel({ caseId }: { caseId: string }) {
   const id = caseId;
@@ -18,6 +18,7 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ insurerName: '', policyNumber: '', claimNumber: '', incidentDate: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -65,6 +66,39 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
     }
   };
 
+  /** แก้ข้อมูลประกันของคดีได้ในที่เดียวกับที่มันแสดง ไม่ต้องไปหน้าอื่น */
+  const startEdit = () => {
+    if (!claim) return;
+    setForm({
+      insurerName: claim.insurerName,
+      policyNumber: claim.policyNumber ?? '',
+      claimNumber: claim.claimNumber ?? '',
+      incidentDate: claim.incidentDate.slice(0, 10),
+    });
+    setEditing(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !id) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.updateInsuranceClaim(token, id, {
+        insurerName: form.insurerName,
+        policyNumber: form.policyNumber || undefined,
+        claimNumber: form.claimNumber || undefined,
+        incidentDate: form.incidentDate,
+      });
+      setEditing(false);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'บันทึกข้อมูลประกันไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleAdvance = async (stage: InsuranceClaimStage) => {
     if (!token || !id) return;
     const label = INSURANCE_CLAIM_STAGE_LABELS[stage];
@@ -81,17 +115,28 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
     }
   };
 
-  if (loading) return <PageLoading title="กำลังโหลดเคลมประกัน" lines={3} />;
+  if (loading) return <PageLoading title="กำลังโหลดเคลมประกัน" lines={2} />;
 
   return (
-    <div>
-      <h2 className="mb-6 text-xl font-bold text-slate-900">ติดตามเคลมประกัน</h2>
+    <div className="rounded-xl border bg-card p-5 shadow-soft">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-foreground">ประกันภัย</h2>
+        {claim && !editing && (
+          <button type="button" onClick={startEdit} className="text-sm text-primary hover:underline">
+            แก้ไข
+          </button>
+        )}
+      </div>
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
-      {!claim ? (
-        <form onSubmit={handleCreate} className="max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <InlineEmptyState title="คดีนี้ยังไม่มีการติดตามเคลมประกัน" description="กรอกข้อมูลพื้นฐานด้านล่างเพื่อเริ่มไทม์ไลน์เคลมและ deadline ที่เกี่ยวข้อง" />
+      {!claim || editing ? (
+        <form onSubmit={editing ? handleSaveEdit : handleCreate} className="max-w-md space-y-4">
+          {!claim && (
+            <p className="text-sm text-muted-foreground">
+              คดีที่มีประกันเกี่ยวข้อง กรอกบริษัทประกันไว้ ระบบจะเริ่มไทม์ไลน์เคลมและกำหนดเวลาที่เกี่ยวข้องให้
+            </p>
+          )}
           <div>
             <label className="block text-sm font-medium text-slate-700">บริษัทประกัน</label>
             <input
@@ -127,17 +172,24 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
               onChange={(e) => setForm({ ...form, incidentDate: e.target.value })}
             />
           </div>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            เริ่มติดตามเคลมประกัน
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {editing ? 'บันทึก' : 'เริ่มติดตามเคลมประกัน'}
+            </button>
+            {editing && (
+              <button type="button" onClick={() => setEditing(false)} className="text-sm underline">
+                ยกเลิก
+              </button>
+            )}
+          </div>
         </form>
       ) : (
-        <div className="space-y-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="space-y-5">
+          <div>
             <div className="flex items-center justify-between">
               {INSURANCE_CLAIM_STAGE_ORDER.filter(
                 (s) => s !== InsuranceClaimStage.DENIED_OR_PARTIAL || claim.stage === InsuranceClaimStage.DENIED_OR_PARTIAL,
@@ -162,7 +214,7 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
               <p className="text-sm text-slate-500">บริษัทประกัน</p>
               <p className="font-medium text-slate-900">{claim.insurerName}</p>
@@ -195,7 +247,7 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="border-t pt-4">
             <p className="mb-3 text-sm font-medium text-slate-700">เปลี่ยนสถานะ</p>
             <div className="flex flex-wrap gap-2">
               {INSURANCE_CLAIM_STAGE_ORDER.filter(

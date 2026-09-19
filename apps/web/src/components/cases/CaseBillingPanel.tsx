@@ -12,23 +12,17 @@ import {
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { api, InvoiceItem, TimeEntryItem, ExpenseItem } from '@/lib/api';
+import { api, TimeEntryItem, ExpenseItem, CustomerShareItem } from '@/lib/api';
+import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
-
-const INVOICE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'ร่าง',
-  SENT: 'ส่งแล้ว',
-  PAID: 'ชำระแล้ว',
-};
 
 export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const d = useDashboardT();
   const id = caseId;
   const { token, user } = useAuth();
   const [timeEntries, setTimeEntries] = useState<TimeEntryItem[]>([]);
-  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [totalSpent, setTotalSpent] = useState(0);
   const [caseRevenue, setCaseRevenue] = useState(0);
@@ -43,17 +37,20 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
     expensePurpose: '',
   });
 
+  // ลูกค้า (ผู้ว่าจ้าง) ของคดี — คนที่ใบแจ้งหนี้จะไปถึง ไม่ใช่ลูกความ
+  const [customers, setCustomers] = useState<CustomerShareItem[]>([]);
+
   const load = () => {
     if (!token || !id) return;
     Promise.all([
       api.getTimeEntries(token, id),
-      api.getInvoices(token, id),
       api.getCaseExpenses(token, id),
       api.getExpenseSummary(token, id).catch(() => ({ totalSpent: 0, revenue: 0, profit: 0 })),
+      api.getCase(token, id).catch(() => null),
     ])
-      .then(([entries, invs, exps, summary]) => {
+      .then(([entries, exps, summary, detail]) => {
+        setCustomers(detail?.customers ?? []);
         setTimeEntries(entries);
-        setInvoices(invs);
         setExpenses(exps);
         setTotalSpent(summary.totalSpent);
         setCaseRevenue(summary.revenue ?? 0);
@@ -84,6 +81,21 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
       load();
     } catch (err) {
       setExpenseError(err instanceof Error ? err.message : 'บันทึกค่าใช้จ่ายไม่สำเร็จ กรุณาลองใหม่');
+    }
+  };
+
+  // ค่าใช้จ่ายที่สำนักงานออกเอง จะไม่โผล่ในรายการที่รอเก็บเงิน
+  const handleSetBillable = async (expenseId: string, billable: boolean) => {
+    if (!token) return;
+    setExpenses((rows) => rows.map((row) => (row.id === expenseId ? { ...row, billable } : row)));
+    try {
+      await api.setExpenseBillable(token, expenseId, billable);
+      load();
+    } catch {
+      // ย้อนกลับเมื่อบันทึกไม่ผ่าน ไม่งั้นหน้าจอจะโกหกว่าตั้งไว้แล้ว
+      setExpenses((rows) =>
+        rows.map((row) => (row.id === expenseId ? { ...row, billable: !billable } : row)),
+      );
     }
   };
 
@@ -196,9 +208,24 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                   {formatDate(e.date)}
                 </p>
               </div>
-              <div className="text-right">
-                <p className="font-medium">฿{e.amount.toLocaleString()}</p>
-                <ExpenseStatusBadge status={e.status} />
+              <div className="flex items-center gap-3 text-right">
+                {/* ออกบิลไปแล้วเปลี่ยนไม่ได้ ต้องไปแก้ที่ใบแจ้งหนี้ */}
+                {!e.invoiceId && (
+                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <input
+                      type="checkbox"
+                      aria-label={`สำนักงานออกเอง: ${e.description}`}
+                      checked={e.billable === false}
+                      onChange={(ev) => handleSetBillable(e.id, !ev.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-slate-300"
+                    />
+                    สำนักงานออกเอง
+                  </label>
+                )}
+                <div>
+                  <p className="font-medium">฿{e.amount.toLocaleString()}</p>
+                  <ExpenseStatusBadge status={e.status} />
+                </div>
               </div>
             </div>
           ))}
@@ -246,26 +273,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 font-semibold">{d.caseBilling.invoices}</h2>
-        <div className="space-y-2">
-          {invoices.map((inv) => (
-            <div key={inv.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
-              <span className="font-medium">{inv.invoiceNumber}</span>
-              <div className="text-right">
-                <p>฿{inv.totalAmount.toLocaleString()}</p>
-                <p className="text-xs text-slate-400">{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</p>
-              </div>
-            </div>
-          ))}
-          {invoices.length === 0 && (
-            <InlineEmptyState
-              title={d.caseBilling.noInvoices}
-              description="ใบแจ้งหนี้ที่สร้างจากคดีนี้จะแสดงพร้อมสถานะการชำระเงิน"
-            />
-          )}
-        </div>
-      </div>
+      <InvoicePanel target={{ caseId: id }} customers={customers} onChanged={load} />
     </div>
   );
 }
