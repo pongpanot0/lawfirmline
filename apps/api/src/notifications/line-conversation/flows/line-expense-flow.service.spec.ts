@@ -65,11 +65,8 @@ describe('LineExpenseFlowService', () => {
       { amount: 1500, description: 'ค่าส่งเอกสาร', caseId: undefined },
       undefined,
     );
-    expect(billing.updateExpenseStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'u1' }),
-      'e1',
-      { status: 'PENDING' },
-    );
+    // A LINE expense stays a draft — it is submitted from the web app.
+    expect(billing.updateExpenseStatus).not.toHaveBeenCalled();
     expect(store.clear).toHaveBeenCalledWith('L1');
   });
 

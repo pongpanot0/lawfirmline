@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ExpenseStatus } from '@lawfirm/shared';
 import { BillingService } from '../../../billing/billing.service';
 import { CasesService } from '../../../cases/cases.service';
 import {
@@ -328,26 +327,22 @@ export class LineExpenseFlowService {
         } as Express.Multer.File)
       : undefined;
 
-    // Draft first, then submit through the normal claim pipeline so the
-    // expense lands in the owner's approval queue (and the existing
-    // claim-submitted owner notification fires).
-    const expense = await this.billing.createStandaloneExpense(
+    // Stays a draft: the lawyer reviews it on /expenses and sends the claim
+    // from there, exactly like an expense typed into the web app.
+    await this.billing.createStandaloneExpense(
       authUser,
       { amount: data.amount, description: data.description, caseId: data.caseId } as never,
       receipt,
     );
-    await this.billing.updateExpenseStatus(authUser, expense.id, {
-      status: ExpenseStatus.PENDING,
-    } as never);
 
     this.store.clear(session.lineUserId);
     await this.reply(
       session,
-      `บันทึกค่าใช้จ่ายสำเร็จแล้วครับ ✅ ฿${data.amount.toLocaleString('th-TH')} — ส่งเบิกให้เจ้าของสำนักงานแล้ว`,
+      `บันทึกค่าใช้จ่ายเป็นฉบับร่างแล้วครับ ✅ ฿${data.amount.toLocaleString('th-TH')}\nตรวจแล้วกดส่งเบิกได้ที่หน้าค่าใช้จ่ายบนเว็บครับ`,
     );
     await this.notify.notifyCreated({
       target: session.target,
-      summaryText: `💸 ค่าใช้จ่ายใหม่ (รออนุมัติ): ฿${data.amount.toLocaleString('th-TH')} — ${data.description}`,
+      summaryText: `💸 ค่าใช้จ่ายใหม่ (ฉบับร่าง): ฿${data.amount.toLocaleString('th-TH')} — ${data.description}`,
       entityPath: '/expenses',
     });
   }
