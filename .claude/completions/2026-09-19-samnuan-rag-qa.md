@@ -15,3 +15,9 @@ Evidence UI, hybrid keyword search, reranker, contradiction detection, smart tas
 
 Plan: `docs/superpowers/plans/2026-09-19-samnuan-case-intelligence-rag.md`
 Spec source: `~/Downloads/SAMNUAN-AI-FLOW-NANO-LUNA-V2.md`
+
+## Follow-up PRs (same day)
+- PR #37: hybrid search (pg_trgm), combined AI tab (ask/facts review/Thai law), LegalQuery + iApp deka flow, case timeline with gap warnings, evidence section
+- PR #38: OCR for scanned PDFs (vision model via pdf-parse getScreenshot, OCR_MAX_PAGES=30, images sent unredacted — text redaction still applies downstream), /ai-usage dashboard (AiRun aggregation, owner-only), Ask panel shows source document chips
+
+Remaining (deliberate): nano-tier routing — add when a high-volume extraction path exists.
