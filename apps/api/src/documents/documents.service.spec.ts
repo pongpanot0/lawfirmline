@@ -14,6 +14,8 @@ jest.mock('fs', () => ({
   unlinkSync: jest.fn(),
 }));
 
+const auditUser = { id: 'user-1', firmId: 'firm-1' } as any;
+
 describe('DocumentsService', () => {
   let service: DocumentsService;
   const mockPrisma = {
@@ -26,6 +28,7 @@ describe('DocumentsService', () => {
       update: jest.fn(),
     },
     documentVersion: { create: jest.fn() },
+    auditLog: { create: jest.fn() },
     intake: { findFirst: jest.fn() },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
@@ -54,7 +57,7 @@ describe('DocumentsService', () => {
       mockPrisma.document.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.updateVisibility('case-1', 'doc-1', true),
+        service.updateVisibility(auditUser, 'case-1', 'doc-1', true),
       ).rejects.toThrow(NotFoundException);
       expect(mockPrisma.document.findFirst).toHaveBeenCalledWith({
         where: { id: 'doc-1', caseId: 'case-1' },
@@ -65,7 +68,7 @@ describe('DocumentsService', () => {
       mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
       mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', visibleToClient: true });
 
-      await service.updateVisibility('case-1', 'doc-1', true);
+      await service.updateVisibility(auditUser, 'case-1', 'doc-1', true);
 
       expect(mockPrisma.document.update).toHaveBeenCalledWith({
         where: { id: 'doc-1' },
@@ -78,7 +81,7 @@ describe('DocumentsService', () => {
     it('throws NotFoundException when the document does not belong to the given case', async () => {
       mockPrisma.document.findFirst.mockResolvedValue(null);
 
-      await expect(service.getFilePath('case-1', 'doc-1')).rejects.toThrow(NotFoundException);
+      await expect(service.getFilePath(auditUser, 'case-1', 'doc-1')).rejects.toThrow(NotFoundException);
     });
   });
 });

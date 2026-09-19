@@ -1,19 +1,25 @@
 'use client';
 
-import { AI_CREDIT_COST, AI_UPLOAD_MAX_FILES, canAssignFirmRole, FirmRole } from '@lawfirm/shared';
+import {
+  AI_CREDIT_COST,
+  AI_UPLOAD_MAX_FILES,
+  canAssignFirmRole,
+  documentHintsFor,
+  FirmRole,
+  preLitigationDocuments,
+} from '@lawfirm/shared';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, UserItem, ApiError, ChecklistClassificationSuggestion } from '@/lib/api';
+import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocumentRequestItem, UserItem, ApiError, ChecklistClassificationSuggestion } from '@/lib/api';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
 import { IntakeStageBar } from '@/components/intake/IntakeStageBar';
 import { ConflictCheckPanel } from '@/components/intake/ConflictCheckPanel';
-import { DocumentRequestChecklist } from '@/components/intake/DocumentRequestChecklist';
 import { IntakeFollowUpPanel } from '@/components/intake/IntakeFollowUpPanel';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
@@ -112,25 +118,6 @@ const PRE_LITIGATION_GUIDE: Record<string, string[]> = {
   GENERAL: ['Notice', 'ติดตามคำตอบ', 'เจรจา', 'ตัดสินใจฟ้องหรือไม่ฟ้อง'],
 };
 
-const PRE_LITIGATION_DOCUMENTS: Record<string, Array<{ label: string; hints: string[] }>> = {
-  MEDICAL_CLAIM: [
-    { label: 'กรมธรรม์ประกันภัย', hints: ['กรมธรรม์', 'policy', 'insurance'] },
-    { label: 'แบบฟอร์มเรียกร้องค่าสินไหม', hints: ['สินไหม', 'claim form', 'claim'] },
-    { label: 'เวชระเบียน', hints: ['เวชระเบียน', 'medical record', 'record'] },
-    { label: 'Peer review / ความเห็นแพทย์ผู้ทบทวน', hints: ['peer review', 'review', 'ความเห็นแพทย์'] },
-    { label: 'เอกสารสรุปโดยย่อเหตุการณ์', hints: ['สรุป', 'summary', 'เหตุการณ์', 'incident'] },
-  ],
-  TRANSPORT: [
-    { label: 'เอกสารรับขน / ใบตราส่ง', hints: ['ใบตราส่ง', 'bill of lading', 'waybill'] },
-    { label: 'หลักฐานความเสียหายหรือสูญหาย', hints: ['เสียหาย', 'damage', 'สูญหาย', 'loss'] },
-    { label: 'สรุปเหตุการณ์และมูลค่าความเสียหาย', hints: ['สรุป', 'summary', 'เหตุการณ์', 'damage'] },
-  ],
-  GENERAL: [
-    { label: 'เอกสารแสดงสิทธิหรือสัญญา', hints: ['สัญญา', 'contract', 'agreement'] },
-    { label: 'หลักฐานความเสียหาย', hints: ['เสียหาย', 'damage'] },
-    { label: 'สรุปโดยย่อเหตุการณ์', hints: ['สรุป', 'summary', 'เหตุการณ์'] },
-  ],
-};
 
 /** Same Bangkok-pinned format as the rest of the app, with an em dash for empty. */
 function formatDateOrDash(date: string | null | undefined) {
@@ -151,31 +138,6 @@ function isChecklistDocId(value: string | undefined): value is string {
   return !!value && value !== CHECKLIST_MANUAL && value !== CHECKLIST_SKIPPED;
 }
 
-function checklistConfirmStorageKey(intakeId: string) {
-  return `intake-checklist-confirm:${intakeId}`;
-}
-
-function loadChecklistConfirmations(intakeId: string): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = sessionStorage.getItem(checklistConfirmStorageKey(intakeId));
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') return {};
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        (entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string',
-      ),
-    );
-  } catch {
-    return {};
-  }
-}
-
-function saveChecklistConfirmations(intakeId: string, value: Record<string, string>) {
-  if (typeof window === 'undefined') return;
-  sessionStorage.setItem(checklistConfirmStorageKey(intakeId), JSON.stringify(value));
-}
 
 function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
   return (
@@ -384,8 +346,10 @@ export default function IntakeDetailPage() {
   const [converting, setConverting] = useState(false);
   const [convertError, setConvertError] = useState('');
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
-  /** จำนวนเอกสารที่ required และยังไม่ได้รับ — ใช้เตือนก่อนออกหนังสือ */
+  /** รายการเอกสารที่ขอไว้ (แถวจริง) + จำนวนที่ยังขาด สำหรับด่านก่อนออกหนังสือ */
+  const [documentRequests, setDocumentRequests] = useState<IntakeDocumentRequestItem[]>([]);
   const [missingDocCount, setMissingDocCount] = useState(0);
+  const [newDocRequest, setNewDocRequest] = useState('');
 
   const loadDocuments = useCallback(async () => {
     if (!token || !id) return;
@@ -410,12 +374,49 @@ export default function IntakeDetailPage() {
     loadDocuments();
   }, [loadDocuments]);
 
+  const loadDocumentRequests = useCallback(async () => {
+    if (!id || !token) return;
+    try {
+      const result = await api.getIntakeDocumentRequests(token, id);
+      setDocumentRequests(result.requests);
+      setMissingDocCount(result.missingCount);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [id, token]);
+
   useEffect(() => {
-    if (!id) return;
-    setConfirmedChecklist(loadChecklistConfirmations(id));
+    void loadDocumentRequests();
+  }, [loadDocumentRequests]);
+
+  useEffect(() => {
+    if (!id || !token) return;
+    api
+      .getIntakeChecklist(token, id)
+      .then((items) =>
+        setConfirmedChecklist(
+          Object.fromEntries(
+            items.filter((item) => item.documentId).map((item) => [item.label, item.documentId as string]),
+          ),
+        ),
+      )
+      .catch(console.error);
     setChecklistSuggestions([]);
     setClassifyError(null);
-  }, [id]);
+  }, [id, token]);
+
+  /** Persist one checklist mark server-side; fire-and-forget. */
+  const persistChecklistItem = useCallback(
+    (label: string, documentId: string | null) => {
+      if (!token || !id) return;
+      api
+        .setIntakeChecklistItem(token, id, label, documentId)
+        // ด่านก่อนออกหนังสืออ่านจากตารางเดียวกัน จำนวนที่ขาดต้องตามทันที
+        .then(() => loadDocumentRequests())
+        .catch(console.error);
+    },
+    [token, id, loadDocumentRequests],
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -722,9 +723,11 @@ export default function IntakeDetailPage() {
   const requestChecklistSuggestions = async (documentIds: string[]) => {
     if (!token || !intake || !documentIds.length) return;
     const labels = (
-      PRE_LITIGATION_DOCUMENTS[intake.preLitigationType] ?? PRE_LITIGATION_DOCUMENTS.GENERAL
+      documentRequests.length
+        ? documentRequests.map((r) => ({ label: r.name }))
+        : preLitigationDocuments(intake.preLitigationType)
     ).map((item) => item.label);
-    const confirmed = loadChecklistConfirmations(intake.id);
+    const confirmed = confirmedChecklist;
     setClassifyingChecklist(true);
     setClassifyError(null);
     try {
@@ -753,11 +756,8 @@ export default function IntakeDetailPage() {
 
   const confirmChecklistSuggestion = (suggestion: ChecklistClassificationSuggestion) => {
     if (!id) return;
-    setConfirmedChecklist((previous) => {
-      const next = { ...previous, [suggestion.label]: suggestion.documentId };
-      saveChecklistConfirmations(id, next);
-      return next;
-    });
+    setConfirmedChecklist((previous) => ({ ...previous, [suggestion.label]: suggestion.documentId }));
+    persistChecklistItem(suggestion.label, suggestion.documentId);
     setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== suggestion.documentId));
   };
 
@@ -780,13 +780,16 @@ export default function IntakeDetailPage() {
       if (isReceived) {
         if (filenameMatched) {
           next[item.label] = CHECKLIST_SKIPPED;
+          persistChecklistItem(item.label, CHECKLIST_SKIPPED);
         } else {
           delete next[item.label];
+          persistChecklistItem(item.label, null);
         }
       } else {
-        next[item.label] = isChecklistDocId(current) ? current : CHECKLIST_MANUAL;
+        const value = isChecklistDocId(current) ? current : CHECKLIST_MANUAL;
+        next[item.label] = value;
+        persistChecklistItem(item.label, value);
       }
-      saveChecklistConfirmations(id, next);
       return next;
     });
   };
@@ -801,11 +804,11 @@ export default function IntakeDetailPage() {
       setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== documentId));
       if (id) {
         setConfirmedChecklist((previous) => {
-          const next = Object.fromEntries(
+          const removed = Object.entries(previous).filter(([, docId]) => docId === documentId);
+          removed.forEach(([label]) => persistChecklistItem(label, null));
+          return Object.fromEntries(
             Object.entries(previous).filter(([, docId]) => docId !== documentId),
           );
-          saveChecklistConfirmations(id, next);
-          return next;
         });
       }
       await loadDocuments();
@@ -867,8 +870,13 @@ export default function IntakeDetailPage() {
   const currentStep = STEPS.indexOf(intake.status);
   const currentAnalysis =
     analyses.find((a) => a.id === selectedAnalysisId) ?? analyses[0];
-  const expectedDocuments =
-    PRE_LITIGATION_DOCUMENTS[intake.preLitigationType] ?? PRE_LITIGATION_DOCUMENTS.GENERAL;
+  // แถวจริงจาก IntakeDocumentRequest — template ถูก seed เป็นแถวไว้แล้วฝั่ง API
+  // จึงครอบทั้งรายการมาตรฐานและรายการที่ทนายเพิ่มเองด้วยรายการเดียว
+  const expectedDocuments = (
+    documentRequests.length
+      ? documentRequests.map((r) => ({ label: r.name, hints: documentHintsFor(r.name) }))
+      : preLitigationDocuments(intake.preLitigationType)
+  );
   const isChecklistMatched = (item: { label: string; hints: string[] }) => {
     const mark = confirmedChecklist[item.label];
     if (mark === CHECKLIST_SKIPPED) return false;
@@ -1121,6 +1129,43 @@ export default function IntakeDetailPage() {
                 );
               })}
             </div>
+            {/* เพิ่มเอกสารที่ต้องขอนอกเหนือรายการมาตรฐาน — รายการที่จำเป็นและยังไม่ได้รับ
+                จะกั้นการออกหนังสือไว้ */}
+            {intake.status !== 'REJECTED' &&
+              intake.status !== 'CONVERTED' &&
+              intake.status !== 'CONSULTED' && (
+                <form
+                  className="mt-3 flex flex-wrap items-center gap-2"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const name = newDocRequest.trim();
+                    if (!name || !token || !id) return;
+                    setNewDocRequest('');
+                    try {
+                      await api.addIntakeDocumentRequests(token, id, [{ name }]);
+                      await loadDocumentRequests();
+                      await reload();
+                    } catch (err) {
+                      console.error(err);
+                    }
+                  }}
+                >
+                  <input
+                    value={newDocRequest}
+                    onChange={(e) => setNewDocRequest(e.target.value)}
+                    placeholder="เพิ่มเอกสารที่ต้องขอเพิ่มเติม"
+                    className="h-9 w-full max-w-xs rounded-lg border border-input bg-background px-3 text-sm"
+                  />
+                  <Button type="submit" size="sm" variant="outline" disabled={!newDocRequest.trim()}>
+                    เพิ่มรายการ
+                  </Button>
+                  {missingDocCount > 0 && (
+                    <span className="text-xs text-amber-700">
+                      ยังขาด {missingDocCount} รายการที่จำเป็น — ออกหนังสือต้องกดรับทราบก่อน
+                    </span>
+                  )}
+                </form>
+              )}
             <p className="mt-2 text-xs text-muted-foreground">
               พร้อม {matchedExpectedDocuments.length}/{expectedDocuments.length}
               {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตาม checklist'}
@@ -1389,11 +1434,6 @@ export default function IntakeDetailPage() {
             <>
               <IntakeStageBar intake={intake} token={token} onChanged={reload} />
               <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />
-              <DocumentRequestChecklist
-                intakeId={intake.id}
-                token={token}
-                onChanged={(result) => setMissingDocCount(result.missingCount)}
-              />
               <IntakeFollowUpPanel
                 intake={intake}
                 token={token}

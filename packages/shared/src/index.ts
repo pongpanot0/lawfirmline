@@ -285,6 +285,45 @@ export enum DocRequestStatus {
   NOT_APPLICABLE = 'NOT_APPLICABLE',
 }
 
+/**
+ * เอกสารที่คาดว่าต้องมีตามประเภทงานก่อนฟ้อง พร้อมคำใบ้สำหรับจับคู่ชื่อไฟล์
+ *
+ * ใช้สองที่: ฝั่ง API เอาไป seed `IntakeDocumentRequest` ตอนเปิด checklist
+ * ครั้งแรก และฝั่งเว็บเอา `hints` ไปเดาว่าไฟล์ที่อัปโหลดตรงกับช่องไหน
+ */
+export const PRE_LITIGATION_DOCUMENTS: Record<string, Array<{ label: string; hints: string[] }>> = {
+  MEDICAL_CLAIM: [
+    { label: 'กรมธรรม์ประกันภัย', hints: ['กรมธรรม์', 'policy', 'insurance'] },
+    { label: 'แบบฟอร์มเรียกร้องค่าสินไหม', hints: ['สินไหม', 'claim form', 'claim'] },
+    { label: 'เวชระเบียน', hints: ['เวชระเบียน', 'medical record', 'record'] },
+    { label: 'Peer review / ความเห็นแพทย์ผู้ทบทวน', hints: ['peer review', 'review', 'ความเห็นแพทย์'] },
+    { label: 'เอกสารสรุปโดยย่อเหตุการณ์', hints: ['สรุป', 'summary', 'เหตุการณ์', 'incident'] },
+  ],
+  TRANSPORT: [
+    { label: 'เอกสารรับขน / ใบตราส่ง', hints: ['ใบตราส่ง', 'bill of lading', 'waybill'] },
+    { label: 'หลักฐานความเสียหายหรือสูญหาย', hints: ['เสียหาย', 'damage', 'สูญหาย', 'loss'] },
+    { label: 'สรุปเหตุการณ์และมูลค่าความเสียหาย', hints: ['สรุป', 'summary', 'เหตุการณ์', 'damage'] },
+  ],
+  GENERAL: [
+    { label: 'เอกสารแสดงสิทธิหรือสัญญา', hints: ['สัญญา', 'contract', 'agreement'] },
+    { label: 'หลักฐานความเสียหาย', hints: ['เสียหาย', 'damage'] },
+    { label: 'สรุปโดยย่อเหตุการณ์', hints: ['สรุป', 'summary', 'เหตุการณ์'] },
+  ],
+};
+
+export function preLitigationDocuments(preLitigationType: string | null | undefined) {
+  return PRE_LITIGATION_DOCUMENTS[preLitigationType ?? 'GENERAL'] ?? PRE_LITIGATION_DOCUMENTS.GENERAL;
+}
+
+/** คำใบ้ของ label ที่มาจาก template — รายการที่ทนายพิมพ์เองไม่มีคำใบ้ */
+export function documentHintsFor(label: string): string[] {
+  for (const items of Object.values(PRE_LITIGATION_DOCUMENTS)) {
+    const found = items.find((item) => item.label === label);
+    if (found) return found.hints;
+  }
+  return [];
+}
+
 /** เอกสารที่สำนักงานขอบ่อยที่สุด — ใช้เป็นปุ่มเติม checklist เร็ว ไม่ใช่ข้อบังคับ */
 export const COMMON_INTAKE_DOCUMENTS = [
   'สำเนาบัตรประชาชน',

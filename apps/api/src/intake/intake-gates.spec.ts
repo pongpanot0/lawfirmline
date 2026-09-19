@@ -47,6 +47,11 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
       intakeDocumentRequest: {
         findMany: jest.fn().mockResolvedValue([]),
         createMany: jest.fn(),
+        // เรื่องนี้มี checklist อยู่แล้ว → seed ไม่ทำงาน (ทดสอบ seed แยกด้านล่าง)
+        count: jest.fn().mockResolvedValue(3),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn((args: { data: Record<string, unknown> }) => ({ id: 'new', ...args.data })),
+        update: jest.fn((args: { data: Record<string, unknown> }) => ({ id: 'req-1', name: 'x', ...args.data })),
       },
       intakeFollowUp: { create: jest.fn() },
       intakeFieldProposal: { updateMany: jest.fn() },
@@ -150,5 +155,79 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
     await service.addDocumentRequests(user, 'intake-1', { items: [{ name: 'สัญญา' }] } as any);
 
     expect(prisma.intake.update).not.toHaveBeenCalled();
+  });
+
+  describe('checklist ชุดเดียว (ยุบจาก IntakeChecklistItem)', () => {
+    it('เปิด checklist ครั้งแรก seed จาก template ตามประเภทงานก่อนฟ้อง', async () => {
+      prisma.intakeDocumentRequest.count.mockResolvedValue(0);
+      prisma.intake.findFirst.mockResolvedValue({ ...intake, preLitigationType: 'MEDICAL_CLAIM' });
+
+      await service.missingDocuments(user, 'intake-1');
+
+      const rows = prisma.intakeDocumentRequest.createMany.mock.calls[0][0].data;
+      expect(rows.map((r: { name: string }) => r.name)).toContain('เวชระเบียน');
+      expect(rows.every((r: { required: boolean }) => r.required)).toBe(true);
+    });
+
+    it('มี checklist อยู่แล้วไม่ seed ซ้ำ', async () => {
+      prisma.intakeDocumentRequest.count.mockResolvedValue(5);
+      await service.missingDocuments(user, 'intake-1');
+      expect(prisma.intakeDocumentRequest.createMany).not.toHaveBeenCalled();
+    });
+
+    it('ยืนยันด้วยมือ (__manual__) = ได้รับแล้วแต่ไม่ผูกไฟล์', async () => {
+      prisma.intakeDocumentRequest.findFirst.mockResolvedValue({ id: 'req-1', name: 'เวชระเบียน' });
+
+      await service.setChecklistItem(user, 'intake-1', 'เวชระเบียน', '__manual__');
+
+      const data = prisma.intakeDocumentRequest.update.mock.calls[0][0].data;
+      expect(data).toMatchObject({ status: 'RECEIVED', documentId: null });
+      expect(data.receivedAt).toBeInstanceOf(Date);
+    });
+
+    it('__skipped__ = ไม่เกี่ยวข้อง จึงไม่กั้นการออกหนังสือ', async () => {
+      prisma.intakeDocumentRequest.findFirst.mockResolvedValue({ id: 'req-1', name: 'เวชระเบียน' });
+
+      await service.setChecklistItem(user, 'intake-1', 'เวชระเบียน', '__skipped__');
+
+      expect(prisma.intakeDocumentRequest.update.mock.calls[0][0].data).toMatchObject({
+        status: 'NOT_APPLICABLE',
+      });
+    });
+
+    it('ผูกไฟล์จริง = RECEIVED พร้อม documentId', async () => {
+      prisma.intakeDocumentRequest.findFirst.mockResolvedValue({ id: 'req-1', name: 'เวชระเบียน' });
+
+      await service.setChecklistItem(user, 'intake-1', 'เวชระเบียน', 'doc-9');
+
+      expect(prisma.intakeDocumentRequest.update.mock.calls[0][0].data).toMatchObject({
+        status: 'RECEIVED',
+        documentId: 'doc-9',
+      });
+    });
+
+    it('ติ๊กออก (null) = กลับไปเป็นยังไม่ได้รับ', async () => {
+      prisma.intakeDocumentRequest.findFirst.mockResolvedValue({ id: 'req-1', name: 'เวชระเบียน' });
+
+      await service.setChecklistItem(user, 'intake-1', 'เวชระเบียน', null);
+
+      expect(prisma.intakeDocumentRequest.update.mock.calls[0][0].data).toMatchObject({
+        status: 'REQUESTED',
+        documentId: null,
+        receivedAt: null,
+      });
+    });
+
+    it('label ที่ทนายเพิ่มเองและยังไม่มีแถว ถูกสร้างให้', async () => {
+      prisma.intakeDocumentRequest.findFirst.mockResolvedValue(null);
+
+      await service.setChecklistItem(user, 'intake-1', 'หนังสือมอบอำนาจ', '__manual__');
+
+      expect(prisma.intakeDocumentRequest.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ name: 'หนังสือมอบอำนาจ', status: 'RECEIVED' }),
+        }),
+      );
+    });
   });
 });

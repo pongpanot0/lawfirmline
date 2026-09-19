@@ -27,15 +27,35 @@ const READABLE_MIME_TYPES = ['application/pdf', 'text/plain'];
 function AskSection({ caseId }: { caseId: string }) {
   const { token } = useAuth();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
   const [question, setQuestion] = useState('');
 
   useEffect(() => {
     if (!token) return;
-    api.getDocuments(token, caseId).then(setDocuments).catch(console.error);
+    api
+      .getDocuments(token, caseId)
+      .then((docs) => {
+        setDocuments(docs);
+        // Every readable document starts selected — "ask the whole case file"
+        // is the common path; unticking narrows the question.
+        setSelectedDocs(
+          new Set(docs.filter((doc) => READABLE_MIME_TYPES.includes(doc.mimeType)).map((doc) => doc.id)),
+        );
+      })
+      .catch(console.error);
   }, [token, caseId]);
 
   const readable = documents.filter((doc) => READABLE_MIME_TYPES.includes(doc.mimeType));
   const unreadable = documents.length - readable.length;
+
+  const toggleDoc = (id: string) => {
+    setSelectedDocs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AskResult | null>(null);
@@ -47,7 +67,9 @@ function AskSection({ caseId }: { caseId: string }) {
     setError(null);
     setAskedQuestion(q);
     try {
-      setResult(await api.askCase(token, caseId, q.trim()));
+      // All readable docs selected = whole case file; omit the filter then.
+      const documentIds = selectedDocs.size < readable.length ? [...selectedDocs] : undefined;
+      setResult(await api.askCase(token, caseId, q.trim(), documentIds));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ไม่สามารถถาม AI ได้');
     } finally {
@@ -72,14 +94,27 @@ function AskSection({ caseId }: { caseId: string }) {
         <CardContent className="space-y-3">
           <div className="rounded-md bg-muted/40 p-3">
             <p className="text-xs font-medium text-muted-foreground">
-              AI ตอบจากเอกสารในคดีนี้ ({readable.length} ไฟล์)
+              ถามจากเอกสาร ({selectedDocs.size}/{readable.length} ไฟล์) — ติ๊กเลือกไฟล์ที่ต้องการ
             </p>
             {readable.length ? (
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {readable.map((doc) => (
-                  <span key={doc.id} className="rounded-full border border-border bg-background px-2 py-0.5 text-xs">
+                  <label
+                    key={doc.id}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs ${
+                      selectedDocs.has(doc.id)
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-background text-muted-foreground'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-3 w-3"
+                      checked={selectedDocs.has(doc.id)}
+                      onChange={() => toggleDoc(doc.id)}
+                    />
                     {doc.filename}
-                  </span>
+                  </label>
                 ))}
               </div>
             ) : (
@@ -108,7 +143,7 @@ function AskSection({ caseId }: { caseId: string }) {
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               maxLength={2000}
             />
-            <Button type="submit" disabled={loading || question.trim().length < 3}>
+            <Button type="submit" disabled={loading || question.trim().length < 3 || selectedDocs.size === 0}>
               {loading ? 'กำลังค้น...' : 'ถาม'}
             </Button>
           </form>
@@ -242,9 +277,27 @@ function FactsReviewSection({
     </li>
   );
 
+  if (!knowledge.length) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-sm font-medium">ยังไม่มีข้อเท็จจริงให้ตรวจ</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            ขั้นตอน: กดปุ่ม <span className="font-medium text-foreground">"วิเคราะห์ด้วย AI"</span> มุมขวาบน
+            แล้วเลือกเอกสารของคดี → AI จะสรุปข้อเท็จจริงพร้อมอ้างอิงหน้าเอกสารมาไว้ที่นี่
+            → ทนายอ่านเทียบกับต้นฉบับแล้วกดยืนยันทีละรายการ
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {error && <p className="text-sm text-destructive">{error}</p>}
+      <p className="text-xs text-muted-foreground">
+        AI สรุปข้อเท็จจริงจากเอกสารพร้อมอ้างอิง — อ่านเทียบกับต้นฉบับ แล้วกด "ยืนยันถูกต้อง" เพื่อบันทึกว่าทนายตรวจแล้ว
+      </p>
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">รอตรวจ ({pending.length})</CardTitle>

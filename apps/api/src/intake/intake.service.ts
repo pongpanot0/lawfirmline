@@ -14,7 +14,7 @@ import {
 } from '@lawfirm/shared';
 import * as path from 'path';
 import { AssignmentType, ReferralChannel } from '../generated/prisma';
-import { INTAKE_STAGE_ORDER } from '@lawfirm/shared';
+import { INTAKE_STAGE_ORDER, preLitigationDocuments } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
@@ -47,6 +47,10 @@ import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 
 export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
 const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
+
+/** ค่าที่หน้าจอ checklist ใช้แทน "ได้รับแล้วแต่ไม่ผูกไฟล์" และ "ไม่เกี่ยวข้อง" */
+const CHECKLIST_MANUAL = '__manual__';
+const CHECKLIST_SKIPPED = '__skipped__';
 
 @Injectable()
 export class IntakeService {
@@ -258,7 +262,8 @@ export class IntakeService {
 
   /** เอกสารที่ยังขาดและจำเป็น — ตัวกั้นก่อนออกหนังสือ/เปิดคดี */
   async missingDocuments(user: AuthUser, id: string) {
-    await this.findOne(user, id);
+    const intake = await this.findOne(user, id);
+    await this.seedDocumentRequests(user, id, intake.preLitigationType);
     const requests = await this.prisma.intakeDocumentRequest.findMany({
       where: { intakeId: id },
       orderBy: [{ required: 'desc' }, { requestedAt: 'asc' }],
@@ -270,6 +275,32 @@ export class IntakeService {
         r.status !== DocRequestStatus.NOT_APPLICABLE,
     );
     return { requests, missing, missingCount: missing.length };
+  }
+
+  /**
+   * เติม checklist ครั้งแรกจาก template ตามประเภทงานก่อนฟ้อง
+   *
+   * ของเดิมหน้าเว็บ hardcode รายการนี้ไว้แล้วเก็บผลยืนยันไว้ที่ client —
+   * ย้ายมาเป็นแถวจริงทำให้ทั้งการยืนยัน, `required`, กำหนดส่ง และด่านก่อน
+   * ออกหนังสือ อ่านจากที่เดียวกัน. เรียกซ้ำได้: มีแถวแล้วไม่ทำอะไร
+   */
+  private async seedDocumentRequests(
+    user: AuthUser,
+    intakeId: string,
+    preLitigationType: string | null | undefined,
+  ) {
+    const existing = await this.prisma.intakeDocumentRequest.count({ where: { intakeId } });
+    if (existing > 0) return;
+
+    await this.prisma.intakeDocumentRequest.createMany({
+      data: preLitigationDocuments(preLitigationType).map((item) => ({
+        intakeId,
+        name: item.label,
+        required: true,
+        createdById: user.id,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   async addDocumentRequests(
@@ -339,6 +370,68 @@ export class IntakeService {
     });
     if (!deleted.count) throw new NotFoundException('ไม่พบรายการเอกสารนี้');
     return this.missingDocuments(user, id);
+  }
+
+  /**
+   * มุมมองแบบ checklist ของหน้ารับเรื่อง (label → ไฟล์ที่ยืนยัน)
+   *
+   * `__manual__` = ยืนยันว่าได้รับแล้วแต่ไม่ได้ผูกไฟล์, `__skipped__` = ไม่เกี่ยวข้อง
+   * ทั้งสองค่าเป็นภาษาของหน้าจอเดิม ส่วนข้อมูลจริงเก็บเป็นสถานะใน
+   * `IntakeDocumentRequest` เพียงที่เดียว
+   */
+  async getChecklist(user: AuthUser, id: string) {
+    const { requests } = await this.missingDocuments(user, id);
+    return requests
+      .filter((r) => r.status === DocRequestStatus.RECEIVED || r.status === DocRequestStatus.NOT_APPLICABLE)
+      .map((r) => ({
+        label: r.name,
+        documentId:
+          r.status === DocRequestStatus.NOT_APPLICABLE
+            ? CHECKLIST_SKIPPED
+            : (r.documentId ?? CHECKLIST_MANUAL),
+        confirmedAt: r.receivedAt,
+      }));
+  }
+
+  async setChecklistItem(user: AuthUser, id: string, label: string, documentId: string | null) {
+    const intake = await this.findOne(user, id);
+    await this.seedDocumentRequests(user, id, intake.preLitigationType);
+
+    const name = label.trim();
+    const existing = await this.prisma.intakeDocumentRequest.findFirst({
+      where: { intakeId: id, name },
+    });
+
+    const data =
+      documentId === null
+        ? { status: DocRequestStatus.REQUESTED, documentId: null, receivedAt: null }
+        : documentId === CHECKLIST_SKIPPED
+          ? { status: DocRequestStatus.NOT_APPLICABLE, documentId: null, receivedAt: null }
+          : {
+              status: DocRequestStatus.RECEIVED,
+              documentId: documentId === CHECKLIST_MANUAL ? null : documentId,
+              receivedAt: new Date(),
+            };
+
+    const row = existing
+      ? await this.prisma.intakeDocumentRequest.update({
+          where: { id: existing.id },
+          data: data as never,
+        })
+      : await this.prisma.intakeDocumentRequest.create({
+          data: { intakeId: id, name, createdById: user.id, ...data } as never,
+        });
+
+    return {
+      label: row.name,
+      documentId:
+        row.status === DocRequestStatus.NOT_APPLICABLE
+          ? CHECKLIST_SKIPPED
+          : row.status === DocRequestStatus.RECEIVED
+            ? (row.documentId ?? CHECKLIST_MANUAL)
+            : null,
+      confirmedAt: row.receivedAt,
+    };
   }
 
   private async currentStage(id: string): Promise<IntakeStage> {
@@ -1172,6 +1265,7 @@ export class IntakeService {
     await this.prisma.intakeAttachment.delete({ where: { id: attachmentId } });
     return { deleted: true };
   }
+
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;

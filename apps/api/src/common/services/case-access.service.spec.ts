@@ -97,37 +97,49 @@ describe('CaseAccessService', () => {
   });
 
   describe('getTaskFilterForUser', () => {
-    it('returns no restriction for OWNER', () => {
+    const firmScope = {
+      OR: [
+        { case: { firmId: 'firm-1' } },
+        { caseId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } },
+      ],
+    };
+
+    it('returns only the firm scope for OWNER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
-      expect(service.getTaskFilterForUser(user)).toEqual({});
+      expect(service.getTaskFilterForUser(user)).toEqual(firmScope);
     });
 
-    it('returns own-or-LAWYER-assigned-or-unassigned for SENIOR_LAWYER', () => {
+    it('returns firm-scoped own-or-LAWYER-assigned-or-unassigned for SENIOR_LAWYER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
       expect(service.getTaskFilterForUser(user)).toEqual({
-        OR: [
-          { assigneeId: 'u1' },
+        AND: [
+          firmScope,
           {
-            assignee: {
-              firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
-            },
+            OR: [
+              { assigneeId: 'u1' },
+              {
+                assignee: {
+                  firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
+                },
+              },
+              { assigneeId: null },
+            ],
           },
-          { assigneeId: null },
         ],
       });
     });
 
-    it('returns own-or-unassigned for LAWYER', () => {
+    it('returns firm-scoped own-or-unassigned for LAWYER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
       expect(service.getTaskFilterForUser(user)).toEqual({
-        OR: [{ assigneeId: 'u1' }, { assigneeId: null }],
+        AND: [firmScope, { OR: [{ assigneeId: 'u1' }, { assigneeId: null }] }],
       });
     });
 
-    it('returns own-or-unassigned for ASSISTANT', () => {
+    it('returns firm-scoped own-or-unassigned for ASSISTANT', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.ASSISTANT } as any;
       expect(service.getTaskFilterForUser(user)).toEqual({
-        OR: [{ assigneeId: 'u1' }, { assigneeId: null }],
+        AND: [firmScope, { OR: [{ assigneeId: 'u1' }, { assigneeId: null }] }],
       });
     });
   });

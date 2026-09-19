@@ -593,6 +593,7 @@ model User {
   dailyDigestLogs            DailyDigestLog[]
   assignedEvents             CalendarEvent[]           @relation("EventAssignee")
   deviceTokens               DeviceToken[]
+  caseStatusLogs             CaseStatusLog[]
 }
 
 /// A mobile device's Expo push token. One row per device; a token moves to
@@ -766,6 +767,7 @@ model Case {
   customers          CaseCustomer[]
   chunks             DocumentChunk[]
   legalQueries       LegalQuery[]
+  statusLogs         CaseStatusLog[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -1496,6 +1498,8 @@ model DailyDigestLog {
 
 model DocumentTemplate {
   id           String   @id @default(uuid())
+  /// null = built-in template ที่ทุก firm ใช้ได้; มีค่า = template ของ firm นั้นเท่านั้น
+  firmId       String?
   name         String
   description  String?
   templateBody String   @db.Text
@@ -1503,6 +1507,8 @@ model DocumentTemplate {
   createdAt    DateTime @default(now())
 
   caseType CaseType? @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
+
+  @@index([firmId])
 }
 
 model Invoice {
@@ -1628,9 +1634,19 @@ model InsuranceClaim {
   @@index([caseId])
 }
 
+enum OnHoldCategory {
+  WAITING_CLIENT
+  WAITING_COURT
+  WAITING_DOCUMENT
+  WAITING_INTERNAL_REVIEW
+  WAITING_EXTERNAL
+  OTHER
+}
+
 model TaskOnHold {
-  id             String    @id @default(uuid())
-  taskId         String    @unique
+  id             String         @id @default(uuid())
+  taskId         String         @unique
+  category       OnHoldCategory @default(OTHER)
   reason         String    @db.Text
   startedAt      DateTime  @default(now())
   endedAt        DateTime?
@@ -2006,11 +2022,28 @@ model PortalRequestMessage {
   @@index([submissionId, createdAt])
 }
 
+model CaseStatusLog {
+  id          String     @id @default(uuid())
+  caseId      String
+  fromStatus  CaseStatus
+  toStatus    CaseStatus
+  changedById String
+  createdAt   DateTime   @default(now())
+
+  case      Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  changedBy User @relation(fields: [changedById], references: [id])
+
+  @@index([caseId, createdAt])
+}
+
+
 model PlaybookRelease {
   id String @id @default(uuid())
   firmId String
   name String
   workType String
+  /// ผูกกับประเภทคดี — apply อัตโนมัติ/แนะนำเมื่อเปิดคดีประเภทนี้
+  caseTypeId String?
   version Int
   steps Json
   publishedById String

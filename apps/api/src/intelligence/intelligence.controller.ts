@@ -83,7 +83,7 @@ export class IntelligenceController {
   @UseInterceptors(AiCreditsInterceptor)
   async analyzeExistingBatch(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: BatchAnalysisDto) {
     // Resolve all files within this authorized case before reading any content.
-    const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePath(caseId, id)));
+    const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePath(user, caseId, id)));
     const files = await Promise.all(paths.map(async (file) => ({ buffer: await fs.promises.readFile(file.path), mimeType: file.mimeType, filename: file.filename })));
     return this.intelligenceService.analyzeBatch(files, user.id, caseId);
   }
@@ -159,7 +159,7 @@ export class IntelligenceController {
     @Param('caseId') caseId: string,
     @Param('documentId') documentId: string,
   ) {
-    const file = await this.documentsService.getFilePath(caseId, documentId);
+    const file = await this.documentsService.getFilePath(user, caseId, documentId);
     const buffer = fs.readFileSync(file.path);
     return this.intelligenceService.analyzeDocument(
       buffer,
@@ -180,7 +180,7 @@ export class IntelligenceController {
     @Param('caseId') caseId: string,
     @Param('documentId') documentId: string,
   ) {
-    const file = await this.documentsService.getFilePath(caseId, documentId);
+    const file = await this.documentsService.getFilePath(user, caseId, documentId);
     const buffer = fs.readFileSync(file.path);
     return this.intelligenceService.extractDates(
       buffer,

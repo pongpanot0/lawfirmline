@@ -43,6 +43,70 @@ export class OperationsService {
     });
   }
 
+  /**
+   * Case health for the partner dashboard: pipeline by status, cases with no
+   * activity > 14 days, and cases stuck in the same status > 30 days.
+   * ponytail: fixed 14/30-day thresholds; make firm-configurable when asked.
+   */
+  async getCaseHealth(user: AuthUser) {
+    const now = new Date();
+    const inactiveSince = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const stuckSince = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const activeWhere = { firmId: user.firmId, status: { not: CaseStatus.CLOSED } };
+
+    const [byStatus, inactiveCases, stuckCandidates] = await Promise.all([
+      this.prisma.case.groupBy({
+        by: ['status'],
+        where: { firmId: user.firmId },
+        _count: { _all: true },
+      }),
+      this.prisma.case.findMany({
+        where: {
+          ...activeWhere,
+          openedAt: { lt: inactiveSince },
+          activities: { none: { activityAt: { gte: inactiveSince } } },
+          tasks: { none: { updatedAt: { gte: inactiveSince } } },
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          openedAt: true,
+          leadLawyer: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { openedAt: 'asc' },
+        take: 50,
+      }),
+      this.prisma.case.findMany({
+        where: {
+          ...activeWhere,
+          openedAt: { lt: stuckSince },
+          statusLogs: { none: { createdAt: { gte: stuckSince } } },
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          openedAt: true,
+          statusLogs: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } },
+          leadLawyer: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { openedAt: 'asc' },
+        take: 50,
+      }),
+    ]);
+
+    return {
+      byStatus: byStatus.map((row) => ({ status: row.status, count: row._count._all })),
+      inactiveCases,
+      stuckCases: stuckCandidates.map((c) => ({
+        ...c,
+        inStatusSince: c.statusLogs[0]?.createdAt ?? c.openedAt,
+        statusLogs: undefined,
+      })),
+    };
+  }
+
   private nearestDeadlineDays(
     now: Date,
     events: { startAt: Date }[],
@@ -124,10 +188,29 @@ export class OperationsService {
         nearDeadlineCount,
         weightedScore: Math.round(weightedScore * 10) / 10,
         claimedTotal,
+        capacity: this.capacityBand(weightedScore, nearDeadlineCount),
       };
     });
 
     return summary.sort((a, b) => a.weightedScore - b.weightedScore);
+  }
+
+  /**
+   * Capacity signal — heuristic banding on the weighted score, bumped one
+   * level when many deadlines land at once.
+   * ponytail: fixed thresholds; per-firm config when a second firm disagrees.
+   */
+  private capacityBand(
+    weightedScore: number,
+    nearDeadlineCount: number,
+  ): 'LOW' | 'NORMAL' | 'HIGH' | 'OVERLOADED' {
+    const bands = ['LOW', 'NORMAL', 'HIGH', 'OVERLOADED'] as const;
+    let idx = 0;
+    if (weightedScore >= 4) idx = 1;
+    if (weightedScore >= 8) idx = 2;
+    if (weightedScore >= 14) idx = 3;
+    if (nearDeadlineCount >= 3) idx = Math.min(idx + 1, 3);
+    return bands[idx];
   }
 
   async getWorkloadDetail(user: AuthUser, targetUserId: string, query: WorkloadQueryDto) {
@@ -153,10 +236,9 @@ export class OperationsService {
           status: c.status,
           role: (c.leadLawyerId === targetUserId ? 'LEAD' : 'BUDDY') as 'LEAD' | 'BUDDY',
           nearestDeadlineDays: days,
+          nearDeadline: days !== null && days <= nearDeadlineDays,
         };
       });
-
-    void nearDeadlineDays; // reserved for a future "highlight near-deadline rows" UI need
 
     return {
       userId: member.id,
@@ -244,6 +326,7 @@ export class OperationsService {
         ? `${hold.task.assignee.firstName} ${hold.task.assignee.lastName}`
         : null,
       reason: hold.reason,
+      category: hold.category,
       startedAt: hold.startedAt,
       followerName: hold.follower
         ? `${hold.follower.firstName} ${hold.follower.lastName}`

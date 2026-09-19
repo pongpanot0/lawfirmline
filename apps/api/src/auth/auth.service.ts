@@ -187,6 +187,14 @@ export class AuthService {
   }
 
   async loginFromAuthUser(authUser: AuthUser, meta?: RequestMeta): Promise<LoginResponse> {
+    await this.prisma.auditLog.create({
+      data: {
+        firmId: authUser.firmId,
+        userId: authUser.id,
+        action: 'USER_LOGIN',
+        metadata: { ip: meta?.ip ?? null, userAgent: meta?.userAgent ?? null },
+      },
+    });
     return {
       accessToken: this.signAccessToken(authUser),
       refreshToken: await this.signRefreshToken(authUser, meta),

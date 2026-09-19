@@ -228,31 +228,6 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
         ))}
       </div>
 
-      <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
-        <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.uploadDocument}</h2>
-        {/* หมวดติดตอนอัปโหลด — ถามทีหลังคือไม่มีใครกลับมาตอบ */}
-        <label className="mb-3 block text-sm">
-          <span className="mb-1 block font-medium text-muted-foreground">หมวดเอกสาร</span>
-          <select
-            value={uploadCategory}
-            onChange={(e) => setUploadCategory(e.target.value)}
-            className="h-9 w-full max-w-xs rounded-lg border border-input bg-card px-3 text-sm"
-          >
-            {DOCUMENT_CATEGORY_VALUES.map((value) => (
-              <option key={value} value={value}>{documentCategoryLabel(value, 'th')}</option>
-            ))}
-          </select>
-        </label>
-        <DocumentDropZone
-          ref={dropRef}
-          onFile={handleUpload}
-          loading={uploading}
-          loadingLabel={d.caseDocuments.uploading}
-          label={d.documents.dropHint}
-          hint={d.documents.fileTypesHint}
-        />
-      </div>
-
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
       <DateSuggestionsPanel
@@ -284,6 +259,29 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
 
       <div className="rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{fmt(d.caseDocuments.filesCount, { count: documents.length })}</h2>
+        {/* หมวดติดตอนอัปโหลด — ถามทีหลังคือไม่มีใครกลับมาตอบ */}
+        <label className="mb-3 block text-sm">
+          <span className="mb-1 block font-medium text-muted-foreground">หมวดของไฟล์ที่จะอัปโหลด</span>
+          <select
+            value={uploadCategory}
+            onChange={(e) => setUploadCategory(e.target.value)}
+            className="h-9 w-full max-w-xs rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            {DOCUMENT_CATEGORY_VALUES.map((value) => (
+              <option key={value} value={value}>{documentCategoryLabel(value, 'th')}</option>
+            ))}
+          </select>
+        </label>
+        <div className="mb-4">
+          <DocumentDropZone
+            ref={dropRef}
+            onFile={handleUpload}
+            loading={uploading}
+            loadingLabel={d.caseDocuments.uploading}
+            label={d.documents.dropHint}
+            hint={d.documents.fileTypesHint}
+          />
+        </div>
         <div className="space-y-2">
           {documents.map((doc) => (
             <div

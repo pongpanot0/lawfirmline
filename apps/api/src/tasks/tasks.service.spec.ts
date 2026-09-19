@@ -452,14 +452,24 @@ describe('TasksService on-hold', () => {
       await service.findByCase('case-1', seniorUser);
 
       expect(realFilter).toEqual({
-        OR: [
-          { assigneeId: 'user-2' },
+        AND: [
           {
-            assignee: {
-              firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
-            },
+            OR: [
+              { case: { firmId: 'firm-1' } },
+              { caseId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } },
+            ],
           },
-          { assigneeId: null },
+          {
+            OR: [
+              { assigneeId: 'user-2' },
+              {
+                assignee: {
+                  firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
+                },
+              },
+              { assigneeId: null },
+            ],
+          },
         ],
       });
       expect(mockPrisma.task.findMany).toHaveBeenCalledWith(

@@ -14,6 +14,8 @@ describe('CasesService assignment notifications', () => {
     client: { findFirst: jest.fn() },
     firmMember: { count: jest.fn() },
     caseAssignment: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn() },
+    caseStatusLog: { create: jest.fn() },
+    auditLog: { create: jest.fn() },
     $transaction: jest.fn().mockResolvedValue([]),
   };
   const mockNotifier = { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() };

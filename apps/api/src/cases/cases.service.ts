@@ -363,6 +363,7 @@ export class CasesService {
         userId: user.id,
         type: ActivityType.STATUS_CHANGE,
         title: `สถานะคดี: ${before.status} → ${dto.status}`,
+        statusTransition: { from: before.status, to: dto.status },
       });
     }
     if (stageChanged) {
@@ -382,6 +383,14 @@ export class CasesService {
         description: `${before.leadLawyer?.firstName ?? before.leadLawyerId} → ${
           updated.leadLawyer?.firstName ?? dto.leadLawyerId
         }`,
+      });
+      await this.prisma.auditLog.create({
+        data: {
+          firmId: user.firmId,
+          userId: user.id,
+          action: 'CASE_OWNER_CHANGED',
+          metadata: { caseId: id, from: before.leadLawyerId, to: dto.leadLawyerId },
+        },
       });
     }
 
@@ -553,6 +562,7 @@ export class CasesService {
         .filter(Boolean)
         .join('\n'),
       at: now,
+      statusTransition: { from: legalCase.status, to: CaseStatus.CLOSED },
     });
 
     return closed;
@@ -577,6 +587,7 @@ export class CasesService {
       userId: user.id,
       type: ActivityType.STATUS_CHANGE,
       title: 'เก็บคดีเข้าคลัง / Archived',
+      statusTransition: { from: CaseStatus.CLOSED, to: CaseStatus.ARCHIVED },
     });
     return archived;
   }
@@ -601,6 +612,7 @@ export class CasesService {
       userId: user.id,
       type: ActivityType.STATUS_CHANGE,
       title: 'เปิดคดีขึ้นมาใหม่ / Reopened',
+      statusTransition: { from: legalCase.status, to: CaseStatus.IN_PROGRESS },
     });
     return reopened;
   }

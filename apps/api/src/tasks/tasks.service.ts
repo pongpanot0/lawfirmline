@@ -671,6 +671,7 @@ export class TasksService {
       data: {
         taskId,
         reason: dto.reason,
+        category: dto.category,
         followerUserId: dto.followerUserId,
         nextFollowUpAt: dto.nextFollowUpAt ? new Date(dto.nextFollowUpAt) : undefined,
         createdById: user.id,
@@ -689,6 +690,7 @@ export class TasksService {
     return this.prisma.taskOnHold.update({
       where: { id: hold.id },
       data: {
+        category: dto.category ?? hold.category,
         followerUserId: dto.followerUserId ?? hold.followerUserId,
         lastFollowUpAt: dto.lastFollowUpAt ? new Date(dto.lastFollowUpAt) : hold.lastFollowUpAt,
         nextFollowUpAt: dto.nextFollowUpAt ? new Date(dto.nextFollowUpAt) : hold.nextFollowUpAt,
