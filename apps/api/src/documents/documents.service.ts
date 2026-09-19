@@ -13,6 +13,17 @@ export class DocumentsService {
     private fileStorage: FileStorageService,
   ) {}
 
+  /** Audit trail for document actions — a law firm must answer "ใครดาวน์โหลด/แก้เอกสารนี้". */
+  private async audit(
+    user: AuthUser,
+    action: 'DOCUMENT_UPLOADED' | 'DOCUMENT_VERSION_UPLOADED' | 'DOCUMENT_DOWNLOADED' | 'DOCUMENT_VISIBILITY_CHANGED',
+    metadata: Record<string, unknown>,
+  ) {
+    await this.prisma.auditLog.create({
+      data: { firmId: user.firmId, userId: user.id, action, metadata: metadata as any },
+    });
+  }
+
   private async verifyDocument(caseId: string, documentId: string) {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, caseId },
@@ -133,6 +144,8 @@ export class DocumentsService {
       },
     });
 
+    await this.audit(user, 'DOCUMENT_UPLOADED', { caseId, documentId: document.id, filename: document.filename });
+
     const ext = path.extname(decodeUploadFilename(file.originalname));
     const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
     const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
@@ -231,6 +244,8 @@ export class DocumentsService {
       },
     });
 
+    await this.audit(user, 'DOCUMENT_VERSION_UPLOADED', { caseId, documentId, version: newVersion });
+
     return this.prisma.document.update({
       where: { id: documentId },
       data: {
@@ -323,12 +338,19 @@ export class DocumentsService {
     return { deleted: true };
   }
 
-  async getFilePath(caseId: string, documentId: string, version?: number) {
+  async getFilePath(user: AuthUser, caseId: string, documentId: string, version?: number) {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, caseId },
       include: { versions: true },
     });
     if (!document) throw new NotFoundException('Document not found');
+
+    await this.audit(user, 'DOCUMENT_DOWNLOADED', {
+      caseId,
+      documentId,
+      version: version ?? document.version,
+      filename: document.filename,
+    });
 
     if (version) {
       const v = document.versions.find((ver) => ver.version === version);
@@ -343,8 +365,9 @@ export class DocumentsService {
     };
   }
 
-  async updateVisibility(caseId: string, documentId: string, visibleToClient: boolean) {
+  async updateVisibility(user: AuthUser, caseId: string, documentId: string, visibleToClient: boolean) {
     await this.verifyDocument(caseId, documentId);
+    await this.audit(user, 'DOCUMENT_VISIBILITY_CHANGED', { caseId, documentId, visibleToClient });
     return this.prisma.document.update({
       where: { id: documentId },
       data: { visibleToClient },

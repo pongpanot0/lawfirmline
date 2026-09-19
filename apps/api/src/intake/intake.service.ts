@@ -861,4 +861,30 @@ export class IntakeService {
     await this.prisma.intakeAttachment.delete({ where: { id: attachmentId } });
     return { deleted: true };
   }
+
+  /**
+   * Checklist confirmations, persisted server-side (เดิมอยู่ใน sessionStorage —
+   * ปิดแท็บแล้วหาย). documentId stores a document id, '__manual__' or '__skipped__'.
+   */
+  async getChecklist(user: AuthUser, id: string) {
+    await this.findOne(user, id);
+    return this.prisma.intakeChecklistItem.findMany({
+      where: { intakeId: id },
+      select: { label: true, documentId: true, confirmedAt: true },
+    });
+  }
+
+  async setChecklistItem(user: AuthUser, id: string, label: string, documentId: string | null) {
+    await this.findOne(user, id);
+    if (documentId === null) {
+      await this.prisma.intakeChecklistItem.deleteMany({ where: { intakeId: id, label } });
+      return { label, documentId: null };
+    }
+    return this.prisma.intakeChecklistItem.upsert({
+      where: { intakeId_label: { intakeId: id, label } },
+      create: { intakeId: id, label, documentId, confirmedById: user.id, confirmedAt: new Date() },
+      update: { documentId, confirmedById: user.id, confirmedAt: new Date() },
+      select: { label: true, documentId: true, confirmedAt: true },
+    });
+  }
 }

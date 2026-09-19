@@ -47,14 +47,24 @@ describe('CasesService.findOne', () => {
       }),
     );
     expect(expectedTaskFilter).toEqual({
-      OR: [
-        { assigneeId: 'user-1' },
+      AND: [
         {
-          assignee: {
-            firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
-          },
+          OR: [
+            { case: { firmId: 'firm-1' } },
+            { caseId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } },
+          ],
         },
-        { assigneeId: null },
+        {
+          OR: [
+            { assigneeId: 'user-1' },
+            {
+              assignee: {
+                firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
+              },
+            },
+            { assigneeId: null },
+          ],
+        },
       ],
     });
   });

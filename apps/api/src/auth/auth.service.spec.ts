@@ -13,7 +13,7 @@ import { SessionService } from './session.service';
 
 describe('AuthService', () => {
   let service: AuthService;
-  const mockPrisma = { user: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn() } };
+  const mockPrisma = { user: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn() }, auditLog: { create: jest.fn() } };
   const mockTenant = { buildAuthUser: jest.fn() };
   const mockSaasAuth = {};
   const mockJwt = { sign: jest.fn().mockReturnValue('signed-token'), verify: jest.fn() };

@@ -185,6 +185,7 @@ export default function ReportsPage() {
         <KpiCard
           icon={Briefcase}
           label={d.reports.casesClosedYtd}
+          href="/cases?status=CLOSED"
           value={data.kpis.casesClosedYtd}
           trend={data.kpis.casesClosedChange >= 0 ? 'up' : 'down'}
           change={changeLabel}

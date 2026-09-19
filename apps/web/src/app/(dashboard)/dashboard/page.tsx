@@ -156,9 +156,9 @@ export default function DashboardPage() {
           arrow this used to show was hardcoded — an owner reading "+12% vs
           last month" off a constant is worse served than by no figure at all.
         */}
-        <KpiCard label={d.home.totalCases} value={data.stats.totalCases} icon={Briefcase} />
-        <KpiCard label={d.home.activeCases} value={data.stats.openCases} icon={Activity} change={d.home.inProgress} trend="neutral" />
-        <KpiCard label={d.home.upcomingHearings} value={data.stats.upcomingEvents} icon={CalendarDays} change={d.home.next30Days} trend="neutral" />
+        <KpiCard label={d.home.totalCases} value={data.stats.totalCases} icon={Briefcase} href="/cases" />
+        <KpiCard label={d.home.activeCases} value={data.stats.openCases} icon={Activity} href="/cases" change={d.home.inProgress} trend="neutral" />
+        <KpiCard label={d.home.upcomingHearings} value={data.stats.upcomingEvents} icon={CalendarDays} href="/calendar" change={d.home.next30Days} trend="neutral" />
         <KpiCard label={d.home.monthlyRevenue} value={formatCurrency(data.stats.monthlyRevenue)} icon={Banknote} change={d.home.thisMonth} trend="neutral" />
         <KpiCard label={d.home.totalNetProfit} value={formatCurrency(data.stats.totalNetProfit)} icon={TrendingUp} change={d.home.profitHint} trend={data.stats.totalNetProfit >= 0 ? 'up' : 'down'} />
       </div>

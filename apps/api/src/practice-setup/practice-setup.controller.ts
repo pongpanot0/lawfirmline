@@ -7,8 +7,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PracticeSetupService } from './practice-setup.service';
 class ImportRowDto { @IsString() @MaxLength(200) clientName!: string; @IsString() @MaxLength(100) caseRef!: string; @IsString() @MaxLength(300) caseTitle!: string; }
 class ImportDto { @IsArray() @ArrayMinSize(1) @ArrayMaxSize(200) @ValidateNested({ each: true }) @Type(() => ImportRowDto) rows!: ImportRowDto[]; }
-class StepDto { @IsString() @MaxLength(200) title!: string; @IsString() @MaxLength(5000) instructions!: string; @IsInt() @Min(0) @Max(365) days!: number; @IsIn(['TASK', 'DOCUMENT', 'APPROVAL']) kind!: 'TASK' | 'DOCUMENT' | 'APPROVAL'; @IsOptional() @IsInt() @Min(0) @Max(49) parentIndex?: number; }
-class ReleaseDto { @IsString() @MaxLength(150) name!: string; @IsIn(['GENERAL', 'MEDICAL', 'TRANSPORT']) workType!: string; @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StepDto) steps!: StepDto[]; }
+class StepDto { @IsString() @MaxLength(200) title!: string; @IsString() @MaxLength(5000) instructions!: string; @IsOptional() @IsIn(['OWNER', 'SENIOR_LAWYER', 'LAWYER', 'ASSISTANT']) assigneeRole?: 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT'; @IsInt() @Min(0) @Max(365) days!: number; @IsIn(['TASK', 'DOCUMENT', 'APPROVAL']) kind!: 'TASK' | 'DOCUMENT' | 'APPROVAL'; @IsOptional() @IsInt() @Min(0) @Max(49) parentIndex?: number; }
+class ReleaseDto { @IsString() @MaxLength(150) name!: string; @IsOptional() @IsUUID() caseTypeId?: string; @IsIn(['GENERAL', 'MEDICAL', 'TRANSPORT']) workType!: string; @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StepDto) steps!: StepDto[]; }
 class ApplyDto { @IsUUID() releaseId!: string; @IsDateString() startDate!: string; }
 @Controller('practice-setup')
 @UseGuards(JwtAuthGuard)

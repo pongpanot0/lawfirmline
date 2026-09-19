@@ -332,6 +332,23 @@ export class CasesService {
       include: this.caseInclude,
     });
 
+    if (dto.status && dto.status !== before.status) {
+      await this.prisma.caseStatusLog.create({
+        data: { caseId: id, fromStatus: before.status, toStatus: dto.status, changedById: user.id },
+      });
+    }
+
+    if (dto.leadLawyerId && dto.leadLawyerId !== before.leadLawyerId) {
+      await this.prisma.auditLog.create({
+        data: {
+          firmId: user.firmId,
+          userId: user.id,
+          action: 'CASE_OWNER_CHANGED',
+          metadata: { caseId: id, from: before.leadLawyerId, to: dto.leadLawyerId },
+        },
+      });
+    }
+
     if (
       dto.leadLawyerId &&
       dto.leadLawyerId !== before.leadLawyerId &&
@@ -424,6 +441,10 @@ export class CasesService {
       include: this.caseInclude,
     });
 
+    await this.prisma.caseStatusLog.create({
+      data: { caseId: id, fromStatus: legalCase.status, toStatus: CaseStatus.CLOSED, changedById: user.id },
+    });
+
     await this.prisma.caseActivity.create({
       data: {
         caseId: id,
@@ -443,6 +464,15 @@ export class CasesService {
     if (legalCase.status !== CaseStatus.CLOSED) {
       throw new BadRequestException('คดีนี้ยังไม่ได้ปิด');
     }
+
+    await this.prisma.caseStatusLog.create({
+      data: {
+        caseId: id,
+        fromStatus: CaseStatus.CLOSED,
+        toStatus: CaseStatus.IN_PROGRESS,
+        changedById: user.id,
+      },
+    });
 
     return this.prisma.case.update({
       where: { id },

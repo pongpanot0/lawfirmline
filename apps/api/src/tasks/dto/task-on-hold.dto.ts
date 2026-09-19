@@ -1,9 +1,14 @@
-import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsDateString, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { OnHoldCategory } from '../../generated/prisma';
 
 export class StartTaskOnHoldDto {
   @IsString()
   @IsNotEmpty()
   reason!: string;
+
+  @IsOptional()
+  @IsEnum(OnHoldCategory)
+  category?: OnHoldCategory;
 
   @IsOptional()
   @IsUUID()
@@ -15,6 +20,10 @@ export class StartTaskOnHoldDto {
 }
 
 export class UpdateTaskOnHoldDto {
+  @IsOptional()
+  @IsEnum(OnHoldCategory)
+  category?: OnHoldCategory;
+
   @IsOptional()
   @IsUUID()
   followerUserId?: string;

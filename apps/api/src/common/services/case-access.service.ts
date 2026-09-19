@@ -70,25 +70,43 @@ export class CaseAccessService {
   }
 
   getTaskFilterForUser(user: AuthUser): Prisma.TaskWhereInput {
+    // Task ไม่มี firmId ตรง ๆ — scope ผ่านคดีของ firm หรือ (task ลอย) ผู้สร้างที่เป็นสมาชิก firm
+    const firmScope: Prisma.TaskWhereInput = {
+      OR: [
+        { case: { firmId: user.firmId } },
+        {
+          caseId: null,
+          createdBy: { firmMembers: { some: { firmId: user.firmId } } },
+        },
+      ],
+    };
+
     if (user.firmRole === FirmRole.OWNER) {
-      return {};
+      return firmScope;
     }
 
     if (user.firmRole === FirmRole.SENIOR_LAWYER) {
       return {
-        OR: [
-          { assigneeId: user.id },
+        AND: [
+          firmScope,
           {
-            assignee: {
-              firmMembers: { some: { firmId: user.firmId, role: FirmRole.LAWYER } },
-            },
+            OR: [
+              { assigneeId: user.id },
+              {
+                assignee: {
+                  firmMembers: { some: { firmId: user.firmId, role: FirmRole.LAWYER } },
+                },
+              },
+              { assigneeId: null },
+            ],
           },
-          { assigneeId: null },
         ],
       };
     }
 
-    return { OR: [{ assigneeId: user.id }, { assigneeId: null }] };
+    return {
+      AND: [firmScope, { OR: [{ assigneeId: user.id }, { assigneeId: null }] }],
+    };
   }
 
   /** Clients visible when the user owns the firm or has a visible case on them. */

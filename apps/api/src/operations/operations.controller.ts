@@ -32,6 +32,11 @@ export class OperationsController {
     return this.operationsService.getPairing(user);
   }
 
+  @Get('case-health')
+  getCaseHealth(@CurrentUser() user: AuthUser) {
+    return this.operationsService.getCaseHealth(user);
+  }
+
   @Get('onhold')
   getOnHoldTasks(@CurrentUser() user: AuthUser) {
     return this.operationsService.getOnHoldTasks(user);

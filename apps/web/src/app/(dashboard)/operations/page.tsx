@@ -6,7 +6,7 @@ import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { fmt, dateLocale } from '@/lib/i18n/dashboard';
 import { useAuth } from '@/lib/auth';
 import { CaseStatus, FirmRole } from '@lawfirm/shared';
-import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry } from '@/lib/api';
+import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
@@ -26,6 +26,24 @@ function workloadLevel(total: number): { key: WorkloadLevelKey; variant: 'succes
   if (total <= 9) return { key: 'levelMedium', variant: 'warning' };
   return { key: 'levelHeavy', variant: 'destructive' };
 }
+
+const CAPACITY_BADGE: Record<
+  string,
+  { label: string; variant: 'success' | 'secondary' | 'warning' | 'destructive' }
+> = {
+  LOW: { label: 'ว่าง', variant: 'success' },
+  NORMAL: { label: 'ปกติ', variant: 'secondary' },
+  HIGH: { label: 'งานเยอะ', variant: 'warning' },
+  OVERLOADED: { label: 'งานล้น', variant: 'destructive' },
+};
+
+const ON_HOLD_CATEGORY_LABEL: Record<string, string> = {
+  WAITING_CLIENT: 'รอลูกความ',
+  WAITING_COURT: 'รอศาล',
+  WAITING_DOCUMENT: 'รอเอกสาร',
+  WAITING_INTERNAL_REVIEW: 'รอรีวิวภายใน',
+  WAITING_EXTERNAL: 'รอบุคคลภายนอก',
+};
 
 const AVATAR_COLORS = [
   'bg-blue-100 text-blue-700',
@@ -96,6 +114,12 @@ export default function OperationsPage() {
   const [pairingLoading, setPairingLoading] = useState(true);
   const [onHold, setOnHold] = useState<OnHoldTaskEntry[]>([]);
   const [onHoldLoading, setOnHoldLoading] = useState(true);
+  const [caseHealth, setCaseHealth] = useState<CaseHealth | null>(null);
+
+  useEffect(() => {
+    if (!token || !isOwner) return;
+    api.getCaseHealth(token).then(setCaseHealth).catch(console.error);
+  }, [token, isOwner]);
 
   useEffect(() => {
     if (!token || !isOwner) return;
@@ -203,6 +227,12 @@ export default function OperationsPage() {
             {d.operations.tabOnHold}
             {onHold.length > 0 ? ` (${onHold.length})` : ''}
           </TabsTrigger>
+          <TabsTrigger value="health">
+            สุขภาพคดี
+            {caseHealth && caseHealth.inactiveCases.length + caseHealth.stuckCases.length > 0
+              ? ` (${caseHealth.inactiveCases.length + caseHealth.stuckCases.length})`
+              : ''}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="workload">
@@ -301,6 +331,11 @@ export default function OperationsPage() {
                                   <Badge variant="default" className="gap-1">
                                     <Sparkles className="h-3 w-3" />
                                     {d.operations.badgeRecommended}
+                                  </Badge>
+                                )}
+                                {s.capacity && CAPACITY_BADGE[s.capacity] && (
+                                  <Badge variant={CAPACITY_BADGE[s.capacity].variant}>
+                                    {CAPACITY_BADGE[s.capacity].label}
                                   </Badge>
                                 )}
                               </div>
@@ -478,7 +513,14 @@ export default function OperationsPage() {
                           {item.caseOwnRef ?? '-'} {item.caseTitle ?? ''}
                         </TableCell>
                         <TableCell>{item.assigneeName ?? '-'}</TableCell>
-                        <TableCell>{item.reason}</TableCell>
+                        <TableCell>
+                          {item.category && item.category !== 'OTHER' && (
+                            <Badge variant="muted" className="mr-1">
+                              {ON_HOLD_CATEGORY_LABEL[item.category] ?? item.category}
+                            </Badge>
+                          )}
+                          {item.reason}
+                        </TableCell>
                         <TableCell>{item.followerName ?? '-'}</TableCell>
                         <TableCell>
                           {item.nextFollowUpAt
@@ -510,6 +552,61 @@ export default function OperationsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="health">
+          <p className="mb-3 text-sm text-muted-foreground">
+            คดีที่เงียบเกิน 14 วัน และคดีที่ค้างสถานะเดิมเกิน 30 วัน — กดชื่อคดีเพื่อเข้าไปดู
+          </p>
+          {caseHealth && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {caseHealth.byStatus.map((row) => (
+                <Link key={row.status} href={`/cases?status=${row.status}`}>
+                  <Badge variant="muted" className="cursor-pointer hover:bg-muted/80">
+                    <CaseStatusBadge status={row.status as CaseStatus} /> {row.count}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          )}
+          <div className="grid gap-6 lg:grid-cols-2">
+            {(
+              [
+                { title: `เงียบเกิน 14 วัน (${caseHealth?.inactiveCases.length ?? 0})`, rows: caseHealth?.inactiveCases ?? [] },
+                { title: `ค้างสถานะเกิน 30 วัน (${caseHealth?.stuckCases.length ?? 0})`, rows: caseHealth?.stuckCases ?? [] },
+              ] as const
+            ).map((section) => (
+              <Card key={section.title}>
+                <CardContent className="p-0">
+                  <p className="border-b px-4 py-3 text-sm font-semibold">{section.title}</p>
+                  {section.rows.length === 0 ? (
+                    <InlineEmptyState title="ไม่มีคดีติดสัญญาณนี้" />
+                  ) : (
+                    <Table>
+                      <TableBody>
+                        {section.rows.map((c) => (
+                          <TableRow key={c.id}>
+                            <TableCell>
+                              <Link href={`/cases/${c.id}`} className="font-medium hover:underline">
+                                {c.title}
+                              </Link>
+                              <p className="text-xs text-muted-foreground">
+                                {c.leadLawyer.firstName} {c.leadLawyer.lastName} · เปิดคดี{' '}
+                                {new Date(c.openedAt).toLocaleDateString(dateLocale(locale))}
+                              </p>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <CaseStatusBadge status={c.status as CaseStatus} />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </TabsContent>
       </Tabs>
     </div>

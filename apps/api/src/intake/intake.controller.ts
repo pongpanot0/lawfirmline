@@ -46,6 +46,20 @@ export class IntakeController {
     return this.intakeService.findAll(user, query);
   }
 
+  @Get(':id/checklist')
+  getChecklist(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.intakeService.getChecklist(user, id);
+  }
+
+  @Patch(':id/checklist')
+  setChecklistItem(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: { label: string; documentId: string | null },
+  ) {
+    return this.intakeService.setChecklistItem(user, id, dto.label, dto.documentId ?? null);
+  }
+
   @Get('portal-submissions')
   listPortalSubmissions(@CurrentUser() user: AuthUser) {
     return this.intakeService.listPortalSubmissions(user);

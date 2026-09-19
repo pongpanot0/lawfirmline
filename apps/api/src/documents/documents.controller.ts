@@ -68,21 +68,24 @@ export class DocumentsController {
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   updateVisibility(
+    @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @Param('documentId') documentId: string,
     @Body() dto: UpdateDocumentVisibilityDto,
   ) {
-    return this.documentsService.updateVisibility(caseId, documentId, dto.visibleToClient);
+    return this.documentsService.updateVisibility(user, caseId, documentId, dto.visibleToClient);
   }
 
   @Get(':documentId/download')
   async download(
+    @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @Param('documentId') documentId: string,
     @Query('version') version: string,
     @Res() res: Response,
   ) {
     const fileInfo = await this.documentsService.getFilePath(
+      user,
       caseId,
       documentId,
       version ? parseInt(version, 10) : undefined,

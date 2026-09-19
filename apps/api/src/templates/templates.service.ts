@@ -5,17 +5,20 @@ import { PrismaService } from '../prisma/prisma.module';
 export class TemplatesService {
   constructor(private prisma: PrismaService) {}
 
-  findAll(caseTypeId?: string) {
+  findAll(firmId: string, caseTypeId?: string) {
     return this.prisma.documentTemplate.findMany({
-      where: caseTypeId ? { OR: [{ caseTypeId }, { caseTypeId: null }] } : undefined,
+      where: {
+        OR: [{ firmId }, { firmId: null }],
+        ...(caseTypeId ? { AND: [{ OR: [{ caseTypeId }, { caseTypeId: null }] }] } : {}),
+      },
       include: { caseType: { select: { id: true, name: true } } },
       orderBy: { name: 'asc' },
     });
   }
 
-  async render(templateId: string, caseId: string) {
-    const template = await this.prisma.documentTemplate.findUnique({
-      where: { id: templateId },
+  async render(firmId: string, templateId: string, caseId: string) {
+    const template = await this.prisma.documentTemplate.findFirst({
+      where: { id: templateId, OR: [{ firmId }, { firmId: null }] },
     });
     if (!template) return null;
 

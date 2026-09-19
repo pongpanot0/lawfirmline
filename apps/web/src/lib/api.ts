@@ -155,6 +155,22 @@ export interface WorkloadSummary {
   /** Case count weighted by claimed amount (ทุนทรัพย์); lead 1x, buddy 0.5x. */
   weightedScore: number;
   claimedTotal: number;
+  capacity: 'LOW' | 'NORMAL' | 'HIGH' | 'OVERLOADED';
+}
+
+export interface CaseHealthCaseItem {
+  id: string;
+  title: string;
+  status: string;
+  openedAt: string;
+  inStatusSince?: string;
+  leadLawyer: { id: string; firstName: string; lastName: string };
+}
+
+export interface CaseHealth {
+  byStatus: Array<{ status: string; count: number }>;
+  inactiveCases: CaseHealthCaseItem[];
+  stuckCases: CaseHealthCaseItem[];
 }
 
 export interface WorkloadCaseItem {
@@ -187,6 +203,7 @@ export interface OnHoldTaskEntry {
   caseOwnRef: string | null;
   assigneeName: string | null;
   reason: string;
+  category: 'WAITING_CLIENT' | 'WAITING_COURT' | 'WAITING_DOCUMENT' | 'WAITING_INTERNAL_REVIEW' | 'WAITING_EXTERNAL' | 'OTHER';
   startedAt: string;
   followerName: string | null;
   lastFollowUpAt: string | null;
@@ -1043,11 +1060,27 @@ export const api = {
   getOnHoldTasks: (token: string) =>
     request<OnHoldTaskEntry[]>('/operations/onhold', { token }),
 
+  getCaseHealth: (token: string) =>
+    request<CaseHealth>('/operations/case-health', { token }),
+
+  getIntakeChecklist: (token: string, intakeId: string) =>
+    request<Array<{ label: string; documentId: string | null; confirmedAt: string | null }>>(
+      `/intake/${intakeId}/checklist`,
+      { token },
+    ),
+
+  setIntakeChecklistItem: (token: string, intakeId: string, label: string, documentId: string | null) =>
+    request<{ label: string; documentId: string | null }>(`/intake/${intakeId}/checklist`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ label, documentId }),
+    }),
+
   startTaskOnHold: (
     token: string,
     caseId: string,
     taskId: string,
-    data: { reason: string; followerUserId?: string; nextFollowUpAt?: string },
+    data: { reason: string; category?: string; followerUserId?: string; nextFollowUpAt?: string },
   ) =>
     request<{ id: string }>(`/cases/${caseId}/tasks/${taskId}/hold`, {
       method: 'PATCH',
@@ -1579,16 +1612,6 @@ export const api = {
 
   getAiUsageSummary: (token: string, days = 30) =>
     request<AiUsageSummary>(`/ai-usage/summary?days=${days}`, { token }),
-
-  askLegal: (token: string, caseId: string, question: string, citationIds: string[]) =>
-    request<LegalQueryItem>(`/cases/${caseId}/legal/ask`, {
-      method: 'POST',
-      token,
-      body: JSON.stringify({ question, citationIds }),
-    }),
-
-  listLegalQueries: (token: string, caseId: string) =>
-    request<LegalQueryItem[]>(`/cases/${caseId}/legal`, { token }),
 
   analyzeDocument: (token: string, caseId: string, file: File, title?: string) => {
     const form = new FormData();
@@ -2147,24 +2170,6 @@ export interface AiUsageSummary {
   byOperation: Array<AiUsageBucket & { key: string }>;
   byModel: Array<AiUsageBucket & { key: string }>;
   byCase: Array<AiUsageBucket & { caseId: string; ownRef: string | null; title: string | null }>;
-}
-
-export interface LegalQueryItem {
-  id: string;
-  question: string;
-  citationIds: string[];
-  factsText: string[];
-  results: Array<{
-    dekaId: string;
-    headnote: string;
-    citedStatutes: string[];
-    courtLevel: string | null;
-    judgmentDate: string | null;
-    sourceUrl: string;
-  }>;
-  provider: string;
-  createdAt: string;
-  createdBy: { firstName: string; lastName: string };
 }
 
 export interface KnowledgeFlagItem {

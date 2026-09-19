@@ -147,31 +147,6 @@ function isChecklistDocId(value: string | undefined): value is string {
   return !!value && value !== CHECKLIST_MANUAL && value !== CHECKLIST_SKIPPED;
 }
 
-function checklistConfirmStorageKey(intakeId: string) {
-  return `intake-checklist-confirm:${intakeId}`;
-}
-
-function loadChecklistConfirmations(intakeId: string): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = sessionStorage.getItem(checklistConfirmStorageKey(intakeId));
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') return {};
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        (entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string',
-      ),
-    );
-  } catch {
-    return {};
-  }
-}
-
-function saveChecklistConfirmations(intakeId: string, value: Record<string, string>) {
-  if (typeof window === 'undefined') return;
-  sessionStorage.setItem(checklistConfirmStorageKey(intakeId), JSON.stringify(value));
-}
 
 function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
   return (
@@ -404,11 +379,29 @@ export default function IntakeDetailPage() {
   }, [loadDocuments]);
 
   useEffect(() => {
-    if (!id) return;
-    setConfirmedChecklist(loadChecklistConfirmations(id));
+    if (!id || !token) return;
+    api
+      .getIntakeChecklist(token, id)
+      .then((items) =>
+        setConfirmedChecklist(
+          Object.fromEntries(
+            items.filter((item) => item.documentId).map((item) => [item.label, item.documentId as string]),
+          ),
+        ),
+      )
+      .catch(console.error);
     setChecklistSuggestions([]);
     setClassifyError(null);
-  }, [id]);
+  }, [id, token]);
+
+  /** Persist one checklist mark server-side; fire-and-forget. */
+  const persistChecklistItem = useCallback(
+    (label: string, documentId: string | null) => {
+      if (!token || !id) return;
+      api.setIntakeChecklistItem(token, id, label, documentId).catch(console.error);
+    },
+    [token, id],
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -714,7 +707,7 @@ export default function IntakeDetailPage() {
     const labels = (
       PRE_LITIGATION_DOCUMENTS[intake.preLitigationType] ?? PRE_LITIGATION_DOCUMENTS.GENERAL
     ).map((item) => item.label);
-    const confirmed = loadChecklistConfirmations(intake.id);
+    const confirmed = confirmedChecklist;
     setClassifyingChecklist(true);
     setClassifyError(null);
     try {
@@ -743,11 +736,8 @@ export default function IntakeDetailPage() {
 
   const confirmChecklistSuggestion = (suggestion: ChecklistClassificationSuggestion) => {
     if (!id) return;
-    setConfirmedChecklist((previous) => {
-      const next = { ...previous, [suggestion.label]: suggestion.documentId };
-      saveChecklistConfirmations(id, next);
-      return next;
-    });
+    setConfirmedChecklist((previous) => ({ ...previous, [suggestion.label]: suggestion.documentId }));
+    persistChecklistItem(suggestion.label, suggestion.documentId);
     setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== suggestion.documentId));
   };
 
@@ -770,13 +760,16 @@ export default function IntakeDetailPage() {
       if (isReceived) {
         if (filenameMatched) {
           next[item.label] = CHECKLIST_SKIPPED;
+          persistChecklistItem(item.label, CHECKLIST_SKIPPED);
         } else {
           delete next[item.label];
+          persistChecklistItem(item.label, null);
         }
       } else {
-        next[item.label] = isChecklistDocId(current) ? current : CHECKLIST_MANUAL;
+        const value = isChecklistDocId(current) ? current : CHECKLIST_MANUAL;
+        next[item.label] = value;
+        persistChecklistItem(item.label, value);
       }
-      saveChecklistConfirmations(id, next);
       return next;
     });
   };
@@ -791,11 +784,11 @@ export default function IntakeDetailPage() {
       setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== documentId));
       if (id) {
         setConfirmedChecklist((previous) => {
-          const next = Object.fromEntries(
+          const removed = Object.entries(previous).filter(([, docId]) => docId === documentId);
+          removed.forEach(([label]) => persistChecklistItem(label, null));
+          return Object.fromEntries(
             Object.entries(previous).filter(([, docId]) => docId !== documentId),
           );
-          saveChecklistConfirmations(id, next);
-          return next;
         });
       }
       await loadDocuments();
