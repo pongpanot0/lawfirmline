@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, UserItem, ApiError, ChecklistClassificationSuggestion } from '@/lib/api';
+import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
@@ -1361,9 +1362,13 @@ export default function IntakeDetailPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">ลูกค้า</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">ลูกความ / ลูกค้า</CardTitle></CardHeader>
           <CardContent className="space-y-0">
-            <InfoRow label="ลูกค้า" value={intake.client?.name ?? intake.clientName} />
+            <InfoRow label="ลูกความ" value={intake.client?.name ?? intake.clientName} />
+            {/* ลูกค้า = ผู้ว่าจ้างที่เราวางบิล ซ่อนไว้เมื่อเป็นคนเดียวกับลูกความ */}
+            {!customersSameAsClient(intake.customers, intake.clientId) && (
+              <InfoRow label="ลูกค้า (ผู้ว่าจ้าง)" value={formatCustomers(intake.customers)} />
+            )}
           </CardContent>
         </Card>
 

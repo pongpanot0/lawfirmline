@@ -208,6 +208,16 @@ export interface CalendarEventItem {
   case?: { id: string; ownRef: string; title: string; courtName?: string | null };
 }
 
+/** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน ต่างจากลูกความ (client) ที่เราว่าความให้ */
+export interface CustomerShareItem {
+  id: string;
+  customerId: string;
+  sharePercent?: number | null;
+  isPrimary: boolean;
+  note?: string | null;
+  customer: { id: string; name: string };
+}
+
 export interface CaseItem {
   id: string;
   ownRef: string;
@@ -230,6 +240,7 @@ export interface CaseItem {
   leadLawyer: { firstName: string; lastName: string };
   caseType?: { id: string; name: string; fieldSchema?: unknown } | null;
   client?: { id: string; name: string } | null;
+  customers?: CustomerShareItem[];
 }
 
 export interface InsuranceClaimItem {
@@ -653,6 +664,7 @@ export interface IntakeItem {
   receivedBy?: { id: string; firstName: string; lastName: string };
   assessor?: { id: string; firstName: string; lastName: string } | null;
   client?: { id: string; name: string } | null;
+  customers?: CustomerShareItem[];
   case?: { id: string; ownRef: string; title: string } | null;
   relatedCase?: { id: string; ownRef: string; title: string; status: string } | null;
   createdAt: string;

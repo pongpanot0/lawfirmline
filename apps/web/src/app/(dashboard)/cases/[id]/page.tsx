@@ -85,6 +85,7 @@ import {
   ApiError,
   IntakePrecedentAnalysisItem,
 } from '@/lib/api';
+import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -443,6 +444,10 @@ export default function CaseDetailPage() {
 
   const customFields = legalCase.customFields as Record<string, string> | null;
   const clientDisplay = legalCase.client?.name ?? legalCase.clientName ?? '—';
+  // ลูกความ = คนที่เราว่าความให้ / ลูกค้า = ผู้ว่าจ้างที่เราวางบิล — คนละคนกันในงานประกัน
+  const customerDisplay = formatCustomers(legalCase.customers);
+  const customerIsClient = customersSameAsClient(legalCase.customers, legalCase.clientId);
+  const showCustomer = Boolean(customerDisplay) && !customerIsClient;
   // The API returns analyses newest-first, so the first COMPLETE row is the most
   // recent successful run. FAILED/PENDING rows are intentionally not shown here —
   // this case view is read-only and has no re-run action to offer.
@@ -468,7 +473,10 @@ export default function CaseDetailPage() {
           <h1 className="min-w-0 text-2xl font-bold tracking-tight">{legalCase.title}</h1>
           <CaseStatusBadge status={legalCase.status} />
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">{legalCase.ownRef} · ลูกค้า {clientDisplay}</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {legalCase.ownRef} · ลูกความ {clientDisplay}
+          {showCustomer && ` · ลูกค้า ${customerDisplay}`}
+        </p>
         {/*
           What a lawyer opens the case to learn, before anything else: who
           holds it, what is next in court, and what is due soonest. The tabs
@@ -782,9 +790,15 @@ export default function CaseDetailPage() {
                     />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">ลูกค้า</p>
+                    <p className="text-xs text-muted-foreground">ลูกความ</p>
                     <p className="font-medium">{clientDisplay}</p>
                   </div>
+                  {showCustomer && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">ลูกค้า (ผู้ว่าจ้าง)</p>
+                      <p className="font-medium">{customerDisplay}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-muted-foreground">ทนายผู้รับผิดชอบ</p>
                     <p className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</p>
@@ -903,7 +917,7 @@ export default function CaseDetailPage() {
                 <p className="font-medium">{legalCase.courtName ?? '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">ลูกค้า</p>
+                <p className="text-xs text-muted-foreground">ลูกความ</p>
                 <p className="font-medium">{clientDisplay}</p>
                 {legalCase.client?.contacts && legalCase.client.contacts.length > 0 && (
                   <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
@@ -913,6 +927,12 @@ export default function CaseDetailPage() {
                   </div>
                 )}
               </div>
+              {showCustomer && (
+                <div>
+                  <p className="text-xs text-muted-foreground">ลูกค้า (ผู้ว่าจ้าง)</p>
+                  <p className="font-medium">{customerDisplay}</p>
+                </div>
+              )}
               <div className="col-span-full rounded-lg border border-border bg-muted/30 p-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground">ทีมของคดี</p>
