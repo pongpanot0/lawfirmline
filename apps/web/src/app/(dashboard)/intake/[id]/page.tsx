@@ -353,6 +353,7 @@ export default function IntakeDetailPage() {
 
   // Document facts analysis (summary + facts from selected files)
   const [factsAnalyzing, setFactsAnalyzing] = useState(false);
+  const [aiMenuOpen, setAiMenuOpen] = useState(false);
   const [factsError, setFactsError] = useState<string | null>(null);
   const [factsResult, setFactsResult] = useState<BatchAnalysisResult | null>(null);
 
@@ -1029,21 +1030,56 @@ export default function IntakeDetailPage() {
           {intake.status !== 'REJECTED' &&
             intake.status !== 'CONVERTED' &&
             intake.status !== 'CONSULTED' && (
-              <div className="flex flex-wrap gap-2 sm:justify-end">
+              <div className="relative flex flex-wrap gap-2 sm:justify-end">
                 <Button
                   size="sm"
-                  onClick={handleRunPrecedentAnalysis}
-                  disabled={analyzing || uploadingFiles}
+                  onClick={() => setAiMenuOpen((open) => !open)}
+                  disabled={analyzing || factsAnalyzing || uploadingFiles}
+                  aria-expanded={aiMenuOpen}
+                  aria-haspopup="menu"
                 >
-                  {analyzing ? (
+                  {analyzing || factsAnalyzing ? (
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                       กำลังวิเคราะห์...
                     </span>
                   ) : (
-                    `วิเคราะห์เรื่อง + ไฟล์ที่เลือก (${selectedAttachmentIds.length})`
+                    `วิเคราะห์ด้วย AI (${selectedAttachmentIds.length} ไฟล์) ▾`
                   )}
                 </Button>
+                {aiMenuOpen && (
+                  <div role="menu" className="absolute right-0 top-full z-20 mt-1 w-80 rounded-lg border border-border bg-card p-1 shadow-soft">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
+                      onClick={() => {
+                        setAiMenuOpen(false);
+                        void handleRunPrecedentAnalysis();
+                      }}
+                    >
+                      <span className="font-medium">ประเมินรูปคดี + หาแนวฎีกา</span>
+                      <span className="block text-xs text-muted-foreground">
+                        วิเคราะห์รายละเอียดเรื่องกับไฟล์ที่เลือก ค้นฎีกาที่เกี่ยวข้อง และบันทึกผลไว้ · 10 เครดิต
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={selectedAttachmentIds.length === 0}
+                      className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
+                      onClick={() => {
+                        setAiMenuOpen(false);
+                        void handleAnalyzeFacts();
+                      }}
+                    >
+                      <span className="font-medium">อ่านสรุปเอกสารที่เลือก</span>
+                      <span className="block text-xs text-muted-foreground">
+                        สรุปข้อเท็จจริงจากไฟล์อย่างเดียว แสดงผลชั่วคราว · 5 เครดิต
+                      </span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
         </CardHeader>
@@ -1178,15 +1214,6 @@ export default function IntakeDetailPage() {
                   onClick={() => setSelectedAttachmentIds(selectedAttachmentIds.length ? [] : documents.slice(0, 10).map((file) => file.id))}
                 >
                   {selectedAttachmentIds.length ? 'ยกเลิกเลือกทั้งหมด' : 'เลือกทั้งหมด (สูงสุด 10)'}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={factsAnalyzing || analyzing || uploadingFiles || selectedAttachmentIds.length === 0}
-                  onClick={handleAnalyzeFacts}
-                >
-                  {factsAnalyzing ? 'AI กำลังอ่านเอกสาร...' : `สรุปข้อเท็จจริงจากไฟล์ที่เลือก (${selectedAttachmentIds.length})`}
                 </Button>
               </div>
             </div>
