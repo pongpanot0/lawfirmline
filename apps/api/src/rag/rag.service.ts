@@ -168,7 +168,7 @@ export class RagService {
     return { chunks };
   }
 
-  async ask(userId: string, caseId: string, question: string): Promise<RagAnswer> {
+  async ask(userId: string, caseId: string, question: string, documentIds?: string[]): Promise<RagAnswer> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       return {
@@ -208,6 +208,7 @@ export class RagService {
       FROM "DocumentChunk" c
       JOIN "Document" d ON d."id" = c."documentId"
       WHERE c."caseId" = ${caseId} AND c."embedding" IS NOT NULL
+        AND (${!documentIds?.length} OR c."documentId" = ANY(${documentIds ?? []}))
       ORDER BY score DESC
       LIMIT ${TOP_K}
     `);

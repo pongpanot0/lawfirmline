@@ -18,7 +18,7 @@ export class RagController {
   @RequireCredits(AI_CREDIT_COST.RAG_QA)
   @UseInterceptors(AiCreditsInterceptor)
   ask(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: AskCaseDto) {
-    return this.ragService.ask(user.id, caseId, dto.question);
+    return this.ragService.ask(user.id, caseId, dto.question, dto.documentIds);
   }
 
   @Post('cases/:caseId/rag/reindex')

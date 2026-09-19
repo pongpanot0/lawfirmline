@@ -1560,7 +1560,7 @@ export const api = {
     return request<KnowledgeItem[]>(`/knowledge${qs ? `?${qs}` : ''}`, { token });
   },
 
-  askCase: (token: string, caseId: string, question: string) =>
+  askCase: (token: string, caseId: string, question: string, documentIds?: string[]) =>
     request<{
       answer: string;
       sources: Array<{
@@ -1574,7 +1574,7 @@ export const api = {
     }>(`/cases/${caseId}/ai/ask`, {
       method: 'POST',
       token,
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, ...(documentIds?.length ? { documentIds } : {}) }),
     }),
 
   getAiUsageSummary: (token: string, days = 30) =>
