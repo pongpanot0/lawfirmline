@@ -88,6 +88,18 @@ export class IntelligenceController {
     return this.intelligenceService.analyzeBatch(files, user.id, caseId);
   }
 
+  @Post('intake/:intakeId/documents/analyze-batch')
+  @RequireCredits(AI_CREDIT_COST.DOCUMENT_ANALYSIS)
+  @UseInterceptors(AiCreditsInterceptor)
+  async analyzeIntakeBatch(@CurrentUser() user: AuthUser, @Param('intakeId') intakeId: string, @Body() dto: BatchAnalysisDto) {
+    // Resolve every file within this authorized intake before reading content.
+    const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePathForIntake(user, intakeId, id)));
+    const files = await Promise.all(paths.map(async (file) => ({ buffer: await fs.promises.readFile(file.path), mimeType: file.mimeType, filename: file.filename })));
+    // No caseId yet — the result is returned for reading, and the documents
+    // follow the intake into the case where the full knowledge flow lives.
+    return this.intelligenceService.analyzeBatch(files, user.id);
+  }
+
   @Post('intake/:intakeId/documents/classify-checklist')
   @RequireCredits(AI_CREDIT_COST.DOCUMENT_ANALYSIS)
   @UseInterceptors(AiCreditsInterceptor)
