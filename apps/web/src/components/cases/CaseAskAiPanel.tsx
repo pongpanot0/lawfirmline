@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, DocumentItem, KnowledgeItem, LegalQueryItem } from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { api, DocumentItem, KnowledgeItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type AskResult = Awaited<ReturnType<typeof api.askCase>>;
-type Section = 'ask' | 'facts' | 'legal';
+type Section = 'ask' | 'facts';
 
 const SUGGESTED_QUESTIONS = [
   'สรุปเหตุการณ์สำคัญในคดีนี้',
@@ -19,7 +19,6 @@ const SUGGESTED_QUESTIONS = [
 const SECTION_LABELS: Record<Section, string> = {
   ask: 'ถามเอกสาร',
   facts: 'ตรวจ Facts',
-  legal: 'กฎหมายไทย',
 };
 
 /** MIME types the RAG pipeline can read — mirrors INDEXABLE_MIME_TYPES on the API. */
@@ -272,151 +271,6 @@ function FactsReviewSection({
   );
 }
 
-function LegalSection({ caseId, knowledge }: { caseId: string; knowledge: KnowledgeItem[] }) {
-  const { token } = useAuth();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [question, setQuestion] = useState('จากข้อเท็จจริงนี้ มีแนวฎีกาหรือกฎหมายไทยใดที่ควรพิจารณา?');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [queries, setQueries] = useState<LegalQueryItem[]>([]);
-
-  const citations = useMemo(
-    () => knowledge.flatMap((k) => k.citations ?? []),
-    [knowledge],
-  );
-
-  const loadQueries = useCallback(() => {
-    if (!token) return;
-    api.listLegalQueries(token, caseId).then(setQueries).catch(console.error);
-  }, [token, caseId]);
-
-  useEffect(loadQueries, [loadQueries]);
-
-  const toggle = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const ask = async () => {
-    if (!token || loading) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await api.askLegal(token, caseId, question.trim(), [...selected]);
-      setQueries((prev) => [result, ...prev]);
-      setSelected(new Set());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'ค้นหากฎหมายไม่สำเร็จ');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">ถามกฎหมายไทยจากข้อเท็จจริง (iApp — ค้นแนวฎีกา)</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {citations.length ? (
-            <div>
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                เลือกข้อเท็จจริง ({selected.size}/{citations.length})
-              </p>
-              <ul className="max-h-64 space-y-1 overflow-y-auto">
-                {citations.map((c) => (
-                  <li key={c.id}>
-                    <label className="flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm hover:bg-muted">
-                      <input
-                        type="checkbox"
-                        className="mt-1"
-                        checked={selected.has(c.id)}
-                        onChange={() => toggle(c.id)}
-                      />
-                      <span>
-                        {c.statement}
-                        <span className="block text-xs text-muted-foreground">
-                          {c.document.filename}
-                          {c.page ? ` · หน้า ${c.page}` : ''}
-                        </span>
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              ยังไม่มีข้อเท็จจริงจากการวิเคราะห์เอกสาร — วิเคราะห์เอกสารด้วย AI ก่อน แล้วจึงเลือกข้อเท็จจริงมาถามกฎหมาย
-            </p>
-          )}
-          <textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            rows={2}
-            maxLength={1000}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <Button type="button" disabled={loading || question.trim().length < 3} onClick={() => void ask()}>
-            {loading ? 'กำลังค้นฎีกา...' : 'ถาม iApp'}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            ผลลัพธ์เป็นข้อมูลกฎหมายแยกจากข้อเท็จจริง (LEGAL) — ไม่ใช่ความเห็นทางกฎหมาย ทนายเป็นผู้วินิจฉัย
-          </p>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-        </CardContent>
-      </Card>
-
-      {queries.map((q) => (
-        <Card key={q.id}>
-          <CardHeader>
-            <CardTitle className="text-sm">{q.question}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {q.factsText.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                ข้อเท็จจริงที่ใช้: {q.factsText.join(' · ')}
-              </p>
-            )}
-            {q.results.length ? (
-              <ul className="space-y-2">
-                {q.results.map((r) => (
-                  <li key={r.dekaId} className="rounded-md border border-border bg-muted/30 p-2 text-xs">
-                    <p className="font-medium">ฎีกา {r.dekaId}</p>
-                    <p className="mt-1 text-muted-foreground">{r.headnote}</p>
-                    {r.citedStatutes.length > 0 && (
-                      <p className="mt-1">มาตราที่อ้าง: {r.citedStatutes.join(', ')}</p>
-                    )}
-                    <a
-                      href={r.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-block text-primary underline"
-                    >
-                      เปิดที่ศาลฎีกา
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">ไม่พบแนวฎีกาที่เกี่ยวข้อง</p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              โดย {q.createdBy.firstName} {q.createdBy.lastName} ·{' '}
-              {new Date(q.createdAt).toLocaleDateString('th-TH')}
-            </p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
 export default function CaseAskAiPanel({ caseId }: { caseId: string }) {
   const { token } = useAuth();
   const [section, setSection] = useState<Section>('ask');
@@ -463,7 +317,6 @@ export default function CaseAskAiPanel({ caseId }: { caseId: string }) {
           onChanged={() => setReloadKey((n) => n + 1)}
         />
       )}
-      {section === 'legal' && <LegalSection caseId={caseId} knowledge={knowledge} />}
     </div>
   );
 }
