@@ -13,6 +13,7 @@ import { allocateShares } from '@/lib/invoice-split';
 import { formatCurrency } from '@/lib/utils';
 import { InlineEmptyState } from '@/components/ui/misc';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
+import { SideDrawer } from '@/components/ui/SideDrawer';
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'ร่าง',
@@ -158,17 +159,21 @@ export function InvoicePanel({
         <button
           type="button"
           onClick={() => {
-            setShowForm((open) => !open);
+            setShowForm(true);
             setError('');
           }}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
         >
-          {showForm ? 'ยกเลิก' : standalone ? '+ ออกใบเปล่า' : '+ ออกใบแจ้งหนี้'}
+          {standalone ? '+ ออกใบเปล่า' : '+ ออกใบแจ้งหนี้'}
         </button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="mb-5 space-y-3 rounded-lg border border-slate-200 p-4">
+      <SideDrawer
+        open={showForm}
+        title={standalone ? 'ออกใบแจ้งหนี้เปล่า' : 'ออกใบแจ้งหนี้'}
+        onClose={() => setShowForm(false)}
+      >
+        <form onSubmit={handleSubmit} className="space-y-3">
           {caseId &&
             (hasWork ? (
               <div className="space-y-1">
@@ -369,7 +374,7 @@ export function InvoicePanel({
                 : 'ออกใบแจ้งหนี้'}
           </button>
         </form>
-      )}
+      </SideDrawer>
 
       <div className="space-y-2">
         {invoices.map((inv) => (
