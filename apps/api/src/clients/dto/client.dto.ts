@@ -31,6 +31,12 @@ export class ClientContactDto {
   name!: string;
 
   @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(100)
+  nickname?: string;
+
+  @IsOptional()
   @IsEmail()
   email?: string;
 
@@ -53,6 +59,12 @@ export class ClientContactDto {
   @IsOptional()
   @IsBoolean()
   portalEnabled?: boolean;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
 }
 
 export class CreateClientDto {

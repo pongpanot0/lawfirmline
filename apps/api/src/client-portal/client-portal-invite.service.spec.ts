@@ -46,7 +46,7 @@ describe('ClientPortalInviteService', () => {
       await expect(service.createInvite(user, 'contact-1')).rejects.toThrow(NotFoundException);
     });
 
-    it('rejects a contact with neither an email nor a linked LINE account', async () => {
+    it('still issues a copyable link for a contact with no email and no LINE', async () => {
       mockPrisma.clientContact.findFirst.mockResolvedValue({
         id: 'contact-1',
         email: null,
@@ -54,7 +54,14 @@ describe('ClientPortalInviteService', () => {
         name: 'Somchai',
         client: { name: 'Acme', firm: { name: 'LexFlow' } },
       });
-      await expect(service.createInvite(user, 'contact-1')).rejects.toThrow(BadRequestException);
+      mockPrisma.clientPortalInvite.create.mockResolvedValue({ id: 'invite-1', expiresAt: new Date() });
+
+      const result = await service.createInvite(user, 'contact-1');
+
+      expect(mockEmail.sendClientPortalInviteEmail).not.toHaveBeenCalled();
+      expect(mockLine.pushTo).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ emailSent: false, lineSent: false });
+      expect(result.inviteUrl).toContain('https://app.example.com/portal/invite/');
     });
 
     it('invites a contact who only has LINE, pushing the link over LINE', async () => {

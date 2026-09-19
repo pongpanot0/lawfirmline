@@ -253,6 +253,8 @@ export interface InsuranceClaimItem {
 export interface ClientContactItem {
   id?: string;
   name: string;
+  nickname?: string | null;
+  notes?: string | null;
   email?: string | null;
   phone?: string | null;
   position?: string | null;

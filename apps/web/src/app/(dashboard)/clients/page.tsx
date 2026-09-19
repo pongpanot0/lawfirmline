@@ -53,7 +53,7 @@ export default function ClientsPage() {
 
   const openEditContact = (c: ClientItem['contacts'][number]) => {
     setEditingContactId(c.id ?? null);
-    setContactForm({ name: c.name, nickname: (c as any).nickname ?? '', email: c.email ?? '', phone: c.phone ?? '', position: c.position ?? '', isPrimary: c.isPrimary ?? false, notes: (c as any).notes ?? '' });
+    setContactForm({ name: c.name, nickname: c.nickname ?? '', email: c.email ?? '', phone: c.phone ?? '', position: c.position ?? '', isPrimary: c.isPrimary ?? false, notes: c.notes ?? '' });
     setShowContactForm(true);
   };
 
@@ -69,12 +69,15 @@ export default function ClientsPage() {
           c.id === editingContactId ? { ...c, ...contactForm } : c
         );
       } else {
-        updatedContacts = [...selected.contacts, { ...contactForm, dateAdded: new Date().toISOString() }];
+        updatedContacts = [...selected.contacts, contactForm];
       }
+      setContactError(null);
       const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
       setSelected(updated);
       setShowContactForm(false);
       setEditingContactId(null);
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : 'บันทึกบุคคลติดต่อไม่สำเร็จ');
     } finally {
       setSavingContact(false);
     }
@@ -83,8 +86,13 @@ export default function ClientsPage() {
   const deleteContact = async (contactId: string) => {
     if (!token || !selected || !confirm('ลบบุคคลติดต่อนี้?')) return;
     const updatedContacts = selected.contacts.filter((c) => c.id !== contactId);
-    const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
-    setSelected(updated);
+    setContactError(null);
+    try {
+      const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
+      setSelected(updated);
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : 'ลบบุคคลติดต่อไม่สำเร็จ');
+    }
   };
 
   const togglePortalAccess = async (contactId: string, next: boolean) => {
@@ -92,21 +100,26 @@ export default function ClientsPage() {
     const updatedContacts = selected.contacts.map((c) =>
       c.id === contactId ? { ...c, portalEnabled: next } : c,
     );
-    const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
-    setSelected(updated);
+    setContactError(null);
+    try {
+      const updated = await api.updateClient(token, selected.id, { contacts: updatedContacts });
+      setSelected(updated);
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : 'อัปเดตสิทธิ์พอร์ทัลไม่สำเร็จ');
+    }
   };
 
   const [invitingContactId, setInvitingContactId] = useState<string | null>(null);
   const [inviteSentFor, setInviteSentFor] = useState<
     Record<string, { inviteUrl: string; emailSent: boolean; lineSent: boolean }>
   >({});
-  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [contactError, setContactError] = useState<string | null>(null);
   const [copiedInviteFor, setCopiedInviteFor] = useState<string | null>(null);
 
   const sendPortalInvite = async (contactId: string) => {
     if (!token) return;
     setInvitingContactId(contactId);
-    setInviteError(null);
+    setContactError(null);
     try {
       const invite = await api.sendPortalInvite(token, contactId);
       setInviteSentFor((prev) => ({
@@ -118,7 +131,7 @@ export default function ClientsPage() {
         },
       }));
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'ส่งคำเชิญไม่สำเร็จ');
+      setContactError(err instanceof Error ? err.message : 'ส่งคำเชิญไม่สำเร็จ');
     } finally {
       setInvitingContactId(null);
     }
@@ -313,7 +326,7 @@ export default function ClientsPage() {
                 </Card>
               )}
 
-              {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
+              {contactError && <p className="text-sm text-destructive">{contactError}</p>}
 
               {/* Contact list */}
               {selected.contacts.map((c, i) => (
@@ -325,14 +338,14 @@ export default function ClientsPage() {
                       <div>
                         <p className="font-medium flex items-center gap-2">
                           {c.name}
-                          {(c as any).nickname && <span className="text-muted-foreground font-normal text-sm">({(c as any).nickname})</span>}
+                          {c.nickname && <span className="text-muted-foreground font-normal text-sm">({c.nickname})</span>}
                           {c.isPrimary && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
                         </p>
                         {c.position && <p className="text-xs text-muted-foreground">{c.position}</p>}
                         <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
                           {c.phone && <p className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</p>}
                           {c.email && <p className="flex items-center gap-1"><Mail className="h-3 w-3" />{c.email}</p>}
-                          {(c as any).notes && <p className="text-xs italic">{(c as any).notes}</p>}
+                          {c.notes && <p className="text-xs italic">{c.notes}</p>}
                         </div>
                       </div>
                     </div>
@@ -342,7 +355,7 @@ export default function ClientsPage() {
                           {c.portalEnabled ? 'เปิดพอร์ทัลแล้ว' : 'เปิดพอร์ทัล'}
                         </Button>
                       )}
-                      {c.id && (c.email || lineStatus[c.id]?.connected) && (
+                      {c.id && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -354,7 +367,9 @@ export default function ClientsPage() {
                             ? 'กำลังส่ง...'
                             : c.portalEnabled
                               ? 'สร้างลิงก์เข้าใช้ใหม่'
-                              : 'ส่งคำเชิญเข้าใช้พอร์ทัล'}
+                              : c.email || lineStatus[c.id]?.connected
+                                ? 'ส่งคำเชิญเข้าใช้พอร์ทัล'
+                                : 'สร้างลิงก์คำเชิญ'}
                         </Button>
                       )}
                       {c.id && lineStatus[c.id] && (
@@ -386,7 +401,7 @@ export default function ClientsPage() {
                             inviteSentFor[c.id!].emailSent ? `ส่งอีเมลแล้ว (${c.email})` : null,
                             inviteSentFor[c.id!].lineSent ? 'ส่งทาง LINE แล้ว' : null,
                           ].filter(Boolean).join(' · ') ||
-                            'ยังส่งอัตโนมัติไม่ได้ — คัดลอกลิงก์ด้านล่างส่งให้ลูกค้าเองได้เลย'}
+                            'คัดลอกลิงก์ด้านล่างส่งให้ลูกค้าทาง LINE เองได้เลย'}
                         </p>
                         <div className="flex items-center gap-2">
                           <code className="flex-1 truncate rounded bg-background px-2 py-1 text-xs">

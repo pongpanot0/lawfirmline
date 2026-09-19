@@ -3,6 +3,9 @@ import { ClientsService } from './clients.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FirmRole } from '@lawfirm/shared';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { ClientContactDto } from './dto/client.dto';
 
 describe('ClientsService.update contact upsert', () => {
   let service: ClientsService;
@@ -87,5 +90,44 @@ describe('ClientsService.update contact upsert', () => {
     expect(mockPrisma.clientContact.deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ['contact-2'] } },
     });
+  });
+});
+
+describe('ClientsService contact round-trip shape', () => {
+  it('returns contacts in a shape that ClientContactDto accepts back', async () => {
+    const service = new ClientsService({} as any, {} as any);
+    const select = (service as any).contactSelect as Record<string, true>;
+
+    // The clients page edits contacts by sending the fetched list straight back
+    // to PUT /clients/:id, and the global ValidationPipe rejects unknown keys.
+    const sample: Record<string, unknown> = {
+      id: 'contact-1',
+      name: 'สมชาย',
+      nickname: 'ชาย',
+      email: 'somchai@example.com',
+      phone: '0812345678',
+      position: 'CEO',
+      isPrimary: true,
+      portalEnabled: false,
+      notes: 'ติดต่อได้เฉพาะวันทำการ',
+    };
+    expect(Object.keys(sample).sort()).toEqual(Object.keys(select).sort());
+
+    const contact = plainToInstance(ClientContactDto, sample);
+    const errors = await validate(contact, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+
+    expect(errors.map((e) => e.property)).toEqual([]);
+  });
+
+  it('never exposes passwordHash or LINE link tokens on a contact', () => {
+    const service = new ClientsService({} as any, {} as any);
+    const select = (service as any).contactSelect as Record<string, true>;
+
+    for (const secret of ['passwordHash', 'lineUserId', 'lineLinkCode', 'lineLinkCodeExpiresAt']) {
+      expect(select[secret]).toBeUndefined();
+    }
   });
 });

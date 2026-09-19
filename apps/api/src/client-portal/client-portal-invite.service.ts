@@ -31,12 +31,6 @@ export class ClientPortalInviteService {
       include: { client: { include: { firm: true } } },
     });
     if (!contact) throw new NotFoundException('Contact not found');
-    if (!contact.email && !contact.lineUserId) {
-      throw new BadRequestException(
-        'This contact has no email address or connected LINE account on file',
-      );
-    }
-
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 

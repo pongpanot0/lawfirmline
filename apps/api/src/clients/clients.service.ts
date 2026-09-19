@@ -11,8 +11,29 @@ export class ClientsService {
     private caseAccess: CaseAccessService,
   ) {}
 
+  /**
+   * Contacts are edited by sending the list straight back to PUT /clients/:id,
+   * so this must stay in sync with ClientContactDto — any extra field here is
+   * rejected by the whitelisting ValidationPipe on the way back in (and
+   * passwordHash / LINE link tokens have no business reaching the browser).
+   */
+  private contactSelect = {
+    id: true,
+    name: true,
+    nickname: true,
+    email: true,
+    phone: true,
+    position: true,
+    isPrimary: true,
+    portalEnabled: true,
+    notes: true,
+  };
+
   private include = {
-    contacts: { orderBy: [{ isPrimary: 'desc' as const }, { name: 'asc' as const }] },
+    contacts: {
+      select: this.contactSelect,
+      orderBy: [{ isPrimary: 'desc' as const }, { name: 'asc' as const }],
+    },
     _count: { select: { cases: true } },
   };
 
@@ -65,9 +86,11 @@ export class ClientsService {
         contacts: {
           create: contacts.map((c, i) => ({
             name: c.name,
+            nickname: c.nickname,
             email: c.email,
             phone: c.phone,
             position: c.position,
+            notes: c.notes,
             isPrimary: c.isPrimary ?? i === 0,
             portalEnabled: c.portalEnabled ?? false,
           })),
@@ -91,9 +114,11 @@ export class ClientsService {
         for (const [i, c] of dto.contacts.entries()) {
           const data = {
             name: c.name,
+            nickname: c.nickname,
             email: c.email,
             phone: c.phone,
             position: c.position,
+            notes: c.notes,
             isPrimary: c.isPrimary ?? i === 0,
             portalEnabled: c.portalEnabled ?? false,
           };
