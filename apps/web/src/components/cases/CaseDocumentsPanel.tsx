@@ -38,6 +38,15 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   // Publishing reaches the client portal, so the recipients are reviewed first
   // rather than inferred from whoever happens to hold access.
   const [publishTarget, setPublishTarget] = useState<DocumentItem | null>(null);
+  const [requiredDocs, setRequiredDocs] = useState<{
+    required: Array<{ category: string; present: boolean }>;
+    missing: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!token || !id) return;
+    api.getRequiredDocuments(token, id).then(setRequiredDocs).catch(() => {});
+  }, [token, id, documents.length]);
 
   const loadPublications = (documentId: string) => {
     if (!token || !id) return;
@@ -194,6 +203,38 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
+      {requiredDocs && requiredDocs.required.length > 0 && (
+        <div
+          className={`mb-6 rounded-xl border p-4 ${
+            requiredDocs.missing.length
+              ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
+              : 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30'
+          }`}
+        >
+          <p className="mb-2 text-sm font-semibold">
+            เอกสารที่ต้องมีตามประเภทคดี{' '}
+            {requiredDocs.missing.length
+              ? `— ขาดอีก ${requiredDocs.missing.length} รายการ`
+              : '— ครบแล้ว ✓'}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {requiredDocs.required.map((item) => (
+              <span
+                key={item.category}
+                className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                  item.present
+                    ? 'border-emerald-300 text-emerald-700 dark:text-emerald-300'
+                    : 'border-amber-400 font-medium text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {item.present ? '✓ ' : '✗ '}
+                {item.category}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <DateSuggestionsPanel
         caseId={id}
         source="DOCUMENT"
@@ -251,6 +292,30 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
                 </p>
               </button>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <select
+                  value={doc.category ?? ''}
+                  onChange={async (e) => {
+                    if (!token) return;
+                    await api
+                      .updateDocumentCategory(token, id, doc.id, e.target.value || null)
+                      .catch(console.error);
+                    load();
+                  }}
+                  className="rounded-lg border bg-background px-2 py-1 text-xs"
+                  title="ประเภทเอกสาร"
+                >
+                  <option value="">— ประเภท —</option>
+                  {[
+                    ...new Set([
+                      ...(requiredDocs?.required.map((r) => r.category) ?? []),
+                      ...(doc.category ? [doc.category] : []),
+                    ]),
+                  ].map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
                 <span className="hidden text-xs text-muted-foreground sm:inline">{doc.mimeType}</span>
                 <Link
                   href={`/cases/${id}/documents/${doc.id}/review`}

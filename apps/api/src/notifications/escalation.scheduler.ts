@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { TaskStatus } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { AssignmentNotifierService } from './assignment-notifier.service';
+import { AutomationLogService } from '../common/services/automation-log.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FOLLOW_UP_INTERVAL_DAYS = 7;
@@ -22,6 +23,7 @@ export class EscalationScheduler {
   constructor(
     private prisma: PrismaService,
     private notifier: AssignmentNotifierService,
+    private automationLog: AutomationLogService,
   ) {}
 
   @Cron('30 8 * * *', { timeZone: 'Asia/Bangkok' })
@@ -41,6 +43,11 @@ export class EscalationScheduler {
       },
       include: { case: { select: { id: true, firmId: true, title: true, leadLawyerId: true } } },
     });
+
+    const perFirm = new Map<string, number>();
+    for (const task of tasks) {
+      if (task.case) perFirm.set(task.case.firmId, (perFirm.get(task.case.firmId) ?? 0) + 1);
+    }
 
     for (const task of tasks) {
       if (!task.dueDate) continue;
@@ -70,6 +77,15 @@ export class EscalationScheduler {
           entityPath: path,
         });
       }
+    }
+
+    for (const [firmId, count] of perFirm) {
+      await this.automationLog.record({
+        firmId,
+        automation: 'task-escalation',
+        trigger: { cron: '08:30 Asia/Bangkok' },
+        result: { tasksNotified: count },
+      });
     }
   }
 

@@ -18,7 +18,7 @@ export default function CaseTypesPage() {
   const { token, user } = useAuth();
   const [types, setTypes] = useState<CaseTypeItem[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '' });
+  const [form, setForm] = useState({ name: '', description: '', requiredDocs: '' });
 
   const load = () => {
     if (!token) return;
@@ -36,8 +36,15 @@ export default function CaseTypesPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-    await api.createCaseType(token, form);
-    setForm({ name: '', description: '' });
+    await api.createCaseType(token, {
+      name: form.name,
+      description: form.description,
+      requiredDocuments: form.requiredDocs
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
+    setForm({ name: '', description: '', requiredDocs: '' });
     setShowForm(false);
     load();
   };
@@ -78,6 +85,15 @@ export default function CaseTypesPage() {
                   className="mt-1"
                 />
               </div>
+              <div className="flex-1">
+                <label className="text-sm font-medium">เอกสารที่ต้องมี (คั่นด้วย ,)</label>
+                <Input
+                  placeholder="เช่น บัตรประชาชน, หนังสือมอบอำนาจ, สัญญา"
+                  value={form.requiredDocs}
+                  onChange={(e) => setForm({ ...form, requiredDocs: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
               <Button type="submit" className="w-full sm:w-auto">{d.common.save}</Button>
             </form>
           </CardContent>
@@ -97,6 +113,11 @@ export default function CaseTypesPage() {
                 <span className="shrink-0 text-xs text-muted-foreground">{fmt(d.admin.caseCount, { count: t._count?.cases ?? 0 })}</span>
               </div>
               {t.description && <p className="mt-1 text-sm text-muted-foreground">{t.description}</p>}
+              {(t.requiredDocuments?.length ?? 0) > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  เอกสารที่ต้องมี: {t.requiredDocuments!.join(', ')}
+                </p>
+              )}
               {!t.isActive && <p className="mt-2 text-xs text-destructive">{d.admin.inactive}</p>}
             </CardContent>
           </Card>

@@ -43,15 +43,88 @@ export class OperationsService {
     });
   }
 
+  /** SLA / operational targets — firm-configurable, sensible defaults. */
+  async getSlaConfig(user: AuthUser) {
+    const firm = await this.prisma.firm.findUniqueOrThrow({
+      where: { id: user.firmId },
+      select: { slaConfig: true },
+    });
+    return {
+      caseUpdateDays: 14,
+      stuckStatusDays: 30,
+      reviewDays: 3,
+      ...((firm.slaConfig as Record<string, number> | null) ?? {}),
+    };
+  }
+
+  async updateSlaConfig(user: AuthUser, dto: Record<string, number>) {
+    await this.prisma.firm.update({
+      where: { id: user.firmId },
+      data: { slaConfig: dto },
+    });
+    return this.getSlaConfig(user);
+  }
+
+  /**
+   * Team performance (operational metrics, ไม่ใช่ leaderboard): completed,
+   * average turnaround, overdue rate per member over the window.
+   * ponytail: turnaround ≈ updatedAt - createdAt of DONE tasks (no completedAt column).
+   */
+  async getTeamPerformance(user: AuthUser, days = 30) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const firmScope = {
+      OR: [
+        { case: { firmId: user.firmId } },
+        { caseId: null, createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
+      ],
+    };
+    const [members, doneTasks, openTasks] = await Promise.all([
+      this.getFirmMembers(user.firmId),
+      this.prisma.task.findMany({
+        where: { ...firmScope, status: TaskStatus.DONE, updatedAt: { gte: since } },
+        select: { assigneeId: true, createdAt: true, updatedAt: true },
+      }),
+      this.prisma.task.findMany({
+        where: { ...firmScope, status: { not: TaskStatus.DONE } },
+        select: { assigneeId: true, dueDate: true },
+      }),
+    ]);
+
+    return members.map((m) => {
+      const done = doneTasks.filter((t) => t.assigneeId === m.id);
+      const open = openTasks.filter((t) => t.assigneeId === m.id);
+      const overdue = open.filter((t) => t.dueDate && t.dueDate < now);
+      const avgTurnaroundDays = done.length
+        ? Math.round(
+            (done.reduce((sum, t) => sum + (t.updatedAt.getTime() - t.createdAt.getTime()), 0) /
+              done.length /
+              (24 * 60 * 60 * 1000)) *
+              10,
+          ) / 10
+        : null;
+      return {
+        userId: m.id,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        completedCount: done.length,
+        avgTurnaroundDays,
+        openCount: open.length,
+        overdueCount: overdue.length,
+        overdueRate: open.length ? Math.round((overdue.length / open.length) * 100) : 0,
+      };
+    });
+  }
+
   /**
    * Case health for the partner dashboard: pipeline by status, cases with no
-   * activity > 14 days, and cases stuck in the same status > 30 days.
-   * ponytail: fixed 14/30-day thresholds; make firm-configurable when asked.
+   * activity beyond the firm's SLA, and cases stuck in the same status.
    */
   async getCaseHealth(user: AuthUser) {
     const now = new Date();
-    const inactiveSince = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-    const stuckSince = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sla = await this.getSlaConfig(user);
+    const inactiveSince = new Date(now.getTime() - sla.caseUpdateDays * 24 * 60 * 60 * 1000);
+    const stuckSince = new Date(now.getTime() - sla.stuckStatusDays * 24 * 60 * 60 * 1000);
     const activeWhere = { firmId: user.firmId, status: { not: CaseStatus.CLOSED } };
 
     const [byStatus, inactiveCases, stuckCandidates] = await Promise.all([
@@ -97,6 +170,7 @@ export class OperationsService {
     ]);
 
     return {
+      sla,
       byStatus: byStatus.map((row) => ({ status: row.status, count: row._count._all })),
       inactiveCases,
       stuckCases: stuckCandidates.map((c) => ({

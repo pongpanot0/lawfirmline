@@ -132,11 +132,13 @@ export class DocumentsService {
     user: AuthUser,
     caseId: string,
     file: Express.Multer.File,
+    category?: string,
   ) {
     const document = await this.prisma.document.create({
       data: {
         caseId,
         filename: decodeUploadFilename(file.originalname),
+        category: category || null,
         storagePath: '',
         mimeType: file.mimetype,
         version: 1,
@@ -362,6 +364,37 @@ export class DocumentsService {
       path: document.storagePath,
       filename: document.filename,
       mimeType: document.mimeType,
+    };
+  }
+
+  async updateCategory(user: AuthUser, caseId: string, documentId: string, category: string | null) {
+    await this.verifyDocument(caseId, documentId);
+    return this.prisma.document.update({
+      where: { id: documentId },
+      data: { category },
+    });
+  }
+
+  /** เทียบเอกสารที่มีกับ requiredDocuments ของประเภทคดี → รายการที่ยังขาด */
+  async getRequiredDocuments(caseId: string) {
+    const legalCase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: {
+        caseType: { select: { requiredDocuments: true } },
+        documents: { select: { category: true } },
+      },
+    });
+    if (!legalCase) throw new NotFoundException('Case not found');
+
+    const required = ((legalCase.caseType?.requiredDocuments as string[] | null) ?? []).filter(
+      (item): item is string => typeof item === 'string',
+    );
+    const present = new Set(
+      legalCase.documents.map((doc) => doc.category).filter((c): c is string => !!c),
+    );
+    return {
+      required: required.map((category) => ({ category, present: present.has(category) })),
+      missing: required.filter((category) => !present.has(category)),
     };
   }
 

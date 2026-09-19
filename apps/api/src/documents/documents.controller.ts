@@ -46,8 +46,26 @@ export class DocumentsController {
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body('category') category?: string,
   ) {
-    return this.documentsService.upload(user, caseId, file);
+    return this.documentsService.upload(user, caseId, file, category);
+  }
+
+  @Get('required')
+  getRequiredDocuments(@Param('caseId') caseId: string) {
+    return this.documentsService.getRequiredDocuments(caseId);
+  }
+
+  @Patch(':documentId/category')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  updateCategory(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('documentId') documentId: string,
+    @Body('category') category?: string,
+  ) {
+    return this.documentsService.updateCategory(user, caseId, documentId, category?.trim() || null);
   }
 
   @Post(':documentId/versions')

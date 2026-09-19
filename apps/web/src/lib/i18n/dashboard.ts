@@ -43,6 +43,7 @@ export const dashboardCopy = {
       reports: 'รายงาน',
       team: 'จัดการทีม',
       operations: 'ภาระงานทีม',
+      sops: 'SOP / คู่มือ',
       aiUsage: 'การใช้งาน AI',
       billing: 'แพ็กเกจ & ชำระเงิน',
       reimbursements: 'เบิกจ่าย',
@@ -1061,6 +1062,7 @@ export const dashboardCopy = {
     nav: {
       tagline: 'Legal Case Management',
       groupWork: 'Daily work',
+      sops: 'SOPs',
       groupFirm: 'Firm',
       dashboard: 'Dashboard',
       myDay: 'My Day',
