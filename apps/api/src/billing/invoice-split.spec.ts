@@ -23,6 +23,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
   let nextNumber: number;
   const mockPrisma = {
     caseCustomer: { findMany: jest.fn() },
+    intakeCustomer: { findMany: jest.fn().mockResolvedValue([]) },
     invoice: { create: jest.fn() },
     timeEntry: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
     expense: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
@@ -46,6 +47,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
     }));
     mockPrisma.timeEntry.findMany.mockResolvedValue([]);
     mockPrisma.expense.findMany.mockResolvedValue([]);
+    mockPrisma.intakeCustomer.findMany.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -68,7 +70,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       { customerId: 'viriyah', sharePercent: 100 },
     ]);
 
-    const invoices = await billing.createInvoice(user, 'case-1', fee() as any);
+    const invoices = await billing.createInvoice(user, { caseId: 'case-1' }, fee() as any);
 
     expect(invoices).toHaveLength(1);
     expect((invoices[0] as any).billToCustomerId).toBe('viriyah');
@@ -83,7 +85,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       { customerId: 'bangkok-insurance', sharePercent: 40 },
     ]);
 
-    const invoices = await billing.createInvoice(user, 'case-1', fee() as any);
+    const invoices = await billing.createInvoice(user, { caseId: 'case-1' }, fee() as any);
 
     expect(invoices.map((i: any) => [i.billToCustomerId, i.totalAmount])).toEqual([
       ['viriyah', 60000],
@@ -99,7 +101,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       { customerId: 'c', sharePercent: 33.34 },
     ]);
 
-    const invoices = await billing.createInvoice(user, 'case-1', fee() as any);
+    const invoices = await billing.createInvoice(user, { caseId: 'case-1' }, fee() as any);
 
     const total = invoices.reduce((sum: number, i: any) => sum + i.totalAmount, 0);
     expect(Math.round(total * 100) / 100).toBe(100000);
@@ -111,7 +113,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       { customerId: 'b', sharePercent: null },
     ]);
 
-    const invoices = await billing.createInvoice(user, 'case-1', fee() as any);
+    const invoices = await billing.createInvoice(user, { caseId: 'case-1' }, fee() as any);
 
     expect(invoices.map((i: any) => i.totalAmount)).toEqual([50000, 50000]);
   });
@@ -122,7 +124,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       { customerId: 'b', sharePercent: 50 },
     ]);
 
-    const invoices = await billing.createInvoice(user, 'case-1', {
+    const invoices = await billing.createInvoice(user, { caseId: 'case-1' }, {
       ...fee(),
       splits: [
         { customerId: 'a', sharePercent: 70 },
@@ -137,7 +139,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
     mockPrisma.caseCustomer.findMany.mockResolvedValue([{ customerId: 'a', sharePercent: 100 }]);
 
     await expect(
-      billing.createInvoice(user, 'case-1', {
+      billing.createInvoice(user, { caseId: 'case-1' }, {
         ...fee(),
         splits: [{ customerId: 'stranger', sharePercent: 100 }],
       } as any),
@@ -150,7 +152,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       { customerId: 'b', sharePercent: 0 },
     ]);
 
-    await expect(billing.createInvoice(user, 'case-1', fee() as any)).rejects.toThrow(
+    await expect(billing.createInvoice(user, { caseId: 'case-1' }, fee() as any)).rejects.toThrow(
       BadRequestException,
     );
   });
@@ -158,7 +160,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
   it('still issues an invoice for a case that has no customer recorded', async () => {
     mockPrisma.caseCustomer.findMany.mockResolvedValue([]);
 
-    const invoices = await billing.createInvoice(user, 'case-1', fee() as any);
+    const invoices = await billing.createInvoice(user, { caseId: 'case-1' }, fee() as any);
 
     expect(invoices).toHaveLength(1);
     expect((invoices[0] as any).billToCustomerId).toBeNull();
@@ -179,7 +181,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
         { id: 'e1', description: 'ค่าเดินทางไปศาล', amount: 1200 },
       ]);
 
-      const invoices = await billing.createInvoice(user, 'case-1', {
+      const invoices = await billing.createInvoice(user, { caseId: 'case-1' }, {
         timeEntryIds: ['t1'],
         expenseIds: ['e1'],
       } as any);
@@ -196,7 +198,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
         { id: 't1', description: 'ว่าความ', hours: 1, rate: 1000 },
       ]);
 
-      await billing.createInvoice(user, 'case-1', { timeEntryIds: ['t1'] } as any);
+      await billing.createInvoice(user, { caseId: 'case-1' }, { timeEntryIds: ['t1'] } as any);
 
       expect(mockPrisma.timeEntry.updateMany).toHaveBeenCalledWith({
         where: { id: { in: ['t1'] } },
@@ -213,7 +215,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
         { id: 't1', description: 'ว่าความ', hours: 1, rate: 1000 },
       ]);
 
-      await billing.createInvoice(user, 'case-1', { timeEntryIds: ['t1'] } as any);
+      await billing.createInvoice(user, { caseId: 'case-1' }, { timeEntryIds: ['t1'] } as any);
 
       expect(mockPrisma.timeEntry.updateMany).toHaveBeenCalledTimes(1);
       expect(mockPrisma.timeEntry.updateMany.mock.calls[0][0].data.invoiceId).toBe('invoice-INV-00001');
@@ -224,7 +226,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       mockPrisma.timeEntry.findMany.mockResolvedValue([]);
 
       await expect(
-        billing.createInvoice(user, 'case-1', { timeEntryIds: ['t1'] } as any),
+        billing.createInvoice(user, { caseId: 'case-1' }, { timeEntryIds: ['t1'] } as any),
       ).rejects.toThrow(BadRequestException);
       expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
     });
@@ -234,7 +236,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       mockPrisma.expense.findMany.mockResolvedValue([]);
 
       await expect(
-        billing.createInvoice(user, 'case-1', { expenseIds: ['e1'] } as any),
+        billing.createInvoice(user, { caseId: 'case-1' }, { expenseIds: ['e1'] } as any),
       ).rejects.toThrow(BadRequestException);
       expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
     });
@@ -244,7 +246,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
         { id: 'e1', description: 'ค่าเดินทาง', amount: 500 },
       ]);
 
-      await billing.createInvoice(user, 'case-1', { expenseIds: ['e1'] } as any);
+      await billing.createInvoice(user, { caseId: 'case-1' }, { expenseIds: ['e1'] } as any);
 
       expect(mockPrisma.expense.findMany.mock.calls[0][0].where).toMatchObject({
         billable: true,
@@ -253,7 +255,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
     });
 
     it('refuses an invoice with nothing on it', async () => {
-      await expect(billing.createInvoice(user, 'case-1', {} as any)).rejects.toThrow(
+      await expect(billing.createInvoice(user, { caseId: 'case-1' }, {} as any)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -263,12 +265,69 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
         { id: 't1', description: 'ว่าความ', hours: 1, rate: 1000 },
       ]);
 
-      const invoices = await billing.createInvoice(user, 'case-1', {
+      const invoices = await billing.createInvoice(user, { caseId: 'case-1' }, {
         timeEntryIds: ['t1'],
         lineItems: [{ description: 'ค่าธรรมเนียมศาล', quantity: 1, unitPrice: 500 }],
       } as any);
 
       expect((invoices[0] as any).totalAmount).toBe(1500);
+    });
+  });
+
+  describe('ใบแจ้งหนี้ที่ไม่มีคดี', () => {
+    it('bills the customers recorded on the intake', async () => {
+      mockPrisma.intakeCustomer.findMany.mockResolvedValue([
+        { customerId: 'viriyah', sharePercent: 100 },
+      ]);
+
+      const invoices = await billing.createInvoice(user, { intakeId: 'intake-1' }, fee() as any);
+
+      expect(mockPrisma.caseCustomer.findMany).not.toHaveBeenCalled();
+      expect((invoices[0] as any).intakeId).toBe('intake-1');
+      expect((invoices[0] as any).caseId).toBeUndefined();
+      expect((invoices[0] as any).billToCustomerId).toBe('viriyah');
+    });
+
+    it('refuses case work on an invoice raised off an intake, rather than dropping it', async () => {
+      mockPrisma.intakeCustomer.findMany.mockResolvedValue([
+        { customerId: 'viriyah', sharePercent: 100 },
+      ]);
+
+      await expect(
+        billing.createInvoice(
+          user,
+          { intakeId: 'intake-1' },
+          { ...fee(), timeEntryIds: ['t1'] } as any,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
+    });
+
+    it('bills the named customer when nothing anchors the invoice', async () => {
+      const invoices = await billing.createInvoice(user, {}, {
+        ...fee(),
+        billToCustomerId: 'viriyah',
+      } as any);
+
+      expect((invoices[0] as any).billToCustomerId).toBe('viriyah');
+      expect((invoices[0] as any).firmId).toBe('firm-1');
+    });
+
+    it('accepts an empty invoice raised for the customer to look at first', async () => {
+      const invoices = await billing.createInvoice(user, {}, { lineItems: [] } as any);
+
+      expect(invoices).toHaveLength(1);
+      expect((invoices[0] as any).totalAmount).toBe(0);
+    });
+
+    it('still refuses an empty invoice on a case, where the work should come from', async () => {
+      mockPrisma.caseCustomer.findMany.mockResolvedValue([
+        { customerId: 'viriyah', sharePercent: 100 },
+      ]);
+
+      await expect(
+        billing.createInvoice(user, { caseId: 'case-1' }, { lineItems: [] } as any),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

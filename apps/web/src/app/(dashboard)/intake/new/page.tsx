@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { canAssignFirmRole } from '@lawfirm/shared';
 import { api, ClientItem, ApiError, IntakeItem, FieldSuggestion, UserItem } from '@/lib/api';
+import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { Button } from '@/components/ui/button';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
@@ -351,22 +352,25 @@ export default function NewIntakePage() {
             {!sameCustomer && (
               <div className="mt-3 space-y-2">
                 {customers.map((row, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <select
-                      aria-label={`ลูกค้ารายที่ ${index + 1}`}
-                      value={row.customerId}
-                      onChange={(e) =>
-                        setCustomers((rows) =>
-                          rows.map((r, i) => (i === index ? { ...r, customerId: e.target.value } : r)),
-                        )
-                      }
-                      className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="">เลือกลูกค้า</option>
-                      {clients.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                  <div key={index} className="flex items-end gap-2">
+                    <div className="min-w-0 flex-1">
+                      <CustomerSelect
+                        id={`intake-customer-${index}`}
+                        label={`ลูกค้ารายที่ ${index + 1}`}
+                        value={row.customerId}
+                        clients={clients}
+                        onChange={(customerId) =>
+                          setCustomers((rows) =>
+                            rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
+                          )
+                        }
+                        onCreated={(client) =>
+                          setClients((rows) =>
+                            [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
+                          )
+                        }
+                      />
+                    </div>
                     <input
                       aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
                       value={row.sharePercent}

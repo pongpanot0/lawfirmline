@@ -74,6 +74,7 @@ const NAV_ITEMS = [
     ownerOnly: false,
     group: 'firm',
     children: [
+      { href: '/invoices', labelKey: 'invoices' as const, icon: Receipt, ownerOnly: false },
       { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true },
     ],
   },

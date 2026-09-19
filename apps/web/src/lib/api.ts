@@ -1438,6 +1438,26 @@ export const api = {
       body: JSON.stringify({ billable }),
     }),
 
+  getIntakeInvoices: (token: string, intakeId: string) =>
+    request<InvoiceItem[]>(`/intakes/${intakeId}/billing/invoices`, { token }),
+
+  createIntakeInvoice: (token: string, intakeId: string, data: CreateInvoiceInput) =>
+    request<InvoiceItem[]>(`/intakes/${intakeId}/billing/invoices`, {
+      token,
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getStandaloneInvoices: (token: string) =>
+    request<InvoiceItem[]>('/invoices/standalone', { token }),
+
+  createStandaloneInvoice: (token: string, data: CreateInvoiceInput) =>
+    request<InvoiceItem[]>('/invoices', {
+      token,
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getInvoiceDraft: (token: string, caseId: string) =>
     request<InvoiceDraft>(`/cases/${caseId}/billing/invoices/draft`, { token }),
 
@@ -2176,6 +2196,8 @@ export interface CreateInvoiceInput {
   lineItems?: { description: string; quantity: number; unitPrice: number }[];
   timeEntryIds?: string[];
   expenseIds?: string[];
+  /** ใบที่ออกเปล่าไม่มีงานให้อ้างลูกค้า จึงระบุตรง ๆ */
+  billToCustomerId?: string;
   dueAt?: string;
   /** แบ่งบิลหลายราย — ไม่ส่งมาจะใช้ลูกค้าของคดีตามสัดส่วนที่บันทึกไว้ */
   splits?: { customerId: string; sharePercent: number }[];

@@ -532,7 +532,11 @@ export class BillingService {
   async getFirmInvoices(user: AuthUser) {
     const caseFilter = this.caseAccess.getCaseFilterForFinancials(user);
     const invoices = await this.prisma.invoice.findMany({
-      where: { case: caseFilter },
+      where: {
+        firmId: user.firmId,
+        // ใบที่ผูกกับคดีต้องผ่านสิทธิ์ของคดีนั้น ส่วนใบที่ไม่มีคดีเป็นของสำนักงาน
+        OR: [{ case: caseFilter }, { caseId: null }],
+      },
       include: {
         case: {
           select: {
@@ -542,6 +546,7 @@ export class BillingService {
             client: { select: { name: true } },
           },
         },
+        intake: { select: { title: true, clientName: true } },
         billToCustomer: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -554,14 +559,21 @@ export class BillingService {
       status: invoice.status,
       totalAmount: invoice.totalAmount,
       dueAt: invoice.dueAt,
-      ownRef: invoice.case.ownRef,
+      ownRef: invoice.case?.ownRef ?? null,
+      // ใบที่ไม่มีคดีอ้างชื่อเรื่องที่รับเข้ามาแทน ไม่มีทั้งคู่ก็เป็นใบที่ออกเปล่า
+      subject: invoice.case?.title ?? invoice.intake?.title ?? 'ใบแจ้งหนี้ที่ออกเปล่า',
       // ลิสต์ใบแจ้งหนี้ต้องโชว์คนที่ถูกวางบิล (ลูกค้า) ไม่ใช่ลูกความของคดี
       customerName:
         invoice.billToCustomer?.name ??
-        invoice.case.client?.name ??
-        invoice.case.clientName ??
-        invoice.case.title,
-      clientName: invoice.case.client?.name ?? invoice.case.clientName ?? invoice.case.title,
+        invoice.case?.client?.name ??
+        invoice.case?.clientName ??
+        invoice.intake?.clientName ??
+        '—',
+      clientName:
+        invoice.case?.client?.name ??
+        invoice.case?.clientName ??
+        invoice.intake?.clientName ??
+        '—',
     }));
   }
 
@@ -919,6 +931,37 @@ export class BillingService {
   }
 
   /**
+   * เรื่องที่รับเข้ามายังไม่มี guard ของตัวเองเหมือนคดี จึงเช็คสิทธิ์ตรงนี้
+   * ก่อนอ่านหรือออกใบแจ้งหนี้ของมัน
+   */
+  async assertIntakeAccess(user: AuthUser, intakeId: string) {
+    const filter = await this.caseAccess.getIntakeFilterForUser(user);
+    const intake = await this.prisma.intake.findFirst({
+      where: { id: intakeId, ...filter },
+      select: { id: true },
+    });
+    if (!intake) throw new NotFoundException('Intake not found');
+  }
+
+  /** ใบแจ้งหนี้ที่ออกจากเรื่องที่รับเข้ามา ยังไม่ได้เปิดเป็นคดี */
+  async getIntakeInvoices(intakeId: string) {
+    return this.prisma.invoice.findMany({
+      where: { intakeId },
+      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** ใบที่ออกเปล่า ไม่ผูกคดีและไม่ผูกเรื่อง */
+  async getStandaloneInvoices(user: AuthUser) {
+    return this.prisma.invoice.findMany({
+      where: { firmId: user.firmId, caseId: null, intakeId: null },
+      include: { lineItems: true, billToCustomer: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
    * งานในคดีที่ยังไม่ถูกเก็บเงิน — ใบแจ้งหนี้ควรตั้งต้นจากตรงนี้ ไม่ใช่ให้พิมพ์ยอดเอง
    * ค่าใช้จ่ายที่ยังไม่อนุมัติไม่นับ เพราะยังไม่รู้ว่าสำนักงานจะรับรองหรือไม่
    */
@@ -993,20 +1036,34 @@ export class BillingService {
    * ออกใบแจ้งหนี้ — คืนเป็น array เสมอ เพราะคดีที่มีผู้ว่าจ้างหลายรายจะได้ใบละราย
    * วางบิลไปที่ลูกค้า (ผู้ว่าจ้าง) ไม่ใช่ลูกความ
    */
-  async createInvoice(user: AuthUser, caseId: string, dto: CreateInvoiceDto) {
+  /**
+   * ออกใบแจ้งหนี้ — เอกสารที่ส่งให้ลูกค้า จึงไม่จำเป็นต้องมีคดี
+   * ผูกกับคดี, ผูกกับเรื่องที่รับเข้ามา หรือออกเปล่าให้ลูกค้าดูก่อนก็ได้
+   */
+  async createInvoice(
+    user: AuthUser,
+    target: { caseId?: string; intakeId?: string },
+    dto: CreateInvoiceDto,
+  ) {
+    const { caseId, intakeId } = target;
     if (dto.splits && dto.billToCustomerId) {
       throw new BadRequestException('ระบุ splits กับ billToCustomerId พร้อมกันไม่ได้');
     }
 
+    // งานที่บันทึกเวลา/เบิกไว้มีได้เฉพาะในคดี — เงียบ ๆ ทิ้งไปจะกลายเป็นออกบิลขาด
+    if (!caseId && (dto.timeEntryIds?.length || dto.expenseIds?.length)) {
+      throw new BadRequestException('เก็บเงินจากบันทึกเวลาและค่าใช้จ่ายได้เฉพาะใบที่ออกจากคดี');
+    }
+
     // ยอดของงานในคดีอ่านจาก DB เสมอ — ราคาที่ client ส่งมาเชื่อไม่ได้
     const [billedTime, billedExpenses] = await Promise.all([
-      dto.timeEntryIds?.length
+      caseId && dto.timeEntryIds?.length
         ? this.prisma.timeEntry.findMany({
             where: { id: { in: dto.timeEntryIds }, caseId, invoiceId: null },
             orderBy: { date: 'asc' },
           })
         : [],
-      dto.expenseIds?.length
+      caseId && dto.expenseIds?.length
         ? this.prisma.expense.findMany({
             where: {
               id: { in: dto.expenseIds },
@@ -1050,16 +1107,26 @@ export class BillingService {
         amount: item.quantity * item.unitPrice,
       })),
     ];
-    if (!lineItems.length) {
+    // ใบที่ออกจากคดีหรือ intake ต้องมีรายการ ส่วนใบเปล่าที่ทำไว้ให้ลูกค้าดูก่อน ยังไม่มีก็ได้
+    if (!lineItems.length && (caseId || intakeId)) {
       throw new BadRequestException('ใบแจ้งหนี้ต้องมีรายการอย่างน้อยหนึ่งบรรทัด');
     }
     const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
 
-    const caseCustomers = await this.prisma.caseCustomer.findMany({
-      where: { caseId },
-      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-      select: { customerId: true, sharePercent: true },
-    });
+    // ลูกค้าของงาน: จากคดีก่อน ไม่มีคดีก็จากเรื่องที่รับเข้ามา
+    const caseCustomers = caseId
+      ? await this.prisma.caseCustomer.findMany({
+          where: { caseId },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          select: { customerId: true, sharePercent: true },
+        })
+      : intakeId
+        ? await this.prisma.intakeCustomer.findMany({
+            where: { intakeId },
+            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+            select: { customerId: true, sharePercent: true },
+          })
+        : [];
 
     // ผู้รับบิล: ตามที่สั่งมา > ลูกค้าของคดี > ไม่มีเลยก็ออกใบเดียวแบบไม่ผูกลูกค้า
     const recipients: { customerId: string | null; sharePercent: number }[] = dto.splits
@@ -1078,7 +1145,7 @@ export class BillingService {
       const known = new Set(caseCustomers.map((customer) => customer.customerId));
       const stranger = dto.splits.find((split) => !known.has(split.customerId));
       if (stranger) {
-        throw new BadRequestException('วางบิลได้เฉพาะลูกค้าที่อยู่ในคดีนี้');
+        throw new BadRequestException('วางบิลได้เฉพาะลูกค้าที่อยู่ในงานนี้');
       }
     }
 
@@ -1097,7 +1164,9 @@ export class BillingService {
         recipients.map((recipient, index) =>
           tx.invoice.create({
             data: {
+              firmId: user.firmId,
               caseId,
+              intakeId,
               invoiceNumber: numbers[index],
               totalAmount: amounts[index],
               dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
