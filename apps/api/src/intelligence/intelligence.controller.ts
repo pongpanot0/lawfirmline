@@ -15,13 +15,13 @@ import {
   UploadedFiles,
   Body,
 } from '@nestjs/common';
-import * as fs from 'fs';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { AI_CREDIT_COST, KnowledgeCategory } from '@lawfirm/shared';
 import { DocumentIntelligenceService } from './document-intelligence.service';
 import { DocumentsService } from '../documents/documents.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequireCredits } from '../common/decorators/require-credits.decorator';
@@ -35,6 +35,7 @@ export class IntelligenceController {
     private intelligenceService: DocumentIntelligenceService,
     private documentsService: DocumentsService,
     private caseAccess: CaseAccessService,
+    private fileStorage: FileStorageService,
   ) {}
 
   @Get('cases/:caseId/knowledge')
@@ -84,7 +85,7 @@ export class IntelligenceController {
   async analyzeExistingBatch(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: BatchAnalysisDto) {
     // Resolve all files within this authorized case before reading any content.
     const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePath(caseId, id)));
-    const files = await Promise.all(paths.map(async (file) => ({ buffer: await fs.promises.readFile(file.path), mimeType: file.mimeType, filename: file.filename })));
+    const files = await Promise.all(paths.map(async (file) => ({ buffer: await this.fileStorage.getBuffer(file.path), mimeType: file.mimeType, filename: file.filename })));
     return this.intelligenceService.analyzeBatch(files, user.id, caseId);
   }
 
@@ -94,7 +95,7 @@ export class IntelligenceController {
   async analyzeIntakeBatch(@CurrentUser() user: AuthUser, @Param('intakeId') intakeId: string, @Body() dto: BatchAnalysisDto) {
     // Resolve every file within this authorized intake before reading content.
     const paths = await Promise.all(dto.documentIds.map((id) => this.documentsService.getFilePathForIntake(user, intakeId, id)));
-    const files = await Promise.all(paths.map(async (file) => ({ buffer: await fs.promises.readFile(file.path), mimeType: file.mimeType, filename: file.filename })));
+    const files = await Promise.all(paths.map(async (file) => ({ buffer: await this.fileStorage.getBuffer(file.path), mimeType: file.mimeType, filename: file.filename })));
     // No caseId yet — the result is returned for reading, and the documents
     // follow the intake into the case where the full knowledge flow lives.
     return this.intelligenceService.analyzeBatch(files, user.id);
@@ -115,7 +116,7 @@ export class IntelligenceController {
           documentId,
           filename: file.filename,
           mimeType: file.mimeType,
-          buffer: await fs.promises.readFile(file.path),
+          buffer: await this.fileStorage.getBuffer(file.path),
         };
       }),
     );
@@ -172,7 +173,7 @@ export class IntelligenceController {
     @Param('documentId') documentId: string,
   ) {
     const file = await this.documentsService.getFilePath(caseId, documentId);
-    const buffer = fs.readFileSync(file.path);
+    const buffer = await this.fileStorage.getBuffer(file.path);
     return this.intelligenceService.analyzeDocument(
       buffer,
       file.mimeType,
@@ -193,7 +194,7 @@ export class IntelligenceController {
     @Param('documentId') documentId: string,
   ) {
     const file = await this.documentsService.getFilePath(caseId, documentId);
-    const buffer = fs.readFileSync(file.path);
+    const buffer = await this.fileStorage.getBuffer(file.path);
     return this.intelligenceService.extractDates(
       buffer,
       file.mimeType,

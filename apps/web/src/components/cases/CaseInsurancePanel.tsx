@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, InsuranceClaimItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { PageLoading } from '@/components/ui/misc';
+import { InsurerSelect } from '@/components/InsurerSelect';
 
 export function CaseInsurancePanel({ caseId }: { caseId: string }) {
   const id = caseId;
@@ -139,11 +140,9 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
           )}
           <div>
             <label className="block text-sm font-medium text-slate-700">บริษัทประกัน</label>
-            <input
-              required
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            <InsurerSelect
               value={form.insurerName}
-              onChange={(e) => setForm({ ...form, insurerName: e.target.value })}
+              onChange={(name) => setForm({ ...form, insurerName: name })}
             />
           </div>
           <div>
