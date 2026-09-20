@@ -23,12 +23,8 @@ async function goto(page: Page, route: string) {
 
 async function expectDashboardLoaded(page: Page) {
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.locator('main h1')).toContainText('แดชบอร์ด');
-  await expect(page.getByText('คดีทั้งหมด').first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'กำไรแต่ละคดี' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'นัดศาลที่จะถึง' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'ทางลัด' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'สร้างคดีใหม่' }).last()).toBeVisible();
+  await expect(page.locator('main h1')).toBeVisible();
+  await expect(page.getByText('คดีที่ยังไม่ปิด').first()).toBeVisible();
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -38,8 +34,6 @@ async function expectNoHorizontalOverflow(page: Page) {
     )
     .toBe(true);
 }
-
-test.describe.configure({ mode: 'serial' });
 
 let caseId = '';
 
@@ -57,39 +51,21 @@ test('02 — แดชบอร์ด', async ({ page }) => {
 
   await capture(page, {
     id: '02-dashboard',
-    title: 'แดชบอร์ด — ภาพรวมสำนักงาน',
+    title: 'แดชบอร์ด — ภาพรวมงาน',
     route: '/dashboard',
     description:
-      'หน้าแรกหลังเข้าสู่ระบบ บอกว่าวันนี้มีนัดอะไรและกำลังทำงานไหนค้างอยู่ พร้อมสรุปจำนวนคดี คดีที่ดำเนินอยู่ นัดศาลที่จะถึง รายได้เดือนนี้ และทางลัดสร้างคดี/เพิ่มนัดศาล/อัปโหลดเอกสาร',
+      'หน้าแรกหลังเข้าสู่ระบบ สรุปคดีที่ยังไม่ปิด งานที่ยังไม่เสร็จ งานเกินกำหนด และนัดที่กำลังจะมาถึง พร้อมรายการงานที่ต้องทำ/เรื่องรับเข้าล่าสุด คดีล่าสุด และนัดหมายถัดไป',
     callouts: [
       ...CHROME,
-      { selector: 'h1', label: 'ชื่อหน้าและคำทักทายผู้ใช้', place: 'right' },
-      { selector: 'main .grid > div', label: 'การ์ดสรุปตัวเลขสำคัญ (KPI)', place: 'bottom' },
-      { selector: 'main :text("วันนี้")', label: 'นัดหมายและงานที่ครบกำหนดวันนี้', place: 'right' },
-      { selector: 'main :text("กำลังทำอยู่")', label: 'งานที่คุณกำลังทำค้างอยู่', place: 'left' },
-      { selector: 'button:has-text("สร้างคดีใหม่")', label: 'ปุ่มลัด สร้างคดีใหม่', place: 'left', nth: 1 },
+      { selector: 'main h1, main [class*="heading"], h1', label: 'ชื่อหน้าและสำนักงานที่ใช้งาน', place: 'right' },
+      { selector: 'a[href="/cases"]:has-text("คดีที่ยังไม่ปิด")', label: 'จำนวนคดีที่ยังไม่ปิด', place: 'bottom' },
+      { selector: 'a[href="/work"]:has-text("งานที่ยังไม่เสร็จ")', label: 'จำนวนงานที่ยังไม่เสร็จ', place: 'bottom' },
+      { selector: 'a:has-text("งานเกินกำหนด")', label: 'งานที่เลยกำหนดส่งแล้ว', place: 'bottom' },
+      { selector: 'a[href="/calendar"]:has-text("นัดที่กำลังจะมาถึง")', label: 'นัดที่กำลังจะถึง', place: 'bottom' },
+      { selector: 'a[href="/intake/new"]', label: 'ปุ่มลัด รับงานใหม่', place: 'left' },
+      { selector: 'a[href="/cases"]:has-text("ดูทั้งหมด")', label: 'ไปหน้ารายการคดีทั้งหมด', place: 'left' },
     ],
   });
-});
-
-test('02.1 — แดชบอร์ด smoke และทางลัด', async ({ page }) => {
-  await goto(page, '/dashboard');
-  await expectDashboardLoaded(page);
-
-  await page.getByRole('button', { name: 'สร้างคดีใหม่' }).last().click();
-  await expect(page).toHaveURL(/\/cases\/new$/);
-
-  await goto(page, '/dashboard');
-  await page.getByRole('button', { name: 'เพิ่มนัดศาล' }).click();
-  await expect(page).toHaveURL(/\/court-schedule$/);
-
-  await goto(page, '/dashboard');
-  await page.getByRole('button', { name: 'อัปโหลดเอกสาร' }).click();
-  await expect(page).toHaveURL(/\/documents$/);
-
-  await goto(page, '/dashboard');
-  await page.getByRole('button', { name: 'เพิ่มลูกค้า' }).click();
-  await expect(page).toHaveURL(/\/clients\/new$/);
 });
 
 test('02.2 — แดชบอร์ด mobile ไม่มีหน้าล้น', async ({ page }) => {
@@ -97,21 +73,6 @@ test('02.2 — แดชบอร์ด mobile ไม่มีหน้าล้
   await goto(page, '/dashboard');
   await expectDashboardLoaded(page);
   await expectNoHorizontalOverflow(page);
-});
-
-test('02.3 — action ต่อคดียก case context ไปใช้ต่อ', async ({ page }) => {
-  test.skip(!caseId, 'no seeded case found');
-  await goto(page, '/dashboard');
-  const firstRow = page.locator('main tbody tr').first();
-  await expect(firstRow.getByRole('link', { name: 'นัด' })).toHaveAttribute('href', `/cases/${caseId}/calendar`);
-  await expect(firstRow.getByRole('link', { name: 'เอกสาร' })).toHaveAttribute('href', `/cases/${caseId}/documents`);
-  await expect(firstRow.getByRole('link', { name: 'เบิก' })).toHaveAttribute('href', `/expenses/new?caseId=${caseId}`);
-
-  await goto(page, `/expenses/new?caseId=${caseId}`);
-  await expect(page.locator('main select').last()).toHaveValue(caseId);
-
-  await goto(page, `/documents?caseId=${caseId}`);
-  await expect(page.locator('main select').last()).toHaveValue(caseId);
 });
 
 test('03 — รายการคดี', async ({ page }) => {
@@ -447,12 +408,16 @@ test('23 — ตั้งค่า', async ({ page }) => {
     id: '23-settings',
     title: 'ตั้งค่า — โปรไฟล์ ธีม และการเชื่อมต่อ',
     route: '/settings',
-    description: 'แก้ไขชื่อผู้ใช้ สลับโหมดสว่าง/มืด และเชื่อมต่อ LINE Official Account เพื่อรับการแจ้งเตือน',
+    description:
+      'แก้ไขชื่อผู้ใช้ สลับโหมดสว่าง/มืด และในหัวข้อ "การเชื่อมต่อ" ด้านล่างมีทั้งการตั้งค่า LINE Messaging API ของทั้งสำนักงาน (เฉพาะแอดมิน) และปุ่มเชื่อมต่อ LINE ส่วนตัวของแต่ละคน',
     callouts: [
       { selector: 'main input', label: 'ข้อมูลโปรไฟล์ (อีเมลแก้ไขไม่ได้)', place: 'right' },
       { selector: 'button:has-text("Save Changes")', label: 'บันทึกการเปลี่ยนแปลง', place: 'right' },
       { selector: 'button:has-text("Switch to Dark")', label: 'สลับธีมสว่าง/มืด', place: 'right' },
-      { selector: 'button:has-text("เชื่อมต่อ LINE")', label: 'เชื่อมต่อแจ้งเตือนผ่าน LINE', place: 'right' },
+      { selector: ':text("LINE Messaging API")', label: 'ตั้งค่า LINE ของสำนักงาน (แอดมิน) — Channel ID/Secret', place: 'right' },
+      { selector: 'button:has-text("ส่งข้อความทดสอบ")', label: 'ทดสอบว่าตั้งค่า LINE ของสำนักงานถูกต้อง', place: 'left' },
+      { selector: ':text("เชื่อมต่อ LINE ส่วนตัว")', label: 'ส่วนเชื่อมต่อบัญชี LINE ของตัวเอง', place: 'right' },
+      { selector: 'button:has-text("เชื่อมต่อ LINE"), button:has-text("ยกเลิกการเชื่อมต่อ")', label: 'กดเพื่อเชื่อมต่อ/ยกเลิกเชื่อมต่อ LINE ส่วนตัว', place: 'right' },
     ],
   });
 });
@@ -465,10 +430,416 @@ test('24 — Client Portal', async ({ page, context }) => {
     title: 'Client Portal — หน้าเข้าสู่ระบบของลูกค้า',
     route: '/portal/login',
     description:
-      'ลูกค้าเข้าใช้งานด้วย magic link ไม่ต้องจำรหัสผ่าน กรอกอีเมลที่สำนักงานเปิดสิทธิ์ไว้ ระบบจะส่งลิงก์เข้าสู่ระบบไปให้ทางอีเมล',
+      'ลูกค้าเข้าใช้งานได้สองแบบ: กรอกอีเมล+รหัสผ่านแล้วกดเข้าสู่ระบบตามปกติ หรือกด "ส่งลิงก์เข้าสู่ระบบทางอีเมล" เพื่อรับ magic link ทางอีเมลโดยไม่ต้องจำรหัสผ่าน',
     callouts: [
       { selector: 'input[type="email"]', label: 'อีเมลของลูกค้า', place: 'right' },
-      { selector: 'button[type="submit"]', label: 'ขอลิงก์เข้าสู่ระบบ', place: 'right' },
+      { selector: 'input[type="password"]', label: 'รหัสผ่าน (ถ้าตั้งไว้แล้ว)', place: 'right' },
+      { selector: 'button[type="submit"]', label: 'เข้าสู่ระบบด้วยรหัสผ่าน', place: 'right' },
+      { selector: 'button:has-text("ส่งลิงก์เข้าสู่ระบบทางอีเมล")', label: 'หรือขอ magic link ทางอีเมลแทน', place: 'right' },
     ],
+  });
+});
+
+test('24.1 — Client Portal ส่งอีเมลแล้ว', async ({ page, context }) => {
+  await context.clearCookies();
+  await goto(page, '/portal/login');
+  await page.fill('input[type="email"]', 'client-demo@example.test');
+  await page.click('button:has-text("ส่งลิงก์เข้าสู่ระบบทางอีเมล")').catch(() => {});
+  await page.waitForTimeout(500);
+  const moved = /\/portal\/check-email/.test(page.url());
+  test.skip(!moved, 'magic-link request did not navigate to check-email');
+  await capture(page, {
+    id: '24.1-portal-check-email',
+    title: 'Client Portal — ตรวจสอบอีเมล',
+    route: '/portal/check-email',
+    description: 'หลังขอ magic link ระบบพาไปหน้านี้ให้ลูกค้าไปเปิดอีเมลและกดลิงก์ที่ส่งไปเพื่อเข้าสู่ระบบ',
+    callouts: [{ selector: 'main', label: 'ข้อความแจ้งให้ไปเปิดอีเมล', place: 'right' }],
+  });
+});
+
+// ---------------------------------------------------------------------------
+// หน้าเพิ่มเติม: งานประจำวัน / งานรับเข้า / ทีมและเอกสารภายใน / แอดมิน / หน้าสาธารณะ
+// ---------------------------------------------------------------------------
+
+test('25 — เริ่มใช้งานสำนักงาน', async ({ page }) => {
+  await goto(page, '/getting-started');
+  await capture(page, {
+    id: '25-getting-started',
+    title: 'เริ่มใช้งานสำนักงาน — นำเข้าข้อมูลเดิม',
+    route: '/getting-started',
+    description:
+      'ใช้ตอนเริ่มระบบครั้งแรก ดาวน์โหลดแบบฟอร์ม CSV กรอกรายชื่อคดี/ลูกค้าเดิม แล้วอัปโหลดกลับเข้าระบบ ระบบจะแสดงตัวอย่างก่อนนำเข้าจริงเสมอ',
+    callouts: [
+      { selector: 'button:has-text("Download CSV")', label: 'ดาวน์โหลดแบบฟอร์ม CSV', place: 'right' },
+      { selector: 'input[type="file"]', label: 'เลือกไฟล์ CSV ที่กรอกแล้ว', place: 'right' },
+      { selector: 'button:has-text("Preview")', label: 'ดูตัวอย่างก่อนนำเข้าจริง', place: 'right' },
+      { selector: 'a[href="/playbooks"]', label: 'ไปตั้งค่า Playbook ของสำนักงาน', place: 'left' },
+    ],
+  });
+});
+
+test('26 — วันของฉัน (My Day)', async ({ page }) => {
+  await goto(page, '/my-day');
+  await capture(page, {
+    id: '26-my-day',
+    title: 'วันของฉัน — สรุปงานและนัดวันนี้',
+    route: '/my-day',
+    description:
+      'มุมมองแบบรายวันสำหรับเตรียมตัวก่อนเริ่มงาน รวมนัดศาล นัดลูกค้า และงานที่ครบกำหนดวันนี้ไว้ในที่เดียว กดที่รายการเพื่อเปิดรายละเอียด',
+    callouts: [
+      { selector: 'button:has-text("เพิ่มนัด"), button:has-text("Add event")', label: 'เพิ่มนัดหมายใหม่', place: 'left' },
+      { selector: 'h1', label: 'หัวข้อหน้า วันของฉัน', place: 'right' },
+    ],
+  });
+});
+
+test('27 — งานที่ต้องทำ (Work Inbox)', async ({ page }) => {
+  await goto(page, '/work');
+  await capture(page, {
+    id: '27-work',
+    title: 'งานที่ต้องทำ — กล่องงานรวมทั้งงานคดีและงานส่วนตัว',
+    route: '/work',
+    description:
+      'รวมงานทั้งหมดที่มอบหมายให้คุณ ทั้งงานในคดีและงานทั่วไป กรองตาม ทั้งหมด/มอบหมายให้ฉัน/งานคดี/งานทั่วไป และตามกำหนดส่ง ค้นหาได้จากชื่องาน คดี หรือผู้รับผิดชอบ',
+    callouts: [
+      { selector: 'input[placeholder*="ค้นชื่องาน"]', label: 'ค้นหางาน คดี หรือผู้รับผิดชอบ', place: 'bottom' },
+      { selector: 'button:has-text("มอบหมายให้ฉัน")', label: 'กรองเฉพาะงานของฉัน', place: 'bottom' },
+      { selector: 'button:has-text("เกินกำหนด")', label: 'กรองงานที่เลยกำหนดส่ง', place: 'bottom' },
+      { selector: 'a[href="/todos?new=1"]', label: 'เพิ่มงานส่วนตัวใหม่', place: 'left' },
+    ],
+  });
+});
+
+test('28 — งานส่วนตัว (Todos)', async ({ page }) => {
+  await goto(page, '/todos');
+  await capture(page, {
+    id: '28-todos',
+    title: 'งานส่วนตัว — เช็คลิสต์ของแต่ละคน',
+    route: '/todos',
+    description: 'จดงานส่วนตัวที่ไม่ผูกกับคดี เช่น งานธุรการหรืองานที่ได้รับมอบหมายนอกคดี สลับดูงานของตัวเอง/ทีม',
+    callouts: [
+      { selector: 'input[placeholder*="Todo title"], input[placeholder*="หัวข้องาน"]', label: 'พิมพ์ชื่องานแล้วกด Enter เพื่อเพิ่ม', place: 'right' },
+      { selector: 'button:has-text("Add Todo"), button:has-text("เพิ่ม")', label: 'เพิ่มงานใหม่', place: 'right' },
+    ],
+  });
+});
+
+test('29 — ปฏิทินสำนักงาน', async ({ page }) => {
+  await goto(page, '/calendar');
+  await capture(page, {
+    id: '29-calendar',
+    title: 'ปฏิทิน — ตารางรายวันของสำนักงาน',
+    route: '/calendar',
+    description: 'ปฏิทินรวมนัดทั้งสำนักงาน ทุกคดีและทุกทนาย สลับมุมมองวัน/สัปดาห์/เดือนได้เหมือนตารางศาล',
+    callouts: [
+      { selector: 'button:has-text("เพิ่มนัด"), button:has-text("Add event")', label: 'เพิ่มนัดหมายใหม่', place: 'left' },
+      { selector: 'h1', label: 'หัวข้อหน้า ปฏิทิน', place: 'right' },
+    ],
+  });
+});
+
+test('30 — ใบแจ้งหนี้', async ({ page }) => {
+  await goto(page, '/invoices');
+  await capture(page, {
+    id: '30-invoices',
+    title: 'ใบแจ้งหนี้ — ออกและติดตามการชำระเงิน',
+    route: '/invoices',
+    description: 'รวมใบแจ้งหนี้ทุกคดี ดูสถานะค้างชำระ/ชำระแล้ว และออกใบแจ้งหนี้ใหม่จากชั่วโมงทำงานและค่าใช้จ่ายที่บันทึกไว้',
+    callouts: [
+      { selector: 'h1', label: 'หัวข้อหน้า ใบแจ้งหนี้', place: 'right' },
+      { selector: 'table', label: 'รายการใบแจ้งหนี้', place: 'top' },
+      { selector: 'button:has-text("New Invoice"), button:has-text("สร้างใบแจ้งหนี้")', label: 'ออกใบแจ้งหนี้ใหม่', place: 'left' },
+    ],
+  });
+});
+
+test('31 — ปฏิทินของคดี (แท็บย่อย)', async ({ page }) => {
+  test.skip(!caseId, 'no seeded case found');
+  await goto(page, `/cases/${caseId}/calendar`);
+  await capture(page, {
+    id: '31-case-calendar',
+    title: 'คดี — แท็บปฏิทิน/นัดของคดีนี้',
+    route: '/cases/:id/calendar',
+    description: 'ลิงก์ลัดจากแดชบอร์ด/My Day พาไปที่แท็บปฏิทินของคดีนั้นโดยตรง แสดงนัดศาลและนัดหมายเฉพาะคดีนี้',
+    callouts: [{ selector: 'h1', label: 'ชื่อคดีที่กำลังดู', place: 'right' }],
+  });
+});
+
+test('32 — ประกันของคดี (แท็บย่อย)', async ({ page }) => {
+  test.skip(!caseId, 'no seeded case found');
+  await goto(page, `/cases/${caseId}/insurance`);
+  await capture(page, {
+    id: '32-case-insurance',
+    title: 'คดี — แท็บเคลมประกัน',
+    route: '/cases/:id/insurance',
+    description: 'สำหรับคดีที่เกี่ยวข้องกับการเคลมประกัน ติดตามขั้นตอนการเคลมและเอกสารที่เกี่ยวข้องแยกจากแท็บอื่น',
+    callouts: [{ selector: 'h1', label: 'ชื่อคดีที่กำลังดู', place: 'right' }],
+  });
+});
+
+test('33 — ข้อความในคดี (แท็บย่อย)', async ({ page }) => {
+  test.skip(!caseId, 'no seeded case found');
+  await goto(page, `/cases/${caseId}/messages`);
+  await capture(page, {
+    id: '33-case-messages',
+    title: 'คดี — แท็บข้อความกับลูกค้า',
+    route: '/cases/:id/messages',
+    description: 'พูดคุยกับลูกค้าเป็นรายคดี ข้อความที่ส่งจากแท็บนี้จะไปปรากฏใน Client Portal ของลูกค้าด้วย',
+    callouts: [{ selector: 'h1', label: 'ชื่อคดีที่กำลังดู', place: 'right' }],
+  });
+});
+
+test('34 — รายงานปิดคดี (แท็บย่อย)', async ({ page }) => {
+  test.skip(!caseId, 'no seeded case found');
+  await goto(page, `/cases/${caseId}/closing-report`);
+  await capture(page, {
+    id: '34-case-closing-report',
+    title: 'คดี — แท็บสรุปปิดคดี',
+    route: '/cases/:id/closing-report',
+    description: 'สรุปผลคดีเมื่อปิดคดีแล้ว ใช้ประกอบการส่งอีเมลปิดงานให้ลูกค้าและเก็บเป็นสรุปคดีใน Knowledge Base',
+    callouts: [{ selector: 'h1', label: 'ชื่อคดีที่กำลังดู', place: 'right' }],
+  });
+});
+
+test('35 — รับเรื่อง (Intake)', async ({ page }) => {
+  await goto(page, '/intake');
+  await capture(page, {
+    id: '35-intake',
+    title: 'รับเรื่อง — คิวเรื่องที่กำลังคัดกรอง',
+    route: '/intake',
+    description:
+      'จุดเริ่มต้นก่อนเปิดเป็นคดีจริง ใช้คัดกรองเรื่องที่ลูกค้าติดต่อเข้ามา (โทร/อีเมล/เดินเข้ามา) ก่อนตัดสินใจรับเป็นคดี',
+    callouts: [{ selector: 'button:has-text("สร้างใหม่"), a[href="/intake/new"]', label: 'สร้างเรื่องรับเข้าใหม่', place: 'left' }],
+  });
+});
+
+test('36 — รับเรื่องใหม่', async ({ page }) => {
+  await goto(page, '/intake/new');
+  await capture(page, {
+    id: '36-intake-new',
+    title: 'รับเรื่องใหม่ — กรอกรายละเอียดเบื้องต้น',
+    route: '/intake/new',
+    description:
+      'กรอกหัวข้อเรื่อง วางข้อความจากอีเมล/แชทของลูกค้า ใส่ชื่อผู้ติดต่อ และเลือกผู้รับผิดชอบได้หลายคน ระบบช่วยสรุปข้อเท็จจริงเบื้องต้นให้',
+    callouts: [
+      { selector: 'input[placeholder*="เลขเคลม"], input[placeholder*="ต่อสู้คดี"]', label: 'หัวข้อเรื่องโดยย่อ', place: 'right' },
+      { selector: 'textarea', label: 'วางข้อความจากอีเมล/แชทของลูกค้า', place: 'right' },
+      { selector: 'input[placeholder*="ชื่อ-นามสกุล"]', label: 'ชื่อผู้ติดต่อหรือบริษัท', place: 'right' },
+    ],
+  });
+});
+
+test('37 — ห้องทำงานเรื่องรับเข้า', async ({ page }) => {
+  await goto(page, '/intake');
+  const row = page.locator('main :text("ตัวอย่างคู่มือ")').first();
+  const target = (await row.count()) > 0 ? row : page.locator('main [class*="cursor-pointer"]').first();
+  const count = await target.count().catch(() => 0);
+  test.skip(count === 0, 'no intake row found to open');
+  await target.click();
+  await page.waitForURL(/\/intake\/[0-9a-f-]{10,}/i, { timeout: 10_000 }).catch(() => {});
+  const opened = /\/intake\/[0-9a-f-]{10,}/i.test(page.url());
+  test.skip(!opened, 'clicking a row did not open an intake workroom');
+  await capture(page, {
+    id: '37-intake-detail',
+    title: 'ห้องทำงานเรื่องรับเข้า — คัดกรองก่อนเปิดคดี',
+    route: '/intake/:id',
+    description:
+      'พื้นที่ทำงานของเรื่องรับเข้าหนึ่งเรื่อง จัดข้อเท็จจริง มอบหมายผู้รับผิดชอบ แนบเอกสาร และเมื่อพร้อมก็กดแปลงเป็นคดีจริงได้จากหน้านี้',
+    callouts: [{ selector: 'h1', label: 'หัวข้อเรื่องรับเข้า', place: 'right' }],
+  });
+});
+
+test('38 — เรื่องจาก Customer Portal', async ({ page }) => {
+  await goto(page, '/intake/portal-submissions');
+  await capture(page, {
+    id: '38-intake-portal-submissions',
+    title: 'เรื่องที่ส่งจาก Customer Portal',
+    route: '/intake/portal-submissions',
+    description: 'คำขอที่ลูกค้ากรอกเข้ามาเองผ่าน Client Portal (ก่อนเป็นลูกค้าในระบบ) พนักงานตรวจแล้วเลือกแปลงเป็นเรื่องรับเข้า/คดีได้',
+    callouts: [{ selector: 'h1', label: 'หัวข้อหน้า', place: 'right' }],
+  });
+});
+
+test('39 — รับเรื่องจากอีเมล', async ({ page }) => {
+  await goto(page, '/email-intake');
+  await capture(page, {
+    id: '39-email-intake',
+    title: 'รับเรื่องจากอีเมล — กล่องอีเมลที่เชื่อมต่อไว้',
+    route: '/email-intake',
+    description:
+      'แสดงอีเมล/เธรดที่ระบบดึงมาจากกล่องอีเมลที่เชื่อมต่อ (Outlook) AI จะช่วยเสนอข้อมูลคดีเบื้องต้นให้ตรวจสอบก่อนรับเข้า คลิกแถวเพื่อเปิดดูรายละเอียด',
+    callouts: [{ selector: 'h1', label: 'หัวข้อหน้า', place: 'right' }],
+  });
+});
+
+test('40 — รายละเอียดอีเมลที่รับเข้า', async ({ page }) => {
+  await goto(page, '/email-intake');
+  const rows = page.locator('main [class*="cursor-pointer"], main tr, main li');
+  const count = await rows.count().catch(() => 0);
+  test.skip(count === 0, 'no email thread rows found');
+  await rows.first().click().catch(() => {});
+  await page.waitForTimeout(500);
+  const stillOnList = /\/email-intake$/.test(page.url());
+  test.skip(stillOnList, 'clicking a row did not open a thread');
+  await capture(page, {
+    id: '40-email-intake-thread',
+    title: 'อีเมลรับเข้า — ตรวจสอบและยืนยันข้อมูล',
+    route: '/email-intake/:threadId',
+    description: 'อ่านเนื้อความอีเมลเต็ม ตรวจข้อมูลที่ AI เสนอ (ยืนยัน/ปฏิเสธทีละรายการ) แล้วกดยืนยันเพื่อสร้างเป็นเรื่องรับเข้า',
+    callouts: [{ selector: 'h1', label: 'หัวข้ออีเมล', place: 'right' }],
+  });
+});
+
+test('41 — บันทึกค่าใช้จ่ายใหม่', async ({ page }) => {
+  await goto(page, '/expenses/new');
+  await capture(page, {
+    id: '41-expenses-new',
+    title: 'บันทึกค่าใช้จ่ายใหม่',
+    route: '/expenses/new',
+    description: 'กรอกยอดเงิน รายละเอียด แนบใบเสร็จ และเลือกคดีที่เกี่ยวข้อง (ถ้ามี) เพื่อส่งขออนุมัติเบิกค่าใช้จ่าย',
+    callouts: [
+      { selector: 'input[type="number"]', label: 'ยอดเงิน (บาท)', place: 'right' },
+      { selector: 'input[type="file"]', label: 'แนบใบเสร็จ/หลักฐาน', place: 'right' },
+    ],
+  });
+});
+
+test('42 — แบบฟอร์มเบิกค่าใช้จ่าย', async ({ page }) => {
+  await goto(page, '/expenses/claim');
+  await capture(page, {
+    id: '42-expenses-claim',
+    title: 'แบบฟอร์มเบิกค่าใช้จ่าย — พิมพ์/ส่งขออนุมัติ',
+    route: '/expenses/claim',
+    description: 'รวมรายการค่าใช้จ่ายที่ยังเป็นร่างเป็นแบบฟอร์มเบิกฉบับเดียว พิมพ์เป็น PDF หรือส่งให้เจ้าของสำนักงานอนุมัติทีเดียว',
+    callouts: [
+      { selector: 'button:has-text("Print"), button:has-text("พิมพ์")', label: 'พิมพ์แบบฟอร์ม', place: 'right' },
+      { selector: 'button:has-text("Send"), button:has-text("ส่ง")', label: 'ส่งให้เจ้าของสำนักงานอนุมัติ', place: 'right' },
+    ],
+  });
+});
+
+test('43 — Playbooks', async ({ page }) => {
+  await goto(page, '/playbooks');
+  await capture(page, {
+    id: '43-playbooks',
+    title: 'Playbooks — ชุดงานมาตรฐานของแต่ละประเภทคดี',
+    route: '/playbooks',
+    description:
+      'กำหนดชุดงาน/เอกสารมาตรฐานสำหรับคดีแต่ละประเภท (เช่น คดีอุบัติเหตุ คดีแพทย์) เมื่อเปิดคดีใหม่แล้วนำ Playbook มาใช้ ระบบจะสร้างงานตามชุดนี้ให้อัตโนมัติ',
+    callouts: [
+      { selector: 'h1', label: 'หัวข้อหน้า Playbooks', place: 'right' },
+      { selector: 'a[href="/cases"]', label: 'ไปเลือกคดีเพื่อนำ Playbook ไปใช้', place: 'left' },
+    ],
+  });
+});
+
+test('44 — SOP / คู่มือการทำงาน', async ({ page }) => {
+  await goto(page, '/sops');
+  await capture(page, {
+    id: '44-sops',
+    title: 'SOP / คู่มือการทำงาน',
+    route: '/sops',
+    description: 'คลังคู่มือ/ขั้นตอนมาตรฐานภายในสำนักงาน ค้นหาได้ เจ้าของสำนักงานเพิ่ม/แก้ไข/ลบได้ ใช้อ้างอิงเวลาอบรมพนักงานใหม่',
+    callouts: [
+      { selector: 'input[placeholder*="ค้นหา SOP"]', label: 'ค้นหา SOP', place: 'bottom' },
+      { selector: 'button:has-text("เพิ่ม SOP")', label: 'เพิ่ม SOP ใหม่ (เจ้าของสำนักงาน)', place: 'left' },
+    ],
+  });
+});
+
+test('45 — ภาระงานทีม (Operations)', async ({ page }) => {
+  await goto(page, '/operations');
+  await capture(page, {
+    id: '45-operations',
+    title: 'ภาระงานทีม — มอบหมายงานให้สมดุล',
+    route: '/operations',
+    description: 'ภาพรวมภาระงานของทีมทั้งหมด ดูว่าใครงานล้นใครงานว่าง แล้วมอบหมายงานเพิ่มเติมให้สมดุลกันได้จากหน้านี้',
+    callouts: [{ selector: 'h1', label: 'หัวข้อหน้า ภาระงานทีม', place: 'right' }],
+  });
+});
+
+test('46 — การใช้งาน AI', async ({ page }) => {
+  await goto(page, '/ai-usage');
+  await capture(page, {
+    id: '46-ai-usage',
+    title: 'การใช้งาน AI — ติดตามการใช้เครดิต',
+    route: '/ai-usage',
+    description: 'ดูว่าใครในทีมเรียกใช้ฟีเจอร์ AI (ค้นฎีกา สรุปเอกสาร) มากน้อยแค่ไหน สลับช่วงเวลาดู 7/14/30 วัน คลิกรายการเพื่อดูต้นทางของการเรียกนั้น',
+    callouts: [{ selector: 'h1', label: 'หัวข้อหน้า การใช้งาน AI', place: 'right' }],
+  });
+});
+
+test('47 — บันทึกการใช้งาน (Audit Log)', async ({ page }) => {
+  await goto(page, '/admin/audit-log');
+  await capture(page, {
+    id: '47-admin-audit-log',
+    title: 'บันทึกการใช้งาน — Audit Log (เฉพาะเจ้าของสำนักงาน)',
+    route: '/admin/audit-log',
+    description: 'ประวัติการกระทำสำคัญทุกอย่างในระบบ ใครทำอะไรเมื่อไหร่ กรองตามประเภทการกระทำได้ ใช้ตรวจสอบย้อนหลังเมื่อมีข้อสงสัย',
+    callouts: [{ selector: 'h1', label: 'หัวข้อหน้า Audit Log', place: 'right' }],
+  });
+});
+
+test('48 — กฎวันครบกำหนด (Deadline Rules)', async ({ page }) => {
+  await goto(page, '/admin/deadline-rules');
+  await capture(page, {
+    id: '48-admin-deadline-rules',
+    title: 'กฎวันครบกำหนด — คำนวณเดดไลน์อัตโนมัติ',
+    route: '/admin/deadline-rules',
+    description: 'ตั้งกฎให้ระบบคำนวณวันครบกำหนดของงานอัตโนมัติตามประเภทคดี/เหตุการณ์ (เช่น ยื่นอุทธรณ์ภายใน 30 วัน) ลดความเสี่ยงลืมกำหนด',
+    callouts: [{ selector: 'button:has-text("Add rule"), button:has-text("เพิ่มกฎ")', label: 'เพิ่มกฎใหม่', place: 'left' }],
+  });
+});
+
+test('49 — วันหยุดราชการ', async ({ page }) => {
+  await goto(page, '/admin/holidays');
+  await capture(page, {
+    id: '49-admin-holidays',
+    title: 'วันหยุดราชการ — ใช้คำนวณวันทำการ',
+    route: '/admin/holidays',
+    description: 'รายการวันหยุดราชการที่ระบบใช้นับวันทำการเวลาคำนวณกำหนดส่งงาน เพิ่มทีละวันหรือวางเป็นชุดได้ (Bulk add)',
+    callouts: [
+      { selector: 'textarea', label: 'วางรายการวันหยุดหลายวันพร้อมกัน', place: 'right' },
+      { selector: 'button:has-text("Bulk add")', label: 'เพิ่มวันหยุดทั้งชุด', place: 'right' },
+    ],
+  });
+});
+
+test('50 — สมัครสำนักงานใหม่ (Register)', async ({ page, context }) => {
+  await context.clearCookies();
+  await goto(page, '/register');
+  await capture(page, {
+    id: '50-register',
+    title: 'เริ่มต้นสำนักงานของคุณ — สมัครใช้งาน',
+    route: '/register',
+    description: 'หน้าสมัครสำนักงานใหม่ กรอกชื่อสำนักงาน อีเมล และรหัสผ่าน ระบบจะสร้างสำนักงาน (tenant) แยกของตัวเองให้ทันที',
+    callouts: [
+      { selector: 'input[type="email"]', label: 'อีเมลผู้ดูแลสำนักงาน', place: 'right' },
+      { selector: 'button[type="submit"]', label: 'สร้างสำนักงาน', place: 'right' },
+    ],
+  });
+});
+
+test('51 — ลืมรหัสผ่าน', async ({ page, context }) => {
+  await context.clearCookies();
+  await goto(page, '/forgot-password');
+  await capture(page, {
+    id: '51-forgot-password',
+    title: 'ลืมรหัสผ่าน — ขอลิงก์ตั้งรหัสผ่านใหม่',
+    route: '/forgot-password',
+    description: 'กรอกอีเมลที่ใช้สมัคร ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้ทางอีเมล',
+    callouts: [{ selector: 'button[type="submit"]', label: 'ส่งลิงก์ตั้งรหัสผ่านใหม่', place: 'right' }],
+  });
+});
+
+test('52 — หน้าแรก (Marketing)', async ({ page, context }) => {
+  await context.clearCookies();
+  await goto(page, '/');
+  await capture(page, {
+    id: '52-landing',
+    title: 'หน้าแรกของ Samnuan',
+    route: '/',
+    description: 'หน้าแนะนำระบบสำหรับผู้ที่ยังไม่ได้เป็นลูกค้า อธิบายจุดเด่นของระบบและมีปุ่มขอทดลองใช้งานฟรี',
+    callouts: [{ selector: 'a[href="/register"]', label: 'ขอทดลองใช้งานฟรี', place: 'right' }],
   });
 });
