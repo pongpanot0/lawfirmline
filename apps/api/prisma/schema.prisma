@@ -644,6 +644,12 @@ model Client {
   name      String
   type      String?
   notes     String?
+  /// ข้อมูลออกเอกสาร (ใบแจ้งหนี้/ใบเสร็จ/ใบเสนอราคา) — กรอกได้ทีหลัง ไม่บังคับ
+  taxId        String?
+  branch       String?
+  address      String?
+  billingEmail String?
+  billingPhone String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

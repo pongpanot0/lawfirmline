@@ -325,6 +325,11 @@ export interface ClientItem {
   name: string;
   type?: string | null;
   notes?: string | null;
+  taxId?: string | null;
+  branch?: string | null;
+  address?: string | null;
+  billingEmail?: string | null;
+  billingPhone?: string | null;
   contacts: ClientContactItem[];
   _count?: { cases: number };
   cases?: CaseItem[];

@@ -41,6 +41,11 @@ export default function NewClientPage() {
     notes: '',
     email: '',
     phone: '',
+    taxId: '',
+    branch: '',
+    address: '',
+    billingEmail: '',
+    billingPhone: '',
     contacts: [{ ...emptyContact(), isPrimary: true }],
   });
 
@@ -113,6 +118,11 @@ export default function NewClientPage() {
         name,
         type: form.type,
         notes: form.notes.trim() || undefined,
+        taxId: form.taxId.trim() || undefined,
+        branch: form.branch.trim() || undefined,
+        address: form.address.trim() || undefined,
+        billingEmail: form.billingEmail.trim() || undefined,
+        billingPhone: form.billingPhone.trim() || undefined,
         contacts: contacts.length ? contacts : [{ name, isPrimary: true }],
       });
       router.push(`/clients?id=${created.id}`);
@@ -315,6 +325,61 @@ export default function NewClientPage() {
                 </div>
               )}
             </div>
+
+            {/* พอสำหรับออกใบแจ้งหนี้/ใบเสร็จ/ใบเสนอราคา — ไม่บังคับ กรอก/แก้ทีหลังได้ */}
+            <details className="rounded-lg border border-border">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                ข้อมูลออกเอกสาร (ใบแจ้งหนี้ / ใบเสร็จ / ใบเสนอราคา)
+                <span className="ml-2 text-xs font-normal text-muted-foreground">ไม่บังคับ</span>
+              </summary>
+              <div className="grid gap-3 border-t border-border p-4 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <span className="text-muted-foreground">เลขประจำตัวผู้เสียภาษี</span>
+                  <Input
+                    className="mt-1"
+                    value={form.taxId}
+                    onChange={(e) => setForm({ ...form, taxId: e.target.value })}
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-muted-foreground">สาขา</span>
+                  <Input
+                    className="mt-1"
+                    placeholder="เช่น สำนักงานใหญ่"
+                    value={form.branch}
+                    onChange={(e) => setForm({ ...form, branch: e.target.value })}
+                  />
+                </label>
+                <label className="block text-sm sm:col-span-2">
+                  <span className="text-muted-foreground">ที่อยู่สำหรับออกเอกสาร</span>
+                  <textarea
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    rows={2}
+                    className="mt-1 w-full resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-muted-foreground">อีเมลสำหรับส่งเอกสาร</span>
+                  <Input
+                    type="email"
+                    className="mt-1"
+                    value={form.billingEmail}
+                    onChange={(e) => setForm({ ...form, billingEmail: e.target.value })}
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-muted-foreground">เบอร์ติดต่อเรื่องเอกสาร</span>
+                  <Input
+                    type="tel"
+                    inputMode="tel"
+                    className="mt-1"
+                    value={form.billingPhone}
+                    onChange={(e) => setForm({ ...form, billingPhone: e.target.value })}
+                  />
+                </label>
+              </div>
+            </details>
 
             {error && (
               <p role="alert" className="text-sm text-destructive">

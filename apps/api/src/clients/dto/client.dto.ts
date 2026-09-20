@@ -82,6 +82,36 @@ export class CreateClientDto {
   @IsString()
   notes?: string;
 
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(50)
+  taxId?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(120)
+  branch?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(200)
+  billingEmail?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(50)
+  billingPhone?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ClientContactDto)
@@ -100,6 +130,36 @@ export class UpdateClientDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(50)
+  taxId?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(120)
+  branch?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(200)
+  billingEmail?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(50)
+  billingPhone?: string;
 
   @IsOptional()
   @IsArray()
