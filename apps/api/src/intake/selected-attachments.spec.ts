@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { ConfigService } from '@nestjs/config';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { RelevanceService } from '../rag/relevance.service';
 import { readFileSync } from 'fs';
 
 jest.mock('pdf-parse', () => ({ PDFParse: jest.fn() }));
@@ -84,6 +85,7 @@ describe('intake attachment selection', () => {
       {
         getBuffer: async (storagePath: string) => readFileSync(storagePath),
       } as unknown as FileStorageService,
+      { selectRelevant: async () => null } as unknown as RelevanceService,
     );
     return { service, extractText, create, findFirst };
   }
