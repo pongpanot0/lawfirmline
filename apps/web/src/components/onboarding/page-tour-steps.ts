@@ -6,11 +6,12 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
   '/dashboard': dashboardTourSteps,
 
   '/getting-started': [
-    { selector: 'text:Download CSV', title: 'นำเข้าข้อมูลเดิม', body: 'ดาวน์โหลดแบบฟอร์ม CSV กรอกรายชื่อคดี/ลูกค้าเดิม แล้วอัปโหลดกลับเข้าระบบ', placement: 'right' },
-    { selector: 'text:Preview', title: 'ดูตัวอย่างก่อนนำเข้าจริง', body: 'ระบบให้ตรวจตัวอย่างเสมอก่อนบันทึกข้อมูลจริง', placement: 'bottom' },
+    { selector: 'main h1', title: 'เริ่มใช้งานสำนักงาน', body: 'ความคืบหน้าอ้างอิงจากข้อมูลจริง เริ่มด้วยทีม ลูกความ และคดีแรก', placement: 'right' },
+    { selector: 'text:ดาวน์โหลดตัวอย่าง CSV', title: 'นำเข้าข้อมูลเดิม', body: 'ดาวน์โหลดแบบฟอร์ม CSV กรอกรายชื่อลูกความ/คดีเดิม แล้วอัปโหลดกลับเข้าระบบได้ทีละหลายรายการ', placement: 'right' },
   ],
   '/my-day': [
-    { selector: 'text:เพิ่มนัด', title: 'วันของฉัน', body: 'สรุปนัดและงานที่ต้องทำวันนี้ กดเพิ่มนัดใหม่ได้จากตรงนี้', placement: 'bottom' },
+    { selector: 'main h1', title: 'วันของฉัน', body: 'สิ่งที่ต้องทำวันนี้-พรุ่งนี้ ทั้งนัดและงาน ในที่เดียว', placement: 'right' },
+    { selector: 'text:งานทีม', title: 'สลับดูงานทีม', body: 'ดูงานของตัวเองหรือของทั้งทีมได้', placement: 'bottom' },
   ],
   '/work': [
     { selector: 'placeholder:ค้นชื่องาน', title: 'ค้นหางาน', body: 'ค้นหางานจากชื่องาน คดี เลขอ้างอิง หรือผู้รับผิดชอบ', placement: 'bottom' },
@@ -18,14 +19,15 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'text:เพิ่มงานส่วนตัว', title: 'เพิ่มงานส่วนตัว', body: 'งานที่ไม่ผูกกับคดีไหน เพิ่มได้จากปุ่มนี้', placement: 'left' },
   ],
   '/todos': [
-    { selector: 'placeholder:Todo title', title: 'เพิ่มงานส่วนตัว', body: 'พิมพ์ชื่องานแล้วกด Enter เพื่อเพิ่มรายการใหม่', placement: 'bottom' },
+    { selector: 'text:เพิ่มงาน', title: 'เพิ่มงานส่วนตัว', body: 'งานที่ไม่ผูกกับคดีไหน เพิ่มได้จากปุ่มนี้', placement: 'left' },
+    { selector: 'placeholder:ค้นหาชื่องาน', title: 'ค้นหางาน', body: 'ค้นหางานส่วนตัวจากชื่อได้ที่นี่', placement: 'bottom' },
   ],
   '/calendar': [
     { selector: 'text:เพิ่มนัด', title: 'ปฏิทินสำนักงาน', body: 'ดูนัดรวมทุกคดีทุกทนาย เพิ่มนัดใหม่ได้จากปุ่มนี้', placement: 'bottom' },
   ],
   '/court-schedule': [
-    { selector: 'text:Add Event', title: 'ตารางศาล', body: 'เพิ่มนัดศาลหรือนัดลูกค้าใหม่จากปุ่มนี้', placement: 'left' },
-    { selector: 'text:Month', title: 'สลับมุมมอง', body: 'สลับดูแบบวัน สัปดาห์ หรือเดือนได้', placement: 'bottom' },
+    { selector: 'main h1', title: 'ตารางศาล', body: 'ใครไปไหนวันไหน เรียงตามวัน พร้อมเตือนเมื่อมีคนถูกจองซ้อน', placement: 'right' },
+    { selector: 'text:เพิ่มนัด', title: 'เพิ่มนัดใหม่', body: 'เพิ่มนัดศาลหรือนัดลูกค้าใหม่จากปุ่มนี้', placement: 'left' },
   ],
 
   '/cases': [
@@ -33,7 +35,7 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'text:สร้างคดีใหม่', title: 'สร้างคดีใหม่', body: 'เปิดคดีใหม่ได้จากปุ่มนี้', placement: 'left' },
   ],
   '/cases/board': [
-    { selector: 'text:ลากการ์ดคดี', title: 'บอร์ดสถานะคดี', body: 'ลากการ์ดคดีข้ามคอลัมน์เพื่อเปลี่ยนสถานะได้ทันที', placement: 'right' },
+    { selector: 'main h1', title: 'บอร์ดสถานะคดี', body: 'แยกคดีตามสถานะปัจจุบัน ลากการ์ดคดีข้ามคอลัมน์เพื่อเปลี่ยนสถานะ หรือกดเพื่อเปิดคดี', placement: 'right' },
   ],
   '/cases/new': [
     { selector: 'text:Litigation', title: 'สร้างคดีใหม่', body: 'เลือกประเภทคดีก่อน ระบบจะปรับฟิลด์ขั้นถัดไปให้ตรงกับประเภทที่เลือก', placement: 'right' },
@@ -50,30 +52,35 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'text:เพิ่มลูกค้า', title: 'เพิ่มลูกค้าใหม่', body: 'สร้างลูกค้าใหม่พร้อมผู้ติดต่อได้จากปุ่มนี้', placement: 'left' },
   ],
   '/clients/new': [
-    { selector: 'placeholder:บริษัท ABC', title: 'ชื่อลูกค้า', body: 'กรอกชื่อลูกค้า เลือกประเภทบุคคล/นิติบุคคล แล้วเพิ่มผู้ติดต่อได้หลายคน', placement: 'right' },
+    { selector: 'main h1', title: 'เพิ่มลูกค้า', body: 'บุคคลกรอกชื่อครั้งเดียว นิติบุคคลเพิ่มผู้ติดต่อได้หลายคน', placement: 'right' },
+    { selector: 'placeholder:นายสมชาย', title: 'ชื่อลูกค้า', body: 'กรอกชื่อลูกค้า แล้วเลือกประเภทบุคคลธรรมดา/นิติบุคคลด้านบน', placement: 'right' },
   ],
 
   '/documents': [
-    { selector: 'placeholder:Search documents', title: 'คลังเอกสารรวม', body: 'ค้นหาเอกสารข้ามคดี กรองตามคดี และอัปโหลดใหม่ได้ที่นี่', placement: 'bottom' },
+    { selector: 'main h1', title: 'เอกสาร', body: 'จัดการเอกสารแยกตามคดี เลือกหมวดเพื่อดูเอกสารประเภทนั้นทุกคดี', placement: 'right' },
+    { selector: 'placeholder:ค้นหาเอกสาร', title: 'ค้นหาเอกสาร', body: 'ค้นหาเอกสารข้ามคดีได้จากตรงนี้', placement: 'top' },
   ],
   '/expenses': [
-    { selector: 'text:Submit for Approval', title: 'ค่าใช้จ่าย', body: 'บันทึกค่าใช้จ่ายแล้วส่งขออนุมัติได้จากตรงนี้', placement: 'right' },
+    { selector: 'text:เพิ่มค่าใช้จ่าย', title: 'บันทึกค่าใช้จ่ายใหม่', body: 'บันทึกรายการค่าใช้จ่ายที่จ่ายไปก่อนได้จากปุ่มนี้', placement: 'left' },
+    { selector: 'text:จัดทำใบเบิก', title: 'จัดทำใบเบิก', body: 'เลือกรายการที่พร้อมเบิกแล้วกดปุ่มนี้ เพื่อรวมเป็นใบเบิกส่งขออนุมัติ', placement: 'right' },
   ],
   '/expenses/new': [
-    { selector: 'placeholder:Description', title: 'บันทึกค่าใช้จ่ายใหม่', body: 'กรอกยอดเงินและรายละเอียด แนบใบเสร็จได้ถ้ามี', placement: 'right' },
+    { selector: 'placeholder:จำนวนเงิน', title: 'เพิ่มค่าใช้จ่าย', body: 'กรอกจำนวนเงิน เลือกประเภท และรายละเอียด แนบรูปใบเสร็จได้ถ้ามี', placement: 'right' },
   ],
   '/expenses/claim': [
-    { selector: 'text:Print', title: 'แบบฟอร์มเบิกค่าใช้จ่าย', body: 'รวมรายการที่เป็นร่างเป็นแบบฟอร์มเดียว พิมพ์หรือส่งขออนุมัติทีเดียวได้', placement: 'right' },
+    { selector: 'text:กลับไปหน้าค่าใช้จ่าย', title: 'ใบเบิกค่าใช้จ่าย', body: 'รวมรายการที่เลือกไว้เป็นใบเบิกฉบับเดียว พิมพ์หรือส่งขออนุมัติได้จากหน้านี้', placement: 'right' },
   ],
   '/invoices': [
-    { selector: 'text:New Invoice', title: 'ใบแจ้งหนี้', body: 'ออกใบแจ้งหนี้ใหม่จากชั่วโมงทำงานและค่าใช้จ่ายที่บันทึกไว้', placement: 'left' },
+    { selector: 'main h1', title: 'ใบแจ้งหนี้', body: '20 ใบล่าสุดจากคดี เรื่องรับเข้า และใบที่ออกก่อนรับงาน ตามสิทธิ์ที่คุณดูได้', placement: 'right' },
+    { selector: 'placeholder:บริษัทผู้จ่าย', title: 'ค้นหาใบแจ้งหนี้', body: 'ค้นหาจากบริษัทผู้จ่าย เลขบิล หรือเลขคดีได้', placement: 'bottom' },
   ],
 
   '/reports': [
-    { selector: 'text:Export All', title: 'รายงาน', body: 'ส่งออกรายงานภาพรวมสำนักงานทั้งหมดได้จากปุ่มนี้', placement: 'left' },
+    { selector: 'main h1', title: 'รายงาน', body: 'ข้อมูลวิเคราะห์ของสำนักงาน อัตราปิดคดี กำไรสุทธิ และกำไรแยกรายคดี', placement: 'right' },
   ],
   '/knowledge': [
-    { selector: 'placeholder:Search summaries', title: 'คลังความรู้', body: 'ค้นหาสรุปคดีที่ผ่านมา ใช้อ้างอิงกับคดีใหม่ได้', placement: 'bottom' },
+    { selector: 'main h1', title: 'คลังความรู้คดี', body: 'สรุปและข้อมูลเชิงลึกจาก AI ของคดีที่ผ่านมา ใช้อ้างอิงกับคดีใหม่ได้', placement: 'right' },
+    { selector: 'placeholder:ค้นหาสรุป', title: 'ค้นหาสรุปคดี', body: 'ค้นหาสรุปคดีที่ผ่านมาได้จากตรงนี้', placement: 'bottom' },
   ],
   '/team': [
     { selector: 'text:ส่งคำเชิญ', title: 'จัดการทีม', body: 'กรอกอีเมลและเลือกบทบาท แล้วเชิญสมาชิกใหม่เข้าสำนักงานได้', placement: 'right' },
@@ -111,10 +118,10 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
   ],
 
   '/admin/case-types': [
-    { selector: 'text:Add Type', title: 'ประเภทคดี', body: 'กำหนดประเภทคดีและฟิลด์เฉพาะที่จะให้กรอกตอนสร้างคดีใหม่', placement: 'left' },
+    { selector: 'text:เพิ่มประเภท', title: 'ประเภทคดี', body: 'จัดการหมวดหมู่คดีของสำนักงาน กำหนดฟิลด์เฉพาะที่จะให้กรอกตอนสร้างคดีใหม่', placement: 'bottom' },
   ],
   '/admin/courts': [
-    { selector: 'text:Add Court', title: 'ทะเบียนศาล', body: 'จัดการรายชื่อศาลที่ใช้เลือกตอนสร้างคดีและตั้งนัด', placement: 'left' },
+    { selector: 'main h1', title: 'ทะเบียนศาล', body: 'จัดการรายชื่อศาลที่ใช้เลือกตอนสร้างคดีและตั้งนัด', placement: 'right' },
   ],
   '/admin/deadline-rules': [
     { selector: 'main h1', title: 'กฎวันครบกำหนด', body: 'ตั้งกฎให้ระบบคำนวณเดดไลน์อัตโนมัติตามประเภทคดี/เหตุการณ์', placement: 'right' },
@@ -123,7 +130,8 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'main h1', title: 'วันหยุดราชการ', body: 'รายการวันหยุดที่ระบบใช้นับวันทำการตอนคำนวณกำหนดส่งงาน', placement: 'right' },
   ],
   '/admin/reimbursements': [
-    { selector: 'text:PENDING', title: 'อนุมัติการเบิกจ่าย', body: 'คิวอนุมัติค่าใช้จ่ายที่ทีมส่งเข้ามา กรองตามสถานะแล้วอนุมัติ/ปฏิเสธได้', placement: 'bottom' },
+    { selector: 'main h1', title: 'เบิกค่าใช้จ่าย', body: 'ตรวจสอบและอนุมัติค่าใช้จ่ายที่ทีมส่งเข้ามา รวมถึงให้เงินสำรองจ่ายล่วงหน้าได้', placement: 'right' },
+    { selector: 'text:รออนุมัติ', title: 'กรองตามสถานะ', body: 'กรองรายการเบิกจ่ายตามสถานะได้', placement: 'bottom' },
   ],
   '/admin/audit-log': [
     { selector: 'main h1', title: 'บันทึกการใช้งาน', body: 'ประวัติการกระทำสำคัญในระบบ ใครทำอะไรเมื่อไหร่', placement: 'right' },
