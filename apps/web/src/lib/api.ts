@@ -1309,6 +1309,19 @@ export const api = {
     );
   },
 
+  searchDocumentContent: (token: string, q: string) =>
+    request<Array<{
+      documentId: string;
+      filename: string;
+      pageStart: number | null;
+      pageEnd: number | null;
+      snippet: string;
+      score: number;
+      caseId: string;
+      caseTitle: string;
+      caseOwnRef: string;
+    }>>(`/documents/search-content?q=${encodeURIComponent(q)}`, { token }),
+
   getCaseHealth: (token: string) =>
     request<CaseHealth>('/operations/case-health', { token }),
 

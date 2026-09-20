@@ -51,9 +51,11 @@ export function CalendarEventDialog({
   onSaved,
 }: CalendarEventDialogProps) {
   const d = useDashboardT();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
-  const [form, setForm] = useState(() => initialForm(event, caseId, caseCourtName, defaultDate));
+  const [form, setForm] = useState(() =>
+    initialForm(event, caseId, caseCourtName, defaultDate, user?.id),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -357,6 +359,7 @@ function initialForm(
   caseId: string | undefined,
   caseCourtName: string | null | undefined,
   defaultDate: Date | undefined,
+  currentUserId?: string,
 ) {
   if (event) {
     return {
@@ -379,6 +382,7 @@ function initialForm(
     courtName: caseCourtName ?? '',
     startAt: `${day}T09:00`,
     type: 'COURT_DATE',
-    assigneeId: '',
+    // คนสร้างนัดมักสร้างให้ตัวเอง — ตั้งตัวเองเป็นผู้รับผิดชอบไว้ก่อน เปลี่ยนได้
+    assigneeId: currentUserId ?? '',
   };
 }

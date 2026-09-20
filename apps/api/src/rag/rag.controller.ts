@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AI_CREDIT_COST, AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -19,6 +19,11 @@ export class RagController {
   @UseInterceptors(AiCreditsInterceptor)
   ask(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Body() dto: AskCaseDto) {
     return this.ragService.ask(user.id, caseId, dto.question, dto.documentIds);
+  }
+
+  @Get('documents/search-content')
+  searchContent(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.ragService.searchDocumentsByContent(user, q ?? '');
   }
 
   @Post('cases/:caseId/rag/reindex')

@@ -84,14 +84,21 @@ export default function DocumentsPage() {
     Array<DocumentItem & { case: { id: string; title: string; ownRef: string } | null }>
   >([]);
 
+  const [contentResults, setContentResults] = useState<
+    Awaited<ReturnType<typeof api.searchDocumentContent>>
+  >([]);
+
   // ค้นเอกสารข้ามคดีจากช่องเดียวกับที่กรองคดี (debounce 300ms)
+  // ชื่อไฟล์/tag ค้นทันที ส่วนเนื้อหาเอกสารค้นแบบ semantic ผ่าน RAG
   useEffect(() => {
     if (!token || search.trim().length < 2) {
       setDocResults([]);
+      setContentResults([]);
       return;
     }
     const t = setTimeout(() => {
       api.searchDocuments(token, search.trim()).then(setDocResults).catch(() => setDocResults([]));
+      api.searchDocumentContent(token, search.trim()).then(setContentResults).catch(() => setContentResults([]));
     }, 300);
     return () => clearTimeout(t);
   }, [token, search]);
@@ -201,6 +208,37 @@ export default function DocumentsPage() {
                       <p className="truncate text-xs text-muted-foreground">
                         {doc.case ? `${doc.case.ownRef} · ${doc.case.title}` : '—'} · v{doc.version}
                       </p>
+                    </div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {contentResults.length > 0 && (
+            <Card>
+              <CardContent className="p-0 divide-y divide-border">
+                <p className="px-4 py-2 text-xs font-semibold text-muted-foreground">
+                  พบในเนื้อหาเอกสาร (AI) ({contentResults.length})
+                </p>
+                {contentResults.map((r) => (
+                  <Link
+                    key={r.documentId}
+                    href={`/cases/${r.caseId}/documents`}
+                    className="flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50"
+                  >
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {r.filename}
+                        {r.pageStart ? (
+                          <span className="text-muted-foreground"> · หน้า {r.pageStart}{r.pageEnd && r.pageEnd !== r.pageStart ? `-${r.pageEnd}` : ''}</span>
+                        ) : null}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {r.caseOwnRef} · {r.caseTitle}
+                      </p>
+                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{r.snippet}</p>
                     </div>
                   </Link>
                 ))}

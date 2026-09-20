@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { redactForAi } from '@lawfirm/shared';
+import { AuthUser, redactForAi } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
 import { ChunkingService } from './chunking.service';
 import { EmbeddingService } from './embedding.service';
@@ -34,6 +35,7 @@ export class RagService {
     private prisma: PrismaService,
     private config: ConfigService,
     private fileStorage: FileStorageService,
+    private caseAccess: CaseAccessService,
     private intelligence: DocumentIntelligenceService,
     private chunking: ChunkingService,
     private embedding: EmbeddingService,
@@ -166,6 +168,68 @@ export class RagService {
     await this.ensureCaseIndexed(caseId, caseRow?.firmId);
     const chunks = await this.prisma.documentChunk.count({ where: { caseId } });
     return { chunks };
+  }
+
+  /**
+   * Semantic search over indexed document content across every case the user
+   * can access. Covers only documents that already have chunks (indexed
+   * lazily by case Q&A or reindex) — the filename/tag search remains the
+   * exhaustive path.
+   */
+  async searchDocumentsByContent(
+    user: AuthUser,
+    q: string,
+  ): Promise<Array<RagSource & { caseId: string; caseTitle: string; caseOwnRef: string }>> {
+    if (!this.embedding.enabled || !q.trim()) return [];
+    const accessibleCases = await this.prisma.case.findMany({
+      where: this.caseAccess.getCaseFilterForUser(user),
+      select: { id: true, title: true, ownRef: true },
+    });
+    if (!accessibleCases.length) return [];
+    const caseById = new Map(accessibleCases.map((c) => [c.id, c]));
+
+    const redactedQuery = redactForAi(q).text;
+    const { vectors, model, inputTokens } = await this.embedding.embed([redactedQuery]);
+    await this.logRun({
+      model,
+      operation: 'embed_search',
+      firmId: user.firmId,
+      userId: user.id,
+      inputTokens,
+    });
+
+    const vector = `[${vectors[0].join(',')}]`;
+    const rows = await this.prisma.$queryRaw<
+      Array<{ documentId: string; caseId: string; filename: string; pageStart: number | null; pageEnd: number | null; content: string; score: number }>
+    >(Prisma.sql`
+      SELECT * FROM (
+        SELECT DISTINCT ON (c."documentId")
+               c."documentId", c."caseId", d."filename", c."pageStart", c."pageEnd", c."content",
+               0.75 * (1 - (c."embedding" <=> ${vector}::vector))
+               + 0.25 * word_similarity(${redactedQuery}, c."content") AS score
+        FROM "DocumentChunk" c
+        JOIN "Document" d ON d."id" = c."documentId"
+        WHERE c."caseId" = ANY(${accessibleCases.map((c) => c.id)}) AND c."embedding" IS NOT NULL
+        ORDER BY c."documentId", score DESC
+      ) best
+      ORDER BY score DESC
+      LIMIT 20
+    `);
+
+    return rows.map((r) => {
+      const caseRow = caseById.get(r.caseId);
+      return {
+        documentId: r.documentId,
+        filename: r.filename,
+        pageStart: r.pageStart,
+        pageEnd: r.pageEnd,
+        snippet: r.content.slice(0, 200),
+        score: Math.round(r.score * 100) / 100,
+        caseId: r.caseId,
+        caseTitle: caseRow?.title ?? '',
+        caseOwnRef: caseRow?.ownRef ?? '',
+      };
+    });
   }
 
   async ask(userId: string, caseId: string, question: string, documentIds?: string[]): Promise<RagAnswer> {
