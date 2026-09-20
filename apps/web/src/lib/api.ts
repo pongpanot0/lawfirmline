@@ -1117,6 +1117,12 @@ export const api = {
   getPublicFirm: (slug: string) =>
     request<{ name: string; slug: string }>(`/firms/${encodeURIComponent(slug)}/public`, {}),
 
+  joinFirm: (slug: string, data: { email: string; password: string; firstName: string; lastName: string }) =>
+    request<import('@lawfirm/shared').LoginResponse>(`/firms/${encodeURIComponent(slug)}/join`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   acceptInvitation: (data: Record<string, string>) =>
     request<import('@lawfirm/shared').LoginResponse>('/saas/invitations/accept', {
       method: 'POST',

@@ -9,7 +9,7 @@ import { AuthUser, FirmRole, maskEmail } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
 import { EmailService } from '../notifications/email.service';
-import { InviteUserDto, AcceptInviteDto } from './dto/saas.dto';
+import { InviteUserDto, AcceptInviteDto, OpenJoinDto } from './dto/saas.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -114,6 +114,56 @@ export class InvitationService {
       firmName: invitation.firm.name,
       role: invitation.role,
     };
+  }
+
+  /**
+   * สมัครผ่านลิงก์ /join/<slug> โดยไม่ต้องมีรหัสคำเชิญ — สร้างเฉพาะบัญชีใหม่
+   * เท่านั้น อีเมลที่มีบัญชีอยู่แล้วต้องผ่านคำเชิญปกติ (กัน endpoint เปิด
+   * ผูกบัญชีคนอื่นเข้า firm โดยไม่ยืนยันตัวตน) เข้าเป็น ASSISTANT ก่อน
+   * เจ้าของสำนักงานปรับบทบาทได้ที่หน้า Team
+   */
+  async openJoin(slug: string, dto: OpenJoinDto) {
+    const firm = await this.tenant.findBySlug(slug);
+    if (!firm) throw new NotFoundException('Unknown firm');
+
+    const check = await this.tenant.assertCanAddMember(firm.id);
+    if (!check.allowed) throw new BadRequestException(check.message);
+
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new BadRequestException(
+        'อีเมลนี้มีบัญชีอยู่แล้ว — ให้เจ้าของสำนักงานส่งคำเชิญ หรือเข้าสู่ระบบด้วยบัญชีเดิม',
+      );
+    }
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email,
+          passwordHash: await bcrypt.hash(dto.password, 10),
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          role: 'LAWYER',
+        },
+      });
+      await tx.firmMember.create({
+        data: { firmId: firm.id, userId: created.id, role: 'ASSISTANT' },
+      });
+      await tx.auditLog.create({
+        data: {
+          firmId: firm.id,
+          userId: created.id,
+          action: 'INVITATION_ACCEPTED',
+          metadata: { email: maskEmail(email), openJoin: true },
+        },
+      });
+      return created;
+    });
+
+    const authUser = await this.tenant.buildAuthUser(user.id, firm.id);
+    if (!authUser) throw new BadRequestException('Failed to join firm');
+    return authUser;
   }
 
   async accept(dto: AcceptInviteDto) {
