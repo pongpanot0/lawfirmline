@@ -141,6 +141,7 @@ export default function CaseDetailPage() {
   const [note, setNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [showActivityForm, setShowActivityForm] = useState(false);
+  const [showAllTimeline, setShowAllTimeline] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingOverview, setEditingOverview] = useState(false);
   const [savingOverview, setSavingOverview] = useState(false);
@@ -1186,7 +1187,15 @@ export default function CaseDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">
-          <SavedCaseCostCalculator key={legalCase.id} caseId={id} customFields={customFields} onSaved={loadCase} />
+          {/* ใช้เป็นครั้งคราว — พับไว้ให้หน้าโล่ง */}
+          <details className="rounded-xl border border-border bg-card">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+              ประมาณการค่าใช้จ่ายคดี <span className="font-normal text-muted-foreground">· กดเพื่อดู/แก้ไข</span>
+            </summary>
+            <div className="border-t border-border p-4">
+              <SavedCaseCostCalculator key={legalCase.id} caseId={id} customFields={customFields} onSaved={loadCase} />
+            </div>
+          </details>
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm">ความเคลื่อนไหวคดี</CardTitle>
@@ -1248,7 +1257,7 @@ export default function CaseDetailPage() {
               )}
 
               <div className="space-y-4">
-                {timeline.map((item) => {
+                {(showAllTimeline ? timeline : timeline.slice(0, 6)).map((item) => {
                   const Icon = item.isOpened ? Gavel : (ACTIVITY_ICONS[item.type] ?? FileText);
                   const isCourt = item.type === 'COURT_DATE' || item.type === 'CLIENT_MEETING';
                   return (
@@ -1268,6 +1277,15 @@ export default function CaseDetailPage() {
                     </div>
                   );
                 })}
+                {timeline.length > 6 && (
+                  <button
+                    type="button"
+                    className="text-sm text-primary hover:underline"
+                    onClick={() => setShowAllTimeline((v) => !v)}
+                  >
+                    {showAllTimeline ? 'แสดงเฉพาะรายการล่าสุด' : `ดูทั้งหมด (${timeline.length} รายการ)`}
+                  </button>
+                )}
                 {timeline.length <= 1 && (
                   <InlineEmptyState title="ยังไม่มีกิจกรรม" description="เพิ่มนัดหมายหรือบันทึกความคืบหน้าเพื่อเริ่มติดตามคดี" />
                 )}
@@ -1290,17 +1308,18 @@ export default function CaseDetailPage() {
           )}
 
           {latestPrecedentAnalysis && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">
-                  {d.admin.precedentAnalysis}
-                </CardTitle>
-              </CardHeader>
+            <Card id="case-analyses" className="scroll-mt-24">
+              {/* ยาวหลายจอ — พับไว้ก่อน หัวการ์ดบอกวันที่พอให้รู้ว่ามีผลล่าสุด */}
+              <details>
+                <summary className="cursor-pointer list-none px-6 py-4 [&::-webkit-details-marker]:hidden">
+                  <span className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">{d.admin.precedentAnalysis}</span>
+                    <span className="text-xs text-muted-foreground">
+                      วิเคราะห์เมื่อ {formatDateTime(latestPrecedentAnalysis.createdAt)} · กดเพื่อดู
+                    </span>
+                  </span>
+                </summary>
               <CardContent className="space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  วิเคราะห์เมื่อ {formatDateTime(latestPrecedentAnalysis.createdAt)}
-                </p>
-
                 {latestPrecedentAnalysis.documentSummary && (
                   <div>
                     <p className="text-sm font-medium">📝 {d.admin.documentEventSummary}</p>
@@ -1352,6 +1371,7 @@ export default function CaseDetailPage() {
                   ⚠️ ผลลัพธ์นี้เป็นการช่วยค้นเบื้องต้นด้วย AI โปรดตรวจสอบกับฉบับเต็มก่อนใช้อ้างอิงจริง
                 </p>
               </CardContent>
+              </details>
             </Card>
           )}
         </div>
@@ -1437,7 +1457,14 @@ export default function CaseDetailPage() {
       </div>
 
       <div className="mt-6 space-y-6">
-        <CaseMessagesPanel caseId={id} />
+        <details className="rounded-xl border border-border bg-card">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+            สายติดต่อลูกความ <span className="font-normal text-muted-foreground">· กดเพื่อดูประวัติการติดต่อ</span>
+          </summary>
+          <div className="border-t border-border p-4">
+            <CaseMessagesPanel caseId={id} />
+          </div>
+        </details>
       </div>
       </div>
       )}

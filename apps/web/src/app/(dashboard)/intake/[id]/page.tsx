@@ -320,7 +320,10 @@ export default function IntakeDetailPage() {
 
   // Document facts analysis (summary + facts from selected files)
   const workspaceParams = useSearchParams();
-  const [workspaceTab, setWorkspaceTab] = useState<'overview' | 'research' | 'documents'>(workspaceParams.get('tab') === 'overview' ? 'overview' : 'research');
+  const [workspaceTab, setWorkspaceTab] = useState<'overview' | 'research' | 'documents'>(() => {
+    const tab = workspaceParams.get('tab');
+    return tab === 'research' || tab === 'documents' ? tab : 'overview';
+  });
 
   // Precedent analysis
   const [analyses, setAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
@@ -1253,6 +1256,27 @@ export default function IntakeDetailPage() {
             </Button>
           )}
         </div>
+        <Card className="sm:col-span-2">
+          <CardHeader><CardTitle className="text-base">รายละเอียดเรื่อง</CardTitle></CardHeader>
+          <CardContent className="space-y-0">
+            <InfoRow label="ประเภทเรื่อง" value={intake.matterType ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType) : undefined} />
+            <InfoRow label="เลขอ้างอิงลูกค้า" value={intake.customerRef} />
+            <InfoRow label="เลขกรมธรรม์" value={intake.policyNumber} />
+            <InfoRow label="เลขเคลม" value={intake.claimNumber} />
+            <InfoRow label="คู่กรณี" value={intake.opposingParty} />
+            <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
+            <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
+            <InfoRow label="รายละเอียด" value={intake.description} />
+            {intake.isOngoingElsewhere && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <p className="font-medium text-amber-900">คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน</p>
+                {intake.externalCaseNumber && <p className="mt-1 text-amber-800">เลขคดี/หมายเลขดำ: {intake.externalCaseNumber}</p>}
+                {intake.currentStageNote && <p className="mt-1 text-amber-800">สถานะปัจจุบัน: {intake.currentStageNote}</p>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader><CardTitle className="text-base">ผู้ส่งเรื่อง</CardTitle></CardHeader>
           <CardContent className="space-y-0">
@@ -1311,26 +1335,6 @@ export default function IntakeDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="sm:col-span-2">
-          <CardHeader><CardTitle className="text-base">รายละเอียดเรื่อง</CardTitle></CardHeader>
-          <CardContent className="space-y-0">
-            <InfoRow label="ประเภทเรื่อง" value={intake.matterType ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType) : undefined} />
-            <InfoRow label="เลขอ้างอิงลูกค้า" value={intake.customerRef} />
-            <InfoRow label="เลขกรมธรรม์" value={intake.policyNumber} />
-            <InfoRow label="เลขเคลม" value={intake.claimNumber} />
-            <InfoRow label="คู่กรณี" value={intake.opposingParty} />
-            <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
-            <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
-            <InfoRow label="รายละเอียด" value={intake.description} />
-            {intake.isOngoingElsewhere && (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                <p className="font-medium text-amber-900">คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน</p>
-                {intake.externalCaseNumber && <p className="mt-1 text-amber-800">เลขคดี/หมายเลขดำ: {intake.externalCaseNumber}</p>}
-                {intake.currentStageNote && <p className="mt-1 text-amber-800">สถานะปัจจุบัน: {intake.currentStageNote}</p>}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {(intake.assessmentNotes || intake.caseStrength || intake.assessor) && (
           <Card>
