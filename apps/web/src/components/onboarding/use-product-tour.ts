@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { TourStep } from './types';
+import { resolveTarget } from './resolve-target';
 
 /** Dispatched by a "help"/"restart tour" button — any mounted tour picks it up. */
 export const TOUR_RESTART_EVENT = 'samnuan:start-tour';
@@ -26,7 +27,7 @@ interface UseProductTourResult {
 /** Steps whose selector isn't on the page right now are dropped, not just skipped visually. */
 function resolveVisibleSteps(steps: TourStep[]): { step: TourStep; target: HTMLElement }[] {
   return steps
-    .map((step) => ({ step, target: document.querySelector<HTMLElement>(step.selector) }))
+    .map((step) => ({ step, target: resolveTarget(step.selector) }))
     .filter((s): s is { step: TourStep; target: HTMLElement } => s.target !== null);
 }
 
@@ -48,7 +49,7 @@ export function useProductTour(steps: TourStep[], storageKey: string): UseProduc
     // Layout (sidebar, dashboard cards) can still be mounting — give it a beat.
     const tryResolve = (attemptsLeft: number) => {
       const found = resolveVisibleSteps(steps);
-      if (found.length > 0 || attemptsLeft <= 0) {
+      if (found.length === steps.length || attemptsLeft <= 0) {
         setResolved(found);
         setStepIndex(0);
         setOpen(found.length > 0);
@@ -56,7 +57,9 @@ export function useProductTour(steps: TourStep[], storageKey: string): UseProduc
         setTimeout(() => tryResolve(attemptsLeft - 1), 200);
       }
     };
-    tryResolve(10);
+    // Mounted app-wide in AppShell, so a page's own data fetch may still be
+    // in flight — retry for a few seconds before giving up on this route.
+    tryResolve(20);
   }, [steps]);
 
   useEffect(() => {

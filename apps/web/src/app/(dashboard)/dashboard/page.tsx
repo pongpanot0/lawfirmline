@@ -10,8 +10,6 @@ import { bangkokDateInputValue, bangkokDayLabel, bangkokTime } from '@/lib/bangk
 import { PageLoading } from '@/components/ui/misc';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { useLocale } from '@/components/landing/LocaleProvider';
-import { ProductTour } from '@/components/onboarding/ProductTour';
-import { dashboardTourSteps, DASHBOARD_TOUR_STORAGE_KEY } from '@/components/onboarding/dashboard-tour-steps';
 
 type Inbox = Awaited<ReturnType<typeof api.getTaskInbox>>;
 const panel = 'overflow-hidden rounded-2xl border border-border bg-card';
@@ -62,7 +60,6 @@ export default function DashboardPage() {
   const statuses: Record<string, string> = { TODO: d.todos.columnTodo, IN_PROGRESS: d.todos.columnInProgress, PENDING_REVIEW: d.todos.columnPendingReview, NEEDS_REVISION: d.todos.columnNeedsRevision, DONE: d.todos.columnDone };
 
   return <div className="mx-auto max-w-[1440px] space-y-6">
-    <ProductTour steps={dashboardTourSteps} storageKey={DASHBOARD_TOUR_STORAGE_KEY} />
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">{data?.firmName ?? 'SAMNUAN'} · {date(new Date().toISOString())}</p>

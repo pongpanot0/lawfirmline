@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { restartTour } from '@/components/onboarding/use-product-tour';
+import { hasTour } from '@/components/onboarding/PageTour';
 
 interface TopNavbarProps {
   user: AuthUser;
@@ -119,7 +120,7 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
             </div>
           )}
         </div>
-        {pathname === '/dashboard' && (
+        {hasTour(pathname) && (
           <Button
             variant="ghost"
             size="icon"
