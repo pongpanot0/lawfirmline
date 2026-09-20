@@ -2,6 +2,7 @@
 
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
+import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
 import { CASE_COSTS_KEY } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutcomeDialog';
@@ -1300,6 +1301,8 @@ export default function CaseDetailPage() {
                     </p>
                   </div>
                 )}
+
+                <AnalysisFactsTimeline analysis={latestPrecedentAnalysis} />
 
                 <div className={latestPrecedentAnalysis.documentSummary ? 'border-t border-border pt-3' : undefined}>
                   <p className="text-sm font-medium">📚 ฎีกาที่เกี่ยวข้อง</p>

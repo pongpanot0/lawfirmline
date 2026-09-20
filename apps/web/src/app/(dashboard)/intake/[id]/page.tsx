@@ -1,6 +1,7 @@
 'use client';
 
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
+import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
 import {
   AI_CREDIT_COST,
   AI_UPLOAD_MAX_FILES,
@@ -1436,6 +1437,8 @@ export default function IntakeDetailPage() {
                       </p>
                     </div>
                   )}
+
+                  <AnalysisFactsTimeline analysis={current} />
 
                   <div className={current.documentSummary ? 'border-t border-border pt-3' : undefined}>
                     <p className="text-sm font-medium">📚 ฎีกาที่เกี่ยวข้อง</p>

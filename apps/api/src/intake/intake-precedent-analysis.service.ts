@@ -181,10 +181,35 @@ export class IntakePrecedentAnalysisService {
     );
   }
 
+  /** Coerces AI output into string[]; anything malformed becomes an empty list, never a crash. */
+  private coerceStringList(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is string => typeof item === 'string' && !!item.trim()).slice(0, 40);
+  }
+
+  private coerceTimeline(value: unknown): Array<{ date: string; event: string }> {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(
+        (item): item is { date: string; event: string } =>
+          !!item &&
+          typeof item === 'object' &&
+          typeof (item as Record<string, unknown>).date === 'string' &&
+          typeof (item as Record<string, unknown>).event === 'string',
+      )
+      .slice(0, 40);
+  }
+
   private async summarizePrecedents(
     factsText: string,
     precedents: Array<{ dekaId: string; headnote: string; citedStatutes: string[] }>,
-  ): Promise<{ documentSummary: string; summaryBullets: string; noticeFacts: string }> {
+  ): Promise<{
+    documentSummary: string;
+    summaryBullets: string;
+    noticeFacts: string;
+    factsList: string[];
+    timeline: Array<{ date: string; event: string }>;
+  }> {
     const precedentsText =
       precedents.length > 0
         ? precedents
@@ -200,9 +225,11 @@ export class IntakePrecedentAnalysisService {
         '   เขียนเป็นภาษาไทย plain language ห้ามแต่งข้อเท็จจริงที่ไม่มีในข้อมูลที่ให้มา',
         '2) summaryBullets — สรุปฎีกาที่เกี่ยวข้องที่ให้มาเป็นข้อๆ สั้นๆ',
         '3) noticeFacts — เตรียมข้อเท็จจริงในรูปแบบสำหรับใช้ร่างหนังสือบอกกล่าว',
-        'ห้ามอ้างอิงฎีกาที่ไม่ได้อยู่ในรายการที่ให้มา ห้ามแต่งเลขฎีกาขึ้นเอง',
-        'ตอบเป็น JSON object เท่านั้นในรูปแบบ {"documentSummary": string, "summaryBullets": string, "noticeFacts": string}',
-        'ทุกฟิลด์ต้องเป็น string (ไม่ใช่ array) — ใช้ \\n คั่นบรรทัดใน documentSummary และแต่ละข้อใน summaryBullets',
+        '4) factsList — ข้อเท็จจริงสำคัญเป็น array ของ string ข้อละประเด็น สั้น กระชับ เรียงตามความสำคัญ',
+        '5) timeline — เหตุการณ์ที่มีวันที่ระบุในเอกสาร เป็น array ของ {"date": string, "event": string} เรียงตามลำดับเวลา ใช้วันที่ตามที่เอกสารเขียน (พ.ศ.) ถ้าไม่มีวันที่ชัดเจนให้ข้ามเหตุการณ์นั้น ห้ามเดาวันที่',
+        'ห้ามอ้างอิงฎีกาที่ไม่ได้อยู่ในรายการที่ให้มา ห้ามแต่งเลขฎีกาขึ้นเอง ห้ามแต่งข้อเท็จจริงหรือวันที่ที่ไม่มีในข้อมูล',
+        'ตอบเป็น JSON object เท่านั้นในรูปแบบ {"documentSummary": string, "summaryBullets": string, "noticeFacts": string, "factsList": string[], "timeline": [{"date": string, "event": string}]}',
+        'สามฟิลด์แรกต้องเป็น string (ไม่ใช่ array) — ใช้ \\n คั่นบรรทัดใน documentSummary และแต่ละข้อใน summaryBullets',
       ].join(' '),
       `ข้อเท็จจริงของเรื่อง:\n${factsText}\n\nฎีกาที่ค้นพบ:\n${precedentsText}`,
       { json: true },
@@ -213,11 +240,15 @@ export class IntakePrecedentAnalysisService {
         documentSummary?: unknown;
         summaryBullets?: unknown;
         noticeFacts?: unknown;
+        factsList?: unknown;
+        timeline?: unknown;
       };
       return {
         documentSummary: this.coerceSummaryText(parsed.documentSummary, '(ไม่สามารถสรุปเหตุการณ์ได้)'),
         summaryBullets: this.coerceSummaryText(parsed.summaryBullets, '(ไม่สามารถสรุปได้)'),
         noticeFacts: this.coerceSummaryText(parsed.noticeFacts, factsText),
+        factsList: this.coerceStringList(parsed.factsList),
+        timeline: this.coerceTimeline(parsed.timeline),
       };
     } catch {
       this.logger.error(
@@ -227,6 +258,8 @@ export class IntakePrecedentAnalysisService {
         documentSummary: '(ไม่สามารถสรุปเหตุการณ์ได้)',
         summaryBullets: content || '(ไม่สามารถสรุปได้)',
         noticeFacts: factsText,
+        factsList: [],
+        timeline: [],
       };
     }
   }
@@ -302,10 +335,8 @@ export class IntakePrecedentAnalysisService {
       );
       const precedents = topResults.map((r, i) => detailed[i] ?? r);
 
-      const { documentSummary, summaryBullets, noticeFacts } = await this.summarizePrecedents(
-        factsText,
-        precedents,
-      );
+      const { documentSummary, summaryBullets, noticeFacts, factsList, timeline } =
+        await this.summarizePrecedents(factsText, precedents);
 
       const creditsCost = 0.1 + 0.1 * topResults.length; // search + N detail lookups (IC estimate)
 
@@ -317,6 +348,8 @@ export class IntakePrecedentAnalysisService {
           searchQueries: { query: searchQuery },
           precedents: precedents as unknown as object,
           documentSummary,
+          factsList: factsList as unknown as object,
+          timeline: timeline as unknown as object,
           summaryBullets,
           noticeFacts,
           creditsCost,

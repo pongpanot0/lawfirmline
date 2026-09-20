@@ -960,6 +960,10 @@ model IntakePrecedentAnalysis {
   searchQueries   Json
   precedents      Json
   documentSummary String?        @db.Text // AI plain-language summary of intake/docs events
+  /// ข้อเท็จจริงเป็นข้อๆ (string[]) — โครงสร้างไว้แสดงเป็น list ไม่ใช่ prose
+  factsList       Json?
+  /// ไทม์ไลน์เหตุการณ์ ({date, event}[]) เรียงตามเวลา ตามที่เอกสารระบุ
+  timeline        Json?
   summaryBullets  String         @db.Text
   noticeFacts     String         @db.Text
   creditsCost     Float
