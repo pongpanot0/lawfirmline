@@ -67,7 +67,8 @@ export function buildPettyCashCsv(opts: {
 
   const grand = items.reduce((s, e) => s + e.amount, 0);
   rows.push(pad([]));
-  rows.push(pad(['', 'รวม', '', ...cats.map((c) => (totals.get(c) ? money(totals.get(c)!) : '-'))]));
+  // ช่องที่ไม่มียอดปล่อยว่าง — เครื่องหมาย '-' โดน guard สูตร Excel เติม ' นำหน้ากลายเป็น '-
+  rows.push(pad(['', 'รวม', '', ...cats.map((c) => (totals.get(c) ? money(totals.get(c)!) : ''))]));
   rows.push(pad(['', 'รวมทั้งสิ้น', '', money(grand)]));
   rows.push(pad([]));
   rows.push(pad(['ผู้เบิก ....................', '', 'ผู้อนุมัติ ....................', 'ผู้จ่ายเงิน ....................']));
