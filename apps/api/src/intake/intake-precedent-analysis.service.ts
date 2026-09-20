@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { RelevanceService } from '../rag/relevance.service';
 
 export const PRECEDENT_ANALYSIS_COST = AI_CREDIT_COST.PRECEDENT_ANALYSIS;
 
@@ -50,6 +51,7 @@ export class IntakePrecedentAnalysisService {
     private iapp: IappLegalClient,
     private docIntelligence: DocumentIntelligenceService,
     private fileStorage: FileStorageService,
+    private relevance: RelevanceService,
   ) {}
 
   private async gatherFacts(intake: {
@@ -63,32 +65,71 @@ export class IntakePrecedentAnalysisService {
     let attachmentText: string | null = null;
     let attachmentExtractionFailed = false;
     const attachmentWarnings: string[] = [];
+    // Direct identifiers come out per file, before the text is embedded,
+    // stored, or put in a prompt. An attachment is a scan of the client's own
+    // paperwork — an ID card, a medical record — and none of what identifies a
+    // person helps find a precedent, so it neither lands in a row that every
+    // API response carries nor leaves the country with the prompt.
+    let attachmentRedaction: RedactionCounts = {};
 
     if (intake.attachments.length > 0) {
-      const texts: string[] = [];
+      const files: Array<{ label: string; text: string }> = [];
       for (const attachment of intake.attachments) {
+        const label = (attachment.filename ?? 'เอกสาร').slice(0, 80);
         try {
           const buffer = await this.fileStorage.getBuffer(attachment.storagePath);
           const text = await this.docIntelligence.extractText(buffer, attachment.mimeType);
           if (!text.trim()) throw new Error('ไม่พบข้อความในเอกสาร');
-          if (text.length > Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / intake.attachments.length) - 150) attachmentWarnings.push(`อ่านเฉพาะบางส่วน: ${attachment.filename ?? 'เอกสาร'}`);
-          texts.push(`[ไฟล์: ${(attachment.filename ?? 'เอกสาร').slice(0, 80)}]\n${text.slice(0, Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / intake.attachments.length) - 150)}`);
+          const redacted = redactForAi(text);
+          attachmentRedaction = mergeCounts(attachmentRedaction, redacted.counts);
+          files.push({ label, text: redacted.text });
         } catch (err) {
           this.logger.warn(`Failed to extract attachment text: ${(err as Error).message}`);
           attachmentExtractionFailed = true;
-          attachmentWarnings.push(`อ่านไม่สำเร็จ: ${attachment.filename ?? 'เอกสาร'}`);
+          attachmentWarnings.push(`อ่านไม่สำเร็จ: ${label}`);
         }
       }
-      attachmentText =
-        texts.length > 0 ? texts.join('\n\n').slice(0, MAX_ATTACHMENT_TEXT_LENGTH) : null;
+
+      const totalLength = files.reduce((sum, file) => sum + file.text.length, 0);
+      if (totalLength <= MAX_ATTACHMENT_TEXT_LENGTH) {
+        // Everything fits — no retrieval needed.
+        attachmentText = files.length
+          ? files.map((file) => `[ไฟล์: ${file.label}]\n${file.text}`).join('\n\n')
+          : null;
+      } else {
+        // RAG: pick the excerpts most relevant to what the user typed in,
+        // instead of blindly keeping the head of each file.
+        const query = [
+          intake.matterType ? `ประเภทเรื่อง: ${intake.matterType}` : null,
+          intake.opposingParty ? `คู่กรณี: ${intake.opposingParty}` : null,
+          intake.description ? redactForAi(intake.description).text : null,
+        ]
+          .filter(Boolean)
+          .join('\n');
+        const selection = await this.relevance.selectRelevant(
+          files,
+          query,
+          MAX_ATTACHMENT_TEXT_LENGTH,
+        );
+        if (selection) {
+          attachmentText = selection.text;
+          for (const label of selection.truncatedLabels) {
+            attachmentWarnings.push(`อ่านเฉพาะส่วนที่เกี่ยวข้อง: ${label}`);
+          }
+        } else {
+          // Embeddings unavailable — keep the old head-of-file slicing.
+          const perFile = Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / files.length) - 150;
+          attachmentText = files
+            .map((file) => {
+              if (file.text.length > perFile) attachmentWarnings.push(`อ่านเฉพาะบางส่วน: ${file.label}`);
+              return `[ไฟล์: ${file.label}]\n${file.text.slice(0, perFile)}`;
+            })
+            .join('\n\n')
+            .slice(0, MAX_ATTACHMENT_TEXT_LENGTH);
+        }
+      }
     }
 
-    // Direct identifiers come out here, before the text is either stored or put
-    // in a prompt. An attachment is a scan of the client's own paperwork — an
-    // ID card, a medical record — and none of what identifies a person helps
-    // find a precedent, so it neither lands in a row that every API response
-    // carries nor leaves the country with the prompt.
-    const redactedAttachment = redactForAi(attachmentText);
     const redactedDescription = redactForAi(intake.description);
 
     return {
@@ -97,10 +138,10 @@ export class IntakePrecedentAnalysisService {
       opposingParty: intake.opposingParty,
       estimatedDamage: intake.estimatedDamage,
       incidentDate: intake.incidentDate ? intake.incidentDate.toISOString().slice(0, 10) : null,
-      attachmentText: attachmentText ? redactedAttachment.text : null,
+      attachmentText,
       attachmentExtractionFailed,
       attachmentWarnings,
-      redaction: mergeCounts(redactedDescription.counts, redactedAttachment.counts),
+      redaction: mergeCounts(redactedDescription.counts, attachmentRedaction),
     };
   }
 

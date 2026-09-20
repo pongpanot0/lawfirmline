@@ -795,6 +795,8 @@ model Intake {
   referralName          String?
   clientId              String?
   clientName            String?
+  /// เลขอ้างอิงฝั่งลูกค้า — ติดไปที่ Case.customerRef ตอนแปลงเป็นคดี
+  customerRef           String?
   matterType            String?
   opposingParty         String?
   incidentDate          DateTime?

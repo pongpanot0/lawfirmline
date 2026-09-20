@@ -28,6 +28,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { formatDate } from '@/lib/utils';
+import { CaseCostLine, initialCaseCosts } from '@/lib/case-costs';
+import { buildQuoteHtml } from '@/lib/quote-doc';
+import { CaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 
 const ANALYSIS_PROGRESS_STEPS = [
   'กำลังอ่านเอกสารและรายละเอียดเรื่อง…',
@@ -263,7 +266,7 @@ function IntakeAssignees({
   );
 }
 
-type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | 'details' | null;
+type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | 'details' | 'quote' | null;
 
 export default function IntakeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -274,7 +277,7 @@ export default function IntakeDetailPage() {
   const [modal, setModal] = useState<ModalType>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [quoteExportNotice, setQuoteExportNotice] = useState('');
+  const [quoteLines, setQuoteLines] = useState<CaseCostLine[]>([]);
 
   // Assess form
   const [assessNotes, setAssessNotes] = useState('');
@@ -295,6 +298,9 @@ export default function IntakeDetailPage() {
   const [editClientName, setEditClientName] = useState('');
   const [editMatterType, setEditMatterType] = useState('');
   const [editOpposingParty, setEditOpposingParty] = useState('');
+  const [editCustomerRef, setEditCustomerRef] = useState('');
+  const [editPolicyNumber, setEditPolicyNumber] = useState('');
+  const [editClaimNumber, setEditClaimNumber] = useState('');
   const [editIncidentDate, setEditIncidentDate] = useState('');
   const [editEstimatedDamage, setEditEstimatedDamage] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -534,6 +540,9 @@ export default function IntakeDetailPage() {
     setEditClientName(intake.clientName || '');
     setEditMatterType(intake.matterType || '');
     setEditOpposingParty(intake.opposingParty || '');
+    setEditCustomerRef(intake.customerRef || '');
+    setEditPolicyNumber(intake.policyNumber || '');
+    setEditClaimNumber(intake.claimNumber || '');
     setEditIncidentDate(intake.incidentDate ? intake.incidentDate.slice(0, 10) : '');
     setEditEstimatedDamage(intake.estimatedDamage != null ? String(intake.estimatedDamage) : '');
     setEditDescription(intake.description || '');
@@ -575,6 +584,9 @@ export default function IntakeDetailPage() {
         title: editTitle.trim() || undefined,
         matterType: editMatterType || undefined,
         opposingParty: editOpposingParty || undefined,
+        customerRef: editCustomerRef || undefined,
+        policyNumber: editPolicyNumber || undefined,
+        claimNumber: editClaimNumber || undefined,
         incidentDate: editIncidentDate || undefined,
         description: editDescription || undefined,
         estimatedDamage: editEstimatedDamage ? Number(editEstimatedDamage) : undefined,
@@ -599,9 +611,33 @@ export default function IntakeDetailPage() {
   };
 
   const handleQuotePdfExport = () => {
-    setQuoteExportNotice(
-      'เตรียมใบเสนอราคา PDF แล้ว ขั้นนี้ยังไม่ดาวน์โหลดไฟล์ รอต่อ backend/export จริง',
-    );
+    if (quoteLines.length === 0) setQuoteLines(initialCaseCosts());
+    setModal('quote');
+  };
+
+  const handleQuotePrint = () => {
+    if (!intake) return;
+    const html = buildQuoteHtml({
+      firmName: user?.firmName ?? '',
+      issuedByName: user ? `${user.firstName} ${user.lastName}` : '',
+      clientName: intake.client?.name ?? intake.clientName ?? '',
+      matterTitle: intake.title ?? '',
+      matterTypeLabel: intake.matterType
+        ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType)
+        : '',
+      opposingParty: intake.opposingParty ?? '',
+      estimatedDamage: intake.estimatedDamage ?? null,
+      lines: quoteLines,
+    });
+    const win = window.open('', '_blank');
+    if (!win) {
+      setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาต popup สำหรับเว็บไซต์นี้');
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
   };
 
   const openNoticeModal = (analysisId?: string) => {
@@ -953,11 +989,6 @@ export default function IntakeDetailPage() {
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
       )}
-      {quoteExportNotice && (
-        <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
-          {quoteExportNotice}
-        </p>
-      )}
 
       <Card>
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1039,6 +1070,135 @@ export default function IntakeDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Info cards */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2 flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold">ข้อมูลเรื่อง</h2>
+          {intake.status !== 'CONVERTED' && (
+            <Button variant="outline" size="sm" onClick={openDetailsModal}>
+              แก้ไขรายละเอียด
+            </Button>
+          )}
+        </div>
+        <Card>
+          <CardHeader><CardTitle className="text-base">ผู้ส่งเรื่อง</CardTitle></CardHeader>
+          <CardContent className="space-y-0">
+            <InfoRow label="ประเภท" value={REFERRAL_TYPE_LABELS[intake.referralType] ?? intake.referralType} />
+            <InfoRow label="ช่องทาง" value={REFERRAL_CHANNEL_LABELS[intake.referralChannel] ?? intake.referralChannel} />
+            <InfoRow label="ชื่อ" value={intake.referralName} />
+            <InfoRow label="รับโดย" value={intake.receivedBy ? `${intake.receivedBy.firstName} ${intake.receivedBy.lastName}` : undefined} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">ลูกความ / ลูกค้า</CardTitle></CardHeader>
+          <CardContent className="space-y-0">
+            <InfoRow label="ลูกความ" value={intake.client?.name ?? intake.clientName} />
+            {/* ลูกค้า = ผู้ว่าจ้างที่เราวางบิล ซ่อนไว้เมื่อเป็นคนเดียวกับลูกความ */}
+            {!customersSameAsClient(intake.customers, intake.clientId) && (
+              <InfoRow label="ลูกค้า (ผู้ว่าจ้าง)" value={formatCustomers(intake.customers)} />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ขั้นตอน → ตรวจ conflict → เอกสาร → ติดตาม: ลำดับที่งานรับเรื่องเดินจริง */}
+        <div className="space-y-4 sm:col-span-2">
+          {token && (
+            <>
+              <IntakeStageBar intake={intake} token={token} onChanged={reload} />
+              <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />
+              <IntakeFollowUpPanel
+                intake={intake}
+                token={token}
+                lawyers={lawyers}
+                onChanged={reload}
+              />
+            </>
+          )}
+        </div>
+
+        {/* ออกบิลได้ตั้งแต่ยังไม่เปิดคดี — ค่าที่ปรึกษาหรือค่าดำเนินการก่อนฟ้อง */}
+        <div className="sm:col-span-2">
+          <InvoicePanel target={{ intakeId: intake.id }} customers={intake.customers ?? []} />
+        </div>
+
+        <Card className="sm:col-span-2">
+          <CardHeader><CardTitle className="text-base">ผู้รับผิดชอบ</CardTitle></CardHeader>
+          <CardContent>
+            <IntakeAssignees
+              intake={intake}
+              lawyers={lawyers}
+              currentUser={user}
+              onSave={async (ids) => {
+                if (!token || !id) return;
+                await api.updateIntake(token, id, { assignedUserIds: ids });
+                await reload();
+              }}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="sm:col-span-2">
+          <CardHeader><CardTitle className="text-base">รายละเอียดเรื่อง</CardTitle></CardHeader>
+          <CardContent className="space-y-0">
+            <InfoRow label="ประเภทเรื่อง" value={intake.matterType ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType) : undefined} />
+            <InfoRow label="เลขอ้างอิงลูกค้า" value={intake.customerRef} />
+            <InfoRow label="เลขกรมธรรม์" value={intake.policyNumber} />
+            <InfoRow label="เลขเคลม" value={intake.claimNumber} />
+            <InfoRow label="คู่กรณี" value={intake.opposingParty} />
+            <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
+            <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
+            <InfoRow label="รายละเอียด" value={intake.description} />
+            {intake.isOngoingElsewhere && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <p className="font-medium text-amber-900">คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน</p>
+                {intake.externalCaseNumber && <p className="mt-1 text-amber-800">เลขคดี/หมายเลขดำ: {intake.externalCaseNumber}</p>}
+                {intake.currentStageNote && <p className="mt-1 text-amber-800">สถานะปัจจุบัน: {intake.currentStageNote}</p>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {(intake.assessmentNotes || intake.caseStrength || intake.assessor) && (
+          <Card>
+            <CardHeader><CardTitle className="text-base">ผลการประเมิน</CardTitle></CardHeader>
+            <CardContent className="space-y-0">
+              <InfoRow label="ความแข็งแกร่งของคดี" value={intake.caseStrength} />
+              <InfoRow label="หมายเหตุ" value={intake.assessmentNotes} />
+              <InfoRow label="ผู้ประเมิน" value={intake.assessor ? `${intake.assessor.firstName} ${intake.assessor.lastName}` : undefined} />
+            </CardContent>
+          </Card>
+        )}
+
+        {(intake.decision !== 'PENDING' || intake.decisionNotes) && (
+          <Card>
+            <CardHeader><CardTitle className="text-base">การตัดสินใจ</CardTitle></CardHeader>
+            <CardContent className="space-y-0">
+              <InfoRow label="การตัดสินใจ" value={DECISION_LABELS[intake.decision] ?? intake.decision} />
+              <InfoRow label="หมายเหตุ" value={intake.decisionNotes} />
+            </CardContent>
+          </Card>
+        )}
+
+        {intake.noticeIssuedAt && (
+          <Card>
+            <CardHeader><CardTitle className="text-base">หนังสือแจ้ง</CardTitle></CardHeader>
+            <CardContent className="space-y-0">
+              <InfoRow label="ออกเมื่อ" value={formatDateOrDash(intake.noticeIssuedAt)} />
+              <InfoRow label="ผู้รับ" value={intake.noticeRecipient} />
+              <InfoRow label="กำหนดตอบ" value={formatDateOrDash(intake.noticeDeadline)} />
+              <InfoRow label="ผล" value={intake.noticeResult} />
+              {intake.noticeContent && (
+                <div className="pt-2">
+                  <p className="text-sm text-muted-foreground">เนื้อหาหนังสือ</p>
+                  <p className="whitespace-pre-wrap text-sm">{intake.noticeContent}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {currentAnalysis?.extractedFacts?.selectedAttachments && <p className="text-xs text-muted-foreground">ไฟล์ที่ใช้ในผลวิเคราะห์ที่แสดง: {currentAnalysis.extractedFacts.selectedAttachments.map((file) => file.filename).join(', ') || 'ใช้เฉพาะรายละเอียดเรื่อง'}</p>}
       {currentAnalysis?.extractedFacts?.attachmentWarnings?.map((warning) => <p key={warning} className="text-sm text-destructive">{warning}</p>)}
@@ -1491,136 +1651,10 @@ export default function IntakeDetailPage() {
         </Card>
       )}
 
-      {/* Info cards */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2 flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold">ข้อมูลเรื่อง</h2>
-          {intake.status !== 'CONVERTED' && (
-            <Button variant="outline" size="sm" onClick={openDetailsModal}>
-              แก้ไขรายละเอียด
-            </Button>
-          )}
-        </div>
-        <Card>
-          <CardHeader><CardTitle className="text-base">ผู้ส่งเรื่อง</CardTitle></CardHeader>
-          <CardContent className="space-y-0">
-            <InfoRow label="ประเภท" value={REFERRAL_TYPE_LABELS[intake.referralType] ?? intake.referralType} />
-            <InfoRow label="ช่องทาง" value={REFERRAL_CHANNEL_LABELS[intake.referralChannel] ?? intake.referralChannel} />
-            <InfoRow label="ชื่อ" value={intake.referralName} />
-            <InfoRow label="รับโดย" value={intake.receivedBy ? `${intake.receivedBy.firstName} ${intake.receivedBy.lastName}` : undefined} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">ลูกความ / ลูกค้า</CardTitle></CardHeader>
-          <CardContent className="space-y-0">
-            <InfoRow label="ลูกความ" value={intake.client?.name ?? intake.clientName} />
-            {/* ลูกค้า = ผู้ว่าจ้างที่เราวางบิล ซ่อนไว้เมื่อเป็นคนเดียวกับลูกความ */}
-            {!customersSameAsClient(intake.customers, intake.clientId) && (
-              <InfoRow label="ลูกค้า (ผู้ว่าจ้าง)" value={formatCustomers(intake.customers)} />
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ขั้นตอน → ตรวจ conflict → เอกสาร → ติดตาม: ลำดับที่งานรับเรื่องเดินจริง */}
-        <div className="space-y-4 sm:col-span-2">
-          {token && (
-            <>
-              <IntakeStageBar intake={intake} token={token} onChanged={reload} />
-              <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />
-              <IntakeFollowUpPanel
-                intake={intake}
-                token={token}
-                lawyers={lawyers}
-                onChanged={reload}
-              />
-            </>
-          )}
-        </div>
-
-        {/* ออกบิลได้ตั้งแต่ยังไม่เปิดคดี — ค่าที่ปรึกษาหรือค่าดำเนินการก่อนฟ้อง */}
-        <div className="sm:col-span-2">
-          <InvoicePanel target={{ intakeId: intake.id }} customers={intake.customers ?? []} />
-        </div>
-
-        <Card className="sm:col-span-2">
-          <CardHeader><CardTitle className="text-base">ผู้รับผิดชอบ</CardTitle></CardHeader>
-          <CardContent>
-            <IntakeAssignees
-              intake={intake}
-              lawyers={lawyers}
-              currentUser={user}
-              onSave={async (ids) => {
-                if (!token || !id) return;
-                await api.updateIntake(token, id, { assignedUserIds: ids });
-                await reload();
-              }}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="sm:col-span-2">
-          <CardHeader><CardTitle className="text-base">รายละเอียดเรื่อง</CardTitle></CardHeader>
-          <CardContent className="space-y-0">
-            <InfoRow label="ประเภทเรื่อง" value={intake.matterType ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType) : undefined} />
-            <InfoRow label="คู่กรณี" value={intake.opposingParty} />
-            <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
-            <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
-            <InfoRow label="รายละเอียด" value={intake.description} />
-            {intake.isOngoingElsewhere && (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                <p className="font-medium text-amber-900">คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน</p>
-                {intake.externalCaseNumber && <p className="mt-1 text-amber-800">เลขคดี/หมายเลขดำ: {intake.externalCaseNumber}</p>}
-                {intake.currentStageNote && <p className="mt-1 text-amber-800">สถานะปัจจุบัน: {intake.currentStageNote}</p>}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {(intake.assessmentNotes || intake.caseStrength || intake.assessor) && (
-          <Card>
-            <CardHeader><CardTitle className="text-base">ผลการประเมิน</CardTitle></CardHeader>
-            <CardContent className="space-y-0">
-              <InfoRow label="ความแข็งแกร่งของคดี" value={intake.caseStrength} />
-              <InfoRow label="หมายเหตุ" value={intake.assessmentNotes} />
-              <InfoRow label="ผู้ประเมิน" value={intake.assessor ? `${intake.assessor.firstName} ${intake.assessor.lastName}` : undefined} />
-            </CardContent>
-          </Card>
-        )}
-
-        {(intake.decision !== 'PENDING' || intake.decisionNotes) && (
-          <Card>
-            <CardHeader><CardTitle className="text-base">การตัดสินใจ</CardTitle></CardHeader>
-            <CardContent className="space-y-0">
-              <InfoRow label="การตัดสินใจ" value={DECISION_LABELS[intake.decision] ?? intake.decision} />
-              <InfoRow label="หมายเหตุ" value={intake.decisionNotes} />
-            </CardContent>
-          </Card>
-        )}
-
-        {intake.noticeIssuedAt && (
-          <Card>
-            <CardHeader><CardTitle className="text-base">หนังสือแจ้ง</CardTitle></CardHeader>
-            <CardContent className="space-y-0">
-              <InfoRow label="ออกเมื่อ" value={formatDateOrDash(intake.noticeIssuedAt)} />
-              <InfoRow label="ผู้รับ" value={intake.noticeRecipient} />
-              <InfoRow label="กำหนดตอบ" value={formatDateOrDash(intake.noticeDeadline)} />
-              <InfoRow label="ผล" value={intake.noticeResult} />
-              {intake.noticeContent && (
-                <div className="pt-2">
-                  <p className="text-sm text-muted-foreground">เนื้อหาหนังสือ</p>
-                  <p className="whitespace-pre-wrap text-sm">{intake.noticeContent}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
       {/* Modals */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className={`w-full rounded-xl bg-background p-6 shadow-xl ${modal === 'details' ? 'max-w-lg' : 'max-w-md'}`}>
+          <div className={`w-full rounded-xl bg-background p-6 shadow-xl ${modal === 'details' || modal === 'quote' ? 'max-w-lg' : 'max-w-md'}`}>
             {modal === 'assess' && (
               <>
                 <h2 className="mb-4 text-lg font-semibold">บันทึกผลการประเมิน</h2>
@@ -1792,6 +1826,33 @@ export default function IntakeDetailPage() {
                       <input
                         value={editOpposingParty}
                         onChange={(e) => setEditOpposingParty(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium">เลขอ้างอิงลูกค้า</label>
+                      <input
+                        value={editCustomerRef}
+                        onChange={(e) => setEditCustomerRef(e.target.value)}
+                        placeholder="เช่น CUST-005"
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium">เลขกรมธรรม์</label>
+                      <input
+                        value={editPolicyNumber}
+                        onChange={(e) => setEditPolicyNumber(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium">เลขเคลม</label>
+                      <input
+                        value={editClaimNumber}
+                        onChange={(e) => setEditClaimNumber(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                       />
                     </div>
@@ -2007,6 +2068,24 @@ export default function IntakeDetailPage() {
                     }
                   >
                     {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {modal === 'quote' && (
+              <>
+                <h2 className="mb-1 text-lg font-semibold">Export ใบเสนอราคา PDF</h2>
+                <p className="mb-3 text-sm text-muted-foreground">
+                  ระบุรายการค่าบริการ แล้วกดพิมพ์เพื่อบันทึกเป็น PDF จากหน้าต่างพิมพ์ของเบราว์เซอร์
+                </p>
+                <div className="max-h-[60vh] overflow-y-auto">
+                  <CaseCostCalculator value={quoteLines} onChange={setQuoteLines} />
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setModal(null)}>ปิด</Button>
+                  <Button onClick={handleQuotePrint} disabled={quoteLines.length === 0}>
+                    พิมพ์ / บันทึกเป็น PDF
                   </Button>
                 </div>
               </>

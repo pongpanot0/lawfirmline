@@ -700,6 +700,7 @@ export interface IntakeItem {
   clientId?: string | null;
   clientName?: string | null;
   contactName?: string | null;
+  customerRef?: string | null;
   matterType?: string | null;
   opposingParty?: string | null;
   insurerName?: string | null;

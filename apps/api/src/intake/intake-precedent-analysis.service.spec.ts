@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
+import { RelevanceService } from '../rag/relevance.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
@@ -51,6 +52,7 @@ describe('IntakePrecedentAnalysisService', () => {
         { provide: DocumentIntelligenceService, useValue: mockDocIntel },
         { provide: ConfigService, useValue: mockConfig },
         { provide: FileStorageService, useValue: mockFileStorage },
+        { provide: RelevanceService, useValue: { selectRelevant: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = module.get(IntakePrecedentAnalysisService);

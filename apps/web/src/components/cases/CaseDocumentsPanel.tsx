@@ -327,20 +327,20 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
           {documents.map((doc) => (
             <div
               key={doc.id}
-              className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm hover:bg-accent/50"
+              className="flex flex-col gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-accent/50"
             >
               <button
                 type="button"
                 onClick={() => handleView(doc)}
                 disabled={viewingId === doc.id}
-                className="min-w-0 flex-1 text-left"
+                className="min-w-0 text-left"
               >
-                <p className="font-medium text-primary hover:underline">{doc.filename}</p>
+                <p className="break-all font-medium text-primary hover:underline">{doc.filename}</p>
                 <p className="text-xs text-muted-foreground">
                   v{doc.version} — {doc.uploadedBy.firstName} {doc.uploadedBy.lastName}
                 </p>
               </button>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={doc.category ?? 'OTHER'}
                   onChange={async (e) => {
