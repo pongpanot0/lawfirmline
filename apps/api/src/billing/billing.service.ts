@@ -555,6 +555,9 @@ export class BillingService {
 
     return invoices.map((invoice) => ({
       id: invoice.id,
+      caseId: invoice.caseId,
+      intakeId: invoice.intakeId,
+      createdAt: invoice.createdAt,
       invoiceNumber: invoice.invoiceNumber,
       status: invoice.status,
       totalAmount: invoice.totalAmount,

@@ -5,6 +5,7 @@ import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.serv
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('IntakePrecedentAnalysisService', () => {
@@ -16,7 +17,7 @@ describe('IntakePrecedentAnalysisService', () => {
     intakeAttachment: { findMany: jest.fn() },
   };
   const mockIapp = { searchPrecedents: jest.fn(), getPrecedentDetail: jest.fn() };
-  const mockDocIntel = { extractText: jest.fn() };
+  const mockDocIntel = { extractTextWithOcr: jest.fn(), extractFactsWithAI: jest.fn() };
   const mockConfig = { get: jest.fn() };
   const mockFileStorage = { getBuffer: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
@@ -34,6 +35,7 @@ describe('IntakePrecedentAnalysisService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockDocIntel.extractFactsWithAI.mockResolvedValue({ facts: [], flags: [] });
     mockConfig.get.mockReturnValue('test-openai-key');
     // The analysable files come from the two stores, not from the intake row;
     // each test that needs files points intakeAttachment.findMany at them.
@@ -46,6 +48,7 @@ describe('IntakePrecedentAnalysisService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakePrecedentAnalysisService,
+        { provide: CaseAccessService, useValue: { getCaseFilterForUser: () => ({ firmId: 'firm-1' }), canAccessCase: jest.fn().mockResolvedValue(true) } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: IappLegalClient, useValue: mockIapp },
         { provide: DocumentIntelligenceService, useValue: mockDocIntel },
@@ -196,7 +199,7 @@ describe('IntakePrecedentAnalysisService', () => {
         attachments: [{ id: 'att-1', storagePath: '/tmp/x.pdf', mimeType: 'application/pdf', filename: 'x.pdf' }],
       });
       mockFileStorage.getBuffer.mockResolvedValue(Buffer.from('pdf'));
-      mockDocIntel.extractText.mockRejectedValue(new Error('corrupt pdf'));
+      mockDocIntel.extractTextWithOcr.mockRejectedValue(new Error('corrupt pdf'));
 
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: 'คำค้น' } }] }) })
@@ -269,7 +272,7 @@ describe('IntakePrecedentAnalysisService', () => {
         ],
       });
       mockFileStorage.getBuffer.mockResolvedValue(Buffer.from('corrupt'));
-      mockDocIntel.extractText.mockRejectedValue(new Error('corrupt pdf'));
+      mockDocIntel.extractTextWithOcr.mockRejectedValue(new Error('corrupt pdf'));
 
       await expect(service.analyze(user, 'intake-1')).rejects.toThrow(BadRequestException);
 

@@ -1,3 +1,4 @@
+import { ResearchDto, ReviewResearchFactDto } from './dto/research.dto';
 import { SelectedAttachmentsDto } from './dto/selected-attachments.dto';
 import {
   Controller,
@@ -7,6 +8,7 @@ import {
   Delete,
   Body,
   Param,
+  ParseIntPipe,
   Query,
   UseGuards,
   UseInterceptors,
@@ -49,6 +51,35 @@ export class IntakeController {
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: IntakeQueryDto) {
     return this.intakeService.findAll(user, query);
+  }
+
+  @Get('research')
+  listResearch(@CurrentUser() user: AuthUser) { return this.precedentAnalysisService.listResearch(user); }
+
+  @Post('research')
+  @RequireCredits(PRECEDENT_ANALYSIS_COST)
+  @UseInterceptors(AiCreditsInterceptor)
+  research(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
+    return this.precedentAnalysisService.research(user, dto.text, dto.intakeId, dto.attachmentIds, false, dto.caseId);
+  }
+
+  @Post('research/facts')
+  @RequireCredits(5)
+  @UseInterceptors(AiCreditsInterceptor)
+  extractResearchFacts(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
+    return this.precedentAnalysisService.research(user, dto.text, dto.intakeId, dto.attachmentIds, true, dto.caseId);
+  }
+
+  @Post('research/summary')
+  @RequireCredits(5)
+  @UseInterceptors(AiCreditsInterceptor)
+  summarizeResearchDocuments(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
+    return this.precedentAnalysisService.summarizeDocuments(user, dto.intakeId, dto.caseId, dto.attachmentIds);
+  }
+
+  @Patch('research/:analysisId/facts/:index')
+  reviewResearchFact(@CurrentUser() user: AuthUser, @Param('analysisId') id: string, @Param('index', ParseIntPipe) index: number, @Body() dto: ReviewResearchFactDto) {
+    return this.precedentAnalysisService.reviewFact(user, id, index, dto);
   }
 
   @Get(':id/checklist')

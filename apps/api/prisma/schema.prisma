@@ -953,7 +953,8 @@ model IntakeAttachment {
 
 model IntakePrecedentAnalysis {
   id              String         @id @default(uuid())
-  intakeId        String
+  intakeId        String?
+  firmId          String?
   caseId          String?
   status          AnalysisStatus @default(PENDING)
   extractedFacts  Json
@@ -971,12 +972,13 @@ model IntakePrecedentAnalysis {
   createdAt       DateTime       @default(now())
   errorMessage    String?        @db.Text
 
-  intake    Intake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  intake    Intake? @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   case      Case?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
   createdBy User   @relation(fields: [createdById], references: [id])
 
   @@index([intakeId, createdAt])
   @@index([caseId])
+  @@index([firmId, createdById, createdAt])
 }
 
 model CaseParticipant {

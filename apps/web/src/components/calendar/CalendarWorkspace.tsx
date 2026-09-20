@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { calendarPersonColors, eventPersonId } from '@/lib/calendar-person-colors';
 import { Plus, Bell } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, CalendarEventItem, CaseItem, UserItem, PublicHolidayItem } from '@/lib/api';
@@ -79,8 +80,20 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   }, [token, view, loadEvents, reloadKey, d.common.loadFailed]);
 
   // "รายคน": events carry assigneeId; ones with no explicit assignee follow the
-  // case's lead lawyer, so they stay visible only under "ทุกคน".
-  const visibleEvents = personFilter ? events.filter((e) => e.assigneeId === personFilter) : events;
+  // case's lead lawyer for both filtering and color.
+  const people = new Map(users.map(person => [person.id, `${person.firstName} ${person.lastName}`]));
+  for (const event of events) {
+    const lead = event.case?.leadLawyer;
+    if (lead && !people.has(lead.id)) people.set(lead.id, `${lead.firstName} ${lead.lastName}`);
+    if (event.assigneeId && !people.has(event.assigneeId)) people.set(event.assigneeId, 'ผู้รับผิดชอบ (ไม่พบชื่อ)');
+  }
+  const personColors = calendarPersonColors([...people.keys()]);
+  const personAppearance = (event: { id: string }) => {
+    const source = events.find(item => item.id === event.id);
+    const id = source ? eventPersonId(source) : null;
+    return { name: id ? people.get(id) ?? 'ผู้รับผิดชอบ (ไม่พบชื่อ)' : 'ยังไม่ระบุผู้รับผิดชอบ', color: id ? personColors.get(id) ?? '#64748b' : '#64748b' };
+  };
+  const visibleEvents = personFilter ? events.filter((e) => eventPersonId(e) === personFilter) : events;
 
   const upcoming = visibleEvents
     .filter((e) => new Date(e.startAt) >= new Date())
@@ -137,6 +150,11 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
         }
       />
 
+      {view !== 'day' && <div aria-label="สีประจำผู้รับผิดชอบ" className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-muted-foreground">สีประจำผู้รับผิดชอบ:</span>
+        {[...people.entries()].map(([id, name]) => <button key={id} type="button" aria-pressed={personFilter === id} onClick={() => setPersonFilter(personFilter === id ? '' : id)} className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-2.5 ${personFilter === id ? 'border-primary bg-primary/5' : 'border-border'}`}><span aria-hidden className="size-3 rounded-full" style={{ backgroundColor: personColors.get(id) }} />{name}</button>)}
+        <span className="inline-flex items-center gap-2"><span aria-hidden className="size-3 rounded-full bg-slate-500" />ยังไม่ระบุผู้รับผิดชอบ</span>
+      </div>}
       {view === 'day' ? (
         <MyDayPanel />
       ) : view === 'agenda' ? (
@@ -155,6 +173,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
               <FirmDayAgenda
                 events={visibleEvents}
                 users={users}
+                personColors={personColors}
                 onEventClick={(event) => setDialog({ event })}
               />
             )}
@@ -179,6 +198,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                 <CardContent className="p-4">
                   <CalendarView
                     events={visibleEvents}
+                    personAppearance={personAppearance}
                     holidays={holidays}
                     month={month}
                     onMonthChange={setMonth}
@@ -191,6 +211,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
               </Card>
             )}
             <div className="mt-3 flex flex-wrap gap-3 text-xs">
+              <span className="text-muted-foreground">ประเภทนัด:</span>
               {Object.entries(EVENT_COLORS).map(([type, color]) => (
                 <span key={type} className={`rounded-full px-2 py-0.5 font-medium ${color}`}>
                   {EVENT_TYPE_LABELS[type]}
@@ -211,6 +232,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                 <button
                   key={e.id}
                   type="button"
+                  style={{ borderLeft: `4px solid ${personAppearance(e).color}` }}
                   onClick={() => setDialog({ event: e })}
                   className="w-full rounded-lg border border-border p-3 text-left hover:bg-accent/50"
                 >
@@ -220,6 +242,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                       {EVENT_TYPE_LABELS[e.type] ?? EVENT_TYPE_LABELS.OTHER}
                     </Badge>
                   </div>
+                  <p className="mt-1 text-xs font-medium">{personAppearance(e).name}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(e.startAt)}</p>
                   {e.case && <p className="text-xs text-primary">{e.case.ownRef}</p>}
                 </button>

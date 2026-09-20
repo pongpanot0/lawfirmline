@@ -63,7 +63,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           {children}
         </main>
       </div>
-      <AIAssistantPanel caseId={activeCaseId} />
+      {pathname !== '/work' && pathname !== '/dashboard' && pathname !== '/research' && !pathname.startsWith('/intake') && <AIAssistantPanel caseId={activeCaseId} />}
     </div>
   );
 }

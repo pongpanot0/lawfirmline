@@ -761,12 +761,13 @@ export default function CaseDetailPage() {
           variant="outline"
           size="sm"
           className="mb-2 shrink-0"
+          hidden={activeTab !== 'documents'}
           aria-expanded={showAiAnalysis}
           aria-controls="case-ai-analysis-panel"
           onClick={() => setShowAiAnalysis(true)}
         >
           <Sparkles className="h-4 w-4" />
-          วิเคราะห์ด้วย AI
+          สรุปเอกสารรวม
         </Button>
       </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
+import { ResearchWorkspace } from '@/components/research/ResearchWorkspace';
+
 import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
 import {
   AI_CREDIT_COST,
@@ -12,11 +13,10 @@ import {
 } from '@lawfirm/shared';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocumentRequestItem, UserItem, ApiError, ChecklistClassificationSuggestion, BatchAnalysisResult } from '@/lib/api';
+import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocumentRequestItem, UserItem, ApiError, ChecklistClassificationSuggestion } from '@/lib/api';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
@@ -28,14 +28,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { formatDate } from '@/lib/utils';
-
-const ANALYSIS_PROGRESS_STEPS = [
-  'กำลังอ่านเอกสารและรายละเอียดเรื่อง…',
-  'กำลังค้นหาฎีกาที่เกี่ยวข้อง…',
-  'กำลังสรุปเหตุการณ์จากเอกสาร…',
-  'กำลังจัดทำสรุปฎีกาและข้อมูล Notice…',
-  'ใกล้เสร็จแล้ว กรุณารอสักครู่…',
-] as const;
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -321,21 +313,12 @@ export default function IntakeDetailPage() {
   const [fileError, setFileError] = useState<string | null>(null);
 
   // Document facts analysis (summary + facts from selected files)
-  const [factsAnalyzing, setFactsAnalyzing] = useState(false);
-  const [aiMenuOpen, setAiMenuOpen] = useState(false);
-  const [factsError, setFactsError] = useState<string | null>(null);
-  const [factsResult, setFactsResult] = useState<BatchAnalysisResult | null>(null);
+  const workspaceParams = useSearchParams();
+  const [workspaceTab, setWorkspaceTab] = useState<'overview' | 'research' | 'documents'>(workspaceParams.get('tab') === 'overview' ? 'overview' : 'research');
 
   // Precedent analysis
   const [analyses, setAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [analysisOverlay, setAnalysisOverlay] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
-  const [analysisProgressStep, setAnalysisProgressStep] = useState(0);
-  const [analysisElapsedSec, setAnalysisElapsedSec] = useState(0);
-  const [analysisSuccessPreview, setAnalysisSuccessPreview] = useState<IntakePrecedentAnalysisItem | null>(null);
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
-  const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
 
   /**
    * The intake's files. The page used to keep two stores side by side — one the
@@ -634,86 +617,6 @@ export default function IntakeDetailPage() {
     }
   };
 
-  useEffect(() => {
-    if (!analyzing) {
-      setAnalysisProgressStep(0);
-      setAnalysisElapsedSec(0);
-      return;
-    }
-    const started = Date.now();
-    const tick = window.setInterval(() => {
-      setAnalysisElapsedSec(Math.floor((Date.now() - started) / 1000));
-    }, 500);
-    const step = window.setInterval(() => {
-      setAnalysisProgressStep((prev) =>
-        prev < ANALYSIS_PROGRESS_STEPS.length - 1 ? prev + 1 : prev,
-      );
-    }, 4000);
-    return () => {
-      window.clearInterval(tick);
-      window.clearInterval(step);
-    };
-  }, [analyzing]);
-
-  const scrollToAnalysisResult = () => {
-    document.getElementById('intake-analysis-result')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-  };
-
-  const closeAnalysisOverlay = () => {
-    setAnalysisOverlay('idle');
-    setAnalysisSuccessPreview(null);
-  };
-
-  const handleViewAnalysisSuccess = () => {
-    closeAnalysisOverlay();
-    // Wait a tick so the overlay unmounts before scrolling.
-    window.requestAnimationFrame(() => scrollToAnalysisResult());
-  };
-
-  const handleAnalyzeFacts = async () => {
-    if (!token || !intake || !selectedAttachmentIds.length) return;
-    setFactsAnalyzing(true);
-    setFactsError(null);
-    try {
-      setFactsResult(await api.analyzeIntakeDocuments(token, intake.id, selectedAttachmentIds));
-    } catch (err) {
-      setFactsError(err instanceof ApiError ? err.message : 'วิเคราะห์เอกสารไม่สำเร็จ');
-    } finally {
-      setFactsAnalyzing(false);
-    }
-  };
-
-  const handleRunPrecedentAnalysis = async () => {
-    if (!token || !intake) return;
-    setAnalyzing(true);
-    setAnalysisError(null);
-    setAnalysisOverlay('running');
-    setAnalysisSuccessPreview(null);
-    try {
-      const result = await api.runPrecedentAnalysis(token, intake.id, selectedAttachmentIds);
-      setAnalyses((prev) => [result, ...prev]);
-      setSelectedAnalysisId(result.id);
-      setShowAnalysisHistory(false);
-      setAnalysisSuccessPreview(result);
-      setAnalysisOverlay(result.status === 'COMPLETE' ? 'success' : 'error');
-      if (result.status !== 'COMPLETE') {
-        setAnalysisError(result.errorMessage || 'การวิเคราะห์ไม่สำเร็จ');
-      }
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 402) {
-        setAnalysisError('เครดิต AI ไม่เพียงพอ — กรุณาติดต่อผู้ดูแลระบบเพื่อเติมเครดิต');
-      } else {
-        setAnalysisError('วิเคราะห์ไม่สำเร็จ — ลองใหม่อีกครั้ง หรือตรวจสอบว่ามีรายละเอียด/ไฟล์แนบเพียงพอ');
-      }
-      setAnalysisOverlay('error');
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
   const handleDraftFromAnalysis = (analysisId: string) => {
     // Open the form only — AI draft waits for the explicit button in the modal.
     openNoticeModal(analysisId);
@@ -933,6 +836,21 @@ export default function IntakeDetailPage() {
         </span>
       </div>
 
+      <div role="tablist" aria-label="พื้นที่ทำงานของเรื่อง" className="flex flex-wrap gap-2 border-b border-border pb-3">
+        {([['overview', 'ข้อมูลและติดตาม'], ['research', 'ข้อเท็จจริงและฎีกา'], ['documents', `เอกสาร (${documents.length})`]] as const).map(([value, label]) => <button key={value} role="tab" tabIndex={workspaceTab === value ? 0 : -1} onKeyDown={(event) => {
+          const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+          if (!keys.includes(event.key)) return;
+          event.preventDefault();
+          const tabs = Array.from(event.currentTarget.parentElement!.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+          const index = tabs.indexOf(event.currentTarget);
+          const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+          tabs[next].click(); tabs[next].focus();
+        }} aria-selected={workspaceTab === value} aria-controls={`intake-${value}`} type="button" onClick={() => setWorkspaceTab(value)} className={`rounded-lg px-3 py-2 text-sm ${workspaceTab === value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{label}</button>)}
+      </div>
+      <div id="intake-research" role="tabpanel" aria-label="ข้อเท็จจริงและฎีกา" hidden={workspaceTab !== 'research'}>
+        <ResearchWorkspace intakeId={id} initialText={intake.description ?? ''} documents={documents} onUploaded={() => void loadDocuments()} onResult={(row) => { setAnalyses((prev) => [row, ...prev.filter((a) => a.id !== row.id)]); setSelectedAnalysisId(row.id); }} />
+      </div>
+      <div id="intake-overview" role="tabpanel" aria-label="ข้อมูลและติดตาม" hidden={workspaceTab !== 'overview'} className="space-y-4">
       {/* Status timeline */}
       {intake.status !== 'REJECTED' && intake.status !== 'CONVERTED' && intake.status !== 'CONSULTED' && (
         <div className="flex items-center gap-2">
@@ -1040,9 +958,11 @@ export default function IntakeDetailPage() {
         </CardContent>
       </Card>
 
+      </div>
+      <div id="intake-documents" role="tabpanel" aria-label="เอกสาร" hidden={workspaceTab !== 'documents'}>
+      <Button variant="outline" onClick={() => setWorkspaceTab('research')}>ใช้เอกสารจัดข้อเท็จจริงหรือค้นฎีกา →</Button>
       {currentAnalysis?.extractedFacts?.selectedAttachments && <p className="text-xs text-muted-foreground">ไฟล์ที่ใช้ในผลวิเคราะห์ที่แสดง: {currentAnalysis.extractedFacts.selectedAttachments.map((file) => file.filename).join(', ') || 'ใช้เฉพาะรายละเอียดเรื่อง'}</p>}
       {currentAnalysis?.extractedFacts?.attachmentWarnings?.map((warning) => <p key={warning} className="text-sm text-destructive">{warning}</p>)}
-      {analysisError && <p className="text-sm text-destructive">{analysisError}</p>}
 
       <Card id="intake-files">
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1052,61 +972,7 @@ export default function IntakeDetailPage() {
               checklist กับไฟล์ที่อัปโหลดอยู่ด้วยกัน — จับคู่จากชื่อไฟล์เบื้องต้น แล้ววิเคราะห์ต่อได้เลย
             </p>
           </div>
-          {intake.status !== 'REJECTED' &&
-            intake.status !== 'CONVERTED' &&
-            intake.status !== 'CONSULTED' && (
-              <div className="relative flex flex-wrap gap-2 sm:justify-end">
-                <Button
-                  size="sm"
-                  onClick={() => setAiMenuOpen((open) => !open)}
-                  disabled={analyzing || factsAnalyzing || uploadingFiles}
-                  aria-expanded={aiMenuOpen}
-                  aria-haspopup="menu"
-                >
-                  {analyzing || factsAnalyzing ? (
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                      กำลังวิเคราะห์...
-                    </span>
-                  ) : (
-                    `วิเคราะห์ด้วย AI (${selectedAttachmentIds.length} ไฟล์) ▾`
-                  )}
-                </Button>
-                {aiMenuOpen && (
-                  <div role="menu" className="absolute right-0 top-full z-20 mt-1 w-80 rounded-lg border border-border bg-card p-1 shadow-soft">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
-                      onClick={() => {
-                        setAiMenuOpen(false);
-                        void handleRunPrecedentAnalysis();
-                      }}
-                    >
-                      <span className="font-medium">ประเมินรูปคดี + หาแนวฎีกา</span>
-                      <span className="block text-xs text-muted-foreground">
-                        วิเคราะห์รายละเอียดเรื่องกับไฟล์ที่เลือก ค้นฎีกาที่เกี่ยวข้อง และบันทึกผลไว้ · 10 เครดิต
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={selectedAttachmentIds.length === 0}
-                      className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
-                      onClick={() => {
-                        setAiMenuOpen(false);
-                        void handleAnalyzeFacts();
-                      }}
-                    >
-                      <span className="font-medium">อ่านสรุปเอกสารที่เลือก</span>
-                      <span className="block text-xs text-muted-foreground">
-                        สรุปข้อเท็จจริงจากไฟล์อย่างเดียว แสดงผลชั่วคราว · 5 เครดิต
-                      </span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+
         </CardHeader>
         <CardContent className="space-y-4">
           {intake.status !== 'REJECTED' &&
@@ -1116,10 +982,10 @@ export default function IntakeDetailPage() {
                 multiple
                 accept=".pdf,application/pdf"
                 loading={uploadingFiles}
-                disabled={analyzing}
-                label="ลากไฟล์ PDF มาวาง หรือคลิกเลือก"
+                disabled={uploadingFiles}
+                label="ลากไฟล์ PDF / TXT มาวาง หรือคลิกเลือก"
                 loadingLabel="กำลังอัปโหลด..."
-                hint={`แนบได้เฉพาะ PDF ไม่เกิน 30MB · เลือกวิเคราะห์ได้สูงสุด ${AI_UPLOAD_MAX_FILES} ไฟล์`}
+                hint={`แนบ PDF / TXT ไม่เกิน 30MB · เลือกวิเคราะห์ได้สูงสุด ${AI_UPLOAD_MAX_FILES} ไฟล์`}
                 onFiles={(files) => void handleUploadFiles(files)}
               />
             )}
@@ -1134,7 +1000,7 @@ export default function IntakeDetailPage() {
                     type="button"
                     size="sm"
                     variant="ghost"
-                    disabled={classifyingChecklist || uploadingFiles || analyzing}
+                    disabled={classifyingChecklist || uploadingFiles}
                     onClick={() => requestChecklistSuggestions(documents.map((doc) => doc.id).slice(0, 10))}
                   >
                     {classifyingChecklist ? 'AI กำลังแนะนำ...' : 'ให้ AI แนะนำประเภท'}
@@ -1222,7 +1088,7 @@ export default function IntakeDetailPage() {
                   </Button>
                   {missingDocCount > 0 && (
                     <span className="text-xs text-amber-700">
-                      ยังขาด {missingDocCount} รายการที่จำเป็น — ออกหนังสือต้องกดรับทราบก่อน
+                      รายการเอกสารที่ขอเพิ่มเติม: ยังขาด {missingDocCount} รายการ — แยกจาก checklist ด้านบน
                     </span>
                   )}
                 </form>
@@ -1231,7 +1097,7 @@ export default function IntakeDetailPage() {
               พร้อม {matchedExpectedDocuments.length}/{expectedDocuments.length}
               {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตาม checklist'}
               {' · '}ติ๊กเองได้ · จับคู่ชื่อไฟล์อัตโนมัติ · หรือกด「ให้ AI แนะนำประเภท」แล้วยืนยัน
-              {' · '}แนบได้เฉพาะ PDF ไม่เกิน 30MB · เลือกวิเคราะห์ได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์ · แนะนำประเภท {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิต
+              {' · '}แนบ PDF / TXT ไม่เกิน 30MB · เลือกวิเคราะห์ได้สูงสุด {AI_UPLOAD_MAX_FILES} ไฟล์ · แนะนำประเภท {AI_CREDIT_COST.DOCUMENT_ANALYSIS} เครดิต
             </p>
             {classifyError && (
               <p className="mt-2 text-sm text-destructive" role="alert">{classifyError}</p>
@@ -1272,7 +1138,7 @@ export default function IntakeDetailPage() {
                   type="button"
                   size="sm"
                   variant="ghost"
-                  disabled={analyzing || uploadingFiles || documents.length === 0}
+                  disabled={uploadingFiles || documents.length === 0}
                   onClick={() => setSelectedAttachmentIds(selectedAttachmentIds.length ? [] : documents.slice(0, 10).map((file) => file.id))}
                 >
                   {selectedAttachmentIds.length ? 'ยกเลิกเลือกทั้งหมด' : 'เลือกทั้งหมด (สูงสุด 10)'}
@@ -1299,7 +1165,7 @@ export default function IntakeDetailPage() {
                           type="checkbox"
                           className="mt-1"
                           checked={selected}
-                          disabled={analyzing || uploadingFiles || (!selected && selectedAttachmentIds.length >= 10)}
+                          disabled={uploadingFiles || (!selected && selectedAttachmentIds.length >= 10)}
                           onChange={() => setSelectedAttachmentIds((previous) => previous.includes(doc.id) ? previous.filter((id) => id !== doc.id) : [...previous, doc.id])}
                         />
                         <span className="min-w-0">
@@ -1322,7 +1188,7 @@ export default function IntakeDetailPage() {
                         </button>
                         <button
                           type="button"
-                          disabled={analyzing || uploadingFiles}
+                          disabled={uploadingFiles}
                           onClick={() => handleDeleteFile(doc.id, doc.filename)}
                           className="text-xs text-destructive hover:underline disabled:opacity-50"
                         >
@@ -1340,157 +1206,12 @@ export default function IntakeDetailPage() {
                 </p>
               )
             )}
-            {factsError && (
-              <p className="mt-2 text-sm text-destructive" role="alert">{factsError}</p>
-            )}
           </div>
         </CardContent>
       </Card>
 
-      {factsResult && (
-        <Card className="mt-4">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm">สรุปข้อเท็จจริงจากเอกสาร</CardTitle>
-            <button
-              type="button"
-              onClick={() => setFactsResult(null)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              ปิด
-            </button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="whitespace-pre-wrap text-sm">{factsResult.summary}</p>
-            {factsResult.truncatedFiles.length > 0 && (
-              <p className="text-xs text-amber-800">
-                อ่านเฉพาะบางส่วน: {factsResult.truncatedFiles.join(', ')}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              ผลนี้แสดงชั่วคราวเพื่อประกอบการรับเรื่อง — เมื่อแปลงเป็นคดีแล้ว เอกสารจะตามไป
-              และวิเคราะห์แบบเก็บถาวรพร้อมตรวจ Facts ได้ในหน้าคดี (แท็บ AI)
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {analyses.length > 0 && (
-        <Card id="intake-analysis-result" className="mt-4 scroll-mt-24">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm">
-              ผลวิเคราะห์ ({new Date(currentAnalysis.createdAt).toLocaleString('th-TH')})
-            </CardTitle>
-            {analyses.length > 1 && (
-              <button
-                type="button"
-                className="text-xs text-primary hover:underline"
-                onClick={() => setShowAnalysisHistory((v) => !v)}
-              >
-                {showAnalysisHistory ? 'ซ่อนประวัติ' : `ดูประวัติย้อนหลัง (${analyses.length})`}
-              </button>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {showAnalysisHistory && (
-              <select
-                value={selectedAnalysisId ?? ''}
-                onChange={(e) => setSelectedAnalysisId(e.target.value)}
-                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
-              >
-                {analyses.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {new Date(a.createdAt).toLocaleString('th-TH')}
-                    {a.status !== 'COMPLETE' ? ' (ไม่สำเร็จ)' : ''}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {(() => {
-              const current = currentAnalysis;
-              if (current.status !== 'COMPLETE') {
-                // A failed run has empty summary/noticeFacts — showing the normal
-                // layout would be indistinguishable from a genuine "nothing found".
-                return (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-destructive">
-                      ⚠️ การวิเคราะห์นี้ไม่สำเร็จ
-                    </p>
-                    {current.errorMessage && (
-                      <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-2 text-xs text-muted-foreground">
-                        {current.errorMessage}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      กรุณากดวิเคราะห์ใหม่อีกครั้ง หรือตรวจสอบว่ามีรายละเอียด/ไฟล์แนบเพียงพอ
-                    </p>
-                  </div>
-                );
-              }
-              return (
-                <>
-                  {current.documentSummary && (
-                    <div>
-                      <p className="text-sm font-medium">📝 สรุปเหตุการณ์จากเอกสาร</p>
-                      <p className="mt-2 whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm leading-relaxed">
-                        {current.documentSummary}
-                      </p>
-                    </div>
-                  )}
-
-                  <AnalysisFactsTimeline analysis={current} />
-
-                  <div className={current.documentSummary ? 'border-t border-border pt-3' : undefined}>
-                    <p className="text-sm font-medium">📚 ฎีกาที่เกี่ยวข้อง</p>
-                    {current.precedents.length > 0 ? (
-                      <ul className="mt-2 space-y-2">
-                        {current.precedents.map((p) => (
-                          <li key={p.dekaId} className="text-sm">
-                            <a
-                              href={p.sourceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-medium text-primary hover:underline"
-                            >
-                              ฎ. {p.dekaId}
-                            </a>{' '}
-                            — {p.headnote}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="mt-1 text-sm text-muted-foreground">ไม่พบฎีกาที่เกี่ยวข้องโดยตรง</p>
-                    )}
-                    <RelatedStatutes precedents={current.precedents} />
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
-                      {current.summaryBullets}
-                    </p>
-                  </div>
-
-                  <div className="border-t border-border pt-3">
-                    <p className="text-sm font-medium">📄 ข้อมูลพร้อมร่าง Notice</p>
-                    <p className="mt-1 whitespace-pre-wrap rounded-lg bg-muted/40 p-2 text-xs text-muted-foreground">
-                      {current.noticeFacts}
-                    </p>
-                    <Button
-                      size="sm"
-                      className="mt-2"
-                      onClick={() => handleDraftFromAnalysis(current.id)}
-                    >
-                      เปิดฟอร์ม Notice
-                    </Button>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground">
-                    ⚠️ ผลลัพธ์นี้เป็นการช่วยค้นเบื้องต้นด้วย AI โปรดตรวจสอบกับฉบับเต็มก่อนใช้อ้างอิงจริง
-                  </p>
-                </>
-              );
-            })()}
-          </CardContent>
-        </Card>
-      )}
-
+      </div>
+      <div hidden={workspaceTab !== 'overview'} className="space-y-4">
       {/* Info cards */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2 flex items-center justify-between gap-2">
@@ -1615,6 +1336,9 @@ export default function IntakeDetailPage() {
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {currentAnalysis?.status === 'COMPLETE' && <Button variant="outline" onClick={() => handleDraftFromAnalysis(currentAnalysis.id)}>ร่างหนังสือจากผลวิเคราะห์</Button>}
       </div>
 
       {/* Modals */}
@@ -2014,90 +1738,6 @@ export default function IntakeDetailPage() {
 
             {error && (
               <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {analysisOverlay !== 'idle' && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="analysis-overlay-title"
-        >
-          <div className="w-full max-w-md rounded-xl bg-background p-6 shadow-xl">
-            {analysisOverlay === 'running' && (
-              <div className="flex flex-col items-center text-center">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
-                <h2 id="analysis-overlay-title" className="mt-4 text-lg font-semibold">
-                  กำลังวิเคราะห์ด้วย AI
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground" aria-live="polite">
-                  {ANALYSIS_PROGRESS_STEPS[analysisProgressStep]}
-                </p>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  ใช้ไฟล์ที่เลือก {selectedAttachmentIds.length} ไฟล์ · ผ่านไป {analysisElapsedSec} วินาที
-                </p>
-                <p className="mt-4 text-xs text-muted-foreground">
-                  มักใช้เวลาประมาณ 10–30 วินาที — อย่าปิดหน้านี้จนกว่าจะเสร็จ
-                </p>
-                <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
-                </div>
-              </div>
-            )}
-
-            {analysisOverlay === 'success' && analysisSuccessPreview && (
-              <div className="flex flex-col items-center text-center">
-                <CheckCircle2 className="h-10 w-10 text-green-600" aria-hidden />
-                <h2 id="analysis-overlay-title" className="mt-4 text-lg font-semibold">
-                  วิเคราะห์เสร็จแล้ว
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  พบฎีกาที่เกี่ยวข้อง {analysisSuccessPreview.precedents?.length ?? 0} รายการ
-                  {analysisSuccessPreview.documentSummary ? ' และสรุปเหตุการณ์จากเอกสารแล้ว' : ''}
-                </p>
-                {analysisSuccessPreview.documentSummary && (
-                  <p className="mt-3 max-h-28 w-full overflow-y-auto rounded-lg bg-muted/50 p-3 text-left text-xs leading-relaxed text-muted-foreground">
-                    {analysisSuccessPreview.documentSummary.slice(0, 280)}
-                    {analysisSuccessPreview.documentSummary.length > 280 ? '…' : ''}
-                  </p>
-                )}
-                <div className="mt-5 flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
-                  <Button type="button" variant="outline" onClick={closeAnalysisOverlay}>
-                    ปิด
-                  </Button>
-                  <Button type="button" onClick={handleViewAnalysisSuccess}>
-                    ดูผลวิเคราะห์
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {analysisOverlay === 'error' && (
-              <div className="flex flex-col items-center text-center">
-                <h2 id="analysis-overlay-title" className="text-lg font-semibold text-destructive">
-                  วิเคราะห์ไม่สำเร็จ
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {analysisError || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'}
-                </p>
-                <div className="mt-5 flex w-full justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={closeAnalysisOverlay}>
-                    ปิด
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      closeAnalysisOverlay();
-                      void handleRunPrecedentAnalysis();
-                    }}
-                  >
-                    ลองอีกครั้ง
-                  </Button>
-                </div>
-              </div>
             )}
           </div>
         </div>

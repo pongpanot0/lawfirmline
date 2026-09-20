@@ -71,6 +71,15 @@ export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZ
 
     return (
       <label
+        role="button"
+        aria-label={loading ? loadingLabel : label}
+        aria-disabled={!!inactive}
+        tabIndex={inactive ? -1 : 0}
+        onKeyDown={(e) => {
+          if (!inactive && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault(); inputRef.current?.click();
+          }
+        }}
         onDragOver={(e) => {
           if (inactive) return;
           e.preventDefault();
@@ -83,7 +92,7 @@ export const DocumentDropZone = forwardRef<DocumentDropZoneHandle, DocumentDropZ
             e.preventDefault();
           }
         }}
-        className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition-colors ${
+        className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           inactive
             ? 'cursor-not-allowed border-border bg-muted opacity-60'
             : `cursor-pointer ${dragOver ? 'border-primary bg-primary/5' : 'border-border bg-muted/40 hover:border-primary/60'}`

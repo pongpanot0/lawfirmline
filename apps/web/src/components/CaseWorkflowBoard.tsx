@@ -23,8 +23,11 @@ const WORKFLOW_COLUMNS: { status: string; color: string }[] = [
   // and a badge can never disagree about what a status is called.
   { status: 'OPEN', color: 'border-sky-200 bg-sky-50' },
   { status: 'DRAFTING', color: 'border-amber-200 bg-amber-50' },
+  { status: 'IN_PROGRESS', color: 'border-blue-200 bg-blue-50' },
+  { status: 'PENDING', color: 'border-amber-200 bg-amber-50' },
   { status: 'COURT_DATE', color: 'border-violet-200 bg-violet-50' },
   { status: 'CLOSED', color: 'border-slate-200 bg-slate-50' },
+  { status: 'ARCHIVED', color: 'border-slate-200 bg-slate-50' },
 ];
 
 interface CaseWorkflowBoardProps {
@@ -35,9 +38,6 @@ interface CaseWorkflowBoardProps {
 
 export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkflowBoardProps) {
   const getColumnCases = (status: string) => {
-    if (status === 'OPEN') {
-      return cases.filter((c) => c.status === 'OPEN' || c.status === 'IN_PROGRESS' || c.status === 'PENDING');
-    }
     return cases.filter((c) => c.status === status);
   };
 
@@ -71,6 +71,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                 </Link>
                 {canDrag && onStatusChange && (
                   <select
+                    aria-label={`สถานะคดี ${c.ownRef}`}
                     value={c.status}
                     onChange={(e) => onStatusChange(c.id, e.target.value)}
                     className="mt-2 w-full rounded border border-slate-200 px-2 py-1 text-xs"
@@ -78,7 +79,6 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                     {WORKFLOW_COLUMNS.map((w) => (
                       <option key={w.status} value={w.status}>{getCaseStatusDisplay(w.status, d.caseStatus).label}</option>
                     ))}
-                    <option value="IN_PROGRESS">{d.caseStatus.IN_PROGRESS}</option>
                   </select>
                 )}
                 <div className="mt-2">

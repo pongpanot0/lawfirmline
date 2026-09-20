@@ -1,5 +1,8 @@
 'use client';
 
+import { ResearchWorkspace } from '@/components/research/ResearchWorkspace';
+import { isUnusableAnalysis } from '@lawfirm/shared';
+
 import { useEffect, useState } from 'react';
 import { api, DocumentItem, KnowledgeItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -7,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type AskResult = Awaited<ReturnType<typeof api.askCase>>;
-type Section = 'ask' | 'facts';
+type Section = 'research' | 'ask' | 'facts';
 
 const SUGGESTED_QUESTIONS = [
   'สรุปเหตุการณ์สำคัญในคดีนี้',
@@ -17,8 +20,9 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 const SECTION_LABELS: Record<Section, string> = {
+  research: 'ข้อเท็จจริงและฎีกา',
   ask: 'ถามเอกสาร',
-  facts: 'ตรวจ Facts',
+  facts: 'สรุปเอกสารเดิม',
 };
 
 /** MIME types the RAG pipeline can read — mirrors INDEXABLE_MIME_TYPES on the API. */
@@ -227,7 +231,7 @@ function FactsReviewSection({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const pending = knowledge.filter((k) => !k.reviewedAt);
+  const pending = knowledge.filter((k) => !k.reviewedAt && !isUnusableAnalysis(k.summary));
   const reviewed = knowledge.filter((k) => k.reviewedAt);
 
   const verify = async (id: string) => {
@@ -251,7 +255,7 @@ function FactsReviewSection({
           <p className="text-xs font-medium text-muted-foreground">
             {verified ? '✓ ตรวจแล้ว' : '🤖 รอทนายตรวจ'} · {item.title}
           </p>
-          <p className="mt-1 whitespace-pre-wrap text-sm">{item.summary}</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm">{isUnusableAnalysis(item.summary) ? 'อ่านเอกสารไม่สำเร็จ — ผลเดิมไม่ใช่สรุปที่พร้อมใช้งาน กรุณาวิเคราะห์เอกสารใหม่' : item.summary}</p>
           {item.citations && item.citations.length > 0 && (
             <p className="mt-1 text-xs text-muted-foreground">
               อ้างอิง {item.citations.length} จุด:{' '}
@@ -263,7 +267,7 @@ function FactsReviewSection({
             </p>
           )}
         </div>
-        {!verified && (
+        {!verified && !isUnusableAnalysis(item.summary) && (
           <Button
             type="button"
             size="sm"
@@ -326,20 +330,22 @@ function FactsReviewSection({
 
 export default function CaseAskAiPanel({ caseId }: { caseId: string }) {
   const { token } = useAuth();
-  const [section, setSection] = useState<Section>('ask');
+  const [section, setSection] = useState<Section>('research');
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
+  const [researchDocs, setResearchDocs] = useState<DocumentItem[]>([]);
+  useEffect(() => { if (token) api.getDocuments(token, caseId).then(setResearchDocs).catch(console.error); }, [token, caseId, reloadKey]);
 
   useEffect(() => {
     if (!token) return;
     api.getCaseKnowledge(token, caseId).then(setKnowledge).catch(console.error);
   }, [token, caseId, reloadKey]);
 
-  const pendingCount = knowledge.filter((k) => !k.reviewedAt).length;
+  const pendingCount = knowledge.filter((k) => !k.reviewedAt && !isUnusableAnalysis(k.summary)).length;
 
   return (
     <div className="space-y-4">
-      <div role="group" aria-label="เครื่องมือ AI" className="flex w-fit rounded-md border border-border p-0.5">
+      <div role="group" aria-label="เครื่องมือ AI" className="flex flex-wrap w-fit rounded-md border border-border p-0.5">
         {(Object.keys(SECTION_LABELS) as Section[]).map((s) => (
           <button
             key={s}
@@ -362,6 +368,7 @@ export default function CaseAskAiPanel({ caseId }: { caseId: string }) {
         ))}
       </div>
 
+      <div hidden={section !== 'research'}><ResearchWorkspace caseId={caseId} documents={researchDocs} onUploaded={() => setReloadKey((n) => n + 1)} /></div>
       {section === 'ask' && <AskSection caseId={caseId} />}
       {section === 'facts' && (
         <FactsReviewSection

@@ -643,14 +643,13 @@ export default function NewCasePage() {
                   </div>
                 )}
               </section>
-              <section
+              <details
                 className="space-y-4 border-t border-border pt-5"
                 aria-labelledby="court-heading"
               >
-                <h3 id="court-heading" className="flex items-center gap-2 text-sm font-semibold">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">3</span>
-                  ข้อมูลศาลและหมายเลขคดี
-                </h3>
+                <summary id="court-heading" className="cursor-pointer text-sm font-semibold">
+                  ข้อมูลศาลและหมายเลขคดี (เติมภายหลังได้)
+                </summary>
                 <p className="text-xs text-muted-foreground">
                   ยังไม่มีเลขดำ/เลขแดงก็เปิดคดีได้
                   ระบบใช้เลขอ้างอิงสำนักงานติดตามไปก่อน
@@ -764,7 +763,7 @@ export default function NewCasePage() {
                     ),
                   )}
                 </div>
-              </section>
+              </details>
 
               <details className="rounded-lg border border-border p-4">
                 <summary className="cursor-pointer text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

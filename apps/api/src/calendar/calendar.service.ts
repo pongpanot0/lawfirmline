@@ -35,7 +35,7 @@ export class CalendarService {
         ownRef: true,
         title: true,
         courtName: true,
-        leadLawyer: { select: { firstName: true, lastName: true } },
+        leadLawyer: { select: { id: true, firstName: true, lastName: true } },
       },
     },
     travelLog: true,

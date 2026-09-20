@@ -1,10 +1,13 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException,
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, ServiceUnavailableException,
 } from '@nestjs/common';
+import { Prisma } from '../generated/prisma';
+import { ReviewResearchFactDto } from './dto/research.dto';
 import { ConfigService } from '@nestjs/config';
-import { AI_CREDIT_COST, AuthUser, RedactionCounts, redactForAi } from '@lawfirm/shared';
+import { AI_CREDIT_COST, AuthUser, RedactionCounts, redactForAi, isUnusableAnalysis } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { DocumentIntelligenceService } from '../intelligence/document-intelligence.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 
 export const PRECEDENT_ANALYSIS_COST = AI_CREDIT_COST.PRECEDENT_ANALYSIS;
@@ -14,7 +17,7 @@ export const PRECEDENT_ANALYSIS_COST = AI_CREDIT_COST.PRECEDENT_ANALYSIS;
  * and when building the LLM prompt, so a large PDF never bloats the DB row (and
  * every API response that carries it).
  */
-const MAX_ATTACHMENT_TEXT_LENGTH = 6000;
+const MAX_ATTACHMENT_TEXT_LENGTH = 12000;
 
 interface ExtractedFacts {
   /** Redacted, like every other free-form field here. */
@@ -50,6 +53,7 @@ export class IntakePrecedentAnalysisService {
     private iapp: IappLegalClient,
     private docIntelligence: DocumentIntelligenceService,
     private fileStorage: FileStorageService,
+    private caseAccess: CaseAccessService,
   ) {}
 
   private async gatherFacts(intake: {
@@ -69,10 +73,10 @@ export class IntakePrecedentAnalysisService {
       for (const attachment of intake.attachments) {
         try {
           const buffer = await this.fileStorage.getBuffer(attachment.storagePath);
-          const text = await this.docIntelligence.extractText(buffer, attachment.mimeType);
+          const text = await this.docIntelligence.extractTextWithOcr(buffer, attachment.mimeType);
           if (!text.trim()) throw new Error('ไม่พบข้อความในเอกสาร');
           if (text.length > Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / intake.attachments.length) - 150) attachmentWarnings.push(`อ่านเฉพาะบางส่วน: ${attachment.filename ?? 'เอกสาร'}`);
-          texts.push(`[ไฟล์: ${(attachment.filename ?? 'เอกสาร').slice(0, 80)}]\n${text.slice(0, Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / intake.attachments.length) - 150)}`);
+          texts.push(`[ไฟล์: ${attachment.filename ?? 'เอกสาร'}]\n${text.slice(0, Math.floor(MAX_ATTACHMENT_TEXT_LENGTH / intake.attachments.length) - 150)}`);
         } catch (err) {
           this.logger.warn(`Failed to extract attachment text: ${(err as Error).message}`);
           attachmentExtractionFailed = true;
@@ -203,6 +207,7 @@ export class IntakePrecedentAnalysisService {
   private async summarizePrecedents(
     factsText: string,
     precedents: Array<{ dekaId: string; headnote: string; citedStatutes: string[] }>,
+    summaryOnly = false,
   ): Promise<{
     documentSummary: string;
     summaryBullets: string;
@@ -219,12 +224,12 @@ export class IntakePrecedentAnalysisService {
 
     const content = await this.callOpenAI(
       [
-        'คุณเป็นผู้ช่วยทนายความไทย งานของคุณมีสามส่วน:',
+        summaryOnly ? 'สรุปเฉพาะเนื้อหาเอกสารที่ให้มา ระบุชื่อไฟล์ต้นทางในแต่ละประเด็น แยกเนื้อหาที่ขัดแย้งและสิ่งที่ยังไม่ระบุ ห้ามวิเคราะห์กฎหมายหรือค้นฎีกา ให้ summaryBullets และ noticeFacts เป็นข้อความว่าง' : 'คุณเป็นผู้ช่วยทนายความไทย งานของคุณมีสามส่วน:',
         '1) documentSummary — สรุปเหตุการณ์/เนื้อหาจากข้อเท็จจริงและเอกสารแนบให้ทนายอ่านเข้าใจเร็ว',
         '   (ใคร เกิดอะไร เมื่อไหน ที่ไหน สัญญาณชีพ/อาการ/โรคประจำตัว/ประวัติสำคัญถ้ามี ผลตรวจหรือข้อเท็จจริงที่เอกสารระบุชัด)',
         '   เขียนเป็นภาษาไทย plain language ห้ามแต่งข้อเท็จจริงที่ไม่มีในข้อมูลที่ให้มา',
-        '2) summaryBullets — สรุปฎีกาที่เกี่ยวข้องที่ให้มาเป็นข้อๆ สั้นๆ',
-        '3) noticeFacts — เตรียมข้อเท็จจริงในรูปแบบสำหรับใช้ร่างหนังสือบอกกล่าว',
+        summaryOnly ? '' : '2) summaryBullets — สรุปฎีกาที่เกี่ยวข้องที่ให้มาเป็นข้อๆ สั้นๆ',
+        summaryOnly ? '' : '3) noticeFacts — เตรียมข้อเท็จจริงในรูปแบบสำหรับใช้ร่างหนังสือบอกกล่าว',
         '4) factsList — ข้อเท็จจริงสำคัญเป็น array ของ string ข้อละประเด็น สั้น กระชับ เรียงตามความสำคัญ',
         '5) timeline — เหตุการณ์ที่มีวันที่ระบุในเอกสาร เป็น array ของ {"date": string, "event": string} เรียงตามลำดับเวลา ใช้วันที่ตามที่เอกสารเขียน (พ.ศ.) ถ้าไม่มีวันที่ชัดเจนให้ข้ามเหตุการณ์นั้น ห้ามเดาวันที่',
         'ห้ามอ้างอิงฎีกาที่ไม่ได้อยู่ในรายการที่ให้มา ห้ามแต่งเลขฎีกาขึ้นเอง ห้ามแต่งข้อเท็จจริงหรือวันที่ที่ไม่มีในข้อมูล',
@@ -243,8 +248,10 @@ export class IntakePrecedentAnalysisService {
         factsList?: unknown;
         timeline?: unknown;
       };
+      const documentSummary = this.coerceSummaryText(parsed.documentSummary, '');
+      if (isUnusableAnalysis(documentSummary)) throw new Error('Unusable summary');
       return {
-        documentSummary: this.coerceSummaryText(parsed.documentSummary, '(ไม่สามารถสรุปเหตุการณ์ได้)'),
+        documentSummary,
         summaryBullets: this.coerceSummaryText(parsed.summaryBullets, '(ไม่สามารถสรุปได้)'),
         noticeFacts: this.coerceSummaryText(parsed.noticeFacts, factsText),
         factsList: this.coerceStringList(parsed.factsList),
@@ -252,15 +259,9 @@ export class IntakePrecedentAnalysisService {
       };
     } catch {
       this.logger.error(
-        `Failed to parse OpenAI JSON response for precedent summary: ${content.slice(0, 200)}`,
+        'Failed to parse OpenAI JSON response for precedent summary',
       );
-      return {
-        documentSummary: '(ไม่สามารถสรุปเหตุการณ์ได้)',
-        summaryBullets: content || '(ไม่สามารถสรุปได้)',
-        noticeFacts: factsText,
-        factsList: [],
-        timeline: [],
-      };
+      throw new ServiceUnavailableException('AI ส่งผลวิเคราะห์ไม่สมบูรณ์ กรุณาลองใหม่');
     }
   }
 
@@ -281,7 +282,7 @@ export class IntakePrecedentAnalysisService {
     const [documents, attachments] = await Promise.all([
       this.prisma.document.findMany({
         where: { intakeId },
-        select: { id: true, filename: true, mimeType: true, storagePath: true },
+        select: { id: true, filename: true, mimeType: true, storagePath: true, version: true },
       }),
       this.prisma.intakeAttachment.findMany({
         where: { intakeId },
@@ -290,18 +291,19 @@ export class IntakePrecedentAnalysisService {
     ]);
 
     const seen = new Set(documents.map((file) => file.storagePath));
-    return [...documents, ...attachments.filter((file) => !seen.has(file.storagePath))];
+    return [...documents, ...attachments.filter((file) => !seen.has(file.storagePath)).map((file) => ({ ...file, version: 1 }))];
   }
 
-  async analyze(user: AuthUser, intakeId: string, attachmentIds?: string[]) {
+  async analyze(user: AuthUser, intakeId: string, attachmentIds?: string[], text?: string, factsOnly = false) {
     const found = await this.prisma.intake.findFirst({
       where: { id: intakeId, firmId: user.firmId },
-      include: { attachments: true },
+      include: { attachments: true, case: { select: { id: true } } },
     });
     if (!found) throw new NotFoundException('Intake not found');
 
     const available = await this.selectableFiles(intakeId);
-    const intake = { ...found, attachments: available };
+    const intake = { ...found, description: text === undefined ? found.description : text.trim() || null, attachments: available };
+    if (text && text.length > 12000) throw new BadRequestException('พิมพ์ได้ไม่เกิน 12,000 ตัวอักษร');
 
     if (attachmentIds !== undefined) {
       if (attachmentIds.some((id) => !available.some((file) => file.id === id))) {
@@ -316,7 +318,7 @@ export class IntakePrecedentAnalysisService {
       throw new BadRequestException('ไม่มีข้อมูลเพียงพอสำหรับวิเคราะห์ — กรุณากรอกรายละเอียดหรือแนบไฟล์ก่อน');
     }
 
-    const facts = { ...await this.gatherFacts(intake), selectedAttachments: intake.attachments.map((file) => ({ id: file.id, filename: file.filename })) };
+    const facts = { ...await this.gatherFacts(intake), selectedAttachments: intake.attachments.map((file) => ({ id: file.id, filename: file.filename, version: file.version })) };
     const factsText = this.factsToText(facts);
 
     if (!factsText.trim()) {
@@ -326,33 +328,20 @@ export class IntakePrecedentAnalysisService {
     }
 
     try {
-      const searchQuery = await this.extractSearchQuery(factsText);
-
-      const searchResults = await this.iapp.searchPrecedents(searchQuery, { topK: 5 });
-      const topResults = searchResults.slice(0, 3);
-      const detailed = await Promise.all(
-        topResults.map((r) => Promise.resolve(this.iapp.getPrecedentDetail(r.dekaId)).catch(() => null)),
-      );
-      const precedents = topResults.map((r, i) => detailed[i] ?? r);
-
-      const { documentSummary, summaryBullets, noticeFacts, factsList, timeline } =
-        await this.summarizePrecedents(factsText, precedents);
-
-      const creditsCost = 0.1 + 0.1 * topResults.length; // search + N detail lookups (IC estimate)
-
+      const result = await this.buildResult(factsText, factsOnly);
       return await this.prisma.intakePrecedentAnalysis.create({
         data: {
-          intakeId,
-          status: 'COMPLETE' as any,
-          extractedFacts: facts as unknown as object,
-          searchQueries: { query: searchQuery },
-          precedents: precedents as unknown as object,
-          documentSummary,
-          factsList: factsList as unknown as object,
-          timeline: timeline as unknown as object,
-          summaryBullets,
-          noticeFacts,
-          creditsCost,
+          intakeId, firmId: user.firmId, caseId: found.case?.id ?? null,
+          status: 'COMPLETE',
+          extractedFacts: { ...facts, factItems: result.factItems, factsOnly } as unknown as Prisma.InputJsonValue,
+          searchQueries: { query: result.searchQuery },
+          precedents: result.precedents as unknown as Prisma.InputJsonValue,
+          documentSummary: result.documentSummary,
+          factsList: result.factsList,
+          timeline: result.timeline,
+          summaryBullets: result.summaryBullets,
+          noticeFacts: result.noticeFacts,
+          creditsCost: result.creditsCost,
           createdById: user.id,
         },
       });
@@ -389,6 +378,122 @@ export class IntakePrecedentAnalysisService {
       }
       throw err;
     }
+  }
+
+  private async buildResult(factsText: string, factsOnly: boolean) {
+    const searchQuery = factsOnly ? '' : await this.extractSearchQuery(factsText);
+    const searchResults = factsOnly ? [] : await this.iapp.searchPrecedents(searchQuery, { topK: 5 });
+    const topResults = searchResults.slice(0, 3);
+    const detailed = await Promise.all(topResults.map((r) => Promise.resolve(this.iapp.getPrecedentDetail(r.dekaId)).catch(() => null)));
+    const precedents = topResults.map((r, i) => detailed[i] ?? r);
+    const summary = await this.summarizePrecedents(factsText, precedents);
+    const extraction = await this.docIntelligence.extractFactsWithAI(factsText, { strict: true });
+    const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
+    const factItems = extraction.facts.map((fact) => {
+      // Only quote-backed facts become reviewable. Never turn the narrative into evidence.
+      const sections = factsText.split(/(?=\[ไฟล์: )/);
+      const source = sections.find((part) => normalize(part).includes(normalize(fact.quote))) ?? '';
+      const filename = source.match(/^\[ไฟล์: (.+?)\]/)?.[1] ?? null;
+      return { statement: fact.statement, quote: fact.quote, page: fact.page, source: filename ?? 'ข้อความที่ผู้ใช้ระบุ', status: 'PENDING', revisions: [] };
+    });
+    return { ...summary, searchQuery, precedents, factItems: [
+      ...factItems,
+      ...extraction.flags.map((flag) => ({ statement: flag.description, quote: '', page: null, source: 'ข้อสังเกตจาก AI — ยังไม่ใช่ข้อเท็จจริง', status: flag.type, revisions: [] })),
+    ], creditsCost: factsOnly ? 0 : 0.1 + 0.1 * topResults.length };
+  }
+
+  async research(user: AuthUser, text: string | undefined, intakeId?: string, attachmentIds?: string[], factsOnly = false, caseId?: string) {
+    if (caseId && intakeId) throw new BadRequestException('เลือกคดีหรือเรื่องรับเข้าเพียงหนึ่งอย่าง');
+    if (caseId) return this.researchCase(user, caseId, text, attachmentIds ?? [], factsOnly);
+    if (intakeId) return this.analyze(user, intakeId, attachmentIds ?? [], text, factsOnly);
+    if (!text?.trim()) throw new BadRequestException('พิมพ์เหตุการณ์หรือประเด็นที่ต้องการค้นก่อน');
+    const redacted = redactForAi(text.trim());
+    const result = await this.buildResult(redacted.text, factsOnly);
+    return this.prisma.intakePrecedentAnalysis.create({ data: {
+      firmId: user.firmId, createdById: user.id, status: 'COMPLETE',
+      extractedFacts: { description: redacted.text, redaction: redacted.counts, factItems: result.factItems, factsOnly, selectedAttachments: [], attachmentWarnings: [] } as unknown as Prisma.InputJsonValue,
+      searchQueries: { query: result.searchQuery }, precedents: result.precedents as unknown as Prisma.InputJsonValue,
+      documentSummary: result.documentSummary, factsList: result.factsList, timeline: result.timeline,
+      summaryBullets: result.summaryBullets, noticeFacts: result.noticeFacts, creditsCost: result.creditsCost,
+    } });
+  }
+
+  private async researchCase(user: AuthUser, caseId: string, text: string | undefined, attachmentIds: string[], factsOnly: boolean) {
+    if (!await this.caseAccess.canAccessCase(user, caseId)) throw new NotFoundException('ไม่พบคดี');
+    if ((!text?.trim() && !attachmentIds.length) || attachmentIds.length > 10) throw new BadRequestException('พิมพ์เรื่องหรือเลือกเอกสารไม่เกิน 10 ไฟล์');
+    const files = await this.prisma.document.findMany({ where: { caseId, id: { in: attachmentIds } }, select: { id: true, filename: true, mimeType: true, storagePath: true, version: true } });
+    if (files.length !== new Set(attachmentIds).size) throw new BadRequestException('ไฟล์ที่เลือกไม่อยู่ในคดีนี้');
+    const facts = { ...await this.gatherFacts({ description: text?.trim() || null, attachments: files, matterType: null, opposingParty: null, estimatedDamage: null, incidentDate: null }), selectedAttachments: files.map((file) => ({ id: file.id, filename: file.filename, version: file.version })) };
+    const factsText = this.factsToText(facts);
+    if (!factsText.trim()) throw new BadRequestException('ไม่พบข้อความที่อ่านได้ กรุณาตรวจไฟล์หรือพิมพ์รายละเอียด');
+    const result = await this.buildResult(factsText, factsOnly);
+    return this.prisma.intakePrecedentAnalysis.create({ data: {
+      caseId, firmId: user.firmId, createdById: user.id, status: 'COMPLETE',
+      extractedFacts: { ...facts, factItems: result.factItems, factsOnly } as unknown as Prisma.InputJsonValue,
+      searchQueries: { query: result.searchQuery }, precedents: result.precedents as unknown as Prisma.InputJsonValue,
+      documentSummary: result.documentSummary, factsList: result.factsList, timeline: result.timeline,
+      summaryBullets: result.summaryBullets, noticeFacts: result.noticeFacts, creditsCost: result.creditsCost,
+    } });
+  }
+
+  async summarizeDocuments(user: AuthUser, intakeId?: string, caseId?: string, attachmentIds: string[] = []) {
+    if ((!intakeId && !caseId) || (intakeId && caseId) || !attachmentIds.length || attachmentIds.length > 10) {
+      throw new BadRequestException('เลือกเรื่องหรือคดี และเอกสาร 1–10 ไฟล์เพื่อสรุป');
+    }
+    let linkedCaseId = caseId ?? null;
+    if (caseId && !await this.caseAccess.canAccessCase(user, caseId)) throw new NotFoundException('ไม่พบคดี');
+    if (intakeId) {
+      const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, firmId: user.firmId }, include: { case: { select: { id: true } } } });
+      if (!intake) throw new NotFoundException('ไม่พบเรื่อง');
+      linkedCaseId = intake.case?.id ?? null;
+    }
+    const available = intakeId ? await this.selectableFiles(intakeId) : await this.prisma.document.findMany({
+      where: { caseId: caseId!, id: { in: attachmentIds } },
+      select: { id: true, filename: true, mimeType: true, storagePath: true, version: true },
+    });
+    const files = available.filter(file => attachmentIds.includes(file.id));
+    if (files.length !== new Set(attachmentIds).size) throw new BadRequestException('ไฟล์ที่เลือกไม่อยู่ในเรื่องหรือคดีนี้');
+    const facts = await this.gatherFacts({ description: null, matterType: null, opposingParty: null, estimatedDamage: null, incidentDate: null, attachments: files });
+    if (!facts.attachmentText?.trim()) throw new BadRequestException('ไม่สามารถอ่านข้อความจากเอกสารที่เลือก กรุณาตรวจไฟล์แล้วลองใหม่');
+    const summary = await this.summarizePrecedents(facts.attachmentText, [], true);
+    return this.prisma.intakePrecedentAnalysis.create({ data: {
+      intakeId: intakeId ?? null, caseId: linkedCaseId, firmId: user.firmId, createdById: user.id, status: 'COMPLETE',
+      extractedFacts: { ...facts, summaryOnly: true, factsOnly: true, factItems: [], selectedAttachments: files.map(file => ({ id: file.id, filename: file.filename, version: file.version })) } as unknown as Prisma.InputJsonValue,
+      documentSummary: summary.documentSummary, factsList: summary.factsList, timeline: summary.timeline,
+      searchQueries: {}, precedents: [], summaryBullets: '', noticeFacts: '', creditsCost: 0,
+    } });
+  }
+
+  async listResearch(user: AuthUser) {
+    return this.prisma.intakePrecedentAnalysis.findMany({
+      where: { firmId: user.firmId, createdById: user.id, intakeId: null, caseId: null },
+      orderBy: { createdAt: 'desc' }, take: 30,
+    });
+  }
+
+  async reviewFact(user: AuthUser, id: string, index: number, dto: ReviewResearchFactDto) {
+    const row = await this.prisma.intakePrecedentAnalysis.findFirst({ where: { id,
+      OR: [{ intake: { firmId: user.firmId }, caseId: null }, { intakeId: null, caseId: null, firmId: user.firmId, createdById: user.id }, { case: this.caseAccess.getCaseFilterForUser(user) }],
+    } });
+    if (!row || row.status !== 'COMPLETE') throw new NotFoundException('ไม่พบผลวิเคราะห์');
+    if (!dto.statement.trim()) throw new BadRequestException('ข้อเท็จจริงต้องไม่ว่าง');
+    const extracted = structuredClone(row.extractedFacts) as Record<string, Prisma.JsonValue>;
+    const items = extracted.factItems as Array<Record<string, Prisma.JsonValue>> | undefined;
+    const fact = items?.[index];
+    if (!fact || !Number.isInteger(index) || index < 0) throw new NotFoundException('ไม่พบข้อเท็จจริง');
+    if (fact.statement !== dto.expectedStatement || fact.status !== dto.expectedStatus) throw new ConflictException('มีการแก้ไขรายการนี้แล้ว กรุณาโหลดผลล่าสุด');
+    if (dto.status === 'REVIEWED' && !fact.quote) throw new BadRequestException('ข้อสังเกตที่ไม่มีแหล่งอ้างอิงไม่สามารถยืนยันเป็นข้อเท็จจริงได้');
+    const revisions = Array.isArray(fact.revisions) ? fact.revisions : [];
+    items![index] = { ...fact, statement: dto.statement.trim(), status: dto.status, reviewedById: user.id,
+      reviewedAt: new Date().toISOString(), revisions: [...revisions, { statement: fact.statement, status: fact.status, userId: user.id, at: new Date().toISOString() }],
+    };
+    // Compare the complete old JSON to avoid losing another review saved concurrently.
+    const updated = await this.prisma.intakePrecedentAnalysis.updateMany({
+      where: { id, extractedFacts: { equals: row.extractedFacts as Prisma.InputJsonValue } },
+      data: { extractedFacts: { ...extracted, factItems: items } as Prisma.InputJsonValue },
+    });
+    if (!updated.count) throw new ConflictException('มีการแก้ไขผลนี้แล้ว กรุณาโหลดผลล่าสุด');
+    return this.prisma.intakePrecedentAnalysis.findUniqueOrThrow({ where: { id } });
   }
 
   async listForIntake(user: AuthUser, intakeId: string) {
