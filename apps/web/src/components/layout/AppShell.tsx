@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { SamnuanSidebar } from './SamnuanSidebar';
 import { TopNavbar } from './TopNavbar';
 import { AIAssistantPanel } from '@/components/ai/AIAssistantPanel';
+import { PageTour } from '@/components/onboarding/PageTour';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 
 interface AppShellProps {
@@ -64,6 +65,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
         </main>
       </div>
       {pathname !== '/work' && pathname !== '/dashboard' && pathname !== '/research' && !pathname.startsWith('/intake') && <AIAssistantPanel caseId={activeCaseId} />}
+      <PageTour pathname={pathname} />
     </div>
   );
 }

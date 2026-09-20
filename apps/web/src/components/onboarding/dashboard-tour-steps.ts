@@ -1,7 +1,5 @@
 import type { TourStep } from './types';
 
-export const DASHBOARD_TOUR_STORAGE_KEY = 'samnuan-tour-dashboard-v1';
-
 export const dashboardTourSteps: TourStep[] = [
   {
     selector: 'aside nav',
