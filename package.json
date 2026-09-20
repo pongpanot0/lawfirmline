@@ -16,7 +16,7 @@
     "db:seed": "pnpm --filter api prisma db seed",
     "db:generate": "pnpm --filter api prisma generate",
     "e2e": "playwright test",
-    "e2e:guide": "E2E_CAPTURE_GUIDE=1 playwright test --project=guide && node e2e/build-deck.mjs",
+    "e2e:guide": "E2E_CAPTURE_GUIDE=1 playwright test --project=guide && node e2e/build-deck.mjs && node e2e/build-pdf.mjs",
     "e2e:journeys": "playwright test --project=journeys --project=workspace",
     "e2e:validation": "playwright test --project=validation",
     "e2e:report": "playwright show-report e2e/report",
