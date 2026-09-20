@@ -1,6 +1,7 @@
 'use client';
 
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
+import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
 import { CASE_COSTS_KEY } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutcomeDialog';
@@ -1323,6 +1324,7 @@ export default function CaseDetailPage() {
                       ไม่พบฎีกาที่เกี่ยวข้องโดยตรง
                     </p>
                   )}
+                  <RelatedStatutes precedents={latestPrecedentAnalysis.precedents} />
                   <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
                     {latestPrecedentAnalysis.summaryBullets}
                   </p>

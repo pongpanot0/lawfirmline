@@ -1093,6 +1093,9 @@ export const api = {
   getInvitation: (inviteToken: string) =>
     request<{ email: string; firmName: string; role: string }>(`/saas/invitations/${inviteToken}`),
 
+  getPublicFirm: (slug: string) =>
+    request<{ name: string; slug: string }>(`/firms/${encodeURIComponent(slug)}/public`, {}),
+
   acceptInvitation: (data: Record<string, string>) =>
     request<import('@lawfirm/shared').LoginResponse>('/saas/invitations/accept', {
       method: 'POST',
