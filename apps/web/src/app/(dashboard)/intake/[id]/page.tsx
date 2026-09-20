@@ -1,5 +1,6 @@
 'use client';
 
+import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
 import {
   AI_CREDIT_COST,
   AI_UPLOAD_MAX_FILES,
@@ -891,11 +892,16 @@ export default function IntakeDetailPage() {
     analyses.find((a) => a.id === selectedAnalysisId) ?? analyses[0];
   // แถวจริงจาก IntakeDocumentRequest — template ถูก seed เป็นแถวไว้แล้วฝั่ง API
   // จึงครอบทั้งรายการมาตรฐานและรายการที่ทนายเพิ่มเองด้วยรายการเดียว
-  const expectedDocuments = (
-    documentRequests.length
-      ? documentRequests.map((r) => ({ label: r.name, hints: documentHintsFor(r.name) }))
-      : preLitigationDocuments(intake.preLitigationType)
-  );
+  // dedupe ตามชื่อ — document requests อาจมีชื่อซ้ำ (เช่นข้อมูลที่ merge มาจาก checklist เดิม)
+  // ชื่อซ้ำทำให้ React key ชน และ toggle รายการหนึ่งไปเปลี่ยนอีกรายการ
+  const expectedDocuments = [
+    ...new Map(
+      (documentRequests.length
+        ? documentRequests.map((r) => ({ label: r.name, hints: documentHintsFor(r.name) }))
+        : preLitigationDocuments(intake.preLitigationType)
+      ).map((item) => [item.label, item] as const),
+    ).values(),
+  ];
   const isChecklistMatched = (item: { label: string; hints: string[] }) => {
     const mark = confirmedChecklist[item.label];
     if (mark === CHECKLIST_SKIPPED) return false;
@@ -1452,6 +1458,7 @@ export default function IntakeDetailPage() {
                     ) : (
                       <p className="mt-1 text-sm text-muted-foreground">ไม่พบฎีกาที่เกี่ยวข้องโดยตรง</p>
                     )}
+                    <RelatedStatutes precedents={current.precedents} />
                     <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
                       {current.summaryBullets}
                     </p>

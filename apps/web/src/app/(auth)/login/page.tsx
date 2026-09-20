@@ -143,13 +143,6 @@ export default function LoginPage() {
               {d.auth.needAccess}
             </p>
 
-            {process.env.NODE_ENV !== 'production' && <div className="mt-6 rounded-lg bg-muted p-4 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">{d.auth.demoAccounts}</p>
-              <ul className="mt-2 space-y-1">
-                <li>{d.team.roleOwner}: admin@lawfirm.com</li>
-                <li>{d.team.roleLawyer}: lawyer1@lawfirm.com … lawyer4@lawfirm.com</li>
-              </ul>
-            </div>}
     </AuthShell>
   );
 }

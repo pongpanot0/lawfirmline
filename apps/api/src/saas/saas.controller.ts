@@ -214,3 +214,17 @@ export class PublicInviteController {
     return this.invitations.getByToken(token);
   }
 }
+
+/** หน้า join แบรนด์ของ firm ต้องรู้แค่ชื่อ — เปิด public เฉพาะชื่อ ไม่หลุดข้อมูลอื่น */
+@Controller('firms')
+export class PublicFirmController {
+  constructor(private tenant: TenantService) {}
+
+  @Get(':slug/public')
+  @SkipSubscription()
+  async get(@Param('slug') slug: string) {
+    const firm = await this.tenant.findBySlug(slug);
+    if (!firm) throw new NotFoundException('Unknown firm');
+    return { name: firm.name, slug };
+  }
+}
