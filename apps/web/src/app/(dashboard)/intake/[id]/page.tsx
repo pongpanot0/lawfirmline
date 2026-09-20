@@ -14,7 +14,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocumentRequestItem, UserItem, ApiError, ChecklistClassificationSuggestion } from '@/lib/api';
+import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocumentRequestItem, UserItem, ApiError, ChecklistClassificationSuggestion, BatchAnalysisResult } from '@/lib/api';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
@@ -317,6 +317,12 @@ export default function IntakeDetailPage() {
   // Files. One list: the AI reads from it and it follows the case.
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+
+  // Document facts analysis (summary + facts from selected files)
+  const [factsAnalyzing, setFactsAnalyzing] = useState(false);
+  const [aiMenuOpen, setAiMenuOpen] = useState(false);
+  const [factsError, setFactsError] = useState<string | null>(null);
+  const [factsResult, setFactsResult] = useState<BatchAnalysisResult | null>(null);
 
   // Precedent analysis
   const [analyses, setAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
@@ -663,6 +669,19 @@ export default function IntakeDetailPage() {
     closeAnalysisOverlay();
     // Wait a tick so the overlay unmounts before scrolling.
     window.requestAnimationFrame(() => scrollToAnalysisResult());
+  };
+
+  const handleAnalyzeFacts = async () => {
+    if (!token || !intake || !selectedAttachmentIds.length) return;
+    setFactsAnalyzing(true);
+    setFactsError(null);
+    try {
+      setFactsResult(await api.analyzeIntakeDocuments(token, intake.id, selectedAttachmentIds));
+    } catch (err) {
+      setFactsError(err instanceof ApiError ? err.message : 'วิเคราะห์เอกสารไม่สำเร็จ');
+    } finally {
+      setFactsAnalyzing(false);
+    }
   };
 
   const handleRunPrecedentAnalysis = async () => {
@@ -1029,21 +1048,56 @@ export default function IntakeDetailPage() {
           {intake.status !== 'REJECTED' &&
             intake.status !== 'CONVERTED' &&
             intake.status !== 'CONSULTED' && (
-              <div className="flex flex-wrap gap-2 sm:justify-end">
+              <div className="relative flex flex-wrap gap-2 sm:justify-end">
                 <Button
                   size="sm"
-                  onClick={handleRunPrecedentAnalysis}
-                  disabled={analyzing || uploadingFiles}
+                  onClick={() => setAiMenuOpen((open) => !open)}
+                  disabled={analyzing || factsAnalyzing || uploadingFiles}
+                  aria-expanded={aiMenuOpen}
+                  aria-haspopup="menu"
                 >
-                  {analyzing ? (
+                  {analyzing || factsAnalyzing ? (
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                       กำลังวิเคราะห์...
                     </span>
                   ) : (
-                    `วิเคราะห์เรื่อง + ไฟล์ที่เลือก (${selectedAttachmentIds.length})`
+                    `วิเคราะห์ด้วย AI (${selectedAttachmentIds.length} ไฟล์) ▾`
                   )}
                 </Button>
+                {aiMenuOpen && (
+                  <div role="menu" className="absolute right-0 top-full z-20 mt-1 w-80 rounded-lg border border-border bg-card p-1 shadow-soft">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
+                      onClick={() => {
+                        setAiMenuOpen(false);
+                        void handleRunPrecedentAnalysis();
+                      }}
+                    >
+                      <span className="font-medium">ประเมินรูปคดี + หาแนวฎีกา</span>
+                      <span className="block text-xs text-muted-foreground">
+                        วิเคราะห์รายละเอียดเรื่องกับไฟล์ที่เลือก ค้นฎีกาที่เกี่ยวข้อง และบันทึกผลไว้ · 10 เครดิต
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={selectedAttachmentIds.length === 0}
+                      className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
+                      onClick={() => {
+                        setAiMenuOpen(false);
+                        void handleAnalyzeFacts();
+                      }}
+                    >
+                      <span className="font-medium">อ่านสรุปเอกสารที่เลือก</span>
+                      <span className="block text-xs text-muted-foreground">
+                        สรุปข้อเท็จจริงจากไฟล์อย่างเดียว แสดงผลชั่วคราว · 5 เครดิต
+                      </span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
         </CardHeader>
@@ -1279,9 +1333,39 @@ export default function IntakeDetailPage() {
                 </p>
               )
             )}
+            {factsError && (
+              <p className="mt-2 text-sm text-destructive" role="alert">{factsError}</p>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {factsResult && (
+        <Card className="mt-4">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm">สรุปข้อเท็จจริงจากเอกสาร</CardTitle>
+            <button
+              type="button"
+              onClick={() => setFactsResult(null)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              ปิด
+            </button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="whitespace-pre-wrap text-sm">{factsResult.summary}</p>
+            {factsResult.truncatedFiles.length > 0 && (
+              <p className="text-xs text-amber-800">
+                อ่านเฉพาะบางส่วน: {factsResult.truncatedFiles.join(', ')}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              ผลนี้แสดงชั่วคราวเพื่อประกอบการรับเรื่อง — เมื่อแปลงเป็นคดีแล้ว เอกสารจะตามไป
+              และวิเคราะห์แบบเก็บถาวรพร้อมตรวจ Facts ได้ในหน้าคดี (แท็บ AI)
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {analyses.length > 0 && (
         <Card id="intake-analysis-result" className="mt-4 scroll-mt-24">

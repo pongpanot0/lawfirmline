@@ -1919,6 +1919,11 @@ export const api = {
       method: 'POST', token, body: JSON.stringify({ documentIds }),
     }),
 
+  analyzeIntakeDocuments: (token: string, intakeId: string, documentIds: string[]) =>
+    request<BatchAnalysisResult>(`/intake/${intakeId}/documents/analyze-batch`, {
+      method: 'POST', token, body: JSON.stringify({ documentIds }),
+    }),
+
   analyzeDraftFiles: (token: string, files: File[]) => {
     const body = new FormData();
     files.forEach((file) => body.append('files', file));
