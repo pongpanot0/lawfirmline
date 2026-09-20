@@ -496,6 +496,7 @@ export class IntakeService {
         clientName: dto.clientName,
         matterType: dto.matterType,
         opposingParty: dto.opposingParty,
+        customerRef: dto.customerRef,
         insurerName: dto.insurerName,
         policyNumber: dto.policyNumber,
         claimNumber: dto.claimNumber,
@@ -602,6 +603,7 @@ export class IntakeService {
         contactName: dto.contactName,
         matterType: dto.matterType,
         opposingParty: dto.opposingParty,
+        customerRef: dto.customerRef,
         insurerName: dto.insurerName,
         policyNumber: dto.policyNumber,
         claimNumber: dto.claimNumber,
@@ -928,6 +930,7 @@ export class IntakeService {
         folderId,
         title,
         description: this.buildCaseDescription(intake),
+        customerRef: intake.customerRef ?? undefined,
         clientId: intake.clientId ?? undefined,
         clientName: intake.clientName ?? undefined,
         // ลูกค้า (ผู้ว่าจ้าง/ผู้จ่าย) ตามมาจาก intake; ถ้าไม่ได้ระบุไว้ ให้ลูกความเป็นลูกค้าเอง

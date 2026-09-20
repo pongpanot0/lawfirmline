@@ -148,6 +148,11 @@ export class CreateIntakeDto {
   @IsOptional()
   @Trim()
   @IsString()
+  customerRef?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
   insurerName?: string;
 
   @IsOptional()
@@ -279,6 +284,11 @@ export class UpdateIntakeDto {
   @Trim()
   @IsString()
   opposingParty?: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  customerRef?: string;
 
   @IsOptional()
   @Trim()

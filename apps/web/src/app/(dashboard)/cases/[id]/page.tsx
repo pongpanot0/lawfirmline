@@ -64,11 +64,6 @@ const CaseAskAiPanel = dynamic(
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
 );
 
-const CaseInsurancePanel = dynamic(
-  () => import('@/components/cases/CaseInsurancePanel').then((m) => m.CaseInsurancePanel),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
-);
-
 const CaseMessagesPanel = dynamic(
   () => import('@/components/cases/CaseMessagesPanel').then((m) => m.CaseMessagesPanel),
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
@@ -162,6 +157,7 @@ export default function CaseDetailPage() {
     courtName: '',
     claimedAmount: '',
     estimatedFee: '',
+    description: '',
   });
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [recordingOutcome, setRecordingOutcome] = useState(false);
@@ -393,6 +389,7 @@ export default function CaseDetailPage() {
       claimedAmount: legalCase.claimedAmount != null ? String(legalCase.claimedAmount) : '',
       estimatedFee:
         legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
+      description: legalCase.description ?? '',
     });
     setOverviewError('');
     setEditingOverview(true);
@@ -431,6 +428,7 @@ export default function CaseDetailPage() {
         courtName: overviewForm.courtName.trim() || null,
         estimatedFee,
         claimedAmount: overviewForm.claimedAmount.trim() ? Number(overviewForm.claimedAmount) : null,
+        description: overviewForm.description.trim() || null,
       }) as CaseDetail;
       setCase(updated);
       setEditingOverview(false);
@@ -907,6 +905,15 @@ export default function CaseDetailPage() {
                       onChange={(e) => setOverviewForm({ ...overviewForm, estimatedFee: e.target.value })}
                       placeholder="เช่น 50000"
                       className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-full">
+                    <label className="text-xs text-muted-foreground">รายละเอียดคดี</label>
+                    <textarea
+                      value={overviewForm.description}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, description: e.target.value })}
+                      rows={3}
+                      className="mt-1 w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm"
                     />
                   </div>
                   <div>
@@ -1428,9 +1435,7 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-      {/* ข้อมูลประกันและสายติดต่อลูกความอยู่ในภาพรวม เพราะเป็นข้อมูลของคดี ไม่ใช่งานแยกอีกหน้า */}
       <div className="mt-6 space-y-6">
-        <CaseInsurancePanel caseId={id} />
         <CaseMessagesPanel caseId={id} />
       </div>
       </div>
