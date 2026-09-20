@@ -867,6 +867,10 @@ export interface IntakePrecedentAnalysisItem {
   precedents: IntakePrecedentItem[];
   /** Plain-language AI summary of the intake/docs events (may be null on older analyses). */
   documentSummary?: string | null;
+  /** ข้อเท็จจริงเป็นข้อๆ (null/absent on older analyses). */
+  factsList?: string[] | null;
+  /** ไทม์ไลน์เหตุการณ์จากเอกสาร เรียงตามเวลา (null/absent on older analyses). */
+  timeline?: Array<{ date: string; event: string }> | null;
   summaryBullets: string;
   noticeFacts: string;
   creditsCost: number;
