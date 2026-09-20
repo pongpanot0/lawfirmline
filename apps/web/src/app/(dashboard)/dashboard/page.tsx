@@ -10,6 +10,8 @@ import { bangkokDateInputValue, bangkokDayLabel, bangkokTime } from '@/lib/bangk
 import { PageLoading } from '@/components/ui/misc';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { useLocale } from '@/components/landing/LocaleProvider';
+import { ProductTour } from '@/components/onboarding/ProductTour';
+import { dashboardTourSteps, DASHBOARD_TOUR_STORAGE_KEY } from '@/components/onboarding/dashboard-tour-steps';
 
 type Inbox = Awaited<ReturnType<typeof api.getTaskInbox>>;
 const panel = 'overflow-hidden rounded-2xl border border-border bg-card';
@@ -60,13 +62,14 @@ export default function DashboardPage() {
   const statuses: Record<string, string> = { TODO: d.todos.columnTodo, IN_PROGRESS: d.todos.columnInProgress, PENDING_REVIEW: d.todos.columnPendingReview, NEEDS_REVISION: d.todos.columnNeedsRevision, DONE: d.todos.columnDone };
 
   return <div className="mx-auto max-w-[1440px] space-y-6">
+    <ProductTour steps={dashboardTourSteps} storageKey={DASHBOARD_TOUR_STORAGE_KEY} />
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">{data?.firmName ?? 'SAMNUAN'} · {date(new Date().toISOString())}</p>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t('ภาพรวมงาน', 'Work overview')}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t('รับเรื่อง ติดตามงาน และเตรียมพร้อมสำหรับนัดถัดไป', 'Receive matters, follow up on work, and prepare for your next appointment.')}</p>
       </div>
-      <Link href="/intake/new" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"><Plus className="size-4" />{t('รับงานใหม่', 'New intake')}</Link>
+      <Link href="/intake/new" data-tour="new-intake" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"><Plus className="size-4" />{t('รับงานใหม่', 'New intake')}</Link>
     </header>
 
     <div className="grid grid-cols-2 gap-y-5 border-y border-border py-5 lg:grid-cols-4">
@@ -75,7 +78,7 @@ export default function DashboardPage() {
         { label: t('งานที่ยังไม่เสร็จ', 'Open tasks'), value: tasks?.length, href: '/work' },
         { label: t('งานเกินกำหนด', 'Overdue tasks'), value: tasks?.filter(overdue).length, href: '#work-queue', warn: true },
         { label: t('นัดที่กำลังจะมาถึง', 'Upcoming events'), value: data?.stats.upcomingEvents, href: '/calendar' },
-      ].map(item => <Link key={item.label} href={item.href} onClick={() => { if (item.warn) { setSection('tasks'); setFilter('overdue'); } }} className="group border-l-2 border-border pl-4 first:border-primary">
+      ].map((item, i) => <Link key={item.label} href={item.href} data-tour={i === 0 ? 'kpi-cases' : undefined} onClick={() => { if (item.warn) { setSection('tasks'); setFilter('overdue'); } }} className="group border-l-2 border-border pl-4 first:border-primary">
         <span className={`block text-2xl font-semibold tabular-nums ${item.warn && item.value ? 'text-amber-600 dark:text-amber-400' : ''}`}>{item.value ?? '—'}</span>
         <span className="mt-1 block text-xs text-muted-foreground group-hover:text-primary">{item.label} ↗</span>
       </Link>)}
