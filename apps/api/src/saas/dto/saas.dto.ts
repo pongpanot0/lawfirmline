@@ -33,6 +33,23 @@ export class AcceptInviteDto {
   password!: string;
 }
 
+export class OpenJoinDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @MinLength(2)
+  firstName!: string;
+
+  @IsString()
+  @MinLength(2)
+  lastName!: string;
+
+  @IsString()
+  @MinLength(6)
+  password!: string;
+}
+
 export class CheckoutDto {
   @IsEnum(SubscriptionPlan)
   plan!: SubscriptionPlan;

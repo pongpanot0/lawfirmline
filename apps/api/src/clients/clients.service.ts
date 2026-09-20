@@ -66,6 +66,11 @@ export class ClientsService {
         name: dto.name,
         type: dto.type,
         notes: dto.notes,
+        taxId: dto.taxId,
+        branch: dto.branch,
+        address: dto.address,
+        billingEmail: dto.billingEmail,
+        billingPhone: dto.billingPhone,
         contacts: {
           create: contacts.map((c, i) => ({
             name: c.name,
@@ -119,6 +124,11 @@ export class ClientsService {
           name: dto.name,
           type: dto.type,
           notes: dto.notes,
+          taxId: dto.taxId,
+          branch: dto.branch,
+          address: dto.address,
+          billingEmail: dto.billingEmail,
+          billingPhone: dto.billingPhone,
         },
         include: this.include,
       });

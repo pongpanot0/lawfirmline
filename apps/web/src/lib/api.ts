@@ -325,6 +325,11 @@ export interface ClientItem {
   name: string;
   type?: string | null;
   notes?: string | null;
+  taxId?: string | null;
+  branch?: string | null;
+  address?: string | null;
+  billingEmail?: string | null;
+  billingPhone?: string | null;
   contacts: ClientContactItem[];
   _count?: { cases: number };
   cases?: CaseItem[];
@@ -1112,6 +1117,12 @@ export const api = {
   getPublicFirm: (slug: string) =>
     request<{ name: string; slug: string }>(`/firms/${encodeURIComponent(slug)}/public`, {}),
 
+  joinFirm: (slug: string, data: { email: string; password: string; firstName: string; lastName: string }) =>
+    request<import('@lawfirm/shared').LoginResponse>(`/firms/${encodeURIComponent(slug)}/join`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   acceptInvitation: (data: Record<string, string>) =>
     request<import('@lawfirm/shared').LoginResponse>('/saas/invitations/accept', {
       method: 'POST',
@@ -1835,6 +1846,9 @@ export const api = {
 
   getStandaloneInvoices: (token: string) =>
     request<InvoiceItem[]>('/invoices/standalone', { token }),
+
+  getInvoicePrintData: (token: string, invoiceId: string) =>
+    request<InvoicePrintData>(`/invoices/${invoiceId}/print-data`, { token }),
 
   createStandaloneInvoice: (token: string, data: CreateInvoiceInput) =>
     request<InvoiceItem[]>('/invoices', {
@@ -2636,6 +2650,29 @@ export interface InvoiceItem {
   totalAmount: number;
   /** ลูกค้าที่ถูกวางบิล — ว่างได้ในใบเก่าที่ออกก่อนแยกลูกค้าออกจากลูกความ */
   billToCustomer?: { id: string; name: string } | null;
+}
+
+export interface InvoicePrintData {
+  id: string;
+  invoiceNumber: string;
+  status: string;
+  totalAmount: number;
+  issuedAt: string | null;
+  dueAt: string | null;
+  lineItems: { description: string; quantity: number; unitPrice: number; amount: number }[];
+  timeEntries: { description?: string | null; hours: number; rate: number; amount: number }[];
+  expenses: { description: string; amount: number }[];
+  billToCustomer?: {
+    id: string;
+    name: string;
+    taxId?: string | null;
+    branch?: string | null;
+    address?: string | null;
+    billingEmail?: string | null;
+    billingPhone?: string | null;
+  } | null;
+  case?: { ownRef: string; title: string } | null;
+  intake?: { title: string | null } | null;
 }
 
 export interface InvoiceDraft {

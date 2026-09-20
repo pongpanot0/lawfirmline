@@ -19,7 +19,7 @@ import { SubscriptionService } from './subscription.service';
 import { OmiseService } from './omise.service';
 import { TenantService } from './tenant.service';
 import { AuthService } from '../auth/auth.service';
-import { AcceptInviteDto, CheckoutDto, InviteUserDto, PromptPayCheckoutDto, UpdateMemberRoleDto } from './dto/saas.dto';
+import { AcceptInviteDto, CheckoutDto, InviteUserDto, OpenJoinDto, PromptPayCheckoutDto, UpdateMemberRoleDto } from './dto/saas.dto';
 import { FirmRoleGuard } from './guards/firm-role.guard';
 import { OwnerOnly, SkipSubscription } from './decorators/saas.decorators';
 import { BillingPeriod, SubscriptionPlan } from '@lawfirm/shared';
@@ -218,7 +218,11 @@ export class PublicInviteController {
 /** หน้า join แบรนด์ของ firm ต้องรู้แค่ชื่อ — เปิด public เฉพาะชื่อ ไม่หลุดข้อมูลอื่น */
 @Controller('firms')
 export class PublicFirmController {
-  constructor(private tenant: TenantService) {}
+  constructor(
+    private tenant: TenantService,
+    private invitations: InvitationService,
+    private auth: AuthService,
+  ) {}
 
   @Get(':slug/public')
   @SkipSubscription()
@@ -226,5 +230,12 @@ export class PublicFirmController {
     const firm = await this.tenant.findBySlug(slug);
     if (!firm) throw new NotFoundException('Unknown firm');
     return { name: firm.name, slug };
+  }
+
+  @Post(':slug/join')
+  @SkipSubscription()
+  async join(@Param('slug') slug: string, @Body() dto: OpenJoinDto) {
+    const authUser = await this.invitations.openJoin(slug, dto);
+    return this.auth.loginFromAuthUser(authUser);
   }
 }

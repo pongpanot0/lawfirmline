@@ -956,6 +956,25 @@ export class BillingService {
   }
 
   /** ใบที่ออกเปล่า ไม่ผูกคดีและไม่ผูกเรื่อง */
+  /** ข้อมูลครบสำหรับพิมพ์ใบแจ้งหนี้/ใบเสร็จ — รวมข้อมูลออกเอกสารของลูกค้า */
+  async getInvoicePrintData(user: AuthUser, invoiceId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, firmId: user.firmId },
+      include: {
+        lineItems: true,
+        timeEntries: true,
+        expenses: true,
+        billToCustomer: {
+          select: { id: true, name: true, taxId: true, branch: true, address: true, billingEmail: true, billingPhone: true },
+        },
+        case: { select: { ownRef: true, title: true } },
+        intake: { select: { title: true } },
+      },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    return invoice;
+  }
+
   async getStandaloneInvoices(user: AuthUser) {
     return this.prisma.invoice.findMany({
       where: { firmId: user.firmId, caseId: null, intakeId: null },

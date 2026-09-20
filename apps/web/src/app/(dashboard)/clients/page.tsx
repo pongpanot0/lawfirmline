@@ -27,6 +27,9 @@ export default function ClientsPage() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ClientItem | null>(null);
   const [tab, setTab] = useState('information');
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [infoForm, setInfoForm] = useState({ taxId: '', branch: '', address: '', billingEmail: '', billingPhone: '' });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -267,6 +270,93 @@ export default function ClientsPage() {
                   <div className="sm:col-span-2">
                     <p className="text-xs text-muted-foreground">{d.clients.notes}</p>
                     <p className="text-sm">{selected.notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ข้อมูลที่ใบแจ้งหนี้/ใบเสร็จ/ใบเสนอราคาต้องใช้ — แก้ไขได้ตลอด */}
+            <Card className="mt-4">
+              <CardContent className="p-6">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold">ข้อมูลออกเอกสาร (ใบแจ้งหนี้ / ใบเสร็จ / ใบเสนอราคา)</p>
+                  {!editingInfo && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setInfoForm({
+                          taxId: selected.taxId ?? '',
+                          branch: selected.branch ?? '',
+                          address: selected.address ?? '',
+                          billingEmail: selected.billingEmail ?? '',
+                          billingPhone: selected.billingPhone ?? '',
+                        });
+                        setEditingInfo(true);
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      แก้ไข
+                    </Button>
+                  )}
+                </div>
+                {editingInfo ? (
+                  <form
+                    className="grid gap-3 sm:grid-cols-2"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!token || !selected || savingInfo) return;
+                      setSavingInfo(true);
+                      try {
+                        const updated = await api.updateClient(token, selected.id, {
+                          taxId: infoForm.taxId.trim() || null,
+                          branch: infoForm.branch.trim() || null,
+                          address: infoForm.address.trim() || null,
+                          billingEmail: infoForm.billingEmail.trim() || null,
+                          billingPhone: infoForm.billingPhone.trim() || null,
+                        });
+                        setSelected(updated);
+                        setClients((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
+                        setEditingInfo(false);
+                      } catch {
+                        // ค่าที่พิมพ์ยังอยู่ กดบันทึกซ้ำได้
+                      } finally {
+                        setSavingInfo(false);
+                      }
+                    }}
+                  >
+                    <label className="block text-sm">
+                      <span className="text-muted-foreground">เลขประจำตัวผู้เสียภาษี</span>
+                      <Input className="mt-1" value={infoForm.taxId} onChange={(e) => setInfoForm((f) => ({ ...f, taxId: e.target.value }))} />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-muted-foreground">สาขา</span>
+                      <Input className="mt-1" placeholder="เช่น สำนักงานใหญ่" value={infoForm.branch} onChange={(e) => setInfoForm((f) => ({ ...f, branch: e.target.value }))} />
+                    </label>
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="text-muted-foreground">ที่อยู่สำหรับออกเอกสาร</span>
+                      <textarea rows={2} className="mt-1 w-full resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm" value={infoForm.address} onChange={(e) => setInfoForm((f) => ({ ...f, address: e.target.value }))} />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-muted-foreground">อีเมลสำหรับส่งเอกสาร</span>
+                      <Input type="email" className="mt-1" value={infoForm.billingEmail} onChange={(e) => setInfoForm((f) => ({ ...f, billingEmail: e.target.value }))} />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-muted-foreground">เบอร์ติดต่อเรื่องเอกสาร</span>
+                      <Input type="tel" inputMode="tel" className="mt-1" value={infoForm.billingPhone} onChange={(e) => setInfoForm((f) => ({ ...f, billingPhone: e.target.value }))} />
+                    </label>
+                    <div className="flex gap-2 sm:col-span-2">
+                      <Button type="submit" size="sm" disabled={savingInfo}>{savingInfo ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setEditingInfo(false)}>ยกเลิก</Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div><p className="text-xs text-muted-foreground">เลขประจำตัวผู้เสียภาษี</p><p>{selected.taxId || '—'}</p></div>
+                    <div><p className="text-xs text-muted-foreground">สาขา</p><p>{selected.branch || '—'}</p></div>
+                    <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">ที่อยู่สำหรับออกเอกสาร</p><p className="whitespace-pre-wrap">{selected.address || '—'}</p></div>
+                    <div><p className="text-xs text-muted-foreground">อีเมลสำหรับส่งเอกสาร</p><p>{selected.billingEmail || '—'}</p></div>
+                    <div><p className="text-xs text-muted-foreground">เบอร์ติดต่อเรื่องเอกสาร</p><p>{selected.billingPhone || '—'}</p></div>
                   </div>
                 )}
               </CardContent>

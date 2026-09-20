@@ -4,6 +4,9 @@ export interface QuoteDocData {
   firmName: string;
   issuedByName: string;
   clientName: string;
+  clientTaxId?: string | null;
+  clientBranch?: string | null;
+  clientAddress?: string | null;
   matterTitle: string;
   matterTypeLabel: string;
   opposingParty: string;
@@ -45,6 +48,13 @@ export function buildQuoteHtml(data: QuoteDocData, today = new Date()): string {
   });
   const info = [
     ['ลูกความ', data.clientName],
+    [
+      'เลขประจำตัวผู้เสียภาษี',
+      data.clientTaxId
+        ? `${data.clientTaxId}${data.clientBranch ? ` (${data.clientBranch})` : ''}`
+        : '',
+    ],
+    ['ที่อยู่', data.clientAddress ?? ''],
     ['เรื่อง', data.matterTitle],
     ['ประเภทคดี', data.matterTypeLabel],
     ['คู่กรณี', data.opposingParty],
