@@ -24,6 +24,10 @@
 		on_demand
 	}
 
+	# Auto-upgrade any http:// subresource (images, API URLs stored in data)
+	# so Chrome never flags the page as "not secure" over mixed content.
+	header Content-Security-Policy "upgrade-insecure-requests"
+
 	@api host api.{$DOMAIN}
 	handle @api {
 		reverse_proxy api:3001
