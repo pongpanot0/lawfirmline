@@ -28,6 +28,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { formatDate } from '@/lib/utils';
+import { CaseCostLine, initialCaseCosts } from '@/lib/case-costs';
+import { buildQuoteHtml } from '@/lib/quote-doc';
+import { CaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 
 const ANALYSIS_PROGRESS_STEPS = [
   'กำลังอ่านเอกสารและรายละเอียดเรื่อง…',
@@ -263,7 +266,7 @@ function IntakeAssignees({
   );
 }
 
-type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | 'details' | null;
+type ModalType = 'assess' | 'decide' | 'notice' | 'prelitigation' | 'details' | 'quote' | null;
 
 export default function IntakeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -274,7 +277,7 @@ export default function IntakeDetailPage() {
   const [modal, setModal] = useState<ModalType>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [quoteExportNotice, setQuoteExportNotice] = useState('');
+  const [quoteLines, setQuoteLines] = useState<CaseCostLine[]>([]);
 
   // Assess form
   const [assessNotes, setAssessNotes] = useState('');
@@ -599,9 +602,33 @@ export default function IntakeDetailPage() {
   };
 
   const handleQuotePdfExport = () => {
-    setQuoteExportNotice(
-      'เตรียมใบเสนอราคา PDF แล้ว ขั้นนี้ยังไม่ดาวน์โหลดไฟล์ รอต่อ backend/export จริง',
-    );
+    if (quoteLines.length === 0) setQuoteLines(initialCaseCosts());
+    setModal('quote');
+  };
+
+  const handleQuotePrint = () => {
+    if (!intake) return;
+    const html = buildQuoteHtml({
+      firmName: user?.firmName ?? '',
+      issuedByName: user ? `${user.firstName} ${user.lastName}` : '',
+      clientName: intake.client?.name ?? intake.clientName ?? '',
+      matterTitle: intake.title ?? '',
+      matterTypeLabel: intake.matterType
+        ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType)
+        : '',
+      opposingParty: intake.opposingParty ?? '',
+      estimatedDamage: intake.estimatedDamage ?? null,
+      lines: quoteLines,
+    });
+    const win = window.open('', '_blank');
+    if (!win) {
+      setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาต popup สำหรับเว็บไซต์นี้');
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
   };
 
   const openNoticeModal = (analysisId?: string) => {
@@ -952,11 +979,6 @@ export default function IntakeDetailPage() {
 
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
-      )}
-      {quoteExportNotice && (
-        <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
-          {quoteExportNotice}
-        </p>
       )}
 
       <Card>
@@ -1620,7 +1642,7 @@ export default function IntakeDetailPage() {
       {/* Modals */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className={`w-full rounded-xl bg-background p-6 shadow-xl ${modal === 'details' ? 'max-w-lg' : 'max-w-md'}`}>
+          <div className={`w-full rounded-xl bg-background p-6 shadow-xl ${modal === 'details' || modal === 'quote' ? 'max-w-lg' : 'max-w-md'}`}>
             {modal === 'assess' && (
               <>
                 <h2 className="mb-4 text-lg font-semibold">บันทึกผลการประเมิน</h2>
@@ -2007,6 +2029,24 @@ export default function IntakeDetailPage() {
                     }
                   >
                     {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {modal === 'quote' && (
+              <>
+                <h2 className="mb-1 text-lg font-semibold">Export ใบเสนอราคา PDF</h2>
+                <p className="mb-3 text-sm text-muted-foreground">
+                  ระบุรายการค่าบริการ แล้วกดพิมพ์เพื่อบันทึกเป็น PDF จากหน้าต่างพิมพ์ของเบราว์เซอร์
+                </p>
+                <div className="max-h-[60vh] overflow-y-auto">
+                  <CaseCostCalculator value={quoteLines} onChange={setQuoteLines} />
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setModal(null)}>ปิด</Button>
+                  <Button onClick={handleQuotePrint} disabled={quoteLines.length === 0}>
+                    พิมพ์ / บันทึกเป็น PDF
                   </Button>
                 </div>
               </>
