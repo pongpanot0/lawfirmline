@@ -256,4 +256,9 @@ export class BillingController {
   createStandaloneInvoice(@CurrentUser() user: AuthUser, @Body() dto: CreateInvoiceDto) {
     return this.billingService.createInvoice(user, {}, dto);
   }
+
+  @Get('invoices/:invoiceId/print-data')
+  getInvoicePrintData(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
+    return this.billingService.getInvoicePrintData(user, invoiceId);
+  }
 }

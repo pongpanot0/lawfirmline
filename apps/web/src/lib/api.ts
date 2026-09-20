@@ -1841,6 +1841,9 @@ export const api = {
   getStandaloneInvoices: (token: string) =>
     request<InvoiceItem[]>('/invoices/standalone', { token }),
 
+  getInvoicePrintData: (token: string, invoiceId: string) =>
+    request<InvoicePrintData>(`/invoices/${invoiceId}/print-data`, { token }),
+
   createStandaloneInvoice: (token: string, data: CreateInvoiceInput) =>
     request<InvoiceItem[]>('/invoices', {
       token,
@@ -2641,6 +2644,29 @@ export interface InvoiceItem {
   totalAmount: number;
   /** ลูกค้าที่ถูกวางบิล — ว่างได้ในใบเก่าที่ออกก่อนแยกลูกค้าออกจากลูกความ */
   billToCustomer?: { id: string; name: string } | null;
+}
+
+export interface InvoicePrintData {
+  id: string;
+  invoiceNumber: string;
+  status: string;
+  totalAmount: number;
+  issuedAt: string | null;
+  dueAt: string | null;
+  lineItems: { description: string; quantity: number; unitPrice: number; amount: number }[];
+  timeEntries: { description?: string | null; hours: number; rate: number; amount: number }[];
+  expenses: { description: string; amount: number }[];
+  billToCustomer?: {
+    id: string;
+    name: string;
+    taxId?: string | null;
+    branch?: string | null;
+    address?: string | null;
+    billingEmail?: string | null;
+    billingPhone?: string | null;
+  } | null;
+  case?: { ownRef: string; title: string } | null;
+  intake?: { title: string | null } | null;
 }
 
 export interface InvoiceDraft {

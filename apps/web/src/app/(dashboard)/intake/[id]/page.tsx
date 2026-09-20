@@ -601,12 +601,25 @@ export default function IntakeDetailPage() {
     setModal('quote');
   };
 
-  const handleQuotePrint = () => {
+  const handleQuotePrint = async () => {
     if (!intake) return;
+    // เปิดหน้าต่างก่อน await — popup ที่เปิดหลัง async gap โดนเบราว์เซอร์บล็อก
+    const win = window.open('', '_blank');
+    if (!win) {
+      setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาต popup สำหรับเว็บไซต์นี้');
+      return;
+    }
+    // ข้อมูลออกเอกสารของลูกความ (เลขภาษี/ที่อยู่) — พลาดได้โดยไม่บล็อกการพิมพ์
+    const client = intake.clientId && token
+      ? await api.getClient(token, intake.clientId).catch(() => null)
+      : null;
     const html = buildQuoteHtml({
       firmName: user?.firmName ?? '',
       issuedByName: user ? `${user.firstName} ${user.lastName}` : '',
       clientName: intake.client?.name ?? intake.clientName ?? '',
+      clientTaxId: client?.taxId,
+      clientBranch: client?.branch,
+      clientAddress: client?.address,
       matterTitle: intake.title ?? '',
       matterTypeLabel: intake.matterType
         ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType)
@@ -615,11 +628,6 @@ export default function IntakeDetailPage() {
       estimatedDamage: intake.estimatedDamage ?? null,
       lines: quoteLines,
     });
-    const win = window.open('', '_blank');
-    if (!win) {
-      setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาต popup สำหรับเว็บไซต์นี้');
-      return;
-    }
     win.document.write(html);
     win.document.close();
     win.focus();

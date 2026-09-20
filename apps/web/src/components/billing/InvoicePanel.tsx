@@ -10,6 +10,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { allocateShares } from '@/lib/invoice-split';
+import { buildBillingDocHtml, openBillingDocWindow } from '@/lib/billing-doc';
 import { formatCurrency } from '@/lib/utils';
 import { InlineEmptyState } from '@/components/ui/misc';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
@@ -38,7 +39,7 @@ export function InvoicePanel({
   /** เรียกเมื่อออกบิลสำเร็จ ให้หน้าแม่โหลดรายการเบิก/เวลาใหม่ */
   onChanged?: () => void;
 }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { caseId, intakeId } = target;
   const standalone = !caseId && !intakeId;
 
@@ -54,6 +55,35 @@ export function InvoicePanel({
   const [items, setItems] = useState<{ description: string; quantity: string; unitPrice: string }[]>([]);
   const [shareOverrides, setShareOverrides] = useState<Record<string, string>>({});
   const [billToId, setBillToId] = useState('');
+
+  const handlePrint = async (invoiceId: string, kind: 'INVOICE' | 'RECEIPT') => {
+    if (!token) return;
+    setError('');
+    try {
+      const data = await api.getInvoicePrintData(token, invoiceId);
+      const lines = [
+        ...data.lineItems.map((l) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, amount: l.amount })),
+        ...data.timeEntries.map((t) => ({ description: t.description || 'ค่าทนายความ (ตามเวลา)', quantity: t.hours, unitPrice: t.rate, amount: t.amount })),
+        ...data.expenses.map((e) => ({ description: e.description, quantity: 1, unitPrice: e.amount, amount: e.amount })),
+      ];
+      const ok = openBillingDocWindow(
+        buildBillingDocHtml({
+          kind,
+          firmName: user?.firmName ?? '',
+          invoiceNumber: data.invoiceNumber,
+          issuedAt: data.issuedAt,
+          dueAt: data.dueAt,
+          matterLabel: data.case ? `${data.case.ownRef} — ${data.case.title}` : (data.intake?.title ?? ''),
+          billTo: data.billToCustomer ?? null,
+          lines,
+          totalAmount: data.totalAmount,
+        }),
+      );
+      if (!ok) setError('เปิดหน้าต่างพิมพ์ไม่ได้ กรุณาอนุญาต popup สำหรับเว็บไซต์นี้');
+    } catch {
+      setError('โหลดข้อมูลใบแจ้งหนี้ไม่สำเร็จ กรุณาลองใหม่');
+    }
+  };
 
   const load = useCallback(() => {
     if (!token) return;
@@ -388,11 +418,20 @@ export function InvoicePanel({
                 <p className="truncate text-xs text-slate-400">{inv.billToCustomer.name}</p>
               )}
             </div>
-            <div className="text-right">
-              <p>฿{inv.totalAmount.toLocaleString()}</p>
-              <p className="text-xs text-slate-400">
-                {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p>฿{inv.totalAmount.toLocaleString()}</p>
+                <p className="text-xs text-slate-400">
+                  {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handlePrint(inv.id, inv.status === 'PAID' ? 'RECEIPT' : 'INVOICE')}
+                className="rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+              >
+                {inv.status === 'PAID' ? 'พิมพ์ใบเสร็จ' : 'พิมพ์ใบแจ้งหนี้'}
+              </button>
             </div>
           </div>
         ))}
