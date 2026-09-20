@@ -34,6 +34,35 @@ describe('DocumentIntelligenceService — date extraction', () => {
     jest.restoreAllMocks();
   });
 
+  describe('analysis quality guards', () => {
+    it('rejects empty source before sending it to AI', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch');
+      await expect(service.summarizeWithAI('[หน้า 1]  ')).rejects.toThrow('ไม่พบข้อความ');
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+    it('rejects no-document responses instead of saving them as knowledge', async () => {
+      mockConfig.get.mockReturnValue('test-key');
+      jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: 'It seems there are no documents provided for analysis.' } }] }) } as Response);
+      await expect(service.summarizeWithAI('ข้อมูลสมมติจากเอกสาร')).rejects.toThrow();
+    });
+    it('makes provider failure visible in strict research mode', async () => {
+      mockConfig.get.mockReturnValue('test-key');
+      jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 503 } as Response);
+      await expect(service.extractFactsWithAI('ข้อความ', { strict: true })).rejects.toThrow('จัดข้อเท็จจริงไม่สำเร็จ');
+    });
+    it('does not retain an invented citation page number', async () => {
+      mockConfig.get.mockReturnValue('test-key');
+      jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ facts: [{ statement: 'มีค่าซ่อม', quote: 'ค่าซ่อม 50000 บาท', page: 9 }], flags: [] }) } }] }) } as Response);
+      const result = await service.extractFactsWithAI('[หน้า 1]\nค่าซ่อม 50000 บาท', { strict: true });
+      expect(result.facts).toEqual([expect.objectContaining({ page: null, quote: 'ค่าซ่อม 50000 บาท' })]);
+    });
+    it('refuses to mark a legacy unusable summary as reviewed', async () => {
+      mockPrisma.caseKnowledge.findFirst.mockResolvedValue({ id: 'k-1', summary: 'No documents provided' });
+      await expect(service.reviewKnowledge('case-1', 'k-1', 'user-1')).rejects.toThrow();
+      expect(mockPrisma.caseKnowledge.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('extractText', () => {
     it('preserves original page numbers across blank pages and releases the parser', async () => {
       const destroy = jest.fn().mockResolvedValue(undefined);
@@ -431,7 +460,7 @@ describe('DocumentIntelligenceService — date extraction', () => {
     });
 
     it('marks the analysis reviewed without touching the summary when none is given', async () => {
-      mockPrisma.caseKnowledge.findFirst.mockResolvedValue({ id: 'k-1' });
+      mockPrisma.caseKnowledge.findFirst.mockResolvedValue({ id: 'k-1', summary: 'ข้อเท็จจริงจากเอกสารที่ตรวจสอบได้' });
       mockPrisma.caseKnowledge.update.mockResolvedValue({ id: 'k-1', reviewedById: 'user-1' });
 
       await service.reviewKnowledge('case-1', 'k-1', 'user-1');
@@ -443,7 +472,7 @@ describe('DocumentIntelligenceService — date extraction', () => {
     });
 
     it('lets the lawyer correct the summary as part of approving it', async () => {
-      mockPrisma.caseKnowledge.findFirst.mockResolvedValue({ id: 'k-1' });
+      mockPrisma.caseKnowledge.findFirst.mockResolvedValue({ id: 'k-1', summary: 'ข้อเท็จจริงจากเอกสารที่ตรวจสอบได้' });
       mockPrisma.caseKnowledge.update.mockResolvedValue({ id: 'k-1' });
 
       await service.reviewKnowledge('case-1', 'k-1', 'user-1', '  สรุปที่แก้ไขแล้ว  ');

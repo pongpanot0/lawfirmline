@@ -1,7 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
 import { canAssignFirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
@@ -16,31 +16,35 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { priorityLabel } from '@/lib/task-detail';
 import { PageLoading } from '@/components/ui/misc';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 
 function TodosPageContent() {
   const d = useDashboardT();
+  const { locale } = useLocale();
+  const text = (th: string, en: string) => locale === 'th' ? th : en;
   const { token, user } = useAuth();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
-  // ?new=1 (the topbar's quick-create) lands with the drawer already open.
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
-  // Read once: `new`/`assignee` describe how the page was entered, and the
-  // param lingers in the URL while the user works (e.g. the detail drawer
-  // adds ?task=), so re-running would reopen the form behind their back.
-  const consumedEntryParams = useRef(false);
+  // Consume the entry action so the global shortcut can open the form again
+  // even when the user is already on the task page.
   useEffect(() => {
-    if (consumedEntryParams.current) return;
-    consumedEntryParams.current = true;
-    if (searchParams.has('new')) setShowForm(true);
+    if (!searchParams.has('new')) return;
+    setShowForm(true);
     const assignee = searchParams.get('assignee');
     if (assignee) setNewAssigneeId(assignee);
-  }, [searchParams]);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('new');
+    next.delete('assignee');
+    next.delete('task');
+    router.replace(`/todos${next.size ? `?${next}` : ''}`, { scroll: false });
+  }, [searchParams, router]);
   const [newTitle, setNewTitle] = useState('');
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
@@ -57,6 +61,7 @@ function TodosPageContent() {
   const [loadError, setLoadError] = useState('');
   const [usersLoadError, setUsersLoadError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createdTask, setCreatedTask] = useState<{ id: string; title: string } | null>(null);
   const [layout, setLayout] = useTaskLayout();
   const [scope, setScope] = useState<'mine' | 'team' | 'review'>('mine');
   const taskParam = useTaskParam();
@@ -147,6 +152,7 @@ function TodosPageContent() {
         description: newDescription.trim() || undefined,
         labels: newLabels.length ? newLabels : undefined,
       });
+      let failedSubtasks = 0;
       for (const sub of newSubtasks) {
         try {
           await api.createSubtask(token, created.id, {
@@ -155,7 +161,7 @@ function TodosPageContent() {
             dueDate: sub.dueDate || undefined,
           });
         } catch {
-          // Subtask failures surface in the detail drawer that opens next.
+          failedSubtasks += 1;
         }
       }
       // Attachments ride along with the create; a failed file surfaces as a
@@ -168,7 +174,7 @@ function TodosPageContent() {
           failedUploads += 1;
         }
       }
-      if (failedUploads > 0) setError(fmtUploadFailed(failedUploads));
+      if (failedUploads || failedSubtasks) setError([failedUploads ? fmtUploadFailed(failedUploads) : '', failedSubtasks ? `สร้างงานหลักแล้ว แต่งานย่อยไม่สำเร็จ ${failedSubtasks} รายการ — เพิ่มใหม่ในรายละเอียดงาน` : ''].filter(Boolean).join(' · '));
       setNewTitle('');
       setNewAssigneeId('');
       setNewDueDate('');
@@ -182,9 +188,8 @@ function TodosPageContent() {
       setNewFiles([]);
       setShowForm(false);
       loadTasks();
-      // Straight into the detail drawer: subtasks (1-2-3) and the uploaded
-      // attachments are there, so the flow continues without re-opening.
-      taskParam.open(created.id);
+      setCreatedTask({ id: created.id, title: created.title });
+      if (failedUploads || failedSubtasks) taskParam.open(created.id);
     } catch {
       // Keep what was typed: the retry should not start from a blank field.
       setError(d.todos.createFailed);
@@ -247,7 +252,8 @@ function TodosPageContent() {
         }
       />
 
-      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+      {createdTask && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><p className="min-w-0 break-words text-sm">{text('สร้างงานแล้ว: ', 'Task created: ')}{createdTask.title}</p><Button variant="outline" size="sm" onClick={() => taskParam.open(createdTask.id)}>{text('เปิดรายละเอียด', 'View details')}</Button></div>}
+      {error && !showForm && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
       <Card className="mb-4">
         <CardContent className="p-3">
@@ -264,27 +270,72 @@ function TodosPageContent() {
       </Card>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={d.todos.addTodo}>
-          <div className="absolute inset-0 bg-black/30" onClick={() => setShowForm(false)} />
-          <aside className="relative flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-border bg-card p-5 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={d.todos.addTodo} onKeyDown={event => {
+          if (event.key === 'Escape' && !creating) { event.stopPropagation(); setShowForm(false); }
+          if (event.key === 'Tab') {
+            const elements = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]')).filter(element => element.getClientRects().length > 0);
+            const first = elements[0], last = elements[elements.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+          }
+        }}>
+          <div className="absolute inset-0 bg-black/30" onClick={() => { if (!creating) setShowForm(false); }} />
+          <aside className="relative flex h-dvh w-full max-w-lg flex-col border-l border-border bg-card shadow-xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
               <h2 className="text-base font-semibold">{d.todos.addTodo}</h2>
-              <button type="button" aria-label={d.common.close} onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground">
+              <button type="button" aria-label={d.common.close} onClick={() => { if (!creating) setShowForm(false); }} className="text-muted-foreground hover:text-foreground">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <form onSubmit={handleCreate} className="flex flex-col gap-4">
+            <form id="create-personal-task" onSubmit={handleCreate} className="min-h-0 flex-1 overflow-y-auto p-5">
+              <fieldset disabled={creating} className="flex min-w-0 flex-col gap-4">
+              <p className="text-sm text-muted-foreground">{text('พิมพ์ชื่องานก็สร้างได้ทันที มอบหมายให้ตัวเองเป็นค่าเริ่มต้น', 'Only a task name is required. Assigned to you by default.')}</p>
+              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+              <label htmlFor="new-task-title" className="text-sm font-medium">{text('ต้องทำอะไร', 'What needs to be done?')}</label>
               <Input
+                id="new-task-title"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder={d.todos.titlePlaceholder}
                 autoFocus
                 required
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.assignee}</label>
+                  <select
+                    aria-label={d.taskDetail.assignee}
+                    value={newAssigneeId}
+                    onChange={(e) => setNewAssigneeId(e.target.value)}
+                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                  >
+                    <option value="">{d.todos.assignToMe}</option>
+                    {assignableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.dueDate}</label>
+                  <input
+                    type="date"
+                    aria-label={d.taskDetail.dueDate}
+                    value={newDueDate}
+                    onChange={(e) => setNewDueDate(e.target.value)}
+                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                  />
+                </div>
+              </div>
+              <details className="rounded-xl border border-border p-3">
+                <summary className="cursor-pointer text-sm font-medium">{text('รายละเอียดเพิ่มเติม (ไม่บังคับ)', 'More details (optional)')}</summary>
+                <div className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.status}</label>
                   <select
+                    aria-label={d.taskDetail.status}
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value as TaskStatus)}
                     className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
@@ -311,30 +362,6 @@ function TodosPageContent() {
                       </button>
                     ))}
                   </div>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.assignee}</label>
-                  <select
-                    value={newAssigneeId}
-                    onChange={(e) => setNewAssigneeId(e.target.value)}
-                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
-                  >
-                    <option value="">{d.todos.assignToMe}</option>
-                    {assignableUsers.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.firstName} {u.lastName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.dueDate}</label>
-                  <input
-                    type="date"
-                    value={newDueDate}
-                    onChange={(e) => setNewDueDate(e.target.value)}
-                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
-                  />
                 </div>
               </div>
               <div>
@@ -458,8 +485,14 @@ function TodosPageContent() {
                   </ul>
                 )}
               </div>
-              <Button type="submit" disabled={creating}>{d.todos.create}</Button>
+                </div>
+              </details>
+              </fieldset>
             </form>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <Button type="button" variant="outline" disabled={creating} onClick={() => setShowForm(false)}>{text('กลับก่อน', 'Back')}</Button>
+              <Button form="create-personal-task" type="submit" disabled={creating || !newTitle.trim()}>{creating ? text('กำลังสร้างงาน…', 'Creating…') : d.todos.create}</Button>
+            </div>
           </aside>
         </div>
       )}
@@ -506,6 +539,8 @@ function TodosPageContent() {
 
 export default function TodosPage() {
   const d = useDashboardT();
+  const { locale } = useLocale();
+  const text = (th: string, en: string) => locale === 'th' ? th : en;
   return (
     <Suspense fallback={<PageLoading title={d.todos.loading} lines={4} />}>
       <TodosPageContent />

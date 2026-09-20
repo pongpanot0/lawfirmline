@@ -72,6 +72,14 @@ export class DashboardService {
     }));
   }
 
+  async getTaskInbox(user: AuthUser) {
+    return this.prisma.task.findMany({
+      where: { AND: [this.caseAccess.getTaskFilterForUser(user), { OR: [{ caseId: null }, { case: this.caseAccess.getCaseFilterForUser(user) }] }], status: { not: 'DONE' } },
+      include: { case: { select: { id: true, ownRef: true, title: true } }, assignee: { select: { id: true, firstName: true, lastName: true } } },
+      orderBy: [{ dueDate: 'asc' }, { updatedAt: 'desc' }],
+    });
+  }
+
   async getStats(user: AuthUser) {
     const caseFilter = this.caseAccess.getCaseFilterForUser(user);
     const firmExpenseFilter = this.getFirmExpenseFilter(user.firmId);

@@ -45,6 +45,8 @@ export const dashboardCopy = {
       operations: 'ภาระงานทีม',
       sops: 'SOP / คู่มือ',
       aiUsage: 'การใช้งาน AI',
+      research: 'ข้อเท็จจริงและฎีกา',
+      workInbox: 'งานที่ต้องทำ',
       billing: 'แพ็กเกจ & ชำระเงิน',
       reimbursements: 'เบิกจ่าย',
       caseTypes: 'ประเภทคดี',
@@ -1034,6 +1036,7 @@ export const dashboardCopy = {
       COURT_DATE: 'นัดศาล',
       PENDING: 'รอคำพิพากษา',
       CLOSED: 'ปิดคดี',
+      ARCHIVED: 'เก็บเข้าคลัง',
     },
   },
   en: {
@@ -1078,6 +1081,8 @@ export const dashboardCopy = {
       team: 'Team Management',
       operations: 'Operations',
       aiUsage: 'AI Usage',
+      research: 'Facts & precedents',
+      workInbox: 'Work inbox',
       billing: 'Billing & Plan',
       reimbursements: 'Reimbursements',
       caseTypes: 'Case Types',
@@ -2067,6 +2072,7 @@ export const dashboardCopy = {
       COURT_DATE: 'Hearing scheduled',
       PENDING: 'Awaiting judgment',
       CLOSED: 'Closed',
+      ARCHIVED: 'Archived',
     },
   },
 } satisfies Record<Locale, Record<string, unknown>>;

@@ -1,5 +1,7 @@
 'use client';
 
+import { isUnusableAnalysis } from '@lawfirm/shared';
+
 import { useEffect, useState } from 'react';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import Link from 'next/link';
@@ -117,7 +119,7 @@ export default function KnowledgePage() {
                 </button>
               </div>
               <p className={`mt-3 text-sm text-slate-600 whitespace-pre-wrap ${expanded === item.id ? '' : 'line-clamp-3'}`}>
-                {item.summary}
+                {isUnusableAnalysis(item.summary) ? 'อ่านเอกสารไม่สำเร็จ — ผลเดิมไม่ใช่สรุปที่พร้อมใช้งาน กรุณาวิเคราะห์เอกสารใหม่' : item.summary}
               </p>
             </div>
           ))}

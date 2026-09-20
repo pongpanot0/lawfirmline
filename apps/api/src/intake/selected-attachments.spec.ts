@@ -7,6 +7,7 @@ import { DocumentIntelligenceService } from '../intelligence/document-intelligen
 import { PrismaService } from '../prisma/prisma.module';
 import { ConfigService } from '@nestjs/config';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { RelevanceService } from '../rag/relevance.service';
 import { readFileSync } from 'fs';
@@ -81,14 +82,22 @@ describe('intake attachment selection', () => {
       } as unknown as PrismaService,
       { get: () => 'test-key' } as unknown as ConfigService,
       { searchPrecedents: async () => [] } as unknown as IappLegalClient,
-      { extractText } as unknown as DocumentIntelligenceService,
+      { extractTextWithOcr: extractText, extractFactsWithAI: async () => ({ facts: [], flags: [] }) } as unknown as DocumentIntelligenceService,
       {
         getBuffer: async (storagePath: string) => readFileSync(storagePath),
       } as unknown as FileStorageService,
       { selectRelevant: async () => null } as unknown as RelevanceService,
+      {} as CaseAccessService,
     );
     return { service, extractText, create, findFirst };
   }
+
+  it('uses only selected files when the user explicitly clears the saved description', async () => {
+    const { service, create } = setup();
+    await service.analyze({ id: 'u1', firmId: 'f1' } as any, 'intake-1', ['b'], '', true);
+    expect(create.mock.calls[0][0].data.extractedFacts.description).toBeNull();
+    expect(create.mock.calls[0][0].data.extractedFacts.attachmentText).toContain('FACT b');
+  });
 
   it('reads only selected files and persists exactly those source IDs', async () => {
     const { service, extractText, create, findFirst } = setup();

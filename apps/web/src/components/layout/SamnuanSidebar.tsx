@@ -15,7 +15,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Moon,
   Sun,
   X,
@@ -44,15 +43,10 @@ const NAV_GROUPS = [
   { key: 'firm', labelKey: 'groupFirm' as const },
 ] as const;
 
-/**
- * Children collapse two closely-related pages under one top-level row so the
- * lawyer scans fewer entries; the child route still exists and still shows
- * as active/auto-expanded when visited directly.
- */
 const NAV_ITEMS = [
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true, group: 'firm', children: [] as const },
-  { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/work', labelKey: 'workInbox' as const, icon: ListTodo, ownerOnly: false, group: 'work', children: [{ href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false }] },
   {
     href: '/intake',
     labelKey: 'intake' as const,
@@ -96,7 +90,11 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
   const { theme, toggleTheme } = useTheme();
   const d = useDashboardT();
   const [collapsed, setCollapsed] = useState(false);
-  const filtered = NAV_ITEMS.filter(
+  const links: NavItem[] = NAV_ITEMS.flatMap(item => [
+    { ...item, children: [] },
+    ...item.children.map(child => ({ ...child, group: item.group, children: [] })),
+  ]);
+  const filtered = links.filter(
     (item) => !item.ownerOnly || user.firmRole === FirmRole.OWNER,
   );
 
@@ -119,7 +117,7 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
         )}
         <button
           type="button"
-          className="ml-auto rounded-lg p-1.5 hover:bg-sidebar-accent md:hidden"
+          className="ml-auto flex size-11 items-center justify-center rounded-lg hover:bg-sidebar-accent md:hidden"
           onClick={onMobileClose}
           aria-label={d.nav.closeMenu}
         >
@@ -127,7 +125,7 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
         </button>
       </div>
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto p-3 scrollbar-thin">
+      <nav aria-label={d.nav.groupWork} className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-3 scrollbar-thin">
         {NAV_GROUPS.map((group) => {
           const items = filtered.filter((item) => item.group === group.key);
           if (items.length === 0) return null;
@@ -138,7 +136,7 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
                 different errands; running them together makes a lawyer read
                 past court types to reach their cases.
               */}
-              {!collapsed && (
+              {(!collapsed || mobileOpen) && (
                 <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {d.nav[group.labelKey]}
                 </p>
@@ -148,9 +146,8 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
                   key={item.href}
                   item={item}
                   pathname={pathname}
-                  collapsed={collapsed}
+                  collapsed={collapsed && !mobileOpen}
                   onNavigate={onMobileClose}
-                  user={user}
                   labels={d.nav}
                 />
               ))}
@@ -211,6 +208,7 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
           variant="ghost"
           size="icon"
           className="mx-auto mt-1 hidden md:flex"
+          aria-label={collapsed ? d.nav.openMenu : d.nav.closeMenu}
           onClick={() => setCollapsed(!collapsed)}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -239,77 +237,34 @@ function NavItemRow({
   pathname,
   collapsed,
   onNavigate,
-  user,
   labels,
 }: {
   item: NavItem;
   pathname: string;
   collapsed: boolean;
   onNavigate?: () => void;
-  user: AuthUser;
   labels: NavDict;
 }) {
   const isRouteActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   // Office settings pages (/admin/*) are reached from Settings, so they
   // light up that entry rather than none.
   const active = isRouteActive(item.href) || (item.href === '/settings' && pathname.startsWith('/admin/'));
-  const children = item.children.filter((child) => !child.ownerOnly || user.firmRole === FirmRole.OWNER);
-  const childActive = children.some((child) => isRouteActive(child.href));
-  const [open, setOpen] = useState(childActive);
   const Icon = item.icon;
   const label = labels[item.labelKey];
 
   const linkClass = (isActive: boolean) =>
     cn(
-      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+      'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
       isActive
         ? 'bg-primary/10 text-primary'
         : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground',
       collapsed && 'md:justify-center md:px-2',
     );
 
-  if (children.length === 0) {
-    return (
-      <Link href={item.href} onClick={onNavigate} title={collapsed ? label : undefined} className={linkClass(active)}>
-        <Icon className="h-4 w-4 shrink-0" />
-        <span className={cn(collapsed && 'md:hidden')}>{label}</span>
-      </Link>
-    );
-  }
-
   return (
-    <div>
-      <div className="flex items-center">
-        <Link href={item.href} onClick={onNavigate} title={collapsed ? label : undefined} className={cn(linkClass(active), 'flex-1')}>
-          <Icon className="h-4 w-4 shrink-0" />
-          <span className={cn(collapsed && 'md:hidden')}>{label}</span>
-        </Link>
-        {!collapsed && (
-          <button
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            className="mr-1 shrink-0 rounded p-1.5 text-sidebar-foreground hover:bg-sidebar-accent"
-            aria-label={label}
-            aria-expanded={open}
-          >
-            <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', !open && '-rotate-90')} />
-          </button>
-        )}
-      </div>
-      {!collapsed && open && (
-        <div className="ml-4 space-y-0.5 border-l border-sidebar-border py-0.5 pl-3">
-          {children.map((child) => {
-            const ChildIcon = child.icon;
-            const childRowActive = isRouteActive(child.href);
-            return (
-              <Link key={child.href} href={child.href} onClick={onNavigate} className={linkClass(childRowActive)}>
-                <ChildIcon className="h-4 w-4 shrink-0" />
-                <span>{labels[child.labelKey]}</span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
+    <Link href={item.href} onClick={onNavigate} aria-current={active ? 'page' : undefined} aria-label={label} title={collapsed ? label : undefined} className={linkClass(active)}>
+      <Icon className="h-4 w-4 shrink-0" aria-hidden />
+      <span className={cn(collapsed && 'md:hidden')}>{label}</span>
+    </Link>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { eventPersonId } from '@/lib/calendar-person-colors';
 import { CalendarEventItem, UserItem } from '@/lib/api';
 import { InlineEmptyState } from '@/components/ui/misc';
 
@@ -17,13 +18,6 @@ const TIME = new Intl.DateTimeFormat('th-TH', {
 });
 const DAY_KEY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' });
 
-const TYPE_DOT: Record<string, string> = {
-  COURT_DATE: 'bg-orange-500',
-  CLIENT_MEETING: 'bg-blue-500',
-  DEADLINE: 'bg-red-500',
-  OTHER: 'bg-slate-400',
-};
-
 /**
  * ตารางของทั้งสำนักงานเรียงเป็นวัน — เจ้าของสำนักงานต้องเห็นว่าวันนั้นใครไปไหนบ้าง
  * ปฏิทินเดือนบอกได้แค่ว่ามีนัด แต่ไม่บอกว่าคนคนเดียวถูกจองซ้อนกัน
@@ -32,7 +26,9 @@ export function FirmDayAgenda({
   events,
   users,
   onEventClick,
+  personColors,
 }: {
+  personColors?: Map<string, string>;
   events: CalendarEventItem[];
   users: UserItem[];
   onEventClick: (event: CalendarEventItem) => void;
@@ -71,7 +67,7 @@ export function FirmDayAgenda({
         // คนเดียวมีมากกว่าหนึ่งนัดในวันเดียว = ต้องมองก่อนเพื่อน
         const perPerson = new Map<string, number>();
         for (const e of dayEvents) {
-          const who = e.assigneeId ?? 'unassigned';
+          const who = e.assigneeId ?? e.case?.leadLawyer?.id ?? 'unassigned';
           perPerson.set(who, (perPerson.get(who) ?? 0) + 1);
         }
         const clashing = new Set(
@@ -96,6 +92,7 @@ export function FirmDayAgenda({
                 <button
                   key={event.id}
                   type="button"
+                  style={{ borderLeft: `4px solid ${personColors?.get(eventPersonId(event) ?? '') ?? '#64748b'}` }}
                   onClick={() => onEventClick(event)}
                   className={`flex w-full items-start gap-3 px-3 py-2.5 text-left text-sm hover:bg-muted/60 ${
                     index > 0 ? 'border-t' : ''
@@ -105,7 +102,8 @@ export function FirmDayAgenda({
                     {TIME.format(new Date(event.startAt))}
                   </span>
                   <span
-                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${TYPE_DOT[event.type] ?? TYPE_DOT.OTHER}`}
+                    style={{ backgroundColor: personColors?.get(eventPersonId(event) ?? '') ?? '#64748b' }}
+                    className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
                     aria-hidden
                   />
                   <span className="min-w-0 flex-1">
@@ -117,15 +115,15 @@ export function FirmDayAgenda({
                     </span>
                   </span>
                   <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
-                      event.assigneeId && clashing.has(event.assigneeId)
+                    className={`max-w-36 rounded-full px-2 py-0.5 text-xs ${
+                      clashing.has(event.assigneeId ?? event.case?.leadLawyer?.id ?? '')
                         ? 'bg-amber-100 font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                        : !event.assigneeId
+                        : !event.assigneeId && !event.case?.leadLawyer
                           ? 'bg-red-100 font-medium text-red-800 dark:bg-red-950 dark:text-red-300'
                           : 'bg-muted text-muted-foreground'
                     }`}
                   >
-                    {nameOf(event.assigneeId)}
+                    {event.assigneeId ? nameOf(event.assigneeId) : event.case?.leadLawyer ? `${event.case.leadLawyer.firstName} ${event.case.leadLawyer.lastName} · เจ้าของคดี` : 'ยังไม่ระบุผู้รับผิดชอบ'}
                   </span>
                 </button>
               ))}

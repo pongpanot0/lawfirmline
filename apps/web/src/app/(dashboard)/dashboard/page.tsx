@@ -2,426 +2,138 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { TaskStatus } from '@lawfirm/shared';
-import {
-  Briefcase,
-  Activity,
-  CalendarDays,
-  Banknote,
-  Plus,
-  Gavel,
-  Upload,
-  UserPlus,
-  FileText,
-  CheckCircle2,
-  TrendingUp,
-  PauseCircle,
-  CalendarDays as CalendarDaysIcon,
-} from 'lucide-react';
+import { ArrowRight, Plus, Search, CalendarDays, CheckCircle2, FileText } from 'lucide-react';
+import { AgendaItemKind, FirmRole } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
-import { api, ApiError, ActiveTask, DashboardStats, MyDayResponse } from '@/lib/api';
-import { AgendaRow } from '@/components/samnuan/AgendaRow';
-import { PageHeader, KpiCard, QuickActionButton } from '@/components/samnuan/PageHeader';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { api, DashboardStats, MyDayResponse, IntakeItem } from '@/lib/api';
+import { bangkokDateInputValue, bangkokDayLabel, bangkokTime } from '@/lib/bangkok';
+import { PageLoading } from '@/components/ui/misc';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils';
-import { PageLoading, Skeleton, TableEmptyRow } from '@/components/ui/misc';
-import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { MyDayPanel } from '@/components/agenda/MyDayPanel';
-import { FirmRole } from '@lawfirm/shared';
-import { fmt } from '@/lib/i18n/dashboard';
+import { useLocale } from '@/components/landing/LocaleProvider';
 
-/** Reads a task's own status, so a paused task never looks like it is moving. */
-function ActiveTaskRow({ task }: { task: ActiveTask }) {
-  const d = useDashboardT();
-  const statusLabel = {
-    [TaskStatus.TODO]: d.todos.columnTodo,
-    [TaskStatus.IN_PROGRESS]: d.todos.columnInProgress,
-    [TaskStatus.PENDING_REVIEW]: d.todos.columnPendingReview,
-    [TaskStatus.NEEDS_REVISION]: d.todos.columnNeedsRevision,
-    [TaskStatus.DONE]: d.todos.columnDone,
-  }[task.status];
-
-  return (
-    <Link
-      href={task.caseId ? `/cases/${task.caseId}/tasks` : '/todos'}
-      className="block rounded-lg px-2 py-1.5 transition hover:bg-muted/50"
-    >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-sm font-medium">{task.title}</span>
-        <span className="shrink-0 text-xs text-muted-foreground">{statusLabel}</span>
-      </div>
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-        {task.caseRef && <span className="font-mono">{task.caseRef}</span>}
-        <span>
-          {task.dueDate ? fmt(d.home.dueOn, { date: formatDate(task.dueDate) }) : d.home.noDueDate}
-        </span>
-      </div>
-      {task.onHold && (
-        <p className="mt-1 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-500">
-          <PauseCircle className="size-3 shrink-0" aria-hidden />
-          <span className="truncate">{fmt(d.home.onHoldFor, { reason: task.onHold.reason })}</span>
-        </p>
-      )}
-    </Link>
-  );
-}
+type Inbox = Awaited<ReturnType<typeof api.getTaskInbox>>;
+const panel = 'overflow-hidden rounded-2xl border border-border bg-card';
+const link = 'inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline';
 
 export default function DashboardPage() {
   const { token, user } = useAuth();
-  const d = useDashboardT();
-  const router = useRouter();
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const { locale, d } = useLocale();
+  const t = (th: string, en: string) => locale === 'th' ? th : en;
   const [data, setData] = useState<DashboardStats | null>(null);
-  // `null` while in flight, `'error'` when the agenda alone failed. Kept apart
-  // from `data` so a broken agenda costs the lawyer one card, not the page.
-  const [agenda, setAgenda] = useState<MyDayResponse | 'error' | null>(null);
+  const [tasks, setTasks] = useState<Inbox | null>(null);
+  const [intakes, setIntakes] = useState<IntakeItem[] | null>(null);
+  const [agenda, setAgenda] = useState<MyDayResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const [section, setSection] = useState<'tasks' | 'intakes'>('tasks');
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     const authToken = token ?? getStoredToken();
-    if (!authToken) {
+    if (!authToken) { setLoading(false); return; }
+    let active = true;
+    setLoading(true);
+    Promise.allSettled([
+      api.getDashboardStats(authToken), api.getTaskInbox(authToken),
+      api.getIntakes(authToken, { limit: 6 }), api.getMyDay(authToken),
+    ]).then(([stats, inbox, intake, day]) => {
+      if (!active) return;
+      setData(stats.status === 'fulfilled' ? stats.value : null);
+      setTasks(inbox.status === 'fulfilled' ? inbox.value : null);
+      setIntakes(intake.status === 'fulfilled' ? intake.value.items : null);
+      setAgenda(day.status === 'fulfilled' ? day.value : null);
       setLoading(false);
-      return;
-    }
-    setError('');
-    setAgenda(null);
-    api
-      .getMyDay(authToken)
-      .then(setAgenda)
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) return;
-        setAgenda('error');
-      });
-    api
-      .getDashboardStats(authToken)
-      .then(setData)
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) return;
-        setError(err instanceof Error ? err.message : d.common.loadFailed);
-      })
-      .finally(() => setLoading(false));
-  }, [token, d.common.loadFailed]);
+    });
+    return () => { active = false; };
+  }, [token, retry]);
 
   if (loading) return <PageLoading title={d.common.loading} lines={5} />;
+  const failed = <div role="alert" className="p-6 text-sm text-muted-foreground">{t('โหลดข้อมูลไม่สำเร็จ', 'Unable to load data')} <button onClick={() => setRetry(x => x + 1)} className={link}>{t('ลองอีกครั้ง', 'Retry')}</button></div>;
+  const today = bangkokDateInputValue(new Date());
+  const overdue = (task: Inbox[number]) => !!task.dueDate && bangkokDateInputValue(task.dueDate) < today;
+  const filtered = tasks?.filter(task => filter === 'mine' ? task.assigneeId === user?.id : filter === 'overdue' ? overdue(task) : true) ?? [];
+  const events = agenda ? [...agenda.todayItems, ...agenda.tomorrow, ...agenda.upcoming.flatMap(day => day.items)]
+    .filter(item => item.kind !== AgendaItemKind.TASK)
+    .filter((item, index, items) => items.findIndex(other => other.id === item.id) === index)
+    .sort((a, b) => a.at.localeCompare(b.at)).slice(0, 4) : [];
+  const date = (iso: string) => bangkokDayLabel(bangkokDateInputValue(iso), locale === 'th' ? 'th-TH' : 'en-GB');
+  const statuses: Record<string, string> = { TODO: d.todos.columnTodo, IN_PROGRESS: d.todos.columnInProgress, PENDING_REVIEW: d.todos.columnPendingReview, NEEDS_REVISION: d.todos.columnNeedsRevision, DONE: d.todos.columnDone };
 
-  if (error) {
-    return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
-        <p className="text-destructive">{error}</p>
+  return <div className="mx-auto max-w-[1440px] space-y-6">
+    <header className="flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">{data?.firmName ?? 'SAMNUAN'} · {date(new Date().toISOString())}</p>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t('ภาพรวมงาน', 'Work overview')}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t('รับเรื่อง ติดตามงาน และเตรียมพร้อมสำหรับนัดถัดไป', 'Receive matters, follow up on work, and prepare for your next appointment.')}</p>
       </div>
-    );
-  }
+      <Link href="/intake/new" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"><Plus className="size-4" />{t('รับงานใหม่', 'New intake')}</Link>
+    </header>
 
-  if (!data || !user) return null;
-
-  const agendaReady = agenda !== null && agenda !== 'error';
-
-  /**
-   * The firm's money is the owner's question. A lawyer opening the app wants
-   * what is overdue, what is on today and what is waiting on them — so that is
-   * what they land on, with the case list one click away.
-   */
-  if (user.firmRole !== FirmRole.OWNER) {
-    return (
-      <div className="space-y-4">
-        <PageHeader
-          title={fmt(d.home.welcome, { name: user.firstName })}
-          description={data.firmName}
-          actions={
-            <div className="flex flex-wrap gap-2">
-              <QuickActionButton icon={Briefcase} label={d.nav.cases} onClick={() => router.push('/cases')} />
-              <QuickActionButton icon={Plus} label={d.nav.intake} onClick={() => router.push('/intake/new')} />
-            </div>
-          }
-        />
-        <MyDayPanel />
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <PageHeader
-        title={d.home.title}
-        description={fmt(d.home.welcome, { name: user.firstName }) + ` · ${data.firmName}`}
-      />
-
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
-        {/*
-          No `change`/`trend` here: nothing computes a comparison, and the
-          arrow this used to show was hardcoded — an owner reading "+12% vs
-          last month" off a constant is worse served than by no figure at all.
-        */}
-        <KpiCard label={d.home.totalCases} value={data.stats.totalCases} icon={Briefcase} href="/cases" />
-        <KpiCard label={d.home.activeCases} value={data.stats.openCases} icon={Activity} href="/cases" change={d.home.inProgress} trend="neutral" />
-        <KpiCard label={d.home.upcomingHearings} value={data.stats.upcomingEvents} icon={CalendarDays} href="/calendar" change={d.home.next30Days} trend="neutral" />
-        <KpiCard label={d.home.monthlyRevenue} value={formatCurrency(data.stats.monthlyRevenue)} icon={Banknote} change={d.home.thisMonth} trend="neutral" />
-        <KpiCard label={d.home.totalNetProfit} value={formatCurrency(data.stats.totalNetProfit)} icon={TrendingUp} change={d.home.profitHint} trend={data.stats.totalNetProfit >= 0 ? 'up' : 'down'} />
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="min-w-0 space-y-6 xl:col-span-2">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <CalendarDaysIcon className="size-4 text-muted-foreground" aria-hidden />
-                {d.home.todayAgenda}
-                {agendaReady && agenda.overdue.length > 0 && (
-                  <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                    {fmt(d.home.overdueBadge, { count: agenda.overdue.length })}
-                  </span>
-                )}
-              </CardTitle>
-              <Link href="/my-day" className="text-sm text-primary hover:underline">
-                {d.common.viewAll}
-              </Link>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {agenda === null ? (
-                <Skeleton className="mx-3 h-10" />
-              ) : agenda === 'error' ? (
-                <p className="px-3 py-2 text-sm text-destructive">{d.common.loadFailed}</p>
-              ) : agenda.todayItems.length === 0 ? (
-                <p className="px-3 py-2 text-sm text-muted-foreground">{d.home.noAgendaToday}</p>
-              ) : (
-                <div className="-mx-1 divide-y divide-border/60">
-                  {agenda.todayItems.map((item) => (
-                    <AgendaRow key={item.id} item={item} />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2"><TrendingUp className="size-4 text-muted-foreground" aria-hidden />{d.home.caseProfitByCase}</CardTitle>
-              <Link href="/reports" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{d.home.ownRef}</TableHead>
-                    <TableHead>{d.home.client}</TableHead>
-                    <TableHead className="text-right">{d.home.revenue}</TableHead>
-                    <TableHead className="text-right">{d.home.profit}</TableHead>
-                    <TableHead className="text-right">ทำต่อ</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data.caseProfits ?? []).map((row) => (
-                    <TableRow key={row.caseId}>
-                      <TableCell>
-                        <Link href={`/cases/${row.caseId}`} className="font-medium text-primary hover:underline">
-                          {row.ownRef}
-                        </Link>
-                        <p className="truncate text-xs text-muted-foreground max-w-[140px]">{row.title}</p>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{row.clientName ?? '—'}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(row.revenue)}</TableCell>
-                      <TableCell className={`text-right font-semibold ${row.profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                        {formatCurrency(row.profit)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-1">
-                          <Link
-                            href={`/cases/${row.caseId}/calendar`}
-                            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
-                          >
-                            นัด
-                          </Link>
-                          <Link
-                            href={`/cases/${row.caseId}/documents`}
-                            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
-                          >
-                            เอกสาร
-                          </Link>
-                          <Link
-                            href={`/expenses/new?caseId=${row.caseId}`}
-                            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
-                          >
-                            เบิก
-                          </Link>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {(data.caseProfits ?? []).length === 0 && (
-                    <TableEmptyRow
-                      colSpan={5}
-                      title={d.cases.empty}
-                      description="สร้างคดีแรกเพื่อเริ่มเห็นรายได้ กำไร และทางลัดต่อคดี"
-                    />
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2"><Gavel className="size-4 text-muted-foreground" aria-hidden />{d.home.upcomingCourt}</CardTitle>
-              <Link href="/court-schedule" className="text-sm text-primary hover:underline">{d.common.viewAll}</Link>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{d.home.date}</TableHead>
-                    <TableHead>{d.home.ownRef}</TableHead>
-                    <TableHead>{d.home.client}</TableHead>
-                    <TableHead>{d.home.court}</TableHead>
-                    <TableHead>{d.billing.status}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.upcomingHearings.map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell className="font-medium">{formatDate(e.startAt)}</TableCell>
-                      <TableCell>
-                        <Link href={`/cases/${e.caseId}`} className="text-primary hover:underline">
-                          {e.case.ownRef}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">{e.case.title}</p>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {e.case.client?.name ?? e.case.clientName ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{e.case.courtName ?? '—'}</TableCell>
-                      <TableCell><CaseStatusBadge status="COURT_DATE" /></TableCell>
-                    </TableRow>
-                  ))}
-                  {data.upcomingHearings.length === 0 && (
-                    <TableEmptyRow
-                      colSpan={5}
-                      title={d.home.noUpcomingCourt}
-                      description="เพิ่มนัดจากหน้าคดีเพื่อให้ระบบพกข้อมูลศาลและเลขคดีมาให้"
-                    />
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Activity className="size-4 text-muted-foreground" aria-hidden />{d.home.recentActivities}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="relative space-y-0">
-                {[...data.recentCases.slice(0, 4).map((c) => ({
-                  icon: Briefcase,
-                  label: fmt(d.home.caseUpdated, { ownRef: c.ownRef }),
-                  time: d.home.recently,
-                }))].map((item, i) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={i} className="flex gap-4 pb-6 last:pb-0">
-                      <div className="relative flex flex-col items-center">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                          <Icon className="h-4 w-4 text-primary" />
-                        </div>
-                        {i < 3 && <div className="absolute top-8 h-full w-px bg-border" />}
-                      </div>
-                      <div className="pt-1">
-                        <p className="text-sm font-medium">{item.label}</p>
-                        <p className="text-xs text-muted-foreground">{item.time}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="min-w-0 space-y-6">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>{d.home.activeWork}</CardTitle>
-              <Link href="/todos" className="text-sm text-primary hover:underline">
-                {d.common.viewAll}
-              </Link>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {(data.activeTasks ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">{d.home.noActiveWork}</p>
-              ) : (
-                (data.activeTasks ?? []).map((task) => (
-                  <ActiveTaskRow key={task.id} task={task} />
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{d.home.quickActions}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <QuickActionButton label={d.home.newCase} icon={Plus} onClick={() => router.push('/cases/new')} />
-              <QuickActionButton label={d.home.addHearing} icon={Gavel} onClick={() => router.push('/court-schedule')} />
-              <QuickActionButton label={d.home.uploadDocument} icon={Upload} onClick={() => router.push('/documents')} />
-              <QuickActionButton label={d.home.addClient} icon={UserPlus} onClick={() => router.push('/clients/new')} />
-            </CardContent>
-          </Card>
-
-          {(data.stats.pendingExpenses > 0 || data.stats.approvedExpenses > 0) && (
-            <Card>
-              <CardHeader className="flex-row items-center justify-between">
-                <CardTitle>{d.home.pendingExpenses}</CardTitle>
-                {/* The badge and the list share one definition: status PENDING. */}
-                <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
-                  {data.stats.pendingExpenses}
-                </span>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {data.pendingReimbursements.slice(0, 3).map((e) => (
-                  <div key={e.id} className="flex items-center justify-between text-sm">
-                    <div>
-                      <p className="font-medium truncate max-w-[140px]">{e.description}</p>
-                      <p className="text-xs text-muted-foreground">{e.case?.ownRef ?? d.admin.generalCase}</p>
-                    </div>
-                    <p className="font-semibold">{formatCurrency(e.amount)}</p>
-                  </div>
-                ))}
-                {data.stats.approvedExpenses > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {fmt(d.home.approvedAwaitingPayment, { count: data.stats.approvedExpenses })}
-                  </p>
-                )}
-                <Link
-                  href={isOwner ? '/admin/reimbursements?status=PENDING' : '/expenses'}
-                  className="block text-sm text-primary hover:underline"
-                >
-                  {d.common.viewAll}
-                </Link>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{d.home.tasksDue}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/my-day" className="flex items-center gap-2 text-sm hover:underline">
-                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                <span>{fmt(d.home.overdueTasks, { count: data.stats.overdueTasks })}</span>
-              </Link>
-              <Link href="/todos" className="flex items-center gap-2 text-sm hover:underline">
-                <CheckCircle2 className="h-4 w-4 text-primary" />
-                <span>{fmt(d.home.myTasks, { count: data.stats.myTasks })}</span>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+    <div className="grid grid-cols-2 gap-y-5 border-y border-border py-5 lg:grid-cols-4">
+      {[
+        { label: t('คดีที่ยังไม่ปิด', 'Unclosed cases'), value: data?.stats.openCases, href: '/cases' },
+        { label: t('งานที่ยังไม่เสร็จ', 'Open tasks'), value: tasks?.length, href: '/work' },
+        { label: t('งานเกินกำหนด', 'Overdue tasks'), value: tasks?.filter(overdue).length, href: '#work-queue', warn: true },
+        { label: t('นัดที่กำลังจะมาถึง', 'Upcoming events'), value: data?.stats.upcomingEvents, href: '/calendar' },
+      ].map(item => <Link key={item.label} href={item.href} onClick={() => { if (item.warn) { setSection('tasks'); setFilter('overdue'); } }} className="group border-l-2 border-border pl-4 first:border-primary">
+        <span className={`block text-2xl font-semibold tabular-nums ${item.warn && item.value ? 'text-amber-600 dark:text-amber-400' : ''}`}>{item.value ?? '—'}</span>
+        <span className="mt-1 block text-xs text-muted-foreground group-hover:text-primary">{item.label} ↗</span>
+      </Link>)}
     </div>
-  );
+
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(280px,1fr)]">
+      <div className="contents">
+        <section id="work-queue" className={`${panel} order-1 min-w-0`} aria-label={t('รายการงาน', 'Work queue')}>
+          <div className="flex border-b border-border px-5" role="tablist" aria-label={t('เลือกรายการ', 'Choose list')}>
+            {(['tasks', 'intakes'] as const).map(tab => <button key={tab} id={`tab-${tab}`} aria-controls={`panel-${tab}`} role="tab" tabIndex={section === tab ? 0 : -1} onKeyDown={event => {
+              if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                event.preventDefault();
+                const next = event.key === 'Home' ? 'tasks' : event.key === 'End' ? 'intakes' : tab === 'tasks' ? 'intakes' : 'tasks';
+                setSection(next);
+                document.getElementById(`tab-${next}`)?.focus();
+              }
+            }} aria-selected={section === tab} onClick={() => setSection(tab)} className={`min-h-14 border-b-2 px-3 text-sm font-semibold ${section === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{tab === 'tasks' ? t('งานที่ต้องทำ', 'Tasks') : t('เรื่องรับเข้าล่าสุด', 'Recent intakes')}</button>)}
+          </div>
+          <div role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}>
+          {section === 'tasks' ? <>
+            <div className="flex flex-wrap items-center gap-2 px-5 py-4">
+              {['all', 'mine', 'overdue'].map(value => <button key={value} aria-pressed={filter === value} onClick={() => setFilter(value)} className={`min-h-9 rounded-lg px-3 text-xs font-medium ${filter === value ? 'bg-foreground text-background' : 'bg-muted/60 text-muted-foreground hover:bg-muted'}`}>{value === 'all' ? t('ทั้งหมด', 'All') : value === 'mine' ? t('มอบหมายให้ฉัน', 'Assigned to me') : t('เกินกำหนด', 'Overdue')}</button>)}
+              <span className="ml-auto text-xs text-muted-foreground">{tasks ? filtered.length : '—'} {t('งาน', 'tasks')}</span>
+            </div>
+            {!tasks ? failed : filtered.length === 0 ? <div className="px-6 py-10 text-center"><CheckCircle2 className="mx-auto mb-3 size-6 text-muted-foreground" /><p className="text-sm">{t('ไม่มีงานในรายการนี้', 'No tasks in this list')}</p><p className="mt-1 text-xs text-muted-foreground">{t('เลือกดูทั้งหมด หรือเปิดรายการงานเพื่อจัดการต่อ', 'Choose All or open your work list to continue.')}</p></div> : <div className="divide-y divide-border/70">
+              {filtered.slice(0, 6).map(task => <Link key={task.id} href={task.caseId ? `/cases/${task.caseId}?tab=tasks&task=${task.id}` : `/todos?task=${task.id}`} className="group flex items-start gap-3 px-5 py-4 hover:bg-muted/40">
+                <span className={`mt-1.5 size-2 shrink-0 rounded-full ${overdue(task) ? 'bg-amber-500' : 'bg-primary/50'}`} />
+                <div className="min-w-0 flex-1"><p className="break-words text-sm font-medium group-hover:text-primary">{task.title}</p><p className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground"><span className="font-mono">{task.case?.ownRef ?? t('งานทั่วไป', 'General')}</span><span>· {task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : t('ยังไม่มอบหมาย', 'Unassigned')}</span><span>· {statuses[task.status] ?? task.status}</span></p><p className={`mt-2 text-xs ${overdue(task) ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{task.dueDate ? `${overdue(task) ? t('เกินกำหนด · ', 'Overdue · ') : t('กำหนด ', 'Due ')}${date(task.dueDate)}` : t('ยังไม่กำหนดวันส่ง', 'No due date')}</p></div><ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" />
+              </Link>)}
+            </div>}
+          </> : !intakes ? failed : intakes.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">{t('ยังไม่มีเรื่องรับเข้า เริ่มจากปุ่มรับงานใหม่', 'No intakes yet. Start with New intake.')}</p> : <div className="divide-y divide-border/70">{intakes.map(item => <Link key={item.id} href={`/intake/${item.id}`} className="group flex items-start gap-3 px-5 py-4 hover:bg-muted/40"><FileText className="mt-1 size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium group-hover:text-primary">{item.title || item.description?.slice(0, 100) || t('เรื่องรับเข้า', 'Intake')}</p><p className="mt-1 text-xs text-muted-foreground">{item.insurerName || item.clientName || t('ยังไม่ระบุบริษัท / ลูกความ', 'Company / client not specified')} · {date(item.receivedDate)}</p>{item.claimNumber && <p className="mt-1 font-mono text-xs text-muted-foreground">{t('เคลม', 'Claim')} {item.claimNumber}</p>}</div><ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" /></Link>)}</div>}
+          </div>
+          <div className="border-t border-border px-5 py-3"><Link href={section === 'tasks' ? '/work' : '/intake'} className={link}>{section === 'tasks' ? t('เปิดรายการงานทั้งหมด', 'Open all tasks') : t('เปิดเรื่องรับเข้าทั้งหมด', 'Open all intakes')}<ArrowRight className="size-3.5" /></Link></div>
+        </section>
+
+        <section className={`${panel} order-3 min-w-0 xl:col-start-1`}>
+          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4"><h2 className="text-sm font-semibold">{t('คดีล่าสุด', 'Recent cases')}</h2><Link href="/cases" className={link}>{t('ดูทั้งหมด', 'View all')}</Link></div>
+          {!data ? failed : data.recentCases.length === 0 ? <p className="p-6 text-sm text-muted-foreground">{t('ยังไม่มีคดี', 'No cases yet')}</p> : <div className="divide-y divide-border/70">{data.recentCases.slice(0, 4).map(item => <Link key={item.id} href={`/cases/${item.id}`} className="flex flex-wrap items-center gap-2 px-5 py-3 hover:bg-muted/40"><div className="min-w-0 flex-1 basis-40"><p className="font-mono text-xs text-muted-foreground">{item.ownRef}</p><p className="mt-1 truncate text-sm font-medium">{item.title}</p></div><CaseStatusBadge status={item.status} /></Link>)}</div>}
+        </section>
+      </div>
+
+      <aside className="order-2 min-w-0 space-y-6 xl:col-start-2 xl:row-span-2 xl:row-start-1">
+        <section className={panel}>
+          <div className="flex items-center justify-between border-b border-border px-5 py-4"><h2 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="size-4 text-muted-foreground" />{t('นัดและกำหนดถัดไป', 'Upcoming dates')}</h2><Link href="/calendar" className={link}>{t('ปฏิทิน', 'Calendar')}</Link></div>
+          {!agenda ? failed : events.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">{t('ไม่มีนัดหรือกำหนดในช่วงที่แสดง', 'No upcoming dates in this agenda window.')}</p> : <div className="divide-y divide-border/70">{events.map(item => <Link key={item.id} href={item.kind === AgendaItemKind.COURT_DATE ? `/court-day/${item.entityId}` : item.url} className="block px-5 py-4 hover:bg-muted/40"><p className="text-xs font-medium text-primary">{date(item.at)} · {item.allDay ? t('ทั้งวัน', 'All day') : bangkokTime(item.at)}</p><p className="mt-2 break-words text-sm font-semibold">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{[item.caseRef, item.location].filter(Boolean).join(' · ')}</p></Link>)}</div>}
+          <div className="border-t border-border px-5 py-3"><Link href="/my-day" className={link}>{t('เตรียมงานประจำวัน', 'Plan your day')}<ArrowRight className="size-3.5" /></Link></div>
+        </section>
+        <section className="rounded-2xl border border-primary/15 bg-primary/5 p-5">
+          <Search className="mb-4 size-5 text-primary" />
+          <h2 className="text-lg font-semibold">{t('ข้อเท็จจริงและฎีกาของเรื่อง', 'Research within a matter')}</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t('เปิดเรื่องรับเข้าหรือคดี เพื่อจัดข้อเท็จจริง ค้นฎีกา และสรุปเอกสาร ผลจะเก็บอยู่กับเรื่องนั้น', 'Open an intake or case to organize facts, find precedents, and summarize documents. Results stay with that matter.')}</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link href="/intake" className={link}>{t('เลือกเรื่องรับเข้า', 'Choose intake')}<ArrowRight className="size-4" /></Link>
+            <Link href="/cases" className={link}>{t('เลือกคดี', 'Choose case')}<ArrowRight className="size-4" /></Link>
+          </div>
+        </section>
+        {user?.firmRole === FirmRole.OWNER && <div className="flex flex-wrap gap-x-5 gap-y-3 px-1"><Link href="/reports" className={link}>{t('รายงานสำนักงาน', 'Firm reports')} ↗</Link><Link href="/expenses" className={link}>{t('ค่าใช้จ่าย', 'Expenses')} ↗</Link></div>}
+      </aside>
+    </div>
+  </div>;
 }

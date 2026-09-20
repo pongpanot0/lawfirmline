@@ -78,15 +78,20 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
       </div>
 
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        <Link href="/todos?new=1" onClick={() => setOpen(false)} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90">
+          <Plus className="h-4 w-4" aria-hidden />
+          <span>{d.topbar.newTask}</span>
+        </Link>
         <div ref={menuRef} className="relative">
           <Button
             size="sm"
+            variant="outline"
+            aria-label={d.topbar.createMenu}
             aria-haspopup="menu"
             aria-expanded={open}
             onClick={() => setOpen((o) => !o)}
           >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">{d.topbar.createMenu}</span>
+            <span className="hidden lg:inline">{d.topbar.createMenu}</span>
             <ChevronDown className="h-3.5 w-3.5" />
           </Button>
           {open && (

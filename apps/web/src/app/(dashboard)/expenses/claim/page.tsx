@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Printer, Send } from 'lucide-react';
+import { downloadPettyCashCsv } from '@/lib/petty-cash-csv';
+import { ArrowLeft, Printer, Send, Download } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ExpenseItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ function ExpenseClaimContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const authToken = token ?? getStoredToken();
@@ -44,8 +46,9 @@ function ExpenseClaimContent() {
     api
       .getExpenses(authToken)
       .then((all) => {
-        const selected = all.filter((e) => ids.includes(e.id) && e.status === 'DRAFT');
+        const selected = all.filter((e) => ids.includes(e.id));
         setItems(selected);
+        if (selected.length !== new Set(ids).size) { setItems([]); setError('บางรายการไม่พบหรือไม่มีสิทธิ์เข้าถึง กรุณากลับไปเลือกรายการใหม่'); return; }
         if (selected.length === 0) {
           setError(d.expenses.claimEmpty);
         }
@@ -57,14 +60,12 @@ function ExpenseClaimContent() {
   }, [token, ids, d.expenses.claimEmpty, d.expenses.loadFailed]);
 
   const total = items.reduce((sum, e) => sum + e.amount, 0);
-  const lawyerName = user
-    ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email
-    : '—';
+  const lawyerName = [...new Set(items.map(e => `${e.user.firstName} ${e.user.lastName}`))].join(', ') || '—';
   const today = formatDate(new Date().toISOString());
 
   const handleSend = async () => {
     const authToken = token ?? getStoredToken();
-    if (!authToken || !items.length || submitting) return;
+    if (!authToken || !items.length || submitting || items.some(e => e.status !== 'DRAFT')) return;
     setSubmitting(true);
     setError('');
     try {
@@ -93,21 +94,28 @@ function ExpenseClaimContent() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-4 md:p-6">
+    <div id="expense-claim-print" className="mx-auto max-w-3xl p-4 md:p-6"><style>{`@media print { body * { visibility: hidden; } #expense-claim-print, #expense-claim-print * { visibility: visible; } #expense-claim-print { position: absolute; inset: 0; width: 100%; max-width: none; overflow: visible; } main { overflow: visible !important; } }`}</style>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link href="/expenses" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
           <ArrowLeft className="h-4 w-4" />
           {d.expenses.back}
         </Link>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => window.print()}>
+          <Button type="button" disabled={exporting || !items.length} onClick={async () => {
+            const authToken = token ?? getStoredToken(); if (!authToken) return;
+            setExporting(true); setError('');
+            try { await downloadPettyCashCsv({ firmName: user?.firmName ?? '', requesterName: lawyerName, expenses: items, fetchReceipt: id => api.downloadExpenseReceipt(authToken, id) }); }
+            catch (e) { setError(e instanceof Error ? e.message : 'ดาวน์โหลดไม่สำเร็จ'); }
+            finally { setExporting(false); }
+          }}><Download className="h-4 w-4" />{exporting ? 'กำลังรวมเอกสาร…' : 'ดาวน์โหลดใบเบิกพร้อมไฟล์แนบ'}</Button>
+          <Button type="button" variant="outline" disabled={!items.length} onClick={() => window.print()}>
             <Printer className="h-4 w-4" />
-            {d.expenses.printClaim}
+            พิมพ์ / บันทึก PDF เฉพาะใบเบิก
           </Button>
-          <Button type="button" disabled={submitting || items.length === 0} onClick={handleSend}>
+          {items.length > 0 && items.every(e => e.status === 'DRAFT') && <Button type="button" disabled={submitting || exporting} onClick={handleSend}>
             <Send className="h-4 w-4" />
             {submitting ? d.expenses.submitting : d.expenses.reviewedSendToOwner}
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -117,7 +125,7 @@ function ExpenseClaimContent() {
         </div>
       )}
 
-      <p className="mb-4 text-sm text-muted-foreground print:hidden">{d.expenses.claimReviewHint}</p>
+      <p className="mb-4 text-sm text-muted-foreground print:hidden">ดาวน์โหลด ZIP แล้วแตกไฟล์ เปิดใบเบิก.html เพื่อพิมพ์หรือบันทึก PDF ส่วนไฟล์แนบต้นฉบับอยู่ในโฟลเดอร์ใบเสร็จ การดาวน์โหลดไม่เปลี่ยนสถานะหรือส่งอนุมัติ</p>
 
       <Card className="print:border-black print:shadow-none">
         <CardContent className="space-y-5 p-6 md:p-8">
@@ -157,7 +165,7 @@ function ExpenseClaimContent() {
                 <tr key={e.id} className="border-b border-border/70 align-top">
                   <td className="py-2.5 pr-2 text-muted-foreground">{index + 1}</td>
                   <td className="py-2.5 pr-2">
-                    <p className="font-medium">{e.description}</p>
+                    <p className="font-medium">{e.description}</p><p className="text-xs text-muted-foreground">{e.user.firstName} {e.user.lastName} · {({ DRAFT: d.expenses.statusDraft, PENDING: d.expenses.statusPending, APPROVED: d.expenses.statusApproved, PAID: d.expenses.statusPaid, REJECTED: d.expenses.statusRejected })[e.status]}</p>
                     {e.expensePurpose && (
                       <p className="text-xs text-muted-foreground">{e.expensePurpose}</p>
                     )}

@@ -16,7 +16,7 @@ export const CASE_TAB_LABELS: Record<CaseTabId, string> = {
   calendar: 'ไทม์ไลน์',
   documents: 'เอกสาร',
   billing: 'ค่าใช้จ่าย',
-  'ask-ai': 'AI',
+  'ask-ai': 'ข้อเท็จจริงและฎีกา',
   'closing-report': 'รายงานปิดงาน',
 };
 

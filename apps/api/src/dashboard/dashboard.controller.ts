@@ -11,6 +11,9 @@ import { SkipSubscription } from '../saas/decorators/saas.decorators';
 export class DashboardController {
   constructor(private dashboardService: DashboardService) {}
 
+  @Get('tasks')
+  getTaskInbox(@CurrentUser() user: AuthUser) { return this.dashboardService.getTaskInbox(user); }
+
   @Get('stats')
   @SkipSubscription()
   getStats(@CurrentUser() user: AuthUser) {

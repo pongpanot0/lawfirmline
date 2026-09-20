@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import { formatDateTime } from '@/lib/utils';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
@@ -17,6 +18,7 @@ export interface CalendarEventData {
 interface CalendarViewProps {
   events: CalendarEventData[];
   /** Public holidays; days matching get a tint and the holiday name. */
+  personAppearance?: (event: CalendarEventData) => { name: string; color: string };
   holidays?: { date: string; name: string }[];
   month: Date;
   onMonthChange: (month: Date) => void;
@@ -34,6 +36,7 @@ const typeColors: Record<string, string> = {
 export function CalendarView({
   events,
   holidays = [],
+  personAppearance,
   month,
   onMonthChange,
   onDayClick,
@@ -48,6 +51,7 @@ export function CalendarView({
     DEADLINE: d.calendar.typeDeadline,
     OTHER: d.calendar.typeOther,
   };
+  const personStyle = (event: CalendarEventData): CSSProperties | undefined => personAppearance ? { borderLeft: `4px solid ${personAppearance(event).color}`, backgroundColor: `color-mix(in srgb, ${personAppearance(event).color} 10%, transparent)` } : undefined;
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const firstDay = new Date(year, monthIndex, 1).getDay();
@@ -152,9 +156,11 @@ export function CalendarView({
                           ev.stopPropagation();
                           onEventClick?.(e);
                         }}
-                        className={`block w-full truncate rounded border px-1 py-0.5 text-left text-[10px] hover:opacity-80 ${typeColors[e.type] ?? typeColors.OTHER}`}
+                        style={personStyle(e)}
+                        title={personAppearance ? `${personAppearance(e).name} · ${e.title}` : e.title}
+                        className={`block w-full truncate rounded border px-1 py-0.5 text-left text-[10px] hover:opacity-80 ${personAppearance ? 'bg-muted/50 text-foreground border-border' : typeColors[e.type] ?? typeColors.OTHER}`}
                       >
-                        {e.title}
+                        {personAppearance && <span className="block truncate font-semibold">{personAppearance(e).name}</span>}{e.title}
                       </button>
                     ))}
                     {dayEvents.length > 2 && (
@@ -179,10 +185,11 @@ export function CalendarView({
                 key={e.id}
                 type="button"
                 onClick={() => onEventClick?.(e)}
+                style={personStyle(e)}
                 className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left hover:bg-accent/50"
               >
                 <div>
-                  <p className="text-sm font-medium">{e.title}</p>
+                  <p className="text-sm font-medium">{e.title}</p>{personAppearance && <p className="text-xs font-medium">{personAppearance(e).name}</p>}
                   {e.case && (
                     <p className="text-xs text-muted-foreground">
                       {e.case.ownRef} — {e.case.title}

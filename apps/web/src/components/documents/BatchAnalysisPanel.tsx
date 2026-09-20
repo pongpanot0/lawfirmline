@@ -55,8 +55,8 @@ export function BatchAnalysisPanel({
       .getDocuments(token, caseId)
       .then((items) => {
         if (active) {
-          setDocuments(items);
-          setSelected([]);
+          setDocuments(items.filter((doc) => ['application/pdf', 'text/plain'].includes(doc.mimeType)));
+          setSelected(items.filter((doc) => ['application/pdf', 'text/plain'].includes(doc.mimeType)).slice(0, 10).map((doc) => doc.id));
         }
       })
       .catch(() => {
@@ -74,10 +74,10 @@ export function BatchAnalysisPanel({
       incoming.some(
         (file) =>
           !['application/pdf', 'text/plain'].includes(file.type) ||
-          file.size > 10 * 1024 * 1024,
+          file.size > 30 * 1024 * 1024,
       )
     ) {
-      setError('รองรับ PDF ที่มีข้อความ และ TXT ขนาดไม่เกิน 30MB ต่อไฟล์');
+      setError('รองรับ PDF (รวมไฟล์สแกน) และ TXT ขนาดไม่เกิน 30MB ต่อไฟล์');
       return;
     }
     if (!caseId) {
@@ -87,7 +87,7 @@ export function BatchAnalysisPanel({
           next.push(file);
       if (
         next.length > 10 ||
-        next.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024
+        next.reduce((sum, file) => sum + file.size, 0) > 100 * 1024 * 1024
       ) {
         setError('เลือกไม่เกิน 10 ไฟล์ รวมไม่เกิน 100MB');
         return;
@@ -168,7 +168,7 @@ export function BatchAnalysisPanel({
     >
       <h2 className="font-semibold">วิเคราะห์เนื้อหาไฟล์ด้วย AI</h2>
       <p className="text-sm text-muted-foreground">
-        อ่านไฟล์ที่เลือกแล้วสรุปเนื้อหาและดึงวันสำคัญ (คนละบริการกับการประเมินเรื่องในหน้ารับเรื่อง) ·
+        สรุปเหตุการณ์จากเอกสารที่เลือก พร้อมแหล่งที่มา ·
         PDF/TXT ไม่เกิน 30MB ต่อไฟล์
       </p>
       {!caseId && (
