@@ -125,7 +125,7 @@ function ExpenseClaimContent() {
         </div>
       )}
 
-      <p className="mb-4 text-sm text-muted-foreground print:hidden">ดาวน์โหลด ZIP แล้วแตกไฟล์ เปิดใบเบิก.html เพื่อพิมพ์หรือบันทึก PDF ส่วนไฟล์แนบต้นฉบับอยู่ในโฟลเดอร์ใบเสร็จ การดาวน์โหลดไม่เปลี่ยนสถานะหรือส่งอนุมัติ</p>
+      <p className="mb-4 text-sm text-muted-foreground print:hidden">ดาวน์โหลด ZIP ข้างในมีไฟล์ CSV (เปิดใน Excel ได้ คอลัมน์ไฟล์ใบเสร็จชี้ไปที่ไฟล์แนบ) ไฟล์แนบต้นฉบับอยู่ในโฟลเดอร์ใบเสร็จ และใบเบิก.html สำหรับพิมพ์/บันทึก PDF การดาวน์โหลดไม่เปลี่ยนสถานะหรือส่งอนุมัติ</p>
 
       <Card className="print:border-black print:shadow-none">
         <CardContent className="space-y-5 p-6 md:p-8">

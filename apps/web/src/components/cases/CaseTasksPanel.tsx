@@ -2,7 +2,7 @@
 
 import { CasePlaybook } from './CasePlaybook';
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { FirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CaseDetail, TaskItem, UserItem } from '@/lib/api';
@@ -159,62 +159,109 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
       {showForm && (
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <form onSubmit={handleCreate} className="flex flex-wrap items-center gap-3">
-              <Input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder={d.caseTasks.titlePlaceholder}
-                className="min-w-[200px] flex-1"
-                required
-              />
-              <select
-                value={newAssigneeId}
-                onChange={(e) => setNewAssigneeId(e.target.value)}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+        <div
+          className="fixed inset-0 z-50 flex justify-end"
+          role="dialog"
+          aria-modal="true"
+          aria-label={d.caseTasks.addTask}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && !creating) {
+              event.stopPropagation();
+              setShowForm(false);
+            }
+          }}
+        >
+          <div className="absolute inset-0 bg-black/30" onClick={() => { if (!creating) setShowForm(false); }} />
+          <aside className="relative flex h-dvh w-full max-w-lg flex-col border-l border-border bg-card shadow-xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
+              <h2 className="text-base font-semibold">{d.caseTasks.addTask}</h2>
+              <button
+                type="button"
+                aria-label={d.common.close}
+                onClick={() => { if (!creating) setShowForm(false); }}
+                className="text-muted-foreground hover:text-foreground"
               >
-                <option value="">{d.caseTasks.assignToMe}</option>
-                {caseTeam.length > 0 && (
-                  <optgroup label={d.caseTasks.caseTeam}>
-                    {caseTeam.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.firstName} {u.lastName}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {others.length > 0 && (
-                  <optgroup label={d.caseTasks.otherMembers}>
-                    {others.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.firstName} {u.lastName}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-              <input
-                type="date"
-                aria-label={d.caseTasks.dueDate}
-                value={newDueDate}
-                onChange={(e) => setNewDueDate(e.target.value)}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-              />
-              <select
-                value={newPriority}
-                onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
-                aria-label={d.todos.priority}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-              >
-                {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
-                  <option key={p} value={p}>{priorityLabel(d, p)}</option>
-                ))}
-              </select>
-              <Button type="submit" size="sm" disabled={creating}>{d.caseTasks.create}</Button>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form id="create-case-task" onSubmit={handleCreate} className="min-h-0 flex-1 overflow-y-auto p-5">
+              <fieldset disabled={creating} className="flex min-w-0 flex-col gap-4">
+                {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+                <div>
+                  <label htmlFor="case-task-title" className="text-sm font-medium">{d.caseTasks.titlePlaceholder}</label>
+                  <Input
+                    id="case-task-title"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    autoFocus
+                    required
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="case-task-assignee" className="text-sm font-medium">{d.todos.filterAssignee}</label>
+                  <select
+                    id="case-task-assignee"
+                    value={newAssigneeId}
+                    onChange={(e) => setNewAssigneeId(e.target.value)}
+                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                  >
+                    <option value="">{d.caseTasks.assignToMe}</option>
+                    {caseTeam.length > 0 && (
+                      <optgroup label={d.caseTasks.caseTeam}>
+                        {caseTeam.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.firstName} {u.lastName}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {others.length > 0 && (
+                      <optgroup label={d.caseTasks.otherMembers}>
+                        {others.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.firstName} {u.lastName}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="case-task-due" className="text-sm font-medium">{d.caseTasks.dueDate}</label>
+                    <input
+                      id="case-task-due"
+                      type="date"
+                      value={newDueDate}
+                      onChange={(e) => setNewDueDate(e.target.value)}
+                      className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="case-task-priority" className="text-sm font-medium">{d.todos.priority}</label>
+                    <select
+                      id="case-task-priority"
+                      value={newPriority}
+                      onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
+                      className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                    >
+                      {[TaskPriority.HIGH, TaskPriority.MEDIUM, TaskPriority.LOW].map((p) => (
+                        <option key={p} value={p}>{priorityLabel(d, p)}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </fieldset>
             </form>
-          </CardContent>
-        </Card>
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-4">
+              <Button variant="outline" onClick={() => { if (!creating) setShowForm(false); }}>{d.common.cancel}</Button>
+              <Button form="create-case-task" type="submit" disabled={creating || !newTitle.trim()}>
+                {creating ? '…' : d.caseTasks.create}
+              </Button>
+            </div>
+          </aside>
+        </div>
       )}
 
       <Card className="mb-4">
