@@ -3,6 +3,7 @@ import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { AutomationLogService } from '../common/services/automation-log.service';
 import { addBangkokDays } from '../common/utils/bangkok-time';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface CheckedRow extends ImportRow { row: number; existingClientId: string | null; errors: string[] }
@@ -11,7 +12,7 @@ export interface PlaybookStep { title: string; days: number; instructions: strin
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 @Injectable()
 export class PracticeSetupService {
-  constructor(private prisma: PrismaService, private access: CaseAccessService) {}
+  constructor(private prisma: PrismaService, private access: CaseAccessService, private automationLog: AutomationLogService) {}
   private owner(user: AuthUser) { if (user.firmRole !== 'OWNER') throw new ForbiddenException('เจ้าของสำนักงานเท่านั้น / Firm owner required'); }
   async progress(user: AuthUser) {
     this.owner(user);
@@ -133,6 +134,9 @@ export class PracticeSetupService {
       for (const step of preview.steps) { const task = await db.task.create({ data: { caseId, title: step.title.trim(), description: step.instructions, dueDate: new Date(step.dueAt), assigneeId: resolveAssignee(step.assigneeRole), createdById: user.id, labels: [`playbook:${preview.release.workType}`, `step:${step.kind}`], parentId: step.parentIndex !== undefined ? taskIds[step.parentIndex] : null } }); taskIds.push(task.id); }
       const applied = await db.appliedPlaybook.create({ data: { caseId, releaseId, startDate: new Date(startDate), taskIds, appliedById: user.id } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PLAYBOOK_APPLIED', metadata: { caseId, releaseId, taskIds } } }); return applied;
+    }).then(async (applied) => {
+      await this.automationLog.record({ firmId: user.firmId, automation: 'playbook-apply', trigger: { caseId, releaseId, by: user.id }, result: { taskIds: applied.taskIds } });
+      return applied;
     });
   }
 }

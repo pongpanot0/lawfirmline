@@ -57,6 +57,11 @@ export class DocumentsController {
     return this.documentsService.upload(user, caseId, file, meta);
   }
 
+  @Get('required')
+  getRequiredDocuments(@Param('caseId') caseId: string) {
+    return this.documentsService.getRequiredDocuments(caseId);
+  }
+
   @Patch(':documentId/metadata')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.LAWYER)

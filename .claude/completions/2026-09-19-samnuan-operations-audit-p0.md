@@ -9,5 +9,12 @@ Audit score before fixes: 48.5/100 (Office Operations band). Full scorecard in s
 - Escalation scheduler (08:30 BKK): due-tomorrow→assignee, overdue≥1d→+lead, ≥3d→+owners; on-hold nextFollowUpAt chaser (re-arms +7d)
 - /operations/case-health (by status, inactive>14d, stuck>30d) + web tab; capacity band on workload; playbook caseType binding + assigneeRole per step; KpiCard href drill-down
 
-## Not done (next P1)
-- SLA targets, team performance metrics, recurring tasks, task dependencies, document types/search, required-doc checklist per matter type, automation log, retention/delete policy, S3 SSE encryption, per-firm LINE channel, seat-limit enforcement
+## P1 shipped (commit 019fda9, same PR #44)
+- SLA config per firm (/operations/sla) driving case-health thresholds
+- Team performance metrics + operations tab
+- SOP module + /sops page; DocumentTemplate CRUD (owner-only)
+- Required documents: CaseType.requiredDocuments + Document.category + missing-doc alert
+- AutomationLog (escalation, playbook apply, insurance stage) + list API
+
+## Not done (P2)
+- Recurring tasks, task dependencies, document full-text search, retention/delete policy, S3 SSE encryption, per-firm LINE channel, seat-limit enforcement, client portal extras, time/expense tracking beyond current

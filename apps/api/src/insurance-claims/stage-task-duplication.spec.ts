@@ -5,6 +5,7 @@ import { InsuranceClaimsService } from './insurance-claims.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { LimitationDeadlineService } from './limitation-deadline.service';
+import { AutomationLogService } from '../common/services/automation-log.service';
 
 /**
  * Advancing a claim's stage opens the tasks that stage calls for. Pressing the
@@ -31,6 +32,7 @@ describe('InsuranceClaimsService.advanceStage — repeated advance', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TasksService, useValue: mockTasks },
         { provide: LimitationDeadlineService, useValue: mockLimitation },
+        { provide: AutomationLogService, useValue: { record: jest.fn() } },
       ],
     }).compile();
     service = module.get(InsuranceClaimsService);

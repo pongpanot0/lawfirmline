@@ -7,6 +7,7 @@ import {
 } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
+import { AutomationLogService } from '../common/services/automation-log.service';
 import { TasksService } from '../tasks/tasks.service';
 import { LimitationDeadlineService } from './limitation-deadline.service';
 import { getAllowedNextStages, isValidTransition, STAGE_TASK_TEMPLATES } from './stage-automation';
@@ -18,6 +19,7 @@ export class InsuranceClaimsService {
     private prisma: PrismaService,
     private tasksService: TasksService,
     private limitationDeadlineService: LimitationDeadlineService,
+    private automationLog: AutomationLogService,
   ) {}
 
   private async withLimitationDeadline<T extends { caseId: string }>(claim: T) {
@@ -142,6 +144,13 @@ export class InsuranceClaimsService {
         dueDate: dueDate.toISOString(),
       });
     }
+
+    await this.automationLog.record({
+      firmId: user.firmId,
+      automation: 'insurance-stage-tasks',
+      trigger: { caseId, stage: dto.stage, by: user.id },
+      result: { tasksCreated: templates.length },
+    });
 
     await this.prisma.caseActivity.create({
       data: {

@@ -6,7 +6,7 @@ import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { fmt, dateLocale } from '@/lib/i18n/dashboard';
 import { useAuth } from '@/lib/auth';
 import { CaseStatus, FirmRole } from '@lawfirm/shared';
-import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth } from '@/lib/api';
+import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth, TeamPerformanceRow } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
@@ -115,10 +115,12 @@ export default function OperationsPage() {
   const [onHold, setOnHold] = useState<OnHoldTaskEntry[]>([]);
   const [onHoldLoading, setOnHoldLoading] = useState(true);
   const [caseHealth, setCaseHealth] = useState<CaseHealth | null>(null);
+  const [performance, setPerformance] = useState<TeamPerformanceRow[]>([]);
 
   useEffect(() => {
     if (!token || !isOwner) return;
     api.getCaseHealth(token).then(setCaseHealth).catch(console.error);
+    api.getTeamPerformance(token).then(setPerformance).catch(console.error);
   }, [token, isOwner]);
 
   useEffect(() => {
@@ -227,6 +229,7 @@ export default function OperationsPage() {
             {d.operations.tabOnHold}
             {onHold.length > 0 ? ` (${onHold.length})` : ''}
           </TabsTrigger>
+          <TabsTrigger value="performance">ผลงานทีม</TabsTrigger>
           <TabsTrigger value="health">
             สุขภาพคดี
             {caseHealth && caseHealth.inactiveCases.length + caseHealth.stuckCases.length > 0
@@ -554,9 +557,51 @@ export default function OperationsPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="performance">
+          <p className="mb-3 text-sm text-muted-foreground">
+            ตัวชี้วัดกระบวนการ 30 วันล่าสุด — ใช้ดูว่างานไหลหรือไม่ ไม่ใช่จัดอันดับคน
+          </p>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>สมาชิก</TableHead>
+                    <TableHead className="text-right">งานเสร็จ (30 วัน)</TableHead>
+                    <TableHead className="text-right">เวลาเฉลี่ยต่อชิ้น (วัน)</TableHead>
+                    <TableHead className="text-right">งานค้าง</TableHead>
+                    <TableHead className="text-right">เลยกำหนด</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {performance.map((row) => (
+                    <TableRow key={row.userId}>
+                      <TableCell className="font-medium">
+                        {row.firstName} {row.lastName}
+                      </TableCell>
+                      <TableCell className="text-right">{row.completedCount}</TableCell>
+                      <TableCell className="text-right">{row.avgTurnaroundDays ?? '—'}</TableCell>
+                      <TableCell className="text-right">{row.openCount}</TableCell>
+                      <TableCell className="text-right">
+                        {row.overdueCount > 0 ? (
+                          <Badge variant={row.overdueRate >= 30 ? 'destructive' : 'warning'}>
+                            {row.overdueCount} ({row.overdueRate}%)
+                          </Badge>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="health">
           <p className="mb-3 text-sm text-muted-foreground">
-            คดีที่เงียบเกิน 14 วัน และคดีที่ค้างสถานะเดิมเกิน 30 วัน — กดชื่อคดีเพื่อเข้าไปดู
+            คดีที่เงียบเกินเกณฑ์ SLA และคดีที่ค้างสถานะเดิมนานเกินไป — กดชื่อคดีเพื่อเข้าไปดู
           </p>
           {caseHealth && (
             <div className="mb-4 flex flex-wrap gap-2">
@@ -572,8 +617,8 @@ export default function OperationsPage() {
           <div className="grid gap-6 lg:grid-cols-2">
             {(
               [
-                { title: `เงียบเกิน 14 วัน (${caseHealth?.inactiveCases.length ?? 0})`, rows: caseHealth?.inactiveCases ?? [] },
-                { title: `ค้างสถานะเกิน 30 วัน (${caseHealth?.stuckCases.length ?? 0})`, rows: caseHealth?.stuckCases ?? [] },
+                { title: `เงียบเกิน ${caseHealth?.sla.caseUpdateDays ?? 14} วัน (${caseHealth?.inactiveCases.length ?? 0})`, rows: caseHealth?.inactiveCases ?? [] },
+                { title: `ค้างสถานะเกิน ${caseHealth?.sla.stuckStatusDays ?? 30} วัน (${caseHealth?.stuckCases.length ?? 0})`, rows: caseHealth?.stuckCases ?? [] },
               ] as const
             ).map((section) => (
               <Card key={section.title}>

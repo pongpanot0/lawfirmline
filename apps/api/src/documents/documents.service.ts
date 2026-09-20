@@ -417,6 +417,30 @@ export class DocumentsService {
     };
   }
 
+  /** เทียบเอกสารที่มีกับ requiredDocuments ของประเภทคดี → รายการที่ยังขาด */
+  async getRequiredDocuments(caseId: string) {
+    const legalCase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: {
+        caseType: { select: { requiredDocuments: true } },
+        documents: { select: { category: true } },
+      },
+    });
+    if (!legalCase) throw new NotFoundException('Case not found');
+
+    // requiredDocuments เก็บค่า DocumentCategory ค่าที่ไม่รู้จัก (เช่นข้อมูลเก่าที่
+    // เคยเป็นข้อความอิสระ) ถูกทิ้ง เพราะเทียบกับหมวดของเอกสารไม่ได้อยู่แล้ว
+    const known = new Set<string>(Object.values(DocumentCategory));
+    const required = ((legalCase.caseType?.requiredDocuments as string[] | null) ?? []).filter(
+      (item): item is DocumentCategory => typeof item === 'string' && known.has(item),
+    );
+    const present = new Set<string>(legalCase.documents.map((doc) => doc.category));
+    return {
+      required: required.map((category) => ({ category, present: present.has(category) })),
+      missing: required.filter((category) => !present.has(category)),
+    };
+  }
+
   async updateVisibility(user: AuthUser, caseId: string, documentId: string, visibleToClient: boolean) {
     await this.verifyDocument(caseId, documentId);
     await this.audit(user, 'DOCUMENT_VISIBILITY_CHANGED', { caseId, documentId, visibleToClient });

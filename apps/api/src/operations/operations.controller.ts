@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 import { OwnerOnly } from '../saas/decorators/saas.decorators';
@@ -35,6 +35,21 @@ export class OperationsController {
   @Get('case-health')
   getCaseHealth(@CurrentUser() user: AuthUser) {
     return this.operationsService.getCaseHealth(user);
+  }
+
+  @Get('sla')
+  getSla(@CurrentUser() user: AuthUser) {
+    return this.operationsService.getSlaConfig(user);
+  }
+
+  @Patch('sla')
+  updateSla(@CurrentUser() user: AuthUser, @Body() dto: Record<string, number>) {
+    return this.operationsService.updateSlaConfig(user, dto);
+  }
+
+  @Get('performance')
+  getPerformance(@CurrentUser() user: AuthUser, @Query('days') days?: string) {
+    return this.operationsService.getTeamPerformance(user, days ? Math.max(7, parseInt(days, 10) || 30) : 30);
   }
 
   @Get('onhold')

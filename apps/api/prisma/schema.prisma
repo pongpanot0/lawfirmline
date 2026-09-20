@@ -347,6 +347,8 @@ model Firm {
   officeAddress      String             @default("Bangkok, Thailand")
   /// Prefix for auto Own Ref, e.g. TSBREF → TSBREF20260001
   ownRefPrefix       String             @default("TSBREF")
+  /// SLA targets, e.g. { "caseUpdateDays": 14, "reviewDays": 3 }
+  slaConfig          Json?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -364,6 +366,8 @@ model Firm {
   emailThreads       EmailThread[]
   mailboxConnections MailboxConnection[]
   playbookReleases   PlaybookRelease[]
+  automationLogs     AutomationLog[]
+  sops               Sop[]
   importBatches      DataImportBatch[]
   expenseClaims      ExpenseClaim[]
   invoices           Invoice[]
@@ -594,6 +598,7 @@ model User {
   assignedEvents             CalendarEvent[]           @relation("EventAssignee")
   deviceTokens               DeviceToken[]
   caseStatusLogs             CaseStatusLog[]
+  sops                       Sop[]
 }
 
 /// A mobile device's Expo push token. One row per device; a token moves to
@@ -618,6 +623,9 @@ model CaseType {
   name        String
   description String?
   fieldSchema Json?
+  /// หมวดเอกสารที่คดีประเภทนี้ต้องมี — `DocumentCategory[]` (ไม่ใช่ข้อความอิสระ
+  /// เพื่อให้เทียบกับ `Document.category` ได้ตรง ๆ) ใช้เช็ค missing documents ต่อคดี
+  requiredDocuments Json?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1113,6 +1121,8 @@ model Document {
   storagePath     String
   mimeType        String
   version         Int      @default(1)
+  /// หมวดเอกสาร — enum ไม่ใช่ free text เพราะต้องกรอง/จัดกลุ่ม/ทำรายงานได้จริง
+  /// สำนักงานกำหนดว่าคดีประเภทไหนต้องมีหมวดใดผ่าน `CaseType.requiredDocuments`
   category        DocumentCategory @default(OTHER)
   /// วันที่บนหน้าเอกสาร (ไม่ใช่วันอัปโหลด) — เอกสารศาลเรียงด้วยวันที่นี้
   documentDate    DateTime?
@@ -2020,6 +2030,37 @@ model PortalRequestMessage {
   submission PortalIntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   @@unique([submissionId, authorId, requestKey])
   @@index([submissionId, createdAt])
+}
+
+model AutomationLog {
+  id         String   @id @default(uuid())
+  firmId     String
+  automation String
+  trigger    Json?
+  result     Json?
+  success    Boolean  @default(true)
+  error      String?
+  createdAt  DateTime @default(now())
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@index([firmId, createdAt])
+}
+
+model Sop {
+  id          String   @id @default(uuid())
+  firmId      String
+  title       String
+  content     String   @db.Text
+  category    String?
+  updatedById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  firm      Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  updatedBy User @relation(fields: [updatedById], references: [id])
+
+  @@index([firmId])
 }
 
 model CaseStatusLog {

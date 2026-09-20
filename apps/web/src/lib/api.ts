@@ -168,9 +168,36 @@ export interface CaseHealthCaseItem {
 }
 
 export interface CaseHealth {
+  sla: SlaConfig;
   byStatus: Array<{ status: string; count: number }>;
   inactiveCases: CaseHealthCaseItem[];
   stuckCases: CaseHealthCaseItem[];
+}
+
+export interface SlaConfig {
+  caseUpdateDays: number;
+  stuckStatusDays: number;
+  reviewDays: number;
+}
+
+export interface TeamPerformanceRow {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  completedCount: number;
+  avgTurnaroundDays: number | null;
+  openCount: number;
+  overdueCount: number;
+  overdueRate: number;
+}
+
+export interface SopItem {
+  id: string;
+  title: string;
+  content: string;
+  category: string | null;
+  updatedAt: string;
+  updatedBy: { firstName: string; lastName: string };
 }
 
 export interface WorkloadCaseItem {
@@ -352,6 +379,7 @@ export interface CaseTypeItem {
   description?: string | null;
   fieldSchema?: Array<{ key: string; label: string; type: string; required?: boolean; options?: string[] }> | null;
   isActive: boolean;
+  requiredDocuments?: string[] | null;
   _count?: { cases: number };
 }
 
@@ -1263,6 +1291,40 @@ export const api = {
 
   getCaseHealth: (token: string) =>
     request<CaseHealth>('/operations/case-health', { token }),
+
+  getSlaConfig: (token: string) => request<SlaConfig>('/operations/sla', { token }),
+
+  updateSlaConfig: (token: string, config: Partial<SlaConfig>) =>
+    request<SlaConfig>('/operations/sla', { method: 'PATCH', token, body: JSON.stringify(config) }),
+
+  getTeamPerformance: (token: string, days = 30) =>
+    request<TeamPerformanceRow[]>(`/operations/performance?days=${days}`, { token }),
+
+  listSops: (token: string, q?: string) =>
+    request<SopItem[]>(`/sops${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),
+
+  createSop: (token: string, data: { title: string; content: string; category?: string }) =>
+    request<SopItem>('/sops', { method: 'POST', token, body: JSON.stringify(data) }),
+
+  updateSop: (token: string, id: string, data: Partial<{ title: string; content: string; category: string }>) =>
+    request<SopItem>(`/sops/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  deleteSop: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/sops/${id}`, { method: 'DELETE', token }),
+
+  getRequiredDocuments: (token: string, caseId: string) =>
+    request<{ required: Array<{ category: string; present: boolean }>; missing: string[] }>(
+      `/cases/${caseId}/documents/required`,
+      { token },
+    ),
+
+  updateDocumentCategory: (token: string, caseId: string, documentId: string, category: string | null) =>
+    request<{ id: string }>(`/cases/${caseId}/documents/${documentId}/metadata`, {
+      method: 'PATCH',
+      token,
+      // ล้างหมวด = กลับไปเป็น OTHER เพราะคอลัมน์เป็น enum ไม่ใช่ nullable text
+      body: JSON.stringify({ category: category ?? 'OTHER' }),
+    }),
 
   getIntakeChecklist: (token: string, intakeId: string) =>
     request<Array<{ label: string; documentId: string | null; confirmedAt: string | null }>>(
@@ -2465,6 +2527,7 @@ export interface DocumentItem {
   filename: string;
   mimeType: string;
   version: number;
+  /** หมวดเอกสาร — ค่าจาก DocumentCategory, ค่าเริ่มต้นคือ OTHER (ไม่ใช่ null) */
   category?: string;
   documentDate?: string | null;
   tags?: string[];
