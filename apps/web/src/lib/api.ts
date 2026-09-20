@@ -497,6 +497,8 @@ export interface TaskItem {
   priority: import('@lawfirm/shared').TaskPriority;
   labels: string[];
   dueDate?: string | null;
+  recurrenceDays?: number | null;
+  blockedById?: string | null;
   createdById?: string;
   assignee?: TaskPerson | null;
   subtaskCount?: number;
@@ -1288,6 +1290,16 @@ export const api = {
 
   getOnHoldTasks: (token: string) =>
     request<OnHoldTaskEntry[]>('/operations/onhold', { token }),
+
+  searchDocuments: (token: string, q?: string, category?: string) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (category) params.set('category', category);
+    return request<Array<DocumentItem & { case: { id: string; title: string; ownRef: string } | null }>>(
+      `/documents/search?${params.toString()}`,
+      { token },
+    );
+  },
 
   getCaseHealth: (token: string) =>
     request<CaseHealth>('/operations/case-health', { token }),

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { IntakeDocumentsController } from './intake-documents.controller';
 import { DocumentsService } from './documents.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 
 describe('IntakeDocumentsController', () => {
   let controller: IntakeDocumentsController;

@@ -22,6 +22,8 @@ ALTER TYPE "ActivityType" ADD VALUE 'DOCUMENT';
 
 -- 3. หมวด / วันที่ / tag ของเอกสาร
 CREATE TYPE "DocumentCategory" AS ENUM ('PLEADING', 'EVIDENCE', 'CONTRACT', 'CORRESPONDENCE', 'COURT_ORDER', 'IDENTITY', 'MEDICAL', 'FINANCIAL', 'INTERNAL', 'OTHER');
+-- ops_audit_p1 (20260922010000) added category as TEXT; this migration supersedes it with the enum.
+ALTER TABLE "Document" DROP COLUMN IF EXISTS "category";
 ALTER TABLE "Document" ADD COLUMN "category" "DocumentCategory" NOT NULL DEFAULT 'OTHER';
 ALTER TABLE "Document" ADD COLUMN "documentDate" TIMESTAMP(3);
 ALTER TABLE "Document" ADD COLUMN "tags" TEXT[] DEFAULT ARRAY[]::TEXT[];

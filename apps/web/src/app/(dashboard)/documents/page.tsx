@@ -80,6 +80,22 @@ export default function DocumentsPage() {
     if (preview?.url) URL.revokeObjectURL(preview.url);
   }, [preview]);
 
+  const [docResults, setDocResults] = useState<
+    Array<DocumentItem & { case: { id: string; title: string; ownRef: string } | null }>
+  >([]);
+
+  // ค้นเอกสารข้ามคดีจากช่องเดียวกับที่กรองคดี (debounce 300ms)
+  useEffect(() => {
+    if (!token || search.trim().length < 2) {
+      setDocResults([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      api.searchDocuments(token, search.trim()).then(setDocResults).catch(() => setDocResults([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [token, search]);
+
   const filtered = cases.filter((c) => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -166,6 +182,31 @@ export default function DocumentsPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder={d.documents.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+
+          {docResults.length > 0 && (
+            <Card>
+              <CardContent className="p-0 divide-y divide-border">
+                <p className="px-4 py-2 text-xs font-semibold text-muted-foreground">
+                  เอกสารที่ตรงกับ &ldquo;{search}&rdquo; ({docResults.length})
+                </p>
+                {docResults.map((doc) => (
+                  <Link
+                    key={doc.id}
+                    href={doc.case ? `/cases/${doc.case.id}/documents` : '#'}
+                    className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50"
+                  >
+                    <FileText className="h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{doc.filename}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {doc.case ? `${doc.case.ownRef} · ${doc.case.title}` : '—'} · v{doc.version}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent className="p-0 divide-y divide-border">

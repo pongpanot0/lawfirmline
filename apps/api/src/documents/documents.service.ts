@@ -5,6 +5,7 @@ import * as path from 'path';
 import { ActivityType, AuthUser, DocumentCategory } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { DocumentMetadataDto, DocumentQueryDto } from './dto/document-metadata.dto';
 import { Prisma } from '../generated/prisma';
@@ -15,7 +16,32 @@ export class DocumentsService {
     private prisma: PrismaService,
     private fileStorage: FileStorageService,
     private caseFeed: CaseFeedService,
+    private caseAccess: CaseAccessService,
   ) {}
+
+  /** ค้นเอกสารข้ามทุกคดีที่ user เข้าถึงได้ — ชื่อไฟล์ / หมวด / tag */
+  async search(user: AuthUser, q?: string, category?: string) {
+    return this.prisma.document.findMany({
+      where: {
+        case: this.caseAccess.getCaseFilterForUser(user),
+        ...(category ? { category: category as never } : {}),
+        ...(q
+          ? {
+              OR: [
+                { filename: { contains: q, mode: 'insensitive' as const } },
+                { tags: { has: q } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        case: { select: { id: true, title: true, ownRef: true } },
+        uploadedBy: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+    });
+  }
 
   /** Audit trail for document actions — a law firm must answer "ใครดาวน์โหลด/แก้เอกสารนี้". */
   private async audit(

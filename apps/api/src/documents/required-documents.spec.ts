@@ -3,6 +3,7 @@ import { DocumentCategory } from '@lawfirm/shared';
 import { DocumentsService } from './documents.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 
 /**
@@ -20,6 +21,7 @@ describe('DocumentsService.getRequiredDocuments', () => {
         DocumentsService,
         { provide: PrismaService, useValue: prisma },
         { provide: FileStorageService, useValue: {} },
+        { provide: CaseAccessService, useValue: { getCaseFilterForUser: () => ({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
       ],
     }).compile();
