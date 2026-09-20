@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search, Plus, Menu, ChevronDown, Briefcase, ClipboardList, ListTodo, CalendarDays, Receipt, Users } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Search, Plus, Menu, ChevronDown, Briefcase, ClipboardList, ListTodo, CalendarDays, Receipt, Users, HelpCircle } from 'lucide-react';
 import { AuthUser } from '@lawfirm/shared';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { restartTour } from '@/components/onboarding/use-product-tour';
 
 interface TopNavbarProps {
   user: AuthUser;
@@ -19,6 +20,7 @@ interface TopNavbarProps {
 
 export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: TopNavbarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const d = useDashboardT();
   const canCreateCase = user.firmRole === 'OWNER' || user.role === 'LAWYER' || user.role === 'ADMIN';
   const [open, setOpen] = useState(false);
@@ -117,7 +119,18 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
             </div>
           )}
         </div>
-        <Link href="/settings">
+        {pathname === '/dashboard' && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="ดูคำแนะนำการใช้งานอีกครั้ง"
+            title="ดูคำแนะนำการใช้งานอีกครั้ง"
+            onClick={restartTour}
+          >
+            <HelpCircle className="h-5 w-5 text-muted-foreground" />
+          </Button>
+        )}
+        <Link href="/settings" data-tour="settings-link">
           <Avatar fallback={`${user.firstName[0]}${user.lastName[0]}`} className="cursor-pointer" />
         </Link>
       </div>
