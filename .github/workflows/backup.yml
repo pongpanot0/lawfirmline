@@ -1,0 +1,21 @@
+name: Nightly Backup
+
+on:
+  schedule:
+    - cron: '0 19 * * *' # 02:00 Asia/Bangkok
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Run backup on prod host
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.EC2_APP_DIR }}"
+            bash scripts/backup.sh

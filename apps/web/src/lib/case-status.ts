@@ -1,4 +1,4 @@
-import type { CaseStatus } from '@lawfirm/shared';
+import { CASE_STAGE_ORDER, type CaseStage, type CaseStatus } from '@lawfirm/shared';
 import type { VariantProps } from 'class-variance-authority';
 import { badgeVariants } from '@/components/ui/badge';
 
@@ -14,6 +14,7 @@ const STATUS_VARIANTS: Record<string, BadgeVariant> = {
   COURT_DATE: 'hearing',
   PENDING: 'judgment',
   CLOSED: 'closed',
+  ARCHIVED: 'muted',
 };
 
 export function getCaseStatusDisplay(status: CaseStatus | string, labels: CaseStatusLabels) {
@@ -23,20 +24,30 @@ export function getCaseStatusDisplay(status: CaseStatus | string, labels: CaseSt
   };
 }
 
-/** Ordered case lifecycle stages, used to render the portal's stage-progress track. */
-const STAGE_ORDER = ['OPEN', 'DRAFTING', 'IN_PROGRESS', 'COURT_DATE', 'PENDING', 'CLOSED'];
+/**
+ * ลำดับสถานะงาน ใช้ทำตัวเลือกกรอง — ไม่ใช่ขั้นตอนของคดี
+ * (ขั้นตอนอยู่ที่ `Case.stage` ดู `lib/stage-labels.ts`)
+ */
+const STATUS_ORDER = ['OPEN', 'DRAFTING', 'IN_PROGRESS', 'COURT_DATE', 'PENDING', 'CLOSED', 'ARCHIVED'];
 
-/** 0-based index of a case's status within its lifecycle, for a 5-segment stage track. */
-export function getCaseStageIndex(status: CaseStatus | string): number {
-  const index = STAGE_ORDER.indexOf(status as string);
-  return index === -1 ? 0 : index;
+/**
+ * ตำแหน่งของคดีในกระบวนพิจารณา สำหรับแถบความคืบหน้าใน portal
+ *
+ * ก่อนหน้านี้ใช้ status มาแทน stage ซึ่งตอบผิดคำถาม — คดีที่ `PENDING`
+ * อาจอยู่ขั้นสืบพยานหรือบังคับคดีก็ได้. ตอนนี้อ่านจาก `stage` จริง
+ * และ fallback ไปที่ status เฉพาะข้อมูลเก่าที่ยังไม่มี stage
+ */
+export function getCaseStageIndex(stage: CaseStage | CaseStatus | string): number {
+  const index = CASE_STAGE_ORDER.indexOf(stage as CaseStage);
+  if (index !== -1) return index;
+  return stage === 'CLOSED' || stage === 'ARCHIVED' ? CASE_STAGE_ORDER.length - 1 : 0;
 }
 
-export const CASE_STAGE_COUNT = STAGE_ORDER.length - 1;
+export const CASE_STAGE_COUNT = CASE_STAGE_ORDER.length - 1;
 
 /** Status filter options in lifecycle order, sharing the same labels as the badge. */
 export function caseStatusOptions(labels: CaseStatusLabels): { value: string; label: string }[] {
-  return STAGE_ORDER.map((value) => ({ value, label: labels[value] ?? value }));
+  return STATUS_ORDER.map((value) => ({ value, label: labels[value] ?? value }));
 }
 
 export const ACTIVITY_ICONS = {

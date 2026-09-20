@@ -110,7 +110,7 @@ export default function PortalCaseDetailPage() {
         </Badge>
       </div>
 
-      <StageTrack status={detail.status} className="mb-6" />
+      <StageTrack stage={detail.stage} status={detail.status} className="mb-6" />
 
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_336px]">
         <div className="flex flex-col gap-5">

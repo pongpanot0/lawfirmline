@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 
@@ -27,15 +28,23 @@ export function KpiCard({
   change,
   icon: Icon,
   trend,
+  href,
 }: {
   label: string;
   value: string | number;
   change?: string;
   icon?: LucideIcon;
   trend?: 'up' | 'down' | 'neutral';
+  /** Drill-down target — a metric should open the records behind it. */
+  href?: string;
 }) {
-  return (
-    <div className="min-w-0 rounded-xl border bg-card p-3 shadow-soft sm:p-5">
+  const card = (
+    <div
+      className={cn(
+        'min-w-0 rounded-xl border bg-card p-3 shadow-soft sm:p-5',
+        href && 'transition-colors hover:border-primary/40 hover:bg-primary/5',
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</p>
         {Icon && (
@@ -57,6 +66,7 @@ export function KpiCard({
       )}
     </div>
   );
+  return href ? <Link href={href}>{card}</Link> : card;
 }
 
 export function QuickActionButton({

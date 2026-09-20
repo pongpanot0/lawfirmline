@@ -15,6 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { DocumentsService } from './documents.service';
 import { UpdateDocumentVisibilityDto } from './dto/update-visibility.dto';
+import { DocumentMetadataDto, DocumentQueryDto } from './dto/document-metadata.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -34,8 +35,13 @@ export class DocumentsController {
   ) {}
 
   @Get()
-  findByCase(@Param('caseId') caseId: string) {
-    return this.documentsService.findByCase(caseId);
+  findByCase(@Param('caseId') caseId: string, @Query() query: DocumentQueryDto) {
+    return this.documentsService.findByCase(caseId, query);
+  }
+
+  @Get('category-counts')
+  categoryCounts(@Param('caseId') caseId: string) {
+    return this.documentsService.categoryCounts(caseId);
   }
 
   @Post()
@@ -46,8 +52,26 @@ export class DocumentsController {
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body() meta: DocumentMetadataDto,
   ) {
-    return this.documentsService.upload(user, caseId, file);
+    return this.documentsService.upload(user, caseId, file, meta);
+  }
+
+  @Get('required')
+  getRequiredDocuments(@Param('caseId') caseId: string) {
+    return this.documentsService.getRequiredDocuments(caseId);
+  }
+
+  @Patch(':documentId/metadata')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  updateMetadata(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('documentId') documentId: string,
+    @Body() dto: DocumentMetadataDto,
+  ) {
+    return this.documentsService.updateMetadata(user, caseId, documentId, dto);
   }
 
   @Post(':documentId/versions')
@@ -68,21 +92,24 @@ export class DocumentsController {
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   updateVisibility(
+    @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @Param('documentId') documentId: string,
     @Body() dto: UpdateDocumentVisibilityDto,
   ) {
-    return this.documentsService.updateVisibility(caseId, documentId, dto.visibleToClient);
+    return this.documentsService.updateVisibility(user, caseId, documentId, dto.visibleToClient);
   }
 
   @Get(':documentId/download')
   async download(
+    @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @Param('documentId') documentId: string,
     @Query('version') version: string,
     @Res() res: Response,
   ) {
     const fileInfo = await this.documentsService.getFilePath(
+      user,
       caseId,
       documentId,
       version ? parseInt(version, 10) : undefined,

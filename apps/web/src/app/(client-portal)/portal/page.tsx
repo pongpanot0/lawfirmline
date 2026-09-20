@@ -156,7 +156,7 @@ export default function PortalDashboardPage() {
                         {status.label}
                       </Badge>
                     </div>
-                    <StageTrack status={c.status} className="mb-3" />
+                    <StageTrack stage={c.stage} status={c.status} className="mb-3" />
                     <div className="flex items-center justify-between text-[12.5px] text-muted-foreground">
                       {c.nextHearing ? (
                         <span className="font-semibold text-warning">

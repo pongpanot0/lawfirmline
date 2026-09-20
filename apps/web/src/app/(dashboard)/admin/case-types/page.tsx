@@ -12,13 +12,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/misc';
+import { DocumentCategory } from '@lawfirm/shared';
+import { documentCategoryLabel } from '@/lib/stage-labels';
 
 export default function CaseTypesPage() {
   const d = useDashboardT();
   const { token, user } = useAuth();
   const [types, setTypes] = useState<CaseTypeItem[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '' });
+  // เก็บเป็นค่า DocumentCategory ไม่ใช่ข้อความอิสระ — ต้องเทียบกับหมวดของเอกสารได้ตรง ๆ
+  const [form, setForm] = useState({ name: '', description: '', requiredDocs: [] as string[] });
 
   const load = () => {
     if (!token) return;
@@ -36,8 +39,12 @@ export default function CaseTypesPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
-    await api.createCaseType(token, form);
-    setForm({ name: '', description: '' });
+    await api.createCaseType(token, {
+      name: form.name,
+      description: form.description,
+      requiredDocuments: form.requiredDocs,
+    });
+    setForm({ name: '', description: '', requiredDocs: [] });
     setShowForm(false);
     load();
   };
@@ -78,6 +85,35 @@ export default function CaseTypesPage() {
                   className="mt-1"
                 />
               </div>
+              <div className="flex-1 basis-full">
+                <label className="text-sm font-medium">หมวดเอกสารที่คดีประเภทนี้ต้องมี</label>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {Object.values(DocumentCategory).map((value) => {
+                    const picked = form.requiredDocs.includes(value);
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            requiredDocs: picked
+                              ? form.requiredDocs.filter((item) => item !== value)
+                              : [...form.requiredDocs, value],
+                          })
+                        }
+                        className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+                          picked
+                            ? 'bg-primary text-primary-foreground'
+                            : 'border bg-card text-muted-foreground hover:border-primary/40'
+                        }`}
+                      >
+                        {documentCategoryLabel(value, 'th')}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <Button type="submit" className="w-full sm:w-auto">{d.common.save}</Button>
             </form>
           </CardContent>
@@ -97,6 +133,12 @@ export default function CaseTypesPage() {
                 <span className="shrink-0 text-xs text-muted-foreground">{fmt(d.admin.caseCount, { count: t._count?.cases ?? 0 })}</span>
               </div>
               {t.description && <p className="mt-1 text-sm text-muted-foreground">{t.description}</p>}
+              {(t.requiredDocuments?.length ?? 0) > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  เอกสารที่ต้องมี:{' '}
+                  {t.requiredDocuments!.map((c) => documentCategoryLabel(c, 'th')).join(', ')}
+                </p>
+              )}
               {!t.isActive && <p className="mt-2 text-xs text-destructive">{d.admin.inactive}</p>}
             </CardContent>
           </Card>

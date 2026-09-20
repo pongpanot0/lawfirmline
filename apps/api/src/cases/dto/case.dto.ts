@@ -24,6 +24,7 @@ import {
   FEE_MIN,
   ParticipantRole,
   ParticipantSide,
+  CaseStage,
 } from '@lawfirm/shared';
 
 /** Trim incoming strings so stray whitespace never breaks a format check. */
@@ -193,6 +194,10 @@ export class UpdateCaseDto {
   status?: CaseStatus;
 
   @IsOptional()
+  @IsEnum(CaseStage)
+  stage?: CaseStage;
+
+  @IsOptional()
   @IsDateString()
   closedAt?: string;
 
@@ -323,6 +328,16 @@ export class UpdateParticipantDto {
 }
 
 export class CaseQueryDto {
+  /** ขั้นตอนในกระบวนพิจารณา — กรองแยกจาก status ได้ */
+  @IsOptional()
+  @IsEnum(CaseStage)
+  stage?: CaseStage;
+
+  /** ค้นจากชื่อคู่กรณี/ผู้เกี่ยวข้องในคดี ไม่ใช่แค่ชื่อลูกความ */
+  @IsOptional()
+  @IsString()
+  party?: string;
+
   /** Show only cases this member works on (lead or buddy). */
   @IsOptional()
   @IsUUID()

@@ -3,15 +3,16 @@ import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { AutomationLogService } from '../common/services/automation-log.service';
 import { addBangkokDays } from '../common/utils/bangkok-time';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface CheckedRow extends ImportRow { row: number; existingClientId: string | null; errors: string[] }
 export interface Ledger { cases: { id: string; updatedAt: string }[]; clients: { id: string; updatedAt: string }[] }
-export interface PlaybookStep { title: string; days: number; instructions: string; kind: 'TASK' | 'DOCUMENT' | 'APPROVAL'; parentIndex?: number }
+export interface PlaybookStep { title: string; days: number; instructions: string; kind: 'TASK' | 'DOCUMENT' | 'APPROVAL'; parentIndex?: number; assigneeRole?: 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT' }
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 @Injectable()
 export class PracticeSetupService {
-  constructor(private prisma: PrismaService, private access: CaseAccessService) {}
+  constructor(private prisma: PrismaService, private access: CaseAccessService, private automationLog: AutomationLogService) {}
   private owner(user: AuthUser) { if (user.firmRole !== 'OWNER') throw new ForbiddenException('เจ้าของสำนักงานเท่านั้น / Firm owner required'); }
   async progress(user: AuthUser) {
     this.owner(user);
@@ -93,13 +94,14 @@ export class PracticeSetupService {
     }, { timeout: 30000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
   async listPlaybooks(user: AuthUser) { return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
-  async publish(user: AuthUser, dto: { name: string; workType: string; steps: PlaybookStep[] }) {
+  async publish(user: AuthUser, dto: { name: string; workType: string; caseTypeId?: string; steps: PlaybookStep[] }) {
     this.owner(user);
     if (!dto.name.trim() || dto.steps.some((s, i) => !s.title.trim() || (s.parentIndex !== undefined && (s.parentIndex < 0 || s.parentIndex >= i)))) throw new BadRequestException('ชื่อและลำดับงานไม่ถูกต้อง / Invalid name or dependency order');
+    if (dto.caseTypeId && !(await this.prisma.caseType.count({ where: { id: dto.caseTypeId, firmId: user.firmId } }))) throw new BadRequestException('ไม่พบประเภทคดีนี้ในสำนักงาน / Case type not found in this firm');
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
       const previous = await db.playbookRelease.findFirst({ where: { firmId: user.firmId, name: dto.name.trim() }, orderBy: { version: 'desc' } });
-      const release = await db.playbookRelease.create({ data: { firmId: user.firmId, name: dto.name.trim(), workType: dto.workType, steps: json(dto.steps), version: (previous?.version ?? 0) + 1, publishedById: user.id } });
+      const release = await db.playbookRelease.create({ data: { firmId: user.firmId, name: dto.name.trim(), workType: dto.workType, caseTypeId: dto.caseTypeId ?? null, steps: json(dto.steps), version: (previous?.version ?? 0) + 1, publishedById: user.id } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PLAYBOOK_PUBLISHED', metadata: { releaseId: release.id, version: release.version } } }); return release;
     });
   }
@@ -116,10 +118,25 @@ export class PracticeSetupService {
       await db.$queryRaw`SELECT "id" FROM "Case" WHERE "id" = ${caseId} FOR UPDATE`;
       const preview = await this.previewPlaybook(user, caseId, releaseId, startDate, db);
       if (preview.existing) return preview.existing;
+      // Role-based default assignee: prefer someone already on the case team
+      // with the step's firm role, else any firm member with it, else the lead.
+      const [team, firmMembers] = await Promise.all([
+        db.caseAssignment.findMany({ where: { caseId }, select: { userId: true } }),
+        db.firmMember.findMany({ where: { firmId: user.firmId }, select: { userId: true, role: true } }),
+      ]);
+      const teamIds = new Set([preview.ownerId, ...team.map(t => t.userId)]);
+      const resolveAssignee = (role?: string) => {
+        if (!role) return preview.ownerId;
+        const withRole = firmMembers.filter(m => m.role === role);
+        return withRole.find(m => teamIds.has(m.userId))?.userId ?? withRole[0]?.userId ?? preview.ownerId;
+      };
       const taskIds: string[] = [];
-      for (const step of preview.steps) { const task = await db.task.create({ data: { caseId, title: step.title.trim(), description: step.instructions, dueDate: new Date(step.dueAt), assigneeId: preview.ownerId, createdById: user.id, labels: [`playbook:${preview.release.workType}`, `step:${step.kind}`], parentId: step.parentIndex !== undefined ? taskIds[step.parentIndex] : null } }); taskIds.push(task.id); }
+      for (const step of preview.steps) { const task = await db.task.create({ data: { caseId, title: step.title.trim(), description: step.instructions, dueDate: new Date(step.dueAt), assigneeId: resolveAssignee(step.assigneeRole), createdById: user.id, labels: [`playbook:${preview.release.workType}`, `step:${step.kind}`], parentId: step.parentIndex !== undefined ? taskIds[step.parentIndex] : null } }); taskIds.push(task.id); }
       const applied = await db.appliedPlaybook.create({ data: { caseId, releaseId, startDate: new Date(startDate), taskIds, appliedById: user.id } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PLAYBOOK_APPLIED', metadata: { caseId, releaseId, taskIds } } }); return applied;
+    }).then(async (applied) => {
+      await this.automationLog.record({ firmId: user.firmId, automation: 'playbook-apply', trigger: { caseId, releaseId, by: user.id }, result: { taskIds: applied.taskIds } });
+      return applied;
     });
   }
 }

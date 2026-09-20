@@ -4,6 +4,7 @@ import { DevicesController } from './devices.controller';
 import { PushService } from './push.service';
 import { ReminderScheduler } from './reminder.scheduler';
 import { DailyDigestScheduler } from './daily-digest.scheduler';
+import { EscalationScheduler } from './escalation.scheduler';
 import { LineMessagingService } from './line-messaging.service';
 import { AssignmentNotifierService } from './assignment-notifier.service';
 import { LineLinkService } from './line-link.service';
@@ -47,6 +48,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     PushService,
     ReminderScheduler,
     DailyDigestScheduler,
+    EscalationScheduler,
     LineMessagingService,
     AssignmentNotifierService,
     LineLinkService,

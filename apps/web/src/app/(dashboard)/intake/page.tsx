@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDate } from '@/lib/utils';
+import { intakeStageLabel, intakeStageOptions } from '@/lib/stage-labels';
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -18,7 +19,11 @@ const STATUS_LABELS: Record<string, string> = {
   REJECTED: 'ปฏิเสธ',
   CONVERTED: 'แปลงเป็นคดีแล้ว',
   CONSULTED: 'ให้คำปรึกษาเรียบร้อยแล้ว',
+  NO_RESPONSE: 'ไม่ตอบกลับ',
 };
+
+/** ค้างขั้นเดิมนานกว่านี้ขึ้นสีเตือน — ตัวเลขเดียวกับในหน้ารายละเอียด */
+const STALE_DAYS = 7;
 
 const STATUS_VARIANT: Record<string, string> = {
   RECEIVED: 'bg-gray-100 text-gray-700',
@@ -27,6 +32,7 @@ const STATUS_VARIANT: Record<string, string> = {
   REJECTED: 'bg-red-100 text-red-700',
   CONVERTED: 'bg-purple-100 text-purple-700',
   CONSULTED: 'bg-teal-100 text-teal-700',
+  NO_RESPONSE: 'bg-amber-100 text-amber-700',
 };
 
 export default function IntakePage() {
@@ -38,6 +44,8 @@ export default function IntakePage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const [statusFilter, setStatusFilter] = useState('');
+  const [stageFilter, setStageFilter] = useState('');
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [personFilter, setPersonFilter] = useState('');
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
 
@@ -46,11 +54,15 @@ export default function IntakePage() {
     setLoading(true);
     setLoadError(false);
     api
-      .getIntakes(token, statusFilter ? { status: statusFilter } : undefined)
+      .getIntakes(token, {
+        status: statusFilter || undefined,
+        stage: stageFilter || undefined,
+        followUpOverdue: overdueOnly || undefined,
+      })
       .then((res) => setIntakes(res.items))
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [token, statusFilter, reloadKey]);
+  }, [token, statusFilter, stageFilter, overdueOnly, reloadKey]);
 
   useEffect(() => {
     if (!token) return;
@@ -90,6 +102,25 @@ export default function IntakePage() {
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
+          <select
+            aria-label="กรองตามขั้นตอน"
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            <option value="">ทุกขั้นตอน</option>
+            {intakeStageOptions('th').map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={overdueOnly}
+              onChange={(e) => setOverdueOnly(e.target.checked)}
+            />
+            เฉพาะที่ต้องติดตาม
+          </label>
           <select
             aria-label="กรองตามผู้รับผิดชอบ"
             value={personFilter}
@@ -132,6 +163,28 @@ export default function IntakePage() {
                     <p className="text-xs text-muted-foreground truncate">
                       {item.referralName || item.clientName || item.client?.name || '—'} · รับเมื่อ {formatDate(item.receivedDate)}
                     </p>
+                  </div>
+                  {/* ค้างอยู่ตรงไหน กี่วัน — คำถามแรกของหน้านี้ ไม่ใช่สถานะ */}
+                  <div className="shrink-0 text-right">
+                    {item.stage && (
+                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                        {intakeStageLabel(item.stage, 'th')}
+                      </span>
+                    )}
+                    {typeof item.daysInStage === 'number' && (
+                      <p
+                        className={`mt-0.5 text-xs ${
+                          item.daysInStage >= STALE_DAYS && item.stage !== 'CLOSED'
+                            ? 'font-medium text-destructive'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        ค้าง {item.daysInStage} วัน
+                        {typeof item.followUpOverdueDays === 'number' && item.followUpOverdueDays > 0
+                          ? ` · เลยนัด ${item.followUpOverdueDays} วัน`
+                          : ''}
+                      </p>
+                    )}
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_VARIANT[item.status] ?? 'bg-gray-100 text-gray-700'}`}

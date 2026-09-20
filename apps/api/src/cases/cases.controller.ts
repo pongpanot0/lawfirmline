@@ -80,6 +80,12 @@ export class CasesController {
     return this.casesService.updateAssignments(user, id, dto);
   }
 
+  @Get(':id/outstanding')
+  @UseGuards(CaseAccessGuard)
+  outstanding(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.casesService.outstanding(user, id);
+  }
+
   @Post(':id/close')
   @UseGuards(CaseAccessGuard)
   @Roles(Role.ADMIN, Role.LAWYER)
@@ -96,6 +102,13 @@ export class CasesController {
   @Roles(Role.ADMIN, Role.LAWYER)
   reopen(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.casesService.reopen(user, id);
+  }
+
+  @Post(':id/archive')
+  @UseGuards(CaseAccessGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  archive(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.casesService.archive(user, id);
   }
 
   @Delete(':id')

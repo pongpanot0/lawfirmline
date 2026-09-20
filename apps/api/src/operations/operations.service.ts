@@ -43,6 +43,144 @@ export class OperationsService {
     });
   }
 
+  /** SLA / operational targets — firm-configurable, sensible defaults. */
+  async getSlaConfig(user: AuthUser) {
+    const firm = await this.prisma.firm.findUniqueOrThrow({
+      where: { id: user.firmId },
+      select: { slaConfig: true },
+    });
+    return {
+      caseUpdateDays: 14,
+      stuckStatusDays: 30,
+      reviewDays: 3,
+      ...((firm.slaConfig as Record<string, number> | null) ?? {}),
+    };
+  }
+
+  async updateSlaConfig(user: AuthUser, dto: Record<string, number>) {
+    await this.prisma.firm.update({
+      where: { id: user.firmId },
+      data: { slaConfig: dto },
+    });
+    return this.getSlaConfig(user);
+  }
+
+  /**
+   * Team performance (operational metrics, ไม่ใช่ leaderboard): completed,
+   * average turnaround, overdue rate per member over the window.
+   * ponytail: turnaround ≈ updatedAt - createdAt of DONE tasks (no completedAt column).
+   */
+  async getTeamPerformance(user: AuthUser, days = 30) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const firmScope = {
+      OR: [
+        { case: { firmId: user.firmId } },
+        { caseId: null, createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
+      ],
+    };
+    const [members, doneTasks, openTasks] = await Promise.all([
+      this.getFirmMembers(user.firmId),
+      this.prisma.task.findMany({
+        where: { ...firmScope, status: TaskStatus.DONE, updatedAt: { gte: since } },
+        select: { assigneeId: true, createdAt: true, updatedAt: true },
+      }),
+      this.prisma.task.findMany({
+        where: { ...firmScope, status: { not: TaskStatus.DONE } },
+        select: { assigneeId: true, dueDate: true },
+      }),
+    ]);
+
+    return members.map((m) => {
+      const done = doneTasks.filter((t) => t.assigneeId === m.id);
+      const open = openTasks.filter((t) => t.assigneeId === m.id);
+      const overdue = open.filter((t) => t.dueDate && t.dueDate < now);
+      const avgTurnaroundDays = done.length
+        ? Math.round(
+            (done.reduce((sum, t) => sum + (t.updatedAt.getTime() - t.createdAt.getTime()), 0) /
+              done.length /
+              (24 * 60 * 60 * 1000)) *
+              10,
+          ) / 10
+        : null;
+      return {
+        userId: m.id,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        completedCount: done.length,
+        avgTurnaroundDays,
+        openCount: open.length,
+        overdueCount: overdue.length,
+        overdueRate: open.length ? Math.round((overdue.length / open.length) * 100) : 0,
+      };
+    });
+  }
+
+  /**
+   * Case health for the partner dashboard: pipeline by status, cases with no
+   * activity beyond the firm's SLA, and cases stuck in the same status.
+   */
+  async getCaseHealth(user: AuthUser) {
+    const now = new Date();
+    const sla = await this.getSlaConfig(user);
+    const inactiveSince = new Date(now.getTime() - sla.caseUpdateDays * 24 * 60 * 60 * 1000);
+    const stuckSince = new Date(now.getTime() - sla.stuckStatusDays * 24 * 60 * 60 * 1000);
+    const activeWhere = { firmId: user.firmId, status: { not: CaseStatus.CLOSED } };
+
+    const [byStatus, inactiveCases, stuckCandidates] = await Promise.all([
+      this.prisma.case.groupBy({
+        by: ['status'],
+        where: { firmId: user.firmId },
+        _count: { _all: true },
+      }),
+      this.prisma.case.findMany({
+        where: {
+          ...activeWhere,
+          openedAt: { lt: inactiveSince },
+          activities: { none: { activityAt: { gte: inactiveSince } } },
+          tasks: { none: { updatedAt: { gte: inactiveSince } } },
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          openedAt: true,
+          leadLawyer: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { openedAt: 'asc' },
+        take: 50,
+      }),
+      this.prisma.case.findMany({
+        where: {
+          ...activeWhere,
+          openedAt: { lt: stuckSince },
+          statusLogs: { none: { createdAt: { gte: stuckSince } } },
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          openedAt: true,
+          statusLogs: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } },
+          leadLawyer: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { openedAt: 'asc' },
+        take: 50,
+      }),
+    ]);
+
+    return {
+      sla,
+      byStatus: byStatus.map((row) => ({ status: row.status, count: row._count._all })),
+      inactiveCases,
+      stuckCases: stuckCandidates.map((c) => ({
+        ...c,
+        inStatusSince: c.statusLogs[0]?.createdAt ?? c.openedAt,
+        statusLogs: undefined,
+      })),
+    };
+  }
+
   private nearestDeadlineDays(
     now: Date,
     events: { startAt: Date }[],
@@ -124,10 +262,29 @@ export class OperationsService {
         nearDeadlineCount,
         weightedScore: Math.round(weightedScore * 10) / 10,
         claimedTotal,
+        capacity: this.capacityBand(weightedScore, nearDeadlineCount),
       };
     });
 
     return summary.sort((a, b) => a.weightedScore - b.weightedScore);
+  }
+
+  /**
+   * Capacity signal — heuristic banding on the weighted score, bumped one
+   * level when many deadlines land at once.
+   * ponytail: fixed thresholds; per-firm config when a second firm disagrees.
+   */
+  private capacityBand(
+    weightedScore: number,
+    nearDeadlineCount: number,
+  ): 'LOW' | 'NORMAL' | 'HIGH' | 'OVERLOADED' {
+    const bands = ['LOW', 'NORMAL', 'HIGH', 'OVERLOADED'] as const;
+    let idx = 0;
+    if (weightedScore >= 4) idx = 1;
+    if (weightedScore >= 8) idx = 2;
+    if (weightedScore >= 14) idx = 3;
+    if (nearDeadlineCount >= 3) idx = Math.min(idx + 1, 3);
+    return bands[idx];
   }
 
   async getWorkloadDetail(user: AuthUser, targetUserId: string, query: WorkloadQueryDto) {
@@ -153,10 +310,9 @@ export class OperationsService {
           status: c.status,
           role: (c.leadLawyerId === targetUserId ? 'LEAD' : 'BUDDY') as 'LEAD' | 'BUDDY',
           nearestDeadlineDays: days,
+          nearDeadline: days !== null && days <= nearDeadlineDays,
         };
       });
-
-    void nearDeadlineDays; // reserved for a future "highlight near-deadline rows" UI need
 
     return {
       userId: member.id,
@@ -244,6 +400,7 @@ export class OperationsService {
         ? `${hold.task.assignee.firstName} ${hold.task.assignee.lastName}`
         : null,
       reason: hold.reason,
+      category: hold.category,
       startedAt: hold.startedAt,
       followerName: hold.follower
         ? `${hold.follower.firstName} ${hold.follower.lastName}`

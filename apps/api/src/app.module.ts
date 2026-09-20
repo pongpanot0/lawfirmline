@@ -33,11 +33,13 @@ import { LegalModule } from './legal/legal.module';
 import { TemplatesModule } from './templates/templates.module';
 import { HealthModule } from './health/health.module';
 import { OperationsModule } from './operations/operations.module';
+import { SopsModule } from './sops/sops.module';
 import { ClosingEmailModule } from './closing-email/closing-email.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { DeadlinesModule } from './deadlines/deadlines.module';
 import { HolidaysModule } from './holidays/holidays.module';
 import { EmailIntakeModule } from './email-intake/email-intake.module';
+import { ConflictCheckModule } from './conflict-check/conflict-check.module';
 import { DocumentReviewModule } from './document-review/document-review.module';
 import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
 
@@ -74,6 +76,7 @@ import { OutlookIntegrationModule } from './outlook-integration/outlook-integrat
     LegalModule,
     TemplatesModule,
     OperationsModule,
+    SopsModule,
     PracticeSetupModule,
     ClosingEmailModule,
     AgendaModule,
@@ -82,6 +85,7 @@ import { OutlookIntegrationModule } from './outlook-integration/outlook-integrat
     EmailIntakeModule,
     DocumentReviewModule,
     OutlookIntegrationModule,
+    ConflictCheckModule,
   ],
   providers: [
     {

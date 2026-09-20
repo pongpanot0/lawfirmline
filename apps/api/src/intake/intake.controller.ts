@@ -23,6 +23,11 @@ import {
   DraftNoticeDto,
   ConvertToCaseDto,
   IntakeQueryDto,
+  CreateFollowUpDto,
+  NoResponseDto,
+  UpdateIntakeStageDto,
+  BulkCreateDocumentRequestsDto,
+  UpdateDocumentRequestDto,
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -44,6 +49,20 @@ export class IntakeController {
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: IntakeQueryDto) {
     return this.intakeService.findAll(user, query);
+  }
+
+  @Get(':id/checklist')
+  getChecklist(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.intakeService.getChecklist(user, id);
+  }
+
+  @Patch(':id/checklist')
+  setChecklistItem(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: { label: string; documentId: string | null },
+  ) {
+    return this.intakeService.setChecklistItem(user, id, dto.label, dto.documentId ?? null);
   }
 
   @Get('portal-submissions')
@@ -86,6 +105,71 @@ export class IntakeController {
     @Body() dto: AssessIntakeDto,
   ) {
     return this.intakeService.assess(user, id, dto);
+  }
+
+  @Patch(':id/stage')
+  updateStage(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateIntakeStageDto,
+  ) {
+    return this.intakeService.updateStage(user, id, dto);
+  }
+
+  @Get(':id/document-requests')
+  listDocumentRequests(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.intakeService.missingDocuments(user, id);
+  }
+
+  @Post(':id/document-requests')
+  addDocumentRequests(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: BulkCreateDocumentRequestsDto,
+  ) {
+    return this.intakeService.addDocumentRequests(user, id, dto);
+  }
+
+  @Patch(':id/document-requests/:requestId')
+  updateDocumentRequest(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('requestId') requestId: string,
+    @Body() dto: UpdateDocumentRequestDto,
+  ) {
+    return this.intakeService.updateDocumentRequest(user, id, requestId, dto);
+  }
+
+  @Delete(':id/document-requests/:requestId')
+  removeDocumentRequest(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.intakeService.removeDocumentRequest(user, id, requestId);
+  }
+
+  @Post(':id/follow-ups')
+  addFollowUp(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: CreateFollowUpDto,
+  ) {
+    return this.intakeService.addFollowUp(user, id, dto);
+  }
+
+  @Get(':id/follow-ups')
+  listFollowUps(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.intakeService.listFollowUps(user, id);
+  }
+
+  @Post(':id/no-response')
+  markNoResponse(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: NoResponseDto,
+  ) {
+    return this.intakeService.markNoResponse(user, id, dto);
   }
 
   @Post(':id/decide')

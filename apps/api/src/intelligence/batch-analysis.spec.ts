@@ -133,6 +133,7 @@ describe('selected document batch analysis', () => {
       }),
     ).rejects.toThrow(NotFoundException);
     expect(getFilePath).toHaveBeenCalledWith(
+      { id: 'user' },
       'allowed-case',
       'foreign-document',
     );

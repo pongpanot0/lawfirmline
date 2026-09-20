@@ -8,6 +8,8 @@ import { TasksService } from '../tasks/tasks.service';
 import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 describe('IntakeService assignment notifications', () => {
   let service: IntakeService;
@@ -32,6 +34,8 @@ describe('IntakeService assignment notifications', () => {
         IntakeService,
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
         {
           provide: CaseAccessService,
           useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) },

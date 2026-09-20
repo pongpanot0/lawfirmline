@@ -87,6 +87,8 @@ export interface PortalCaseSummary {
   ownRef: string;
   title: string;
   status: string;
+  /** ขั้นตอนในกระบวนพิจารณา — ใช้วาดแถบความคืบหน้า */
+  stage?: string;
   courtName: string | null;
   openedAt: string;
   nextHearing: PortalHearing | null;

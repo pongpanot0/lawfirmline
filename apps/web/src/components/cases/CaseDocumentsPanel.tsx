@@ -15,6 +15,10 @@ import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { documentCategoryLabel } from '@/lib/stage-labels';
+import { DocumentCategory } from '@lawfirm/shared';
+
+const DOCUMENT_CATEGORY_VALUES = Object.values(DocumentCategory);
 
 export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const d = useDashboardT();
@@ -29,6 +33,9 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [rendered, setRendered] = useState<{ name: string; content: string } | null>(null);
   const [error, setError] = useState('');
+  /** หมวดที่จะติดให้ไฟล์ถัดไปที่อัปโหลด และหมวดที่กำลังกรองอยู่ */
+  const [uploadCategory, setUploadCategory] = useState('OTHER');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const dropRef = useRef<DocumentDropZoneHandle>(null);
   const [suggestionsKey, setSuggestionsKey] = useState(0);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
@@ -38,6 +45,15 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   // Publishing reaches the client portal, so the recipients are reviewed first
   // rather than inferred from whoever happens to hold access.
   const [publishTarget, setPublishTarget] = useState<DocumentItem | null>(null);
+  const [requiredDocs, setRequiredDocs] = useState<{
+    required: Array<{ category: string; present: boolean }>;
+    missing: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!token || !id) return;
+    api.getRequiredDocuments(token, id).then(setRequiredDocs).catch(() => {});
+  }, [token, id, documents.length]);
 
   const loadPublications = (documentId: string) => {
     if (!token || !id) return;
@@ -50,7 +66,9 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const load = () => {
     if (!token || !id) return;
     Promise.all([
-      api.getDocuments(token, id) as Promise<DocumentItem[]>,
+      api.getDocuments(token, id, {
+        category: categoryFilter || undefined,
+      }) as Promise<DocumentItem[]>,
       api.getDocumentTemplates(token),
     ])
       .then(([docs, tmpls]) => {
@@ -62,7 +80,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [token, id]);
+  useEffect(() => { load(); }, [token, id, categoryFilter]);
 
 
   useEffect(() => () => {
@@ -139,7 +157,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
     setUploading(true);
     setError('');
     try {
-      await api.uploadDocument(token, id, file);
+      await api.uploadDocument(token, id, file, { category: uploadCategory });
       load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : d.caseDocuments.uploadFailed);
@@ -190,9 +208,68 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
 
   return (
     <div>
-      <h2 className="mb-6 text-xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h2>
+      <h2 className="mb-4 text-xl font-bold tracking-tight text-foreground">{d.caseDocuments.title}</h2>
+
+      {/* กรองตามหมวด — คดีใหญ่มีเอกสารหลายร้อยชิ้น ชื่อไฟล์ล้วนหาไม่เจอ */}
+      <div className="mb-6 flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => setCategoryFilter('')}
+          className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+            categoryFilter === '' ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground'
+          }`}
+        >
+          ทั้งหมด
+        </button>
+        {DOCUMENT_CATEGORY_VALUES.map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setCategoryFilter(value)}
+            className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+              categoryFilter === value
+                ? 'bg-primary text-primary-foreground'
+                : 'border bg-card text-muted-foreground hover:border-primary/40'
+            }`}
+          >
+            {documentCategoryLabel(value, 'th')}
+          </button>
+        ))}
+      </div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      {requiredDocs && requiredDocs.required.length > 0 && (
+        <div
+          className={`mb-6 rounded-xl border p-4 ${
+            requiredDocs.missing.length
+              ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
+              : 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30'
+          }`}
+        >
+          <p className="mb-2 text-sm font-semibold">
+            เอกสารที่ต้องมีตามประเภทคดี{' '}
+            {requiredDocs.missing.length
+              ? `— ขาดอีก ${requiredDocs.missing.length} รายการ`
+              : '— ครบแล้ว ✓'}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {requiredDocs.required.map((item) => (
+              <span
+                key={item.category}
+                className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                  item.present
+                    ? 'border-emerald-300 text-emerald-700 dark:text-emerald-300'
+                    : 'border-amber-400 font-medium text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {item.present ? '✓ ' : '✗ '}
+                {documentCategoryLabel(item.category, 'th')}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <DateSuggestionsPanel
         caseId={id}
@@ -223,6 +300,19 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
 
       <div className="rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{fmt(d.caseDocuments.filesCount, { count: documents.length })}</h2>
+        {/* หมวดติดตอนอัปโหลด — ถามทีหลังคือไม่มีใครกลับมาตอบ */}
+        <label className="mb-3 block text-sm">
+          <span className="mb-1 block font-medium text-muted-foreground">หมวดของไฟล์ที่จะอัปโหลด</span>
+          <select
+            value={uploadCategory}
+            onChange={(e) => setUploadCategory(e.target.value)}
+            className="h-9 w-full max-w-xs rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            {DOCUMENT_CATEGORY_VALUES.map((value) => (
+              <option key={value} value={value}>{documentCategoryLabel(value, 'th')}</option>
+            ))}
+          </select>
+        </label>
         <div className="mb-4">
           <DocumentDropZone
             ref={dropRef}
@@ -251,6 +341,24 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
                 </p>
               </button>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <select
+                  value={doc.category ?? 'OTHER'}
+                  onChange={async (e) => {
+                    if (!token) return;
+                    await api
+                      .updateDocumentCategory(token, id, doc.id, e.target.value || null)
+                      .catch(console.error);
+                    load();
+                  }}
+                  className="rounded-lg border bg-background px-2 py-1 text-xs"
+                  title="ประเภทเอกสาร"
+                >
+                  {DOCUMENT_CATEGORY_VALUES.map((value) => (
+                    <option key={value} value={value}>
+                      {documentCategoryLabel(value, 'th')}
+                    </option>
+                  ))}
+                </select>
                 <span className="hidden text-xs text-muted-foreground sm:inline">{doc.mimeType}</span>
                 <Link
                   href={`/cases/${id}/documents/${doc.id}/review`}

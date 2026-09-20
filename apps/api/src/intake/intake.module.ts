@@ -8,9 +8,10 @@ import { IntakePrecedentAnalysisService } from './intake-precedent-analysis.serv
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { DocumentsModule } from '../documents/documents.module';
+import { ConflictCheckModule } from '../conflict-check/conflict-check.module';
 
 @Module({
-  imports: [TasksModule, IntelligenceModule, DocumentsModule, forwardRef(() => NotificationsModule)],
+  imports: [TasksModule, IntelligenceModule, DocumentsModule, ConflictCheckModule, forwardRef(() => NotificationsModule)],
   controllers: [IntakeController],
   providers: [
     IntakeService,

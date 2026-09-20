@@ -155,6 +155,49 @@ export interface WorkloadSummary {
   /** Case count weighted by claimed amount (ทุนทรัพย์); lead 1x, buddy 0.5x. */
   weightedScore: number;
   claimedTotal: number;
+  capacity: 'LOW' | 'NORMAL' | 'HIGH' | 'OVERLOADED';
+}
+
+export interface CaseHealthCaseItem {
+  id: string;
+  title: string;
+  status: string;
+  openedAt: string;
+  inStatusSince?: string;
+  leadLawyer: { id: string; firstName: string; lastName: string };
+}
+
+export interface CaseHealth {
+  sla: SlaConfig;
+  byStatus: Array<{ status: string; count: number }>;
+  inactiveCases: CaseHealthCaseItem[];
+  stuckCases: CaseHealthCaseItem[];
+}
+
+export interface SlaConfig {
+  caseUpdateDays: number;
+  stuckStatusDays: number;
+  reviewDays: number;
+}
+
+export interface TeamPerformanceRow {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  completedCount: number;
+  avgTurnaroundDays: number | null;
+  openCount: number;
+  overdueCount: number;
+  overdueRate: number;
+}
+
+export interface SopItem {
+  id: string;
+  title: string;
+  content: string;
+  category: string | null;
+  updatedAt: string;
+  updatedBy: { firstName: string; lastName: string };
 }
 
 export interface WorkloadCaseItem {
@@ -187,6 +230,7 @@ export interface OnHoldTaskEntry {
   caseOwnRef: string | null;
   assigneeName: string | null;
   reason: string;
+  category: 'WAITING_CLIENT' | 'WAITING_COURT' | 'WAITING_DOCUMENT' | 'WAITING_INTERNAL_REVIEW' | 'WAITING_EXTERNAL' | 'OTHER';
   startedAt: string;
   followerName: string | null;
   lastFollowUpAt: string | null;
@@ -224,6 +268,10 @@ export interface CaseItem {
   folderId?: string;
   title: string;
   status: import('@lawfirm/shared').CaseStatus;
+  /** ขั้นตอนในกระบวนพิจารณา — แยกจาก status */
+  stage?: import('@lawfirm/shared').CaseStage;
+  stageChangedAt?: string;
+  outcome?: import('@lawfirm/shared').CaseOutcome;
   clientId?: string | null;
   clientName?: string | null;
   courtName?: string | null;
@@ -331,6 +379,7 @@ export interface CaseTypeItem {
   description?: string | null;
   fieldSchema?: Array<{ key: string; label: string; type: string; required?: boolean; options?: string[] }> | null;
   isActive: boolean;
+  requiredDocuments?: string[] | null;
   _count?: { cases: number };
 }
 
@@ -661,6 +710,21 @@ export interface IntakeItem {
   assignedUserIds?: string[];
   deadlineDate?: string | null;
   status: string;
+  /** ขั้นตอนของงานรับเรื่อง — แยกจาก status ที่บอกผลลัพธ์ */
+  stage?: string;
+  stageChangedAt?: string;
+  statusChangedAt?: string;
+  nextFollowUpAt?: string | null;
+  followUpOwnerId?: string | null;
+  lastFollowUpAt?: string | null;
+  /** เติมจากฝั่ง API ในรายการ intake */
+  ageDays?: number;
+  daysInStatus?: number;
+  daysInStage?: number;
+  followUpOverdueDays?: number | null;
+  documentRequests?: IntakeDocumentRequestItem[];
+  followUps?: IntakeFollowUpItem[];
+  conflictChecks?: ConflictCheckRecord[];
   decision: string;
   preLitigationType: string;
   preLitigationStatus: string;
@@ -806,6 +870,73 @@ export interface IntakePrecedentAnalysisItem {
   creditsCost: number;
   createdAt: string;
   errorMessage?: string | null;
+}
+
+export interface ConflictMatchItem {
+  kind: 'CLIENT' | 'CLIENT_CONTACT' | 'CASE_PARTY' | 'CASE_CLIENT_NAME' | 'INTAKE_PARTY';
+  term: string;
+  name: string;
+  side?: string;
+  role?: string;
+  caseId?: string;
+  caseTitle?: string;
+  ownRef?: string;
+  caseStatus?: string;
+  intakeId?: string;
+  intakeTitle?: string;
+  clientId?: string;
+}
+
+export interface ConflictSearchResult {
+  terms: string[];
+  matches: ConflictMatchItem[];
+  matchCount: number;
+  suggestedResult: 'CLEAR' | 'POTENTIAL_CONFLICT' | 'CONFLICT' | 'NEEDS_REVIEW';
+}
+
+export interface ConflictCheckRecord {
+  id: string;
+  intakeId: string | null;
+  searchTerms: string[];
+  matches: ConflictMatchItem[];
+  matchCount: number;
+  result: 'CLEAR' | 'POTENTIAL_CONFLICT' | 'CONFLICT' | 'NEEDS_REVIEW';
+  notes: string | null;
+  checkedAt: string;
+  checkedBy?: { firstName: string; lastName: string };
+}
+
+export interface IntakeDocumentRequestItem {
+  id: string;
+  name: string;
+  required: boolean;
+  status: 'REQUESTED' | 'RECEIVED' | 'MISSING' | 'NOT_APPLICABLE';
+  note: string | null;
+  dueDate: string | null;
+  documentId: string | null;
+  receivedAt: string | null;
+}
+
+export interface IntakeDocumentRequestsResult {
+  requests: IntakeDocumentRequestItem[];
+  missing: IntakeDocumentRequestItem[];
+  missingCount: number;
+}
+
+export interface IntakeFollowUpItem {
+  id: string;
+  note: string;
+  contacted: boolean;
+  nextDueAt: string | null;
+  createdAt: string;
+  createdBy?: { firstName: string; lastName: string };
+}
+
+export interface CaseOutstandingResult {
+  openTasks: Array<{ id: string; title: string; status: string; dueDate: string | null }>;
+  upcomingEvents: Array<{ id: string; title: string; startAt: string; type: string }>;
+  unapprovedDocuments: Array<{ id: string; filename: string; category: string }>;
+  total: number;
 }
 
 export const api = {
@@ -986,10 +1117,19 @@ export const api = {
 
   getCases: (
     token: string,
-    params?: { status?: string; search?: string; caseTypeId?: string; userId?: string },
+    params?: {
+      status?: string;
+      stage?: string;
+      search?: string;
+      party?: string;
+      caseTypeId?: string;
+      userId?: string;
+    },
   ) => {
     const query = new URLSearchParams();
     if (params?.status) query.set('status', params.status);
+    if (params?.stage) query.set('stage', params.stage);
+    if (params?.party) query.set('party', params.party);
     if (params?.search) query.set('search', params.search);
     if (params?.caseTypeId) query.set('caseTypeId', params.caseTypeId);
     if (params?.userId) query.set('userId', params.userId);
@@ -1017,11 +1157,117 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  closeCase: (token: string, id: string, closingSummary: string) =>
+  closeCase: (
+    token: string,
+    id: string,
+    closingSummary: string,
+    options: { outcome?: string; acknowledgeOutstanding?: boolean } = {},
+  ) =>
     request<CaseItem>(`/cases/${id}/close`, {
       method: 'POST',
       token,
-      body: JSON.stringify({ closingSummary }),
+      body: JSON.stringify({ closingSummary, ...options }),
+    }),
+
+  getCaseOutstanding: (token: string, id: string) =>
+    request<CaseOutstandingResult>(`/cases/${id}/outstanding`, { token }),
+
+  archiveCase: (token: string, id: string) =>
+    request<CaseItem>(`/cases/${id}/archive`, { method: 'POST', token }),
+
+  /** ค้นชื่อทั่วสำนักงาน — ใช้ทั้ง conflict check และ "คนนี้อยู่คดีไหนบ้าง" */
+  conflictSearch: (token: string, terms: string[]) =>
+    request<ConflictSearchResult>(
+      `/conflict-check/search?${terms.map((t) => `terms=${encodeURIComponent(t)}`).join('&')}`,
+      { token },
+    ),
+
+  listConflictChecks: (token: string, intakeId?: string) =>
+    request<ConflictCheckRecord[]>(
+      `/conflict-check${intakeId ? `?intakeId=${intakeId}` : ''}`,
+      { token },
+    ),
+
+  recordConflictCheck: (
+    token: string,
+    data: { terms: string[]; intakeId?: string; result: string; notes?: string },
+  ) =>
+    request<ConflictCheckRecord>('/conflict-check', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  updateIntakeStage: (token: string, id: string, stage: string, note?: string) =>
+    request<IntakeItem>(`/intake/${id}/stage`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ stage, note }),
+    }),
+
+  getIntakeDocumentRequests: (token: string, id: string) =>
+    request<IntakeDocumentRequestsResult>(`/intake/${id}/document-requests`, { token }),
+
+  addIntakeDocumentRequests: (
+    token: string,
+    id: string,
+    items: Array<{ name: string; required?: boolean; dueDate?: string; note?: string }>,
+  ) =>
+    request<IntakeDocumentRequestsResult>(`/intake/${id}/document-requests`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ items }),
+    }),
+
+  updateIntakeDocumentRequest: (
+    token: string,
+    id: string,
+    requestId: string,
+    data: { status?: string; note?: string; dueDate?: string; required?: boolean },
+  ) =>
+    request<IntakeDocumentRequestsResult>(`/intake/${id}/document-requests/${requestId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  removeIntakeDocumentRequest: (token: string, id: string, requestId: string) =>
+    request<IntakeDocumentRequestsResult>(`/intake/${id}/document-requests/${requestId}`, {
+      method: 'DELETE',
+      token,
+    }),
+
+  addIntakeFollowUp: (
+    token: string,
+    id: string,
+    data: { note: string; contacted?: boolean; nextDueAt?: string; nextOwnerId?: string },
+  ) =>
+    request<IntakeFollowUpItem>(`/intake/${id}/follow-ups`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  listIntakeFollowUps: (token: string, id: string) =>
+    request<IntakeFollowUpItem[]>(`/intake/${id}/follow-ups`, { token }),
+
+  markIntakeNoResponse: (token: string, id: string, note?: string) =>
+    request<IntakeItem>(`/intake/${id}/no-response`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ note }),
+    }),
+
+  updateDocumentMetadata: (
+    token: string,
+    caseId: string,
+    documentId: string,
+    data: { category?: string; documentDate?: string; tags?: string[] },
+  ) =>
+    request<DocumentItem>(`/cases/${caseId}/documents/${documentId}/metadata`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
     }),
 
   reopenCase: (token: string, id: string) =>
@@ -1043,11 +1289,61 @@ export const api = {
   getOnHoldTasks: (token: string) =>
     request<OnHoldTaskEntry[]>('/operations/onhold', { token }),
 
+  getCaseHealth: (token: string) =>
+    request<CaseHealth>('/operations/case-health', { token }),
+
+  getSlaConfig: (token: string) => request<SlaConfig>('/operations/sla', { token }),
+
+  updateSlaConfig: (token: string, config: Partial<SlaConfig>) =>
+    request<SlaConfig>('/operations/sla', { method: 'PATCH', token, body: JSON.stringify(config) }),
+
+  getTeamPerformance: (token: string, days = 30) =>
+    request<TeamPerformanceRow[]>(`/operations/performance?days=${days}`, { token }),
+
+  listSops: (token: string, q?: string) =>
+    request<SopItem[]>(`/sops${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),
+
+  createSop: (token: string, data: { title: string; content: string; category?: string }) =>
+    request<SopItem>('/sops', { method: 'POST', token, body: JSON.stringify(data) }),
+
+  updateSop: (token: string, id: string, data: Partial<{ title: string; content: string; category: string }>) =>
+    request<SopItem>(`/sops/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  deleteSop: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/sops/${id}`, { method: 'DELETE', token }),
+
+  getRequiredDocuments: (token: string, caseId: string) =>
+    request<{ required: Array<{ category: string; present: boolean }>; missing: string[] }>(
+      `/cases/${caseId}/documents/required`,
+      { token },
+    ),
+
+  updateDocumentCategory: (token: string, caseId: string, documentId: string, category: string | null) =>
+    request<{ id: string }>(`/cases/${caseId}/documents/${documentId}/metadata`, {
+      method: 'PATCH',
+      token,
+      // ล้างหมวด = กลับไปเป็น OTHER เพราะคอลัมน์เป็น enum ไม่ใช่ nullable text
+      body: JSON.stringify({ category: category ?? 'OTHER' }),
+    }),
+
+  getIntakeChecklist: (token: string, intakeId: string) =>
+    request<Array<{ label: string; documentId: string | null; confirmedAt: string | null }>>(
+      `/intake/${intakeId}/checklist`,
+      { token },
+    ),
+
+  setIntakeChecklistItem: (token: string, intakeId: string, label: string, documentId: string | null) =>
+    request<{ label: string; documentId: string | null }>(`/intake/${intakeId}/checklist`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ label, documentId }),
+    }),
+
   startTaskOnHold: (
     token: string,
     caseId: string,
     taskId: string,
-    data: { reason: string; followerUserId?: string; nextFollowUpAt?: string },
+    data: { reason: string; category?: string; followerUserId?: string; nextFollowUpAt?: string },
   ) =>
     request<{ id: string }>(`/cases/${caseId}/tasks/${taskId}/hold`, {
       method: 'PATCH',
@@ -1452,8 +1748,22 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
-  getDocuments: (token: string, caseId: string) =>
-    request<DocumentItem[]>(`/cases/${caseId}/documents`, { token }),
+  getDocuments: (
+    token: string,
+    caseId: string,
+    filters: { category?: string; tag?: string; search?: string } = {},
+  ) => {
+    const qs = new URLSearchParams(
+      Object.entries(filters).filter(([, v]) => !!v) as [string, string][],
+    ).toString();
+    return request<DocumentItem[]>(`/cases/${caseId}/documents${qs ? `?${qs}` : ''}`, { token });
+  },
+
+  getDocumentCategoryCounts: (token: string, caseId: string) =>
+    request<Array<{ category: string; count: number }>>(
+      `/cases/${caseId}/documents/category-counts`,
+      { token },
+    ),
 
   getTimeEntries: (token: string, caseId: string) =>
     request<TimeEntryItem[]>(`/cases/${caseId}/billing/time-entries`, { token }),
@@ -1580,16 +1890,6 @@ export const api = {
   getAiUsageSummary: (token: string, days = 30) =>
     request<AiUsageSummary>(`/ai-usage/summary?days=${days}`, { token }),
 
-  askLegal: (token: string, caseId: string, question: string, citationIds: string[]) =>
-    request<LegalQueryItem>(`/cases/${caseId}/legal/ask`, {
-      method: 'POST',
-      token,
-      body: JSON.stringify({ question, citationIds }),
-    }),
-
-  listLegalQueries: (token: string, caseId: string) =>
-    request<LegalQueryItem[]>(`/cases/${caseId}/legal`, { token }),
-
   analyzeDocument: (token: string, caseId: string, file: File, title?: string) => {
     const form = new FormData();
     form.append('file', file);
@@ -1665,9 +1965,17 @@ export const api = {
       token,
     }),
 
-  uploadDocument: (token: string, caseId: string, file: File) => {
+  uploadDocument: (
+    token: string,
+    caseId: string,
+    file: File,
+    meta?: { category?: string; documentDate?: string; tags?: string[] },
+  ) => {
     const form = new FormData();
     form.append('file', file);
+    if (meta?.category) form.append('category', meta.category);
+    if (meta?.documentDate) form.append('documentDate', meta.documentDate);
+    if (meta?.tags?.length) form.append('tags', meta.tags.join(','));
     return request<DocumentItem>(`/cases/${caseId}/documents`, {
       method: 'POST',
       token,
@@ -1820,9 +2128,24 @@ export const api = {
   deleteParticipant: (token: string, caseId: string, participantId: string) =>
     request(`/cases/${caseId}/participants/${participantId}`, { method: 'DELETE', token }),
 
-  getIntakes: (token: string, params?: { status?: string; page?: number; limit?: number }) => {
+  getIntakes: (
+    token: string,
+    params?: {
+      status?: string;
+      stage?: string;
+      page?: number;
+      limit?: number;
+      followUpOwnerId?: string;
+      followUpOverdue?: boolean;
+      stalledDays?: number;
+    },
+  ) => {
     const query = new URLSearchParams();
     if (params?.status) query.set('status', params.status);
+    if (params?.stage) query.set('stage', params.stage);
+    if (params?.followUpOwnerId) query.set('followUpOwnerId', params.followUpOwnerId);
+    if (params?.followUpOverdue) query.set('followUpOverdue', 'true');
+    if (params?.stalledDays != null) query.set('stalledDays', String(params.stalledDays));
     if (params?.page != null) query.set('page', String(params.page));
     if (params?.limit != null) query.set('limit', String(params.limit));
     const qs = query.toString();
@@ -2154,24 +2477,6 @@ export interface AiUsageSummary {
   byCase: Array<AiUsageBucket & { caseId: string; ownRef: string | null; title: string | null }>;
 }
 
-export interface LegalQueryItem {
-  id: string;
-  question: string;
-  citationIds: string[];
-  factsText: string[];
-  results: Array<{
-    dekaId: string;
-    headnote: string;
-    citedStatutes: string[];
-    courtLevel: string | null;
-    judgmentDate: string | null;
-    sourceUrl: string;
-  }>;
-  provider: string;
-  createdAt: string;
-  createdBy: { firstName: string; lastName: string };
-}
-
 export interface KnowledgeFlagItem {
   type: 'CONFLICT' | 'MISSING';
   description: string;
@@ -2227,6 +2532,10 @@ export interface DocumentItem {
   filename: string;
   mimeType: string;
   version: number;
+  /** หมวดเอกสาร — ค่าจาก DocumentCategory, ค่าเริ่มต้นคือ OTHER (ไม่ใช่ null) */
+  category?: string;
+  documentDate?: string | null;
+  tags?: string[];
   visibleToClient: boolean;
   createdAt: string;
   uploadedBy: { firstName: string; lastName: string };

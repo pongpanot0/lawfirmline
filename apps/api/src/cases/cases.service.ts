@@ -5,9 +5,18 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { AssignmentType, AuthUser, ActivityType, CaseStatus, FirmRole } from '@lawfirm/shared';
+import {
+  AssignmentType,
+  AuthUser,
+  ActivityType,
+  CaseOutcome,
+  CaseStage,
+  CaseStatus,
+  FirmRole,
+} from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
 import { CreateCaseDto, UpdateCaseDto, CaseQueryDto, UpdateCaseAssignmentsDto } from './dto/case.dto';
 import { CloseCaseDto } from './dto/close-case.dto';
 import { Prisma } from '../generated/prisma';
@@ -20,6 +29,7 @@ export class CasesService {
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
+    private caseFeed: CaseFeedService,
     private activitiesService: CaseActivitiesService,
     private assignmentNotifier: AssignmentNotifierService,
   ) {}
@@ -58,8 +68,18 @@ export class CasesService {
     if (query.status) {
       where.status = query.status;
     }
+    if (query.stage) {
+      where.stage = query.stage;
+    }
     if (query.caseTypeId) {
       where.caseTypeId = query.caseTypeId;
+    }
+    if (query.party) {
+      const party = query.party.trim();
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        { participants: { some: { name: { contains: party, mode: 'insensitive' } } } },
+      ];
     }
     if (query.userId) {
       where.AND = [
@@ -80,6 +100,8 @@ export class CasesService {
           { blackCaseNumber: { contains: term, mode: 'insensitive' } },
           { redCaseNumber: { contains: term, mode: 'insensitive' } },
           { client: { name: { contains: term, mode: 'insensitive' } } },
+          // ชื่อคู่กรณี/พยานต้องค้นเจอด้วย — คดีถูกจำด้วยชื่อคน ไม่ใช่เลขคดี
+          { participants: { some: { name: { contains: term, mode: 'insensitive' } } } },
         ],
       };
       where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), searchFilter];
@@ -322,15 +344,55 @@ export class CasesService {
     }
 
     const { customFields, ...rest } = dto;
+    const stageChanged = !!dto.stage && dto.stage !== before.stage;
     const updated = await this.prisma.case.update({
       where: { id },
       data: {
         ...rest,
         customFields: customFields as Prisma.InputJsonValue | undefined,
         closedAt: dto.closedAt ? new Date(dto.closedAt) : undefined,
+        stageChangedAt: stageChanged ? new Date() : undefined,
       },
       include: this.caseInclude,
     });
+
+    // Timeline ของคดีต้องตอบได้เองว่าใครเปลี่ยนอะไรเมื่อไร ไม่ใช่รอให้คนมากรอก
+    if (dto.status && dto.status !== before.status) {
+      await this.caseFeed.log({
+        caseId: id,
+        userId: user.id,
+        type: ActivityType.STATUS_CHANGE,
+        title: `สถานะคดี: ${before.status} → ${dto.status}`,
+        statusTransition: { from: before.status, to: dto.status },
+      });
+    }
+    if (stageChanged) {
+      await this.caseFeed.log({
+        caseId: id,
+        userId: user.id,
+        type: ActivityType.STAGE_CHANGE,
+        title: `ขั้นตอนคดี: ${before.stage} → ${dto.stage}`,
+      });
+    }
+    if (dto.leadLawyerId && dto.leadLawyerId !== before.leadLawyerId) {
+      await this.caseFeed.log({
+        caseId: id,
+        userId: user.id,
+        type: ActivityType.ASSIGNMENT,
+        title: 'เปลี่ยนทนายเจ้าของคดี',
+        description: `${before.leadLawyer?.firstName ?? before.leadLawyerId} → ${
+          updated.leadLawyer?.firstName ?? dto.leadLawyerId
+        }`,
+      });
+      await this.prisma.auditLog.create({
+        data: {
+          firmId: user.firmId,
+          userId: user.id,
+          action: 'CASE_OWNER_CHANGED',
+          metadata: { caseId: id, from: before.leadLawyerId, to: dto.leadLawyerId },
+        },
+      });
+    }
 
     if (
       dto.leadLawyerId &&
@@ -395,6 +457,21 @@ export class CasesService {
     const result = await this.prisma.case.findUnique({ where: { id }, include: this.caseInclude });
 
     const newBuddyIds = buddyIds.filter((uid) => !previousBuddyIds.has(uid));
+    const removedIds = [...previousBuddyIds].filter((uid) => !buddyIds.includes(uid));
+    if (newBuddyIds.length || removedIds.length) {
+      await this.caseFeed.log({
+        caseId: id,
+        userId: user.id,
+        type: ActivityType.ASSIGNMENT,
+        title: 'เปลี่ยนทีมงานในคดี',
+        description: [
+          newBuddyIds.length ? `เพิ่ม ${newBuddyIds.length} คน` : null,
+          removedIds.length ? `ออก ${removedIds.length} คน` : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      });
+    }
     if (newBuddyIds.length) {
       await this.assignmentNotifier.notifyAssigned({
         userIds: newBuddyIds,
@@ -407,10 +484,55 @@ export class CasesService {
     return result;
   }
 
+  /**
+   * งานที่ยังค้างอยู่ตอนจะปิดคดี — งานที่ยังไม่เสร็จ, วันนัดในอนาคต,
+   * และเอกสารที่ยังไม่ผ่านการอนุมัติ. ปิดคดีทับของค้างเงียบ ๆ คือวิธีทำให้
+   * ของค้างหายไปจากสายตา ไม่ใช่ทำให้มันเสร็จ
+   */
+  async outstanding(user: AuthUser, id: string) {
+    await this.findOne(user, id);
+    const now = new Date();
+    const [openTasks, upcomingEvents, unapprovedDocuments] = await Promise.all([
+      this.prisma.task.findMany({
+        where: { caseId: id, status: { not: 'DONE' } },
+        select: { id: true, title: true, status: true, dueDate: true },
+        orderBy: { dueDate: 'asc' },
+      }),
+      this.prisma.calendarEvent.findMany({
+        where: { caseId: id, startAt: { gte: now } },
+        select: { id: true, title: true, startAt: true, type: true },
+        orderBy: { startAt: 'asc' },
+      }),
+      this.prisma.document.findMany({
+        where: {
+          caseId: id,
+          versions: { some: { status: { in: ['DRAFT', 'WAITING_REVIEW', 'RETURNED_FOR_CHANGES'] } } },
+        },
+        select: { id: true, filename: true, category: true },
+      }),
+    ]);
+
+    return {
+      openTasks,
+      upcomingEvents,
+      unapprovedDocuments,
+      total: openTasks.length + upcomingEvents.length + unapprovedDocuments.length,
+    };
+  }
+
   async close(user: AuthUser, id: string, dto: CloseCaseDto) {
     const legalCase = await this.findOne(user, id);
-    if (legalCase.status === CaseStatus.CLOSED) {
+    if (legalCase.status === CaseStatus.CLOSED || legalCase.status === CaseStatus.ARCHIVED) {
       throw new BadRequestException('คดีนี้ปิดแล้ว');
+    }
+
+    // ระบบไม่ตัดสินใจแทนทนายว่าของค้างสำคัญหรือไม่ แต่ต้องบังคับให้เห็นก่อนปิด
+    const outstanding = await this.outstanding(user, id);
+    if (outstanding.total > 0 && !dto.acknowledgeOutstanding) {
+      throw new BadRequestException({
+        message: 'ยังมีงาน/วันนัด/เอกสารค้างอยู่ — ตรวจแล้วยืนยันอีกครั้งเพื่อปิดคดี',
+        outstanding,
+      });
     }
 
     const now = new Date();
@@ -418,40 +540,81 @@ export class CasesService {
       where: { id },
       data: {
         status: CaseStatus.CLOSED,
+        stage: CaseStage.CLOSING,
+        stageChangedAt: now,
+        outcome: dto.outcome ?? undefined,
         closedAt: now,
         closingSummary: dto.closingSummary.trim(),
       },
       include: this.caseInclude,
     });
 
-    await this.prisma.caseActivity.create({
-      data: {
-        caseId: id,
-        title: 'ปิดคดี / Case Closed',
-        description: dto.closingSummary.trim(),
-        activityAt: now,
-        type: ActivityType.NOTE,
-        createdById: user.id,
-      },
+    await this.caseFeed.log({
+      caseId: id,
+      userId: user.id,
+      type: ActivityType.STATUS_CHANGE,
+      title: 'ปิดคดี / Case Closed',
+      description: [
+        dto.closingSummary.trim(),
+        dto.outcome ? `ผลคดี: ${dto.outcome}` : null,
+        outstanding.total > 0 ? `ปิดโดยรับทราบของค้าง ${outstanding.total} รายการ` : null,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      at: now,
+      statusTransition: { from: legalCase.status, to: CaseStatus.CLOSED },
     });
 
     return closed;
   }
 
-  async reopen(user: AuthUser, id: string) {
+  /**
+   * เก็บคดีที่ปิดแล้วเข้าคลัง — แยกจาก CLOSED เพื่อให้รายการคดีที่ทำงานอยู่
+   * ไม่ยาวขึ้นทุกปี ข้อมูลยังอยู่ครบและ reopen ได้
+   */
+  async archive(user: AuthUser, id: string) {
     const legalCase = await this.findOne(user, id);
     if (legalCase.status !== CaseStatus.CLOSED) {
+      throw new BadRequestException('เก็บเข้าคลังได้เฉพาะคดีที่ปิดแล้ว');
+    }
+    const archived = await this.prisma.case.update({
+      where: { id },
+      data: { status: CaseStatus.ARCHIVED },
+      include: this.caseInclude,
+    });
+    await this.caseFeed.log({
+      caseId: id,
+      userId: user.id,
+      type: ActivityType.STATUS_CHANGE,
+      title: 'เก็บคดีเข้าคลัง / Archived',
+      statusTransition: { from: CaseStatus.CLOSED, to: CaseStatus.ARCHIVED },
+    });
+    return archived;
+  }
+
+  async reopen(user: AuthUser, id: string) {
+    const legalCase = await this.findOne(user, id);
+    if (legalCase.status !== CaseStatus.CLOSED && legalCase.status !== CaseStatus.ARCHIVED) {
       throw new BadRequestException('คดีนี้ยังไม่ได้ปิด');
     }
 
-    return this.prisma.case.update({
+    const reopened = await this.prisma.case.update({
       where: { id },
       data: {
         status: CaseStatus.IN_PROGRESS,
         closedAt: null,
+        outcome: CaseOutcome.IN_PROGRESS,
       },
       include: this.caseInclude,
     });
+    await this.caseFeed.log({
+      caseId: id,
+      userId: user.id,
+      type: ActivityType.STATUS_CHANGE,
+      title: 'เปิดคดีขึ้นมาใหม่ / Reopened',
+      statusTransition: { from: legalCase.status, to: CaseStatus.IN_PROGRESS },
+    });
+    return reopened;
   }
 
   async remove(user: AuthUser, id: string) {

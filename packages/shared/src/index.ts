@@ -208,6 +208,153 @@ export enum CaseStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   PENDING = 'PENDING',
   CLOSED = 'CLOSED',
+  ARCHIVED = 'ARCHIVED',
+}
+
+/**
+ * ขั้นตอนของคดีในกระบวนพิจารณา — คนละเรื่องกับ {@link CaseStatus} ที่บอกเพียงว่า
+ * งานยังเดินอยู่หรือไม่. เรียงตามลำดับที่คดีเดินจริง; `CASE_STAGE_ORDER`
+ * ใช้ลำดับนี้วาดแถบความคืบหน้า.
+ */
+export enum CaseStage {
+  INTAKE_REVIEW = 'INTAKE_REVIEW',
+  FACT_GATHERING = 'FACT_GATHERING',
+  PRE_LITIGATION = 'PRE_LITIGATION',
+  FILING = 'FILING',
+  MEDIATION = 'MEDIATION',
+  HEARING = 'HEARING',
+  AWAITING_JUDGMENT = 'AWAITING_JUDGMENT',
+  ENFORCEMENT = 'ENFORCEMENT',
+  CLOSING = 'CLOSING',
+}
+
+export enum CaseOutcome {
+  WON = 'WON',
+  LOST = 'LOST',
+  SETTLED = 'SETTLED',
+  WITHDRAWN = 'WITHDRAWN',
+  IN_PROGRESS = 'IN_PROGRESS',
+}
+
+export const CASE_STAGE_ORDER: CaseStage[] = [
+  CaseStage.INTAKE_REVIEW,
+  CaseStage.FACT_GATHERING,
+  CaseStage.PRE_LITIGATION,
+  CaseStage.FILING,
+  CaseStage.MEDIATION,
+  CaseStage.HEARING,
+  CaseStage.AWAITING_JUDGMENT,
+  CaseStage.ENFORCEMENT,
+  CaseStage.CLOSING,
+];
+
+/**
+ * ขั้นตอนของงานรับเรื่อง — แยกจากผลลัพธ์ (IntakeStatus)
+ * เรียงตามลำดับที่งานเดินจริง
+ */
+export enum IntakeStage {
+  NEW_INQUIRY = 'NEW_INQUIRY',
+  CONTACTED = 'CONTACTED',
+  SCREENING = 'SCREENING',
+  CONFLICT_CHECK = 'CONFLICT_CHECK',
+  CONSULT_SCHEDULED = 'CONSULT_SCHEDULED',
+  CONSULTED = 'CONSULTED',
+  WAITING_DOCUMENTS = 'WAITING_DOCUMENTS',
+  PRE_LITIGATION_NOTICE = 'PRE_LITIGATION_NOTICE',
+  PROPOSAL = 'PROPOSAL',
+  CLOSED = 'CLOSED',
+}
+
+export const INTAKE_STAGE_ORDER: IntakeStage[] = [
+  IntakeStage.NEW_INQUIRY,
+  IntakeStage.CONTACTED,
+  IntakeStage.SCREENING,
+  IntakeStage.CONFLICT_CHECK,
+  IntakeStage.CONSULT_SCHEDULED,
+  IntakeStage.CONSULTED,
+  IntakeStage.WAITING_DOCUMENTS,
+  IntakeStage.PRE_LITIGATION_NOTICE,
+  IntakeStage.PROPOSAL,
+  IntakeStage.CLOSED,
+];
+
+export enum DocRequestStatus {
+  REQUESTED = 'REQUESTED',
+  RECEIVED = 'RECEIVED',
+  MISSING = 'MISSING',
+  NOT_APPLICABLE = 'NOT_APPLICABLE',
+}
+
+/**
+ * เอกสารที่คาดว่าต้องมีตามประเภทงานก่อนฟ้อง พร้อมคำใบ้สำหรับจับคู่ชื่อไฟล์
+ *
+ * ใช้สองที่: ฝั่ง API เอาไป seed `IntakeDocumentRequest` ตอนเปิด checklist
+ * ครั้งแรก และฝั่งเว็บเอา `hints` ไปเดาว่าไฟล์ที่อัปโหลดตรงกับช่องไหน
+ */
+export const PRE_LITIGATION_DOCUMENTS: Record<string, Array<{ label: string; hints: string[] }>> = {
+  MEDICAL_CLAIM: [
+    { label: 'กรมธรรม์ประกันภัย', hints: ['กรมธรรม์', 'policy', 'insurance'] },
+    { label: 'แบบฟอร์มเรียกร้องค่าสินไหม', hints: ['สินไหม', 'claim form', 'claim'] },
+    { label: 'เวชระเบียน', hints: ['เวชระเบียน', 'medical record', 'record'] },
+    { label: 'Peer review / ความเห็นแพทย์ผู้ทบทวน', hints: ['peer review', 'review', 'ความเห็นแพทย์'] },
+    { label: 'เอกสารสรุปโดยย่อเหตุการณ์', hints: ['สรุป', 'summary', 'เหตุการณ์', 'incident'] },
+  ],
+  TRANSPORT: [
+    { label: 'เอกสารรับขน / ใบตราส่ง', hints: ['ใบตราส่ง', 'bill of lading', 'waybill'] },
+    { label: 'หลักฐานความเสียหายหรือสูญหาย', hints: ['เสียหาย', 'damage', 'สูญหาย', 'loss'] },
+    { label: 'สรุปเหตุการณ์และมูลค่าความเสียหาย', hints: ['สรุป', 'summary', 'เหตุการณ์', 'damage'] },
+  ],
+  GENERAL: [
+    { label: 'เอกสารแสดงสิทธิหรือสัญญา', hints: ['สัญญา', 'contract', 'agreement'] },
+    { label: 'หลักฐานความเสียหาย', hints: ['เสียหาย', 'damage'] },
+    { label: 'สรุปโดยย่อเหตุการณ์', hints: ['สรุป', 'summary', 'เหตุการณ์'] },
+  ],
+};
+
+export function preLitigationDocuments(preLitigationType: string | null | undefined) {
+  return PRE_LITIGATION_DOCUMENTS[preLitigationType ?? 'GENERAL'] ?? PRE_LITIGATION_DOCUMENTS.GENERAL;
+}
+
+/** คำใบ้ของ label ที่มาจาก template — รายการที่ทนายพิมพ์เองไม่มีคำใบ้ */
+export function documentHintsFor(label: string): string[] {
+  for (const items of Object.values(PRE_LITIGATION_DOCUMENTS)) {
+    const found = items.find((item) => item.label === label);
+    if (found) return found.hints;
+  }
+  return [];
+}
+
+/** เอกสารที่สำนักงานขอบ่อยที่สุด — ใช้เป็นปุ่มเติม checklist เร็ว ไม่ใช่ข้อบังคับ */
+export const COMMON_INTAKE_DOCUMENTS = [
+  'สำเนาบัตรประชาชน',
+  'สำเนาทะเบียนบ้าน',
+  'สัญญา / เอกสารข้อตกลง',
+  'ใบเสร็จ / หลักฐานการชำระเงิน',
+  'เวชระเบียน / ใบรับรองแพทย์',
+  'หนังสือโต้ตอบ',
+  'ภาพถ่าย',
+  'หลักฐานการสนทนา (LINE / แชท)',
+  'หนังสือมอบอำนาจ',
+] as const;
+
+export enum DocumentCategory {
+  PLEADING = 'PLEADING',
+  EVIDENCE = 'EVIDENCE',
+  CONTRACT = 'CONTRACT',
+  CORRESPONDENCE = 'CORRESPONDENCE',
+  COURT_ORDER = 'COURT_ORDER',
+  IDENTITY = 'IDENTITY',
+  MEDICAL = 'MEDICAL',
+  FINANCIAL = 'FINANCIAL',
+  INTERNAL = 'INTERNAL',
+  OTHER = 'OTHER',
+}
+
+export enum ConflictResult {
+  CLEAR = 'CLEAR',
+  POTENTIAL_CONFLICT = 'POTENTIAL_CONFLICT',
+  CONFLICT = 'CONFLICT',
+  NEEDS_REVIEW = 'NEEDS_REVIEW',
 }
 
 export enum CourtLevel {
@@ -327,6 +474,11 @@ export enum KnowledgeCategory {
 }
 
 export enum ActivityType {
+  /** ลงให้อัตโนมัติเมื่อสถานะ/ขั้นตอน/ผู้รับผิดชอบ/เอกสารเปลี่ยน — ไม่ใช่สิ่งที่คนกรอกเอง */
+  STATUS_CHANGE = 'STATUS_CHANGE',
+  STAGE_CHANGE = 'STAGE_CHANGE',
+  ASSIGNMENT = 'ASSIGNMENT',
+  DOCUMENT = 'DOCUMENT',
   COURT_DATE = 'COURT_DATE',
   CLIENT_MEETING = 'CLIENT_MEETING',
   FILING = 'FILING',

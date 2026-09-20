@@ -1,8 +1,22 @@
 import { cn } from '@/lib/utils';
 import { getCaseStageIndex, CASE_STAGE_COUNT } from '@/lib/case-status';
 
-export function StageTrack({ status, className }: { status: string; className?: string }) {
-  const current = getCaseStageIndex(status);
+/**
+ * แถบความคืบหน้าของคดีที่ลูกความเห็น
+ *
+ * อ่านจาก `stage` (ขั้นตอนในกระบวนพิจารณา) — `status` เป็น fallback สำหรับ
+ * payload เก่าที่ยังไม่ส่ง stage มา
+ */
+export function StageTrack({
+  stage,
+  status,
+  className,
+}: {
+  stage?: string;
+  status: string;
+  className?: string;
+}) {
+  const current = getCaseStageIndex(stage ?? status);
   const segments = Array.from({ length: CASE_STAGE_COUNT });
 
   return (

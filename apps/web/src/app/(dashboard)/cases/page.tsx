@@ -10,6 +10,7 @@ import { api, CaseItem, UserItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { caseStatusOptions, getCaseStatusDisplay } from '@/lib/case-status';
+import { caseStageLabel, caseStageOptions } from '@/lib/stage-labels';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -53,6 +54,7 @@ function CasesPageContent() {
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState('');
+  const [stageFilter, setStageFilter] = useState('');
   const [lawyerFilter, setLawyerFilter] = useState('');
   const [page, setPage] = useState(0);
   const [sortAsc, setSortAsc] = useState(false);
@@ -68,14 +70,19 @@ function CasesPageContent() {
     setLoading(true);
     setLoadError(false);
     api
-      .getCases(token, { search: search || undefined, status: statusFilter || undefined, userId: lawyerFilter || undefined })
+      .getCases(token, {
+        search: search || undefined,
+        status: statusFilter || undefined,
+        stage: stageFilter || undefined,
+        userId: lawyerFilter || undefined,
+      })
       .then((result) => {
         setCases(result);
         setSelected(new Set());
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [token, search, statusFilter, lawyerFilter, reloadKey]);
+  }, [token, search, statusFilter, stageFilter, lawyerFilter, reloadKey]);
 
   useEffect(() => {
     if (!token) return;
@@ -163,6 +170,7 @@ function CasesPageContent() {
       'เจ้าของคดี',
       'รายได้โดยประมาณ',
       'สถานะ',
+      'ขั้นตอน',
     ];
     const rows = sorted.map((c) => [
       c.ownRef,
@@ -173,6 +181,7 @@ function CasesPageContent() {
       `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}`,
       c.estimatedFee != null ? String(c.estimatedFee) : '',
       getCaseStatusDisplay(c.status, d.caseStatus).label,
+      c.stage ? caseStageLabel(c.stage, 'th') : '',
     ]);
     const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
     const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
@@ -222,6 +231,17 @@ function CasesPageContent() {
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
+            ))}
+          </select>
+          <select
+            aria-label="กรองตามขั้นตอนคดี"
+            value={stageFilter}
+            onChange={(e) => { setStageFilter(e.target.value); setPage(0); }}
+            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            <option value="">ทุกขั้นตอน</option>
+            {caseStageOptions('th').map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
           <select

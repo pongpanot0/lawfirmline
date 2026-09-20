@@ -5,6 +5,7 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseActivitiesService } from './case-activities.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
 
 describe('CasesService.findOne', () => {
   let service: CasesService;
@@ -25,6 +26,7 @@ describe('CasesService.findOne', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
         { provide: CaseActivitiesService, useValue: mockActivities },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
       ],
     }).compile();
     service = module.get(CasesService);
@@ -47,14 +49,24 @@ describe('CasesService.findOne', () => {
       }),
     );
     expect(expectedTaskFilter).toEqual({
-      OR: [
-        { assigneeId: 'user-1' },
+      AND: [
         {
-          assignee: {
-            firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
-          },
+          OR: [
+            { case: { firmId: 'firm-1' } },
+            { caseId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } },
+          ],
         },
-        { assigneeId: null },
+        {
+          OR: [
+            { assigneeId: 'user-1' },
+            {
+              assignee: {
+                firmMembers: { some: { firmId: 'firm-1', role: FirmRole.LAWYER } },
+              },
+            },
+            { assigneeId: null },
+          ],
+        },
       ],
     });
   });
