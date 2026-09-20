@@ -41,10 +41,10 @@ export default function CaseBoardPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{d.admin.boardTitle}</h1>
-          <p className="mt-1 text-sm text-slate-500">Kanban view — เปิดคดี → ร่างเอกสาร → นัดศาล → ปิดคดี</p>
+          <p className="mt-1 text-sm text-slate-500">แยกคดีตามสถานะปัจจุบัน เลือกคดีเพื่อทำงานต่อ</p>
         </div>
         <div className="flex gap-2">
           <Link href="/cases" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">

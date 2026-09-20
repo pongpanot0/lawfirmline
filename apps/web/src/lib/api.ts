@@ -248,7 +248,7 @@ export interface CalendarEventItem {
   endAt?: string | null;
   type: string;
   assigneeId?: string | null;
-  case?: { id: string; ownRef: string; title: string; courtName?: string | null };
+  case?: { id: string; ownRef: string; title: string; courtName?: string | null; leadLawyer?: { id: string; firstName: string; lastName: string } };
 }
 
 /** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน ต่างจากลูกความ (client) ที่เราว่าความให้ */
@@ -678,6 +678,11 @@ export interface FinanceSummary {
 
 export interface FirmInvoiceItem {
   id: string;
+  caseId?: string | null;
+  intakeId?: string | null;
+  createdAt?: string;
+  customerName?: string;
+  subject?: string;
   invoiceNumber: string;
   status: string;
   totalAmount: number;
@@ -861,8 +866,14 @@ export interface IntakePrecedentItem {
   sourceUrl: string;
 }
 
+export interface ResearchFact {
+  statement: string; quote: string; page: number | null; source: string;
+  status: 'PENDING' | 'REVIEWED' | 'CONFLICT' | 'MISSING';
+  reviewedAt?: string; reviewedById?: string;
+  revisions?: Array<{ statement: string; status: string; at: string; userId: string }>;
+}
 export interface IntakePrecedentAnalysisItem {
-  extractedFacts?: { selectedAttachments?: Array<{ id: string; filename: string }>; attachmentWarnings?: string[] };
+  extractedFacts?: { description?: string; summaryOnly?: boolean; factsOnly?: boolean; factItems?: ResearchFact[]; selectedAttachments?: Array<{ id: string; filename: string; version?: number }>; attachmentWarnings?: string[] };
   id: string;
   status: 'PENDING' | 'COMPLETE' | 'FAILED';
   precedents: IntakePrecedentItem[];
@@ -1409,6 +1420,7 @@ export const api = {
   getTasks: (token: string, caseId: string) =>
     request<TaskItem[]>(`/cases/${caseId}/tasks`, { token }),
 
+  getTaskInbox: (token: string) => request<Array<TaskItem & { assigneeId: string | null; case: { id: string; ownRef: string; title: string } | null }>>('/dashboard/tasks', { token }),
   getMyTodos: (token: string) => request<TaskItem[]>('/todos', { token }),
 
   getActionQueue: (token: string) => request<import('@/components/agenda/ActionCenter').ActionQueue>('/agenda/actions', { token }),
@@ -2325,6 +2337,14 @@ export const api = {
 
   deleteTaskComment: (token: string, taskId: string, commentId: string) =>
     request(`/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE', token }),
+
+  summarizeResearchDocuments: (token: string, attachmentIds: string[], intakeId?: string, caseId?: string) =>
+    request<IntakePrecedentAnalysisItem>('/intake/research/summary', { method: 'POST', token, body: JSON.stringify({ attachmentIds, intakeId, caseId }) }),
+  research: (token: string, text: string, intakeId?: string, attachmentIds: string[] = [], factsOnly = false, caseId?: string) =>
+    request<IntakePrecedentAnalysisItem>(`/intake/research${factsOnly ? '/facts' : ''}`, { method: 'POST', token, body: JSON.stringify({ text, intakeId, attachmentIds, caseId }) }),
+  listResearch: (token: string) => request<IntakePrecedentAnalysisItem[]>('/intake/research', { token }),
+  reviewResearchFact: (token: string, analysisId: string, index: number, fact: ResearchFact, statement: string, status: ResearchFact['status']) =>
+    request<IntakePrecedentAnalysisItem>(`/intake/research/${analysisId}/facts/${index}`, { method: 'PATCH', token, body: JSON.stringify({ statement, status, expectedStatement: fact.statement, expectedStatus: fact.status }) }),
 
   runPrecedentAnalysis: (token: string, intakeId: string, attachmentIds?: string[]) =>
     request<IntakePrecedentAnalysisItem>(`/intake/${intakeId}/precedent-analysis`, {

@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPettyCashCsv, receiptPathFor } from './petty-cash-csv.ts';
+import { buildPettyCashCsv, receiptPathFor, buildPettyCashPackage, buildPrintableClaim } from './petty-cash-csv.ts';
 import { buildZip } from './zip.ts';
 import type { ExpenseItem } from './api.ts';
 
 const expense = (over: Partial<ExpenseItem> = {}): ExpenseItem =>
   ({
     id: 'exp-abcdef123',
+    user: { id: 'u1', firstName: 'สมชาย', lastName: 'ทดสอบ' },
     date: '2026-08-17T00:00:00.000Z',
     amount: 1500,
     description: 'ค่าส่งเอกสาร',
@@ -25,7 +26,7 @@ test('the CSV names the receipt file that ships alongside it', () => {
     receiptPaths: new Map([[e.id, receiptPathFor(e)]]),
   });
   assert.match(csv, /ไฟล์ใบเสร็จ/);
-  assert.match(csv, /ใบเสร็จ\/17 ส\.ค\. 69-ค่าส่งเอกสาร-exp-ab\.jpg/);
+  assert.match(csv, /ใบเสร็จ\/exp-abcdef123-17 ส\.ค\. 69-ค่าส่งเอกสาร\.jpg/);
 });
 
 test('a receipt that could not be fetched is flagged, not dropped', () => {
@@ -75,4 +76,34 @@ test('buildZip produces a readable archive with a correct central directory', as
     new TextDecoder().decode(bytes.slice(dataStart, dataStart + payload.length)),
     'receipt-bytes',
   );
+});
+
+
+test('package contains printable sheet, CSV and exact original attachment bytes', async () => {
+  const e = expense();
+  const result = await buildPettyCashPackage({ firmName: 'f', requesterName: 'r', expenses: [e], fetchReceipt: async () => new Blob(['original-evidence']) });
+  const bytes = new Uint8Array(await result.blob.arrayBuffer());
+  const data = new DataView(bytes.buffer);
+  const entries = new Map<string, string>();
+  let offset = 0;
+  while (data.getUint32(offset, true) === 0x04034b50) {
+    const size = data.getUint32(offset + 18, true), nameLength = data.getUint16(offset + 26, true), extra = data.getUint16(offset + 28, true);
+    const start = offset + 30 + nameLength + extra;
+    entries.set(new TextDecoder().decode(bytes.slice(offset + 30, offset + 30 + nameLength)), new TextDecoder().decode(bytes.slice(start, start + size)));
+    offset = start + size;
+  }
+  assert.equal(entries.size, 3);
+  assert.match(entries.get('ใบเบิก.html')!, /ค่าส่งเอกสาร/);
+  assert.equal(entries.get(receiptPathFor(e)), 'original-evidence');
+  assert.equal(result.receipts, 1);
+});
+test('a missing attachment blocks the whole export', async () => {
+  await assert.rejects(buildPettyCashPackage({ firmName: 'f', requesterName: 'r', expenses: [expense()], fetchReceipt: async () => { throw new Error('denied'); } }), /ยังไม่ได้ส่งออก/);
+});
+test('printable sheet escapes user HTML and CSV neutralizes formulas', () => {
+  const e = expense({ description: '<img src=x onerror=alert(1)>' });
+  const html = buildPrintableClaim({ firmName: '<script>', requesterName: 'r', expenses: [e], receiptPaths: new Map() });
+  assert.doesNotMatch(html, /<script>|<img/);
+  assert.match(html, /&lt;img/);
+  assert.match(buildPettyCashCsv({ firmName: 'f', requesterName: 'r', expenses: [expense({ description: '=1+1' })] }), /'=1\+1/);
 });

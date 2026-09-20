@@ -4,13 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { canAssignFirmRole } from '@lawfirm/shared';
-import { api, ClientItem, ApiError, IntakeItem, FieldSuggestion, UserItem } from '@/lib/api';
+import { api, ClientItem, ApiError, IntakeItem, UserItem } from '@/lib/api';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { InsurerSelect } from '@/components/InsurerSelect';
 import { Button } from '@/components/ui/button';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
-import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
-import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 
 const FIRM_ROLE_LABELS: Record<string, string> = {
   OWNER: 'เจ้าของ',
@@ -40,11 +39,10 @@ export default function NewIntakePage() {
         (u) => u.id !== user.id && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole),
       )
     : [];
-  const [analysisBusy, setAnalysisBusy] = useState(false);
   const [createdIntakeId, setCreatedIntakeId] = useState<string | null>(null);
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
   // ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน (เช่น บริษัทประกัน) ต่างจากลูกความที่เราว่าความให้
-  const [sameCustomer, setSameCustomer] = useState(true);
+  const [sameCustomer, setSameCustomer] = useState(false);
   const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string }[]>([
     { customerId: '', sharePercent: '' },
   ]);
@@ -53,6 +51,7 @@ export default function NewIntakePage() {
 
   const [form, setForm] = useState({
     title: '',
+    description: '',
     referralName: '',
     clientId: '',
     insurerName: '',
@@ -64,7 +63,6 @@ export default function NewIntakePage() {
     contactName: '',
     receivedDate: today,
   });
-  const [suggestions, setSuggestions] = useState<FieldSuggestion[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -156,8 +154,9 @@ export default function NewIntakePage() {
 
       const payload: Record<string, unknown> = {
         title: form.title.trim(),
-        referralType: 'INDIVIDUAL',
-        referralChannel: 'WALK_IN',
+        referralType: customers.some((c) => c.customerId) ? 'COMPANY' : 'INDIVIDUAL',
+        referralChannel: 'OTHER',
+        description: form.description.trim() || undefined,
         referralName,
         receivedDate: form.receivedDate,
         preLitigationType: 'GENERAL',
@@ -199,7 +198,7 @@ export default function NewIntakePage() {
       }
       setFiles(failedFiles);
       if (failedFiles.length) {
-        setError(`บันทึกเรื่องแล้ว แต่แนบไฟล์ไม่สำเร็จ ${failedFiles.length} ไฟล์ (รองรับเฉพาะ PDF) กดอีกครั้งเพื่อแนบไฟล์ที่เหลือ โดยไม่บันทึกซ้ำ`);
+        setError(`บันทึกเรื่องแล้ว แต่แนบไฟล์ไม่สำเร็จ ${failedFiles.length} ไฟล์ (รองรับ PDF / TXT) กดอีกครั้งเพื่อแนบไฟล์ที่เหลือ โดยไม่บันทึกซ้ำ`);
         submitLock.current = false;
         setSubmitting(false);
         return;
@@ -217,14 +216,88 @@ export default function NewIntakePage() {
     <div className="mx-auto w-full max-w-2xl pb-20">
       <h1 className="mb-1 text-2xl font-bold">รับเรื่องใหม่</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        กรอกแค่ชื่อเรื่องกับลูกความ แล้วไปเติมรายละเอียดต่อที่หน้าเรื่อง
+        เลือกผู้มอบหมาย ตั้งชื่อเรื่องสั้น ๆ แล้วพิมพ์เหตุการณ์หรือแนบเอกสาร รายละเอียดอื่นเติมภายหลังได้
       </p>
 
       <form onSubmit={handleSubmit}>
         <fieldset disabled={submitting} className="min-w-0 space-y-4">
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+            <div className="mb-1 flex items-center gap-2">
+              <h2 className="font-semibold">บริษัทประกัน / ผู้มอบหมายงาน</h2>
+            </div>
+            <p className="mb-3 text-sm text-muted-foreground">
+              คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน
+            </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={sameCustomer}
+                onChange={(e) => setSameCustomer(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+              />
+              ลูกค้าคนเดียวกับลูกความ
+            </label>
+            {!sameCustomer && (
+              <div className="mt-3 space-y-2">
+                {customers.map((row, index) => (
+                  <div key={index} className="flex items-end gap-2">
+                    <div className="min-w-0 flex-1">
+                      <CustomerSelect
+                        id={`intake-customer-${index}`}
+                        label={`ผู้มอบหมายรายที่ ${index + 1}`}
+                        value={row.customerId}
+                        clients={clients}
+                        onChange={(customerId) =>
+                          setCustomers((rows) =>
+                            rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
+                          )
+                        }
+                        onCreated={(client) =>
+                          setClients((rows) =>
+                            [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
+                          )
+                        }
+                      />
+                    </div>
+                    {customers.length > 1 && <input
+                      aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
+                      value={row.sharePercent}
+                      onChange={(e) =>
+                        setCustomers((rows) =>
+                          rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
+                        )
+                      }
+                      inputMode="decimal"
+                      placeholder="%"
+                      className="w-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    />}
+                    {customers.length > 1 && (
+                      <button
+                        type="button"
+                        aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
+                        onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
+                        className="px-2 text-sm text-muted-foreground"
+                      >
+                        ลบ
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
+                  className="text-sm underline"
+                >
+                  + เพิ่มผู้จ่ายอีกราย
+                </button>
+                <p hidden={customers.length < 2} className="text-xs text-muted-foreground">
+                  เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
+                </p>
+              </div>
+            )}
+          </section>
+          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">1</span>
               <h2 className="font-semibold">เรื่องที่รับ</h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
@@ -236,7 +309,7 @@ export default function NewIntakePage() {
                   value={form.title}
                   onChange={(e) => set('title', e.target.value)}
                   className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="เช่น เรียกเงินคืนจากผู้รับเหมา"
+                  placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
                 />
               </div>
               <div>
@@ -251,11 +324,23 @@ export default function NewIntakePage() {
                 />
               </div>
             </div>
+            <div className="mt-4 space-y-2">
+              <label htmlFor="intake-description" className="block text-sm font-medium">เหตุการณ์ / คำสั่งมอบหมาย (ถ้ามี)</label>
+              <textarea id="intake-description" rows={4} maxLength={12000} value={form.description} onChange={(e) => set('description', e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="วางข้อความจากอีเมล หรือเล่าเรื่องที่ต้องการให้ดำเนินการ แล้วใช้ค้นฎีกาหรือจัดข้อเท็จจริงต่อได้" />
+              <DocumentDropZone multiple accept=".pdf,.txt,application/pdf,text/plain" label="แนบเอกสารมอบหมาย (ไม่บังคับ)" hint="PDF / TXT ไม่เกิน 30MB ต่อไฟล์ · บันทึกเรื่องก่อนเลือกใช้ AI" disabled={submitting || !!createdIntakeId} onFiles={(incoming) => {
+                if (incoming.some((file) => file.size > 30 * 1024 * 1024 || !['application/pdf', 'text/plain'].includes(file.type))) { setError('เลือก PDF / TXT ไม่เกิน 30MB ต่อไฟล์'); return; }
+                const next = [...files]; for (const file of incoming) if (!next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file);
+                if (next.length > 10) { setError('เลือกได้สูงสุด 10 ไฟล์'); return; } setFiles(next); setError('');
+              }} />
+              {files.map((file,index) => <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{file.name}</span><button type="button" onClick={() => setFiles((prev) => prev.filter((_,i) => i !== index))} className="shrink-0 text-primary">เอาออก</button></div>)}
+            </div>
           </section>
 
+          <details className="rounded-xl border border-border p-4">
+            <summary className="cursor-pointer text-sm font-medium">เพิ่มผู้ที่เราว่าความให้ ข้อมูลเคลม และทีม (เติมภายหลังได้)</summary>
+            <div className="mt-3 space-y-3">
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">2</span>
               <h2 className="font-semibold">ลูกความ (เราว่าความให้ใคร)</h2>
             </div>
             <div className="space-y-3">
@@ -342,86 +427,10 @@ export default function NewIntakePage() {
             </div>
           </section>
 
-          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <div className="mb-1 flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">3</span>
-              <h2 className="font-semibold">ลูกค้า (ผู้ว่าจ้าง / วางบิล)</h2>
-            </div>
-            <p className="mb-3 text-sm text-muted-foreground">
-              คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน
-            </p>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={sameCustomer}
-                onChange={(e) => setSameCustomer(e.target.checked)}
-                className="h-4 w-4 rounded border-input"
-              />
-              ลูกค้าคนเดียวกับลูกความ
-            </label>
-            {!sameCustomer && (
-              <div className="mt-3 space-y-2">
-                {customers.map((row, index) => (
-                  <div key={index} className="flex items-end gap-2">
-                    <div className="min-w-0 flex-1">
-                      <CustomerSelect
-                        id={`intake-customer-${index}`}
-                        label={`ลูกค้ารายที่ ${index + 1}`}
-                        value={row.customerId}
-                        clients={clients}
-                        onChange={(customerId) =>
-                          setCustomers((rows) =>
-                            rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
-                          )
-                        }
-                        onCreated={(client) =>
-                          setClients((rows) =>
-                            [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
-                          )
-                        }
-                      />
-                    </div>
-                    <input
-                      aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
-                      value={row.sharePercent}
-                      onChange={(e) =>
-                        setCustomers((rows) =>
-                          rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
-                        )
-                      }
-                      inputMode="decimal"
-                      placeholder="%"
-                      className="w-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                    />
-                    {customers.length > 1 && (
-                      <button
-                        type="button"
-                        aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
-                        onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
-                        className="px-2 text-sm text-muted-foreground"
-                      >
-                        ลบ
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
-                  className="text-sm underline"
-                >
-                  + เพิ่มผู้จ่ายอีกราย
-                </button>
-                <p className="text-xs text-muted-foreground">
-                  เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
-                </p>
-              </div>
-            )}
-          </section>
+
 
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-1 flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">4</span>
               <h2 className="font-semibold">ประกันภัย (ถ้ามี)</h2>
             </div>
             <p className="mb-3 text-sm text-muted-foreground">
@@ -464,7 +473,6 @@ export default function NewIntakePage() {
           {assignable.length > 0 && (
             <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
               <div className="mb-1 flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">5</span>
                 <h2 className="font-semibold">ทีมผู้รับผิดชอบ</h2>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -485,6 +493,8 @@ export default function NewIntakePage() {
             </section>
           )}
 
+            </div>
+          </details>
           {error && (
             <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
           )}
@@ -493,12 +503,12 @@ export default function NewIntakePage() {
             <Button type="button" variant="outline" disabled={submitting || !!createdIntakeId} onClick={() => router.push('/intake')}>
               ยกเลิก
             </Button>
-            <Button type="submit" disabled={submitting || analysisBusy}>
+            <Button type="submit" disabled={submitting}>
               {submitting
                 ? 'กำลังบันทึก...'
                 : createdIntakeId
                   ? 'แนบไฟล์ที่เหลืออีกครั้ง'
-                  : 'สร้างเรื่องและไปเติมรายละเอียด'}
+                  : 'บันทึกและเปิดพื้นที่ทำงาน'}
             </Button>
           </div>
         </fieldset>
@@ -507,40 +517,6 @@ export default function NewIntakePage() {
         Optional and credit-metered, so it sits below the form as a closed
         disclosure: the two required fields come first.
       */}
-      <details className="group mt-6 rounded-xl border bg-card shadow-sm">
-        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium sm:px-6 [&::-webkit-details-marker]:hidden">
-          <span className="mr-2 inline-block transition-transform group-open:rotate-90">▸</span>
-          วิเคราะห์เนื้อหาไฟล์ด้วย AI (ไม่บังคับ)
-        </summary>
-        <div className="border-t p-4 sm:p-6">
-          <div>
-            <BatchAnalysisPanel
-              files={files}
-              onFilesChange={setFiles}
-              onBusyChange={setAnalysisBusy}
-              onFieldSuggestions={setSuggestions}
-              entityLabel="เรื่อง"
-              disabled={submitting || !!createdIntakeId}
-            />
-          </div>
-
-          {suggestions.length > 0 && (
-            <div className="mt-4">
-              <SuggestedFieldsPanel
-                suggestions={suggestions}
-                accepts={['title']}
-                current={{ title: form.title }}
-                onApply={(field, value) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    [field]: value,
-                  }))
-                }
-              />
-            </div>
-          )}
-        </div>
-      </details>
     </div>
   );
 }

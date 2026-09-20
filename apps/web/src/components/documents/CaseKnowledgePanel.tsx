@@ -1,5 +1,7 @@
 'use client';
 
+import { isUnusableAnalysis } from '@lawfirm/shared';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, KnowledgeItem } from '@/lib/api';
@@ -57,6 +59,8 @@ function ReviewAction({ item, caseId, onReviewed }: { item: KnowledgeItem; caseI
   const [draft, setDraft] = useState(item.summary);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  if (isUnusableAnalysis(item.summary)) return <p role="alert" className="mt-3 text-sm text-destructive">ผลเดิมอ่านเอกสารไม่สำเร็จ — เปิดเอกสารแล้ววิเคราะห์ใหม่ ไม่สามารถยืนยันผลนี้ได้</p>;
 
   if (item.reviewedBy) {
     return (

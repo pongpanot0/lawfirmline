@@ -17,7 +17,6 @@ import { PageLoading, TableEmptyRow } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { formatCurrency } from '@/lib/utils';
 import { fmt } from '@/lib/i18n/dashboard';
-import { downloadPettyCashCsv } from '@/lib/petty-cash-csv';
 
 const STATUS_FILTERS = ['', 'DRAFT', 'PENDING', 'APPROVED', 'PAID', 'REJECTED'] as const;
 
@@ -73,6 +72,7 @@ export default function ExpensesPage() {
     Promise.all(loads)
       .then(([e, f, m]) => {
         setExpenses(e as ExpenseItem[]);
+        setSelectedDraftIds(prev => prev.filter(id => (e as ExpenseItem[]).some(item => item.id === id)));
         setFinance(f as FinanceSummary);
         if (Array.isArray(m)) setMembers(m as TeamMember[]);
       })
@@ -91,30 +91,6 @@ export default function ExpensesPage() {
     () => expenses.filter((e) => e.status !== 'DRAFT'),
     [expenses],
   );
-
-  const [exporting, setExporting] = useState(false);
-
-  const exportPettyCash = async () => {
-    const authToken = token ?? getStoredToken();
-    setExporting(true);
-    try {
-      const result = await downloadPettyCashCsv({
-        firmName: finance?.firmName ?? '',
-        requesterName: user ? `${user.firstName} ${user.lastName}` : '',
-        expenses,
-        fetchReceipt: authToken
-          ? (expenseId) => api.downloadExpenseReceipt(authToken, expenseId)
-          : undefined,
-      });
-      if (result.failed > 0) {
-        setError(`ดาวน์โหลดรูปใบเสร็จไม่สำเร็จ ${result.failed} รายการ (ไฟล์อื่นถูกรวมไว้แล้ว)`);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : d.expenses.loadFailed);
-    } finally {
-      setExporting(false);
-    }
-  };
 
   const downloadReceipt = async (expenseId: string, filename: string) => {
     const authToken = token ?? getStoredToken();
@@ -141,11 +117,11 @@ export default function ExpensesPage() {
   };
 
   const toggleAllDrafts = () => {
-    if (selectedDraftIds.length === draftExpenses.length) {
-      setSelectedDraftIds([]);
+    if (draftExpenses.every(e => selectedDraftIds.includes(e.id))) {
+      setSelectedDraftIds(prev => prev.filter(id => !draftExpenses.some(e => e.id === id)));
       return;
     }
-    setSelectedDraftIds(draftExpenses.map((e) => e.id));
+    setSelectedDraftIds(prev => [...new Set([...prev, ...draftExpenses.map(e => e.id)])]);
   };
 
   const openClaimSheet = () => {
@@ -158,7 +134,7 @@ export default function ExpensesPage() {
     const sent = new URLSearchParams(window.location.search).get('sent');
     if (sent === '1') {
       setSuccess(d.expenses.sendToOwnerSuccess);
-      setSelectedDraftIds([]);
+      setSelectedDraftIds(prev => prev.filter(id => !draftExpenses.some(e => e.id === id)));
       setReloadKey((n) => n + 1);
       router.replace('/expenses');
     }
@@ -189,13 +165,8 @@ export default function ExpensesPage() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={expenses.length === 0 || exporting}
-              onClick={exportPettyCash}
-            >
-              {exporting ? 'กำลังรวมไฟล์…' : 'Export CSV'}
+            <Button size="sm" variant="outline" onClick={openClaimSheet} disabled={!selectedDraftIds.length}>
+              <FileText className="h-4 w-4" />จัดทำใบเบิก{selectedDraftIds.length ? ` (${selectedDraftIds.length})` : ''}
             </Button>
             <Button size="sm" onClick={() => router.push('/expenses/new')}>
               <Plus className="h-4 w-4" />
@@ -287,14 +258,9 @@ export default function ExpensesPage() {
         <CardHeader className="flex-row items-center justify-between gap-3">
           <div>
             <CardTitle>{d.expenses.savedDrafts}</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">{d.expenses.savedDraftsHint}</p>
+            <p className="mt-1 text-xs text-muted-foreground">เลือกรายการ แล้วกดจัดทำใบเบิกด้านบน เพื่อพิมพ์หรือดาวน์โหลดพร้อมไฟล์แนบ</p>
           </div>
-          <Button size="sm" onClick={openClaimSheet} disabled={selectedDraftIds.length === 0}>
-            <FileText className="h-4 w-4" />
-            {selectedDraftIds.length > 0
-              ? fmt(d.expenses.prepareClaimCount, { count: selectedDraftIds.length })
-              : d.expenses.prepareClaim}
-          </Button>
+
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -302,7 +268,7 @@ export default function ExpensesPage() {
               <TableRow>
                 <TableHead className="w-10">
                   <Checkbox
-                    checked={draftExpenses.length > 0 && selectedDraftIds.length === draftExpenses.length}
+                    checked={draftExpenses.length > 0 && draftExpenses.every(e => selectedDraftIds.includes(e.id))}
                     onChange={toggleAllDrafts}
                     aria-label={d.expenses.selectAll}
                   />
@@ -361,7 +327,7 @@ export default function ExpensesPage() {
         </CardContent>
       </Card>
 
-      {/* Step 2 — already-submitted history, read-only. */}
+      {/* Previously submitted items can be exported without resubmitting them. */}
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>{d.expenses.submittedList}</CardTitle>
@@ -377,7 +343,7 @@ export default function ExpensesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{d.expenses.descriptionField}</TableHead>
+                <TableHead className="w-10"><Checkbox aria-label="เลือกประวัติทั้งหมด" checked={submittedExpenses.length > 0 && submittedExpenses.every(e => selectedDraftIds.includes(e.id))} onChange={() => setSelectedDraftIds(prev => submittedExpenses.every(e => prev.includes(e.id)) ? prev.filter(id => !submittedExpenses.some(e => e.id === id)) : [...new Set([...prev, ...submittedExpenses.map(e => e.id)])])} /></TableHead><TableHead>{d.expenses.descriptionField}</TableHead>
                 {isOwner && <TableHead>{d.expenses.requester}</TableHead>}
                 <TableHead>{d.expenses.caseField}</TableHead>
                 <TableHead>{d.expenses.amount}</TableHead>
@@ -386,10 +352,10 @@ export default function ExpensesPage() {
             </TableHeader>
             <TableBody>
               {submittedExpenses.length === 0 ? (
-                <TableEmptyRow colSpan={colSpan} title={d.expenses.empty} />
+                <TableEmptyRow colSpan={colSpan + 1} title={d.expenses.empty} />
               ) : (
                 submittedExpenses.map((e) => (
-                  <TableRow key={e.id}>
+                  <TableRow key={e.id}><TableCell><Checkbox aria-label={`เลือก ${e.description}`} checked={selectedDraftIds.includes(e.id)} onChange={() => toggleDraft(e.id)} /></TableCell>
                     <TableCell>
                       <p className="text-sm font-medium">{e.description}</p>
                       <p className="text-xs text-muted-foreground">{e.category}</p>
