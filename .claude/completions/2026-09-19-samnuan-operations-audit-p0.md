@@ -16,5 +16,9 @@ Audit score before fixes: 48.5/100 (Office Operations band). Full scorecard in s
 - Required documents: CaseType.requiredDocuments + Document.category + missing-doc alert
 - AutomationLog (escalation, playbook apply, insurance stage) + list API
 
-## Not done (P2)
-- Recurring tasks, task dependencies, document full-text search, retention/delete policy, S3 SSE encryption, per-firm LINE channel, seat-limit enforcement, client portal extras, time/expense tracking beyond current
+## P2 shipped (PR #47)
+- Recurring tasks (recurrenceDays, spawn on DONE), task dependencies (blockedById + unlock notify), cross-case doc search, seat-limit enforcement, S3 SSE, migration-history hotfix (20260922040000 category collision — prod deploy would have failed)
+- Archive = CaseStatus.ARCHIVED (shipped in #45); skipped per-firm LINE channel (single LINE tenant, premature)
+
+## Remaining backlog
+- Per-firm LINE channel (when second firm needs LINE), retention auto-purge policy, client portal extras, advanced BI
