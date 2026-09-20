@@ -108,16 +108,52 @@ export class TenantService {
     return this.prisma.firmMember.count({ where: { firmId } });
   }
 
+  /** Seats used = members + pending invites (a resent invite to the same email is not a new seat). */
+  private async seatsUsed(firmId: string, excludeEmail?: string) {
+    const [members, pendingInvites] = await Promise.all([
+      this.prisma.firmMember.count({ where: { firmId } }),
+      this.prisma.invitation.count({
+        where: {
+          firmId,
+          acceptedAt: null,
+          expiresAt: { gt: new Date() },
+          ...(excludeEmail ? { email: { not: excludeEmail } } : {}),
+        },
+      }),
+    ]);
+    return members + pendingInvites;
+  }
+
   async assertCanInvite(
-    _firmId: string,
-    _inviteEmail?: string,
+    firmId: string,
+    inviteEmail?: string,
   ): Promise<{ allowed: boolean; message?: string }> {
-    // Single-firm deployment: no seat-limit enforcement.
+    const firm = await this.prisma.firm.findUniqueOrThrow({
+      where: { id: firmId },
+      select: { maxUsers: true },
+    });
+    const used = await this.seatsUsed(firmId, inviteEmail);
+    if (used >= firm.maxUsers) {
+      return {
+        allowed: false,
+        message: `ครบจำนวนผู้ใช้ตามแพ็กเกจแล้ว (${firm.maxUsers} ที่นั่ง) — อัปเกรดแพ็กเกจเพื่อเพิ่มสมาชิก`,
+      };
+    }
     return { allowed: true };
   }
 
-  async assertCanAddMember(_firmId: string): Promise<{ allowed: boolean; message?: string }> {
-    // Single-firm deployment: no seat-limit enforcement.
+  async assertCanAddMember(firmId: string): Promise<{ allowed: boolean; message?: string }> {
+    const firm = await this.prisma.firm.findUniqueOrThrow({
+      where: { id: firmId },
+      select: { maxUsers: true },
+    });
+    const members = await this.prisma.firmMember.count({ where: { firmId } });
+    if (members >= firm.maxUsers) {
+      return {
+        allowed: false,
+        message: `ครบจำนวนผู้ใช้ตามแพ็กเกจแล้ว (${firm.maxUsers} ที่นั่ง)`,
+      };
+    }
     return { allowed: true };
   }
 

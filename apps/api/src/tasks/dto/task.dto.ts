@@ -1,10 +1,13 @@
 import {
   IsArray,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   IsDateString,
+  Max,
+  Min,
 } from 'class-validator';
 import { TaskPriority, TaskStatus } from '@lawfirm/shared';
 
@@ -36,6 +39,18 @@ export class CreateTaskDto {
   @IsArray()
   @IsString({ each: true })
   labels?: string[];
+
+  /** งานประจำ — เมื่อเสร็จ สร้างรอบถัดไปครบกำหนด +N วัน */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  recurrenceDays?: number;
+
+  /** งานนี้รอ task อื่นเสร็จก่อน */
+  @IsOptional()
+  @IsUUID()
+  blockedById?: string;
 }
 
 export class UpdateTaskDto {
@@ -67,4 +82,16 @@ export class UpdateTaskDto {
   @IsArray()
   @IsString({ each: true })
   labels?: string[];
+
+  /** งานประจำ — เมื่อเสร็จ สร้างรอบถัดไปครบกำหนด +N วัน */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  recurrenceDays?: number;
+
+  /** งานนี้รอ task อื่นเสร็จก่อน */
+  @IsOptional()
+  @IsUUID()
+  blockedById?: string;
 }

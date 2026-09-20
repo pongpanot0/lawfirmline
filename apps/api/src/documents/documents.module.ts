@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
+import { DocumentsSearchController } from './documents-search.controller';
 import { DocumentsController } from './documents.controller';
 import { IntakeDocumentsController } from './intake-documents.controller';
 import { DocumentPublicationService } from './document-publication.service';
@@ -8,7 +9,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [forwardRef(() => NotificationsModule)],
-  controllers: [DocumentsController, IntakeDocumentsController, DocumentPublicationController],
+  controllers: [DocumentsController, IntakeDocumentsController, DocumentPublicationController, DocumentsSearchController],
   providers: [DocumentsService, DocumentPublicationService],
   exports: [DocumentsService],
 })

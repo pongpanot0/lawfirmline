@@ -275,6 +275,8 @@ export class TasksService {
         status: dto.status,
         priority: dto.priority ?? TaskPriority.MEDIUM,
         labels: this.labelsFromDto(dto.labels) ?? [],
+        recurrenceDays: dto.recurrenceDays,
+        blockedById: dto.blockedById,
         createdById: user.id,
         source,
       },
@@ -379,7 +381,51 @@ export class TasksService {
       });
     }
 
+    if (dto.status === TaskStatus.DONE && task.status !== TaskStatus.DONE) {
+      await this.onTaskCompleted(updated, user.id);
+    }
+
     return updated;
+  }
+
+  /**
+   * Runs once when a task transitions to DONE: spawn the next occurrence of a
+   * recurring task, and tell owners of tasks blocked by this one they can start.
+   */
+  private async onTaskCompleted(
+    task: import('../generated/prisma').Task,
+    actorUserId: string,
+  ) {
+    if (task.recurrenceDays) {
+      const base = task.dueDate && task.dueDate > new Date() ? task.dueDate : new Date();
+      await this.prisma.task.create({
+        data: {
+          caseId: task.caseId,
+          title: task.title,
+          description: task.description,
+          assigneeId: task.assigneeId,
+          createdById: task.createdById,
+          priority: task.priority,
+          labels: task.labels,
+          recurrenceDays: task.recurrenceDays,
+          dueDate: new Date(base.getTime() + task.recurrenceDays * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+
+    const unblocked = await this.prisma.task.findMany({
+      where: { blockedById: task.id, status: { not: TaskStatus.DONE } },
+      select: { id: true, title: true, assigneeId: true, caseId: true },
+    });
+    for (const t of unblocked) {
+      if (!t.assigneeId) continue;
+      await this.assignmentNotifier.notifyAssigned({
+        userIds: [t.assigneeId],
+        actorUserId,
+        summaryText: `🟢 งานที่รออยู่เริ่มได้แล้ว: "${t.title}"\n(งานก่อนหน้า "${task.title}" เสร็จแล้ว)`,
+        entityPath: t.caseId ? `/cases/${t.caseId}` : '/todos',
+      });
+    }
   }
 
   async remove(id: string, caseId?: string) {
@@ -480,6 +526,7 @@ export class TasksService {
       data: { status: TaskStatus.DONE },
     });
     await this.logActivity(caseId, `ปิดงาน "${task.title}"`, user.id);
+    await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
 
     return this.findOne(taskId);
   }
@@ -617,6 +664,7 @@ export class TasksService {
       where: { id: taskId },
       data: { status: TaskStatus.DONE },
     });
+    await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
 
     return this.findOne(taskId);
   }

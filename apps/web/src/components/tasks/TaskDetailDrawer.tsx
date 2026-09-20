@@ -40,6 +40,23 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [comment, setComment] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [siblingTasks, setSiblingTasks] = useState<Array<{ id: string; title: string; status: string }>>([]);
+
+  // ตัวเลือก "รอ task อื่นเสร็จก่อน" — เฉพาะงานในคดีเดียวกัน
+  useEffect(() => {
+    if (!token || !task?.caseId) {
+      setSiblingTasks([]);
+      return;
+    }
+    api
+      .getTasks(token, task.caseId)
+      .then((rows) =>
+        setSiblingTasks(
+          (rows as Array<{ id: string; title: string; status: string }>).filter((t) => t.id !== task.id),
+        ),
+      )
+      .catch(() => setSiblingTasks([]));
+  }, [token, task?.caseId, task?.id]);
   const fileInput = useRef<HTMLInputElement>(null);
   const asideRef = useRef<HTMLElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
@@ -291,6 +308,43 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 <label htmlFor="td-due" className={label}>{d.taskDetail.dueDate}</label>
                 <input id="td-due" type="date" disabled={busy} value={task.dueDate ? bangkokDateInputValue(task.dueDate) : ''} onChange={(e) => e.target.value && patch({ dueDate: e.target.value })} className={field} />
               </div>
+              <div>
+                <label htmlFor="td-recur" className={label}>ทำซ้ำทุก (วัน)</label>
+                <input
+                  id="td-recur"
+                  type="number"
+                  min={1}
+                  max={365}
+                  placeholder="ไม่ทำซ้ำ"
+                  disabled={busy}
+                  value={task.recurrenceDays ?? ''}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    patch({ recurrenceDays: Number.isNaN(n) ? null : n });
+                  }}
+                  className={field}
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">เมื่อปิดงาน ระบบสร้างรอบถัดไปให้เอง</p>
+              </div>
+              {task.caseId && (
+                <div className="sm:col-span-2">
+                  <label htmlFor="td-blocked" className={label}>รอ task อื่นเสร็จก่อน (blocked by)</label>
+                  <select
+                    id="td-blocked"
+                    disabled={busy}
+                    value={task.blockedById ?? ''}
+                    onChange={(e) => patch({ blockedById: e.target.value || null })}
+                    className={field}
+                  >
+                    <option value="">— ไม่รอใคร —</option>
+                    {siblingTasks.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.status === 'DONE' ? '✓ ' : ''}{t.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <label htmlFor="td-label" className={label}>{d.taskDetail.labels}</label>
                 <div className="mt-1 flex flex-wrap items-center gap-1 rounded-lg border border-input bg-background px-2 py-1.5">
