@@ -19,6 +19,10 @@ export function SideDrawer({
   children: React.ReactNode;
 }) {
   const asideRef = useRef<HTMLElement>(null);
+  // Callers pass inline arrows; depending on onClose would re-run this effect
+  // (and yank focus back to the close button) on every keystroke inside.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -32,7 +36,7 @@ export function SideDrawer({
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -59,7 +63,7 @@ export function SideDrawer({
       document.body.style.overflow = previousOverflow;
       opener?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

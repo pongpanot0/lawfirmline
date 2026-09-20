@@ -34,6 +34,24 @@ const OPTIONAL_COLUMNS = [
 type OptionalColumnKey = (typeof OPTIONAL_COLUMNS)[number]['key'];
 const HIDDEN_COLUMNS_KEY = 'samnuan.cases.hiddenColumns';
 
+/** ทุกฟิลด์ที่ export ได้ — ผู้ใช้ติ๊กเลือกเองใน dialog */
+const EXPORT_COLUMNS: {
+  key: string;
+  label: string;
+  value: (c: CaseItem, d: ReturnType<typeof useDashboardT>) => string;
+}[] = [
+  { key: 'ownRef', label: 'Own Ref', value: (c) => c.ownRef },
+  { key: 'customerRef', label: 'เลขอ้างอิงลูกค้า', value: (c) => c.customerRef ?? '' },
+  { key: 'title', label: 'ชื่อคดี', value: (c) => c.title },
+  { key: 'clientName', label: 'ลูกความ', value: (c) => c.clientName ?? '' },
+  { key: 'courtName', label: 'ศาล', value: (c) => c.courtName ?? '' },
+  { key: 'leadLawyer', label: 'เจ้าของคดี', value: (c) => `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}` },
+  { key: 'estimatedFee', label: 'รายได้โดยประมาณ', value: (c) => (c.estimatedFee != null ? String(c.estimatedFee) : '') },
+  { key: 'status', label: 'สถานะ', value: (c, d) => getCaseStatusDisplay(c.status, d.caseStatus).label },
+  { key: 'stage', label: 'ขั้นตอน', value: (c) => (c.stage ? caseStageLabel(c.stage, 'th') : '') },
+  { key: 'openedAt', label: 'วันที่เปิดคดี', value: (c) => (c.openedAt ? formatDate(c.openedAt) : '') },
+];
+
 export default function CasesPage() {
   const d = useDashboardT();
   return (
@@ -58,6 +76,13 @@ function CasesPageContent() {
   const [lawyerFilter, setLawyerFilter] = useState('');
   const [page, setPage] = useState(0);
   const [sortAsc, setSortAsc] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'csv' | 'pdf'>('csv');
+  const [exportFields, setExportFields] = useState<Set<string>>(
+    () => new Set(EXPORT_COLUMNS.map((c) => c.key)),
+  );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [bulkLawyerId, setBulkLawyerId] = useState('');
@@ -113,11 +138,21 @@ function CasesPageContent() {
   };
 
   const sorted = useMemo(() => {
-    return [...cases].sort((a, b) => {
-      const cmp = a.ownRef.localeCompare(b.ownRef);
-      return sortAsc ? cmp : -cmp;
-    });
-  }, [cases, sortAsc]);
+    // กรองช่วงวันที่เปิดคดีฝั่ง client — รายการโหลดมาแล้วทั้งชุดตาม filter อื่น
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+    const to = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null;
+    return cases
+      .filter((c) => {
+        if (!from && !to) return true;
+        if (!c.openedAt) return false;
+        const opened = new Date(c.openedAt);
+        return (!from || opened >= from) && (!to || opened <= to);
+      })
+      .sort((a, b) => {
+        const cmp = a.ownRef.localeCompare(b.ownRef);
+        return sortAsc ? cmp : -cmp;
+      });
+  }, [cases, sortAsc, dateFrom, dateTo]);
 
   const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
@@ -159,38 +194,39 @@ function CasesPageContent() {
     setReloadKey((k) => k + 1);
   };
 
-  const exportCsv = () => {
-    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const header = [
-      'Own Ref',
-      'Customer Ref',
-      'ชื่อคดี',
-      'ลูกความ',
-      'ศาล',
-      'เจ้าของคดี',
-      'รายได้โดยประมาณ',
-      'สถานะ',
-      'ขั้นตอน',
-    ];
-    const rows = sorted.map((c) => [
-      c.ownRef,
-      c.customerRef ?? '',
-      c.title,
-      c.clientName ?? '',
-      c.courtName ?? '',
-      `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}`,
-      c.estimatedFee != null ? String(c.estimatedFee) : '',
-      getCaseStatusDisplay(c.status, d.caseStatus).label,
-      c.stage ? caseStageLabel(c.stage, 'th') : '',
-    ]);
-    const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
-    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `cases-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const doExport = () => {
+    const columns = EXPORT_COLUMNS.filter((col) => exportFields.has(col.key));
+    if (!columns.length) return;
+    // มีติ๊กเลือกแถวไว้ → export เฉพาะที่เลือก ไม่งั้นเอาทั้งชุดตาม filter
+    const source = selected.size > 0 ? sorted.filter((c) => selected.has(c.id)) : sorted;
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (exportFormat === 'csv') {
+      const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+      const csv = [columns.map((col) => col.label), ...source.map((c) => columns.map((col) => col.value(c, d)))]
+        .map((row) => row.map(escape).join(','))
+        .join('\r\n');
+      const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `cases-${stamp}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const esc = (v: string) => v.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
+      const html = `<!doctype html><html lang="th"><meta charset="utf-8"><title>รายการคดี ${stamp}</title>
+<style>body{font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#111;margin:24px;font-size:12px}h1{font-size:16px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:5px 8px;text-align:left}th{background:#f2f2f2}@page{size:A4 landscape;margin:12mm}@media print{body{margin:0}thead{display:table-header-group}tr{break-inside:avoid}}</style>
+<body><h1>รายการคดี (${source.length} คดี) — ${new Date().toLocaleDateString('th-TH', { dateStyle: 'long' })}</h1>
+<table><thead><tr>${columns.map((col) => `<th>${esc(col.label)}</th>`).join('')}</tr></thead>
+<tbody>${source.map((c) => `<tr>${columns.map((col) => `<td>${esc(col.value(c, d))}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`;
+      const win = window.open('', '_blank');
+      if (!win) return;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    }
+    setExportOpen(false);
   };
 
   return (
@@ -200,7 +236,7 @@ function CasesPageContent() {
         description={d.cases.description}
         actions={
           <>
-            <Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={exportCsv}>
+            <Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={() => setExportOpen(true)}>
               <Download className="h-4 w-4" />
               {d.common.export}
             </Button>
@@ -255,6 +291,24 @@ function CasesPageContent() {
               <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
             ))}
           </select>
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            เปิดคดีตั้งแต่
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(0); }}
+              className="h-9 rounded-lg border border-input bg-card px-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            ถึง
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(0); }}
+              className="h-9 rounded-lg border border-input bg-card px-2 text-sm text-foreground"
+            />
+          </label>
           <details className="group relative ml-auto max-md:hidden">
             <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
               <Columns3 className="h-4 w-4" /> คอลัมน์
@@ -421,6 +475,63 @@ function CasesPageContent() {
           )}
         </CardContent>
       </Card>
+
+      {exportOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Export รายการคดี"
+          onKeyDown={(e) => { if (e.key === 'Escape') setExportOpen(false); }}
+        >
+          <div className="w-full max-w-md rounded-xl bg-background p-6 shadow-xl">
+            <h2 className="mb-1 text-lg font-semibold">Export รายการคดี</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              {selected.size > 0
+                ? `จะ export เฉพาะ ${selected.size} คดีที่ติ๊กเลือกไว้`
+                : `จะ export ${sorted.length} คดีตาม filter ปัจจุบัน (รวมช่วงวันที่)`}
+            </p>
+            <div className="mb-4 flex gap-2">
+              {([['csv', 'Excel (CSV)'], ['pdf', 'PDF (พิมพ์/บันทึก)']] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setExportFormat(value)}
+                  className={`rounded-lg border px-3 py-2 text-sm ${exportFormat === value ? 'border-primary bg-primary/5 font-medium' : 'border-input'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mb-2 text-sm font-medium">ฟิลด์ที่ต้องการ</p>
+            <div className="mb-4 grid grid-cols-2 gap-1.5">
+              {EXPORT_COLUMNS.map((col) => (
+                <label key={col.key} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50">
+                  <Checkbox
+                    checked={exportFields.has(col.key)}
+                    onChange={() =>
+                      setExportFields((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(col.key)) next.delete(col.key);
+                        else next.add(col.key);
+                        return next;
+                      })
+                    }
+                  />
+                  {col.label}
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setExportOpen(false)}>ยกเลิก</Button>
+              <Button onClick={doExport} disabled={exportFields.size === 0}>
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

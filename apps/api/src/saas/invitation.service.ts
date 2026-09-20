@@ -119,7 +119,7 @@ export class InvitationService {
   /**
    * สมัครผ่านลิงก์ /join/<slug> โดยไม่ต้องมีรหัสคำเชิญ — สร้างเฉพาะบัญชีใหม่
    * เท่านั้น อีเมลที่มีบัญชีอยู่แล้วต้องผ่านคำเชิญปกติ (กัน endpoint เปิด
-   * ผูกบัญชีคนอื่นเข้า firm โดยไม่ยืนยันตัวตน) เข้าเป็น ASSISTANT ก่อน
+   * ผูกบัญชีคนอื่นเข้า firm โดยไม่ยืนยันตัวตน) เข้าเป็นทนาย (LAWYER)
    * เจ้าของสำนักงานปรับบทบาทได้ที่หน้า Team
    */
   async openJoin(slug: string, dto: OpenJoinDto) {
@@ -148,7 +148,7 @@ export class InvitationService {
         },
       });
       await tx.firmMember.create({
-        data: { firmId: firm.id, userId: created.id, role: 'ASSISTANT' },
+        data: { firmId: firm.id, userId: created.id, role: 'LAWYER' },
       });
       await tx.auditLog.create({
         data: {

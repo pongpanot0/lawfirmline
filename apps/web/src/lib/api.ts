@@ -283,6 +283,7 @@ export interface CaseItem {
   estimatedFee?: number | null;
   closingSummary?: string | null;
   closedAt?: string | null;
+  openedAt?: string;
   updatedAt?: string;
   leadLawyer: { firstName: string; lastName: string };
   caseType?: { id: string; name: string; fieldSchema?: unknown } | null;
