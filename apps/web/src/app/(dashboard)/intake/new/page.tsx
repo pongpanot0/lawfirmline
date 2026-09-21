@@ -68,6 +68,8 @@ export default function NewIntakePage() {
     contactName: '',
     receivedDate: today,
     caseTypeId: '',
+    policyNumber: '',
+    claimNumber: '',
     playbookId: '',
     leadLawyerId: '',
   });
@@ -184,6 +186,8 @@ export default function NewIntakePage() {
       if (form.opposingParty.trim()) payload.opposingParty = form.opposingParty.trim();
       if (form.caseTypeId) payload.caseTypeId = form.caseTypeId;
       if (form.playbookId) payload.preferredPlaybookId = form.playbookId;
+      if (form.policyNumber.trim()) payload.policyNumber = form.policyNumber.trim();
+      if (form.claimNumber.trim()) payload.claimNumber = form.claimNumber.trim();
       if (form.leadLawyerId) payload.leadLawyerId = form.leadLawyerId;
       if (assignedIds.length > 0) payload.assignedUserIds = assignedIds;
       if (clientId) {
@@ -301,6 +305,26 @@ export default function NewIntakePage() {
                   onChange={(e) => set('opposingParty', e.target.value)}
                   className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                   placeholder="ชื่อคู่กรณี"
+                />
+              </div>
+              <div>
+                <label htmlFor="intake-policyNumber" className="block text-xs font-semibold">เลขกรมธรรม์</label>
+                <input
+                  id="intake-policyNumber"
+                  value={form.policyNumber}
+                  onChange={(e) => set('policyNumber', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="POL-..."
+                />
+              </div>
+              <div>
+                <label htmlFor="intake-claimNumber" className="block text-xs font-semibold">เลขเคลม</label>
+                <input
+                  id="intake-claimNumber"
+                  value={form.claimNumber}
+                  onChange={(e) => set('claimNumber', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="CLM-..."
                 />
               </div>
               <div>
