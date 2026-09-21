@@ -1283,6 +1283,41 @@ export default function CaseDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">
+          {legalCase.intake && legalCase.stage === 'PRE_LITIGATION' && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">งานก่อนฟ้อง</CardTitle>
+                <Link href={`/intake/${legalCase.intake.id}`}>
+                  <Button variant="outline" size="sm">จัดการโนติส / ใบเสนอราคา →</Button>
+                </Link>
+              </CardHeader>
+              <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">หนังสือทวงถาม (Notice)</p>
+                  <p className="font-medium">
+                    {legalCase.intake.noticeIssuedAt
+                      ? `ออกแล้ว ${new Date(legalCase.intake.noticeIssuedAt).toLocaleDateString('th-TH')}`
+                      : 'ยังไม่ออก'}
+                  </p>
+                  {legalCase.intake.noticeRecipient && (
+                    <p className="text-xs text-muted-foreground">ถึง {legalCase.intake.noticeRecipient}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">ครบกำหนดตาม Notice</p>
+                  <p className="font-medium">
+                    {legalCase.intake.noticeDeadline
+                      ? new Date(legalCase.intake.noticeDeadline).toLocaleDateString('th-TH')
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">สถานะเจรจา</p>
+                  <p className="font-medium">{legalCase.intake.noticeResult || legalCase.intake.preLitigationStatus || '—'}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {/* ใช้เป็นครั้งคราว — พับไว้ให้หน้าโล่ง */}
           <details className="rounded-xl border border-border bg-card">
             <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">

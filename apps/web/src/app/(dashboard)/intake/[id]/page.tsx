@@ -987,17 +987,14 @@ export default function IntakeDetailPage() {
             {intake.status === 'ASSESSING' && (
               <Button onClick={() => setModal('decide')}>ตัดสินใจแนวทาง</Button>
             )}
-            {intake.status === 'ACCEPTED' && (
+            {/* งานก่อนฟ้องยังทำต่อได้หลังเปิดคดี — โนติส/เจรจา/ใบเสนอราคาบันทึกที่นี่ */}
+            {['ACCEPTED', 'CONVERTED'].includes(intake.status) && (
               <Button variant="outline" onClick={() => openNoticeModal()}>ออก Notice</Button>
             )}
-            {intake.status !== 'CONVERTED' && (
-              <Button variant="outline" onClick={handleQuotePdfExport}>
-                Export ใบเสนอราคา PDF
-              </Button>
-            )}
-            {intake.status !== 'CONVERTED' && (
-              <Button variant="outline" onClick={openPreLitigationModal}>อัปเดต</Button>
-            )}
+            <Button variant="outline" onClick={handleQuotePdfExport}>
+              Export ใบเสนอราคา PDF
+            </Button>
+            <Button variant="outline" onClick={openPreLitigationModal}>อัปเดต</Button>
             {intake.status === 'ACCEPTED' && (
               <Button onClick={() => setConverting(true)} disabled={submitting}>
                 {intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}

@@ -469,6 +469,16 @@ export interface CaseParticipantItem {
 }
 
 export interface CaseDetail extends CaseItem {
+  /** intake ต้นทาง — งานก่อนฟ้อง (โนติส/เจรจา) ยังบันทึกอยู่ที่นั่น */
+  intake?: {
+    id: string;
+    status: string;
+    noticeIssuedAt?: string | null;
+    noticeDeadline?: string | null;
+    noticeRecipient?: string | null;
+    noticeResult?: string | null;
+    preLitigationStatus?: string | null;
+  } | null;
   description?: string | null;
   folderId?: string;
   courtName?: string | null;
