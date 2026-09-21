@@ -11,6 +11,7 @@ import { formatDate, formatDateTime } from '@/lib/utils';
 import { bangkokDateInputValue } from '@/lib/bangkok';
 import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
 interface Props {
   taskId: string | null;
@@ -306,7 +307,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               </div>
               <div>
                 <label htmlFor="td-due" className={label}>{d.taskDetail.dueDate}</label>
-                <input id="td-due" type="date" disabled={busy} value={task.dueDate ? bangkokDateInputValue(task.dueDate) : ''} onChange={(e) => e.target.value && patch({ dueDate: e.target.value })} className={field} />
+                <ThaiDateInput id="td-due" disabled={busy} value={task.dueDate ? bangkokDateInputValue(task.dueDate) : ''} onChange={(v) => v && patch({ dueDate: v })} />
               </div>
               <div>
                 <label htmlFor="td-recur" className={label}>ทำซ้ำทุก (วัน)</label>
@@ -434,13 +435,11 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                         <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                       ))}
                   </select>
-                  <input
-                    type="date"
-                    aria-label={d.taskDetail.dueDate}
+                  <ThaiDateInput
                     value={subtaskDue}
                     disabled={busy}
-                    onChange={(e) => setSubtaskDue(e.target.value)}
-                    className={`${field} mt-0 w-auto`}
+                    onChange={setSubtaskDue}
+                    className="mt-0"
                   />
                   <Button type="submit" size="sm" variant="outline" disabled={busy || !subtaskTitle.trim()}>{d.taskDetail.addSubtask}</Button>
                 </form>

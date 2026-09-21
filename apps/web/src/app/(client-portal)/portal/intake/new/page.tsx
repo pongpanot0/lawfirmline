@@ -7,6 +7,7 @@ import { ArrowLeft, CheckCircle2, FileText, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
@@ -110,11 +111,10 @@ export default function NewIntakePage() {
 
         <div className="mb-4">
           <label className="mb-1.5 block text-[12.5px] font-semibold">วันที่ต้องการดำเนินการ (ถ้ามี)</label>
-          <Input
-            type="date"
+          <ThaiDateInput
             className="max-w-[220px]"
             value={clientRequestedDate}
-            onChange={(e) => setClientRequestedDate(e.target.value)}
+            onChange={setClientRequestedDate}
           />
           <p className="mt-1.5 text-[11.5px] text-muted-foreground">
             ระบุเฉพาะกรณีมีกำหนดเวลาที่ต้องดำเนินการ เช่น วันครบกำหนดฟ้อง

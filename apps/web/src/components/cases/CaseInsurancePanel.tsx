@@ -11,6 +11,7 @@ import { api, ApiError, InsuranceClaimItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { PageLoading } from '@/components/ui/misc';
 import { InsurerSelect } from '@/components/InsurerSelect';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
 export function CaseInsurancePanel({ caseId }: { caseId: string }) {
   const id = caseId;
@@ -163,12 +164,11 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700">วันวินาศภัย</label>
-            <input
+            <ThaiDateInput
               required
-              type="date"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              className="mt-1"
               value={form.incidentDate}
-              onChange={(e) => setForm({ ...form, incidentDate: e.target.value })}
+              onChange={(v) => setForm({ ...form, incidentDate: v })}
             />
           </div>
           <div className="flex items-center gap-3">

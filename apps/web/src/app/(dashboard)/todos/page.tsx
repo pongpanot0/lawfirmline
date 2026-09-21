@@ -20,6 +20,7 @@ import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { priorityLabel } from '@/lib/task-detail';
 import { PageLoading } from '@/components/ui/misc';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
 function TodosPageContent() {
   const d = useDashboardT();
@@ -319,12 +320,10 @@ function TodosPageContent() {
                 </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.dueDate}</label>
-                  <input
-                    type="date"
-                    aria-label={d.taskDetail.dueDate}
+                  <ThaiDateInput
                     value={newDueDate}
-                    onChange={(e) => setNewDueDate(e.target.value)}
-                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                    onChange={setNewDueDate}
+                    className="mt-1"
                   />
                 </div>
               </div>
@@ -437,12 +436,9 @@ function TodosPageContent() {
                         <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                       ))}
                     </select>
-                    <input
-                      type="date"
-                      aria-label={d.taskDetail.dueDate}
+                    <ThaiDateInput
                       value={subDraft.dueDate}
-                      onChange={(e) => setSubDraft({ ...subDraft, dueDate: e.target.value })}
-                      className="h-9 rounded-lg border border-input bg-card px-2 text-sm"
+                      onChange={(v) => setSubDraft({ ...subDraft, dueDate: v })}
                     />
                     <Button
                       type="button"

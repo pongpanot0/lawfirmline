@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Plus, X } from 'lucide-react';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
 const FIRM_ROLE_LABELS: Record<string, string> = {
   OWNER: 'เจ้าของ',
@@ -463,13 +464,12 @@ export default function NewIntakePage() {
               </div>
               <div>
                 <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
-                <input
+                <ThaiDateInput
                   id="intake-receivedDate"
-                  type="date"
                   required
                   value={form.receivedDate}
-                  onChange={(e) => set('receivedDate', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  onChange={(v) => set('receivedDate', v)}
+                  className="mt-1"
                 />
               </div>
             </div>

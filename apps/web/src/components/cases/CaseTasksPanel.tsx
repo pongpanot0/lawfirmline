@@ -14,6 +14,7 @@ import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
 import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -230,12 +231,11 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="case-task-due" className="text-sm font-medium">{d.caseTasks.dueDate}</label>
-                    <input
+                    <ThaiDateInput
                       id="case-task-due"
-                      type="date"
                       value={newDueDate}
-                      onChange={(e) => setNewDueDate(e.target.value)}
-                      className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                      onChange={setNewDueDate}
+                      className="mt-1"
                     />
                   </div>
                   <div>

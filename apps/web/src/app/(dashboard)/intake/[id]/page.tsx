@@ -28,6 +28,7 @@ import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { formatDate } from '@/lib/utils';
 import { CaseCostLine, initialCaseCosts } from '@/lib/case-costs';
 import { buildQuoteHtml } from '@/lib/quote-doc';
@@ -1645,11 +1646,10 @@ export default function IntakeDetailPage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="block text-sm font-medium">วันเกิดเหตุ</label>
-                      <input
-                        type="date"
+                      <ThaiDateInput
                         value={editIncidentDate}
-                        onChange={(e) => setEditIncidentDate(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                        onChange={setEditIncidentDate}
+                        className="mt-1"
                       />
                     </div>
                     <div>
@@ -1760,11 +1760,10 @@ export default function IntakeDetailPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium">กำหนดตอบ</label>
-                    <input
-                      type="date"
+                    <ThaiDateInput
                       value={noticeDeadline}
-                      onChange={(e) => setNoticeDeadline(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      onChange={setNoticeDeadline}
+                      className="mt-1"
                     />
                   </div>
                   <div>

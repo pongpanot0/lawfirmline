@@ -15,6 +15,7 @@ import { formatCurrency } from '@/lib/utils';
 import { InlineEmptyState } from '@/components/ui/misc';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { SideDrawer } from '@/components/ui/SideDrawer';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'ร่าง',
@@ -342,12 +343,9 @@ export function InvoicePanel({
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
             <label className="text-sm text-slate-500">
               ครบกำหนดชำระ{' '}
-              <input
-                aria-label="ครบกำหนดชำระ"
-                type="date"
+              <ThaiDateInput
                 value={dueAt}
-                onChange={(e) => setDueAt(e.target.value)}
-                className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                onChange={setDueAt}
               />
             </label>
             <p className="text-sm">

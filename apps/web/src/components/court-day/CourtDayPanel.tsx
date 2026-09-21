@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import {
   bangkokInputToIso,
   bangkokInputValue,
@@ -893,19 +894,16 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   </label>
                   <label className="block text-sm">
                     {t.taskDue}
-                    <input
-                      type="date"
-                      className={`${inputClass} mt-1`}
+                    <ThaiDateInput
+                      className="mt-1"
                       value={
                         state.taskDue
                           ? bangkokDateInputValue(state.taskDue)
                           : ''
                       }
-                      onChange={(e) =>
+                      onChange={(v) =>
                         edit({
-                          taskDue: e.target.value
-                            ? bangkokDateInputToIso(e.target.value)
-                            : '',
+                          taskDue: v ? bangkokDateInputToIso(v) : '',
                         })
                       }
                     />

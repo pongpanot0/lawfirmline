@@ -7,6 +7,7 @@ import { useLocale } from '@/components/landing/LocaleProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
 const SELECT_CLASS = 'h-9 rounded-lg border border-input bg-card px-3 text-sm';
 
@@ -128,7 +129,7 @@ export function IntakeFollowUpPanel({
         </label>
         <label className="text-xs">
           <span className="mb-1 block text-muted-foreground">{th ? 'ติดตามครั้งถัดไป' : 'Next follow-up'}</span>
-          <Input type="date" value={nextDueAt} onChange={(e) => setNextDueAt(e.target.value)} className="w-40" />
+          <ThaiDateInput value={nextDueAt} onChange={setNextDueAt} />
         </label>
         <label className="text-xs">
           <span className="mb-1 block text-muted-foreground">{th ? 'ผู้ถือเรื่อง' : 'Owner'}</span>

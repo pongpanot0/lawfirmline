@@ -12,6 +12,7 @@ import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { CaseTimelineView } from '@/components/cases/CaseTimelineView';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { PageLoading } from '@/components/ui/misc';
@@ -173,11 +174,10 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
             <span className="mb-1 block text-muted-foreground">
               {d.dateSuggestions.applyTriggerDate}
             </span>
-            <Input
-              type="date"
+            <ThaiDateInput
               required
               value={triggerDate}
-              onChange={(e) => setTriggerDate(e.target.value)}
+              onChange={setTriggerDate}
             />
           </label>
 

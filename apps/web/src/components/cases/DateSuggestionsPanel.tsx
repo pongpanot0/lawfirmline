@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { api, DateSuggestionItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
 type Draft = { label: string; date: string; eventType: DateSuggestionItem['eventType'] };
 
@@ -113,14 +114,11 @@ export function DateSuggestionsPanel({
                     }
                     className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
                   />
-                  <input
-                    type="date"
-                    aria-label={d.holidays.date}
+                  <ThaiDateInput
                     value={draft.date}
-                    onChange={(e) =>
-                      setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, date: e.target.value } }))
+                    onChange={(v) =>
+                      setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, date: v } }))
                     }
-                    className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
                   />
                   <select
                     aria-label={d.calendar.typeDeadline}

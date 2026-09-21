@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { parseHolidayLines } from '@/lib/holidays';
@@ -152,11 +153,10 @@ export default function HolidaysPage() {
           <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3">
             <label className="text-sm">
               <span className="mb-1 block text-muted-foreground">{d.holidays.date}</span>
-              <Input
-                type="date"
+              <ThaiDateInput
                 required
                 value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                onChange={(v) => setForm({ ...form, date: v })}
               />
             </label>
             <label className="text-sm">
