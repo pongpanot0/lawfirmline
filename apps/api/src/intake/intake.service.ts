@@ -555,7 +555,50 @@ export class IntakeService {
       });
     }
 
-    return created;
+    if (dto.preferredPlaybookId) {
+      await this.seedPlaybookTasks(user, created.id, dto.preferredPlaybookId);
+    }
+
+    // Record เดียวตั้งแต่รับเรื่อง — เปิดคดีทันทีที่ขั้น "รับเรื่อง/กลั่นกรอง"
+    // (intake ยังเก็บข้อมูลรับเรื่อง/โนติสอยู่เบื้องหลัง ผูก 1:1 กับคดี)
+    if (created.relatedCaseId) {
+      await this.attachToExistingCase(user, created, {} as ConvertToCaseDto);
+    } else {
+      await this.openCaseFromIntake(user, created, {} as ConvertToCaseDto, 'INTAKE_REVIEW');
+    }
+
+    return this.findOne(user, created.id);
+  }
+
+  /**
+   * เลือก playbook ตั้งแต่รับเรื่อง = ได้ to-do ของเรื่องนั้นทันที ไม่ต้องรอเป็นคดี
+   * เปิดคดีแล้วงานพวกนี้ย้ายไปเป็นงานคดี และถูกนับเป็น AppliedPlaybook ของคดีเลย
+   */
+  private async seedPlaybookTasks(user: AuthUser, intakeId: string, releaseId: string) {
+    const release = await this.prisma.playbookRelease.findFirst({
+      where: { id: releaseId, firmId: user.firmId },
+    });
+    if (!release) return;
+    // seed ครั้งเดียว — เปลี่ยน playbook/กดซ้ำไม่สร้างงานซ้อน
+    const existing = await this.prisma.task.count({
+      where: { intakeId, labels: { hasSome: [`playbook:${releaseId}`] } },
+    });
+    if (existing > 0) return;
+    const steps = (release.steps as unknown as Array<{ title: string; instructions?: string }>) ?? [];
+    for (const step of steps) {
+      if (!step?.title?.trim()) continue;
+      await this.prisma.task.create({
+        data: {
+          intakeId,
+          title: step.title.trim(),
+          description: step.instructions,
+          // ponytail: มอบให้คนรับเรื่องไปก่อน — role-based assignment ทำตอนเป็นคดี
+          assigneeId: user.id,
+          createdById: user.id,
+          labels: [`playbook:${releaseId}`],
+        },
+      });
+    }
   }
 
   /**
@@ -677,6 +720,10 @@ export class IntakeService {
         summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${updated.title}`,
         entityPath: `/intake/${updated.id}`,
       });
+    }
+
+    if (dto.preferredPlaybookId) {
+      await this.seedPlaybookTasks(user, updated.id, dto.preferredPlaybookId);
     }
 
     return updated;
@@ -923,6 +970,7 @@ export class IntakeService {
     user: AuthUser,
     intake: Awaited<ReturnType<IntakeService['findOne']>>,
     dto: ConvertToCaseDto,
+    initialStage: string = 'PRE_LITIGATION',
   ) {
     const id = intake.id;
     // Generate ownRef like cases.service.ts
@@ -999,7 +1047,7 @@ export class IntakeService {
         referralSource: intake.referralName ?? undefined,
         status: 'OPEN' as any,
         // คดีที่ผ่าน intake มาแล้วไม่ต้อง review ซ้ำ — เริ่มที่งานก่อนฟ้องเลย
-        stage: 'PRE_LITIGATION' as any,
+        stage: initialStage as any,
         stageChangedAt: new Date(),
         leadLawyerId: dto.leadLawyerId ?? user.id,
         intakeId: intake.id,
@@ -1025,6 +1073,28 @@ export class IntakeService {
       where: { intakeId: intake.id },
       data: { caseId: newCase.id, intakeId: null },
     });
+
+    // playbook ที่เลือกตั้งแต่รับเรื่อง นับเป็น AppliedPlaybook ของคดีเลย
+    // (งานถูก seed ไปแล้วตอนรับเรื่อง — กัน apply ซ้ำสร้างงานซ้อน)
+    if (intake.preferredPlaybookId) {
+      const playbookTasks = await this.prisma.task.findMany({
+        where: { caseId: newCase.id, labels: { hasSome: [`playbook:${intake.preferredPlaybookId}`] } },
+        select: { id: true },
+      });
+      if (playbookTasks.length > 0) {
+        await this.prisma.appliedPlaybook
+          .create({
+            data: {
+              caseId: newCase.id,
+              releaseId: intake.preferredPlaybookId,
+              startDate: new Date(),
+              taskIds: playbookTasks.map((t) => t.id),
+              appliedById: user.id,
+            },
+          })
+          .catch(() => undefined); // release ถูกลบไปแล้วก็ไม่ต้องล้มการเปิดคดี
+      }
+    }
 
     // งานประกันที่กรอกบริษัทมาตั้งแต่รับเรื่อง เปิดเคลมให้เลย ไม่ต้องไปกรอกซ้ำที่คดี
     if (intake.insurerName) {

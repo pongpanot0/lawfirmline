@@ -15,7 +15,17 @@ describe('IntakeService assignment notifications', () => {
   let service: IntakeService;
   const mockPrisma = {
     intake: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-    case: { findFirst: jest.fn() },
+    case: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'case-new', title: 'x', leadLawyerId: 'user-1' }), update: jest.fn().mockResolvedValue({ id: 'case-1', title: 'x', leadLawyerId: 'user-1' }) },
+    firm: { findUnique: jest.fn().mockResolvedValue({ ownRefPrefix: 'REF' }) },
+    caseAssignment: { createMany: jest.fn() },
+    calendarEvent: { create: jest.fn() },
+    intakePrecedentAnalysis: { updateMany: jest.fn() },
+    insuranceClaim: { create: jest.fn() },
+    document: { updateMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
+    task: { updateMany: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+    appliedPlaybook: { create: jest.fn() },
+
     firmMember: { findMany: jest.fn() },
     intakeFieldProposal: { updateMany: jest.fn() },
   };
@@ -40,9 +50,9 @@ describe('IntakeService assignment notifications', () => {
           provide: CaseAccessService,
           useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) },
         },
-        { provide: TasksService, useValue: {} },
+        { provide: TasksService, useValue: { create: jest.fn() } },
         { provide: IntakePrecedentAnalysisService, useValue: {} },
-        { provide: DocumentsService, useValue: {} },
+        { provide: DocumentsService, useValue: { adoptIntakeAttachments: jest.fn() } },
         { provide: FileStorageService, useValue: { put: jest.fn(), delete: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: mockNotifier },
       ],
@@ -51,7 +61,8 @@ describe('IntakeService assignment notifications', () => {
   });
 
   it('notifies assigned members on create', async () => {
-    mockPrisma.intake.create.mockResolvedValue({ id: 'i1', title: 'เรื่องทดสอบ' });
+    mockPrisma.intake.create.mockResolvedValue({ id: 'i1', title: 'เรื่องทดสอบ', firmId: 'firm-1', relatedCaseId: null, assignedUserIds: ['u2', 'u3'], deadlineDate: null, customers: [], clientId: null, matterType: null });
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'i1', firmId: 'firm-1' });
     await service.create(user, {
       receivedDate: '2026-09-17',
       title: 'เรื่องทดสอบ',

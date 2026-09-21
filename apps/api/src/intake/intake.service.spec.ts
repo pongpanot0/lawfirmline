@@ -402,7 +402,17 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
   let service: IntakeService;
   const mockPrisma = {
     intake: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-    case: { findFirst: jest.fn() },
+    case: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'case-new', title: 'x', leadLawyerId: 'user-1' }), update: jest.fn().mockResolvedValue({ id: 'case-1', title: 'x', leadLawyerId: 'user-1' }) },
+    firm: { findUnique: jest.fn().mockResolvedValue({ ownRefPrefix: 'REF' }) },
+    caseAssignment: { createMany: jest.fn() },
+    calendarEvent: { create: jest.fn() },
+    intakePrecedentAnalysis: { updateMany: jest.fn() },
+    insuranceClaim: { create: jest.fn() },
+    document: { updateMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
+    task: { updateMany: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+    appliedPlaybook: { create: jest.fn() },
+
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
@@ -431,8 +441,9 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
   });
 
   it('passes relatedCaseId, isOngoingElsewhere, externalCaseNumber, currentStageNote through on create', async () => {
-    mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', firmId: 'firm-1' });
-    mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
+    mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', firmId: 'firm-1', leadLawyerId: 'user-2', limitationDeadline: null });
+    mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1', relatedCaseId: 'case-1', assignedUserIds: [], deadlineDate: null, title: null, matterType: null });
+    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', firmId: 'firm-1' });
 
     await service.create(user, {
       receivedDate: '2026-09-06',
