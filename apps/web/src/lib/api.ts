@@ -259,6 +259,9 @@ export interface CustomerShareItem {
   isPrimary: boolean;
   note?: string | null;
   customer: { id: string; name: string };
+  /** คนติดต่อฝั่งลูกค้ารายนี้ — ใครคือคนที่คุยกับเรา */
+  contactId?: string | null;
+  contact?: { id: string; name: string; phone?: string | null; email?: string | null } | null;
 }
 
 export interface AdditionalClientItem {
@@ -1483,6 +1486,16 @@ export const api = {
 
   getTasks: (token: string, caseId: string) =>
     request<TaskItem[]>(`/cases/${caseId}/tasks`, { token }),
+
+  // งาน/checklist ของเรื่องรับเข้า — เปิดคดีแล้วงานถูกย้ายไปเป็นงานคดีอัตโนมัติ
+  getIntakeTasks: (token: string, intakeId: string) =>
+    request<TaskItem[]>(`/intake/${intakeId}/tasks`, { token }),
+  createIntakeTask: (token: string, intakeId: string, data: Record<string, unknown>) =>
+    request(`/intake/${intakeId}/tasks`, { method: 'POST', token, body: JSON.stringify(data) }),
+  updateIntakeTask: (token: string, intakeId: string, taskId: string, data: Record<string, unknown>) =>
+    request(`/intake/${intakeId}/tasks/${taskId}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+  deleteIntakeTask: (token: string, intakeId: string, taskId: string) =>
+    request(`/intake/${intakeId}/tasks/${taskId}`, { method: 'DELETE', token }),
 
   getTaskInbox: (token: string) => request<Array<TaskItem & { assigneeId: string | null; case: { id: string; ownRef: string; title: string } | null }>>('/dashboard/tasks', { token }),
   getMyTodos: (token: string) => request<TaskItem[]>('/todos', { token }),

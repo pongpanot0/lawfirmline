@@ -58,10 +58,12 @@ export class CasesService {
       select: {
         id: true,
         customerId: true,
+        contactId: true,
         sharePercent: true,
         isPrimary: true,
         note: true,
         customer: { select: { id: true, name: true } },
+        contact: { select: { id: true, name: true, phone: true, email: true } },
       },
     },
     additionalClients: {
@@ -241,6 +243,7 @@ export class CasesService {
     const hasPrimary = customers.some((c) => c.isPrimary);
     return customers.map((c, index) => ({
       customerId: c.customerId,
+      contactId: c.contactId ?? null,
       sharePercent: c.sharePercent ?? null,
       isPrimary: c.isPrimary ?? (!hasPrimary && index === 0),
       note: c.note ?? null,

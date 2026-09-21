@@ -85,6 +85,8 @@ enum CaseOutcome {
   WON
   LOST
   SETTLED
+  /// ไกล่เกลี่ยสำเร็จ (ผ่านศาล/ศูนย์ไกล่เกลี่ย) — แยกจาก SETTLED ที่ตกลงกันเอง
+  MEDIATED
   WITHDRAWN
   IN_PROGRESS
 }
@@ -702,6 +704,8 @@ model ClientContact {
   notificationPreferences ContactNotificationPreference[]
   caseMessages            CaseMessage[]
   portalInvites           ClientPortalInvite[]
+  caseCustomers           CaseCustomer[]                  @relation("CaseCustomerContact")
+  intakeCustomers         IntakeCustomer[]                @relation("IntakeCustomerContact")
 
   @@index([clientId])
 }
@@ -880,6 +884,7 @@ model Intake {
   followUps              IntakeFollowUp[]
   conflictChecks         ConflictCheck[]
   documentRequests       IntakeDocumentRequest[]
+  tasks                  Task[]
   client                 Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   caseType               CaseType?                 @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
   case                   Case?
@@ -1095,6 +1100,9 @@ model Task {
   updatedAt   DateTime     @updatedAt
 
   case           Case?               @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  /// งานของเรื่องรับเข้า — เปิดคดีแล้วถูกย้ายไปเป็นงานคดี (caseId แทน intakeId)
+  intakeId       String?
+  intake         Intake?             @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   blockedBy      Task?               @relation("TaskBlocks", fields: [blockedById], references: [id], onDelete: SetNull)
   blocks         Task[]              @relation("TaskBlocks")
   assignee       User?               @relation("TaskAssignee", fields: [assigneeId], references: [id])
@@ -1109,6 +1117,7 @@ model Task {
   @@index([dueDate])
   @@index([assigneeId, status, dueDate])
   @@index([parentId])
+  @@index([intakeId])
   @@index([blockedById])
 }
 
@@ -1607,10 +1616,13 @@ model CaseCustomer {
   sharePercent Float?
   isPrimary    Boolean  @default(false)
   note         String?
+  /// คนติดต่อฝั่งลูกค้ารายนี้ — ใครคือคนที่คุยกับเรา
+  contactId    String?
   createdAt    DateTime @default(now())
 
-  case     Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  customer Client @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  case     Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  customer Client         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contact  ClientContact? @relation("CaseCustomerContact", fields: [contactId], references: [id], onDelete: SetNull)
 
   @@unique([caseId, customerId])
   @@index([customerId])
@@ -1624,10 +1636,13 @@ model IntakeCustomer {
   sharePercent Float?
   isPrimary    Boolean  @default(false)
   note         String?
+  /// คนติดต่อฝั่งลูกค้ารายนี้ — ติดไป CaseCustomer.contactId ตอนเปิดคดี
+  contactId    String?
   createdAt    DateTime @default(now())
 
-  intake   Intake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
-  customer Client @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  intake   Intake         @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  customer Client         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contact  ClientContact? @relation("IntakeCustomerContact", fields: [contactId], references: [id], onDelete: SetNull)
 
   @@unique([intakeId, customerId])
   @@index([customerId])

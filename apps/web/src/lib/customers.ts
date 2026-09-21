@@ -3,6 +3,8 @@ type CustomerShare = {
   customerId: string;
   sharePercent?: number | null;
   customer: { name: string };
+  /** คนติดต่อฝั่งลูกค้ารายนี้ */
+  contact?: { name: string } | null;
 };
 
 /**
@@ -11,9 +13,13 @@ type CustomerShare = {
  */
 export function formatCustomers(customers?: CustomerShare[] | null): string | null {
   if (!customers?.length) return null;
-  if (customers.length === 1) return customers[0].customer.name;
+  const withContact = (c: CustomerShare, base: string) =>
+    c.contact?.name ? `${base} (ติดต่อ: ${c.contact.name})` : base;
+  if (customers.length === 1) return withContact(customers[0], customers[0].customer.name);
   return customers
-    .map((c) => (c.sharePercent == null ? c.customer.name : `${c.customer.name} ${c.sharePercent}%`))
+    .map((c) =>
+      withContact(c, c.sharePercent == null ? c.customer.name : `${c.customer.name} ${c.sharePercent}%`),
+    )
     .join(' · ');
 }
 

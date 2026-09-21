@@ -94,8 +94,8 @@ export default function NewCasePage() {
     initialActivityDescription: '',
   });
   // ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน (เช่น บริษัทประกัน) ต่างจากลูกความที่เราว่าความให้ (form.clientId)
-  const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string }[]>([
-    { customerId: '', sharePercent: '' },
+  const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string; contactId?: string }[]>([
+    { customerId: '', sharePercent: '', contactId: '' },
   ]);
   const [sameCustomer, setSameCustomer] = useState(false);
   // ลูกความคนอื่น (เกินคนที่ 1) — เช่น หลายคนร่วมฟ้อง/ถูกฟ้อง
@@ -333,6 +333,7 @@ export default function NewCasePage() {
       if (pickedCustomers.length) {
         payload.customers = pickedCustomers.map((c, index) => ({
           customerId: c.customerId,
+          contactId: c.contactId || undefined,
           sharePercent: c.sharePercent ? Number(c.sharePercent) : undefined,
           isPrimary: index === 0,
         }));
@@ -597,6 +598,26 @@ export default function NewCasePage() {
                               )
                             }
                           />
+                    {(() => {
+                      const contacts = clients.find((c) => c.id === row.customerId)?.contacts ?? [];
+                      return row.customerId && contacts.length > 0 ? (
+                        <select
+                          aria-label={`คนติดต่อของผู้มอบหมายรายที่ ${index + 1}`}
+                          value={row.contactId ?? ''}
+                          onChange={(e) =>
+                            setCustomers((rows) =>
+                              rows.map((r, i) => (i === index ? { ...r, contactId: e.target.value } : r)),
+                            )
+                          }
+                          className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                        >
+                          <option value="">คนติดต่อฝั่งลูกค้า — ไม่ระบุ</option>
+                          {contacts.map((ct) => (
+                            <option key={ct.id} value={ct.id}>{ct.name}{ct.phone ? ` · ${ct.phone}` : ''}</option>
+                          ))}
+                        </select>
+                      ) : null;
+                    })()}
                         </div>
                         {customers.length > 1 && (
                           <input
@@ -629,7 +650,7 @@ export default function NewCasePage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
+                      onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '', contactId: '' }])}
                     >
                       <Plus className="h-3.5 w-3.5" /> เพิ่มผู้จ่ายอีกราย
                     </Button>

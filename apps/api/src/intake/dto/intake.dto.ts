@@ -83,6 +83,11 @@ export class CustomerShareDto {
   @IsUUID()
   customerId!: string;
 
+  /** คนติดต่อฝั่งลูกค้ารายนี้ — ใครคือคนที่คุยกับเรา */
+  @IsOptional()
+  @IsUUID()
+  contactId?: string;
+
   @IsOptional()
   @IsNumber()
   @Min(0)
