@@ -66,6 +66,11 @@ enum CaseStage {
   CLOSING
 }
 
+enum PartyRole {
+  PLAINTIFF
+  DEFENDANT
+}
+
 enum CaseStatus {
   OPEN
   DRAFTING
@@ -738,6 +743,8 @@ model Case {
   outcome            CaseOutcome @default(IN_PROGRESS)
   clientId           String?
   clientName         String?
+  /// ฝ่ายเรา — โจทก์หรือจำเลย ให้ AI และทีมรู้มุมที่ต้องทำงาน
+  partyRole          PartyRole?
   courtName          String?
   courtLevel         CourtLevel?
   blackCaseNumber    String?
@@ -810,6 +817,8 @@ model Intake {
   clientName            String?
   /// เลขอ้างอิงฝั่งลูกค้า — ติดไปที่ Case.customerRef ตอนแปลงเป็นคดี
   customerRef           String?
+  /// ฝ่ายเรา — โจทก์หรือจำเลย ติดไปที่ Case.partyRole ตอนเปิดคดี
+  partyRole             PartyRole?
   matterType            String?
   /// ประเภทคดีที่คาดว่าจะเป็น — เลือกได้ตั้งแต่รับเรื่อง เพื่อแนะนำ Playbook
   /// ก่อนแปลงเป็นคดีจริง; แปลงเป็นคดีแล้วยังเปลี่ยนได้อีกทีที่ Case.caseTypeId
