@@ -353,6 +353,8 @@ export default function IntakeDetailPage() {
   // ทนายหลักอยู่บนคดีที่เปิดคู่กับเรื่องนี้ — เปลี่ยนจากหน้านี้ได้เลย
   const [caseLeadId, setCaseLeadId] = useState('');
   const [savingLead, setSavingLead] = useState(false);
+  const [editingPlaybook, setEditingPlaybook] = useState(false);
+  const [savingPlaybook, setSavingPlaybook] = useState(false);
   const [missingDocCount, setMissingDocCount] = useState(0);
   const [newDocRequest, setNewDocRequest] = useState('');
 
@@ -481,6 +483,21 @@ export default function IntakeDetailPage() {
       setError('เปลี่ยนทนายหลักไม่สำเร็จ');
     } finally {
       setSavingLead(false);
+    }
+  };
+
+  // เปลี่ยน playbook จากการ์ดได้เลย — API seed งานของ playbook ใหม่ให้ทันที
+  const changePlaybook = async (releaseId: string) => {
+    if (!token || !id || !releaseId) return;
+    setSavingPlaybook(true);
+    try {
+      await api.updateIntake(token, id, { preferredPlaybookId: releaseId });
+      setEditingPlaybook(false);
+      await reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'เปลี่ยน Playbook ไม่สำเร็จ');
+    } finally {
+      setSavingPlaybook(false);
     }
   };
 
@@ -951,9 +968,12 @@ export default function IntakeDetailPage() {
           </div>
           <p className="text-sm text-muted-foreground">{intake.referralName || intake.clientName || intake.client?.name || '—'} · รับเมื่อ {formatDateOrDash(intake.receivedDate)}</p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[intake.status] ?? 'bg-gray-100 text-gray-700'}`}>
-          {STATUS_LABELS[intake.status] ?? intake.status}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" onClick={() => openNoticeModal()}>ออก Notice</Button>
+          <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[intake.status] ?? 'bg-gray-100 text-gray-700'}`}>
+            {STATUS_LABELS[intake.status] ?? intake.status}
+          </span>
+        </div>
       </div>
 
       {/* Summary strip — ตัวเลขที่ทนายเปิดหน้านี้มาดูก่อนอย่างอื่น */}
@@ -1025,23 +1045,7 @@ export default function IntakeDetailPage() {
         <ResearchWorkspace intakeId={id} initialText={intake.description ?? ''} documents={documents} onUploaded={() => void loadDocuments()} onResult={(row) => { setAnalyses((prev) => [row, ...prev.filter((a) => a.id !== row.id)]); setSelectedAnalysisId(row.id); }} />
       </div>
       <div id="intake-overview" role="tabpanel" aria-label="ข้อมูลและติดตาม" hidden={workspaceTab !== 'overview'} className="space-y-4">
-      {/* Status timeline */}
-      {intake.status !== 'REJECTED' && intake.status !== 'CONVERTED' && intake.status !== 'CONSULTED' && (
-        <div className="flex items-center gap-2">
-          {STEPS.map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${i <= currentStep ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                {i + 1}
-              </div>
-              <span className={`text-xs ${i <= currentStep ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                {STATUS_LABELS[s]}
-              </span>
-              {i < STEPS.length - 1 && <div className={`h-px w-8 ${i < currentStep ? 'bg-primary' : 'bg-muted'}`} />}
-            </div>
-          ))}
-        </div>
-      )}
-
+      {/* ขั้นตอนมีที่เดียว: แถบ "ขั้นตอนงานรับเรื่อง" ในคอลัมน์ซ้ายด้านล่าง */}
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
       )}
@@ -1086,42 +1090,6 @@ export default function IntakeDetailPage() {
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-lg bg-muted/35 p-3">
-              <p className="text-xs text-muted-foreground">ขั้นตอนตอนนี้</p>
-              <p className="mt-1 font-medium">{PRE_LITIGATION_STATUS_LABELS[intake.preLitigationStatus] ?? intake.preLitigationStatus}</p>
-            </div>
-            <div className="rounded-lg bg-muted/35 p-3">
-              <p className="text-xs text-muted-foreground">เอกสารพร้อม</p>
-              <p className="mt-1 font-medium">
-                {matchedExpectedDocuments.length}/{expectedDocuments.length}
-                {missingExpectedDocuments > 0 ? ` · ขาด ${missingExpectedDocuments}` : ' · ครบตาม checklist'}
-              </p>
-            </div>
-            <div className="rounded-lg bg-muted/35 p-3">
-              <p className="text-xs text-muted-foreground">ข้อเสนอจ่าย</p>
-              <p className="mt-1 font-medium">
-                {intake.settlementOfferAmount != null ? `${intake.settlementOfferAmount.toLocaleString('th-TH')} บาท` : 'ยังไม่มี'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {(PRE_LITIGATION_GUIDE[intake.preLitigationType] ?? PRE_LITIGATION_GUIDE.GENERAL).map((step) => (
-              <span key={step} className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                {step}
-              </span>
-            ))}
-          </div>
-
-          <div className="rounded-lg bg-muted/35 p-3">
-            <p className="text-sm font-medium">บันทึกล่าสุด</p>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
-              {intake.preLitigationNotes || intake.noticeResult || 'ยังไม่มีบันทึกก่อนฟ้อง'}
-            </p>
-          </div>
-        </CardContent>
       </Card>
 
       </div>
@@ -1385,7 +1353,8 @@ export default function IntakeDetailPage() {
           {token && (
             <>
               <IntakeStageBar intake={intake} token={token} onChanged={reload} />
-              <IntakeTasksPanel intakeId={intake.id} lawyers={lawyers} onCountsChange={setTaskCounts} />
+              {/* key: เปลี่ยน playbook แล้วให้โหลดงานชุดใหม่ทันที */}
+              <IntakeTasksPanel key={intake.preferredPlaybookId ?? 'none'} intakeId={intake.id} lawyers={lawyers} onCountsChange={setTaskCounts} />
             </>
           )}
 
@@ -1535,17 +1504,40 @@ export default function IntakeDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Playbook */}
+        {/* Playbook — เปลี่ยนได้จากตรงนี้เลย เลือกแล้วได้งานของ playbook ทันที */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Playbook</CardTitle></CardHeader>
+          <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">Playbook</CardTitle>
+            {!editingPlaybook && (
+              <Button variant="outline" size="sm" onClick={() => setEditingPlaybook(true)}>
+                {intake.preferredPlaybookId ? 'เปลี่ยน' : 'เลือก'}
+              </Button>
+            )}
+          </CardHeader>
           <CardContent>
-            {intake.preferredPlaybookId ? (
+            {editingPlaybook ? (
+              <div className="flex items-center gap-2">
+                <select
+                  aria-label="เลือก Playbook"
+                  defaultValue={intake.preferredPlaybookId ?? ''}
+                  disabled={savingPlaybook}
+                  onChange={(e) => void changePlaybook(e.target.value)}
+                  className="min-w-0 flex-1 rounded-lg border border-indigo-200 bg-indigo-50/50 px-3 py-2 text-sm"
+                >
+                  <option value="">— เลือก Playbook —</option>
+                  {playbooks.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} · v{p.version}</option>
+                  ))}
+                </select>
+                <Button variant="ghost" size="sm" disabled={savingPlaybook} onClick={() => setEditingPlaybook(false)}>ยกเลิก</Button>
+              </div>
+            ) : intake.preferredPlaybookId ? (
               <p className="text-sm">
                 <span className="font-semibold">{playbooks.find((p) => p.id === intake.preferredPlaybookId)?.name ?? 'Playbook ที่เลือกไว้'}</span>
                 <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800">ใช้อยู่ · งาน {taskCounts.done}/{taskCounts.total}</span>
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">ยังไม่ใช้ Playbook — เลือกได้จาก &quot;แก้ไข&quot; ในรายละเอียด</p>
+              <p className="text-sm text-muted-foreground">ยังไม่ใช้ Playbook — เลือกแล้วได้งานทุกขั้นทันที</p>
             )}
           </CardContent>
         </Card>

@@ -71,27 +71,30 @@ export function IntakeStageBar({
         )}
       </div>
 
-      {/* แถบขั้นตอน: กดที่ขั้นไหนก็ย้ายไปขั้นนั้นได้ งานจริงถอยกลับได้ */}
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      {/* แถบขั้นตอนแบบ pipeline: ✓ ขั้นที่ผ่าน, ขั้นปัจจุบันเด่น — กดขั้นไหนก็ย้ายได้ ถอยกลับได้ */}
+      <div className="mt-3 flex flex-wrap items-center gap-y-1.5">
         {intakeStageOptions(th ? 'th' : 'en').map((option, index) => {
           const isCurrent = option.value === current;
           const passed = index < currentIndex;
           return (
-            <button
-              key={option.value}
-              type="button"
-              disabled={busy}
-              onClick={() => move(option.value)}
-              className={`min-h-9 rounded-lg px-3 py-1 text-xs transition ${
-                isCurrent
-                  ? 'bg-primary text-primary-foreground font-medium'
-                  : passed
-                    ? 'bg-primary/10 text-primary'
-                    : 'border bg-card text-muted-foreground hover:border-primary/40'
-              }`}
-            >
-              {option.label}
-            </button>
+            <span key={option.value} className="flex items-center">
+              {index > 0 && <span className="px-1 text-xs text-muted-foreground/60">›</span>}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => move(option.value)}
+                className={`min-h-8 rounded-full px-3 py-1 text-xs transition-all duration-150 hover:-translate-y-0.5 ${
+                  isCurrent
+                    ? 'bg-primary font-semibold text-primary-foreground shadow-md shadow-primary/30'
+                    : passed
+                      ? 'border border-primary/30 bg-primary/5 font-medium text-primary'
+                      : 'border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                }`}
+              >
+                {passed && <span className="mr-1">✓</span>}
+                {option.label}
+              </button>
+            </span>
           );
         })}
       </div>
