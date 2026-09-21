@@ -911,6 +911,20 @@ export class IntakeService {
       return this.attachToExistingCase(user, intake, dto);
     }
 
+    return this.openCaseFromIntake(user, intake, dto);
+  }
+
+  /**
+   * เปิดคดีจาก intake — ใช้ร่วมกันทั้งทาง decide (รับดำเนินการ) และทาง
+   * convert เดิม. คดีที่เปิดจาก intake เริ่มที่เฟสก่อนฟ้อง (PRE_LITIGATION)
+   * เพราะงานโนติส/เจรจา/เอกสารคือคดีแล้ว ไม่ใช่ lead.
+   */
+  private async openCaseFromIntake(
+    user: AuthUser,
+    intake: Awaited<ReturnType<IntakeService['findOne']>>,
+    dto: ConvertToCaseDto,
+  ) {
+    const id = intake.id;
     // Generate ownRef like cases.service.ts
     const firm = await this.prisma.firm.findUnique({
       where: { id: user.firmId },
@@ -957,6 +971,7 @@ export class IntakeService {
         title,
         description: this.buildCaseDescription(intake),
         customerRef: intake.customerRef ?? undefined,
+        partyRole: intake.partyRole ?? undefined,
         clientId: intake.clientId ?? undefined,
         clientName: intake.clientName ?? undefined,
         // ลูกค้า (ผู้ว่าจ้าง/ผู้จ่าย) ตามมาจาก intake; ถ้าไม่ได้ระบุไว้ ให้ลูกความเป็นลูกค้าเอง
