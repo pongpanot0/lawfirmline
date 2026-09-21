@@ -219,6 +219,11 @@ export class CreateIntakeDto {
   @IsUUID('4', { each: true })
   assignedUserIds?: string[];
 
+  // ทนายหลักของคดีที่เปิดพร้อมรับเรื่อง — ไม่ระบุ = ผู้บันทึกเอง
+  @IsOptional()
+  @IsUUID()
+  leadLawyerId?: string;
+
   @IsOptional()
   @IsDateString()
   deadlineDate?: string;
