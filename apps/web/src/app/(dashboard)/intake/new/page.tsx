@@ -226,8 +226,12 @@ export default function NewIntakePage() {
         setSubmitting(false);
         return;
       }
-      // Record เดียวตั้งแต่รับเรื่อง — คดีเปิดแล้ว พาไป workspace ของคดีเลย
-      const createdCase = (created as IntakeItem).case;
+      // Record เดียวตั้งแต่รับเรื่อง — คดีเปิดแล้ว พาไป case detail เสมอ
+      // (รอบ retry แนบไฟล์ created มีแค่ id — ดึงข้อมูลเต็มมาหา case ก่อน)
+      let createdCase = (created as IntakeItem).case;
+      if (!createdCase?.id) {
+        createdCase = await api.getIntake(token, created.id).then((it) => it.case ?? undefined).catch(() => undefined);
+      }
       router.push(createdCase?.id ? `/cases/${createdCase.id}` : `/intake/${created.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
