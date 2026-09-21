@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, REFRESH_KEY } from '@/lib/auth';
-import { redirectToFirmApp } from '@/lib/firm-slug';
+import { redirectToFirmApp, getBrowserFirmSlug } from '@/lib/firm-slug';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuthShell } from '@/components/auth/AuthShell';
@@ -35,7 +35,30 @@ export default function LoginPage() {
     router.replace('/dashboard');
   }, [user, loading, router, token]);
 
+  // Apex has no localStorage session of its own (tokens live on the firm subdomain) — so
+  // every fresh visit here would otherwise ask for a password again even for someone
+  // already signed in elsewhere. Try the cross-subdomain cookie first, silently.
+  const [checkingSession, setCheckingSession] = useState(!getBrowserFirmSlug());
+  useEffect(() => {
+    if (loading || user || getBrowserFirmSlug()) {
+      setCheckingSession(false);
+      return;
+    }
+    let cancelled = false;
+    void api.apexSession().then((session) => {
+      if (cancelled) return;
+      if (session && redirectToFirmApp(session.user, session)) return;
+      setCheckingSession(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user]);
+
   if (!loading && user) {
+    return null;
+  }
+  if (checkingSession) {
     return null;
   }
 

@@ -1,11 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { AuthService, RequestMeta } from './auth.service';
 import { LoginDto, RefreshTokenDto } from './dto/login.dto';
 import { RegisterDto, ForgotPasswordDto, ResetPasswordDto } from './dto/register.dto';
 import { VerifyMfaLoginDto, MfaCodeDto, DisableMfaDto } from './dto/mfa.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AuthUser } from '@lawfirm/shared';
+import { AuthUser, LoginResult } from '@lawfirm/shared';
 import { SkipSubscription } from '../saas/decorators/saas.decorators';
 import { TenantRequest } from '../saas/middleware/tenant-resolve.middleware';
 
@@ -15,14 +16,27 @@ export class AuthController {
 
   @Post('login')
   @SkipSubscription()
-  login(@Body() dto: LoginDto, @Req() req: TenantRequest) {
-    return this.authService.login(dto, req.resolvedFirmId ?? undefined, requestMeta(req));
+  async login(@Body() dto: LoginDto, @Req() req: TenantRequest, @Res({ passthrough: true }) res: Response) {
+    const result: LoginResult = await this.authService.login(dto, req.resolvedFirmId ?? undefined, requestMeta(req));
+    if ('refreshToken' in result) this.authService.setRefreshCookie(res, result.refreshToken);
+    return result;
   }
 
   @Post('register')
   @SkipSubscription()
-  register(@Body() dto: RegisterDto, @Req() req: TenantRequest) {
-    return this.authService.register(dto, req.resolvedFirmId, requestMeta(req));
+  async register(@Body() dto: RegisterDto, @Req() req: TenantRequest, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.register(dto, req.resolvedFirmId, requestMeta(req));
+    this.authService.setRefreshCookie(res, result.refreshToken);
+    return result;
+  }
+
+  /** Apex has no localStorage session of its own — mint one from the cross-subdomain cookie instead of asking to log in again. */
+  @Post('session')
+  @SkipSubscription()
+  session(@Req() req: Request) {
+    const refreshToken = this.authService.readRefreshCookie(req);
+    if (!refreshToken) throw new UnauthorizedException();
+    return this.authService.sessionFromCookie(refreshToken);
   }
 
   @Post('forgot-password')
@@ -45,8 +59,10 @@ export class AuthController {
 
   @Post('mfa/verify')
   @SkipSubscription()
-  verifyMfa(@Body() dto: VerifyMfaLoginDto, @Req() req: TenantRequest) {
-    return this.authService.verifyMfaLogin(dto.mfaToken, dto.code, req.resolvedFirmId ?? undefined, requestMeta(req));
+  async verifyMfa(@Body() dto: VerifyMfaLoginDto, @Req() req: TenantRequest, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.verifyMfaLogin(dto.mfaToken, dto.code, req.resolvedFirmId ?? undefined, requestMeta(req));
+    this.authService.setRefreshCookie(res, result.refreshToken);
+    return result;
   }
 
   @Post('mfa/enable/request')
@@ -79,7 +95,8 @@ export class AuthController {
 
   @Post('logout')
   @SkipSubscription()
-  logout(@Body() dto: RefreshTokenDto) {
+  logout(@Body() dto: RefreshTokenDto, @Res({ passthrough: true }) res: Response) {
+    this.authService.clearRefreshCookie(res);
     return this.authService.logout(dto.refreshToken);
   }
 

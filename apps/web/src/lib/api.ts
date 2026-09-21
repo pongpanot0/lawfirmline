@@ -969,6 +969,25 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
+  /**
+   * Apex has no localStorage session of its own — this mints one from the
+   * cross-subdomain refresh cookie so the user isn't asked to log in twice.
+   * Returns null rather than throwing when there's no valid cookie.
+   */
+  apexSession: async (): Promise<import('@lawfirm/shared').LoginResponse | null> => {
+    try {
+      const res = await fetch(`${API_URL}/auth/session`, {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
   verifyMfaLogin: (mfaToken: string, code: string) =>
     request<import('@lawfirm/shared').LoginResponse>('/auth/mfa/verify', {
       method: 'POST',
