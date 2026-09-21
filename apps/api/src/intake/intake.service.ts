@@ -501,6 +501,12 @@ export class IntakeService {
       user,
       (dto.assignedUserIds ?? []).filter((uid) => uid !== user.id),
     );
+    if (dto.leadLawyerId && dto.leadLawyerId !== user.id) {
+      const lead = await this.prisma.firmMember.findFirst({
+        where: { firmId: user.firmId, userId: dto.leadLawyerId },
+      });
+      if (!lead) throw new BadRequestException('ไม่พบทนายหลักที่เลือกในสำนักงานนี้');
+    }
     const created = await this.prisma.intake.create({
       data: {
         firmId: user.firmId,
@@ -564,7 +570,12 @@ export class IntakeService {
     if (created.relatedCaseId) {
       await this.attachToExistingCase(user, created, {} as ConvertToCaseDto);
     } else {
-      await this.openCaseFromIntake(user, created, {} as ConvertToCaseDto, 'INTAKE_REVIEW');
+      await this.openCaseFromIntake(
+        user,
+        created,
+        { leadLawyerId: dto.leadLawyerId } as ConvertToCaseDto,
+        'INTAKE_REVIEW',
+      );
     }
 
     return this.findOne(user, created.id);

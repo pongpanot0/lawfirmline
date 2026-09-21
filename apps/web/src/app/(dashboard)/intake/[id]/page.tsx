@@ -349,6 +349,7 @@ export default function IntakeDetailPage() {
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   /** รายการเอกสารที่ขอไว้ (แถวจริง) + จำนวนที่ยังขาด สำหรับด่านก่อนออกหนังสือ */
   const [documentRequests, setDocumentRequests] = useState<IntakeDocumentRequestItem[]>([]);
+  const [taskCounts, setTaskCounts] = useState({ done: 0, total: 0 });
   const [missingDocCount, setMissingDocCount] = useState(0);
   const [newDocRequest, setNewDocRequest] = useState('');
 
@@ -912,14 +913,75 @@ export default function IntakeDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">
-            {intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="min-w-0 text-2xl font-bold">
+              {intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
+            </h1>
+            {intake.partyRole && (
+              <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-900">
+                {intake.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">{intake.referralName || intake.clientName || intake.client?.name || '—'} · รับเมื่อ {formatDateOrDash(intake.receivedDate)}</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[intake.status] ?? 'bg-gray-100 text-gray-700'}`}>
           {STATUS_LABELS[intake.status] ?? intake.status}
         </span>
+      </div>
+
+      {/* Summary strip — ตัวเลขที่ทนายเปิดหน้านี้มาดูก่อนอย่างอื่น */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <button type="button" onClick={() => setWorkspaceTab('overview')} className="rounded-xl border border-border bg-card p-3 text-left shadow-sm hover:bg-muted/40">
+          <p className="text-xs text-muted-foreground">งานที่ต้องทำ</p>
+          <p className="mt-0.5 text-xl font-bold">{taskCounts.done}/{taskCounts.total}</p>
+          <div className="mt-1.5 h-1.5 rounded-full bg-muted">
+            <div className="h-1.5 rounded-full bg-primary" style={{ width: taskCounts.total ? `${Math.round((taskCounts.done / taskCounts.total) * 100)}%` : '0%' }} />
+          </div>
+        </button>
+        <button type="button" onClick={() => setWorkspaceTab('documents')} className="rounded-xl border border-border bg-card p-3 text-left shadow-sm hover:bg-muted/40">
+          <p className="text-xs text-muted-foreground">เอกสารที่ต้องมี</p>
+          <p className="mt-0.5 text-xl font-bold">
+            {matchedExpectedDocuments.length}/{expectedDocuments.length}
+            {missingExpectedDocuments > 0 && (
+              <span className="ml-2 text-xs font-medium text-destructive">ขาด {missingExpectedDocuments} รายการ</span>
+            )}
+          </p>
+          <div className="mt-1.5 h-1.5 rounded-full bg-muted">
+            <div className="h-1.5 rounded-full bg-emerald-600" style={{ width: expectedDocuments.length ? `${Math.round((matchedExpectedDocuments.length / expectedDocuments.length) * 100)}%` : '0%' }} />
+          </div>
+        </button>
+        <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+          <p className="text-xs text-muted-foreground">Notice / เจรจา</p>
+          {intake.noticeIssuedAt ? (
+            <>
+              <p className="mt-0.5 text-sm font-bold">
+                {intake.noticeDeadline ? `ครบกำหนด ${formatDateOrDash(intake.noticeDeadline)}` : `ออกแล้ว ${formatDateOrDash(intake.noticeIssuedAt)}`}
+              </p>
+              <p className="text-xs text-muted-foreground">ถึง {intake.noticeRecipient ?? '—'}</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-0.5 text-sm font-bold">ยังไม่ออก Notice</p>
+              <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => openNoticeModal()}>
+                ออก Notice ตอนไหนก็ได้ →
+              </button>
+            </>
+          )}
+        </div>
+        <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+          <p className="text-xs text-muted-foreground">กำหนด/อายุความ</p>
+          {intake.deadlineDate ? (
+            <>
+              <p className="mt-0.5 text-sm font-bold text-amber-700">
+                อีก {Math.max(0, Math.ceil((new Date(intake.deadlineDate).getTime() - Date.now()) / 86400000))} วัน
+              </p>
+              <p className="text-xs text-muted-foreground">ครบ {formatDateOrDash(intake.deadlineDate)}</p>
+            </>
+          ) : (
+            <p className="mt-0.5 text-sm font-bold text-muted-foreground">ยังไม่ระบุ</p>
+          )}
+        </div>
       </div>
 
       <div role="tablist" aria-label="พื้นที่ทำงานของเรื่อง" className="flex flex-wrap gap-2 border-b border-border pb-3">
@@ -1357,7 +1419,7 @@ export default function IntakeDetailPage() {
           {token && (
             <>
               <IntakeStageBar intake={intake} token={token} onChanged={reload} />
-              <IntakeTasksPanel intakeId={intake.id} lawyers={lawyers} />
+              <IntakeTasksPanel intakeId={intake.id} lawyers={lawyers} onCountsChange={setTaskCounts} />
               <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />
               <IntakeFollowUpPanel
                 intake={intake}
