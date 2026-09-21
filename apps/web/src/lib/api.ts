@@ -472,6 +472,7 @@ export interface CaseParticipantItem {
 }
 
 export interface CaseDetail extends CaseItem {
+  limitationDeadline?: string | null;
   /** intake ต้นทาง — งานก่อนฟ้อง (โนติส/เจรจา) ยังบันทึกอยู่ที่นั่น */
   intake?: {
     id: string;

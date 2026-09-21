@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { api, type CaseItem, type IntakeItem } from '@/lib/api';
+import { CaseAiChat } from './CaseAiChat';
 
 const AI_ACTIONS = [
   {
@@ -63,9 +64,11 @@ const CREDIT_COST = 5;
 interface AIAssistantPanelProps {
   /** When opened from within a case, skips the case picker for "summarize". */
   caseId?: string;
+  /** เปิดจากหน้าเรื่องรับเข้า — chat โหมดเดียวกับคดี */
+  intakeId?: string;
 }
 
-export function AIAssistantPanel({ caseId }: AIAssistantPanelProps) {
+export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
   const { token, user } = useAuth();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string | null>(null);
@@ -186,6 +189,9 @@ export function AIAssistantPanel({ caseId }: AIAssistantPanelProps) {
         </Button>
       </div>
 
+      {(caseId || intakeId) && !active ? (
+        <CaseAiChat caseId={caseId} intakeId={intakeId} onPickLegacy={(a) => openAction(a)} />
+      ) : (
       <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
         {!active ? (
           <>
@@ -341,6 +347,8 @@ export function AIAssistantPanel({ caseId }: AIAssistantPanelProps) {
           </Card>
         )}
       </div>
+
+      )}
 
       <div className={cn('border-t border-border px-4 py-3 text-xs text-muted-foreground')}>
         เหลือ {remainingCredits} AI credit

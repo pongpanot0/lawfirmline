@@ -621,7 +621,20 @@ export default function CaseDetailPage() {
         </button>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="min-w-0 text-2xl font-bold tracking-tight">{legalCase.title}</h1>
+          {legalCase.partyRole && (
+            <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-900">
+              {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}
+            </span>
+          )}
+          <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-800">
+            {caseStageOptions('th').find((o) => o.value === legalCase.stage)?.label ?? legalCase.stage}
+          </span>
           <CaseStatusBadge status={legalCase.status} />
+          <div className="ml-auto flex gap-2">
+            {legalCase.intake && preFiling && (
+              <Button size="sm" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>
+            )}
+          </div>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
           {legalCase.ownRef} · ลูกความ {clientDisplay}
@@ -647,61 +660,65 @@ export default function CaseDetailPage() {
           holds it, what is next in court, and what is due soonest. The tabs
           below are the way into each area, so no second set of links here.
         */}
-        <dl className="mt-4 grid gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm sm:grid-cols-5">
-          <div>
-            <dt className="text-xs text-muted-foreground">งานที่ต้องทำ</dt>
-            <dd className="font-medium">
-              <button type="button" className="hover:underline" onClick={() => selectTab('tasks')}>
-                {tasks.filter((t) => t.status === 'DONE').length}/{tasks.length}
-              </button>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">เอกสารที่ต้องมี</dt>
-            <dd className="font-medium">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <button type="button" onClick={() => selectTab('tasks')} className="rounded-xl border border-border bg-card p-3 text-left shadow-sm hover:bg-muted/40">
+            <p className="text-xs text-muted-foreground">งานที่ต้องทำ</p>
+            <p className="mt-0.5 text-xl font-bold">
+              {tasks.filter((t) => t.status === 'DONE').length}/{tasks.length}
+              {pendingTasks[0]?.dueDate && (
+                <span className="ml-2 text-xs font-medium text-amber-700">ใกล้สุด {formatDate(pendingTasks[0].dueDate)}</span>
+              )}
+            </p>
+            <div className="mt-1.5 h-1.5 rounded-full bg-muted">
+              <div className="h-1.5 rounded-full bg-primary" style={{ width: tasks.length ? `${Math.round((tasks.filter((t) => t.status === 'DONE').length / tasks.length) * 100)}%` : '0%' }} />
+            </div>
+          </button>
+          <button type="button" onClick={() => selectTab('documents')} className="rounded-xl border border-border bg-card p-3 text-left shadow-sm hover:bg-muted/40">
+            <p className="text-xs text-muted-foreground">เอกสารที่ต้องมี</p>
+            <p className="mt-0.5 text-xl font-bold">
               {requiredDocs.required.filter((r) => r.present).length}/{requiredDocs.required.length}
               {requiredDocs.missing.length > 0 && (
-                <span className="ml-1 text-xs text-destructive">ขาด {requiredDocs.missing.length}</span>
+                <span className="ml-2 text-xs font-medium text-destructive">ขาด {requiredDocs.missing.length} รายการ</span>
               )}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">ผู้รับผิดชอบ</dt>
-            <dd className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">นัดถัดไป</dt>
-            <dd className="font-medium">
-              {upcomingEvents[0]
-                ? (
-                  <button
-                    type="button"
-                    className="hover:underline"
-                    onClick={() => selectTab('calendar')}
-                  >
-                    {formatDateTime(upcomingEvents[0].startAt)} · {upcomingEvents[0].title}
+            </p>
+            <div className="mt-1.5 h-1.5 rounded-full bg-muted">
+              <div className="h-1.5 rounded-full bg-emerald-600" style={{ width: requiredDocs.required.length ? `${Math.round((requiredDocs.required.filter((r) => r.present).length / requiredDocs.required.length) * 100)}%` : '0%' }} />
+            </div>
+          </button>
+          <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+            <p className="text-xs text-muted-foreground">Notice / เจรจา</p>
+            {legalCase.intake?.noticeIssuedAt ? (
+              <>
+                <p className="mt-0.5 text-sm font-bold">
+                  {legalCase.intake.noticeDeadline ? `ครบกำหนด ${formatDate(legalCase.intake.noticeDeadline)}` : `ออกแล้ว ${formatDate(legalCase.intake.noticeIssuedAt)}`}
+                </p>
+                <p className="text-xs text-muted-foreground">ถึง {legalCase.intake.noticeRecipient ?? '—'}</p>
+              </>
+            ) : (
+              <>
+                <p className="mt-0.5 text-sm font-bold">ยังไม่ออก Notice</p>
+                {legalCase.intake && preFiling && (
+                  <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => setNoticeOpen(true)}>
+                    ออก Notice ตอนไหนก็ได้ →
                   </button>
-                )
-                : <span className="text-muted-foreground">ไม่มีนัดที่จะถึง</span>}
-            </dd>
+                )}
+              </>
+            )}
           </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">งานใกล้ครบกำหนด</dt>
-            <dd className="font-medium">
-              {pendingTasks[0]
-                ? (
-                  <button
-                    type="button"
-                    className="hover:underline text-left"
-                    onClick={() => selectTab('tasks')}
-                  >
-                    {pendingTasks[0].title}{pendingTasks[0].dueDate ? ` · ${formatDate(pendingTasks[0].dueDate)}` : ''}
-                  </button>
-                )
-                : <span className="text-muted-foreground">ไม่มีงานค้าง</span>}
-            </dd>
+          <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+            <p className="text-xs text-muted-foreground">อายุความ</p>
+            {legalCase.limitationDeadline ? (
+              <>
+                <p className="mt-0.5 text-sm font-bold text-amber-700">
+                  อีก {Math.max(0, Math.ceil((new Date(legalCase.limitationDeadline).getTime() - Date.now()) / 86400000))} วัน
+                </p>
+                <p className="text-xs text-muted-foreground">ครบ {formatDate(legalCase.limitationDeadline)}</p>
+              </>
+            ) : (
+              <p className="mt-0.5 text-sm font-bold text-muted-foreground">ยังไม่ระบุ</p>
+            )}
           </div>
-        </dl>
+        </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setRecordingOutcome(true)}>
             <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
@@ -1375,13 +1392,13 @@ export default function CaseDetailPage() {
           {legalCase.intake && legalCase.stage === 'PRE_LITIGATION' && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-base">งานก่อนฟ้อง</CardTitle>
+                <CardTitle className="text-base">หนังสือทวงถาม (Notice)</CardTitle>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>
-                  <Button variant="outline" size="sm" onClick={() => setPreLitOpen(true)}>อัปเดตสถานะ</Button>
                   <Link href={`/intake/${legalCase.intake.id}`}>
-                    <Button variant="outline" size="sm">ใบเสนอราคา →</Button>
+                    <Button variant="outline" size="sm">✦ AI ร่างหนังสือ</Button>
                   </Link>
+                  <Button variant="outline" size="sm" onClick={() => setPreLitOpen(true)}>อัปเดตสถานะเจรจา</Button>
+                  <Button size="sm" onClick={() => setNoticeOpen(true)}>+ ออก Notice {legalCase.intake.noticeIssuedAt ? 'ฉบับใหม่' : ''}</Button>
                 </div>
               </CardHeader>
               <CaseNoticeDialog
@@ -1399,39 +1416,27 @@ export default function CaseDetailPage() {
                 onClose={() => setPreLitOpen(false)}
                 onDone={loadCase}
               />
-              <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">หนังสือทวงถาม (Notice)</p>
-                  <p className="font-medium">
-                    {legalCase.intake.noticeIssuedAt
-                      ? `ออกแล้ว ${new Date(legalCase.intake.noticeIssuedAt).toLocaleDateString('th-TH')}`
-                      : 'ยังไม่ออก'}
-                  </p>
-                  {legalCase.intake.noticeRecipient && (
-                    <p className="text-xs text-muted-foreground">ถึง {legalCase.intake.noticeRecipient}</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">ครบกำหนดตาม Notice</p>
-                  <p className="font-medium">
-                    {legalCase.intake.noticeDeadline
-                      ? new Date(legalCase.intake.noticeDeadline).toLocaleDateString('th-TH')
-                      : '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">สถานะเจรจา</p>
-                  <p className="font-medium">
-                    {legalCase.intake.preLitigationStatus
-                      ? (PRE_LITIGATION_STATUS_LABELS[legalCase.intake.preLitigationStatus] ?? legalCase.intake.preLitigationStatus)
-                      : '—'}
-                  </p>
-                  {legalCase.intake.settlementOfferAmount != null && (
-                    <p className="text-xs text-muted-foreground">
-                      ข้อเสนอจ่าย {legalCase.intake.settlementOfferAmount.toLocaleString('th-TH')} บาท
-                    </p>
-                  )}
-                </div>
+              <CardContent className="space-y-2 text-sm">
+                {legalCase.intake.noticeIssuedAt ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2">
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">ฉบับล่าสุด</span>
+                    <span>
+                      ถึง {legalCase.intake.noticeRecipient ?? '—'} · ออก {new Date(legalCase.intake.noticeIssuedAt).toLocaleDateString('th-TH')}
+                      {legalCase.intake.noticeDeadline ? ` · ครบกำหนด ${new Date(legalCase.intake.noticeDeadline).toLocaleDateString('th-TH')}` : ''}
+                    </span>
+                    <span className="ml-auto flex gap-3">
+                      <Link href={`/intake/${legalCase.intake.id}`} className="text-xs text-primary hover:underline">ดูหนังสือ</Link>
+                      <button type="button" className="text-xs text-primary hover:underline" onClick={() => setPreLitOpen(true)}>บันทึกผล</button>
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">ยังไม่ออกหนังสือ — ออกตอนไหนก็ได้ กดปุ่มด้านบน</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  สถานะเจรจา: {legalCase.intake.preLitigationStatus ? (PRE_LITIGATION_STATUS_LABELS[legalCase.intake.preLitigationStatus] ?? legalCase.intake.preLitigationStatus) : '—'}
+                  {legalCase.intake.settlementOfferAmount != null && ` · ข้อเสนอจ่ายล่าสุด ${legalCase.intake.settlementOfferAmount.toLocaleString('th-TH')} บาท`}
+                  {' · '}ออกได้หลายฉบับ ทุกฉบับเก็บประวัติที่นี่
+                </p>
               </CardContent>
             </Card>
           )}
@@ -1773,7 +1778,10 @@ export default function CaseDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">นัดหมายถัดไป</CardTitle></CardHeader>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-sm">นัดหมาย</CardTitle>
+              <Button size="sm" variant="outline" onClick={() => selectTab('calendar')}>+ เพิ่มนัด</Button>
+            </CardHeader>
             <CardContent>
               {upcomingEvents.length > 0 ? (
                 upcomingEvents.slice(0, 3).map((e) => (
