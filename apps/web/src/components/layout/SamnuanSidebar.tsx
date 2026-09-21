@@ -22,7 +22,7 @@ import {
   ListTodo,
   Mail,
   type LucideIcon,
-  Sparkles, BookOpen } from 'lucide-react';
+  Sparkles, BookOpen, Workflow } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
 import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
@@ -74,6 +74,7 @@ const NAV_ITEMS = [
   },
   { href: '/ai-usage', labelKey: 'aiUsage' as const, icon: Sparkles, ownerOnly: true, group: 'firm', children: [] as const },
   { href: '/sops', labelKey: 'sops' as const, icon: BookOpen, ownerOnly: false, group: 'firm', children: [] as const },
+  { href: '/playbooks', labelKey: 'playbooks' as const, icon: Workflow, ownerOnly: false, group: 'firm', children: [] as const },
   { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true, group: 'firm', children: [] as const },
   { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false, group: 'firm', children: [] as const },
 ] as const;

@@ -568,7 +568,7 @@ export interface DefaultCaseTypeDefinition {
 
 export const DEFAULT_CASE_TYPES: DefaultCaseTypeDefinition[] = [
   {
-    name: 'Litigation',
+    name: 'คดีความ',
     description: 'คดีความ / ฟ้องร้อง',
     // The claimed amount is a core case field (ทุนทรัพย์), not a type-specific one.
     fieldSchema: [
@@ -576,15 +576,15 @@ export const DEFAULT_CASE_TYPES: DefaultCaseTypeDefinition[] = [
     ],
   },
   {
-    name: 'Corporate',
+    name: 'คดีบริษัท',
     description: 'นิติกรรม / บริษัท',
   },
   {
-    name: 'Family Law',
+    name: 'คดีครอบครัว',
     description: 'ครอบครัว / มรดก',
   },
   {
-    name: 'Criminal',
+    name: 'คดีอาญา',
     description: 'คดีอาญา',
     fieldSchema: [
       { key: 'chargeSection', label: 'Charge Section / ข้อหา', type: 'text', required: true },
@@ -592,7 +592,7 @@ export const DEFAULT_CASE_TYPES: DefaultCaseTypeDefinition[] = [
     ],
   },
   {
-    name: 'Intellectual Property',
+    name: 'ทรัพย์สินทางปัญญา',
     description: 'ทรัพย์สินทางปัญญา',
   },
 ];
