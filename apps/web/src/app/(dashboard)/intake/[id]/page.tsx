@@ -350,6 +350,9 @@ export default function IntakeDetailPage() {
   /** รายการเอกสารที่ขอไว้ (แถวจริง) + จำนวนที่ยังขาด สำหรับด่านก่อนออกหนังสือ */
   const [documentRequests, setDocumentRequests] = useState<IntakeDocumentRequestItem[]>([]);
   const [taskCounts, setTaskCounts] = useState({ done: 0, total: 0 });
+  // ทนายหลักอยู่บนคดีที่เปิดคู่กับเรื่องนี้ — เปลี่ยนจากหน้านี้ได้เลย
+  const [caseLeadId, setCaseLeadId] = useState('');
+  const [savingLead, setSavingLead] = useState(false);
   const [missingDocCount, setMissingDocCount] = useState(0);
   const [newDocRequest, setNewDocRequest] = useState('');
 
@@ -456,6 +459,29 @@ export default function IntakeDetailPage() {
     if (!token || !id) return;
     const updated = await api.getIntake(token, id);
     setIntake(updated);
+  };
+
+  const caseId = intake?.case?.id;
+  useEffect(() => {
+    if (!token || !caseId) return;
+    api.getCase(token, caseId)
+      .then((c) => setCaseLeadId((c as { leadLawyerId?: string }).leadLawyerId ?? ''))
+      .catch(() => setCaseLeadId(''));
+  }, [token, caseId]);
+
+  const changeLeadLawyer = async (userId: string) => {
+    if (!token || !caseId || !userId || userId === caseLeadId) return;
+    setSavingLead(true);
+    const previous = caseLeadId;
+    setCaseLeadId(userId);
+    try {
+      await api.updateCase(token, caseId, { leadLawyerId: userId });
+    } catch {
+      setCaseLeadId(previous);
+      setError('เปลี่ยนทนายหลักไม่สำเร็จ');
+    } finally {
+      setSavingLead(false);
+    }
   };
 
   const handleAssess = async () => {
@@ -1353,17 +1379,79 @@ export default function IntakeDetailPage() {
       </div>
       <div hidden={workspaceTab !== 'overview'} className="space-y-4">
       {/* Info cards */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2 flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold">ข้อมูลเรื่อง</h2>
-          {intake.status !== 'CONVERTED' && (
-            <Button variant="outline" size="sm" onClick={openDetailsModal}>
-              แก้ไขรายละเอียด
-            </Button>
+      {/* Workspace 2 คอลัมน์ตามแบบ: ซ้าย = งาน/เอกสาร/Notice, ขวา = รายละเอียด/ทีม/Playbook/ติดตาม */}
+      <div className="grid items-start gap-4 lg:grid-cols-5">
+        <div className="space-y-4 lg:col-span-3">
+          {token && (
+            <>
+              <IntakeStageBar intake={intake} token={token} onChanged={reload} />
+              <IntakeTasksPanel intakeId={intake.id} lawyers={lawyers} onCountsChange={setTaskCounts} />
+            </>
           )}
+
+          {/* เอกสารที่ต้องมี — สรุป checklist, งานเต็มอยู่ tab เอกสาร */}
+          <Card>
+            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">
+                เอกสารที่ต้องมี{' '}
+                {missingExpectedDocuments > 0 ? (
+                  <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">ขาด {missingExpectedDocuments} รายการ</span>
+                ) : (
+                  <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">ครบ</span>
+                )}
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={() => setWorkspaceTab('documents')}>อัปโหลด / จัดการไฟล์ →</Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {expectedDocuments.map((item) => {
+                  const ok = isChecklistMatched(item);
+                  return (
+                    <div key={item.label} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${ok ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/60'}`}>
+                      <span className={ok ? 'text-emerald-600' : 'text-red-600'}>{ok ? '✓' : '!'}</span>
+                      <span className="min-w-0 break-words">{item.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* หนังสือทวงถาม (Notice) — ออกตอนไหนก็ได้ */}
+          <Card>
+            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">หนังสือทวงถาม (Notice)</CardTitle>
+              <div className="flex flex-wrap gap-2">
+                {currentAnalysis?.status === 'COMPLETE' && (
+                  <Button variant="outline" size="sm" onClick={() => handleDraftFromAnalysis(currentAnalysis.id)}>✦ AI ร่างหนังสือ</Button>
+                )}
+                <Button size="sm" onClick={() => openNoticeModal()}>+ ออก Notice ฉบับใหม่</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {intake.noticeIssuedAt ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">ฉบับล่าสุด</span>
+                  <span>ถึง {intake.noticeRecipient ?? '—'} · ออก {formatDateOrDash(intake.noticeIssuedAt)}{intake.noticeDeadline ? ` · ครบกำหนด ${formatDateOrDash(intake.noticeDeadline)}` : ''}</span>
+                  {intake.noticeResult && <span className="text-muted-foreground">· ผล: {intake.noticeResult}</span>}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">ยังไม่ออก Notice — ออกได้ทุกขั้น ทุกฉบับเก็บประวัติไว้ที่นี่</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <InvoicePanel target={{ intakeId: intake.id }} customers={intake.customers ?? []} />
         </div>
-        <Card className="sm:col-span-2">
-          <CardHeader><CardTitle className="text-base">รายละเอียดเรื่อง</CardTitle></CardHeader>
+
+        <div className="space-y-4 lg:col-span-2">
+          <Card>
+            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">รายละเอียด</CardTitle>
+              {intake.status !== 'CONVERTED' && (
+                <Button variant="outline" size="sm" onClick={openDetailsModal}>แก้ไข</Button>
+              )}
+            </CardHeader>
           <CardContent className="space-y-0">
             <InfoRow label="ประเภทเรื่อง" value={intake.matterType ? (MATTER_TYPE_LABELS[intake.matterType] ?? intake.matterType) : undefined} />
             <InfoRow label="เลขอ้างอิงลูกค้า" value={intake.customerRef} />
@@ -1414,31 +1502,26 @@ export default function IntakeDetailPage() {
           </CardContent>
         </Card>
 
-        {/* ขั้นตอน → ตรวจ conflict → เอกสาร → ติดตาม: ลำดับที่งานรับเรื่องเดินจริง */}
-        <div className="space-y-4 sm:col-span-2">
-          {token && (
-            <>
-              <IntakeStageBar intake={intake} token={token} onChanged={reload} />
-              <IntakeTasksPanel intakeId={intake.id} lawyers={lawyers} onCountsChange={setTaskCounts} />
-              <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />
-              <IntakeFollowUpPanel
-                intake={intake}
-                token={token}
-                lawyers={lawyers}
-                onChanged={reload}
-              />
-            </>
-          )}
-        </div>
-
-        {/* ออกบิลได้ตั้งแต่ยังไม่เปิดคดี — ค่าที่ปรึกษาหรือค่าดำเนินการก่อนฟ้อง */}
-        <div className="sm:col-span-2">
-          <InvoicePanel target={{ intakeId: intake.id }} customers={intake.customers ?? []} />
-        </div>
-
-        <Card className="sm:col-span-2">
-          <CardHeader><CardTitle className="text-base">ผู้รับผิดชอบ</CardTitle></CardHeader>
-          <CardContent>
+        {/* ทีมทำงาน — ทนายหลักเปลี่ยนได้ + ผู้ช่วย */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">ทีมทำงาน</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {intake.case?.id && (
+              <div>
+                <label htmlFor="intake-lead-lawyer" className="block text-xs font-semibold">ทนายหลัก (Lead)</label>
+                <select
+                  id="intake-lead-lawyer"
+                  value={caseLeadId}
+                  disabled={!caseLeadId || savingLead}
+                  onChange={(e) => void changeLeadLawyer(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
+                >
+                  {lawyers.map((u) => (
+                    <option key={u.id} value={u.id}>{`${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || u.email}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <IntakeAssignees
               intake={intake}
               lawyers={lawyers}
@@ -1452,6 +1535,27 @@ export default function IntakeDetailPage() {
           </CardContent>
         </Card>
 
+        {/* Playbook */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">Playbook</CardTitle></CardHeader>
+          <CardContent>
+            {intake.preferredPlaybookId ? (
+              <p className="text-sm">
+                <span className="font-semibold">{playbooks.find((p) => p.id === intake.preferredPlaybookId)?.name ?? 'Playbook ที่เลือกไว้'}</span>
+                <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800">ใช้อยู่ · งาน {taskCounts.done}/{taskCounts.total}</span>
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">ยังไม่ใช้ Playbook — เลือกได้จาก &quot;แก้ไข&quot; ในรายละเอียด</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {token && (
+          <>
+            <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />
+            <IntakeFollowUpPanel intake={intake} token={token} lawyers={lawyers} onChanged={reload} />
+          </>
+        )}
 
         {(intake.assessmentNotes || intake.caseStrength || intake.assessor) && (
           <Card>
@@ -1491,9 +1595,8 @@ export default function IntakeDetailPage() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
-
-      {currentAnalysis?.status === 'COMPLETE' && <Button variant="outline" onClick={() => handleDraftFromAnalysis(currentAnalysis.id)}>ร่างหนังสือจากผลวิเคราะห์</Button>}
       </div>
 
       {/* Modals */}
