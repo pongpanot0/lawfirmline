@@ -46,6 +46,8 @@ export default function NewIntakePage() {
   const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string }[]>([
     { customerId: '', sharePercent: '' },
   ]);
+  // ลูกความคนอื่น (เกินคนที่ 1) — เช่น หลายคนร่วมฟ้อง/ถูกฟ้อง
+  const [additionalClients, setAdditionalClients] = useState<{ clientId: string }[]>([]);
   const now = new Date();
   const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
 
@@ -184,6 +186,10 @@ export default function NewIntakePage() {
           }));
         }
       }
+      const pickedClients = additionalClients.filter((c) => c.clientId);
+      if (pickedClients.length) {
+        payload.clients = pickedClients.map((c) => ({ clientId: c.clientId }));
+      }
       const created = createdIntakeId
         ? { id: createdIntakeId }
         : ((await api.createIntake(token, payload)) as IntakeItem);
@@ -314,7 +320,57 @@ export default function NewIntakePage() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+              {!form.clientId && customers[0]?.customerId && (
+                <button
+                  type="button"
+                  onClick={() => handleClientChange(customers[0].customerId)}
+                  className="mt-1 text-sm underline"
+                >
+                  ใช้เป็นคนเดียวกับผู้มอบหมายรายที่ 1
+                </button>
+              )}
             </div>
+            {additionalClients.length > 0 && (
+              <div className="space-y-2">
+                {additionalClients.map((row, index) => (
+                  <div key={index} className="flex items-end gap-2">
+                    <div className="min-w-0 flex-1">
+                      <CustomerSelect
+                        id={`intake-additional-client-${index}`}
+                        label={`ลูกความรายที่ ${index + 2}`}
+                        value={row.clientId}
+                        clients={clients}
+                        onChange={(clientId) =>
+                          setAdditionalClients((rows) =>
+                            rows.map((r, i) => (i === index ? { ...r, clientId } : r)),
+                          )
+                        }
+                        onCreated={(client) =>
+                          setClients((rows) =>
+                            [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
+                          )
+                        }
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`ลบลูกความรายที่ ${index + 2}`}
+                      onClick={() => setAdditionalClients((rows) => rows.filter((_, i) => i !== index))}
+                      className="px-2 text-sm text-muted-foreground"
+                    >
+                      ลบ
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setAdditionalClients((rows) => [...rows, { clientId: '' }])}
+              className="text-sm underline"
+            >
+              + เพิ่มลูกความอีกราย
+            </button>
             {clientsLoading && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดรายชื่อลูกค้า…</p>}
             {clientsError && (
               <p role="alert" className="text-sm text-destructive">

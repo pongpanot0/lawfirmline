@@ -261,6 +261,13 @@ export interface CustomerShareItem {
   customer: { id: string; name: string };
 }
 
+export interface AdditionalClientItem {
+  id: string;
+  clientId: string;
+  note?: string | null;
+  client: { id: string; name: string };
+}
+
 export interface CaseItem {
   id: string;
   ownRef: string;
@@ -288,6 +295,7 @@ export interface CaseItem {
   caseType?: { id: string; name: string; fieldSchema?: unknown } | null;
   client?: { id: string; name: string } | null;
   customers?: CustomerShareItem[];
+  additionalClients?: AdditionalClientItem[];
 }
 
 export interface InsuranceClaimItem {
@@ -758,6 +766,7 @@ export interface IntakeItem {
   assessor?: { id: string; firstName: string; lastName: string } | null;
   client?: { id: string; name: string } | null;
   customers?: CustomerShareItem[];
+  additionalClients?: AdditionalClientItem[];
   case?: { id: string; ownRef: string; title: string } | null;
   relatedCase?: { id: string; ownRef: string; title: string; status: string } | null;
   createdAt: string;

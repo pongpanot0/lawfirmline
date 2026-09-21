@@ -42,6 +42,7 @@ import {
   UpdateDocumentRequestDto,
   PreLitigationStatus,
   CustomerShareDto,
+  AdditionalClientDto,
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 
@@ -80,6 +81,11 @@ export class IntakeService {
     }));
   }
 
+  /** ลูกความเพิ่มเติม (เกินคนที่ 1) — ลูกความหลักยังคงเป็น clientId */
+  private additionalClientRows(clients: AdditionalClientDto[]) {
+    return clients.map((c) => ({ clientId: c.clientId, note: c.note ?? null }));
+  }
+
   private intakeInclude = {
     receivedBy: {
       select: { id: true, firstName: true, lastName: true, email: true },
@@ -97,6 +103,15 @@ export class IntakeService {
         isPrimary: true,
         note: true,
         customer: { select: { id: true, name: true } },
+      },
+    },
+    additionalClients: {
+      orderBy: { createdAt: 'asc' as const },
+      select: {
+        id: true,
+        clientId: true,
+        note: true,
+        client: { select: { id: true, name: true } },
       },
     },
     case: { select: { id: true, ownRef: true, title: true, status: true } },
@@ -518,6 +533,9 @@ export class IntakeService {
         customers: dto.customers?.length
           ? { create: this.customerRows(dto.customers) }
           : undefined,
+        additionalClients: dto.clients?.length
+          ? { create: this.additionalClientRows(dto.clients) }
+          : undefined,
       },
       include: this.intakeInclude,
     });
@@ -631,6 +649,12 @@ export class IntakeService {
           ? {
               deleteMany: {},
               create: this.customerRows(dto.customers),
+            }
+          : undefined,
+        additionalClients: dto.clients
+          ? {
+              deleteMany: {},
+              create: this.additionalClientRows(dto.clients),
             }
           : undefined,
       },
@@ -946,6 +970,14 @@ export class IntakeService {
           : intake.clientId
             ? { create: [{ customerId: intake.clientId, sharePercent: 100, isPrimary: true }] }
             : undefined,
+        additionalClients: intake.additionalClients?.length
+          ? {
+              create: intake.additionalClients.map((c) => ({
+                clientId: c.clientId,
+                note: c.note,
+              })),
+            }
+          : undefined,
         referralSource: intake.referralName ?? undefined,
         status: 'OPEN' as any,
         leadLawyerId: dto.leadLawyerId ?? user.id,

@@ -660,6 +660,8 @@ model Client {
   portalIntakeSubmissions PortalIntakeSubmission[]
   caseCustomerRoles       CaseCustomer[]
   intakeCustomerRoles     IntakeCustomer[]
+  additionalCaseRoles     CaseClient[]
+  additionalIntakeRoles   IntakeClient[]
   billedInvoices          Invoice[]                @relation("InvoiceBillTo")
 
   @@index([firmId])
@@ -779,6 +781,7 @@ model Case {
   contactAccess      ContactCaseAccess[]
   messages           CaseMessage[]
   customers          CaseCustomer[]
+  additionalClients  CaseClient[]
   chunks             DocumentChunk[]
   legalQueries       LegalQuery[]
   statusLogs         CaseStatusLog[]
@@ -867,6 +870,7 @@ model Intake {
   emailThreads           EmailThread[]
   fieldProposals         IntakeFieldProposal[]
   customers              IntakeCustomer[]
+  additionalClients      IntakeClient[]
   invoices               Invoice[]
 
   @@index([firmId])
@@ -1605,6 +1609,36 @@ model IntakeCustomer {
 
   @@unique([intakeId, customerId])
   @@index([customerId])
+}
+
+/// ลูกความเพิ่มเติมของคดี (เกินคนที่ 1) — Case.clientId ยังเป็นลูกความหลักเหมือนเดิม
+model CaseClient {
+  id        String   @id @default(uuid())
+  caseId    String
+  clientId  String
+  note      String?
+  createdAt DateTime @default(now())
+
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, clientId])
+  @@index([clientId])
+}
+
+/// ลูกความเพิ่มเติมของเรื่องที่รับเข้ามา — คัดลอกไป CaseClient ตอนแปลงเป็นคดี
+model IntakeClient {
+  id        String   @id @default(uuid())
+  intakeId  String
+  clientId  String
+  note      String?
+  createdAt DateTime @default(now())
+
+  intake Intake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([intakeId, clientId])
+  @@index([clientId])
 }
 
 model InvoiceLineItem {
