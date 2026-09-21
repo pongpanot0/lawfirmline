@@ -1597,12 +1597,18 @@ export default function IntakeDetailPage() {
                       ))}
                     </select>
                     {(() => {
+                      if (!editCaseTypeId) return null;
                       const suggested = playbooks.find((p) => p.caseTypeId === editCaseTypeId);
                       return suggested ? (
                         <p className="mt-1 text-xs text-muted-foreground">
                           แนะนำ Playbook &quot;{suggested.name}&quot; ({suggested.steps.length} ขั้นตอน) — จะใช้ได้จริงหลังแปลงเป็นคดี
                         </p>
-                      ) : null;
+                      ) : (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          ประเภทคดีนี้ยังไม่มี Playbook{' '}
+                          <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
+                        </p>
+                      );
                     })()}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">

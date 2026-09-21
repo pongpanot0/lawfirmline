@@ -1780,7 +1780,7 @@ export const api = {
     }),
 
   createCaseType: (token: string, data: Record<string, unknown>) =>
-    request('/case-types', { method: 'POST', token, body: JSON.stringify(data) }),
+    request<CaseTypeItem>('/case-types', { method: 'POST', token, body: JSON.stringify(data) }),
 
   updateCaseType: (token: string, id: string, data: Record<string, unknown>) =>
     request(`/case-types/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),

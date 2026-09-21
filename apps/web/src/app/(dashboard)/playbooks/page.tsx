@@ -25,6 +25,10 @@ export default function PlaybooksPage() {
   const [caseTypeId, setCaseTypeId] = useState('');
   const [steps, setSteps] = useState<PlaybookStep[]>([]);
   const [requiredDocs, setRequiredDocs] = useState<string[]>([]);
+  const [creatingCaseType, setCreatingCaseType] = useState(false);
+  const [newCaseTypeName, setNewCaseTypeName] = useState('');
+  const [customDoc, setCustomDoc] = useState('');
+  const [docSaving, setDocSaving] = useState(false);
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
 
   const load = async () => {
@@ -40,6 +44,7 @@ export default function PlaybooksPage() {
   const selectedCaseType = caseTypes.find(t => t.id === caseTypeId);
 
   const startDraft = (typeId: string) => {
+    setCreatingCaseType(false);
     setCaseTypeId(typeId);
     const type = caseTypes.find(t => t.id === typeId);
     setRequiredDocs(type?.requiredDocuments ?? []);
@@ -48,14 +53,46 @@ export default function PlaybooksPage() {
     setNotice(''); setError('');
   };
 
+  const handleCaseTypeSelect = (value: string) => {
+    if (value === '__new__') { setCreatingCaseType(true); setCaseTypeId(''); setNewCaseTypeName(''); setNotice(''); setError(''); return; }
+    startDraft(value);
+  };
+
+  const createCaseType = async () => {
+    if (!token || !newCaseTypeName.trim()) return;
+    setBusy(true); setError('');
+    try {
+      const created = await api.createCaseType(token, { name: newCaseTypeName.trim() });
+      setCaseTypes(list => [...list, created]);
+      setCreatingCaseType(false);
+      startDraft(created.id);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); }
+  };
+
   const edit = (index: number, patch: Partial<PlaybookStep>) => setSteps(rows => rows.map((s, i) => i === index ? { ...s, ...patch } : s));
-  const toggleDoc = (value: string) => setRequiredDocs(list => list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
+
+  // เอกสารที่ต้องมีเป็นของ CaseType โดยตรง — เปลี่ยนแล้วบันทึกทันที ไม่ต้องรอกดเผยแพร่ Playbook
+  const saveRequiredDocs = async (next: string[]) => {
+    if (!token || !caseTypeId) return;
+    setRequiredDocs(next);
+    setDocSaving(true);
+    try {
+      await api.updateCaseType(token, caseTypeId, { requiredDocuments: next });
+      setCaseTypes(list => list.map(t => t.id === caseTypeId ? { ...t, requiredDocuments: next } : t));
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setDocSaving(false); }
+  };
+  const toggleDoc = (value: string) => saveRequiredDocs(requiredDocs.includes(value) ? requiredDocs.filter(v => v !== value) : [...requiredDocs, value]);
+  const addCustomDoc = () => {
+    const value = customDoc.trim();
+    if (!value || requiredDocs.includes(value)) { setCustomDoc(''); return; }
+    saveRequiredDocs([...requiredDocs, value]);
+    setCustomDoc('');
+  };
 
   const publish = async () => {
     if (!token || !caseTypeId || !selectedCaseType || !steps.length) return;
     setBusy(true); setError('');
     try {
-      await api.updateCaseType(token, caseTypeId, { requiredDocuments: requiredDocs });
       const p = await setupRequest<PlaybookRelease>(token, '/playbooks', { name: selectedCaseType.name, caseTypeId, steps });
       setNotice(`${p.name} v${p.version} · ${th ? 'เผยแพร่แล้ว' : 'Published'}`);
       await load();
@@ -91,16 +128,24 @@ export default function PlaybooksPage() {
       <h2 className="text-lg font-semibold">{th ? 'สร้าง / แก้ไข Playbook' : 'Create / edit a playbook'}</h2>
 
       <label className="block text-sm">{th ? 'ประเภทคดี (ชื่อ Playbook ใช้ชื่อนี้)' : 'Case type (also the playbook name)'}
-        <select className="mt-1 h-11 w-full rounded-lg border bg-background px-2" value={caseTypeId} onChange={e => startDraft(e.target.value)}>
+        <select className="mt-1 h-11 w-full rounded-lg border bg-background px-2" value={caseTypeId} onChange={e => handleCaseTypeSelect(e.target.value)}>
           <option value="">{th ? '— เลือกประเภทคดี —' : '— Select a case type —'}</option>
           {caseTypes.map(t => <option key={t.id} value={t.id}>{t.name}{items.some(p => p.caseTypeId === t.id) ? ` (${th ? 'มี Playbook แล้ว' : 'has a playbook'})` : ''}</option>)}
+          <option value="__new__">{th ? '+ สร้างประเภทคดีใหม่' : '+ Create a new case type'}</option>
         </select>
       </label>
-      {!caseTypes.length && <p className="text-xs text-muted-foreground">{th ? 'ยังไม่มีประเภทคดี ไปสร้างที่หน้า Admin → ประเภทคดีก่อน' : 'No case types yet — create one under Admin → Case types first.'}</p>}
+
+      {creatingCaseType && <div className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
+        <label className="block flex-1 min-w-[200px] text-sm">{th ? 'ชื่อประเภทคดีใหม่' : 'New case type name'}
+          <Input autoFocus maxLength={100} value={newCaseTypeName} onChange={e => setNewCaseTypeName(e.target.value)} placeholder={th ? 'เช่น คดีล้มละลาย' : 'e.g. Bankruptcy'} />
+        </label>
+        <Button type="button" disabled={busy || !newCaseTypeName.trim()} onClick={createCaseType}>{th ? 'สร้าง' : 'Create'}</Button>
+        <Button type="button" variant="ghost" onClick={() => { setCreatingCaseType(false); setCaseTypeId(''); }}>{th ? 'ยกเลิก' : 'Cancel'}</Button>
+      </div>}
 
       {caseTypeId && <>
         <div className="space-y-2 rounded-lg border p-3">
-          <p className="text-sm font-medium">{th ? 'เอกสารที่คดีประเภทนี้ต้องมี' : 'Documents this case type should have'}</p>
+          <p className="text-sm font-medium">{th ? 'เอกสารที่คดีประเภทนี้ต้องมี' : 'Documents this case type should have'}{docSaving && <span className="ml-2 text-xs font-normal text-muted-foreground">{th ? 'กำลังบันทึก…' : 'Saving…'}</span>}</p>
           <div className="flex flex-wrap gap-2">
             {Object.values(DocumentCategory).map(value => {
               const picked = requiredDocs.includes(value);
@@ -109,6 +154,18 @@ export default function PlaybooksPage() {
                 {documentCategoryLabel(value, th ? 'th' : 'en')}
               </button>;
             })}
+            {requiredDocs.filter(d => !(Object.values(DocumentCategory) as string[]).includes(d)).map(value => (
+              <button type="button" key={value} onClick={() => toggleDoc(value)}
+                className="rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs text-primary">
+                {value} ✕
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input maxLength={100} value={customDoc} onChange={e => setCustomDoc(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomDoc(); } }}
+              placeholder={th ? 'เอกสารอื่นที่ไม่อยู่ในรายการ พิมพ์แล้ว Enter' : 'Other document — type and press Enter'} className="flex-1" />
+            <Button type="button" variant="outline" disabled={!customDoc.trim()} onClick={addCustomDoc}>{th ? 'เพิ่ม' : 'Add'}</Button>
           </div>
         </div>
 

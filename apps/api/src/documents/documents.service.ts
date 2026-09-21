@@ -454,11 +454,11 @@ export class DocumentsService {
     });
     if (!legalCase) throw new NotFoundException('Case not found');
 
-    // requiredDocuments เก็บค่า DocumentCategory ค่าที่ไม่รู้จัก (เช่นข้อมูลเก่าที่
-    // เคยเป็นข้อความอิสระ) ถูกทิ้ง เพราะเทียบกับหมวดของเอกสารไม่ได้อยู่แล้ว
-    const known = new Set<string>(Object.values(DocumentCategory));
+    // requiredDocuments เก็บได้ทั้งค่า DocumentCategory (เทียบกับเอกสารที่อัปโหลด
+    // จริงได้) และข้อความอิสระที่สำนักงานพิมพ์เอง (เทียบไม่ได้ ถือเป็นรายการเตือน
+    // ที่ต้องจัดการเอง ไม่มีวันขึ้น present อัตโนมัติ)
     const required = ((legalCase.caseType?.requiredDocuments as string[] | null) ?? []).filter(
-      (item): item is DocumentCategory => typeof item === 'string' && known.has(item),
+      (item): item is string => typeof item === 'string' && item.trim().length > 0,
     );
     const present = new Set<string>(legalCase.documents.map((doc) => doc.category));
     return {
