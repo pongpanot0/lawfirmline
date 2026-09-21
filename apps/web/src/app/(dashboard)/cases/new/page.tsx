@@ -88,10 +88,10 @@ export default function NewCasePage() {
     initialActivityDescription: '',
   });
   // ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน (เช่น บริษัทประกัน) ต่างจากลูกความที่เราว่าความให้ (form.clientId)
-  const [sameCustomer, setSameCustomer] = useState(true);
   const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string }[]>([
     { customerId: '', sharePercent: '' },
   ]);
+  const [sameCustomer, setSameCustomer] = useState(false);
   // ลูกความคนอื่น (เกินคนที่ 1) — เช่น หลายคนร่วมฟ้อง/ถูกฟ้อง
   const [additionalClients, setAdditionalClients] = useState<{ clientId: string }[]>([]);
   const [nextOwnRef, setNextOwnRef] = useState<string>('');
@@ -170,6 +170,19 @@ export default function NewCasePage() {
   useEffect(() => {
     if (step > 0) headingRef.current?.focus();
   }, [step]);
+  // ลูกค้าคนเดียวกับลูกความ — ตราบใดที่ติ้กไว้ ผู้มอบหมายรายที่ 1 เป็นตัวกำหนด ลูกความตามไปด้วย
+  useEffect(() => {
+    if (!sameCustomer) return;
+    const customerId = customers[0]?.customerId ?? '';
+    const client = clients.find((c) => c.id === customerId);
+    setForm((f) => ({
+      ...f,
+      clientId: customerId,
+      clientName: client?.name ?? '',
+      useTmpClient: false,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sameCustomer, customers[0]?.customerId, clients]);
 
   const displayClientName = () => {
     if (form.clientId) {
@@ -305,16 +318,13 @@ export default function NewCasePage() {
       } else {
         payload.clientName = TMP_CLIENT_PLACEHOLDER;
       }
-      // ไม่ส่ง customers = ลูกค้าคนเดียวกับลูกความ (ฝั่ง API เติมให้เองตอนอ่านคดี)
-      if (!sameCustomer) {
-        const pickedCustomers = customers.filter((c) => c.customerId);
-        if (pickedCustomers.length) {
-          payload.customers = pickedCustomers.map((c, index) => ({
-            customerId: c.customerId,
-            sharePercent: c.sharePercent ? Number(c.sharePercent) : undefined,
-            isPrimary: index === 0,
-          }));
-        }
+      const pickedCustomers = customers.filter((c) => c.customerId);
+      if (pickedCustomers.length) {
+        payload.customers = pickedCustomers.map((c, index) => ({
+          customerId: c.customerId,
+          sharePercent: c.sharePercent ? Number(c.sharePercent) : undefined,
+          isPrimary: index === 0,
+        }));
       }
       const pickedClients = additionalClients.filter((c) => c.clientId);
       if (pickedClients.length) {
@@ -528,72 +538,70 @@ export default function NewCasePage() {
                     <span className={fieldLabel}>บริษัทประกัน / ผู้มอบหมายงาน (ลูกค้า)</span>
                   </div>
                   <p className="mb-2 text-xs text-muted-foreground">
-                    คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน
+                    คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน — ถ้าลูกความจ่ายเอง เลือกคนเดียวกันได้ที่นี่
                   </p>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={sameCustomer}
-                      onChange={(e) => setSameCustomer(e.target.checked)}
-                      className="h-4 w-4 rounded border-input"
-                    />
-                    ลูกค้าคนเดียวกับลูกความ
-                  </label>
-                  {!sameCustomer && (
-                    <div className="mt-3 space-y-2">
-                      {customers.map((row, index) => (
-                        <div key={index} className="flex items-end gap-2">
-                          <div className="min-w-0 flex-1">
-                            <CustomerSelect
-                              id={`case-customer-${index}`}
-                              label={`ผู้มอบหมายรายที่ ${index + 1}`}
-                              value={row.customerId}
-                              clients={clients}
-                              onChange={(customerId) =>
-                                setCustomers((rows) =>
-                                  rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
-                                )
-                              }
-                              onCreated={(client) =>
-                                setClients((rows) =>
-                                  [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
-                                )
-                              }
-                            />
-                          </div>
-                          {customers.length > 1 && (
-                            <input
-                              aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
-                              value={row.sharePercent}
-                              onChange={(e) =>
-                                setCustomers((rows) =>
-                                  rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
-                                )
-                              }
-                              placeholder="%"
-                              className="h-10 w-16 rounded-lg border border-input bg-background px-2 text-center text-sm"
-                            />
-                          )}
-                          {customers.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
-                              className="h-10 shrink-0 px-1 text-sm text-muted-foreground underline"
-                            >
-                              ลบ
-                            </button>
-                          )}
+                  <div className="space-y-2">
+                    {customers.map((row, index) => (
+                      <div key={index} className="flex items-end gap-2">
+                        <div className="min-w-0 flex-1">
+                          <CustomerSelect
+                            id={`case-customer-${index}`}
+                            label={`ผู้มอบหมายรายที่ ${index + 1}`}
+                            value={row.customerId}
+                            clients={clients}
+                            onChange={(customerId) =>
+                              setCustomers((rows) =>
+                                rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
+                              )
+                            }
+                            onCreated={(client) =>
+                              setClients((rows) =>
+                                [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
+                              )
+                            }
+                          />
                         </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
-                        className="text-sm underline"
-                      >
-                        + เพิ่มผู้จ่ายอีกราย
-                      </button>
-                    </div>
-                  )}
+                        {customers.length > 1 && (
+                          <input
+                            aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
+                            value={row.sharePercent}
+                            onChange={(e) =>
+                              setCustomers((rows) =>
+                                rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
+                              )
+                            }
+                            placeholder="%"
+                            className="h-10 w-16 rounded-lg border border-input bg-background px-2 text-center text-sm"
+                          />
+                        )}
+                        {customers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
+                            className="h-10 shrink-0 px-1 text-sm text-muted-foreground underline"
+                          >
+                            ลบ
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
+                      className="text-sm underline"
+                    >
+                      + เพิ่มผู้จ่ายอีกราย
+                    </button>
+                    <label className="mt-2 flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={sameCustomer}
+                        onChange={(e) => setSameCustomer(e.target.checked)}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      ลูกความคนเดียวกับผู้มอบหมายรายที่ 1
+                    </label>
+                  </div>
                 </div>
 
                 <div>
@@ -608,7 +616,7 @@ export default function NewCasePage() {
                     clients={clients}
                     clientId={form.clientId}
                     clientName={form.clientName}
-                    disabled={form.useTmpClient}
+                    disabled={form.useTmpClient || sameCustomer}
                     onSelectClient={(client) =>
                       setForm({
                         ...form,
@@ -621,24 +629,12 @@ export default function NewCasePage() {
                       setForm({ ...form, clientId: '', clientName: name })
                     }
                   />
-                  {!form.clientId && customers[0]?.customerId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const client = clients.find((c) => c.id === customers[0].customerId);
-                        setForm({
-                          ...form,
-                          clientId: customers[0].customerId,
-                          clientName: client?.name ?? form.clientName,
-                          useTmpClient: false,
-                        });
-                      }}
-                      className="mt-1 text-sm underline"
-                    >
-                      ใช้เป็นคนเดียวกับผู้มอบหมายรายที่ 1
-                    </button>
+                  {sameCustomer && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      ใช้ค่าเดียวกับผู้มอบหมายรายที่ 1 — ยกเลิกติ๊กด้านบนเพื่อเลือกลูกความอื่น
+                    </p>
                   )}
-                  {!form.clientId && form.clientName.trim() && !form.useTmpClient && (
+                  {!form.clientId && !sameCustomer && form.clientName.trim() && !form.useTmpClient && (
                     <div className="mt-2 space-y-1">
                       <label className="block text-xs font-medium text-muted-foreground">
                         ลูกความใหม่ — เลือกประเภท (สร้างทะเบียนลูกค้าให้อัตโนมัติตอนบันทึก)
