@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { canAssignFirmRole } from '@lawfirm/shared';
 import { api, ClientItem, ApiError, IntakeItem, UserItem, CaseTypeItem } from '@/lib/api';
@@ -517,6 +518,12 @@ export default function NewIntakePage() {
                   </select>
                   <p className="mt-1 text-xs text-muted-foreground">จะใช้สร้างงานให้อัตโนมัติตอนแปลงเป็นคดี — เปลี่ยนใจตอนนั้นได้อีกที</p>
                 </div>
+              )}
+              {!playbooks.length && (
+                <p className="text-xs text-muted-foreground">
+                  ยังไม่มี Playbook เลย{' '}
+                  <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
+                </p>
               )}
             </div>
             <div className="mt-4 space-y-2">
