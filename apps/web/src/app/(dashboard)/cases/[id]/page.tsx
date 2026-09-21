@@ -1055,6 +1055,13 @@ export default function CaseDetailPage() {
                     ))}
                   </div>
                 )}
+                {legalCase.additionalClients && legalCase.additionalClients.length > 0 && (
+                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                    {legalCase.additionalClients.map((ac) => (
+                      <p key={ac.id}>และ {ac.client.name}</p>
+                    ))}
+                  </div>
+                )}
               </div>
               {showCustomer && (
                 <div>

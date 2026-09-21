@@ -18,7 +18,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { CreateCaseDto, UpdateCaseDto, CaseQueryDto, UpdateCaseAssignmentsDto } from './dto/case.dto';
-import { CustomerShareDto } from '../intake/dto/intake.dto';
+import { CustomerShareDto, AdditionalClientDto } from '../intake/dto/intake.dto';
 import { CloseCaseDto } from './dto/close-case.dto';
 import { Prisma } from '../generated/prisma';
 import { CaseActivitiesService } from './case-activities.service';
@@ -50,6 +50,15 @@ export class CasesService {
         isPrimary: true,
         note: true,
         customer: { select: { id: true, name: true } },
+      },
+    },
+    additionalClients: {
+      orderBy: { createdAt: 'asc' as const },
+      select: {
+        id: true,
+        clientId: true,
+        note: true,
+        client: { select: { id: true, name: true } },
       },
     },
     assignments: {
@@ -226,6 +235,11 @@ export class CasesService {
     }));
   }
 
+  /** ลูกความเพิ่มเติม (เกินคนที่ 1) — ลูกความหลักยังคงเป็น clientId */
+  private additionalClientRows(clients: AdditionalClientDto[]) {
+    return clients.map((c) => ({ clientId: c.clientId, note: c.note ?? null }));
+  }
+
   async create(user: AuthUser, dto: CreateCaseDto) {
     let ownRef = dto.ownRef?.trim()
       ? dto.ownRef.trim()
@@ -309,6 +323,9 @@ export class CasesService {
         assignments: assignments.length ? { create: assignments } : undefined,
         customers: dto.customers?.length
           ? { create: this.customerRows(dto.customers) }
+          : undefined,
+        additionalClients: dto.clients?.length
+          ? { create: this.additionalClientRows(dto.clients) }
           : undefined,
       },
       include: this.caseInclude,

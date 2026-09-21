@@ -92,6 +92,8 @@ export default function NewCasePage() {
   const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string }[]>([
     { customerId: '', sharePercent: '' },
   ]);
+  // ลูกความคนอื่น (เกินคนที่ 1) — เช่น หลายคนร่วมฟ้อง/ถูกฟ้อง
+  const [additionalClients, setAdditionalClients] = useState<{ clientId: string }[]>([]);
   const [nextOwnRef, setNextOwnRef] = useState<string>('');
   /**
    * Values the documents state. Re-analysing replaces these, never the form —
@@ -313,6 +315,10 @@ export default function NewCasePage() {
             isPrimary: index === 0,
           }));
         }
+      }
+      const pickedClients = additionalClients.filter((c) => c.clientId);
+      if (pickedClients.length) {
+        payload.clients = pickedClients.map((c) => ({ clientId: c.clientId }));
       }
       if (
         form.addInitialActivity &&
@@ -615,6 +621,23 @@ export default function NewCasePage() {
                       setForm({ ...form, clientId: '', clientName: name })
                     }
                   />
+                  {!form.clientId && customers[0]?.customerId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const client = clients.find((c) => c.id === customers[0].customerId);
+                        setForm({
+                          ...form,
+                          clientId: customers[0].customerId,
+                          clientName: client?.name ?? form.clientName,
+                          useTmpClient: false,
+                        });
+                      }}
+                      className="mt-1 text-sm underline"
+                    >
+                      ใช้เป็นคนเดียวกับผู้มอบหมายรายที่ 1
+                    </button>
+                  )}
                   {!form.clientId && form.clientName.trim() && !form.useTmpClient && (
                     <div className="mt-2 space-y-1">
                       <label className="block text-xs font-medium text-muted-foreground">
@@ -651,6 +674,47 @@ export default function NewCasePage() {
                       ยกเลิกเครื่องหมายเพื่อกลับไปกรอกชื่อ
                     </p>
                   )}
+                  {additionalClients.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {additionalClients.map((row, index) => (
+                        <div key={index} className="flex items-end gap-2">
+                          <div className="min-w-0 flex-1">
+                            <CustomerSelect
+                              id={`case-additional-client-${index}`}
+                              label={`ลูกความรายที่ ${index + 2}`}
+                              value={row.clientId}
+                              clients={clients}
+                              onChange={(clientId) =>
+                                setAdditionalClients((rows) =>
+                                  rows.map((r, i) => (i === index ? { ...r, clientId } : r)),
+                                )
+                              }
+                              onCreated={(client) =>
+                                setClients((rows) =>
+                                  [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
+                                )
+                              }
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            aria-label={`ลบลูกความรายที่ ${index + 2}`}
+                            onClick={() => setAdditionalClients((rows) => rows.filter((_, i) => i !== index))}
+                            className="h-10 shrink-0 px-1 text-sm text-muted-foreground underline"
+                          >
+                            ลบ
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalClients((rows) => [...rows, { clientId: '' }])}
+                    className="mt-3 text-sm underline"
+                  >
+                    + เพิ่มลูกความอีกราย
+                  </button>
                 </div>
 
                 <div>

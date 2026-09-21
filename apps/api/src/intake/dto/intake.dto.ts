@@ -98,6 +98,17 @@ export class CustomerShareDto {
   note?: string;
 }
 
+/** ลูกความเพิ่มเติม (เกินคนที่ 1) — ลูกความหลักยังคงเป็น clientId */
+export class AdditionalClientDto {
+  @IsUUID()
+  clientId!: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  note?: string;
+}
+
 export class CreateIntakeDto {
   @IsDateString()
   receivedDate!: string;
@@ -129,6 +140,12 @@ export class CreateIntakeDto {
   @ValidateNested({ each: true })
   @Type(() => CustomerShareDto)
   customers?: CustomerShareDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdditionalClientDto)
+  clients?: AdditionalClientDto[];
 
   @IsOptional()
   @Trim()
@@ -269,6 +286,12 @@ export class UpdateIntakeDto {
   @ValidateNested({ each: true })
   @Type(() => CustomerShareDto)
   customers?: CustomerShareDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdditionalClientDto)
+  clients?: AdditionalClientDto[];
 
   @IsOptional()
   @Trim()

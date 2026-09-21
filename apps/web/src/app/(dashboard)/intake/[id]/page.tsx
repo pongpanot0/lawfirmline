@@ -1299,6 +1299,12 @@ export default function IntakeDetailPage() {
           <CardHeader><CardTitle className="text-base">ลูกความ / ลูกค้า</CardTitle></CardHeader>
           <CardContent className="space-y-0">
             <InfoRow label="ลูกความ" value={intake.client?.name ?? intake.clientName} />
+            {intake.additionalClients && intake.additionalClients.length > 0 && (
+              <InfoRow
+                label="ลูกความคนอื่น"
+                value={intake.additionalClients.map((ac) => ac.client.name).join(', ')}
+              />
+            )}
             {/* ลูกค้า = ผู้ว่าจ้างที่เราวางบิล ซ่อนไว้เมื่อเป็นคนเดียวกับลูกความ */}
             {!customersSameAsClient(intake.customers, intake.clientId) && (
               <InfoRow label="ลูกค้า (ผู้ว่าจ้าง)" value={formatCustomers(intake.customers)} />
