@@ -820,6 +820,7 @@ export default function IntakeDetailPage() {
     title: string;
     leadLawyerId?: string;
     claimedAmount?: number;
+    playbookId?: string;
   }) => {
     if (!token || !id || submitting) return;
     setSubmitting(true);
@@ -834,6 +835,9 @@ export default function IntakeDetailPage() {
       // returns that case. Either way the lawyer lands where the work now is.
       const caseId = result.case?.id ?? result.id ?? intake?.relatedCase?.id;
       if (caseId) {
+        if (payload.playbookId) {
+          await setupRequest(token, `/cases/${caseId}/apply`, { releaseId: payload.playbookId }).catch(console.error);
+        }
         router.push(`/cases/${caseId}`);
         return;
       }
@@ -1884,6 +1888,7 @@ export default function IntakeDetailPage() {
           intake={intake}
           documents={documents}
           lawyers={lawyers}
+          playbooks={playbooks}
           analysisCount={analyses.length}
           submitting={submitting}
           error={convertError}

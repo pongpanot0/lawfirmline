@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { DocumentItem, IntakeItem, UserItem } from '@/lib/api';
+import { PlaybookRelease } from '@/lib/practice-setup';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/misc';
@@ -12,6 +13,7 @@ export interface ConvertToCaseDialogProps {
   intake: IntakeItem;
   documents: DocumentItem[];
   lawyers: UserItem[];
+  playbooks: PlaybookRelease[];
   analysisCount: number;
   submitting: boolean;
   error?: string;
@@ -20,6 +22,7 @@ export interface ConvertToCaseDialogProps {
     title: string;
     leadLawyerId?: string;
     claimedAmount?: number;
+    playbookId?: string;
   }) => void;
 }
 
@@ -36,6 +39,7 @@ export function ConvertToCaseDialog({
   intake,
   documents,
   lawyers,
+  playbooks,
   analysisCount,
   submitting,
   error,
@@ -52,6 +56,9 @@ export function ConvertToCaseDialog({
   const [title, setTitle] = useState(suggestedTitle);
   const [leadLawyerId, setLeadLawyerId] = useState('');
   const [useDamageAsClaim, setUseDamageAsClaim] = useState(false);
+  const [playbookId, setPlaybookId] = useState(
+    () => playbooks.find((p) => p.caseTypeId === intake.caseTypeId)?.id ?? '',
+  );
 
   const missing = [
     !intake.clientId && !intake.clientName ? 'ลูกค้า' : null,
@@ -105,6 +112,25 @@ export function ConvertToCaseDialog({
               {lawyers.map((lawyer) => (
                 <option key={lawyer.id} value={lawyer.id}>
                   {lawyer.firstName} {lawyer.lastName}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {!attachingToExisting && playbooks.length > 0 && (
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted-foreground">Playbook (ถ้ามี — สร้างงานให้อัตโนมัติหลังเปิดคดี)</span>
+            <select
+              value={playbookId}
+              onChange={(e) => setPlaybookId(e.target.value)}
+              className={SELECT_CLASS}
+            >
+              <option value="">— ไม่ใช้ Playbook —</option>
+              {playbooks.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · v{p.version}
+                  {p.caseTypeId === intake.caseTypeId ? ' (แนะนำ)' : ''}
                 </option>
               ))}
             </select>
@@ -171,6 +197,7 @@ export function ConvertToCaseDialog({
                 useDamageAsClaim && intake.estimatedDamage != null
                   ? intake.estimatedDamage
                   : undefined,
+              playbookId: playbookId || undefined,
             })
           }
         >
