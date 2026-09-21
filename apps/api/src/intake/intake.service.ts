@@ -733,6 +733,30 @@ export class IntakeService {
       });
     }
 
+    // ทีมของ intake กับคดีที่เปิดคู่กันคือทีมเดียวกัน — sync CaseAssignment ให้ตรงเสมอ
+    if (dto.assignedUserIds && updated.case?.id) {
+      const pairedCase = await this.prisma.case.findUnique({
+        where: { id: updated.case.id },
+        select: { id: true, leadLawyerId: true },
+      });
+      if (pairedCase) {
+        const assigneeIds = dto.assignedUserIds.filter((uid) => uid !== pairedCase.leadLawyerId);
+        await this.prisma.caseAssignment.deleteMany({
+          where: { caseId: pairedCase.id, userId: { notIn: [...assigneeIds, pairedCase.leadLawyerId] } },
+        });
+        if (assigneeIds.length > 0) {
+          await this.prisma.caseAssignment.createMany({
+            data: assigneeIds.map((userId) => ({
+              caseId: pairedCase.id,
+              userId,
+              assignmentType: AssignmentType.BUDDY,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    }
+
     if (dto.preferredPlaybookId) {
       await this.seedPlaybookTasks(user, updated.id, dto.preferredPlaybookId);
     }

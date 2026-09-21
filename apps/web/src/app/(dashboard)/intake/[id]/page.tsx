@@ -194,7 +194,7 @@ function IntakeAssignees({
         {assignedIds.map((uid) => {
           const u = byId.get(uid);
           const name = u ? `${u.firstName} ${u.lastName}` : uid;
-          const removable = !busy && intake.status !== 'CONVERTED';
+          const removable = !busy;
           return (
             <span
               key={uid}
@@ -223,7 +223,7 @@ function IntakeAssignees({
           );
         })}
       </div>
-      {intake.status !== 'CONVERTED' && (
+      {(
         <select
           aria-label="มอบหมายให้"
           className="h-9 w-full max-w-xs rounded-lg border border-dashed border-input bg-transparent px-3 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground"

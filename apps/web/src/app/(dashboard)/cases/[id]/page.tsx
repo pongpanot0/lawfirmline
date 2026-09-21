@@ -685,6 +685,16 @@ export default function CaseDetailPage() {
               <div className="h-1.5 rounded-full bg-emerald-600" style={{ width: requiredDocs.required.length ? `${Math.round((requiredDocs.required.filter((r) => r.present).length / requiredDocs.required.length) * 100)}%` : '0%' }} />
             </div>
           </button>
+          {!preFiling ? (
+            /* พ้นก่อนฟ้องแล้ว — งาน Notice/เจรจาจบไป โชว์ข้อมูลชั้นศาลแทน */
+            <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+              <p className="text-xs text-muted-foreground">ศาล / เลขคดี</p>
+              <p className="mt-0.5 text-sm font-bold">{legalCase.courtName || 'ยังไม่ระบุศาล'}</p>
+              <p className="text-xs text-muted-foreground">
+                ดำ {legalCase.blackCaseNumber || '—'} · แดง {legalCase.redCaseNumber || '—'}
+              </p>
+            </div>
+          ) : (
           <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
             <p className="text-xs text-muted-foreground">Notice / เจรจา</p>
             {legalCase.intake?.noticeIssuedAt ? (
@@ -705,6 +715,7 @@ export default function CaseDetailPage() {
               </>
             )}
           </div>
+          )}
           <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
             <p className="text-xs text-muted-foreground">อายุความ</p>
             {legalCase.limitationDeadline ? (
@@ -1389,7 +1400,7 @@ export default function CaseDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">
-          {legalCase.intake && legalCase.stage === 'PRE_LITIGATION' && (
+          {legalCase.intake && preFiling && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">หนังสือทวงถาม (Notice)</CardTitle>
