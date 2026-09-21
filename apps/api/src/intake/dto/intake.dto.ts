@@ -162,6 +162,10 @@ export class CreateIntakeDto {
   caseTypeId?: string;
 
   @IsOptional()
+  @IsUUID()
+  preferredPlaybookId?: string;
+
+  @IsOptional()
   @Trim()
   @IsString()
   opposingParty?: string;
@@ -310,6 +314,10 @@ export class UpdateIntakeDto {
   @IsOptional()
   @IsUUID()
   caseTypeId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  preferredPlaybookId?: string;
 
   @IsOptional()
   @Trim()

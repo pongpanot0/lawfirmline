@@ -69,6 +69,7 @@ export default function NewIntakePage() {
     contactName: '',
     receivedDate: today,
     caseTypeId: '',
+    playbookId: '',
   });
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
@@ -180,6 +181,7 @@ export default function NewIntakePage() {
         preLitigationStatus: 'NOT_STARTED',
       };
       if (form.caseTypeId) payload.caseTypeId = form.caseTypeId;
+      if (form.playbookId) payload.preferredPlaybookId = form.playbookId;
       if (assignedIds.length > 0) payload.assignedUserIds = assignedIds;
       if (clientId) {
         payload.clientId = clientId;
@@ -484,7 +486,11 @@ export default function NewIntakePage() {
                 <select
                   id="intake-caseTypeId"
                   value={form.caseTypeId}
-                  onChange={(e) => set('caseTypeId', e.target.value)}
+                  onChange={(e) => {
+                    const caseTypeId = e.target.value;
+                    const matched = playbooks.find((p) => p.caseTypeId === caseTypeId)?.id ?? '';
+                    setForm((f) => ({ ...f, caseTypeId, playbookId: matched }));
+                  }}
                   className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="">ยังไม่ทราบ</option>
@@ -492,15 +498,26 @@ export default function NewIntakePage() {
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
-                {(() => {
-                  const suggested = playbooks.find((p) => p.caseTypeId === form.caseTypeId);
-                  return suggested ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      แนะนำ Playbook &quot;{suggested.name}&quot; ({suggested.steps.length} ขั้นตอน) — จะใช้ได้จริงหลังแปลงเป็นคดี
-                    </p>
-                  ) : null;
-                })()}
               </div>
+              {playbooks.length > 0 && (
+                <div>
+                  <label htmlFor="intake-playbookId" className="block text-sm font-medium">Playbook (ถ้ามี)</label>
+                  <select
+                    id="intake-playbookId"
+                    value={form.playbookId}
+                    onChange={(e) => set('playbookId', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">— ไม่ใช้ Playbook —</option>
+                    {playbooks.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} · v{p.version}{p.caseTypeId === form.caseTypeId ? ' (แนะนำ)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">จะใช้สร้างงานให้อัตโนมัติตอนแปลงเป็นคดี — เปลี่ยนใจตอนนั้นได้อีกที</p>
+                </div>
+              )}
             </div>
             <div className="mt-4 space-y-2">
               <label htmlFor="intake-description" className="block text-sm font-medium">เหตุการณ์ / คำสั่งมอบหมาย (ถ้ามี)</label>

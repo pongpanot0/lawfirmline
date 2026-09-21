@@ -726,6 +726,7 @@ export interface IntakeItem {
   customerRef?: string | null;
   matterType?: string | null;
   caseTypeId?: string | null;
+  preferredPlaybookId?: string | null;
   opposingParty?: string | null;
   insurerName?: string | null;
   policyNumber?: string | null;
