@@ -9,6 +9,7 @@ import { api, CalendarEventItem, CaseItem, TravelResult, UserItem } from '@/lib/
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import { Modal } from '@/components/ui/misc';
 import { TravelPreviewCard } from '@/components/TravelPreviewCard';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -281,12 +282,12 @@ export function CalendarEventDialog({
 
           <label className="block text-sm">
             <span className="mb-1 block text-muted-foreground">{d.calendar.timeHint}</span>
-            <Input
+            <ThaiDateTimeInput
               required
-              type="datetime-local"
               disabled={!!savedId}
               value={form.startAt}
-              onChange={(e) => setForm({ ...form, startAt: e.target.value })}
+              onChange={(v) => setForm({ ...form, startAt: v })}
+              className="mt-1"
             />
           </label>
 

@@ -19,6 +19,7 @@ import { useLocale } from '@/components/landing/LocaleProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import {
   bangkokInputToIso,
   bangkokInputValue,
@@ -860,18 +861,14 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   </label>
                   <label className="block min-w-0 text-sm">
                     {t.nextAt}
-                    <input
-                      type="datetime-local"
-                      className={`${inputClass} mt-1`}
+                    <ThaiDateTimeInput
+                      className="mt-1"
                       value={
                         state.nextAt ? bangkokInputValue(state.nextAt) : ''
                       }
-                      min={bangkokInputValue(event.startAt)}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         edit({
-                          nextAt: e.target.value
-                            ? bangkokInputToIso(e.target.value)
-                            : '',
+                          nextAt: v ? bangkokInputToIso(v) : '',
                         })
                       }
                     />

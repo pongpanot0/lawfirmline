@@ -2,25 +2,25 @@
 
 import { useEffect, useState } from 'react';
 
-const THAI_MONTHS = [
+export const THAI_MONTHS = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ];
 
 /** เลขไทย → เลขอารบิก เหมือน pattern ที่ใช้กับช่องเลขคดี (เลขดำ/เลขแดง) */
-function toArabicDigits(input: string) {
+export function toArabicDigits(input: string) {
   return input.replace(/[๐-๙]/g, (digit) => String(digit.charCodeAt(0) - 3664));
 }
 
-function onlyDigits(input: string, maxLength: number) {
+export function onlyDigits(input: string, maxLength: number) {
   return toArabicDigits(input).replace(/[^0-9]/g, '').slice(0, maxLength);
 }
 
-function daysInMonth(year: number, month: number) {
+export function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
 }
 
-function pad(value: string) {
+export function pad(value: string) {
   return value.padStart(2, '0');
 }
 

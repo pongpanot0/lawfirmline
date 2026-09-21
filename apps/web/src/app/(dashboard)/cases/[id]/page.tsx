@@ -97,6 +97,7 @@ import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSect
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
@@ -1315,13 +1316,12 @@ export default function CaseDetailPage() {
                         ))}
                       </select>
                     </div>
-                    <div>
+                    <div className="sm:col-span-2">
                       <label className="text-xs text-muted-foreground">วันที่และเวลา</label>
-                      <Input
+                      <ThaiDateTimeInput
                         required
-                        type="datetime-local"
                         value={activityForm.activityAt}
-                        onChange={(e) => setActivityForm({ ...activityForm, activityAt: e.target.value })}
+                        onChange={(v) => setActivityForm({ ...activityForm, activityAt: v })}
                         className="mt-1"
                       />
                     </div>

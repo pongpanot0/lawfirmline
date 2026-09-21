@@ -460,28 +460,28 @@ export default function NewIntakePage() {
             <div className="mb-3 flex items-center gap-2">
               <h2 className="font-semibold">เรื่องที่รับ</h2>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="sm:col-span-2">
-                <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
-                <input
-                  id="intake-title"
-                  required
-                  value={form.title}
-                  onChange={(e) => set('title', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
-                />
-              </div>
-              <div>
-                <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
-                <ThaiDateInput
-                  id="intake-receivedDate"
-                  required
-                  value={form.receivedDate}
-                  onChange={(v) => set('receivedDate', v)}
-                  className="mt-1"
-                />
-              </div>
+            <div>
+              <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
+              <input
+                id="intake-title"
+                required
+                value={form.title}
+                onChange={(e) => set('title', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
+              />
+            </div>
+            <div className="mt-4">
+              <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
+              <ThaiDateInput
+                id="intake-receivedDate"
+                required
+                value={form.receivedDate}
+                onChange={(v) => set('receivedDate', v)}
+                className="mt-1"
+              />
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="intake-caseTypeId" className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
                 <select
@@ -520,7 +520,7 @@ export default function NewIntakePage() {
                 </div>
               )}
               {!playbooks.length && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground sm:col-span-2">
                   ยังไม่มี Playbook เลย{' '}
                   <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
                 </p>
