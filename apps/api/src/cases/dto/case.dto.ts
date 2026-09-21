@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -70,6 +71,10 @@ export class CreateCaseDto {
   @IsOptional()
   @IsString()
   clientName?: string;
+
+  @IsOptional()
+  @IsIn(['PLAINTIFF', 'DEFENDANT'])
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT';
 
   @IsOptional()
   @IsArray()
@@ -169,6 +174,10 @@ export class UpdateCaseDto {
   @IsOptional()
   @IsString()
   clientName?: string;
+
+  @IsOptional()
+  @IsIn(['PLAINTIFF', 'DEFENDANT'])
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT';
 
   @IsOptional()
   @IsString()

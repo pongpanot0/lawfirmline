@@ -58,6 +58,7 @@ export default function NewIntakePage() {
 
   const [form, setForm] = useState({
     title: '',
+    partyRole: '',
     description: '',
     referralName: '',
     clientId: '',
@@ -181,6 +182,7 @@ export default function NewIntakePage() {
         preLitigationType: 'GENERAL',
         preLitigationStatus: 'NOT_STARTED',
       };
+      if (form.partyRole) payload.partyRole = form.partyRole;
       if (form.caseTypeId) payload.caseTypeId = form.caseTypeId;
       if (form.playbookId) payload.preferredPlaybookId = form.playbookId;
       if (assignedIds.length > 0) payload.assignedUserIds = assignedIds;
@@ -482,6 +484,19 @@ export default function NewIntakePage() {
               />
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="intake-partyRole" className="block text-sm font-medium">ฝ่ายเรา</label>
+                <select
+                  id="intake-partyRole"
+                  value={form.partyRole}
+                  onChange={(e) => set('partyRole', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">ไม่ระบุ</option>
+                  <option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option>
+                  <option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option>
+                </select>
+              </div>
               <div>
                 <label htmlFor="intake-caseTypeId" className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
                 <select

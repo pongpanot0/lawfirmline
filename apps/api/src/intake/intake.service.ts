@@ -511,6 +511,7 @@ export class IntakeService {
         clientName: dto.clientName,
         matterType: dto.matterType,
         caseTypeId: dto.caseTypeId,
+        partyRole: dto.partyRole as any,
         preferredPlaybookId: dto.preferredPlaybookId,
         opposingParty: dto.opposingParty,
         customerRef: dto.customerRef,
@@ -623,6 +624,7 @@ export class IntakeService {
         contactName: dto.contactName,
         matterType: dto.matterType,
         caseTypeId: dto.caseTypeId,
+        partyRole: dto.partyRole as any,
         preferredPlaybookId: dto.preferredPlaybookId,
         opposingParty: dto.opposingParty,
         customerRef: dto.customerRef,
@@ -701,7 +703,7 @@ export class IntakeService {
   }
 
   async decide(user: AuthUser, id: string, dto: DecideIntakeDto) {
-    await this.findOne(user, id);
+    const intake = await this.findOne(user, id);
 
     const acceptedDecisions: IntakeDecision[] = [
       IntakeDecision.FILE_SUIT,
@@ -709,12 +711,34 @@ export class IntakeService {
       IntakeDecision.SEND_NOTICE,
       IntakeDecision.COMPLAIN_TO_AUTHORITY,
     ];
-    const status =
-      dto.decision === IntakeDecision.CONSULTATION_ONLY
-        ? 'CONSULTED'
-        : acceptedDecisions.includes(dto.decision)
-          ? 'ACCEPTED'
-          : 'REJECTED';
+
+    // รับดำเนินการ = เปิดคดีทันที ในเฟสก่อนฟ้อง — งานโนติส/เจรจา/เอกสาร
+    // คือคดีแล้ว ไม่ใช่ lead ที่รอแปลง. conflict gate จึงย้ายมาเฝ้าที่จุดนี้.
+    if (acceptedDecisions.includes(dto.decision)) {
+      if (!intake.case) {
+        await this.assertConflictCleared(user, intake.id, dto.conflictOverrideReason);
+      }
+      await this.prisma.intake.update({
+        where: { id },
+        data: {
+          decidedAt: new Date(),
+          decision: dto.decision as any,
+          decisionNotes: dto.decisionNotes,
+          clientDecision: dto.clientDecision,
+        },
+      });
+      if (!intake.case) {
+        if (intake.relatedCaseId) {
+          await this.attachToExistingCase(user, intake, dto);
+        } else {
+          await this.openCaseFromIntake(user, intake, dto);
+        }
+      }
+      // openCaseFromIntake/attachToExistingCase ตั้ง status=CONVERTED + stage=CLOSED แล้ว
+      return this.findOne(user, id);
+    }
+
+    const status = dto.decision === IntakeDecision.CONSULTATION_ONLY ? 'CONSULTED' : 'REJECTED';
 
     return this.prisma.intake.update({
       where: { id },
@@ -722,11 +746,7 @@ export class IntakeService {
         decidedAt: new Date(),
         status: status as any,
         statusChangedAt: new Date(),
-        stage: (status === 'ACCEPTED'
-          ? IntakeStage.PROPOSAL
-          : status === 'CONSULTED'
-            ? IntakeStage.CONSULTED
-            : IntakeStage.CLOSED) as never,
+        stage: (status === 'CONSULTED' ? IntakeStage.CONSULTED : IntakeStage.CLOSED) as never,
         stageChangedAt: new Date(),
         decision: dto.decision as any,
         decisionNotes: dto.decisionNotes,
@@ -913,6 +933,20 @@ export class IntakeService {
       return this.attachToExistingCase(user, intake, dto);
     }
 
+    return this.openCaseFromIntake(user, intake, dto);
+  }
+
+  /**
+   * เปิดคดีจาก intake — ใช้ร่วมกันทั้งทาง decide (รับดำเนินการ) และทาง
+   * convert เดิม. คดีที่เปิดจาก intake เริ่มที่เฟสก่อนฟ้อง (PRE_LITIGATION)
+   * เพราะงานโนติส/เจรจา/เอกสารคือคดีแล้ว ไม่ใช่ lead.
+   */
+  private async openCaseFromIntake(
+    user: AuthUser,
+    intake: Awaited<ReturnType<IntakeService['findOne']>>,
+    dto: ConvertToCaseDto,
+  ) {
+    const id = intake.id;
     // Generate ownRef like cases.service.ts
     const firm = await this.prisma.firm.findUnique({
       where: { id: user.firmId },
@@ -959,6 +993,7 @@ export class IntakeService {
         title,
         description: this.buildCaseDescription(intake),
         customerRef: intake.customerRef ?? undefined,
+        partyRole: intake.partyRole ?? undefined,
         clientId: intake.clientId ?? undefined,
         clientName: intake.clientName ?? undefined,
         // ลูกค้า (ผู้ว่าจ้าง/ผู้จ่าย) ตามมาจาก intake; ถ้าไม่ได้ระบุไว้ ให้ลูกความเป็นลูกค้าเอง
@@ -984,6 +1019,9 @@ export class IntakeService {
           : undefined,
         referralSource: intake.referralName ?? undefined,
         status: 'OPEN' as any,
+        // คดีที่ผ่าน intake มาแล้วไม่ต้อง review ซ้ำ — เริ่มที่งานก่อนฟ้องเลย
+        stage: 'PRE_LITIGATION' as any,
+        stageChangedAt: new Date(),
         leadLawyerId: dto.leadLawyerId ?? user.id,
         intakeId: intake.id,
         limitationDeadline: intake.deadlineDate ?? undefined,

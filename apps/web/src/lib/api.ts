@@ -281,6 +281,8 @@ export interface CaseItem {
   outcome?: import('@lawfirm/shared').CaseOutcome;
   clientId?: string | null;
   clientName?: string | null;
+  /** ฝ่ายเรา — โจทก์ (PLAINTIFF) หรือจำเลย (DEFENDANT) */
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT' | null;
   courtName?: string | null;
   courtLevel?: import('@lawfirm/shared').CourtLevel | null;
   blackCaseNumber?: string | null;
@@ -467,6 +469,16 @@ export interface CaseParticipantItem {
 }
 
 export interface CaseDetail extends CaseItem {
+  /** intake ต้นทาง — งานก่อนฟ้อง (โนติส/เจรจา) ยังบันทึกอยู่ที่นั่น */
+  intake?: {
+    id: string;
+    status: string;
+    noticeIssuedAt?: string | null;
+    noticeDeadline?: string | null;
+    noticeRecipient?: string | null;
+    noticeResult?: string | null;
+    preLitigationStatus?: string | null;
+  } | null;
   description?: string | null;
   folderId?: string;
   courtName?: string | null;
@@ -726,6 +738,8 @@ export interface IntakeItem {
   customerRef?: string | null;
   matterType?: string | null;
   caseTypeId?: string | null;
+  /** ฝ่ายเรา — โจทก์ (PLAINTIFF) หรือจำเลย (DEFENDANT) */
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT' | null;
   preferredPlaybookId?: string | null;
   opposingParty?: string | null;
   insurerName?: string | null;

@@ -164,6 +164,7 @@ export default function CaseDetailPage() {
     redCaseNumber: '',
     courtLevel: '' as string,
     courtName: '',
+    partyRole: '',
     claimedAmount: '',
     estimatedFee: '',
     description: '',
@@ -398,6 +399,7 @@ export default function CaseDetailPage() {
       redCaseNumber: legalCase.redCaseNumber ?? '',
       courtLevel: legalCase.courtLevel ?? '',
       courtName: legalCase.courtName ?? '',
+      partyRole: legalCase.partyRole ?? '',
       claimedAmount: legalCase.claimedAmount != null ? String(legalCase.claimedAmount) : '',
       estimatedFee:
         legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
@@ -439,6 +441,7 @@ export default function CaseDetailPage() {
         redCaseNumber: overviewForm.redCaseNumber.trim() || null,
         courtLevel: overviewForm.courtLevel || null,
         courtName: overviewForm.courtName.trim() || null,
+        partyRole: overviewForm.partyRole || null,
         estimatedFee,
         claimedAmount: overviewForm.claimedAmount.trim() ? Number(overviewForm.claimedAmount) : null,
         description: overviewForm.description.trim() || null,
@@ -1071,6 +1074,18 @@ export default function CaseDetailPage() {
                             )}
                         </select>
                       </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">ฝ่ายเรา</label>
+                        <select
+                          value={overviewForm.partyRole}
+                          onChange={(e) => setOverviewForm({ ...overviewForm, partyRole: e.target.value })}
+                          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                        >
+                          <option value="">ไม่ระบุ</option>
+                          <option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option>
+                          <option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option>
+                        </select>
+                      </div>
                     </div>
                   </details>
 
@@ -1121,6 +1136,12 @@ export default function CaseDetailPage() {
               <div>
                 <p className="text-xs text-muted-foreground">ศาล</p>
                 <p className="font-medium">{legalCase.courtName ?? '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">ฝ่ายเรา</p>
+                <p className="font-medium">
+                  {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : legalCase.partyRole === 'DEFENDANT' ? 'จำเลย' : '—'}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">ลูกความ</p>
@@ -1271,6 +1292,41 @@ export default function CaseDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">
+          {legalCase.intake && legalCase.stage === 'PRE_LITIGATION' && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">งานก่อนฟ้อง</CardTitle>
+                <Link href={`/intake/${legalCase.intake.id}`}>
+                  <Button variant="outline" size="sm">จัดการโนติส / ใบเสนอราคา →</Button>
+                </Link>
+              </CardHeader>
+              <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">หนังสือทวงถาม (Notice)</p>
+                  <p className="font-medium">
+                    {legalCase.intake.noticeIssuedAt
+                      ? `ออกแล้ว ${new Date(legalCase.intake.noticeIssuedAt).toLocaleDateString('th-TH')}`
+                      : 'ยังไม่ออก'}
+                  </p>
+                  {legalCase.intake.noticeRecipient && (
+                    <p className="text-xs text-muted-foreground">ถึง {legalCase.intake.noticeRecipient}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">ครบกำหนดตาม Notice</p>
+                  <p className="font-medium">
+                    {legalCase.intake.noticeDeadline
+                      ? new Date(legalCase.intake.noticeDeadline).toLocaleDateString('th-TH')
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">สถานะเจรจา</p>
+                  <p className="font-medium">{legalCase.intake.noticeResult || legalCase.intake.preLitigationStatus || '—'}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {/* ใช้เป็นครั้งคราว — พับไว้ให้หน้าโล่ง */}
           <details className="rounded-xl border border-border bg-card">
             <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">

@@ -280,6 +280,13 @@ export default function IntakeDetailPage() {
   // Decide form
   const [decision, setDecision] = useState('PENDING');
   const [decisionNotes, setDecisionNotes] = useState('');
+  // ตัดสินใจรับ = เปิดคดีทันที — field ชุดเดิมของ convert modal ย้ายมาที่นี่
+  const [decideTitle, setDecideTitle] = useState('');
+  const [decideLeadLawyerId, setDecideLeadLawyerId] = useState('');
+  const [decideClaimedAmount, setDecideClaimedAmount] = useState('');
+  const [decidePlaybookId, setDecidePlaybookId] = useState('');
+  const [decideOverrideReason, setDecideOverrideReason] = useState('');
+  const [decideNeedsOverride, setDecideNeedsOverride] = useState(false);
 
   // Pre-litigation form
   const [preLitigationType, setPreLitigationType] = useState('GENERAL');
@@ -296,6 +303,7 @@ export default function IntakeDetailPage() {
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [editOpposingParty, setEditOpposingParty] = useState('');
+  const [editPartyRole, setEditPartyRole] = useState('');
   const [editCustomerRef, setEditCustomerRef] = useState('');
   const [editPolicyNumber, setEditPolicyNumber] = useState('');
   const [editClaimNumber, setEditClaimNumber] = useState('');
@@ -478,16 +486,42 @@ export default function IntakeDetailPage() {
     }
   };
 
+  const ACCEPT_DECISIONS = ['FILE_SUIT', 'NEGOTIATE_FIRST', 'SEND_NOTICE', 'COMPLAIN_TO_AUTHORITY'];
+
   const handleDecide = async () => {
     if (!token || !id) return;
     setSubmitting(true);
     setError('');
+    const accepted = ACCEPT_DECISIONS.includes(decision);
     try {
-      await api.decideIntake(token, id, { decision, decisionNotes: decisionNotes || undefined });
+      const result = (await api.decideIntake(token, id, {
+        decision,
+        decisionNotes: decisionNotes || undefined,
+        ...(accepted
+          ? {
+              title: decideTitle.trim() || undefined,
+              leadLawyerId: decideLeadLawyerId || undefined,
+              claimedAmount: decideClaimedAmount.trim() ? Number(decideClaimedAmount) : undefined,
+              conflictOverrideReason: decideOverrideReason.trim() || undefined,
+            }
+          : {}),
+      })) as IntakeItem;
+      // รับดำเนินการ = คดีเปิดแล้ว — พาไปที่งานเลย
+      const caseId = result.case?.id ?? result.relatedCase?.id;
+      if (accepted && caseId) {
+        if (decidePlaybookId) {
+          await setupRequest(token, `/cases/${caseId}/apply`, { releaseId: decidePlaybookId }).catch(console.error);
+        }
+        router.push(`/cases/${caseId}`);
+        return;
+      }
       await reload();
       setModal(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
+      const message = err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด';
+      // conflict gate: เปิดช่องให้พิมพ์เหตุผลข้าม แล้วกดบันทึกซ้ำ
+      if (accepted && message.includes('conflict')) setDecideNeedsOverride(true);
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -540,6 +574,7 @@ export default function IntakeDetailPage() {
     setEditCaseTypeId(intake.caseTypeId || '');
     setEditPlaybookId(intake.preferredPlaybookId || '');
     setEditOpposingParty(intake.opposingParty || '');
+    setEditPartyRole(intake.partyRole || '');
     setEditCustomerRef(intake.customerRef || '');
     setEditPolicyNumber(intake.policyNumber || '');
     setEditClaimNumber(intake.claimNumber || '');
@@ -586,6 +621,7 @@ export default function IntakeDetailPage() {
         caseTypeId: editCaseTypeId || undefined,
         preferredPlaybookId: editPlaybookId || undefined,
         opposingParty: editOpposingParty || undefined,
+        partyRole: editPartyRole || undefined,
         customerRef: editCustomerRef || undefined,
         policyNumber: editPolicyNumber || undefined,
         claimNumber: editClaimNumber || undefined,
@@ -954,17 +990,14 @@ export default function IntakeDetailPage() {
             {intake.status === 'ASSESSING' && (
               <Button onClick={() => setModal('decide')}>ตัดสินใจแนวทาง</Button>
             )}
-            {intake.status === 'ACCEPTED' && (
+            {/* งานก่อนฟ้องยังทำต่อได้หลังเปิดคดี — โนติส/เจรจา/ใบเสนอราคาบันทึกที่นี่ */}
+            {['ACCEPTED', 'CONVERTED'].includes(intake.status) && (
               <Button variant="outline" onClick={() => openNoticeModal()}>ออก Notice</Button>
             )}
-            {intake.status !== 'CONVERTED' && (
-              <Button variant="outline" onClick={handleQuotePdfExport}>
-                Export ใบเสนอราคา PDF
-              </Button>
-            )}
-            {intake.status !== 'CONVERTED' && (
-              <Button variant="outline" onClick={openPreLitigationModal}>อัปเดต</Button>
-            )}
+            <Button variant="outline" onClick={handleQuotePdfExport}>
+              Export ใบเสนอราคา PDF
+            </Button>
+            <Button variant="outline" onClick={openPreLitigationModal}>อัปเดต</Button>
             {intake.status === 'ACCEPTED' && (
               <Button onClick={() => setConverting(true)} disabled={submitting}>
                 {intake.relatedCase ? 'เพิ่มลงคดีเดิม' : 'เปิดเป็นคดี'}
@@ -1291,6 +1324,10 @@ export default function IntakeDetailPage() {
             <InfoRow label="เลขอ้างอิงลูกค้า" value={intake.customerRef} />
             <InfoRow label="เลขกรมธรรม์" value={intake.policyNumber} />
             <InfoRow label="เลขเคลม" value={intake.claimNumber} />
+            <InfoRow
+              label="ฝ่ายเรา"
+              value={intake.partyRole === 'PLAINTIFF' ? 'โจทก์' : intake.partyRole === 'DEFENDANT' ? 'จำเลย' : undefined}
+            />
             <InfoRow label="คู่กรณี" value={intake.opposingParty} />
             <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
             <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
@@ -1477,6 +1514,75 @@ export default function IntakeDetailPage() {
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
                     />
                   </div>
+                  {ACCEPT_DECISIONS.includes(decision) && (
+                    <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+                      <p className="text-sm font-medium">รับดำเนินการ = เปิดคดีทันที (เฟสก่อนฟ้อง)</p>
+                      <div>
+                        <label className="block text-sm font-medium">ชื่อคดี</label>
+                        <input
+                          value={decideTitle}
+                          onChange={(e) => setDecideTitle(e.target.value)}
+                          placeholder={intake.title || 'ใช้ชื่อเรื่องรับเข้า'}
+                          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-sm font-medium">ทนายเจ้าของคดี</label>
+                          <select
+                            value={decideLeadLawyerId}
+                            onChange={(e) => setDecideLeadLawyerId(e.target.value)}
+                            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                          >
+                            <option value="">ฉันเอง (คนที่กดบันทึก)</option>
+                            {lawyers.map((u) => (
+                              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium">ทุนทรัพย์ที่เรียกร้อง (บาท)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={decideClaimedAmount}
+                            onChange={(e) => setDecideClaimedAmount(e.target.value)}
+                            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">Playbook</label>
+                        <select
+                          value={decidePlaybookId}
+                          onChange={(e) => setDecidePlaybookId(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="">ไม่ใช้</option>
+                          {playbooks.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}{p.caseTypeId && p.caseTypeId === intake.caseTypeId ? ' (แนะนำตามประเภทคดี)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {decideNeedsOverride && (
+                        <div>
+                          <label className="block text-sm font-medium text-destructive">
+                            เหตุผลที่เปิดคดีโดยข้ามผลตรวจ conflict
+                          </label>
+                          <textarea
+                            value={decideOverrideReason}
+                            onChange={(e) => setDecideOverrideReason(e.target.value)}
+                            rows={2}
+                            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
+                            placeholder="เช่น เรื่องเร่ง อายุความใกล้ครบ — จะตรวจย้อนหลังทันที"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setModal(null)}>ยกเลิก</Button>
@@ -1590,6 +1696,18 @@ export default function IntakeDetailPage() {
                         onChange={(e) => setEditOpposingParty(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium">ฝ่ายเรา</label>
+                      <select
+                        value={editPartyRole}
+                        onChange={(e) => setEditPartyRole(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">ไม่ระบุ</option>
+                        <option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option>
+                        <option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option>
+                      </select>
                     </div>
                   </div>
                   <div>

@@ -41,6 +41,18 @@ export class CasesService {
     },
     caseType: { select: { id: true, name: true } },
     client: { select: { id: true, name: true } },
+    // งานก่อนฟ้อง (โนติส/เจรจา) ยังบันทึกอยู่บน intake ที่ผูก 1:1 — หน้าคดีใช้แสดงสถานะ
+    intake: {
+      select: {
+        id: true,
+        status: true,
+        noticeIssuedAt: true,
+        noticeDeadline: true,
+        noticeRecipient: true,
+        noticeResult: true,
+        preLitigationStatus: true,
+      },
+    },
     customers: {
       orderBy: [{ isPrimary: 'desc' as const }, { createdAt: 'asc' as const }],
       select: {
@@ -310,6 +322,7 @@ export class CasesService {
         description: dto.description,
         clientId: dto.clientId,
         clientName: dto.clientName,
+        partyRole: dto.partyRole as any,
         courtName: dto.courtName,
         courtLevel: dto.courtLevel,
         blackCaseNumber: dto.blackCaseNumber || null,
