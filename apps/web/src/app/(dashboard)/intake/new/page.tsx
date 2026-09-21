@@ -46,6 +46,8 @@ export default function NewIntakePage() {
   const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string }[]>([
     { customerId: '', sharePercent: '' },
   ]);
+  // ลูกความคนอื่น (เกินคนที่ 1) — เช่น หลายคนร่วมฟ้อง/ถูกฟ้อง
+  const [additionalClients, setAdditionalClients] = useState<{ clientId: string }[]>([]);
   const now = new Date();
   const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
 
@@ -184,6 +186,10 @@ export default function NewIntakePage() {
           }));
         }
       }
+      const pickedClients = additionalClients.filter((c) => c.clientId);
+      if (pickedClients.length) {
+        payload.clients = pickedClients.map((c) => ({ clientId: c.clientId }));
+      }
       const created = createdIntakeId
         ? { id: createdIntakeId }
         : ((await api.createIntake(token, payload)) as IntakeItem);
@@ -298,49 +304,6 @@ export default function NewIntakePage() {
           </section>
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex items-center gap-2">
-              <h2 className="font-semibold">เรื่องที่รับ</h2>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="sm:col-span-2">
-                <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
-                <input
-                  id="intake-title"
-                  required
-                  value={form.title}
-                  onChange={(e) => set('title', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
-                />
-              </div>
-              <div>
-                <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
-                <input
-                  id="intake-receivedDate"
-                  type="date"
-                  required
-                  value={form.receivedDate}
-                  onChange={(e) => set('receivedDate', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-            <div className="mt-4 space-y-2">
-              <label htmlFor="intake-description" className="block text-sm font-medium">เหตุการณ์ / คำสั่งมอบหมาย (ถ้ามี)</label>
-              <textarea id="intake-description" rows={4} maxLength={12000} value={form.description} onChange={(e) => set('description', e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="วางข้อความจากอีเมล หรือเล่าเรื่องที่ต้องการให้ดำเนินการ แล้วใช้ค้นฎีกาหรือจัดข้อเท็จจริงต่อได้" />
-              <DocumentDropZone multiple accept=".pdf,.txt,application/pdf,text/plain" label="แนบเอกสารมอบหมาย (ไม่บังคับ)" hint="PDF / TXT ไม่เกิน 30MB ต่อไฟล์ · บันทึกเรื่องก่อนเลือกใช้ AI" disabled={submitting || !!createdIntakeId} onFiles={(incoming) => {
-                if (incoming.some((file) => file.size > 30 * 1024 * 1024 || !['application/pdf', 'text/plain'].includes(file.type))) { setError('เลือก PDF / TXT ไม่เกิน 30MB ต่อไฟล์'); return; }
-                const next = [...files]; for (const file of incoming) if (!next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file);
-                if (next.length > 10) { setError('เลือกได้สูงสุด 10 ไฟล์'); return; } setFiles(next); setError('');
-              }} />
-              {files.map((file,index) => <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{file.name}</span><button type="button" onClick={() => setFiles((prev) => prev.filter((_,i) => i !== index))} className="shrink-0 text-primary">เอาออก</button></div>)}
-            </div>
-          </section>
-
-          <details className="rounded-xl border border-border p-4">
-            <summary className="cursor-pointer text-sm font-medium">เพิ่มผู้ที่เราว่าความให้ ข้อมูลเคลม และทีม (เติมภายหลังได้)</summary>
-            <div className="mt-3 space-y-3">
-          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
               <h2 className="font-semibold">ลูกความ (เราว่าความให้ใคร)</h2>
             </div>
             <div className="space-y-3">
@@ -357,7 +320,57 @@ export default function NewIntakePage() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+              {!form.clientId && customers[0]?.customerId && (
+                <button
+                  type="button"
+                  onClick={() => handleClientChange(customers[0].customerId)}
+                  className="mt-1 text-sm underline"
+                >
+                  ใช้เป็นคนเดียวกับผู้มอบหมายรายที่ 1
+                </button>
+              )}
             </div>
+            {additionalClients.length > 0 && (
+              <div className="space-y-2">
+                {additionalClients.map((row, index) => (
+                  <div key={index} className="flex items-end gap-2">
+                    <div className="min-w-0 flex-1">
+                      <CustomerSelect
+                        id={`intake-additional-client-${index}`}
+                        label={`ลูกความรายที่ ${index + 2}`}
+                        value={row.clientId}
+                        clients={clients}
+                        onChange={(clientId) =>
+                          setAdditionalClients((rows) =>
+                            rows.map((r, i) => (i === index ? { ...r, clientId } : r)),
+                          )
+                        }
+                        onCreated={(client) =>
+                          setClients((rows) =>
+                            [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
+                          )
+                        }
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`ลบลูกความรายที่ ${index + 2}`}
+                      onClick={() => setAdditionalClients((rows) => rows.filter((_, i) => i !== index))}
+                      className="px-2 text-sm text-muted-foreground"
+                    >
+                      ลบ
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setAdditionalClients((rows) => [...rows, { clientId: '' }])}
+              className="text-sm underline"
+            >
+              + เพิ่มลูกความอีกราย
+            </button>
             {clientsLoading && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดรายชื่อลูกค้า…</p>}
             {clientsError && (
               <p role="alert" className="text-sm text-destructive">
@@ -426,9 +439,49 @@ export default function NewIntakePage() {
             )}
             </div>
           </section>
+          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="font-semibold">เรื่องที่รับ</h2>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
+                <input
+                  id="intake-title"
+                  required
+                  value={form.title}
+                  onChange={(e) => set('title', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
+                />
+              </div>
+              <div>
+                <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
+                <input
+                  id="intake-receivedDate"
+                  type="date"
+                  required
+                  value={form.receivedDate}
+                  onChange={(e) => set('receivedDate', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <div className="mt-4 space-y-2">
+              <label htmlFor="intake-description" className="block text-sm font-medium">เหตุการณ์ / คำสั่งมอบหมาย (ถ้ามี)</label>
+              <textarea id="intake-description" rows={4} maxLength={12000} value={form.description} onChange={(e) => set('description', e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="วางข้อความจากอีเมล หรือเล่าเรื่องที่ต้องการให้ดำเนินการ แล้วใช้ค้นฎีกาหรือจัดข้อเท็จจริงต่อได้" />
+              <DocumentDropZone multiple accept=".pdf,.txt,application/pdf,text/plain" label="แนบเอกสารมอบหมาย (ไม่บังคับ)" hint="PDF / TXT ไม่เกิน 30MB ต่อไฟล์ · บันทึกเรื่องก่อนเลือกใช้ AI" disabled={submitting || !!createdIntakeId} onFiles={(incoming) => {
+                if (incoming.some((file) => file.size > 30 * 1024 * 1024 || !['application/pdf', 'text/plain'].includes(file.type))) { setError('เลือก PDF / TXT ไม่เกิน 30MB ต่อไฟล์'); return; }
+                const next = [...files]; for (const file of incoming) if (!next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file);
+                if (next.length > 10) { setError('เลือกได้สูงสุด 10 ไฟล์'); return; } setFiles(next); setError('');
+              }} />
+              {files.map((file,index) => <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{file.name}</span><button type="button" onClick={() => setFiles((prev) => prev.filter((_,i) => i !== index))} className="shrink-0 text-primary">เอาออก</button></div>)}
+            </div>
+          </section>
 
-
-
+          <details className="rounded-xl border border-border p-4">
+            <summary className="cursor-pointer text-sm font-medium">ข้อมูลเคลม และทีม (เติมภายหลังได้)</summary>
+            <div className="mt-3 space-y-3">
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-1 flex items-center gap-2">
               <h2 className="font-semibold">ประกันภัย (ถ้ามี)</h2>

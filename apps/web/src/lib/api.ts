@@ -261,6 +261,13 @@ export interface CustomerShareItem {
   customer: { id: string; name: string };
 }
 
+export interface AdditionalClientItem {
+  id: string;
+  clientId: string;
+  note?: string | null;
+  client: { id: string; name: string };
+}
+
 export interface CaseItem {
   id: string;
   ownRef: string;
@@ -288,6 +295,7 @@ export interface CaseItem {
   caseType?: { id: string; name: string; fieldSchema?: unknown } | null;
   client?: { id: string; name: string } | null;
   customers?: CustomerShareItem[];
+  additionalClients?: AdditionalClientItem[];
 }
 
 export interface InsuranceClaimItem {
@@ -764,6 +772,7 @@ export interface IntakeItem {
   assessor?: { id: string; firstName: string; lastName: string } | null;
   client?: { id: string; name: string } | null;
   customers?: CustomerShareItem[];
+  additionalClients?: AdditionalClientItem[];
   case?: { id: string; ownRef: string; title: string } | null;
   relatedCase?: { id: string; ownRef: string; title: string; status: string } | null;
   createdAt: string;
@@ -974,6 +983,25 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
+
+  /**
+   * Apex has no localStorage session of its own — this mints one from the
+   * cross-subdomain refresh cookie so the user isn't asked to log in twice.
+   * Returns null rather than throwing when there's no valid cookie.
+   */
+  apexSession: async (): Promise<import('@lawfirm/shared').LoginResponse | null> => {
+    try {
+      const res = await fetch(`${API_URL}/auth/session`, {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
 
   verifyMfaLogin: (mfaToken: string, code: string) =>
     request<import('@lawfirm/shared').LoginResponse>('/auth/mfa/verify', {
