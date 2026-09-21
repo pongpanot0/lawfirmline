@@ -46,6 +46,7 @@ export default function NewIntakePage() {
     : [];
   const [createdIntakeId, setCreatedIntakeId] = useState<string | null>(null);
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
+  const [showNewClient, setShowNewClient] = useState(false);
   // ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน (เช่น บริษัทประกัน) ต่างจากลูกความที่เราว่าความให้
   const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string; contactId?: string }[]>([
     { customerId: '', sharePercent: '', contactId: '' },
@@ -242,42 +243,36 @@ export default function NewIntakePage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl pb-20">
+    <div className="mx-auto w-full max-w-3xl pb-20">
       <h1 className="mb-1 text-2xl font-bold">รับเรื่องใหม่</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        กรอกเท่าที่รู้ — บันทึกแล้วได้พื้นที่ทำงานเต็ม (งานจาก playbook, checklist เอกสาร, ทีม) เติมที่เหลือทีหลังได้
+        กรอกเท่าที่รู้ — บันทึกแล้วได้ workspace เต็ม (งานจาก playbook, checklist เอกสาร, ทีม) เติมที่เหลือทีหลังได้
       </p>
 
       <form onSubmit={handleSubmit}>
         <fieldset disabled={submitting} className="min-w-0 space-y-4">
 
           {/* 1 · เรื่องที่รับ */}
-          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <h2 className="mb-3 font-semibold">1 · เรื่องที่รับ</h2>
-            <div>
-              <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
-              <input
-                id="intake-title"
-                required
-                value={form.title}
-                onChange={(e) => set('title', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
-              />
-            </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-              <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
-              <ThaiDateInput
-                id="intake-receivedDate"
-                required
-                value={form.receivedDate}
-                onChange={(v) => set('receivedDate', v)}
-                className="mt-1"
-              />
+          <section className="rounded-2xl border bg-card p-5 shadow-sm">
+            <h2 className="mb-3 text-[15px] font-bold">1 · เรื่องที่รับ</h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <label htmlFor="intake-title" className="block text-xs font-semibold">ชื่อเรื่อง *</label>
+                <input
+                  id="intake-title"
+                  required
+                  value={form.title}
+                  onChange={(e) => set('title', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
+                />
               </div>
               <div>
-<label htmlFor="intake-partyRole" className="block text-sm font-medium">ฝ่ายเรา</label>
+                <label htmlFor="intake-receivedDate" className="block text-xs font-semibold">วันที่รับเรื่อง *</label>
+                <ThaiDateInput id="intake-receivedDate" required value={form.receivedDate} onChange={(v) => set('receivedDate', v)} className="mt-1" />
+              </div>
+              <div>
+                <label htmlFor="intake-partyRole" className="block text-xs font-semibold">ฝ่ายเรา</label>
                 <select
                   id="intake-partyRole"
                   value={form.partyRole}
@@ -290,7 +285,7 @@ export default function NewIntakePage() {
                 </select>
               </div>
               <div>
-<label htmlFor="intake-caseTypeId" className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
+                <label htmlFor="intake-caseTypeId" className="block text-xs font-semibold">ประเภทคดี</label>
                 <select
                   id="intake-caseTypeId"
                   value={form.caseTypeId}
@@ -308,7 +303,7 @@ export default function NewIntakePage() {
                 </select>
               </div>
               <div>
-                <label htmlFor="intake-opposingParty" className="block text-sm font-medium">คู่กรณี</label>
+                <label htmlFor="intake-opposingParty" className="block text-xs font-semibold">คู่กรณี</label>
                 <input
                   id="intake-opposingParty"
                   value={form.opposingParty}
@@ -318,123 +313,133 @@ export default function NewIntakePage() {
                 />
               </div>
             </div>
-            <div className="mt-4 space-y-2">
-              <label htmlFor="intake-description" className="block text-sm font-medium">เหตุการณ์ / คำสั่งมอบหมาย (ถ้ามี)</label>
-              <textarea id="intake-description" rows={4} maxLength={12000} value={form.description} onChange={(e) => set('description', e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="วางข้อความจากอีเมล หรือเล่าเรื่องที่ต้องการให้ดำเนินการ แล้วใช้ค้นฎีกาหรือจัดข้อเท็จจริงต่อได้" />
+            <div className="mt-3">
+              <label htmlFor="intake-description" className="block text-xs font-semibold">เหตุการณ์ / คำสั่งมอบหมาย</label>
+              <textarea
+                id="intake-description"
+                rows={3}
+                maxLength={12000}
+                value={form.description}
+                onChange={(e) => set('description', e.target.value)}
+                className="mt-1 w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                placeholder="วางข้อความจากอีเมล หรือเล่าเหตุการณ์ — ใช้ให้ AI ช่วยวิเคราะห์/ค้นฎีกาต่อได้"
+              />
             </div>
           </section>
 
           {/* 2 · ลูกความ และผู้มอบหมาย/ผู้จ่าย */}
-          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <h2 className="mb-3 font-semibold">2 · ลูกความ และผู้มอบหมาย/ผู้จ่าย</h2>
-            <div className="space-y-3">
-            <div>
-              <label htmlFor="intake-clientId" className="block text-sm font-medium">ลูกความในระบบ (ถ้ามี)</label>
-              <select
-                id="intake-clientId"
-                value={form.clientId}
-                onChange={(e) => handleClientChange(e.target.value)}
-                disabled={sameCustomer}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
-              >
-                <option value="">ลูกความใหม่ / ยังไม่ระบุ</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {sameCustomer && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  ใช้ค่าเดียวกับผู้มอบหมายรายที่ 1 — ยกเลิกติ๊กด้านบนเพื่อเลือกลูกความอื่น
-                </p>
-              )}
-            </div>
-            {additionalClients.length > 0 && (
-              <div className="space-y-2">
-                {additionalClients.map((row, index) => (
-                  <div key={index} className="flex items-end gap-2">
-                    <div className="min-w-0 flex-1">
-                      <CustomerSelect
-                        id={`intake-additional-client-${index}`}
-                        label={`ลูกความรายที่ ${index + 2}`}
-                        value={row.clientId}
-                        clients={clients}
-                        onChange={(clientId) =>
-                          setAdditionalClients((rows) =>
-                            rows.map((r, i) => (i === index ? { ...r, clientId } : r)),
-                          )
-                        }
-                        onCreated={(client) =>
-                          setClients((rows) =>
-                            [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
-                          )
-                        }
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`ลบลูกความรายที่ ${index + 2}`}
-                      onClick={() => setAdditionalClients((rows) => rows.filter((_, i) => i !== index))}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setAdditionalClients((rows) => [...rows, { clientId: '' }])}
-            >
-              <Plus className="h-3.5 w-3.5" /> เพิ่มลูกความอีกราย
-            </Button>
-            {clientsLoading && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดรายชื่อลูกค้า…</p>}
-            {clientsError && (
-              <p role="alert" className="text-sm text-destructive">
-                โหลดลูกค้าไม่สำเร็จ{' '}
-                <button type="button" className="underline" onClick={() => setClientsRetry((value) => value + 1)}>ลองใหม่</button>
-              </p>
-            )}
-            {form.clientId && selectedClient && (
+          <section className="rounded-2xl border bg-card p-5 shadow-sm">
+            <h2 className="mb-3 text-[15px] font-bold">2 · ลูกความ และผู้มอบหมาย/ผู้จ่าย</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label htmlFor="intake-clientContactId" className="block text-sm font-medium">บุคคลติดต่อ / ผู้ส่งเรื่อง (ถ้ามี)</label>
-                <select
-                  id="intake-clientContactId"
-                  value={form.clientContactId}
-                  onChange={(e) => handleContactChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">ยังไม่ทราบ</option>
-                  {selectedClient.contacts.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}{(c as { nickname?: string }).nickname ? ` (${(c as { nickname?: string }).nickname})` : ''}{c.isPrimary ? ' ★' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {!form.clientId && !sameCustomer && (
-              <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
-                <p className="text-sm text-muted-foreground">
-                  กรอกชื่อแล้วระบบจะสร้างลูกความให้อัตโนมัติตอนบันทึก — เติมข้อมูลอื่นทีหลังได้
-                </p>
-                <div>
-                  <label htmlFor="intake-clientName" className="block text-sm font-medium">ชื่อลูกความ</label>
-                  <input
-                    id="intake-clientName"
-                    value={form.clientName}
-                    onChange={(e) => set('clientName', e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                    placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท"
-                  />
+                <label htmlFor="intake-clientId" className="block text-xs font-semibold">ลูกความ *</label>
+                <div className="mt-1 flex gap-2">
+                  <select
+                    id="intake-clientId"
+                    value={form.clientId}
+                    onChange={(e) => { handleClientChange(e.target.value); if (e.target.value) setShowNewClient(false); }}
+                    disabled={sameCustomer}
+                    className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
+                  >
+                    <option value="">— เลือกลูกความ —</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <Button type="button" variant="outline" onClick={() => { setShowNewClient((v) => !v); handleClientChange(''); }} disabled={sameCustomer}>
+                    <Plus className="h-3.5 w-3.5" /> ใหม่
+                  </Button>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                {sameCustomer && (
+                  <p className="mt-1 text-xs text-muted-foreground">ใช้ค่าเดียวกับผู้มอบหมายรายที่ 1</p>
+                )}
+                {clientsLoading && <p role="status" className="mt-1 text-xs text-muted-foreground">กำลังโหลดรายชื่อ…</p>}
+                {clientsError && (
+                  <p role="alert" className="mt-1 text-xs text-destructive">
+                    โหลดลูกค้าไม่สำเร็จ{' '}
+                    <button type="button" className="underline" onClick={() => setClientsRetry((value) => value + 1)}>ลองใหม่</button>
+                  </p>
+                )}
+                {form.clientId && selectedClient && selectedClient.contacts.length > 0 && (
+                  <select
+                    aria-label="บุคคลติดต่อ / ผู้ส่งเรื่อง"
+                    value={form.clientContactId}
+                    onChange={(e) => handleContactChange(e.target.value)}
+                    className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                  >
+                    <option value="">บุคคลติดต่อ — ยังไม่ทราบ</option>
+                    {selectedClient.contacts.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}{(c as { nickname?: string }).nickname ? ` (${(c as { nickname?: string }).nickname})` : ''}{c.isPrimary ? ' ★' : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold">ลูกความเพิ่มเติม (ร่วมฟ้อง/ถูกฟ้อง)</label>
+                {additionalClients.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalClients((rows) => [...rows, { clientId: '' }])}
+                    className="mt-1 w-full rounded-lg border border-dashed border-input px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
+                  >
+                    + เพิ่มลูกความ
+                  </button>
+                ) : (
+                  <div className="mt-1 space-y-2">
+                    {additionalClients.map((row, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <CustomerSelect
+                            id={`intake-additional-client-${index}`}
+                            label=""
+                            value={row.clientId}
+                            clients={clients}
+                            onChange={(clientId) =>
+                              setAdditionalClients((rows) => rows.map((r, i) => (i === index ? { ...r, clientId } : r)))
+                            }
+                            onCreated={(client) =>
+                              setClients((rows) => [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')))
+                            }
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`ลบลูกความรายที่ ${index + 2}`}
+                          onClick={() => setAdditionalClients((rows) => rows.filter((_, i) => i !== index))}
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <button type="button" className="text-sm text-primary hover:underline" onClick={() => setAdditionalClients((rows) => [...rows, { clientId: '' }])}>
+                      + เพิ่มลูกความอีกราย
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {showNewClient && !form.clientId && !sameCustomer && (
+              <div className="mt-3 space-y-3 rounded-lg border border-dashed border-border p-3">
+                <p className="text-sm text-muted-foreground">กรอกชื่อแล้วระบบจะสร้างลูกความให้อัตโนมัติตอนบันทึก</p>
+                <div className="grid gap-3 sm:grid-cols-3">
                   <div>
-                    <label htmlFor="intake-clientType" className="block text-sm font-medium">ประเภทลูกความ</label>
+                    <label htmlFor="intake-clientName" className="block text-xs font-semibold">ชื่อลูกความ</label>
+                    <input
+                      id="intake-clientName"
+                      value={form.clientName}
+                      onChange={(e) => set('clientName', e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="intake-clientType" className="block text-xs font-semibold">ประเภทลูกความ</label>
                     <select
                       id="intake-clientType"
                       value={form.clientType}
@@ -446,7 +451,7 @@ export default function NewIntakePage() {
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="intake-contactName" className="block text-sm font-medium">ชื่อผู้ติดต่อ</label>
+                    <label htmlFor="intake-contactName" className="block text-xs font-semibold">ชื่อผู้ติดต่อ</label>
                     <input
                       id="intake-contactName"
                       value={form.contactName}
@@ -458,200 +463,203 @@ export default function NewIntakePage() {
                 </div>
               </div>
             )}
-            </div>
-            <div className="mt-4 border-t border-border pt-4">
-              <p className="mb-1 text-sm font-semibold">ผู้มอบหมาย / ผู้จ่าย</p>
-              <p className="mb-3 text-sm text-muted-foreground">
-                คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน — ถ้าลูกความจ่ายเอง ติ๊ก "ลูกความคนเดียวกับผู้มอบหมาย"
-              </p>
-            <div className="space-y-2">
+
+            <div className="mt-4 border-t border-border pt-3">
               {customers.map((row, index) => (
-                <div key={index} className="flex items-end gap-2">
-                  <div className="min-w-0 flex-1">
-                    <CustomerSelect
-                      id={`intake-customer-${index}`}
-                      label={`ผู้มอบหมายรายที่ ${index + 1}`}
-                      value={row.customerId}
-                      clients={clients}
-                      onChange={(customerId) =>
-                        setCustomers((rows) =>
-                          rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
-                        )
-                      }
-                      onCreated={(client) =>
-                        setClients((rows) =>
-                          [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
-                        )
-                      }
-                    />
-                    {(() => {
-                      const contacts = clients.find((c) => c.id === row.customerId)?.contacts ?? [];
-                      return row.customerId && contacts.length > 0 ? (
-                        <select
-                          aria-label={`คนติดต่อของผู้มอบหมายรายที่ ${index + 1}`}
-                          value={row.contactId ?? ''}
-                          onChange={(e) =>
-                            setCustomers((rows) =>
-                              rows.map((r, i) => (i === index ? { ...r, contactId: e.target.value } : r)),
-                            )
+                <div key={index} className="mb-3">
+                  <p className="mb-1 text-sm font-semibold">
+                    ผู้มอบหมายรายที่ {index + 1}{' '}
+                    {index === 0 && <span className="font-normal text-muted-foreground">— คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกัน</span>}
+                  </p>
+                  <div className="grid items-start gap-3 sm:grid-cols-2">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <CustomerSelect
+                          id={`intake-customer-${index}`}
+                          label=""
+                          value={row.customerId}
+                          clients={clients}
+                          onChange={(customerId) =>
+                            setCustomers((rows) => rows.map((r, i) => (i === index ? { ...r, customerId } : r)))
                           }
-                          className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                          onCreated={(client) =>
+                            setClients((rows) => [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')))
+                          }
+                        />
+                      </div>
+                      {customers.length > 1 && (
+                        <input
+                          aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
+                          value={row.sharePercent}
+                          onChange={(e) =>
+                            setCustomers((rows) => rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)))
+                          }
+                          inputMode="decimal"
+                          placeholder="%"
+                          className="w-16 rounded-lg border border-input bg-background px-2 py-2 text-sm"
+                        />
+                      )}
+                      {customers.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`ลบผู้มอบหมายรายที่ ${index + 1}`}
+                          onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
                         >
-                          <option value="">คนติดต่อฝั่งลูกค้า — ไม่ระบุ</option>
-                          {contacts.map((ct) => (
-                            <option key={ct.id} value={ct.id}>{ct.name}{ct.phone ? ` · ${ct.phone}` : ''}</option>
-                          ))}
-                        </select>
-                      ) : null;
-                    })()}
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div>
+                      {(() => {
+                        const contacts = clients.find((c) => c.id === row.customerId)?.contacts ?? [];
+                        return (
+                          <select
+                            aria-label={`คนติดต่อของผู้มอบหมายรายที่ ${index + 1}`}
+                            value={row.contactId ?? ''}
+                            disabled={!row.customerId || contacts.length === 0}
+                            onChange={(e) =>
+                              setCustomers((rows) => rows.map((r, i) => (i === index ? { ...r, contactId: e.target.value } : r)))
+                            }
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                          >
+                            <option value="">คนติดต่อ — ไม่ระบุ</option>
+                            {contacts.map((ct) => (
+                              <option key={ct.id} value={ct.id}>{ct.name}{ct.phone ? ` · ${ct.phone}` : ''}</option>
+                            ))}
+                          </select>
+                        );
+                      })()}
+                    </div>
                   </div>
-                  {customers.length > 1 && <input
-                    aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
-                    value={row.sharePercent}
-                    onChange={(e) =>
-                      setCustomers((rows) =>
-                        rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
-                      )
-                    }
-                    inputMode="decimal"
-                    placeholder="%"
-                    className="w-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  />}
-                  {customers.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
-                      onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
                 </div>
               ))}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <Button
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  className="text-primary hover:underline"
                   onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '', contactId: '' }])}
                 >
-                  <Plus className="h-3.5 w-3.5" /> เพิ่มผู้จ่ายอีกราย
-                </Button>
-                <p hidden={customers.length < 2} className="text-xs text-muted-foreground">
-                  เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
-                </p>
+                  + เพิ่มผู้จ่ายอีกราย
+                </button>
+                <label className="flex items-center gap-2">
+                  <Checkbox checked={sameCustomer} onChange={(e) => setSameCustomer(e.target.checked)} />
+                  ลูกความคนเดียวกับผู้มอบหมาย
+                </label>
               </div>
-              <label className="mt-3 flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={sameCustomer}
-                  onChange={(e) => setSameCustomer(e.target.checked)}
-                />
-                ลูกความคนเดียวกับผู้มอบหมายรายที่ 1
-              </label>
-            </div>
+              <p hidden={customers.length < 2} className="mt-1 text-xs text-muted-foreground">
+                เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
+              </p>
             </div>
           </section>
 
           {/* 3 · Playbook และทีม */}
-          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <h2 className="mb-3 font-semibold">3 · Playbook และทีม</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {playbooks.length > 0 && (
-                <div>
-                  <label htmlFor="intake-playbookId" className="block text-sm font-medium">Playbook (ถ้ามี)</label>
-                  <select
-                    id="intake-playbookId"
-                    value={form.playbookId}
-                    onChange={(e) => set('playbookId', e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="">— ไม่ใช้ Playbook —</option>
-                    {playbooks.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} · v{p.version}{p.caseTypeId === form.caseTypeId ? ' (แนะนำ)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-muted-foreground">จะใช้สร้างงานให้อัตโนมัติตอนแปลงเป็นคดี — เปลี่ยนใจตอนนั้นได้อีกที</p>
-                </div>
-              )}
-              {!playbooks.length && (
-                <p className="text-xs text-muted-foreground sm:col-span-2">
-                  ยังไม่มี Playbook เลย{' '}
-                  <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
-                </p>
-              )}
+          <section className="rounded-2xl border bg-card p-5 shadow-sm">
+            <h2 className="mb-3 text-[15px] font-bold">3 · Playbook และทีม</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium">ทีมทำงาน</label>
-                <p className="mb-1 mt-1 text-xs text-muted-foreground">ตัวคุณเป็นผู้รับเรื่อง/ทนายหลักอยู่แล้ว — เพิ่มผู้ช่วยได้ที่นี่</p>
-                {assignable.length > 0 ? (
-                  <MultiUserSelect
-                    users={assignable}
-                    value={assignedIds}
-                    onChange={setAssignedIds}
-                    placeholder="เลือกผู้ช่วย — เลือกได้หลายคน"
-                    renderExtra={(u) => (u.firmRole ? (FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole) : '')}
-                  />
-                ) : (
-                  <p className="text-xs text-muted-foreground">ยังไม่มีสมาชิกที่มอบหมายได้</p>
+                <label htmlFor="intake-playbookId" className="block text-xs font-semibold">Playbook</label>
+                <select
+                  id="intake-playbookId"
+                  value={form.playbookId}
+                  onChange={(e) => set('playbookId', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-indigo-200 bg-indigo-50/50 px-3 py-2 text-sm"
+                >
+                  <option value="">— ไม่ใช้ —</option>
+                  {playbooks.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · v{p.version}{p.caseTypeId === form.caseTypeId && form.caseTypeId ? ' (แนะนำตามประเภทคดี)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1.5 text-xs text-muted-foreground">เลือกแล้วได้งานทุกขั้นทันทีที่บันทึก — เปลี่ยนทีหลังได้</p>
+                {!playbooks.length && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    ยังไม่มี Playbook เลย <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
+                  </p>
                 )}
               </div>
+              <div>
+                <label className="block text-xs font-semibold">ทีมทำงาน</label>
+                <div className="mt-1 space-y-2">
+                  <div className="w-full rounded-lg border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                    ทนายหลัก: {user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || 'ฉันเอง' : 'ฉันเอง'} (ฉันเอง)
+                  </div>
+                  {assignable.length > 0 ? (
+                    <MultiUserSelect
+                      users={assignable}
+                      value={assignedIds}
+                      onChange={setAssignedIds}
+                      placeholder="+ เพิ่มผู้ช่วย — เลือกได้หลายคน"
+                      renderExtra={(u) => (u.firmRole ? (FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole) : '')}
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">ยังไม่มีสมาชิกที่มอบหมายได้</p>
+                  )}
+                </div>
+              </div>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">เลือก playbook แล้วได้งานทุกขั้นทันทีที่บันทึก — เปลี่ยนทีหลังได้</p>
           </section>
 
           {/* 4 · เอกสารเริ่มต้น */}
-          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <h2 className="mb-3 font-semibold">4 · เอกสารเริ่มต้น</h2>
-            <div className="space-y-2">
-              <DocumentDropZone multiple accept=".pdf,.txt,application/pdf,text/plain" label="แนบเอกสารมอบหมาย (ไม่บังคับ)" hint="PDF / TXT ไม่เกิน 30MB ต่อไฟล์ · บันทึกเรื่องก่อนเลือกใช้ AI" disabled={submitting || !!createdIntakeId} onFiles={(incoming) => {
+          <section className="rounded-2xl border bg-card p-5 shadow-sm">
+            <h2 className="mb-3 text-[15px] font-bold">4 · เอกสารเริ่มต้น</h2>
+            <DocumentDropZone
+              multiple
+              accept=".pdf,.txt,application/pdf,text/plain"
+              label="ลากไฟล์มาวางที่นี่ หรือกดเลือกไฟล์จากเครื่อง"
+              hint="อัปได้หลายไฟล์พร้อมกัน (PDF / TXT ไม่เกิน 30MB) — บันทึกแล้วกดให้ AI ช่วยจับคู่ checklist ได้"
+              disabled={submitting || !!createdIntakeId}
+              onFiles={(incoming) => {
                 if (incoming.some((file) => file.size > 30 * 1024 * 1024 || !['application/pdf', 'text/plain'].includes(file.type))) { setError('เลือก PDF / TXT ไม่เกิน 30MB ต่อไฟล์'); return; }
                 const next = [...files]; for (const file of incoming) if (!next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file);
                 if (next.length > 10) { setError('เลือกได้สูงสุด 10 ไฟล์'); return; } setFiles(next); setError('');
-              }} />
-              {files.map((file,index) => <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{file.name}</span><button type="button" onClick={() => setFiles((prev) => prev.filter((_,i) => i !== index))} className="shrink-0 text-primary">เอาออก</button></div>)}
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">ลากหลายไฟล์มาวางพร้อมกันได้ — checklist เอกสารตามประเภทคดีจะถูกสร้างให้อัตโนมัติ</p>
+              }}
+            />
+            {files.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                {files.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                    <span className="min-w-0 break-words">📄 {file.name}</span>
+                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))} className="shrink-0 text-xs text-primary">เอาออก</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">checklist เอกสารตามประเภทคดีจะถูกสร้างให้อัตโนมัติหลังบันทึก</p>
           </section>
 
           {/* 5 · งานประกัน */}
-          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <h2 className="mb-1 font-semibold">5 · งานประกัน (ถ้ามี)</h2>
+          <section className="rounded-2xl border bg-card p-5 shadow-sm">
+            <h2 className="mb-1 text-[15px] font-bold">5 · งานประกัน (ถ้ามี)</h2>
             <p className="mb-3 text-sm text-muted-foreground">กรอกบริษัทประกันไว้ ระบบเปิดการติดตามเคลมให้อัตโนมัติ</p>
-            <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div>
-                <label htmlFor="intake-insurerName" className="block text-sm font-medium">บริษัทประกัน</label>
-                <InsurerSelect
-                  id="intake-insurerName"
-                  value={form.insurerName}
-                  onChange={(name) => set('insurerName', name)}
+                <label htmlFor="intake-insurerName" className="block text-xs font-semibold">บริษัทประกัน</label>
+                <InsurerSelect id="intake-insurerName" value={form.insurerName} onChange={(name) => set('insurerName', name)} />
+              </div>
+              <div>
+                <label htmlFor="intake-policyNumber" className="block text-xs font-semibold">เลขกรมธรรม์</label>
+                <input
+                  id="intake-policyNumber"
+                  value={form.policyNumber}
+                  onChange={(e) => set('policyNumber', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="POL-..."
                 />
               </div>
-              {form.insurerName.trim() && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="intake-policyNumber" className="block text-sm font-medium">เลขกรมธรรม์</label>
-                    <input
-                      id="intake-policyNumber"
-                      value={form.policyNumber}
-                      onChange={(e) => set('policyNumber', e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="intake-claimNumber" className="block text-sm font-medium">เลขเคลม</label>
-                    <input
-                      id="intake-claimNumber"
-                      value={form.claimNumber}
-                      onChange={(e) => set('claimNumber', e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
-              )}
+              <div>
+                <label htmlFor="intake-claimNumber" className="block text-xs font-semibold">เลขเคลม</label>
+                <input
+                  id="intake-claimNumber"
+                  value={form.claimNumber}
+                  onChange={(e) => set('claimNumber', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="CLM-..."
+                />
+              </div>
             </div>
           </section>
 
@@ -659,7 +667,7 @@ export default function NewIntakePage() {
             <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
           )}
 
-          <div className="flex items-center justify-between rounded-xl border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-end gap-2">
             <Button type="button" variant="outline" disabled={submitting || !!createdIntakeId} onClick={() => router.push('/intake')}>
               ยกเลิก
             </Button>
