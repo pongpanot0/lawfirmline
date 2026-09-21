@@ -6,7 +6,8 @@ import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline
 import { CASE_COSTS_KEY } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutcomeDialog';
-import { CaseNoticeDialog } from '@/components/cases/CaseNoticeDialog';
+import { CaseNoticeDialog, PreLitigationUpdateDialog } from '@/components/cases/CaseNoticeDialog';
+import { PRE_LITIGATION_STATUS_LABELS } from '@/lib/pre-litigation';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -172,6 +173,7 @@ export default function CaseDetailPage() {
   });
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [preLitOpen, setPreLitOpen] = useState(false);
   const [recordingOutcome, setRecordingOutcome] = useState(false);
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   const [closingSummary, setClosingSummary] = useState('');
@@ -1301,8 +1303,9 @@ export default function CaseDetailPage() {
                 <CardTitle className="text-base">งานก่อนฟ้อง</CardTitle>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>
+                  <Button variant="outline" size="sm" onClick={() => setPreLitOpen(true)}>อัปเดตสถานะ</Button>
                   <Link href={`/intake/${legalCase.intake.id}`}>
-                    <Button variant="outline" size="sm">ใบเสนอราคา / รายละเอียด →</Button>
+                    <Button variant="outline" size="sm">ใบเสนอราคา →</Button>
                   </Link>
                 </div>
               </CardHeader>
@@ -1311,6 +1314,14 @@ export default function CaseDetailPage() {
                 defaultRecipient={legalCase.intake.noticeRecipient}
                 open={noticeOpen}
                 onClose={() => setNoticeOpen(false)}
+                onDone={loadCase}
+              />
+              <PreLitigationUpdateDialog
+                intakeId={legalCase.intake.id}
+                currentStatus={legalCase.intake.preLitigationStatus}
+                currentOffer={legalCase.intake.settlementOfferAmount}
+                open={preLitOpen}
+                onClose={() => setPreLitOpen(false)}
                 onDone={loadCase}
               />
               <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
@@ -1335,7 +1346,16 @@ export default function CaseDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">สถานะเจรจา</p>
-                  <p className="font-medium">{legalCase.intake.noticeResult || legalCase.intake.preLitigationStatus || '—'}</p>
+                  <p className="font-medium">
+                    {legalCase.intake.preLitigationStatus
+                      ? (PRE_LITIGATION_STATUS_LABELS[legalCase.intake.preLitigationStatus] ?? legalCase.intake.preLitigationStatus)
+                      : '—'}
+                  </p>
+                  {legalCase.intake.settlementOfferAmount != null && (
+                    <p className="text-xs text-muted-foreground">
+                      ข้อเสนอจ่าย {legalCase.intake.settlementOfferAmount.toLocaleString('th-TH')} บาท
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

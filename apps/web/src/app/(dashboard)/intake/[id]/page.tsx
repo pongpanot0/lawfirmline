@@ -20,6 +20,7 @@ import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocum
 import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
+import { PRE_LITIGATION_STATUS_LABELS } from '@/lib/pre-litigation';
 import { IntakeTasksPanel } from '@/components/intake/IntakeTasksPanel';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
 import { IntakeStageBar } from '@/components/intake/IntakeStageBar';
@@ -98,19 +99,6 @@ const PRE_LITIGATION_TYPE_LABELS: Record<string, string> = {
   TRANSPORT: 'ขนส่ง',
 };
 
-const PRE_LITIGATION_STATUS_LABELS: Record<string, string> = {
-  NOT_STARTED: 'ยังไม่เริ่ม',
-  NOTICE_TO_SEND: 'เตรียมส่ง Notice',
-  NOTICE_SENT: 'ส่ง Notice แล้ว',
-  UNDER_REVIEW: 'รอพิจารณา/ตรวจเอกสาร',
-  REPORT_PREPARED: 'ทำสรุปรายงานแล้ว',
-  OFFER_RECEIVED: 'ได้รับข้อเสนอจ่าย',
-  NEGOTIATING: 'เจรจาก่อนฟ้อง',
-  APPEAL_REVIEW: 'อุทธรณ์/ขอทบทวนความเห็น',
-  READY_TO_FILE: 'พร้อมพิจารณาฟ้อง',
-  CLOSED_SETTLED: 'จบด้วยการตกลง',
-  CLOSED_NO_FILE: 'ปิดเรื่องโดยไม่ฟ้อง',
-};
 
 const PRE_LITIGATION_GUIDE: Record<string, string[]> = {
   MEDICAL_CLAIM: ['Notice', 'พิจารณาเอกสาร/ความเห็นแพทย์', 'ทำสรุปรายงาน', 'เสนอจ่าย/ไม่จ่าย', 'เจรจาหรืออุทธรณ์ความเห็น', 'ไม่จบจึงฟ้อง'],

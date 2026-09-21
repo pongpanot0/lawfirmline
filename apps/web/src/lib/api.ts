@@ -481,6 +481,7 @@ export interface CaseDetail extends CaseItem {
     noticeRecipient?: string | null;
     noticeResult?: string | null;
     preLitigationStatus?: string | null;
+    settlementOfferAmount?: number | null;
   } | null;
   description?: string | null;
   folderId?: string;

@@ -51,6 +51,7 @@ export class CasesService {
         noticeRecipient: true,
         noticeResult: true,
         preLitigationStatus: true,
+        settlementOfferAmount: true,
       },
     },
     customers: {
