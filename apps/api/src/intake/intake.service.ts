@@ -559,7 +559,15 @@ export class IntakeService {
       await this.seedPlaybookTasks(user, created.id, dto.preferredPlaybookId);
     }
 
-    return created;
+    // Record เดียวตั้งแต่รับเรื่อง — เปิดคดีทันทีที่ขั้น "รับเรื่อง/กลั่นกรอง"
+    // (intake ยังเก็บข้อมูลรับเรื่อง/โนติสอยู่เบื้องหลัง ผูก 1:1 กับคดี)
+    if (created.relatedCaseId) {
+      await this.attachToExistingCase(user, created, {} as ConvertToCaseDto);
+    } else {
+      await this.openCaseFromIntake(user, created, {} as ConvertToCaseDto, 'INTAKE_REVIEW');
+    }
+
+    return this.findOne(user, created.id);
   }
 
   /**
@@ -962,6 +970,7 @@ export class IntakeService {
     user: AuthUser,
     intake: Awaited<ReturnType<IntakeService['findOne']>>,
     dto: ConvertToCaseDto,
+    initialStage: string = 'PRE_LITIGATION',
   ) {
     const id = intake.id;
     // Generate ownRef like cases.service.ts
@@ -1038,7 +1047,7 @@ export class IntakeService {
         referralSource: intake.referralName ?? undefined,
         status: 'OPEN' as any,
         // คดีที่ผ่าน intake มาแล้วไม่ต้อง review ซ้ำ — เริ่มที่งานก่อนฟ้องเลย
-        stage: 'PRE_LITIGATION' as any,
+        stage: initialStage as any,
         stageChangedAt: new Date(),
         leadLawyerId: dto.leadLawyerId ?? user.id,
         intakeId: intake.id,
