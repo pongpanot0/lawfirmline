@@ -18,6 +18,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { CreateCaseDto, UpdateCaseDto, CaseQueryDto, UpdateCaseAssignmentsDto } from './dto/case.dto';
+import { CustomerShareDto } from '../intake/dto/intake.dto';
 import { CloseCaseDto } from './dto/close-case.dto';
 import { Prisma } from '../generated/prisma';
 import { CaseActivitiesService } from './case-activities.service';
@@ -214,6 +215,17 @@ export class CasesService {
     return { ownRef };
   }
 
+  /** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่าย; ถ้าไม่มีใครถูกตั้งเป็นหลัก ให้รายแรกเป็นหลัก */
+  private customerRows(customers: CustomerShareDto[]) {
+    const hasPrimary = customers.some((c) => c.isPrimary);
+    return customers.map((c, index) => ({
+      customerId: c.customerId,
+      sharePercent: c.sharePercent ?? null,
+      isPrimary: c.isPrimary ?? (!hasPrimary && index === 0),
+      note: c.note ?? null,
+    }));
+  }
+
   async create(user: AuthUser, dto: CreateCaseDto) {
     let ownRef = dto.ownRef?.trim()
       ? dto.ownRef.trim()
@@ -295,6 +307,9 @@ export class CasesService {
         caseTypeId: dto.caseTypeId ?? undefined,
         leadLawyerId: dto.leadLawyerId,
         assignments: assignments.length ? { create: assignments } : undefined,
+        customers: dto.customers?.length
+          ? { create: this.customerRows(dto.customers) }
+          : undefined,
       },
       include: this.caseInclude,
     });

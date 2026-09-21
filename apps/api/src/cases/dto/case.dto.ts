@@ -26,6 +26,7 @@ import {
   ParticipantSide,
   CaseStage,
 } from '@lawfirm/shared';
+import { CustomerShareDto } from '../../intake/dto/intake.dto';
 
 /** Trim incoming strings so stray whitespace never breaks a format check. */
 const Trim = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
@@ -69,6 +70,12 @@ export class CreateCaseDto {
   @IsOptional()
   @IsString()
   clientName?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerShareDto)
+  customers?: CustomerShareDto[];
 
   @IsOptional()
   @IsString()

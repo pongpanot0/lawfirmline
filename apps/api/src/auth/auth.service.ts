@@ -2,8 +2,9 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import type { Request, Response } from 'express';
 import { LoginDto } from './dto/login.dto';
-import { AuthUser, LoginResponse, LoginResult } from '@lawfirm/shared';
+import { AuthUser, LoginResponse, LoginResult, DEFAULT_ROOT_DOMAIN } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from '../saas/tenant.service';
 import { SaasAuthService } from '../saas/saas-auth.service';
@@ -29,6 +30,9 @@ function expiresInToDate(expiresIn: string): Date {
   const ms = match ? Number(match[1]) * unitMs[match[2]] : 7 * 86_400_000;
   return new Date(Date.now() + ms);
 }
+
+/** Lets the apex domain silently mint a session for the firm subdomain, without a second login. */
+const REFRESH_COOKIE_NAME = 'samnuan_rt';
 
 @Injectable()
 export class AuthService {
@@ -138,6 +142,54 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  /**
+   * Apex has no localStorage session of its own (tokens live on the firm subdomain).
+   * A refresh token in the cross-subdomain cookie lets it mint one without asking
+   * the user to type their password again, then hand off exactly like a fresh login.
+   */
+  async sessionFromCookie(refreshToken: string): Promise<LoginResponse> {
+    try {
+      const payload = this.jwt.verify(refreshToken, {
+        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      }) as JwtPayload;
+      if (!payload.jti || !(await this.sessions.touch(payload.jti))) {
+        throw new UnauthorizedException();
+      }
+      const authUser = await this.tenant.buildAuthUser(payload.sub, payload.firmId);
+      if (!authUser) throw new UnauthorizedException();
+      return { accessToken: this.signAccessToken(authUser), refreshToken, user: authUser };
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  readRefreshCookie(req: Request): string | null {
+    const header = req.headers.cookie;
+    if (!header) return null;
+    const entry = header.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${REFRESH_COOKIE_NAME}=`));
+    return entry ? decodeURIComponent(entry.slice(REFRESH_COOKIE_NAME.length + 1)) : null;
+  }
+
+  setRefreshCookie(res: Response, refreshToken: string): void {
+    const isProd = this.config.get<string>('NODE_ENV') === 'production';
+    const rootDomain = this.config.get<string>('ROOT_DOMAIN') ?? DEFAULT_ROOT_DOMAIN;
+    const expiresIn = this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '7d';
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+      domain: isProd ? `.${rootDomain}` : undefined,
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: expiresInToDate(expiresIn).getTime() - Date.now(),
+    });
+  }
+
+  clearRefreshCookie(res: Response): void {
+    const isProd = this.config.get<string>('NODE_ENV') === 'production';
+    const rootDomain = this.config.get<string>('ROOT_DOMAIN') ?? DEFAULT_ROOT_DOMAIN;
+    res.clearCookie(REFRESH_COOKIE_NAME, { domain: isProd ? `.${rootDomain}` : undefined, path: '/' });
   }
 
   /** Revokes the session tied to this refresh token, so it can no longer mint access tokens. */

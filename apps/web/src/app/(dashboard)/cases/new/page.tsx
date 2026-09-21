@@ -8,6 +8,7 @@ import {
 } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { ClientCombobox } from './ClientCombobox';
+import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -86,6 +87,11 @@ export default function NewCasePage() {
     initialActivityType: ActivityType.COURT_DATE as string,
     initialActivityDescription: '',
   });
+  // ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน (เช่น บริษัทประกัน) ต่างจากลูกความที่เราว่าความให้ (form.clientId)
+  const [sameCustomer, setSameCustomer] = useState(true);
+  const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string }[]>([
+    { customerId: '', sharePercent: '' },
+  ]);
   const [nextOwnRef, setNextOwnRef] = useState<string>('');
   /**
    * Values the documents state. Re-analysing replaces these, never the form —
@@ -297,6 +303,17 @@ export default function NewCasePage() {
       } else {
         payload.clientName = TMP_CLIENT_PLACEHOLDER;
       }
+      // ไม่ส่ง customers = ลูกค้าคนเดียวกับลูกความ (ฝั่ง API เติมให้เองตอนอ่านคดี)
+      if (!sameCustomer) {
+        const pickedCustomers = customers.filter((c) => c.customerId);
+        if (pickedCustomers.length) {
+          payload.customers = pickedCustomers.map((c, index) => ({
+            customerId: c.customerId,
+            sharePercent: c.sharePercent ? Number(c.sharePercent) : undefined,
+            isPrimary: index === 0,
+          }));
+        }
+      }
       if (
         form.addInitialActivity &&
         form.initialActivityTitle &&
@@ -495,16 +512,16 @@ export default function NewCasePage() {
                 )}
               </section>
 
-              <section className="space-y-4 border-t border-border pt-5" aria-label="ลูกค้าและชื่อคดี">
+              <section className="space-y-4 border-t border-border pt-5" aria-label="ลูกความ ลูกค้า และชื่อคดี">
                 <div className="flex items-center gap-2">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">2</span>
-                  <h3 className="text-sm font-semibold">ลูกค้าและชื่อคดี</h3>
+                  <h3 className="text-sm font-semibold">ลูกความ ลูกค้า และชื่อคดี</h3>
                 </div>
                 <div>
                   <label htmlFor="client-combobox" className={fieldLabel}>
-                    ลูกค้า{' '}
+                    ลูกความ{' '}
                     <span className="font-normal text-muted-foreground">
-                      (เพิ่มภายหลังได้)
+                      (ผู้ที่เราว่าความให้ — เพิ่มภายหลังได้)
                     </span>
                   </label>
                   <ClientCombobox
@@ -528,7 +545,7 @@ export default function NewCasePage() {
                   {!form.clientId && form.clientName.trim() && !form.useTmpClient && (
                     <div className="mt-2 space-y-1">
                       <label className="block text-xs font-medium text-muted-foreground">
-                        ลูกค้าใหม่ — เลือกประเภท (สร้างทะเบียนลูกค้าให้อัตโนมัติตอนบันทึก)
+                        ลูกความใหม่ — เลือกประเภท (สร้างทะเบียนลูกค้าให้อัตโนมัติตอนบันทึก)
                       </label>
                       <select
                         value={form.clientType}
@@ -553,15 +570,89 @@ export default function NewCasePage() {
                         })
                       }
                     />
-                    ยังไม่ทราบชื่อลูกค้า ระบุภายหลัง
+                    ยังไม่ทราบชื่อลูกความ ระบุภายหลัง
                   </label>
                   {form.useTmpClient && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      จะใช้ชื่อ “{TMP_CLIENT_PLACEHOLDER}” ชั่วคราว
+                      จะใช้ชื่อ "{TMP_CLIENT_PLACEHOLDER}" ชั่วคราว
                       ยกเลิกเครื่องหมายเพื่อกลับไปกรอกชื่อ
                     </p>
                   )}
                 </div>
+
+                <div>
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className={fieldLabel}>บริษัทประกัน / ผู้มอบหมายงาน (ลูกค้า)</span>
+                  </div>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน
+                  </p>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={sameCustomer}
+                      onChange={(e) => setSameCustomer(e.target.checked)}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    ลูกค้าคนเดียวกับลูกความ
+                  </label>
+                  {!sameCustomer && (
+                    <div className="mt-3 space-y-2">
+                      {customers.map((row, index) => (
+                        <div key={index} className="flex items-end gap-2">
+                          <div className="min-w-0 flex-1">
+                            <CustomerSelect
+                              id={`case-customer-${index}`}
+                              label={`ผู้มอบหมายรายที่ ${index + 1}`}
+                              value={row.customerId}
+                              clients={clients}
+                              onChange={(customerId) =>
+                                setCustomers((rows) =>
+                                  rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
+                                )
+                              }
+                              onCreated={(client) =>
+                                setClients((rows) =>
+                                  [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
+                                )
+                              }
+                            />
+                          </div>
+                          {customers.length > 1 && (
+                            <input
+                              aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
+                              value={row.sharePercent}
+                              onChange={(e) =>
+                                setCustomers((rows) =>
+                                  rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
+                                )
+                              }
+                              placeholder="%"
+                              className="h-10 w-16 rounded-lg border border-input bg-background px-2 text-center text-sm"
+                            />
+                          )}
+                          {customers.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
+                              className="h-10 shrink-0 px-1 text-sm text-muted-foreground underline"
+                            >
+                              ลบ
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
+                        className="text-sm underline"
+                      >
+                        + เพิ่มผู้จ่ายอีกราย
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label htmlFor="case-title" className={fieldLabel}>
                     ชื่อคดี *
