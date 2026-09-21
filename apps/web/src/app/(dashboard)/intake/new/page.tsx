@@ -59,6 +59,7 @@ export default function NewIntakePage() {
   const [form, setForm] = useState({
     title: '',
     partyRole: '',
+    opposingParty: '',
     description: '',
     referralName: '',
     clientId: '',
@@ -183,6 +184,7 @@ export default function NewIntakePage() {
         preLitigationStatus: 'NOT_STARTED',
       };
       if (form.partyRole) payload.partyRole = form.partyRole;
+      if (form.opposingParty.trim()) payload.opposingParty = form.opposingParty.trim();
       if (form.caseTypeId) payload.caseTypeId = form.caseTypeId;
       if (form.playbookId) payload.preferredPlaybookId = form.playbookId;
       if (assignedIds.length > 0) payload.assignedUserIds = assignedIds;
@@ -243,111 +245,88 @@ export default function NewIntakePage() {
     <div className="mx-auto w-full max-w-2xl pb-20">
       <h1 className="mb-1 text-2xl font-bold">รับเรื่องใหม่</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        เลือกผู้มอบหมาย ตั้งชื่อเรื่องสั้น ๆ แล้วพิมพ์เหตุการณ์หรือแนบเอกสาร รายละเอียดอื่นเติมภายหลังได้
+        กรอกเท่าที่รู้ — บันทึกแล้วได้พื้นที่ทำงานเต็ม (งานจาก playbook, checklist เอกสาร, ทีม) เติมที่เหลือทีหลังได้
       </p>
 
       <form onSubmit={handleSubmit}>
         <fieldset disabled={submitting} className="min-w-0 space-y-4">
+
+          {/* 1 · เรื่องที่รับ */}
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <div className="mb-1 flex items-center gap-2">
-              <h2 className="font-semibold">บริษัทประกัน / ผู้มอบหมายงาน</h2>
+            <h2 className="mb-3 font-semibold">1 · เรื่องที่รับ</h2>
+            <div>
+              <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
+              <input
+                id="intake-title"
+                required
+                value={form.title}
+                onChange={(e) => set('title', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
+              />
             </div>
-            <p className="mb-3 text-sm text-muted-foreground">
-              คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน — ถ้าลูกความจ่ายเอง เลือกคนเดียวกันได้ที่นี่
-            </p>
-            <div className="space-y-2">
-              {customers.map((row, index) => (
-                <div key={index} className="flex items-end gap-2">
-                  <div className="min-w-0 flex-1">
-                    <CustomerSelect
-                      id={`intake-customer-${index}`}
-                      label={`ผู้มอบหมายรายที่ ${index + 1}`}
-                      value={row.customerId}
-                      clients={clients}
-                      onChange={(customerId) =>
-                        setCustomers((rows) =>
-                          rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
-                        )
-                      }
-                      onCreated={(client) =>
-                        setClients((rows) =>
-                          [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
-                        )
-                      }
-                    />
-                    {(() => {
-                      const contacts = clients.find((c) => c.id === row.customerId)?.contacts ?? [];
-                      return row.customerId && contacts.length > 0 ? (
-                        <select
-                          aria-label={`คนติดต่อของผู้มอบหมายรายที่ ${index + 1}`}
-                          value={row.contactId ?? ''}
-                          onChange={(e) =>
-                            setCustomers((rows) =>
-                              rows.map((r, i) => (i === index ? { ...r, contactId: e.target.value } : r)),
-                            )
-                          }
-                          className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
-                        >
-                          <option value="">คนติดต่อฝั่งลูกค้า — ไม่ระบุ</option>
-                          {contacts.map((ct) => (
-                            <option key={ct.id} value={ct.id}>{ct.name}{ct.phone ? ` · ${ct.phone}` : ''}</option>
-                          ))}
-                        </select>
-                      ) : null;
-                    })()}
-                  </div>
-                  {customers.length > 1 && <input
-                    aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
-                    value={row.sharePercent}
-                    onChange={(e) =>
-                      setCustomers((rows) =>
-                        rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
-                      )
-                    }
-                    inputMode="decimal"
-                    placeholder="%"
-                    className="w-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  />}
-                  {customers.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
-                      onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '', contactId: '' }])}
-                >
-                  <Plus className="h-3.5 w-3.5" /> เพิ่มผู้จ่ายอีกราย
-                </Button>
-                <p hidden={customers.length < 2} className="text-xs text-muted-foreground">
-                  เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
-                </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+              <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
+              <ThaiDateInput
+                id="intake-receivedDate"
+                required
+                value={form.receivedDate}
+                onChange={(v) => set('receivedDate', v)}
+                className="mt-1"
+              />
               </div>
-              <label className="mt-3 flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={sameCustomer}
-                  onChange={(e) => setSameCustomer(e.target.checked)}
+              <div>
+<label htmlFor="intake-partyRole" className="block text-sm font-medium">ฝ่ายเรา</label>
+                <select
+                  id="intake-partyRole"
+                  value={form.partyRole}
+                  onChange={(e) => set('partyRole', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">ไม่ระบุ</option>
+                  <option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option>
+                  <option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option>
+                </select>
+              </div>
+              <div>
+<label htmlFor="intake-caseTypeId" className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
+                <select
+                  id="intake-caseTypeId"
+                  value={form.caseTypeId}
+                  onChange={(e) => {
+                    const caseTypeId = e.target.value;
+                    const matched = playbooks.find((p) => p.caseTypeId === caseTypeId)?.id ?? '';
+                    setForm((f) => ({ ...f, caseTypeId, playbookId: matched }));
+                  }}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">ยังไม่ทราบ</option>
+                  {caseTypes.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="intake-opposingParty" className="block text-sm font-medium">คู่กรณี</label>
+                <input
+                  id="intake-opposingParty"
+                  value={form.opposingParty}
+                  onChange={(e) => set('opposingParty', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="ชื่อคู่กรณี"
                 />
-                ลูกความคนเดียวกับผู้มอบหมายรายที่ 1
-              </label>
+              </div>
+            </div>
+            <div className="mt-4 space-y-2">
+              <label htmlFor="intake-description" className="block text-sm font-medium">เหตุการณ์ / คำสั่งมอบหมาย (ถ้ามี)</label>
+              <textarea id="intake-description" rows={4} maxLength={12000} value={form.description} onChange={(e) => set('description', e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="วางข้อความจากอีเมล หรือเล่าเรื่องที่ต้องการให้ดำเนินการ แล้วใช้ค้นฎีกาหรือจัดข้อเท็จจริงต่อได้" />
             </div>
           </section>
+
+          {/* 2 · ลูกความ และผู้มอบหมาย/ผู้จ่าย */}
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <h2 className="font-semibold">ลูกความ (เราว่าความให้ใคร)</h2>
-            </div>
+            <h2 className="mb-3 font-semibold">2 · ลูกความ และผู้มอบหมาย/ผู้จ่าย</h2>
             <div className="space-y-3">
             <div>
               <label htmlFor="intake-clientId" className="block text-sm font-medium">ลูกความในระบบ (ถ้ามี)</label>
@@ -480,64 +459,106 @@ export default function NewIntakePage() {
               </div>
             )}
             </div>
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="mb-1 text-sm font-semibold">ผู้มอบหมาย / ผู้จ่าย</p>
+              <p className="mb-3 text-sm text-muted-foreground">
+                คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน — ถ้าลูกความจ่ายเอง ติ๊ก "ลูกความคนเดียวกับผู้มอบหมาย"
+              </p>
+            <div className="space-y-2">
+              {customers.map((row, index) => (
+                <div key={index} className="flex items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CustomerSelect
+                      id={`intake-customer-${index}`}
+                      label={`ผู้มอบหมายรายที่ ${index + 1}`}
+                      value={row.customerId}
+                      clients={clients}
+                      onChange={(customerId) =>
+                        setCustomers((rows) =>
+                          rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
+                        )
+                      }
+                      onCreated={(client) =>
+                        setClients((rows) =>
+                          [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
+                        )
+                      }
+                    />
+                    {(() => {
+                      const contacts = clients.find((c) => c.id === row.customerId)?.contacts ?? [];
+                      return row.customerId && contacts.length > 0 ? (
+                        <select
+                          aria-label={`คนติดต่อของผู้มอบหมายรายที่ ${index + 1}`}
+                          value={row.contactId ?? ''}
+                          onChange={(e) =>
+                            setCustomers((rows) =>
+                              rows.map((r, i) => (i === index ? { ...r, contactId: e.target.value } : r)),
+                            )
+                          }
+                          className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                        >
+                          <option value="">คนติดต่อฝั่งลูกค้า — ไม่ระบุ</option>
+                          {contacts.map((ct) => (
+                            <option key={ct.id} value={ct.id}>{ct.name}{ct.phone ? ` · ${ct.phone}` : ''}</option>
+                          ))}
+                        </select>
+                      ) : null;
+                    })()}
+                  </div>
+                  {customers.length > 1 && <input
+                    aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
+                    value={row.sharePercent}
+                    onChange={(e) =>
+                      setCustomers((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
+                      )
+                    }
+                    inputMode="decimal"
+                    placeholder="%"
+                    className="w-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  />}
+                  {customers.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
+                      onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '', contactId: '' }])}
+                >
+                  <Plus className="h-3.5 w-3.5" /> เพิ่มผู้จ่ายอีกราย
+                </Button>
+                <p hidden={customers.length < 2} className="text-xs text-muted-foreground">
+                  เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
+                </p>
+              </div>
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={sameCustomer}
+                  onChange={(e) => setSameCustomer(e.target.checked)}
+                />
+                ลูกความคนเดียวกับผู้มอบหมายรายที่ 1
+              </label>
+            </div>
+            </div>
           </section>
+
+          {/* 3 · Playbook และทีม */}
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <h2 className="font-semibold">เรื่องที่รับ</h2>
-            </div>
-            <div>
-              <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
-              <input
-                id="intake-title"
-                required
-                value={form.title}
-                onChange={(e) => set('title', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
-              />
-            </div>
-            <div className="mt-4">
-              <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
-              <ThaiDateInput
-                id="intake-receivedDate"
-                required
-                value={form.receivedDate}
-                onChange={(v) => set('receivedDate', v)}
-                className="mt-1"
-              />
-            </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="intake-partyRole" className="block text-sm font-medium">ฝ่ายเรา</label>
-                <select
-                  id="intake-partyRole"
-                  value={form.partyRole}
-                  onChange={(e) => set('partyRole', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">ไม่ระบุ</option>
-                  <option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option>
-                  <option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="intake-caseTypeId" className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
-                <select
-                  id="intake-caseTypeId"
-                  value={form.caseTypeId}
-                  onChange={(e) => {
-                    const caseTypeId = e.target.value;
-                    const matched = playbooks.find((p) => p.caseTypeId === caseTypeId)?.id ?? '';
-                    setForm((f) => ({ ...f, caseTypeId, playbookId: matched }));
-                  }}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">ยังไม่ทราบ</option>
-                  {caseTypes.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
+            <h2 className="mb-3 font-semibold">3 · Playbook และทีม</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
               {playbooks.length > 0 && (
                 <div>
                   <label htmlFor="intake-playbookId" className="block text-sm font-medium">Playbook (ถ้ามี)</label>
@@ -563,10 +584,29 @@ export default function NewIntakePage() {
                   <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
                 </p>
               )}
+              <div>
+                <label className="block text-sm font-medium">ทีมทำงาน</label>
+                <p className="mb-1 mt-1 text-xs text-muted-foreground">ตัวคุณเป็นผู้รับเรื่อง/ทนายหลักอยู่แล้ว — เพิ่มผู้ช่วยได้ที่นี่</p>
+                {assignable.length > 0 ? (
+                  <MultiUserSelect
+                    users={assignable}
+                    value={assignedIds}
+                    onChange={setAssignedIds}
+                    placeholder="เลือกผู้ช่วย — เลือกได้หลายคน"
+                    renderExtra={(u) => (u.firmRole ? (FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole) : '')}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground">ยังไม่มีสมาชิกที่มอบหมายได้</p>
+                )}
+              </div>
             </div>
-            <div className="mt-4 space-y-2">
-              <label htmlFor="intake-description" className="block text-sm font-medium">เหตุการณ์ / คำสั่งมอบหมาย (ถ้ามี)</label>
-              <textarea id="intake-description" rows={4} maxLength={12000} value={form.description} onChange={(e) => set('description', e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="วางข้อความจากอีเมล หรือเล่าเรื่องที่ต้องการให้ดำเนินการ แล้วใช้ค้นฎีกาหรือจัดข้อเท็จจริงต่อได้" />
+            <p className="mt-2 text-xs text-muted-foreground">เลือก playbook แล้วได้งานทุกขั้นทันทีที่บันทึก — เปลี่ยนทีหลังได้</p>
+          </section>
+
+          {/* 4 · เอกสารเริ่มต้น */}
+          <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+            <h2 className="mb-3 font-semibold">4 · เอกสารเริ่มต้น</h2>
+            <div className="space-y-2">
               <DocumentDropZone multiple accept=".pdf,.txt,application/pdf,text/plain" label="แนบเอกสารมอบหมาย (ไม่บังคับ)" hint="PDF / TXT ไม่เกิน 30MB ต่อไฟล์ · บันทึกเรื่องก่อนเลือกใช้ AI" disabled={submitting || !!createdIntakeId} onFiles={(incoming) => {
                 if (incoming.some((file) => file.size > 30 * 1024 * 1024 || !['application/pdf', 'text/plain'].includes(file.type))) { setError('เลือก PDF / TXT ไม่เกิน 30MB ต่อไฟล์'); return; }
                 const next = [...files]; for (const file of incoming) if (!next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file);
@@ -574,18 +614,13 @@ export default function NewIntakePage() {
               }} />
               {files.map((file,index) => <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 break-words">{file.name}</span><button type="button" onClick={() => setFiles((prev) => prev.filter((_,i) => i !== index))} className="shrink-0 text-primary">เอาออก</button></div>)}
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">ลากหลายไฟล์มาวางพร้อมกันได้ — checklist เอกสารตามประเภทคดีจะถูกสร้างให้อัตโนมัติ</p>
           </section>
 
-          <details className="rounded-xl border border-border p-4">
-            <summary className="cursor-pointer text-sm font-medium">ข้อมูลเคลม และทีม (เติมภายหลังได้)</summary>
-            <div className="mt-3 space-y-3">
+          {/* 5 · งานประกัน */}
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <div className="mb-1 flex items-center gap-2">
-              <h2 className="font-semibold">ประกันภัย (ถ้ามี)</h2>
-            </div>
-            <p className="mb-3 text-sm text-muted-foreground">
-              กรอกบริษัทประกันไว้ ระบบจะเปิดการติดตามเคลมให้เองตอนแปลงเป็นคดี
-            </p>
+            <h2 className="mb-1 font-semibold">5 · งานประกัน (ถ้ามี)</h2>
+            <p className="mb-3 text-sm text-muted-foreground">กรอกบริษัทประกันไว้ ระบบเปิดการติดตามเคลมให้อัตโนมัติ</p>
             <div className="space-y-3">
               <div>
                 <label htmlFor="intake-insurerName" className="block text-sm font-medium">บริษัทประกัน</label>
@@ -620,31 +655,6 @@ export default function NewIntakePage() {
             </div>
           </section>
 
-          {assignable.length > 0 && (
-            <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-              <div className="mb-1 flex items-center gap-2">
-                <h2 className="font-semibold">ทีมผู้รับผิดชอบ</h2>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณ — ตัวคุณเป็นผู้รับเรื่องอยู่แล้ว
-              </p>
-              <div className="mt-2">
-                <MultiUserSelect
-                  users={assignable}
-                  value={assignedIds}
-                  onChange={setAssignedIds}
-                  placeholder="เลือกผู้รับผิดชอบ — เลือกได้หลายคน"
-                  renderExtra={(u) => (u.firmRole ? (FIRM_ROLE_LABELS[u.firmRole] ?? u.firmRole) : '')}
-                />
-                {assignedIds.length > 0 && (
-                  <p className="mt-1 text-xs text-muted-foreground">เลือกแล้ว {assignedIds.length} คน</p>
-                )}
-              </div>
-            </section>
-          )}
-
-            </div>
-          </details>
           {error && (
             <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
           )}
@@ -658,15 +668,11 @@ export default function NewIntakePage() {
                 ? 'กำลังบันทึก...'
                 : createdIntakeId
                   ? 'แนบไฟล์ที่เหลืออีกครั้ง'
-                  : 'บันทึกและเปิดพื้นที่ทำงาน'}
+                  : 'บันทึก → เปิดพื้นที่ทำงาน'}
             </Button>
           </div>
         </fieldset>
       </form>
-      {/*
-        Optional and credit-metered, so it sits below the form as a closed
-        disclosure: the two required fields come first.
-      */}
     </div>
   );
 }
