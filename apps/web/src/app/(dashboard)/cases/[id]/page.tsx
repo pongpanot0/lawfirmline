@@ -7,6 +7,8 @@ import { CASE_COSTS_KEY } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutcomeDialog';
 import { CaseNoticeDialog, PreLitigationUpdateDialog } from '@/components/cases/CaseNoticeDialog';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { PRE_LITIGATION_STATUS_LABELS } from '@/lib/pre-litigation';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
@@ -189,6 +191,12 @@ export default function CaseDetailPage() {
   const [savingTeam, setSavingTeam] = useState(false);
   const [teamError, setTeamError] = useState('');
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
+  const [quickTaskTitle, setQuickTaskTitle] = useState('');
+  const [quickTaskAssignee, setQuickTaskAssignee] = useState('');
+  const [quickTaskDue, setQuickTaskDue] = useState('');
+  const [quickTaskBusy, setQuickTaskBusy] = useState(false);
+  const [uploadingDocs, setUploadingDocs] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
   const [teamForm, setTeamForm] = useState({ leadLawyerId: '', buddyIds: [] as string[] });
   const [activityForm, setActivityForm] = useState({
@@ -518,6 +526,43 @@ export default function CaseDetailPage() {
     (a, b) => (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) -
       (b.dueDate ? new Date(b.dueDate).getTime() : Infinity),
   );
+  const handleQuickUpload = async (files: File[]) => {
+    if (!token || !id || uploadingDocs) return;
+    setUploadingDocs(true);
+    setUploadError('');
+    try {
+      for (const file of files) {
+        await api.uploadDocument(token, id, file);
+      }
+      loadCase();
+    } catch (err) {
+      setUploadError(err instanceof ApiError ? err.message : 'อัปโหลดไม่สำเร็จ');
+    } finally {
+      setUploadingDocs(false);
+    }
+  };
+
+  const addQuickTask = async () => {
+    if (!token || !id || !quickTaskTitle.trim() || quickTaskBusy) return;
+    setQuickTaskBusy(true);
+    try {
+      await api.createTask(token, id, {
+        title: quickTaskTitle.trim(),
+        assigneeId: quickTaskAssignee || undefined,
+        dueDate: quickTaskDue || undefined,
+      });
+      setQuickTaskTitle('');
+      setQuickTaskDue('');
+      api.getTasks(token, id).then(setTasks).catch(console.error);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setQuickTaskBusy(false);
+    }
+  };
+
+  // ก่อนขั้นยื่นฟ้อง — เลขคดีดำ/แดงและศาลยังไม่มีจริง ซ่อนไว้ให้หน้าโล่ง
+  const preFiling = ['INTAKE_REVIEW', 'FACT_GATHERING', 'PRE_LITIGATION'].includes(legalCase.stage ?? '');
   const upcomingEvents = (legalCase.calendarEvents ?? [])
     .filter((event) => new Date(event.startAt).getTime() >= Date.now())
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
@@ -602,7 +647,24 @@ export default function CaseDetailPage() {
           holds it, what is next in court, and what is due soonest. The tabs
           below are the way into each area, so no second set of links here.
         */}
-        <dl className="mt-4 grid gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm sm:grid-cols-3">
+        <dl className="mt-4 grid gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm sm:grid-cols-5">
+          <div>
+            <dt className="text-xs text-muted-foreground">งานที่ต้องทำ</dt>
+            <dd className="font-medium">
+              <button type="button" className="hover:underline" onClick={() => selectTab('tasks')}>
+                {tasks.filter((t) => t.status === 'DONE').length}/{tasks.length}
+              </button>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">เอกสารที่ต้องมี</dt>
+            <dd className="font-medium">
+              {requiredDocs.required.filter((r) => r.present).length}/{requiredDocs.required.length}
+              {requiredDocs.missing.length > 0 && (
+                <span className="ml-1 text-xs text-destructive">ขาด {requiredDocs.missing.length}</span>
+              )}
+            </dd>
+          </div>
           <div>
             <dt className="text-xs text-muted-foreground">ผู้รับผิดชอบ</dt>
             <dd className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</dd>
@@ -1018,6 +1080,7 @@ export default function CaseDetailPage() {
                     <p className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</p>
                   </div>
 
+                  {!preFiling && (
                   <details
                     className="col-span-full rounded-lg border border-border p-3"
                     open={Boolean(
@@ -1093,6 +1156,7 @@ export default function CaseDetailPage() {
                       </div>
                     </div>
                   </details>
+                  )}
 
                   {overviewError && <p className="text-sm text-destructive">{overviewError}</p>}
                   <div className="flex gap-2 pt-1">
@@ -1124,6 +1188,13 @@ export default function CaseDetailPage() {
                 <p className="text-xs text-muted-foreground">ประเภทคดี</p>
                 <p className="font-medium">{legalCase.caseType?.name ?? '—'}</p>
               </div>
+              {preFiling ? (
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground">เลขคดีดำ/แดง · ศาล</p>
+                  <p className="font-medium text-muted-foreground">— จะกรอกได้หลังยื่นฟ้อง —</p>
+                </div>
+              ) : (
+                <>
               <div>
                 <p className="text-xs text-muted-foreground">เลขดำ</p>
                 <p className="font-medium">{legalCase.blackCaseNumber ?? '—'}</p>
@@ -1138,10 +1209,14 @@ export default function CaseDetailPage() {
                   {legalCase.courtLevel ? COURT_LEVEL_LABELS[legalCase.courtLevel] : '—'}
                 </p>
               </div>
+                </>
+              )}
+              {!preFiling && (
               <div>
                 <p className="text-xs text-muted-foreground">ศาล</p>
                 <p className="font-medium">{legalCase.courtName ?? '—'}</p>
               </div>
+              )}
               <div>
                 <p className="text-xs text-muted-foreground">ฝ่ายเรา</p>
                 <p className="font-medium">
@@ -1580,7 +1655,12 @@ export default function CaseDetailPage() {
               )}
               {requiredDocs.required.length > 0 && (
                 <div className="space-y-1.5 border-t border-border pt-2">
-                  <p className="text-xs font-medium text-muted-foreground">เอกสารที่ต้องมี</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">เอกสารที่ต้องมี</p>
+                    <button type="button" className="text-xs text-primary hover:underline" onClick={() => selectTab('documents')}>
+                      เอกสารทั้งหมด →
+                    </button>
+                  </div>
                   {requiredDocs.required.map((r) => (
                     <label key={r.category} className="flex items-center gap-2 text-sm">
                       <input
@@ -1592,6 +1672,12 @@ export default function CaseDetailPage() {
                       <span className={r.present ? 'text-muted-foreground line-through' : ''}>{documentCategoryLabel(r.category)}</span>
                     </label>
                   ))}
+                  <DocumentDropZone
+                    multiple
+                    loading={uploadingDocs}
+                    onFiles={handleQuickUpload}
+                  />
+                  {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
                 </div>
               )}
               {!hasAppliedPlaybook && playbooks.length > 0 && (
@@ -1649,8 +1735,40 @@ export default function CaseDetailPage() {
                 </button>
               ))}
               {pendingTasks.length === 0 && (
-                <InlineEmptyState title="ไม่มีงานค้าง" description="สร้างงานจากแท็บงานเมื่อมีสิ่งที่ต้องติดตามต่อ" />
+                <InlineEmptyState title="ไม่มีงานค้าง" description="พิมพ์ด้านล่างเพื่อเพิ่มงานแรก" />
               )}
+              <div className="space-y-2 border-t border-border pt-3">
+                <input
+                  value={quickTaskTitle}
+                  onChange={(e) => setQuickTaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void addQuickTask();
+                    }
+                  }}
+                  placeholder="เพิ่มงาน — พิมพ์แล้วกด Enter"
+                  className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={quickTaskAssignee}
+                  onChange={(e) => setQuickTaskAssignee(e.target.value)}
+                  className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+                  aria-label="ผู้รับผิดชอบ"
+                >
+                  <option value="">ฉันเอง</option>
+                  {lawyers.map((u) => (
+                    <option key={u.id} value={u.id}>{u.firstName}</option>
+                  ))}
+                </select>
+                <ThaiDateInput value={quickTaskDue} onChange={setQuickTaskDue} />
+                <Button type="button" size="sm" className="ml-auto" onClick={addQuickTask} disabled={!quickTaskTitle.trim() || quickTaskBusy}>
+                  เพิ่ม
+                </Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">แนบไฟล์ได้หลังสร้าง — กดที่งานเพื่อเปิดรายละเอียด</p>
             </CardContent>
           </Card>
 
@@ -1766,6 +1884,7 @@ export default function CaseDetailPage() {
           onSaved={loadCase}
         />
       )}
+
     </div>
   );
 }

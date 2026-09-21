@@ -228,7 +228,9 @@ export default function NewIntakePage() {
         setSubmitting(false);
         return;
       }
-      router.push(`/intake/${created.id}`);
+      // Record เดียวตั้งแต่รับเรื่อง — คดีเปิดแล้ว พาไป workspace ของคดีเลย
+      const createdCase = (created as IntakeItem).case;
+      router.push(createdCase?.id ? `/cases/${createdCase.id}` : `/intake/${created.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
