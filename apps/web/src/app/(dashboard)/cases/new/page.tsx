@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, X } from 'lucide-react';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
+import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import type { CaseFieldSchema } from '@lawfirm/shared';
 import {
   ActivityType,
@@ -1071,22 +1072,21 @@ export default function NewCasePage() {
                         ))}
                       </select>
                     </div>
-                    <div>
+                    <div className="sm:col-span-2">
                       <label htmlFor="activity-at" className={fieldLabel}>
                         วันที่และเวลา *
                       </label>
-                      <input
+                      <ThaiDateTimeInput
                         id="activity-at"
                         required
-                        type="datetime-local"
+                        className="mt-1"
                         value={form.initialActivityAt}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setForm({
                             ...form,
-                            initialActivityAt: e.target.value,
+                            initialActivityAt: v,
                           })
                         }
-                        className={inputClass}
                       />
                     </div>
                     <div className="sm:col-span-2">

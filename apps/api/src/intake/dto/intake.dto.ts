@@ -167,6 +167,10 @@ export class CreateIntakeDto {
   partyRole?: 'PLAINTIFF' | 'DEFENDANT';
 
   @IsOptional()
+  @IsUUID()
+  preferredPlaybookId?: string;
+
+  @IsOptional()
   @Trim()
   @IsString()
   opposingParty?: string;
@@ -319,6 +323,10 @@ export class UpdateIntakeDto {
   @IsOptional()
   @IsIn(['PLAINTIFF', 'DEFENDANT'])
   partyRole?: 'PLAINTIFF' | 'DEFENDANT';
+
+  @IsOptional()
+  @IsUUID()
+  preferredPlaybookId?: string;
 
   @IsOptional()
   @Trim()

@@ -823,6 +823,10 @@ model Intake {
   /// ประเภทคดีที่คาดว่าจะเป็น — เลือกได้ตั้งแต่รับเรื่อง เพื่อแนะนำ Playbook
   /// ก่อนแปลงเป็นคดีจริง; แปลงเป็นคดีแล้วยังเปลี่ยนได้อีกทีที่ Case.caseTypeId
   caseTypeId            String?
+  /// Playbook ที่เลือกไว้ตั้งแต่รับเรื่อง (PlaybookRelease.id, ไม่บังคับผูก FK
+  /// เหมือน PlaybookRelease.caseTypeId) — ใช้ preselect ตอนกด "แปลงเป็นคดี"
+  /// แทนการเดาจาก caseTypeId อย่างเดียว ยังเปลี่ยนได้ตอนนั้นอีกที
+  preferredPlaybookId   String?
   opposingParty         String?
   incidentDate          DateTime?
   /// งานประกัน: กรอกได้ตั้งแต่รับเรื่อง แล้วตามไปเปิดเคลมให้ตอนแปลงเป็นคดี

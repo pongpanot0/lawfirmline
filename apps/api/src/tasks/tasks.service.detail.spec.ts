@@ -90,7 +90,7 @@ describe('TasksService detail support', () => {
   });
 
   describe('board lists', () => {
-    it('findMine returns top-level tasks only, with counts', async () => {
+    it('findMine returns top-level tasks (standalone and case tasks alike), with counts', async () => {
       mockPrisma.task.findMany.mockResolvedValue([
         {
           id: 't1', priority: TaskPriority.HIGH, labels: ['ศาล'],
@@ -99,7 +99,9 @@ describe('TasksService detail support', () => {
         },
       ]);
       const [item] = await service.findMine(lawyer);
-      expect(mockPrisma.task.findMany.mock.calls[0][0].where).toMatchObject({ caseId: null, parentId: null });
+      const where = mockPrisma.task.findMany.mock.calls[0][0].where;
+      expect(where).toMatchObject({ parentId: null });
+      expect(where.caseId).toBeUndefined();
       expect(item).toMatchObject({ subtaskCount: 2, subtaskDoneCount: 1, attachmentCount: 2, commentCount: 1 });
       expect((item as any).subtasks).toBeUndefined();
       expect((item as any)._count).toBeUndefined();

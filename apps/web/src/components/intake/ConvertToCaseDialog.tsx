@@ -57,7 +57,7 @@ export function ConvertToCaseDialog({
   const [leadLawyerId, setLeadLawyerId] = useState('');
   const [useDamageAsClaim, setUseDamageAsClaim] = useState(false);
   const [playbookId, setPlaybookId] = useState(
-    () => playbooks.find((p) => p.caseTypeId === intake.caseTypeId)?.id ?? '',
+    () => intake.preferredPlaybookId ?? playbooks.find((p) => p.caseTypeId === intake.caseTypeId)?.id ?? '',
   );
 
   const missing = [

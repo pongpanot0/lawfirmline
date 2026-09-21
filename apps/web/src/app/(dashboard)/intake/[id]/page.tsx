@@ -299,6 +299,7 @@ export default function IntakeDetailPage() {
   const [editClientName, setEditClientName] = useState('');
   const [editMatterType, setEditMatterType] = useState('');
   const [editCaseTypeId, setEditCaseTypeId] = useState('');
+  const [editPlaybookId, setEditPlaybookId] = useState('');
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [editOpposingParty, setEditOpposingParty] = useState('');
@@ -571,6 +572,7 @@ export default function IntakeDetailPage() {
     setEditClientName(intake.clientName || '');
     setEditMatterType(intake.matterType || '');
     setEditCaseTypeId(intake.caseTypeId || '');
+    setEditPlaybookId(intake.preferredPlaybookId || '');
     setEditOpposingParty(intake.opposingParty || '');
     setEditPartyRole(intake.partyRole || '');
     setEditCustomerRef(intake.customerRef || '');
@@ -617,6 +619,7 @@ export default function IntakeDetailPage() {
         title: editTitle.trim() || undefined,
         matterType: editMatterType || undefined,
         caseTypeId: editCaseTypeId || undefined,
+        preferredPlaybookId: editPlaybookId || undefined,
         opposingParty: editOpposingParty || undefined,
         partyRole: editPartyRole || undefined,
         customerRef: editCustomerRef || undefined,
@@ -1711,7 +1714,11 @@ export default function IntakeDetailPage() {
                     <label className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
                     <select
                       value={editCaseTypeId}
-                      onChange={(e) => setEditCaseTypeId(e.target.value)}
+                      onChange={(e) => {
+                        const caseTypeId = e.target.value;
+                        setEditCaseTypeId(caseTypeId);
+                        setEditPlaybookId((current) => current || playbooks.find((p) => p.caseTypeId === caseTypeId)?.id || current);
+                      }}
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                     >
                       <option value="">ยังไม่ทราบ</option>
@@ -1719,21 +1726,31 @@ export default function IntakeDetailPage() {
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
-                    {(() => {
-                      if (!editCaseTypeId) return null;
-                      const suggested = playbooks.find((p) => p.caseTypeId === editCaseTypeId);
-                      return suggested ? (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          แนะนำ Playbook &quot;{suggested.name}&quot; ({suggested.steps.length} ขั้นตอน) — จะใช้ได้จริงหลังแปลงเป็นคดี
-                        </p>
-                      ) : (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          ประเภทคดีนี้ยังไม่มี Playbook{' '}
-                          <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
-                        </p>
-                      );
-                    })()}
                   </div>
+                  {playbooks.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium">Playbook (ถ้ามี)</label>
+                      <select
+                        value={editPlaybookId}
+                        onChange={(e) => setEditPlaybookId(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">— ไม่ใช้ Playbook —</option>
+                        {playbooks.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · v{p.version}{p.caseTypeId === editCaseTypeId ? ' (แนะนำ)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-muted-foreground">จะใช้สร้างงานให้อัตโนมัติตอนแปลงเป็นคดี — เปลี่ยนใจตอนนั้นได้อีกที</p>
+                    </div>
+                  )}
+                  {!playbooks.length && editCaseTypeId && (
+                    <p className="text-xs text-muted-foreground">
+                      ยังไม่มี Playbook เลย{' '}
+                      <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
+                    </p>
+                  )}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="block text-sm font-medium">เลขอ้างอิงลูกค้า</label>

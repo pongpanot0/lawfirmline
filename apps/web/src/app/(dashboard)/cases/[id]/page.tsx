@@ -97,6 +97,7 @@ import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSect
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
@@ -156,6 +157,7 @@ export default function CaseDetailPage() {
   const [courts, setCourts] = useState<CourtItem[]>([]);
   const [overviewForm, setOverviewForm] = useState({
     title: '',
+    ownRef: '',
     customerRef: '',
     caseTypeId: '',
     blackCaseNumber: '',
@@ -390,6 +392,7 @@ export default function CaseDetailPage() {
     if (!legalCase) return;
     setOverviewForm({
       title: legalCase.title,
+      ownRef: legalCase.ownRef,
       customerRef: legalCase.customerRef ?? '',
       caseTypeId: legalCase.caseType?.id ?? '',
       blackCaseNumber: legalCase.blackCaseNumber ?? '',
@@ -431,6 +434,7 @@ export default function CaseDetailPage() {
         feeValue != null && !Number.isNaN(feeValue) ? feeValue : null;
       const updated = await api.updateCase(token, id, {
         title: overviewForm.title.trim(),
+        ownRef: overviewForm.ownRef.trim(),
         customerRef: overviewForm.customerRef.trim() || null,
         caseTypeId: overviewForm.caseTypeId || undefined,
         blackCaseNumber: overviewForm.blackCaseNumber.trim() || null,
@@ -945,7 +949,12 @@ export default function CaseDetailPage() {
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">เลขอ้างอิงสำนักงาน</label>
-                    <p className="mt-1 font-medium">{legalCase.ownRef}</p>
+                    <Input
+                      required
+                      value={overviewForm.ownRef}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, ownRef: e.target.value })}
+                      className="mt-1 h-8 text-sm"
+                    />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">เลขอ้างอิงลูกค้า</label>
@@ -1363,13 +1372,12 @@ export default function CaseDetailPage() {
                         ))}
                       </select>
                     </div>
-                    <div>
+                    <div className="sm:col-span-2">
                       <label className="text-xs text-muted-foreground">วันที่และเวลา</label>
-                      <Input
+                      <ThaiDateTimeInput
                         required
-                        type="datetime-local"
                         value={activityForm.activityAt}
-                        onChange={(e) => setActivityForm({ ...activityForm, activityAt: e.target.value })}
+                        onChange={(v) => setActivityForm({ ...activityForm, activityAt: v })}
                         className="mt-1"
                       />
                     </div>

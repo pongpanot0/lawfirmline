@@ -740,6 +740,7 @@ export interface IntakeItem {
   caseTypeId?: string | null;
   /** ฝ่ายเรา — โจทก์ (PLAINTIFF) หรือจำเลย (DEFENDANT) */
   partyRole?: 'PLAINTIFF' | 'DEFENDANT' | null;
+  preferredPlaybookId?: string | null;
   opposingParty?: string | null;
   insurerName?: string | null;
   policyNumber?: string | null;
@@ -1805,6 +1806,9 @@ export const api = {
 
   updateCaseType: (token: string, id: string, data: Record<string, unknown>) =>
     request(`/case-types/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  deleteCaseType: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/case-types/${id}`, { method: 'DELETE', token }),
 
   getExpenses: (token: string, params?: { status?: string; userId?: string }) => {
     const qs = new URLSearchParams();

@@ -376,6 +376,13 @@ export class CasesService {
   async update(user: AuthUser, id: string, dto: UpdateCaseDto) {
     const before = await this.findOne(user, id);
 
+    if (dto.ownRef?.trim() && dto.ownRef.trim() !== before.ownRef) {
+      const existing = await this.prisma.case.findUnique({
+        where: { firmId_ownRef: { firmId: user.firmId, ownRef: dto.ownRef.trim() } },
+      });
+      if (existing) throw new ConflictException('เลขอ้างอิงสำนักงานนี้ถูกใช้กับคดีอื่นแล้ว');
+    }
+
     if (dto.leadLawyerId) {
       if (user.firmRole !== FirmRole.OWNER) {
         throw new ForbiddenException('Only owners can reassign the case lead lawyer');
@@ -394,6 +401,7 @@ export class CasesService {
       where: { id },
       data: {
         ...rest,
+        ownRef: dto.ownRef?.trim() || undefined,
         customFields: customFields as Prisma.InputJsonValue | undefined,
         closedAt: dto.closedAt ? new Date(dto.closedAt) : undefined,
         stageChangedAt: stageChanged ? new Date() : undefined,

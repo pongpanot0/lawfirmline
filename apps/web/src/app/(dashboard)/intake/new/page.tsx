@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { canAssignFirmRole } from '@lawfirm/shared';
-import { api, ClientItem, ApiError, IntakeItem, UserItem } from '@/lib/api';
+import { api, ClientItem, ApiError, IntakeItem, UserItem, CaseTypeItem } from '@/lib/api';
+import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { InsurerSelect } from '@/components/InsurerSelect';
 import { Button } from '@/components/ui/button';
@@ -68,11 +70,17 @@ export default function NewIntakePage() {
     clientType: 'INDIVIDUAL',
     contactName: '',
     receivedDate: today,
+    caseTypeId: '',
+    playbookId: '',
   });
+  const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
+  const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
 
   useEffect(() => {
     if (!token) return;
     api.getLawyers(token).then(setLawyers).catch(() => setLawyers([]));
+    api.getCaseTypes(token, true).then(setCaseTypes).catch(() => setCaseTypes([]));
+    setupRequest<PlaybookRelease[]>(token, '/playbooks').then(setPlaybooks).catch(() => setPlaybooks([]));
   }, [token]);
 
   useEffect(() => {
@@ -175,6 +183,8 @@ export default function NewIntakePage() {
         preLitigationStatus: 'NOT_STARTED',
       };
       if (form.partyRole) payload.partyRole = form.partyRole;
+      if (form.caseTypeId) payload.caseTypeId = form.caseTypeId;
+      if (form.playbookId) payload.preferredPlaybookId = form.playbookId;
       if (assignedIds.length > 0) payload.assignedUserIds = assignedIds;
       if (clientId) {
         payload.clientId = clientId;
@@ -452,18 +462,28 @@ export default function NewIntakePage() {
             <div className="mb-3 flex items-center gap-2">
               <h2 className="font-semibold">เรื่องที่รับ</h2>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="sm:col-span-2">
-                <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
-                <input
-                  id="intake-title"
-                  required
-                  value={form.title}
-                  onChange={(e) => set('title', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
-                />
-              </div>
+            <div>
+              <label htmlFor="intake-title" className="block text-sm font-medium">ชื่อเรื่อง *</label>
+              <input
+                id="intake-title"
+                required
+                value={form.title}
+                onChange={(e) => set('title', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
+              />
+            </div>
+            <div className="mt-4">
+              <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
+              <ThaiDateInput
+                id="intake-receivedDate"
+                required
+                value={form.receivedDate}
+                onChange={(v) => set('receivedDate', v)}
+                className="mt-1"
+              />
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="intake-partyRole" className="block text-sm font-medium">ฝ่ายเรา</label>
                 <select
@@ -478,15 +498,48 @@ export default function NewIntakePage() {
                 </select>
               </div>
               <div>
-                <label htmlFor="intake-receivedDate" className="block text-sm font-medium">วันที่รับเรื่อง *</label>
-                <ThaiDateInput
-                  id="intake-receivedDate"
-                  required
-                  value={form.receivedDate}
-                  onChange={(v) => set('receivedDate', v)}
-                  className="mt-1"
-                />
+                <label htmlFor="intake-caseTypeId" className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
+                <select
+                  id="intake-caseTypeId"
+                  value={form.caseTypeId}
+                  onChange={(e) => {
+                    const caseTypeId = e.target.value;
+                    const matched = playbooks.find((p) => p.caseTypeId === caseTypeId)?.id ?? '';
+                    setForm((f) => ({ ...f, caseTypeId, playbookId: matched }));
+                  }}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">ยังไม่ทราบ</option>
+                  {caseTypes.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
               </div>
+              {playbooks.length > 0 && (
+                <div>
+                  <label htmlFor="intake-playbookId" className="block text-sm font-medium">Playbook (ถ้ามี)</label>
+                  <select
+                    id="intake-playbookId"
+                    value={form.playbookId}
+                    onChange={(e) => set('playbookId', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">— ไม่ใช้ Playbook —</option>
+                    {playbooks.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} · v{p.version}{p.caseTypeId === form.caseTypeId ? ' (แนะนำ)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">จะใช้สร้างงานให้อัตโนมัติตอนแปลงเป็นคดี — เปลี่ยนใจตอนนั้นได้อีกที</p>
+                </div>
+              )}
+              {!playbooks.length && (
+                <p className="text-xs text-muted-foreground sm:col-span-2">
+                  ยังไม่มี Playbook เลย{' '}
+                  <Link href="/playbooks" className="text-primary underline">สร้างเลย →</Link>
+                </p>
+              )}
             </div>
             <div className="mt-4 space-y-2">
               <label htmlFor="intake-description" className="block text-sm font-medium">เหตุการณ์ / คำสั่งมอบหมาย (ถ้ามี)</label>
