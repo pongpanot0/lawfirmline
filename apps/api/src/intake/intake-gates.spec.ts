@@ -119,20 +119,22 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
     ).resolves.toBeDefined();
   });
 
-  it('เปิดคดีไม่ได้เมื่อยังไม่เคยตรวจ conflict', async () => {
+  // conflict check ไม่ใช่ด่านอีกต่อไป — ตรวจได้ แต่ไม่กั้นการเปิดคดี (ทีมตัดสินใจเอง)
+  it('เปิดคดีได้แม้ยังไม่เคยตรวจ conflict', async () => {
     conflictCheck.latestForIntake.mockResolvedValue(null);
+    prisma.case.findMany = jest.fn().mockResolvedValue([]);
+    prisma.case.create = jest.fn().mockResolvedValue({ id: 'case-1', title: 'x', leadLawyerId: 'user-1' });
+    prisma.caseAssignment = { createMany: jest.fn() };
+    prisma.calendarEvent = { create: jest.fn() };
+    prisma.intakePrecedentAnalysis = { updateMany: jest.fn() };
+    prisma.insuranceClaim = { create: jest.fn() };
+    prisma.document = { updateMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) };
+    prisma.intakeAttachment = { findMany: jest.fn().mockResolvedValue([]) };
+    prisma.task = { updateMany: jest.fn() };
 
-    await expect(service.convertToCase(user, 'intake-1', {} as any)).rejects.toThrow(
-      /conflict/i,
-    );
-  });
+    const result = await service.convertToCase(user, 'intake-1', {} as any);
 
-  it('เปิดคดีไม่ได้เมื่อผลตรวจล่าสุดไม่ใช่ CLEAR และไม่ได้ให้เหตุผล', async () => {
-    conflictCheck.latestForIntake.mockResolvedValue({ result: 'POTENTIAL_CONFLICT' });
-
-    await expect(service.convertToCase(user, 'intake-1', {} as any)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    expect(result?.id).toBe('case-1');
   });
 
   it('ขอเอกสารเพิ่มแล้วย้ายขั้นตอนไปรอเอกสารให้เอง', async () => {

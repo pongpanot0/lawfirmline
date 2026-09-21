@@ -20,6 +20,7 @@ import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocum
 import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
+import { IntakeTasksPanel } from '@/components/intake/IntakeTasksPanel';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
 import { IntakeStageBar } from '@/components/intake/IntakeStageBar';
 import { ConflictCheckPanel } from '@/components/intake/ConflictCheckPanel';
@@ -285,8 +286,6 @@ export default function IntakeDetailPage() {
   const [decideLeadLawyerId, setDecideLeadLawyerId] = useState('');
   const [decideClaimedAmount, setDecideClaimedAmount] = useState('');
   const [decidePlaybookId, setDecidePlaybookId] = useState('');
-  const [decideOverrideReason, setDecideOverrideReason] = useState('');
-  const [decideNeedsOverride, setDecideNeedsOverride] = useState(false);
 
   // Pre-litigation form
   const [preLitigationType, setPreLitigationType] = useState('GENERAL');
@@ -502,7 +501,6 @@ export default function IntakeDetailPage() {
               title: decideTitle.trim() || undefined,
               leadLawyerId: decideLeadLawyerId || undefined,
               claimedAmount: decideClaimedAmount.trim() ? Number(decideClaimedAmount) : undefined,
-              conflictOverrideReason: decideOverrideReason.trim() || undefined,
             }
           : {}),
       })) as IntakeItem;
@@ -518,10 +516,7 @@ export default function IntakeDetailPage() {
       await reload();
       setModal(null);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด';
-      // conflict gate: เปิดช่องให้พิมพ์เหตุผลข้าม แล้วกดบันทึกซ้ำ
-      if (accepted && message.includes('conflict')) setDecideNeedsOverride(true);
-      setError(message);
+      setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
     }
@@ -980,7 +975,7 @@ export default function IntakeDetailPage() {
           <div>
             <CardTitle className="text-base">สถานะรับเรื่องก่อนฟ้อง</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              {PRE_LITIGATION_TYPE_LABELS[intake.preLitigationType] ?? intake.preLitigationType} · {PRE_LITIGATION_STATUS_LABELS[intake.preLitigationStatus] ?? intake.preLitigationStatus}
+              {PRE_LITIGATION_STATUS_LABELS[intake.preLitigationStatus] ?? intake.preLitigationStatus}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -1374,6 +1369,7 @@ export default function IntakeDetailPage() {
           {token && (
             <>
               <IntakeStageBar intake={intake} token={token} onChanged={reload} />
+              <IntakeTasksPanel intakeId={intake.id} lawyers={lawyers} />
               <ConflictCheckPanel intake={intake} token={token} onRecorded={reload} />
               <IntakeFollowUpPanel
                 intake={intake}
@@ -1567,20 +1563,6 @@ export default function IntakeDetailPage() {
                           ))}
                         </select>
                       </div>
-                      {decideNeedsOverride && (
-                        <div>
-                          <label className="block text-sm font-medium text-destructive">
-                            เหตุผลที่เปิดคดีโดยข้ามผลตรวจ conflict
-                          </label>
-                          <textarea
-                            value={decideOverrideReason}
-                            onChange={(e) => setDecideOverrideReason(e.target.value)}
-                            rows={2}
-                            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none"
-                            placeholder="เช่น เรื่องเร่ง อายุความใกล้ครบ — จะตรวจย้อนหลังทันที"
-                          />
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1597,18 +1579,7 @@ export default function IntakeDetailPage() {
               <>
                 <h2 className="mb-4 text-lg font-semibold">อัปเดตงานก่อนฟ้อง</h2>
                 <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium">ลักษณะ flow</label>
-                    <select
-                      value={preLitigationType}
-                      onChange={(e) => setPreLitigationType(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                    >
-                      {Object.entries(PRE_LITIGATION_TYPE_LABELS).map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* ลักษณะ flow ตัดออกจากฟอร์ม — playbook ทำหน้าที่นี้แทน (ค่าเดิมยังถูกส่งกลับตาม state) */}
                   <div>
                     <label className="block text-sm font-medium">สถานะก่อนฟ้อง</label>
                     <select

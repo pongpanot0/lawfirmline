@@ -6,6 +6,7 @@ import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline
 import { CASE_COSTS_KEY } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutcomeDialog';
+import { CaseNoticeDialog } from '@/components/cases/CaseNoticeDialog';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -170,6 +171,7 @@ export default function CaseDetailPage() {
     description: '',
   });
   const [showCloseForm, setShowCloseForm] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
   const [recordingOutcome, setRecordingOutcome] = useState(false);
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   const [closingSummary, setClosingSummary] = useState('');
@@ -767,6 +769,7 @@ export default function CaseDetailPage() {
                   <option value="">ไม่ระบุ</option>
                   <option value="WON">ชนะคดี</option>
                   <option value="SETTLED">ตกลงกันได้</option>
+                  <option value="MEDIATED">ไกล่เกลี่ยสำเร็จ</option>
                   <option value="LOST">แพ้คดี</option>
                   <option value="WITHDRAWN">ถอนฟ้อง / ยุติ</option>
                 </select>
@@ -1296,10 +1299,20 @@ export default function CaseDetailPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">งานก่อนฟ้อง</CardTitle>
-                <Link href={`/intake/${legalCase.intake.id}`}>
-                  <Button variant="outline" size="sm">จัดการโนติส / ใบเสนอราคา →</Button>
-                </Link>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>
+                  <Link href={`/intake/${legalCase.intake.id}`}>
+                    <Button variant="outline" size="sm">ใบเสนอราคา / รายละเอียด →</Button>
+                  </Link>
+                </div>
               </CardHeader>
+              <CaseNoticeDialog
+                intakeId={legalCase.intake.id}
+                defaultRecipient={legalCase.intake.noticeRecipient}
+                open={noticeOpen}
+                onClose={() => setNoticeOpen(false)}
+                onDone={loadCase}
+              />
               <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-xs text-muted-foreground">หนังสือทวงถาม (Notice)</p>

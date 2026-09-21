@@ -215,6 +215,58 @@ export class TasksService {
    * a lawyer doesn't stop owning a task just because it happens to live
    * inside a case. The "mine/team/review" split still happens client-side.
    */
+  /** งาน/checklist ของเรื่องรับเข้า — เหมือน findByCase แต่ผูกกับ intake */
+  async findByIntake(intakeId: string, user: AuthUser) {
+    await this.assertIntakeAccess(intakeId, user);
+    const tasks = await this.prisma.task.findMany({
+      where: { intakeId, parentId: null, ...this.caseAccess.getTaskFilterForUser(user) },
+      include: this.boardInclude,
+      orderBy: { createdAt: 'desc' },
+    });
+    return tasks.map((task) => this.toBoardItem(task));
+  }
+
+  /** intake ไม่มี guard แบบ CaseAccessGuard — เช็คสิทธิ์เองก่อนแตะงานของมัน */
+  private async assertIntakeAccess(intakeId: string, user: AuthUser) {
+    const accessWhere = await this.caseAccess.getIntakeFilterForUser(user);
+    const intake = await this.prisma.intake.findFirst({
+      where: { id: intakeId, ...accessWhere },
+      select: { id: true },
+    });
+    if (!intake) throw new NotFoundException('Intake not found');
+  }
+
+  async createForIntake(user: AuthUser, intakeId: string, dto: CreateTaskDto) {
+    await this.assertIntakeAccess(intakeId, user);
+    // ไม่ระบุผู้รับผิดชอบ = งานของคนที่สร้าง (เหมือน /todos)
+    const task = await this.create(user, null, { ...dto, assigneeId: dto.assigneeId ?? user.id });
+    return this.prisma.task.update({
+      where: { id: task.id },
+      data: { intakeId },
+      include: this.taskInclude,
+    });
+  }
+
+  async updateForIntake(user: AuthUser, intakeId: string, taskId: string, dto: UpdateTaskDto) {
+    await this.assertIntakeAccess(intakeId, user);
+    const inIntake = await this.prisma.task.findFirst({
+      where: { id: taskId, intakeId },
+      select: { id: true },
+    });
+    if (!inIntake) throw new NotFoundException('ไม่พบงานนี้');
+    return this.update(taskId, dto, user);
+  }
+
+  async removeForIntake(user: AuthUser, intakeId: string, taskId: string) {
+    await this.assertIntakeAccess(intakeId, user);
+    const inIntake = await this.prisma.task.findFirst({
+      where: { id: taskId, intakeId },
+      select: { id: true },
+    });
+    if (!inIntake) throw new NotFoundException('ไม่พบงานนี้');
+    return this.remove(taskId);
+  }
+
   async findMine(user: AuthUser) {
     const tasks = await this.prisma.task.findMany({
       where: {

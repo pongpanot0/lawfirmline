@@ -75,6 +75,7 @@ export class IntakeService {
     const hasPrimary = customers.some((c) => c.isPrimary);
     return customers.map((c, index) => ({
       customerId: c.customerId,
+      contactId: c.contactId ?? null,
       sharePercent: c.sharePercent ?? null,
       isPrimary: c.isPrimary ?? (!hasPrimary && index === 0),
       note: c.note ?? null,
@@ -99,10 +100,12 @@ export class IntakeService {
       select: {
         id: true,
         customerId: true,
+        contactId: true,
         sharePercent: true,
         isPrimary: true,
         note: true,
         customer: { select: { id: true, name: true } },
+        contact: { select: { id: true, name: true, phone: true, email: true } },
       },
     },
     additionalClients: {
@@ -715,9 +718,6 @@ export class IntakeService {
     // รับดำเนินการ = เปิดคดีทันที ในเฟสก่อนฟ้อง — งานโนติส/เจรจา/เอกสาร
     // คือคดีแล้ว ไม่ใช่ lead ที่รอแปลง. conflict gate จึงย้ายมาเฝ้าที่จุดนี้.
     if (acceptedDecisions.includes(dto.decision)) {
-      if (!intake.case) {
-        await this.assertConflictCleared(user, intake.id, dto.conflictOverrideReason);
-      }
       await this.prisma.intake.update({
         where: { id },
         data: {
@@ -893,26 +893,6 @@ export class IntakeService {
     return data.choices?.[0]?.message?.content ?? '';
   }
 
-  /**
-   * ไม่ให้เปิดคดีโดยยังไม่ได้ตรวจผลประโยชน์ขัดกัน
-   *
-   * ข้ามได้ แต่ต้องพิมพ์เหตุผล — เพราะบางเรื่องเร่งจริง และระบบไม่ควรตัดสินใจ
-   * แทนทนาย. สิ่งที่ห้ามคือ "ข้ามแบบไม่มีใครรู้"
-   */
-  private async assertConflictCleared(user: AuthUser, intakeId: string, overrideReason?: string) {
-    const latest = await this.conflictCheck.latestForIntake(intakeId);
-    const cleared = latest?.result === 'CLEAR';
-    if (cleared) return { latest, overridden: false as const };
-
-    if (!overrideReason?.trim()) {
-      throw new BadRequestException(
-        latest
-          ? `ผลตรวจ conflict ล่าสุดคือ ${latest.result} — ต้องระบุเหตุผลที่ยังเปิดคดี`
-          : 'ยังไม่ได้ตรวจผลประโยชน์ขัดกัน (conflict check) สำหรับเรื่องนี้',
-      );
-    }
-    return { latest, overridden: true as const };
-  }
 
   async convertToCase(user: AuthUser, id: string, dto: ConvertToCaseDto) {
     const intake = await this.findOne(user, id);
@@ -926,8 +906,6 @@ export class IntakeService {
     if (intake.status === 'CONVERTED' && intake.relatedCaseId) {
       return this.prisma.case.findUnique({ where: { id: intake.relatedCaseId } });
     }
-
-    await this.assertConflictCleared(user, intake.id, dto.conflictOverrideReason);
 
     if (intake.relatedCaseId) {
       return this.attachToExistingCase(user, intake, dto);
@@ -1001,6 +979,7 @@ export class IntakeService {
           ? {
               create: intake.customers.map((c) => ({
                 customerId: c.customerId,
+                contactId: c.contactId,
                 sharePercent: c.sharePercent,
                 isPrimary: c.isPrimary,
                 note: c.note,
@@ -1040,6 +1019,12 @@ export class IntakeService {
     });
 
     await this.carryFilesOntoCase(intake.id, newCase.id);
+
+    // งาน/checklist ที่ตั้งไว้ตั้งแต่รับเรื่อง ตามไปเป็นงานคดี
+    await this.prisma.task.updateMany({
+      where: { intakeId: intake.id },
+      data: { caseId: newCase.id, intakeId: null },
+    });
 
     // งานประกันที่กรอกบริษัทมาตั้งแต่รับเรื่อง เปิดเคลมให้เลย ไม่ต้องไปกรอกซ้ำที่คดี
     if (intake.insurerName) {
@@ -1164,6 +1149,11 @@ export class IntakeService {
     });
 
     await this.carryFilesOntoCase(intake.id, relatedCase.id);
+
+    await this.prisma.task.updateMany({
+      where: { intakeId: intake.id },
+      data: { caseId: relatedCase.id, intakeId: null },
+    });
 
     await this.prisma.intake.update({
       where: { id: intake.id },

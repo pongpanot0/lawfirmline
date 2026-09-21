@@ -232,6 +232,8 @@ export enum CaseOutcome {
   WON = 'WON',
   LOST = 'LOST',
   SETTLED = 'SETTLED',
+  /** ไกล่เกลี่ยสำเร็จ (ผ่านศาล/ศูนย์ไกล่เกลี่ย) — แยกจาก SETTLED ที่ตกลงกันเอง */
+  MEDIATED = 'MEDIATED',
   WITHDRAWN = 'WITHDRAWN',
   IN_PROGRESS = 'IN_PROGRESS',
 }

@@ -239,6 +239,7 @@ describe('IntakeService convertToCase', () => {
   let service: IntakeService;
   const mockPrisma = {
     intake: { findFirst: jest.fn(), update: jest.fn() },
+    task: { updateMany: jest.fn() },
     firm: { findUnique: jest.fn() },
     case: { findMany: jest.fn(), create: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
@@ -497,6 +498,7 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
   let service: IntakeService;
   const mockPrisma = {
     intake: { findFirst: jest.fn(), update: jest.fn() },
+    task: { updateMany: jest.fn() },
   };
   const mockTasksService = { create: jest.fn() };
   const mockConfig = { get: jest.fn() };
@@ -545,6 +547,7 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
   let service: IntakeService;
   const mockPrisma = {
     intake: { findFirst: jest.fn(), update: jest.fn() },
+    task: { updateMany: jest.fn() },
     firm: { findUnique: jest.fn() },
     case: {
       findMany: jest.fn(),
@@ -762,6 +765,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
   let service: IntakeService;
   const mockPrisma = {
     intake: { findFirst: jest.fn(), update: jest.fn() },
+    task: { updateMany: jest.fn() },
     firm: { findUnique: jest.fn() },
     case: { findMany: jest.fn(), create: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
@@ -924,6 +928,7 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
   let service: IntakeService;
   const mockPrisma = {
     intake: { findFirst: jest.fn(), update: jest.fn() },
+    task: { updateMany: jest.fn() },
     firm: { findUnique: jest.fn() },
     case: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
@@ -1002,14 +1007,14 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     );
   });
 
-  it('rejects acceptance when conflict is not cleared and no override reason', async () => {
+  // conflict check ไม่ใช่ด่านแล้ว — ตรวจได้ แต่ไม่กั้นการรับดำเนินการ
+  it('accepts even when conflict is not cleared (conflict check is advisory)', async () => {
     arrange();
     mockConflict.latestForIntake.mockResolvedValue({ result: 'HIT' });
 
-    await expect(
-      service.decide(user, 'intake-1', { decision: 'NEGOTIATE_FIRST' as any }),
-    ).rejects.toThrow(BadRequestException);
-    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+    await service.decide(user, 'intake-1', { decision: 'NEGOTIATE_FIRST' as any });
+
+    expect(mockPrisma.case.create).toHaveBeenCalledTimes(1);
   });
 
   it('CONSULTATION_ONLY does not open a case (unchanged behavior)', async () => {
