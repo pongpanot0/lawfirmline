@@ -156,6 +156,7 @@ export default function CaseDetailPage() {
   const [courts, setCourts] = useState<CourtItem[]>([]);
   const [overviewForm, setOverviewForm] = useState({
     title: '',
+    ownRef: '',
     customerRef: '',
     caseTypeId: '',
     blackCaseNumber: '',
@@ -389,6 +390,7 @@ export default function CaseDetailPage() {
     if (!legalCase) return;
     setOverviewForm({
       title: legalCase.title,
+      ownRef: legalCase.ownRef,
       customerRef: legalCase.customerRef ?? '',
       caseTypeId: legalCase.caseType?.id ?? '',
       blackCaseNumber: legalCase.blackCaseNumber ?? '',
@@ -429,6 +431,7 @@ export default function CaseDetailPage() {
         feeValue != null && !Number.isNaN(feeValue) ? feeValue : null;
       const updated = await api.updateCase(token, id, {
         title: overviewForm.title.trim(),
+        ownRef: overviewForm.ownRef.trim(),
         customerRef: overviewForm.customerRef.trim() || null,
         caseTypeId: overviewForm.caseTypeId || undefined,
         blackCaseNumber: overviewForm.blackCaseNumber.trim() || null,
@@ -942,7 +945,12 @@ export default function CaseDetailPage() {
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">เลขอ้างอิงสำนักงาน</label>
-                    <p className="mt-1 font-medium">{legalCase.ownRef}</p>
+                    <Input
+                      required
+                      value={overviewForm.ownRef}
+                      onChange={(e) => setOverviewForm({ ...overviewForm, ownRef: e.target.value })}
+                      className="mt-1 h-8 text-sm"
+                    />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">เลขอ้างอิงลูกค้า</label>

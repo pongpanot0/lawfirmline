@@ -1792,6 +1792,9 @@ export const api = {
   updateCaseType: (token: string, id: string, data: Record<string, unknown>) =>
     request(`/case-types/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
+  deleteCaseType: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/case-types/${id}`, { method: 'DELETE', token }),
+
   getExpenses: (token: string, params?: { status?: string; userId?: string }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);

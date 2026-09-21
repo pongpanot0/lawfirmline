@@ -210,10 +210,14 @@ export class TasksService {
     return tasks.map((task) => this.toBoardItem(task));
   }
 
+  /**
+   * A person's own work list — standalone todos and case tasks alike, since
+   * a lawyer doesn't stop owning a task just because it happens to live
+   * inside a case. The "mine/team/review" split still happens client-side.
+   */
   async findMine(user: AuthUser) {
     const tasks = await this.prisma.task.findMany({
       where: {
-        caseId: null,
         parentId: null,
         assignee: { firmMembers: { some: { firmId: user.firmId } } },
         ...this.caseAccess.getTaskFilterForUser(user),

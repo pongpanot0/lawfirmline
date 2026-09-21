@@ -49,6 +49,13 @@ export default function CaseTypesPage() {
     load();
   };
 
+  const handleDelete = async (type: CaseTypeItem) => {
+    if (!token) return;
+    if (!window.confirm(`ลบประเภทคดี "${type.name}" ใช่ไหม`)) return;
+    await api.deleteCaseType(token, type.id);
+    load();
+  };
+
   return (
     <div>
       <PageHeader
@@ -149,6 +156,15 @@ export default function CaseTypesPage() {
                 </p>
               )}
               {!t.isActive && <p className="mt-2 text-xs text-destructive">{d.admin.inactive}</p>}
+              {t.isActive && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(t)}
+                  className="mt-3 text-xs text-destructive hover:underline"
+                >
+                  ลบ
+                </button>
+              )}
             </CardContent>
           </Card>
         ))}

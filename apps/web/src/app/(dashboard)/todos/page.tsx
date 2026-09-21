@@ -107,11 +107,18 @@ function TodosPageContent() {
     loadUsers();
   }, [token]);
 
+  // My work list mixes standalone todos and case tasks — each routes to its
+  // own endpoint set, since a case task's review flow (reviewer implied by
+  // the case) differs from a standalone todo's (reviewer picked by hand).
+  const caseIdOf = (taskId: string) => tasks.find((t) => t.id === taskId)?.caseId ?? null;
+
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
     if (!token) return;
     setError('');
     try {
-      await api.updateTodo(token, taskId, { status });
+      const caseId = caseIdOf(taskId);
+      if (caseId) await api.updateTask(token, caseId, taskId, { status });
+      else await api.updateTodo(token, taskId, { status });
       loadTasks();
     } catch {
       setError(d.todos.actionFailed);
@@ -121,20 +128,29 @@ function TodosPageContent() {
   // Handoff/review failures are reported by the board on the task itself,
   // where the form that failed still is; so these rethrow rather than catch.
   const handleHandoff = async (taskId: string, note: string, reviewerId?: string) => {
-    if (!token || !reviewerId) return;
-    await api.handoffTodo(token, taskId, { reviewerId, note: note || undefined });
+    if (!token) return;
+    const caseId = caseIdOf(taskId);
+    if (caseId) await api.handoffTask(token, caseId, taskId, { note: note || undefined });
+    else {
+      if (!reviewerId) return;
+      await api.handoffTodo(token, taskId, { reviewerId, note: note || undefined });
+    }
     loadTasks();
   };
 
   const handleAccept = async (taskId: string) => {
     if (!token) return;
-    await api.acceptTodo(token, taskId);
+    const caseId = caseIdOf(taskId);
+    if (caseId) await api.acceptTask(token, caseId, taskId);
+    else await api.acceptTodo(token, taskId);
     loadTasks();
   };
 
   const handleReject = async (taskId: string, reason: string) => {
     if (!token) return;
-    await api.rejectTodo(token, taskId, { reason });
+    const caseId = caseIdOf(taskId);
+    if (caseId) await api.rejectTask(token, caseId, taskId, { reason });
+    else await api.rejectTodo(token, taskId, { reason });
     loadTasks();
   };
 

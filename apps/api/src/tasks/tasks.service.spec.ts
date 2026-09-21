@@ -481,7 +481,7 @@ describe('TasksService on-hold', () => {
   });
 
   describe('findMine', () => {
-    it('scopes standalone tasks to caseId null, the firm, and the role-based filter', async () => {
+    it('scopes tasks (standalone and case alike) to the firm and the role-based filter', async () => {
       mockCaseAccess.getTaskFilterForUser.mockReturnValue({ assigneeId: 'user-1' });
       mockPrisma.task.findMany.mockResolvedValue([]);
 
@@ -490,7 +490,6 @@ describe('TasksService on-hold', () => {
       expect(mockPrisma.task.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            caseId: null,
             parentId: null,
             assignee: { firmMembers: { some: { firmId: 'firm-1' } } },
             assigneeId: 'user-1',

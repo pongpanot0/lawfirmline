@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { canAssignFirmRole } from '@lawfirm/shared';
-import { api, ClientItem, ApiError, IntakeItem, UserItem } from '@/lib/api';
+import { api, ClientItem, ApiError, IntakeItem, UserItem, CaseTypeItem } from '@/lib/api';
+import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { InsurerSelect } from '@/components/InsurerSelect';
 import { Button } from '@/components/ui/button';
@@ -67,11 +68,16 @@ export default function NewIntakePage() {
     clientType: 'INDIVIDUAL',
     contactName: '',
     receivedDate: today,
+    caseTypeId: '',
   });
+  const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
+  const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
 
   useEffect(() => {
     if (!token) return;
     api.getLawyers(token).then(setLawyers).catch(() => setLawyers([]));
+    api.getCaseTypes(token, true).then(setCaseTypes).catch(() => setCaseTypes([]));
+    setupRequest<PlaybookRelease[]>(token, '/playbooks').then(setPlaybooks).catch(() => setPlaybooks([]));
   }, [token]);
 
   useEffect(() => {
@@ -173,6 +179,7 @@ export default function NewIntakePage() {
         preLitigationType: 'GENERAL',
         preLitigationStatus: 'NOT_STARTED',
       };
+      if (form.caseTypeId) payload.caseTypeId = form.caseTypeId;
       if (assignedIds.length > 0) payload.assignedUserIds = assignedIds;
       if (clientId) {
         payload.clientId = clientId;
@@ -471,6 +478,28 @@ export default function NewIntakePage() {
                   onChange={(v) => set('receivedDate', v)}
                   className="mt-1"
                 />
+              </div>
+              <div>
+                <label htmlFor="intake-caseTypeId" className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
+                <select
+                  id="intake-caseTypeId"
+                  value={form.caseTypeId}
+                  onChange={(e) => set('caseTypeId', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">ยังไม่ทราบ</option>
+                  {caseTypes.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                {(() => {
+                  const suggested = playbooks.find((p) => p.caseTypeId === form.caseTypeId);
+                  return suggested ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      แนะนำ Playbook &quot;{suggested.name}&quot; ({suggested.steps.length} ขั้นตอน) — จะใช้ได้จริงหลังแปลงเป็นคดี
+                    </p>
+                  ) : null;
+                })()}
               </div>
             </div>
             <div className="mt-4 space-y-2">
