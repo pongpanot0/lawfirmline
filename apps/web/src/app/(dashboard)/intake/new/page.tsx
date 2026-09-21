@@ -249,7 +249,7 @@ export default function NewIntakePage() {
 
           {/* 1 · เรื่องที่รับ */}
           <section className="rounded-2xl border bg-card p-5 shadow-sm">
-            <h2 className="mb-3 text-[15px] font-bold">1 · เรื่องที่รับ</h2>
+            <h2 className="mb-4 flex items-baseline gap-2.5 border-b border-border pb-2.5 text-[15px] font-bold tracking-tight"><span className="font-mono text-[13px] font-semibold text-primary">01</span>เรื่องที่รับ</h2>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="sm:col-span-2">
                 <label htmlFor="intake-title" className="block text-xs font-semibold">ชื่อเรื่อง *</label>
@@ -258,7 +258,7 @@ export default function NewIntakePage() {
                   required
                   value={form.title}
                   onChange={(e) => set('title', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  className="mt-1 h-11 w-full rounded-lg border border-input bg-background px-3.5 text-[15px] font-medium"
                   placeholder="เช่น ต่อสู้คดีอุบัติเหตุ — เลขเคลม 12345"
                 />
               </div>
@@ -327,6 +327,9 @@ export default function NewIntakePage() {
                   placeholder="CLM-..."
                 />
               </div>
+              <div className="mt-1 border-t border-dashed border-border pt-3 sm:col-span-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">ทีมและแนวทาง</p>
+              </div>
               <div>
                 <label htmlFor="intake-playbookId" className="block text-xs font-semibold">Playbook</label>
                 <select
@@ -394,7 +397,7 @@ export default function NewIntakePage() {
 
           {/* 2 · ลูกความ และผู้มอบหมาย/ผู้จ่าย */}
           <section className="rounded-2xl border bg-card p-5 shadow-sm">
-            <h2 className="mb-3 text-[15px] font-bold">2 · ผู้มอบหมาย และลูกความ</h2>
+            <h2 className="mb-4 flex items-baseline gap-2.5 border-b border-border pb-2.5 text-[15px] font-bold tracking-tight"><span className="font-mono text-[13px] font-semibold text-primary">02</span>ผู้มอบหมาย และลูกความ</h2>
 
             {/* ผู้มอบหมายมาก่อน — คนที่จ้างเราคือจุดเริ่มของเรื่อง */}
             <div>
@@ -625,7 +628,7 @@ export default function NewIntakePage() {
 
           {/* 3 · เอกสารเริ่มต้น */}
           <section className="rounded-2xl border bg-card p-5 shadow-sm">
-            <h2 className="mb-3 text-[15px] font-bold">3 · เอกสารเริ่มต้น</h2>
+            <h2 className="mb-4 flex items-baseline gap-2.5 border-b border-border pb-2.5 text-[15px] font-bold tracking-tight"><span className="font-mono text-[13px] font-semibold text-primary">03</span>เอกสารเริ่มต้น</h2>
             <DocumentDropZone
               multiple
               accept=".pdf,.txt,application/pdf,text/plain"
@@ -655,11 +658,12 @@ export default function NewIntakePage() {
             <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
           )}
 
-          <div className="flex items-center justify-end gap-2">
+          {/* แถบบันทึกลอยติดล่าง — กดได้โดยไม่ต้อง scroll สุดฟอร์ม */}
+          <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-end gap-2 border-t border-border bg-background/90 px-1 py-3 backdrop-blur">
             <Button type="button" variant="outline" disabled={submitting || !!createdIntakeId} onClick={() => router.push('/intake')}>
               ยกเลิก
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting} className="px-5">
               {submitting
                 ? 'กำลังบันทึก...'
                 : createdIntakeId
