@@ -8,8 +8,10 @@ import { api, ClientItem, ApiError, IntakeItem, UserItem } from '@/lib/api';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { InsurerSelect } from '@/components/InsurerSelect';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { Plus, X } from 'lucide-react';
 
 const FIRM_ROLE_LABELS: Record<string, string> = {
   OWNER: 'เจ้าของ',
@@ -271,33 +273,36 @@ export default function NewIntakePage() {
                     className="w-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
                   />}
                   {customers.length > 1 && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon"
                       aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
                       onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
-                      className="px-2 text-sm text-muted-foreground"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
                     >
-                      ลบ
-                    </button>
+                      <X className="h-4 w-4" />
+                    </Button>
                   )}
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
-                className="text-sm underline"
-              >
-                + เพิ่มผู้จ่ายอีกราย
-              </button>
-              <p hidden={customers.length < 2} className="text-xs text-muted-foreground">
-                เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
-              </p>
-              <label className="mt-2 flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
+                >
+                  <Plus className="h-3.5 w-3.5" /> เพิ่มผู้จ่ายอีกราย
+                </Button>
+                <p hidden={customers.length < 2} className="text-xs text-muted-foreground">
+                  เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
+                </p>
+              </div>
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <Checkbox
                   checked={sameCustomer}
                   onChange={(e) => setSameCustomer(e.target.checked)}
-                  className="h-4 w-4 rounded border-input"
                 />
                 ลูกความคนเดียวกับผู้มอบหมายรายที่ 1
               </label>
@@ -350,25 +355,28 @@ export default function NewIntakePage() {
                         }
                       />
                     </div>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon"
                       aria-label={`ลบลูกความรายที่ ${index + 2}`}
                       onClick={() => setAdditionalClients((rows) => rows.filter((_, i) => i !== index))}
-                      className="px-2 text-sm text-muted-foreground"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
                     >
-                      ลบ
-                    </button>
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                 ))}
               </div>
             )}
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setAdditionalClients((rows) => [...rows, { clientId: '' }])}
-              className="text-sm underline"
             >
-              + เพิ่มลูกความอีกราย
-            </button>
+              <Plus className="h-3.5 w-3.5" /> เพิ่มลูกความอีกราย
+            </Button>
             {clientsLoading && <p role="status" className="text-sm text-muted-foreground">กำลังโหลดรายชื่อลูกค้า…</p>}
             {clientsError && (
               <p role="alert" className="text-sm text-destructive">
