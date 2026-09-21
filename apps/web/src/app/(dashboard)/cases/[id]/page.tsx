@@ -140,6 +140,7 @@ export default function CaseDetailPage() {
   const [requiredDocs, setRequiredDocs] = useState<RequiredDocumentsResult>({ required: [], missing: [] });
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [applyingPlaybook, setApplyingPlaybook] = useState(false);
+  const [pendingPlaybookId, setPendingPlaybookId] = useState('');
   const [totalSpent, setTotalSpent] = useState(0);
   const [precedentAnalyses, setPrecedentAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -510,12 +511,10 @@ export default function CaseDetailPage() {
     .filter((event) => new Date(event.startAt).getTime() >= Date.now())
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
 
+  const hasAppliedPlaybook = tasks.some((t) => t.labels.some((l) => l.startsWith('playbook:')));
   const suggestedPlaybook = legalCase.caseType
     ? playbooks.find((p) => p.caseTypeId === legalCase.caseType!.id)
     : undefined;
-  const playbookApplied = suggestedPlaybook
-    ? tasks.some((t) => t.labels.includes(`playbook:${suggestedPlaybook.id}`))
-    : false;
   const checklistTasks = tasks.filter((t) => t.labels.some((l) => l.startsWith('playbook:')));
 
   const applySuggestedPlaybook = async () => {
@@ -543,13 +542,12 @@ export default function CaseDetailPage() {
     if (!token) return;
     api.setDocumentConfirmed(token, id, category, !present).then(setRequiredDocs).catch(console.error);
   };
-
-  const unappliedPlaybooks = playbooks.filter((p) => !tasks.some((t) => t.labels.includes(`playbook:${p.id}`)));
   const applyPlaybook = async (releaseId: string) => {
     if (!token || !releaseId) return;
     setApplyingPlaybook(true);
     try {
       await setupRequest(token, `/cases/${id}/apply`, { releaseId });
+      setPendingPlaybookId('');
       loadCase();
     } catch (err) {
       console.error(err);
@@ -573,7 +571,7 @@ export default function CaseDetailPage() {
           {legalCase.ownRef} · ลูกความ {clientDisplay}
           {showCustomer && ` · ลูกค้า ${customerDisplay}`}
         </p>
-        {suggestedPlaybook && !playbookApplied && (
+        {suggestedPlaybook && !hasAppliedPlaybook && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
             <p className="text-sm">
               แนะนำ Playbook <span className="font-medium">{suggestedPlaybook.name}</span> — {suggestedPlaybook.steps.length} ขั้นตอนที่คดีประเภทนี้ต้องทำ
@@ -1499,20 +1497,31 @@ export default function CaseDetailPage() {
                   ))}
                 </div>
               )}
-              <div className="space-y-1.5 border-t border-border pt-2">
-                <p className="text-xs font-medium text-muted-foreground">เลือก Playbook</p>
-                <select
-                  className="h-9 w-full rounded-lg border bg-background px-2 text-sm"
-                  value=""
-                  disabled={applyingPlaybook || !unappliedPlaybooks.length}
-                  onChange={(e) => e.target.value && applyPlaybook(e.target.value)}
-                >
-                  <option value="">{unappliedPlaybooks.length ? '— เลือก Playbook เพื่อใช้ —' : 'ใช้ครบทุก Playbook แล้ว'}</option>
-                  {unappliedPlaybooks.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} · v{p.version}</option>
-                  ))}
-                </select>
-              </div>
+              {!hasAppliedPlaybook && playbooks.length > 0 && (
+                <div className="space-y-1.5 border-t border-border pt-2">
+                  <p className="text-xs font-medium text-muted-foreground">เลือก Playbook (ใช้ได้ครั้งเดียวต่อคดี)</p>
+                  <div className="flex gap-2">
+                    <select
+                      className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm"
+                      value={pendingPlaybookId}
+                      disabled={applyingPlaybook}
+                      onChange={(e) => setPendingPlaybookId(e.target.value)}
+                    >
+                      <option value="">— เลือก Playbook —</option>
+                      {playbooks.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} · v{p.version}</option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      disabled={!pendingPlaybookId || applyingPlaybook}
+                      onClick={() => applyPlaybook(pendingPlaybookId)}
+                    >
+                      {applyingPlaybook ? 'กำลังใช้…' : 'ยืนยันใช้'}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card>

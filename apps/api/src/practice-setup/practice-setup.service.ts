@@ -142,6 +142,10 @@ export class PracticeSetupService {
       await db.$queryRaw`SELECT "id" FROM "Case" WHERE "id" = ${caseId} FOR UPDATE`;
       const preview = await this.previewPlaybook(user, caseId, releaseId, db);
       if (preview.existing) return preview.existing;
+      // ต่อคดีหนึ่งใช้ได้แค่ Playbook เดียว — กันข้อมูลปนกันถ้าเลือกผิดแล้วกดซ้ำ
+      if (await db.appliedPlaybook.count({ where: { caseId } })) {
+        throw new BadRequestException('คดีนี้ใช้ Playbook ไปแล้ว ใช้ได้เพียงรุ่นเดียวต่อคดี');
+      }
       const [team, firmMembers] = await Promise.all([
         db.caseAssignment.findMany({ where: { caseId }, select: { userId: true } }),
         db.firmMember.findMany({ where: { firmId: user.firmId }, select: { userId: true, role: true } }),

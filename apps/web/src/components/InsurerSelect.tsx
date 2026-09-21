@@ -54,7 +54,7 @@ export function InsurerSelect({
     setCreating(true);
     setError(null);
     try {
-      const created = await api.createClient(token, { name: value.trim(), type: INSURER_TYPE });
+      const created = await api.createClient(token, { name: value.trim(), type: INSURER_TYPE, contacts: [] });
       setInsurers((prev) => [...prev, created]);
       onChange(created.name);
       setOpen(false);
