@@ -539,6 +539,25 @@ export default function CaseDetailPage() {
       .catch(console.error);
   };
 
+  const toggleRequiredDoc = (category: string, present: boolean) => {
+    if (!token) return;
+    api.setDocumentConfirmed(token, id, category, !present).then(setRequiredDocs).catch(console.error);
+  };
+
+  const unappliedPlaybooks = playbooks.filter((p) => !tasks.some((t) => t.labels.includes(`playbook:${p.id}`)));
+  const applyPlaybook = async (releaseId: string) => {
+    if (!token || !releaseId) return;
+    setApplyingPlaybook(true);
+    try {
+      await setupRequest(token, `/cases/${id}/apply`, { releaseId });
+      loadCase();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setApplyingPlaybook(false);
+    }
+  };
+
   // Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · existing Samnuan tokens
   return (
     <div className="min-w-0 [overflow-wrap:anywhere]">
@@ -1435,50 +1454,67 @@ export default function CaseDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-4 row-start-1 lg:col-span-5 lg:col-start-8 lg:row-span-2">
-          {(checklistTasks.length > 0 || requiredDocs.required.length > 0) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">
-                  เช็คลิสต์คดี
-                  {(() => {
-                    const done = checklistTasks.filter((t) => t.status === 'DONE').length + requiredDocs.required.filter((r) => r.present).length;
-                    const total = checklistTasks.length + requiredDocs.required.length;
-                    return total > 0 ? ` (${done}/${total})` : '';
-                  })()}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {checklistTasks.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-muted-foreground">งานที่ต้องทำ</p>
-                    {checklistTasks.map((t) => (
-                      <label key={t.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={t.status === 'DONE'}
-                          onChange={() => toggleChecklistTask(t)}
-                          className="h-4 w-4 rounded border-input"
-                        />
-                        <span className={t.status === 'DONE' ? 'text-muted-foreground line-through' : ''}>{t.title}</span>
-                        {t.assignee && <span className="text-xs text-muted-foreground">· {t.assignee.firstName}</span>}
-                      </label>
-                    ))}
-                  </div>
-                )}
-                {requiredDocs.required.length > 0 && (
-                  <div className="space-y-1.5 border-t border-border pt-2">
-                    <p className="text-xs font-medium text-muted-foreground">เอกสารที่ต้องมี</p>
-                    {requiredDocs.required.map((r) => (
-                      <div key={r.category} className="flex items-center gap-2 text-sm">
-                        <span className={`h-4 w-4 rounded-full border ${r.present ? 'border-green-600 bg-green-600' : 'border-input'}`} aria-hidden />
-                        <span className={r.present ? '' : 'text-muted-foreground'}>{documentCategoryLabel(r.category)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">
+                เช็คลิสต์คดี
+                {(() => {
+                  const done = checklistTasks.filter((t) => t.status === 'DONE').length + requiredDocs.required.filter((r) => r.present).length;
+                  const total = checklistTasks.length + requiredDocs.required.length;
+                  return total > 0 ? ` (${done}/${total})` : '';
+                })()}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {checklistTasks.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">งานที่ต้องทำ</p>
+                  {checklistTasks.map((t) => (
+                    <label key={t.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={t.status === 'DONE'}
+                        onChange={() => toggleChecklistTask(t)}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      <span className={t.status === 'DONE' ? 'text-muted-foreground line-through' : ''}>{t.title}</span>
+                      {t.assignee && <span className="text-xs text-muted-foreground">· {t.assignee.firstName}</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {requiredDocs.required.length > 0 && (
+                <div className="space-y-1.5 border-t border-border pt-2">
+                  <p className="text-xs font-medium text-muted-foreground">เอกสารที่ต้องมี</p>
+                  {requiredDocs.required.map((r) => (
+                    <label key={r.category} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={r.present}
+                        onChange={() => toggleRequiredDoc(r.category, r.present)}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      <span className={r.present ? 'text-muted-foreground line-through' : ''}>{documentCategoryLabel(r.category)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <div className="space-y-1.5 border-t border-border pt-2">
+                <p className="text-xs font-medium text-muted-foreground">เลือก Playbook</p>
+                <select
+                  className="h-9 w-full rounded-lg border bg-background px-2 text-sm"
+                  value=""
+                  disabled={applyingPlaybook || !unappliedPlaybooks.length}
+                  onChange={(e) => e.target.value && applyPlaybook(e.target.value)}
+                >
+                  <option value="">{unappliedPlaybooks.length ? '— เลือก Playbook เพื่อใช้ —' : 'ใช้ครบทุก Playbook แล้ว'}</option>
+                  {unappliedPlaybooks.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} · v{p.version}</option>
+                  ))}
+                </select>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm">งานที่ต้องทำ</CardTitle>

@@ -64,30 +64,35 @@ export default function CaseTypesPage() {
 
       {showForm && (
         <Card className="mb-6">
-          <CardContent className="p-4 sm:p-6">
-            <form onSubmit={handleCreate} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="flex-1">
-                <label className="text-sm font-medium">{d.admin.name}</label>
-                <Input
-                  required
-                  placeholder={d.admin.namePlaceholder}
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="mt-1"
-                />
+          <CardContent className="space-y-4 p-4 sm:p-6">
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="case-type-name" className="text-sm font-medium">{d.admin.name}</label>
+                  <Input
+                    id="case-type-name"
+                    required
+                    placeholder={d.admin.namePlaceholder}
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="mt-1.5"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="case-type-description" className="text-sm font-medium">{d.admin.typeDescription}</label>
+                  <Input
+                    id="case-type-description"
+                    placeholder={d.admin.descriptionPlaceholder}
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    className="mt-1.5"
+                  />
+                </div>
               </div>
-              <div className="flex-1">
-                <label className="text-sm font-medium">{d.admin.typeDescription}</label>
-                <Input
-                  placeholder={d.admin.descriptionPlaceholder}
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="mt-1"
-                />
-              </div>
-              <div className="flex-1 basis-full">
-                <label className="text-sm font-medium">หมวดเอกสารที่คดีประเภทนี้ต้องมี</label>
-                <div className="mt-1 flex flex-wrap gap-1.5">
+
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-sm font-medium">หมวดเอกสารที่คดีประเภทนี้ต้องมี</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   {Object.values(DocumentCategory).map((value) => {
                     const picked = form.requiredDocs.includes(value);
                     return (
@@ -102,10 +107,10 @@ export default function CaseTypesPage() {
                               : [...form.requiredDocs, value],
                           })
                         }
-                        className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+                        className={`min-h-9 rounded-full border px-3 py-1 text-xs transition-colors ${
                           picked
-                            ? 'bg-primary text-primary-foreground'
-                            : 'border bg-card text-muted-foreground hover:border-primary/40'
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-input bg-card text-muted-foreground hover:border-primary/40'
                         }`}
                       >
                         {documentCategoryLabel(value, 'th')}
@@ -114,7 +119,11 @@ export default function CaseTypesPage() {
                   })}
                 </div>
               </div>
-              <Button type="submit" className="w-full sm:w-auto">{d.common.save}</Button>
+
+              <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+                <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>{d.common.cancel}</Button>
+                <Button type="submit">{d.common.save}</Button>
+              </div>
             </form>
           </CardContent>
         </Card>

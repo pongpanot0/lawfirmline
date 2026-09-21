@@ -1404,6 +1404,13 @@ export const api = {
   getRequiredDocuments: (token: string, caseId: string) =>
     request<RequiredDocumentsResult>(`/cases/${caseId}/documents/required`, { token }),
 
+  setDocumentConfirmed: (token: string, caseId: string, category: string, confirmed: boolean) =>
+    request<RequiredDocumentsResult>(`/cases/${caseId}/documents/required`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ category, confirmed }),
+    }),
+
   updateDocumentCategory: (token: string, caseId: string, documentId: string, category: string | null) =>
     request<{ id: string }>(`/cases/${caseId}/documents/${documentId}/metadata`, {
       method: 'PATCH',

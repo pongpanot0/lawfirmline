@@ -450,21 +450,38 @@ export class DocumentsService {
       select: {
         caseType: { select: { requiredDocuments: true } },
         documents: { select: { category: true } },
+        confirmedDocuments: true,
       },
     });
     if (!legalCase) throw new NotFoundException('Case not found');
 
     // requiredDocuments เก็บได้ทั้งค่า DocumentCategory (เทียบกับเอกสารที่อัปโหลด
-    // จริงได้) และข้อความอิสระที่สำนักงานพิมพ์เอง (เทียบไม่ได้ ถือเป็นรายการเตือน
-    // ที่ต้องจัดการเอง ไม่มีวันขึ้น present อัตโนมัติ)
+    // จริงได้) และข้อความอิสระที่สำนักงานพิมพ์เอง (เทียบอัตโนมัติไม่ได้ — ต้องให้
+    // ทีมติ๊กเองว่า "มีแล้ว" ผ่าน confirmedDocuments)
     const required = ((legalCase.caseType?.requiredDocuments as string[] | null) ?? []).filter(
       (item): item is string => typeof item === 'string' && item.trim().length > 0,
     );
-    const present = new Set<string>(legalCase.documents.map((doc) => doc.category));
+    const uploaded = new Set<string>(legalCase.documents.map((doc) => doc.category));
+    const confirmed = new Set<string>(legalCase.confirmedDocuments);
+    const present = (category: string) => uploaded.has(category) || confirmed.has(category);
     return {
-      required: required.map((category) => ({ category, present: present.has(category) })),
-      missing: required.filter((category) => !present.has(category)),
+      required: required.map((category) => ({ category, present: present(category) })),
+      missing: required.filter((category) => !present(category)),
     };
+  }
+
+  /** ติ๊ก/ยกเลิกติ๊กเอกสารที่ต้องมีด้วยมือ — ใช้กับเอกสารข้อความอิสระที่เทียบอัตโนมัติไม่ได้ */
+  async setDocumentConfirmed(caseId: string, category: string, confirmed: boolean) {
+    const legalCase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: { confirmedDocuments: true },
+    });
+    if (!legalCase) throw new NotFoundException('Case not found');
+    const next = confirmed
+      ? Array.from(new Set([...legalCase.confirmedDocuments, category]))
+      : legalCase.confirmedDocuments.filter((c) => c !== category);
+    await this.prisma.case.update({ where: { id: caseId }, data: { confirmedDocuments: next } });
+    return this.getRequiredDocuments(caseId);
   }
 
   async updateVisibility(user: AuthUser, caseId: string, documentId: string, visibleToClient: boolean) {

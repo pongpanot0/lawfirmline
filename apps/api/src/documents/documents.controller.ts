@@ -15,7 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { DocumentsService } from './documents.service';
 import { UpdateDocumentVisibilityDto } from './dto/update-visibility.dto';
-import { DocumentMetadataDto, DocumentQueryDto } from './dto/document-metadata.dto';
+import { DocumentMetadataDto, DocumentQueryDto, SetDocumentConfirmedDto } from './dto/document-metadata.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -60,6 +60,14 @@ export class DocumentsController {
   @Get('required')
   getRequiredDocuments(@Param('caseId') caseId: string) {
     return this.documentsService.getRequiredDocuments(caseId);
+  }
+
+  @Patch('required')
+  setDocumentConfirmed(
+    @Param('caseId') caseId: string,
+    @Body() dto: SetDocumentConfirmedDto,
+  ) {
+    return this.documentsService.setDocumentConfirmed(caseId, dto.category, dto.confirmed);
   }
 
   @Patch(':documentId/metadata')

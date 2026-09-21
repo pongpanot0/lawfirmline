@@ -744,6 +744,9 @@ model Case {
   redCaseNumber      String?
   customFields       Json?
   caseTypeId         String?
+  /// เอกสารที่ทีมติ๊กเองว่า "มีแล้ว" (ค่าหมวดหรือข้อความอิสระจาก CaseType.requiredDocuments)
+  /// แยกจากการตรวจจับอัตโนมัติจาก Document.category เพราะเอกสารข้อความอิสระเทียบอัตโนมัติไม่ได้
+  confirmedDocuments String[]    @default([])
   subType            String?
   claimedAmount      Float?
   estimatedFee       Float?

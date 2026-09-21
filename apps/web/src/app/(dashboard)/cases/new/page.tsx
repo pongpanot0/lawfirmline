@@ -8,6 +8,7 @@ import {
 } from '@/lib/case-costs';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { ClientCombobox } from './ClientCombobox';
+import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { useEffect, useRef, useState } from 'react';
@@ -64,6 +65,8 @@ export default function NewCasePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
+  const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
+  const [playbookId, setPlaybookId] = useState('');
 
   const [form, setForm] = useState({
     caseTypeId: '',
@@ -157,6 +160,11 @@ export default function NewCasePage() {
       .catch(() => setError('โหลดข้อมูลฟอร์มไม่สำเร็จ กรุณาลองใหม่'))
       .finally(() => setLoadingTypes(false));
   }, [token, user?.id, retry]);
+
+  useEffect(() => {
+    if (!token) return;
+    setupRequest<PlaybookRelease[]>(token, '/playbooks').then(setPlaybooks).catch(() => setPlaybooks([]));
+  }, [token]);
 
   const clientLabel = form.clientId
     ? (clients.find((c) => c.id === form.clientId)?.name ?? '')
@@ -365,6 +373,9 @@ export default function NewCasePage() {
         setSubmitting(false);
         return;
       }
+      if (playbookId) {
+        await setupRequest(token, `/cases/${created.id}/apply`, { releaseId: playbookId }).catch(console.error);
+      }
       router.push(`/cases/${created.id}`);
     } catch (err) {
       setError(
@@ -501,13 +512,14 @@ export default function NewCasePage() {
                         key={type.id}
                         type="button"
                         aria-pressed={form.caseTypeId === type.id}
-                        onClick={() =>
+                        onClick={() => {
                           setForm((f) =>
                             f.caseTypeId === type.id
                               ? f
                               : { ...f, caseTypeId: type.id, customFields: {} },
-                          )
-                        }
+                          );
+                          setPlaybookId((current) => current || playbooks.find((p) => p.caseTypeId === type.id)?.id || current);
+                        }}
                         className={`rounded-lg border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.caseTypeId === type.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
                       >
                         <span className="flex items-center justify-between gap-2 font-medium">
@@ -529,6 +541,28 @@ export default function NewCasePage() {
                   </div>
                 )}
               </section>
+
+              {playbooks.length > 0 && (
+                <section className="space-y-2 border-t border-border pt-5" aria-label="Playbook">
+                  <label className="block text-sm font-medium" htmlFor="new-case-playbook">
+                    Playbook (ถ้ามี — สร้างงานให้อัตโนมัติหลังเปิดคดี)
+                  </label>
+                  <select
+                    id="new-case-playbook"
+                    className="h-11 w-full rounded-lg border bg-background px-3 text-sm sm:w-96"
+                    value={playbookId}
+                    onChange={(e) => setPlaybookId(e.target.value)}
+                  >
+                    <option value="">— ไม่ใช้ Playbook —</option>
+                    {playbooks.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} · v{p.version}
+                        {p.caseTypeId === form.caseTypeId ? ' (แนะนำ)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </section>
+              )}
 
               <section className="space-y-4 border-t border-border pt-5" aria-label="ลูกค้า ลูกความ และชื่อคดี">
                 <div className="flex items-center gap-2">
