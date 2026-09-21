@@ -466,6 +466,29 @@ export class DecideIntakeDto {
   @IsOptional()
   @IsString()
   clientDecision?: string;
+
+  // ตัดสินใจรับ = เปิดคดีทันที — field ชุดเดียวกับ ConvertToCaseDto
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsUUID()
+  leadLawyerId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  caseTypeId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  claimedAmount?: number;
+
+  /** เหตุผลที่ข้ามผลตรวจ conflict — จำเป็นเมื่อผลล่าสุดไม่ใช่ CLEAR */
+  @IsOptional()
+  @IsString()
+  conflictOverrideReason?: string;
 }
 
 export class NoticeDto {
