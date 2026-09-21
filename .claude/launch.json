@@ -68,6 +68,20 @@
         "PORT=3011 pnpm --filter api run dev"
       ],
       "port": 3011
+    },
+    {
+      "name": "web-worktree",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "web",
+        "exec",
+        "next",
+        "dev",
+        "--port",
+        "3016"
+      ],
+      "port": 3016
     }
   ]
 }
