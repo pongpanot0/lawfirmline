@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { api, ClientItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 /**
  * เลือกลูกค้าจากที่มีอยู่ หรือพิมพ์ชื่อสร้างใหม่ตรงนี้เลย
@@ -55,10 +58,10 @@ export function CustomerSelect({
         {label}
       </label>
       {creating ? (
-        <div className="mt-1 space-y-2">
-          <input
+        <div className="mt-1.5 space-y-2 rounded-lg border border-dashed border-input bg-muted/30 p-2.5">
+          <Input
             id={id}
-            aria-label={`ชื่อลูกค้าใหม่`}
+            aria-label="ชื่อลูกค้าใหม่"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
@@ -69,20 +72,20 @@ export function CustomerSelect({
               }
             }}
             placeholder="ชื่อบริษัท หรือชื่อผู้ว่าจ้าง"
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            autoFocus
           />
-          <div className="flex items-center gap-3 text-sm">
-            <button
-              type="button"
-              onClick={create}
-              disabled={busy || !name.trim()}
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-white disabled:opacity-50"
-            >
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" onClick={create} disabled={busy || !name.trim()}>
               {busy ? 'กำลังสร้าง…' : 'สร้างลูกค้า'}
-            </button>
-            <button type="button" onClick={() => { setCreating(false); setError(''); }} className="underline">
-              ยกเลิก
-            </button>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setCreating(false); setError(''); setName(''); }}
+            >
+              <X className="h-3.5 w-3.5" /> ยกเลิก
+            </Button>
           </div>
           {error && (
             <p role="alert" className="text-sm text-destructive">
@@ -91,12 +94,12 @@ export function CustomerSelect({
           )}
         </div>
       ) : (
-        <div className="mt-1 space-y-1">
+        <div className="mt-1.5 flex items-center gap-2">
           <select
             id={id}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            className="h-9 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm shadow-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">ยังไม่ระบุ</option>
             {clients.map((client) => (
@@ -105,9 +108,15 @@ export function CustomerSelect({
               </option>
             ))}
           </select>
-          <button type="button" onClick={() => setCreating(true)} className="text-sm underline">
-            + สร้างลูกค้าใหม่
-          </button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => setCreating(true)}
+          >
+            <Plus className="h-3.5 w-3.5" /> ใหม่
+          </Button>
         </div>
       )}
     </div>
