@@ -512,74 +512,11 @@ export default function NewCasePage() {
                 )}
               </section>
 
-              <section className="space-y-4 border-t border-border pt-5" aria-label="ลูกความ ลูกค้า และชื่อคดี">
+              <section className="space-y-4 border-t border-border pt-5" aria-label="ลูกค้า ลูกความ และชื่อคดี">
                 <div className="flex items-center gap-2">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">2</span>
-                  <h3 className="text-sm font-semibold">ลูกความ ลูกค้า และชื่อคดี</h3>
+                  <h3 className="text-sm font-semibold">ลูกค้า ลูกความ และชื่อคดี</h3>
                 </div>
-                <div>
-                  <label htmlFor="client-combobox" className={fieldLabel}>
-                    ลูกความ{' '}
-                    <span className="font-normal text-muted-foreground">
-                      (ผู้ที่เราว่าความให้ — เพิ่มภายหลังได้)
-                    </span>
-                  </label>
-                  <ClientCombobox
-                    id="client-combobox"
-                    clients={clients}
-                    clientId={form.clientId}
-                    clientName={form.clientName}
-                    disabled={form.useTmpClient}
-                    onSelectClient={(client) =>
-                      setForm({
-                        ...form,
-                        clientId: client.id,
-                        clientName: client.name,
-                        useTmpClient: false,
-                      })
-                    }
-                    onFreeText={(name) =>
-                      setForm({ ...form, clientId: '', clientName: name })
-                    }
-                  />
-                  {!form.clientId && form.clientName.trim() && !form.useTmpClient && (
-                    <div className="mt-2 space-y-1">
-                      <label className="block text-xs font-medium text-muted-foreground">
-                        ลูกความใหม่ — เลือกประเภท (สร้างทะเบียนลูกค้าให้อัตโนมัติตอนบันทึก)
-                      </label>
-                      <select
-                        value={form.clientType}
-                        onChange={(e) => setForm({ ...form, clientType: e.target.value })}
-                        className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
-                      >
-                        <option value="INDIVIDUAL">บุคคลธรรมดา</option>
-                        <option value="COMPANY">นิติบุคคล</option>
-                      </select>
-                    </div>
-                  )}
-                  <label className="mt-3 flex items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={form.useTmpClient}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          useTmpClient: e.target.checked,
-                          clientId: e.target.checked ? '' : form.clientId,
-                        })
-                      }
-                    />
-                    ยังไม่ทราบชื่อลูกความ ระบุภายหลัง
-                  </label>
-                  {form.useTmpClient && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      จะใช้ชื่อ "{TMP_CLIENT_PLACEHOLDER}" ชั่วคราว
-                      ยกเลิกเครื่องหมายเพื่อกลับไปกรอกชื่อ
-                    </p>
-                  )}
-                </div>
-
                 <div>
                   <div className="mb-1 flex items-center gap-2">
                     <span className={fieldLabel}>บริษัทประกัน / ผู้มอบหมายงาน (ลูกค้า)</span>
@@ -650,6 +587,69 @@ export default function NewCasePage() {
                         + เพิ่มผู้จ่ายอีกราย
                       </button>
                     </div>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="client-combobox" className={fieldLabel}>
+                    ลูกความ{' '}
+                    <span className="font-normal text-muted-foreground">
+                      (ผู้ที่เราว่าความให้ — เพิ่มภายหลังได้)
+                    </span>
+                  </label>
+                  <ClientCombobox
+                    id="client-combobox"
+                    clients={clients}
+                    clientId={form.clientId}
+                    clientName={form.clientName}
+                    disabled={form.useTmpClient}
+                    onSelectClient={(client) =>
+                      setForm({
+                        ...form,
+                        clientId: client.id,
+                        clientName: client.name,
+                        useTmpClient: false,
+                      })
+                    }
+                    onFreeText={(name) =>
+                      setForm({ ...form, clientId: '', clientName: name })
+                    }
+                  />
+                  {!form.clientId && form.clientName.trim() && !form.useTmpClient && (
+                    <div className="mt-2 space-y-1">
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        ลูกความใหม่ — เลือกประเภท (สร้างทะเบียนลูกค้าให้อัตโนมัติตอนบันทึก)
+                      </label>
+                      <select
+                        value={form.clientType}
+                        onChange={(e) => setForm({ ...form, clientType: e.target.value })}
+                        className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="INDIVIDUAL">บุคคลธรรมดา</option>
+                        <option value="COMPANY">นิติบุคคล</option>
+                      </select>
+                    </div>
+                  )}
+                  <label className="mt-3 flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={form.useTmpClient}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          useTmpClient: e.target.checked,
+                          clientId: e.target.checked ? '' : form.clientId,
+                        })
+                      }
+                    />
+                    ยังไม่ทราบชื่อลูกความ ระบุภายหลัง
+                  </label>
+                  {form.useTmpClient && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      จะใช้ชื่อ "{TMP_CLIENT_PLACEHOLDER}" ชั่วคราว
+                      ยกเลิกเครื่องหมายเพื่อกลับไปกรอกชื่อ
+                    </p>
                   )}
                 </div>
 
