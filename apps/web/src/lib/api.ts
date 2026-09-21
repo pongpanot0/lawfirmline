@@ -281,6 +281,8 @@ export interface CaseItem {
   outcome?: import('@lawfirm/shared').CaseOutcome;
   clientId?: string | null;
   clientName?: string | null;
+  /** ฝ่ายเรา — โจทก์ (PLAINTIFF) หรือจำเลย (DEFENDANT) */
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT' | null;
   courtName?: string | null;
   courtLevel?: import('@lawfirm/shared').CourtLevel | null;
   blackCaseNumber?: string | null;
@@ -726,6 +728,8 @@ export interface IntakeItem {
   customerRef?: string | null;
   matterType?: string | null;
   caseTypeId?: string | null;
+  /** ฝ่ายเรา — โจทก์ (PLAINTIFF) หรือจำเลย (DEFENDANT) */
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT' | null;
   opposingParty?: string | null;
   insurerName?: string | null;
   policyNumber?: string | null;

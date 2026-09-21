@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -162,6 +163,10 @@ export class CreateIntakeDto {
   caseTypeId?: string;
 
   @IsOptional()
+  @IsIn(['PLAINTIFF', 'DEFENDANT'])
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT';
+
+  @IsOptional()
   @Trim()
   @IsString()
   opposingParty?: string;
@@ -310,6 +315,10 @@ export class UpdateIntakeDto {
   @IsOptional()
   @IsUUID()
   caseTypeId?: string;
+
+  @IsOptional()
+  @IsIn(['PLAINTIFF', 'DEFENDANT'])
+  partyRole?: 'PLAINTIFF' | 'DEFENDANT';
 
   @IsOptional()
   @Trim()

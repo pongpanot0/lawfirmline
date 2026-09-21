@@ -295,6 +295,7 @@ export default function IntakeDetailPage() {
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [editOpposingParty, setEditOpposingParty] = useState('');
+  const [editPartyRole, setEditPartyRole] = useState('');
   const [editCustomerRef, setEditCustomerRef] = useState('');
   const [editPolicyNumber, setEditPolicyNumber] = useState('');
   const [editClaimNumber, setEditClaimNumber] = useState('');
@@ -538,6 +539,7 @@ export default function IntakeDetailPage() {
     setEditMatterType(intake.matterType || '');
     setEditCaseTypeId(intake.caseTypeId || '');
     setEditOpposingParty(intake.opposingParty || '');
+    setEditPartyRole(intake.partyRole || '');
     setEditCustomerRef(intake.customerRef || '');
     setEditPolicyNumber(intake.policyNumber || '');
     setEditClaimNumber(intake.claimNumber || '');
@@ -583,6 +585,7 @@ export default function IntakeDetailPage() {
         matterType: editMatterType || undefined,
         caseTypeId: editCaseTypeId || undefined,
         opposingParty: editOpposingParty || undefined,
+        partyRole: editPartyRole || undefined,
         customerRef: editCustomerRef || undefined,
         policyNumber: editPolicyNumber || undefined,
         claimNumber: editClaimNumber || undefined,
@@ -1288,6 +1291,10 @@ export default function IntakeDetailPage() {
             <InfoRow label="เลขอ้างอิงลูกค้า" value={intake.customerRef} />
             <InfoRow label="เลขกรมธรรม์" value={intake.policyNumber} />
             <InfoRow label="เลขเคลม" value={intake.claimNumber} />
+            <InfoRow
+              label="ฝ่ายเรา"
+              value={intake.partyRole === 'PLAINTIFF' ? 'โจทก์' : intake.partyRole === 'DEFENDANT' ? 'จำเลย' : undefined}
+            />
             <InfoRow label="คู่กรณี" value={intake.opposingParty} />
             <InfoRow label="วันเกิดเหตุ" value={formatDateOrDash(intake.incidentDate)} />
             <InfoRow label="ความเสียหาย (บาท)" value={intake.estimatedDamage != null ? intake.estimatedDamage.toLocaleString('th-TH') : undefined} />
@@ -1587,6 +1594,18 @@ export default function IntakeDetailPage() {
                         onChange={(e) => setEditOpposingParty(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium">ฝ่ายเรา</label>
+                      <select
+                        value={editPartyRole}
+                        onChange={(e) => setEditPartyRole(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">ไม่ระบุ</option>
+                        <option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option>
+                        <option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option>
+                      </select>
                     </div>
                   </div>
                   <div>

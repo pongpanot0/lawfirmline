@@ -310,6 +310,7 @@ export class CasesService {
         description: dto.description,
         clientId: dto.clientId,
         clientName: dto.clientName,
+        partyRole: dto.partyRole as any,
         courtName: dto.courtName,
         courtLevel: dto.courtLevel,
         blackCaseNumber: dto.blackCaseNumber || null,

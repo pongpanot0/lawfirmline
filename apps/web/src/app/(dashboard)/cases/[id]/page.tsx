@@ -162,6 +162,7 @@ export default function CaseDetailPage() {
     redCaseNumber: '',
     courtLevel: '' as string,
     courtName: '',
+    partyRole: '',
     claimedAmount: '',
     estimatedFee: '',
     description: '',
@@ -395,6 +396,7 @@ export default function CaseDetailPage() {
       redCaseNumber: legalCase.redCaseNumber ?? '',
       courtLevel: legalCase.courtLevel ?? '',
       courtName: legalCase.courtName ?? '',
+      partyRole: legalCase.partyRole ?? '',
       claimedAmount: legalCase.claimedAmount != null ? String(legalCase.claimedAmount) : '',
       estimatedFee:
         legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
@@ -435,6 +437,7 @@ export default function CaseDetailPage() {
         redCaseNumber: overviewForm.redCaseNumber.trim() || null,
         courtLevel: overviewForm.courtLevel || null,
         courtName: overviewForm.courtName.trim() || null,
+        partyRole: overviewForm.partyRole || null,
         estimatedFee,
         claimedAmount: overviewForm.claimedAmount.trim() ? Number(overviewForm.claimedAmount) : null,
         description: overviewForm.description.trim() || null,
@@ -1062,6 +1065,18 @@ export default function CaseDetailPage() {
                             )}
                         </select>
                       </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">ฝ่ายเรา</label>
+                        <select
+                          value={overviewForm.partyRole}
+                          onChange={(e) => setOverviewForm({ ...overviewForm, partyRole: e.target.value })}
+                          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                        >
+                          <option value="">ไม่ระบุ</option>
+                          <option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option>
+                          <option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option>
+                        </select>
+                      </div>
                     </div>
                   </details>
 
@@ -1112,6 +1127,12 @@ export default function CaseDetailPage() {
               <div>
                 <p className="text-xs text-muted-foreground">ศาล</p>
                 <p className="font-medium">{legalCase.courtName ?? '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">ฝ่ายเรา</p>
+                <p className="font-medium">
+                  {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : legalCase.partyRole === 'DEFENDANT' ? 'จำเลย' : '—'}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">ลูกความ</p>
