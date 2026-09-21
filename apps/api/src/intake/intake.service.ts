@@ -495,6 +495,7 @@ export class IntakeService {
         clientId: dto.clientId,
         clientName: dto.clientName,
         matterType: dto.matterType,
+        caseTypeId: dto.caseTypeId,
         opposingParty: dto.opposingParty,
         customerRef: dto.customerRef,
         insurerName: dto.insurerName,
@@ -602,6 +603,7 @@ export class IntakeService {
         clientName: dto.clientName,
         contactName: dto.contactName,
         matterType: dto.matterType,
+        caseTypeId: dto.caseTypeId,
         opposingParty: dto.opposingParty,
         customerRef: dto.customerRef,
         insurerName: dto.insurerName,
@@ -951,7 +953,7 @@ export class IntakeService {
         leadLawyerId: dto.leadLawyerId ?? user.id,
         intakeId: intake.id,
         limitationDeadline: intake.deadlineDate ?? undefined,
-        caseTypeId: dto.caseTypeId ?? undefined,
+        caseTypeId: dto.caseTypeId ?? intake.caseTypeId ?? undefined,
         // Only what the lawyer confirmed. The intake's estimated damage is a
         // different figure and never becomes the amount claimed by itself.
         claimedAmount: dto.claimedAmount ?? undefined,

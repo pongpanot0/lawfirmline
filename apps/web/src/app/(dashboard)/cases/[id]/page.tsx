@@ -74,6 +74,7 @@ const CaseClosingReportPanel = dynamic(
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
 );
 import { useAuth } from '@/lib/auth';
+import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import {
   api,
@@ -87,8 +88,9 @@ import {
   ApiError,
   IntakePrecedentAnalysisItem,
   type CaseOutstandingResult,
+  type RequiredDocumentsResult,
 } from '@/lib/api';
-import { caseStageOptions } from '@/lib/stage-labels';
+import { caseStageOptions, documentCategoryLabel } from '@/lib/stage-labels';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
@@ -135,6 +137,9 @@ export default function CaseDetailPage() {
   const [legalCase, setCase] = useState<CaseDetail | null>(null);
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [requiredDocs, setRequiredDocs] = useState<RequiredDocumentsResult>({ required: [], missing: [] });
+  const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
+  const [applyingPlaybook, setApplyingPlaybook] = useState(false);
   const [totalSpent, setTotalSpent] = useState(0);
   const [precedentAnalyses, setPrecedentAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,6 +197,8 @@ export default function CaseDetailPage() {
       .listCasePrecedentAnalyses(token, id)
       .then(setPrecedentAnalyses)
       .catch(() => setPrecedentAnalyses([]));
+    api.getRequiredDocuments(token, id).then(setRequiredDocs).catch(() => setRequiredDocs({ required: [], missing: [] }));
+    setupRequest<PlaybookRelease[]>(token, '/playbooks').then(setPlaybooks).catch(() => setPlaybooks([]));
     Promise.all([
       api.getCase(token, id),
       api.getCaseActivities(token, id).catch(() => []),
@@ -503,6 +510,35 @@ export default function CaseDetailPage() {
     .filter((event) => new Date(event.startAt).getTime() >= Date.now())
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
 
+  const suggestedPlaybook = legalCase.caseType
+    ? playbooks.find((p) => p.caseTypeId === legalCase.caseType!.id)
+    : undefined;
+  const playbookApplied = suggestedPlaybook
+    ? tasks.some((t) => t.labels.includes(`playbook:${suggestedPlaybook.id}`))
+    : false;
+  const checklistTasks = tasks.filter((t) => t.labels.some((l) => l.startsWith('playbook:')));
+
+  const applySuggestedPlaybook = async () => {
+    if (!token || !suggestedPlaybook) return;
+    setApplyingPlaybook(true);
+    try {
+      await setupRequest(token, `/cases/${id}/apply`, { releaseId: suggestedPlaybook.id });
+      loadCase();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setApplyingPlaybook(false);
+    }
+  };
+
+  const toggleChecklistTask = (task: TaskItem) => {
+    if (!token) return;
+    api
+      .updateTask(token, id, task.id, { status: task.status === 'DONE' ? 'TODO' : 'DONE' })
+      .then(loadCase)
+      .catch(console.error);
+  };
+
   // Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · existing Samnuan tokens
   return (
     <div className="min-w-0 [overflow-wrap:anywhere]">
@@ -518,6 +554,21 @@ export default function CaseDetailPage() {
           {legalCase.ownRef} · ลูกความ {clientDisplay}
           {showCustomer && ` · ลูกค้า ${customerDisplay}`}
         </p>
+        {suggestedPlaybook && !playbookApplied && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <p className="text-sm">
+              แนะนำ Playbook <span className="font-medium">{suggestedPlaybook.name}</span> — {suggestedPlaybook.steps.length} ขั้นตอนที่คดีประเภทนี้ต้องทำ
+            </p>
+            <button
+              type="button"
+              onClick={applySuggestedPlaybook}
+              disabled={applyingPlaybook}
+              className="inline-flex h-9 shrink-0 items-center rounded-lg border border-primary bg-primary px-3 text-sm text-primary-foreground disabled:opacity-60"
+            >
+              {applyingPlaybook ? 'กำลังใช้…' : 'ใช้เลย'}
+            </button>
+          </div>
+        )}
         {/*
           What a lawyer opens the case to learn, before anything else: who
           holds it, what is next in court, and what is due soonest. The tabs
@@ -1377,6 +1428,50 @@ export default function CaseDetailPage() {
         </div>
 
         <div className="min-w-0 space-y-4 row-start-1 lg:col-span-5 lg:col-start-8 lg:row-span-2">
+          {(checklistTasks.length > 0 || requiredDocs.required.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">
+                  เช็คลิสต์คดี
+                  {(() => {
+                    const done = checklistTasks.filter((t) => t.status === 'DONE').length + requiredDocs.required.filter((r) => r.present).length;
+                    const total = checklistTasks.length + requiredDocs.required.length;
+                    return total > 0 ? ` (${done}/${total})` : '';
+                  })()}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {checklistTasks.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">งานที่ต้องทำ</p>
+                    {checklistTasks.map((t) => (
+                      <label key={t.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={t.status === 'DONE'}
+                          onChange={() => toggleChecklistTask(t)}
+                          className="h-4 w-4 rounded border-input"
+                        />
+                        <span className={t.status === 'DONE' ? 'text-muted-foreground line-through' : ''}>{t.title}</span>
+                        {t.assignee && <span className="text-xs text-muted-foreground">· {t.assignee.firstName}</span>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {requiredDocs.required.length > 0 && (
+                  <div className="space-y-1.5 border-t border-border pt-2">
+                    <p className="text-xs font-medium text-muted-foreground">เอกสารที่ต้องมี</p>
+                    {requiredDocs.required.map((r) => (
+                      <div key={r.category} className="flex items-center gap-2 text-sm">
+                        <span className={`h-4 w-4 rounded-full border ${r.present ? 'border-green-600 bg-green-600' : 'border-input'}`} aria-hidden />
+                        <span className={r.present ? '' : 'text-muted-foreground'}>{documentCategoryLabel(r.category)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-sm">งานที่ต้องทำ</CardTitle>

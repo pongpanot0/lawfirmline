@@ -2,9 +2,10 @@ import { withFirmSlugHeaders } from './firm-slug';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface ImportPreview { id: string; rows: (ImportRow & { row: number; existingClientId: string | null; errors: string[] })[]; canCommit: boolean }
 export interface SetupProgress { members: number; clients: number; cases: number; invites: number; batches: { id: string; status: string; createdAt: string }[] }
-export interface PlaybookStep { title: string; instructions: string; days: number; kind: 'TASK' | 'DOCUMENT' | 'APPROVAL'; parentIndex?: number }
-export interface PlaybookRelease { id: string; name: string; workType: string; version: number; steps: PlaybookStep[] }
-export interface PlaybookPreview { release: PlaybookRelease; existing: { id: string } | null; ownerId: string; steps: (PlaybookStep & { dueAt: string })[] }
+export type FirmRoleStr = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
+export interface PlaybookStep { title: string; instructions: string; primaryRole?: FirmRoleStr; secondaryRole?: FirmRoleStr }
+export interface PlaybookRelease { id: string; name: string; caseTypeId: string | null; version: number; steps: PlaybookStep[] }
+export interface PlaybookPreview { release: PlaybookRelease; existing: { id: string } | null; ownerId: string; steps: PlaybookStep[] }
 export async function setupRequest<T>(token: string, path: string, body?: object): Promise<T> {
   const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/practice-setup${path}`, { method: body ? 'POST' : 'GET', headers: withFirmSlugHeaders({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }), body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
   if (!r.ok) { const error = await r.json().catch(() => ({})); throw new Error(Array.isArray(error.message) ? error.message.join(', ') : error.message ?? `Request failed (${r.status})`); }

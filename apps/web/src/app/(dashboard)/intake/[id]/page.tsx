@@ -16,7 +16,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocumentRequestItem, UserItem, ApiError, ChecklistClassificationSuggestion } from '@/lib/api';
+import { api, IntakeItem, IntakePrecedentAnalysisItem, DocumentItem, IntakeDocumentRequestItem, UserItem, ApiError, ChecklistClassificationSuggestion, CaseTypeItem } from '@/lib/api';
+import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
@@ -289,6 +290,9 @@ export default function IntakeDetailPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editClientName, setEditClientName] = useState('');
   const [editMatterType, setEditMatterType] = useState('');
+  const [editCaseTypeId, setEditCaseTypeId] = useState('');
+  const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
+  const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [editOpposingParty, setEditOpposingParty] = useState('');
   const [editCustomerRef, setEditCustomerRef] = useState('');
   const [editPolicyNumber, setEditPolicyNumber] = useState('');
@@ -373,6 +377,12 @@ export default function IntakeDetailPage() {
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  useEffect(() => {
+    if (!token) return;
+    api.getCaseTypes(token, true).then(setCaseTypes).catch(() => setCaseTypes([]));
+    setupRequest<PlaybookRelease[]>(token, '/playbooks').then(setPlaybooks).catch(() => setPlaybooks([]));
+  }, [token]);
 
   const loadDocumentRequests = useCallback(async () => {
     if (!id || !token) return;
@@ -525,6 +535,7 @@ export default function IntakeDetailPage() {
     setEditTitle(intake.title || '');
     setEditClientName(intake.clientName || '');
     setEditMatterType(intake.matterType || '');
+    setEditCaseTypeId(intake.caseTypeId || '');
     setEditOpposingParty(intake.opposingParty || '');
     setEditCustomerRef(intake.customerRef || '');
     setEditPolicyNumber(intake.policyNumber || '');
@@ -569,6 +580,7 @@ export default function IntakeDetailPage() {
       const payload: Record<string, unknown> = {
         title: editTitle.trim() || undefined,
         matterType: editMatterType || undefined,
+        caseTypeId: editCaseTypeId || undefined,
         opposingParty: editOpposingParty || undefined,
         customerRef: editCustomerRef || undefined,
         policyNumber: editPolicyNumber || undefined,
@@ -1565,6 +1577,27 @@ export default function IntakeDetailPage() {
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">ประเภทคดี (คาดว่าจะเป็น)</label>
+                    <select
+                      value={editCaseTypeId}
+                      onChange={(e) => setEditCaseTypeId(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">ยังไม่ทราบ</option>
+                      {caseTypes.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    {(() => {
+                      const suggested = playbooks.find((p) => p.caseTypeId === editCaseTypeId);
+                      return suggested ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          แนะนำ Playbook &quot;{suggested.name}&quot; ({suggested.steps.length} ขั้นตอน) — จะใช้ได้จริงหลังแปลงเป็นคดี
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>

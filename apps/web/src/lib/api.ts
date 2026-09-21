@@ -378,6 +378,11 @@ export interface CaseActivityItem {
   createdBy: { firstName: string; lastName: string };
 }
 
+export interface RequiredDocumentsResult {
+  required: Array<{ category: string; present: boolean }>;
+  missing: string[];
+}
+
 export interface CaseTypeItem {
   id: string;
   name: string;
@@ -712,6 +717,7 @@ export interface IntakeItem {
   contactName?: string | null;
   customerRef?: string | null;
   matterType?: string | null;
+  caseTypeId?: string | null;
   opposingParty?: string | null;
   insurerName?: string | null;
   policyNumber?: string | null;
@@ -1368,10 +1374,7 @@ export const api = {
     request<{ deleted: boolean }>(`/sops/${id}`, { method: 'DELETE', token }),
 
   getRequiredDocuments: (token: string, caseId: string) =>
-    request<{ required: Array<{ category: string; present: boolean }>; missing: string[] }>(
-      `/cases/${caseId}/documents/required`,
-      { token },
-    ),
+    request<RequiredDocumentsResult>(`/cases/${caseId}/documents/required`, { token }),
 
   updateDocumentCategory: (token: string, caseId: string, documentId: string, category: string | null) =>
     request<{ id: string }>(`/cases/${caseId}/documents/${documentId}/metadata`, {

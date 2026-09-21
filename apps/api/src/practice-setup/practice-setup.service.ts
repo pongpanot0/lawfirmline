@@ -4,12 +4,33 @@ import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { AutomationLogService } from '../common/services/automation-log.service';
-import { addBangkokDays } from '../common/utils/bangkok-time';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface CheckedRow extends ImportRow { row: number; existingClientId: string | null; errors: string[] }
 export interface Ledger { cases: { id: string; updatedAt: string }[]; clients: { id: string; updatedAt: string }[] }
-export interface PlaybookStep { title: string; days: number; instructions: string; kind: 'TASK' | 'DOCUMENT' | 'APPROVAL'; parentIndex?: number; assigneeRole?: 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT' }
+export type FirmRoleStr = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
+export interface PlaybookStep { title: string; instructions: string; primaryRole?: FirmRoleStr; secondaryRole?: FirmRoleStr }
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
+
+/**
+ * Who a playbook step's task goes to: prefer the primary role, then the
+ * secondary role, each restricted first to firm members already on the case
+ * team before any firm member with that role — only when nobody in the
+ * office holds either role does it fall back to the case's lead lawyer.
+ */
+export function resolveAssignee(params: {
+  primaryRole?: string;
+  secondaryRole?: string;
+  firmMembers: { userId: string; role: string }[];
+  teamIds: Set<string>;
+  ownerId: string;
+}): string {
+  const pick = (role?: string) => {
+    if (!role) return undefined;
+    const withRole = params.firmMembers.filter((m) => m.role === role);
+    return withRole.find((m) => params.teamIds.has(m.userId))?.userId ?? withRole[0]?.userId;
+  };
+  return pick(params.primaryRole) ?? pick(params.secondaryRole) ?? params.ownerId;
+}
 @Injectable()
 export class PracticeSetupService {
   constructor(private prisma: PrismaService, private access: CaseAccessService, private automationLog: AutomationLogService) {}
@@ -94,45 +115,44 @@ export class PracticeSetupService {
     }, { timeout: 30000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
   async listPlaybooks(user: AuthUser) { return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
-  async publish(user: AuthUser, dto: { name: string; workType: string; caseTypeId?: string; steps: PlaybookStep[] }) {
+  async publish(user: AuthUser, dto: { name: string; caseTypeId: string; steps: PlaybookStep[] }) {
     this.owner(user);
-    if (!dto.name.trim() || dto.steps.some((s, i) => !s.title.trim() || (s.parentIndex !== undefined && (s.parentIndex < 0 || s.parentIndex >= i)))) throw new BadRequestException('ชื่อและลำดับงานไม่ถูกต้อง / Invalid name or dependency order');
-    if (dto.caseTypeId && !(await this.prisma.caseType.count({ where: { id: dto.caseTypeId, firmId: user.firmId } }))) throw new BadRequestException('ไม่พบประเภทคดีนี้ในสำนักงาน / Case type not found in this firm');
+    if (!dto.name.trim() || !dto.steps.length || dto.steps.some((s) => !s.title.trim())) throw new BadRequestException('ชื่อ Playbook และชื่อขั้นตอนห้ามว่าง / Name and step titles are required');
+    if (!(await this.prisma.caseType.count({ where: { id: dto.caseTypeId, firmId: user.firmId } }))) throw new BadRequestException('ไม่พบประเภทคดีนี้ในสำนักงาน / Case type not found in this firm');
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
       const previous = await db.playbookRelease.findFirst({ where: { firmId: user.firmId, name: dto.name.trim() }, orderBy: { version: 'desc' } });
-      const release = await db.playbookRelease.create({ data: { firmId: user.firmId, name: dto.name.trim(), workType: dto.workType, caseTypeId: dto.caseTypeId ?? null, steps: json(dto.steps), version: (previous?.version ?? 0) + 1, publishedById: user.id } });
+      // workType is a legacy required column; the case type is now the real
+      // key, so it's just mirrored from the name rather than asked for again.
+      const release = await db.playbookRelease.create({ data: { firmId: user.firmId, name: dto.name.trim(), workType: dto.name.trim(), caseTypeId: dto.caseTypeId, steps: json(dto.steps), version: (previous?.version ?? 0) + 1, publishedById: user.id } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PLAYBOOK_PUBLISHED', metadata: { releaseId: release.id, version: release.version } } }); return release;
     });
   }
-  async previewPlaybook(user: AuthUser, caseId: string, releaseId: string, startDate: string, db: Prisma.TransactionClient = this.prisma) {
+  async previewPlaybook(user: AuthUser, caseId: string, releaseId: string, db: Prisma.TransactionClient = this.prisma) {
     const [c, release] = await Promise.all([db.case.findFirst({ where: { id: caseId, ...this.access.getCaseFilterForUser(user) } }), db.playbookRelease.findFirst({ where: { id: releaseId, firmId: user.firmId } })]);
     if (!c || !release) throw new NotFoundException('Case or playbook unavailable');
     if (c.status === 'CLOSED') throw new BadRequestException('Case is closed');
     const existing = await db.appliedPlaybook.findUnique({ where: { caseId_releaseId: { caseId, releaseId } } });
     const steps = release.steps as unknown as PlaybookStep[];
-    return { release, existing, ownerId: c.leadLawyerId, steps: steps.map(s => ({ ...s, dueAt: addBangkokDays(new Date(startDate), s.days).toISOString() })) };
+    return { release, existing, ownerId: c.leadLawyerId, steps };
   }
-  async applyPlaybook(user: AuthUser, caseId: string, releaseId: string, startDate: string) {
+  async applyPlaybook(user: AuthUser, caseId: string, releaseId: string) {
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "Case" WHERE "id" = ${caseId} FOR UPDATE`;
-      const preview = await this.previewPlaybook(user, caseId, releaseId, startDate, db);
+      const preview = await this.previewPlaybook(user, caseId, releaseId, db);
       if (preview.existing) return preview.existing;
-      // Role-based default assignee: prefer someone already on the case team
-      // with the step's firm role, else any firm member with it, else the lead.
       const [team, firmMembers] = await Promise.all([
         db.caseAssignment.findMany({ where: { caseId }, select: { userId: true } }),
         db.firmMember.findMany({ where: { firmId: user.firmId }, select: { userId: true, role: true } }),
       ]);
       const teamIds = new Set([preview.ownerId, ...team.map(t => t.userId)]);
-      const resolveAssignee = (role?: string) => {
-        if (!role) return preview.ownerId;
-        const withRole = firmMembers.filter(m => m.role === role);
-        return withRole.find(m => teamIds.has(m.userId))?.userId ?? withRole[0]?.userId ?? preview.ownerId;
-      };
       const taskIds: string[] = [];
-      for (const step of preview.steps) { const task = await db.task.create({ data: { caseId, title: step.title.trim(), description: step.instructions, dueDate: new Date(step.dueAt), assigneeId: resolveAssignee(step.assigneeRole), createdById: user.id, labels: [`playbook:${preview.release.workType}`, `step:${step.kind}`], parentId: step.parentIndex !== undefined ? taskIds[step.parentIndex] : null } }); taskIds.push(task.id); }
-      const applied = await db.appliedPlaybook.create({ data: { caseId, releaseId, startDate: new Date(startDate), taskIds, appliedById: user.id } });
+      for (const step of preview.steps) {
+        const assigneeId = resolveAssignee({ primaryRole: step.primaryRole, secondaryRole: step.secondaryRole, firmMembers, teamIds, ownerId: preview.ownerId });
+        const task = await db.task.create({ data: { caseId, title: step.title.trim(), description: step.instructions, assigneeId, createdById: user.id, labels: [`playbook:${releaseId}`] } });
+        taskIds.push(task.id);
+      }
+      const applied = await db.appliedPlaybook.create({ data: { caseId, releaseId, startDate: new Date(), taskIds, appliedById: user.id } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PLAYBOOK_APPLIED', metadata: { caseId, releaseId, taskIds } } }); return applied;
     }).then(async (applied) => {
       await this.automationLog.record({ firmId: user.firmId, automation: 'playbook-apply', trigger: { caseId, releaseId, by: user.id }, result: { taskIds: applied.taskIds } });

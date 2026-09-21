@@ -632,6 +632,7 @@ model CaseType {
 
   firm          Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
   cases         Case[]
+  intakes       Intake[]
   templates     DocumentTemplate[]
   deadlineRules DeadlineRule[]
 
@@ -804,6 +805,9 @@ model Intake {
   /// เลขอ้างอิงฝั่งลูกค้า — ติดไปที่ Case.customerRef ตอนแปลงเป็นคดี
   customerRef           String?
   matterType            String?
+  /// ประเภทคดีที่คาดว่าจะเป็น — เลือกได้ตั้งแต่รับเรื่อง เพื่อแนะนำ Playbook
+  /// ก่อนแปลงเป็นคดีจริง; แปลงเป็นคดีแล้วยังเปลี่ยนได้อีกทีที่ Case.caseTypeId
+  caseTypeId            String?
   opposingParty         String?
   incidentDate          DateTime?
   /// งานประกัน: กรอกได้ตั้งแต่รับเรื่อง แล้วตามไปเปิดเคลมให้ตอนแปลงเป็นคดี
@@ -858,6 +862,7 @@ model Intake {
   conflictChecks         ConflictCheck[]
   documentRequests       IntakeDocumentRequest[]
   client                 Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  caseType               CaseType?                 @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
   case                   Case?
   portalIntakeSubmission PortalIntakeSubmission?
   attachments            IntakeAttachment[]
@@ -875,6 +880,7 @@ model Intake {
   @@index([firmId, status, statusChangedAt])
   @@index([firmId, stage, stageChangedAt])
   @@index([nextFollowUpAt])
+  @@index([caseTypeId])
 }
 
 /// ประวัติการติดตาม lead หนึ่งครั้ง — ทำไปแล้วอะไร และนัดติดตามรอบถัดไปเมื่อไร
