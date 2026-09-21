@@ -1136,8 +1136,11 @@ export class IntakeService {
       data: {
         status: 'CONVERTED' as any,
         statusChangedAt: new Date(),
-        stage: IntakeStage.CLOSED as never,
-        stageChangedAt: new Date(),
+        // เปิดคดีตั้งแต่รับเรื่อง = งานรับเรื่อง/ก่อนฟ้องเพิ่งเริ่ม อย่าปิดขั้นตอน
+        // ปิดเฉพาะ convert ตอนตัดสินใจรับ (เข้าขั้นก่อนฟ้องของคดีแล้ว)
+        ...(initialStage === 'INTAKE_REVIEW'
+          ? {}
+          : { stage: IntakeStage.CLOSED as never, stageChangedAt: new Date() }),
       },
     });
 
