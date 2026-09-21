@@ -73,10 +73,10 @@ export function ThaiDateInput({ value, onChange, id, className, required, disabl
   };
 
   const textClass = 'h-9 w-14 shrink-0 rounded-lg border border-input bg-background px-2 text-center text-sm';
-  const selectClass = 'h-9 min-w-[7.5rem] flex-1 rounded-lg border border-input bg-background px-2 text-sm';
+  const selectClass = 'h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2 text-sm';
 
   return (
-    <div className={`flex flex-wrap gap-1.5 ${className ?? ''}`} id={id}>
+    <div className={`flex gap-1.5 ${className ?? ''}`} id={id}>
       <input
         aria-label="วัน"
         inputMode="numeric"

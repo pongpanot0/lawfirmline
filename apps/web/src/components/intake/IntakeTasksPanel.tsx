@@ -12,7 +12,12 @@ import { Plus, Trash2 } from 'lucide-react';
  * งาน/checklist ของเรื่องรับเข้า — intake คืองานก่อนฟ้องที่ทนายทำจริง
  * จึงต้องมี to-do ของตัวเองเหมือนคดี; เปิดคดีแล้วงานพวกนี้ตามไปเป็นงานคดีอัตโนมัติ
  */
-export function IntakeTasksPanel({ intakeId, lawyers }: { intakeId: string; lawyers: UserItem[] }) {
+export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
+  intakeId: string;
+  lawyers: UserItem[];
+  /** รายงานจำนวนงาน (เสร็จ/ทั้งหมด) ให้หน้าแม่ไปโชว์ใน summary strip */
+  onCountsChange?: (counts: { done: number; total: number }) => void;
+}) {
   const { token } = useAuth();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [title, setTitle] = useState('');
@@ -27,6 +32,11 @@ export function IntakeTasksPanel({ intakeId, lawyers }: { intakeId: string; lawy
   }, [token, intakeId]);
 
   useEffect(reload, [reload]);
+
+  useEffect(() => {
+    onCountsChange?.({ done: tasks.filter((t) => t.status === 'DONE').length, total: tasks.length });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
 
   const add = async () => {
     if (!token || !title.trim() || busy) return;

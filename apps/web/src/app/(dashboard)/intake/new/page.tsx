@@ -74,6 +74,7 @@ export default function NewIntakePage() {
     receivedDate: today,
     caseTypeId: '',
     playbookId: '',
+    leadLawyerId: '',
   });
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
@@ -188,6 +189,7 @@ export default function NewIntakePage() {
       if (form.opposingParty.trim()) payload.opposingParty = form.opposingParty.trim();
       if (form.caseTypeId) payload.caseTypeId = form.caseTypeId;
       if (form.playbookId) payload.preferredPlaybookId = form.playbookId;
+      if (form.leadLawyerId) payload.leadLawyerId = form.leadLawyerId;
       if (assignedIds.length > 0) payload.assignedUserIds = assignedIds;
       if (clientId) {
         payload.clientId = clientId;
@@ -310,6 +312,30 @@ export default function NewIntakePage() {
                   onChange={(e) => set('opposingParty', e.target.value)}
                   className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                   placeholder="ชื่อคู่กรณี"
+                />
+              </div>
+              <div>
+                <label htmlFor="intake-insurerName" className="block text-xs font-semibold">บริษัทประกัน (ถ้ามี)</label>
+                <InsurerSelect id="intake-insurerName" value={form.insurerName} onChange={(name) => set('insurerName', name)} />
+              </div>
+              <div>
+                <label htmlFor="intake-policyNumber" className="block text-xs font-semibold">เลขกรมธรรม์</label>
+                <input
+                  id="intake-policyNumber"
+                  value={form.policyNumber}
+                  onChange={(e) => set('policyNumber', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="POL-..."
+                />
+              </div>
+              <div>
+                <label htmlFor="intake-claimNumber" className="block text-xs font-semibold">เลขเคลม</label>
+                <input
+                  id="intake-claimNumber"
+                  value={form.claimNumber}
+                  onChange={(e) => set('claimNumber', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="CLM-..."
                 />
               </div>
             </div>
@@ -582,11 +608,24 @@ export default function NewIntakePage() {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-semibold">ทีมทำงาน</label>
+                <label htmlFor="intake-leadLawyerId" className="block text-xs font-semibold">ทีมทำงาน</label>
                 <div className="mt-1 space-y-2">
-                  <div className="w-full rounded-lg border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                    ทนายหลัก: {user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || 'ฉันเอง' : 'ฉันเอง'} (ฉันเอง)
-                  </div>
+                  <select
+                    id="intake-leadLawyerId"
+                    aria-label="ทนายหลัก"
+                    value={form.leadLawyerId}
+                    onChange={(e) => set('leadLawyerId', e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">
+                      ทนายหลัก: {user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || 'ฉันเอง' : 'ฉันเอง'} (ฉันเอง)
+                    </option>
+                    {lawyers.filter((u) => u.id !== user?.id).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        ทนายหลัก: {`${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || u.email}
+                      </option>
+                    ))}
+                  </select>
                   {assignable.length > 0 ? (
                     <MultiUserSelect
                       users={assignable}
@@ -629,38 +668,6 @@ export default function NewIntakePage() {
               </div>
             )}
             <p className="mt-2 text-xs text-muted-foreground">checklist เอกสารตามประเภทคดีจะถูกสร้างให้อัตโนมัติหลังบันทึก</p>
-          </section>
-
-          {/* 5 · งานประกัน */}
-          <section className="rounded-2xl border bg-card p-5 shadow-sm">
-            <h2 className="mb-1 text-[15px] font-bold">5 · งานประกัน (ถ้ามี)</h2>
-            <p className="mb-3 text-sm text-muted-foreground">กรอกบริษัทประกันไว้ ระบบเปิดการติดตามเคลมให้อัตโนมัติ</p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <label htmlFor="intake-insurerName" className="block text-xs font-semibold">บริษัทประกัน</label>
-                <InsurerSelect id="intake-insurerName" value={form.insurerName} onChange={(name) => set('insurerName', name)} />
-              </div>
-              <div>
-                <label htmlFor="intake-policyNumber" className="block text-xs font-semibold">เลขกรมธรรม์</label>
-                <input
-                  id="intake-policyNumber"
-                  value={form.policyNumber}
-                  onChange={(e) => set('policyNumber', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="POL-..."
-                />
-              </div>
-              <div>
-                <label htmlFor="intake-claimNumber" className="block text-xs font-semibold">เลขเคลม</label>
-                <input
-                  id="intake-claimNumber"
-                  value={form.claimNumber}
-                  onChange={(e) => set('claimNumber', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="CLM-..."
-                />
-              </div>
-            </div>
           </section>
 
           {error && (
