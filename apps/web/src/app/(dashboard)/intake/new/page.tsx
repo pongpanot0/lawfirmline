@@ -269,7 +269,7 @@ export default function NewIntakePage() {
               </div>
               <div>
                 <label htmlFor="intake-receivedDate" className="block text-xs font-semibold">วันที่รับเรื่อง *</label>
-                <ThaiDateInput id="intake-receivedDate" required value={form.receivedDate} onChange={(v) => set('receivedDate', v)} className="mt-1" />
+                <ThaiDateInput id="intake-receivedDate" required value={form.receivedDate} onChange={(v) => set('receivedDate', v)} className="mt-1 !flex-nowrap [&>select]:!min-w-0" />
               </div>
               <div>
                 <label htmlFor="intake-partyRole" className="block text-xs font-semibold">ฝ่ายเรา</label>

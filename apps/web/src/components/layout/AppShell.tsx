@@ -27,6 +27,8 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
   // context that the AI panel's "summarize" action can skip re-selecting.
   const caseIdMatch = pathname.match(/^\/cases\/([^/]+)/);
   const activeCaseId = caseIdMatch && caseIdMatch[1] !== 'new' ? caseIdMatch[1] : undefined;
+  const intakeIdMatch = pathname.match(/^\/intake\/([^/]+)/);
+  const activeIntakeId = intakeIdMatch && intakeIdMatch[1] !== 'new' ? intakeIdMatch[1] : undefined;
 
   useEffect(() => {
     document.body.style.overflow = mobileNavOpen ? 'hidden' : '';
@@ -64,7 +66,9 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           {children}
         </main>
       </div>
-      {pathname !== '/work' && pathname !== '/dashboard' && pathname !== '/research' && !pathname.startsWith('/intake') && <AIAssistantPanel caseId={activeCaseId} />}
+      {pathname !== '/work' && pathname !== '/dashboard' && pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (
+        <AIAssistantPanel caseId={activeCaseId} intakeId={activeIntakeId} />
+      )}
       <PageTour pathname={pathname} />
     </div>
   );
