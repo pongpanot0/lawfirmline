@@ -13,7 +13,7 @@ class StepDto {
   @IsOptional() @IsIn(['OWNER', 'SENIOR_LAWYER', 'LAWYER', 'ASSISTANT']) primaryRole?: 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
   @IsOptional() @IsIn(['OWNER', 'SENIOR_LAWYER', 'LAWYER', 'ASSISTANT']) secondaryRole?: 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
 }
-class ReleaseDto { @IsString() @MaxLength(150) name!: string; @IsUUID() caseTypeId!: string; @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StepDto) steps!: StepDto[]; }
+class ReleaseDto { @IsString() @MaxLength(150) name!: string; @IsOptional() @IsUUID() caseTypeId?: string; @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StepDto) steps!: StepDto[]; }
 class ApplyDto { @IsUUID() releaseId!: string; }
 @Controller('practice-setup')
 @UseGuards(JwtAuthGuard)
