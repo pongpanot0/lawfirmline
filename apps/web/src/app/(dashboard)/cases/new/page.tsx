@@ -25,6 +25,8 @@ import {
   FieldSuggestion,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, X } from 'lucide-react';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import type { CaseFieldSchema } from '@lawfirm/shared';
 import {
@@ -575,29 +577,31 @@ export default function NewCasePage() {
                           />
                         )}
                         {customers.length > 1 && (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
                             onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
-                            className="h-10 shrink-0 px-1 text-sm text-muted-foreground underline"
+                            className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
                           >
-                            ลบ
-                          </button>
+                            <X className="h-4 w-4" />
+                          </Button>
                         )}
                       </div>
                     ))}
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
-                      className="text-sm underline"
                     >
-                      + เพิ่มผู้จ่ายอีกราย
-                    </button>
-                    <label className="mt-2 flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
+                      <Plus className="h-3.5 w-3.5" /> เพิ่มผู้จ่ายอีกราย
+                    </Button>
+                    <label className="mt-3 flex items-center gap-2 text-sm">
+                      <Checkbox
                         checked={sameCustomer}
                         onChange={(e) => setSameCustomer(e.target.checked)}
-                        className="h-4 w-4 rounded border-input"
                       />
                       ลูกความคนเดียวกับผู้มอบหมายรายที่ 1
                     </label>
@@ -650,9 +654,8 @@ export default function NewCasePage() {
                     </div>
                   )}
                   <label className="mt-3 flex items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
+                    <Checkbox
+                      className="mt-0.5"
                       checked={form.useTmpClient}
                       onChange={(e) =>
                         setForm({
@@ -692,25 +695,29 @@ export default function NewCasePage() {
                               }
                             />
                           </div>
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
                             aria-label={`ลบลูกความรายที่ ${index + 2}`}
                             onClick={() => setAdditionalClients((rows) => rows.filter((_, i) => i !== index))}
-                            className="h-10 shrink-0 px-1 text-sm text-muted-foreground underline"
+                            className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
                           >
-                            ลบ
-                          </button>
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
                       ))}
                     </div>
                   )}
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
                     onClick={() => setAdditionalClients((rows) => [...rows, { clientId: '' }])}
-                    className="mt-3 text-sm underline"
                   >
-                    + เพิ่มลูกความอีกราย
-                  </button>
+                    <Plus className="h-3.5 w-3.5" /> เพิ่มลูกความอีกราย
+                  </Button>
                 </div>
 
                 <div>
