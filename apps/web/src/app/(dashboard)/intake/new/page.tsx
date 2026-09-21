@@ -42,10 +42,10 @@ export default function NewIntakePage() {
   const [createdIntakeId, setCreatedIntakeId] = useState<string | null>(null);
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
   // ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน (เช่น บริษัทประกัน) ต่างจากลูกความที่เราว่าความให้
-  const [sameCustomer, setSameCustomer] = useState(false);
   const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string }[]>([
     { customerId: '', sharePercent: '' },
   ]);
+  const [sameCustomer, setSameCustomer] = useState(false);
   // ลูกความคนอื่น (เกินคนที่ 1) — เช่น หลายคนร่วมฟ้อง/ถูกฟ้อง
   const [additionalClients, setAdditionalClients] = useState<{ clientId: string }[]>([]);
   const now = new Date();
@@ -99,6 +99,12 @@ export default function NewIntakePage() {
     }));
     if (!clientId) setCreatedClientId(null);
   };
+
+  // ลูกค้าคนเดียวกับลูกความ — ตราบใดที่ติ้กไว้ ผู้มอบหมายรายที่ 1 เป็นตัวกำหนด ลูกความตามไปด้วย
+  useEffect(() => {
+    if (sameCustomer) handleClientChange(customers[0]?.customerId ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sameCustomer, customers[0]?.customerId]);
 
   const handleContactChange = (contactId: string) => {
     const client = clients.find((c) => c.id === form.clientId);
@@ -175,16 +181,13 @@ export default function NewIntakePage() {
         if (form.policyNumber.trim()) payload.policyNumber = form.policyNumber.trim();
         if (form.claimNumber.trim()) payload.claimNumber = form.claimNumber.trim();
       }
-      // ไม่ส่ง customers = ลูกค้าคนเดียวกับลูกความ (ฝั่ง API เติมให้ตอนแปลงเป็นคดี)
-      if (!sameCustomer) {
-        const picked = customers.filter((c) => c.customerId);
-        if (picked.length) {
-          payload.customers = picked.map((c, index) => ({
-            customerId: c.customerId,
-            sharePercent: c.sharePercent ? Number(c.sharePercent) : undefined,
-            isPrimary: index === 0,
-          }));
-        }
+      const pickedCustomers = customers.filter((c) => c.customerId);
+      if (pickedCustomers.length) {
+        payload.customers = pickedCustomers.map((c, index) => ({
+          customerId: c.customerId,
+          sharePercent: c.sharePercent ? Number(c.sharePercent) : undefined,
+          isPrimary: index === 0,
+        }));
       }
       const pickedClients = additionalClients.filter((c) => c.clientId);
       if (pickedClients.length) {
@@ -232,75 +235,73 @@ export default function NewIntakePage() {
               <h2 className="font-semibold">บริษัทประกัน / ผู้มอบหมายงาน</h2>
             </div>
             <p className="mb-3 text-sm text-muted-foreground">
-              คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน
+              คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกันที่จ้างให้ว่าความให้ผู้เอาประกัน — ถ้าลูกความจ่ายเอง เลือกคนเดียวกันได้ที่นี่
             </p>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={sameCustomer}
-                onChange={(e) => setSameCustomer(e.target.checked)}
-                className="h-4 w-4 rounded border-input"
-              />
-              ลูกค้าคนเดียวกับลูกความ
-            </label>
-            {!sameCustomer && (
-              <div className="mt-3 space-y-2">
-                {customers.map((row, index) => (
-                  <div key={index} className="flex items-end gap-2">
-                    <div className="min-w-0 flex-1">
-                      <CustomerSelect
-                        id={`intake-customer-${index}`}
-                        label={`ผู้มอบหมายรายที่ ${index + 1}`}
-                        value={row.customerId}
-                        clients={clients}
-                        onChange={(customerId) =>
-                          setCustomers((rows) =>
-                            rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
-                          )
-                        }
-                        onCreated={(client) =>
-                          setClients((rows) =>
-                            [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
-                          )
-                        }
-                      />
-                    </div>
-                    {customers.length > 1 && <input
-                      aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
-                      value={row.sharePercent}
-                      onChange={(e) =>
+            <div className="space-y-2">
+              {customers.map((row, index) => (
+                <div key={index} className="flex items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CustomerSelect
+                      id={`intake-customer-${index}`}
+                      label={`ผู้มอบหมายรายที่ ${index + 1}`}
+                      value={row.customerId}
+                      clients={clients}
+                      onChange={(customerId) =>
                         setCustomers((rows) =>
-                          rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
+                          rows.map((r, i) => (i === index ? { ...r, customerId } : r)),
                         )
                       }
-                      inputMode="decimal"
-                      placeholder="%"
-                      className="w-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                    />}
-                    {customers.length > 1 && (
-                      <button
-                        type="button"
-                        aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
-                        onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
-                        className="px-2 text-sm text-muted-foreground"
-                      >
-                        ลบ
-                      </button>
-                    )}
+                      onCreated={(client) =>
+                        setClients((rows) =>
+                          [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')),
+                        )
+                      }
+                    />
                   </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
-                  className="text-sm underline"
-                >
-                  + เพิ่มผู้จ่ายอีกราย
-                </button>
-                <p hidden={customers.length < 2} className="text-xs text-muted-foreground">
-                  เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
-                </p>
-              </div>
-            )}
+                  {customers.length > 1 && <input
+                    aria-label={`สัดส่วนที่จ่ายของรายที่ ${index + 1}`}
+                    value={row.sharePercent}
+                    onChange={(e) =>
+                      setCustomers((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, sharePercent: e.target.value } : r)),
+                      )
+                    }
+                    inputMode="decimal"
+                    placeholder="%"
+                    className="w-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  />}
+                  {customers.length > 1 && (
+                    <button
+                      type="button"
+                      aria-label={`ลบลูกค้ารายที่ ${index + 1}`}
+                      onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))}
+                      className="px-2 text-sm text-muted-foreground"
+                    >
+                      ลบ
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCustomers((rows) => [...rows, { customerId: '', sharePercent: '' }])}
+                className="text-sm underline"
+              >
+                + เพิ่มผู้จ่ายอีกราย
+              </button>
+              <p hidden={customers.length < 2} className="text-xs text-muted-foreground">
+                เว้น % ไว้ได้ถ้ายังไม่ตกลงสัดส่วน — รายแรกจะเป็นผู้ว่าจ้างหลัก
+              </p>
+              <label className="mt-2 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={sameCustomer}
+                  onChange={(e) => setSameCustomer(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                ลูกความคนเดียวกับผู้มอบหมายรายที่ 1
+              </label>
+            </div>
           </section>
           <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex items-center gap-2">
@@ -313,21 +314,18 @@ export default function NewIntakePage() {
                 id="intake-clientId"
                 value={form.clientId}
                 onChange={(e) => handleClientChange(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                disabled={sameCustomer}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
               >
                 <option value="">ลูกความใหม่ / ยังไม่ระบุ</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              {!form.clientId && customers[0]?.customerId && (
-                <button
-                  type="button"
-                  onClick={() => handleClientChange(customers[0].customerId)}
-                  className="mt-1 text-sm underline"
-                >
-                  ใช้เป็นคนเดียวกับผู้มอบหมายรายที่ 1
-                </button>
+              {sameCustomer && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  ใช้ค่าเดียวกับผู้มอบหมายรายที่ 1 — ยกเลิกติ๊กด้านบนเพื่อเลือกลูกความอื่น
+                </p>
               )}
             </div>
             {additionalClients.length > 0 && (
@@ -396,7 +394,7 @@ export default function NewIntakePage() {
                 </select>
               </div>
             )}
-            {!form.clientId && (
+            {!form.clientId && !sameCustomer && (
               <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
                 <p className="text-sm text-muted-foreground">
                   กรอกชื่อแล้วระบบจะสร้างลูกความให้อัตโนมัติตอนบันทึก — เติมข้อมูลอื่นทีหลังได้
