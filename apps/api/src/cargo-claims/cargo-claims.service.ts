@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser, CARGO_DOCUMENT_REQUIREMENTS } from '@lawfirm/shared';
+import { AuthUser, CARGO_DOCUMENT_REQUIREMENTS, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { UpdateCargoRequirementDto, UpsertCargoClaimDto } from './dto/cargo-claim.dto';
@@ -134,6 +134,9 @@ export class CargoClaimsService {
 
   private reviewData(user: AuthUser, dto: UpsertCargoClaimDto) {
     if (dto.confirm || dto.reviewStatus === 'CONFIRMED') {
+      if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.LAWYER].includes(user.firmRole as FirmRole)) {
+        throw new ForbiddenException('Only a lawyer may confirm cargo analysis');
+      }
       return { reviewStatus: 'CONFIRMED' as const, confirmedById: user.id, confirmedAt: new Date() };
     }
     return { reviewStatus: 'DRAFT' as const, confirmedById: null, confirmedAt: null };

@@ -100,4 +100,20 @@ describe('CargoClaimsService', () => {
 
     await expect(service.ensureForIntake(user, 'intake-404')).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('records the confirming lawyer and rejects confirmation by an assistant', async () => {
+    const { service, prisma, caseAccess } = setup();
+    const existing = { id: 'cargo-1', caseId: 'case-1', requirements: [] };
+    caseAccess.canAccessCase.mockResolvedValue(true);
+    prisma.cargoClaim.findUnique.mockResolvedValue(existing);
+    prisma.cargoClaim.update.mockImplementation(async ({ data }) => ({ ...existing, ...data }));
+
+    await service.updateForCase(user, 'case-1', { confirm: true });
+    expect(prisma.cargoClaim.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ reviewStatus: 'CONFIRMED', confirmedById: user.id }),
+    }));
+
+    const assistant = { ...user, id: 'assistant-1', firmRole: FirmRole.ASSISTANT };
+    await expect(service.updateForCase(assistant, 'case-1', { confirm: true })).rejects.toBeInstanceOf(ForbiddenException);
+  });
 });

@@ -92,6 +92,7 @@ async function request<T>(
   }
 
   if (res.status === 204) return undefined as T;
+  if (res.headers.get('content-length') === '0') return null as T;
   return res.json();
 }
 

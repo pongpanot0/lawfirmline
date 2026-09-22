@@ -30,6 +30,7 @@ export default defineConfig({
     { name: 'court-day', testMatch: /court-day\.spec\.ts/ },
     { name: 'journeys', testMatch: /journeys\.spec\.ts/ },
     { name: 'workspace', testMatch: /workspace\.spec\.ts/, dependencies: ['setup'], use: { storageState: 'e2e/.auth/admin.json' } },
+    { name: 'cargo-claim', testMatch: /cargo-claim\.spec\.ts/, dependencies: ['setup'], use: { storageState: 'e2e/.auth/admin.json' } },
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'guide',

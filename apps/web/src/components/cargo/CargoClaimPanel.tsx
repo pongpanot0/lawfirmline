@@ -37,7 +37,7 @@ function editableValues(source: CargoClaimInput): CargoClaimInput {
 }
 
 export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeId?: string }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [claim, setClaim] = useState<CargoClaimItem | null>(null);
   const [draft, setDraft] = useState<CargoClaimInput>({});
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -125,6 +125,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
   );
 
   const received = claim.requirements.filter((item) => item.status === 'RECEIVED').length;
+  const canConfirm = ['OWNER', 'SENIOR_LAWYER', 'LAWYER'].includes(user?.firmRole ?? '');
   return (
     <div className="space-y-5">
       <header className="flex flex-col gap-3 rounded-2xl border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -139,7 +140,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => void save(false)} disabled={saving}>บันทึกร่าง</Button>
-          <Button onClick={() => void save(true)} disabled={saving}><ShieldCheck className="h-4 w-4" />ยืนยันโดยทนาย</Button>
+          {canConfirm && <Button onClick={() => void save(true)} disabled={saving}><ShieldCheck className="h-4 w-4" />ยืนยันโดยทนาย</Button>}
         </div>
       </header>
 
@@ -185,7 +186,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
         {section === 'checklist' && (
           <div className="space-y-3">
             {claim.requirements.map((item, index) => (
-              <div key={item.id} className="grid gap-3 rounded-xl border p-3 lg:grid-cols-[2rem_minmax(12rem,1fr)_9rem_minmax(12rem,1fr)] lg:items-center">
+              <div key={item.id} data-testid="cargo-requirement" className="grid gap-3 rounded-xl border p-3 lg:grid-cols-[2rem_minmax(12rem,1fr)_9rem_minmax(12rem,1fr)] lg:items-center">
                 <span className="text-sm font-semibold text-muted-foreground">{index + 1}</span>
                 <div>
                   <label className="flex items-start gap-2 text-sm font-medium">
