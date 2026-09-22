@@ -42,6 +42,9 @@ import {
   parseCaseTab,
   type CaseTabId,
 } from '@/lib/case-tabs';
+import { buildCasePrioritySummary } from '@/lib/case-workbench';
+import './tokens.css';
+import styles from './case-detail.module.css';
 
 const CaseTasksPanel = dynamic(
   () => import('@/components/cases/CaseTasksPanel').then((m) => m.CaseTasksPanel),
@@ -572,6 +575,13 @@ export default function CaseDetailPage() {
     ? playbooks.find((p) => p.caseTypeId === legalCase.caseType!.id)
     : undefined;
   const checklistTasks = tasks.filter((t) => t.labels.some((l) => l.startsWith('playbook:')));
+  const nextActionTasks = pendingTasks.filter((task) => !task.labels.some((label) => label.startsWith('playbook:')));
+  const priority = buildCasePrioritySummary({
+    tasks: pendingTasks.concat(tasks.filter((task) => task.status === 'DONE')),
+    requiredDocuments: requiredDocs.required,
+    upcomingEvents,
+    limitationDeadline: legalCase.limitationDeadline,
+  });
 
   const applySuggestedPlaybook = async () => {
     if (!token || !suggestedPlaybook) return;
@@ -612,34 +622,132 @@ export default function CaseDetailPage() {
     }
   };
 
-  // Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · existing Samnuan tokens
   return (
-    <div className="min-w-0 [overflow-wrap:anywhere]">
-      <div className="mb-5">
-        <button type="button" onClick={() => router.push('/cases')} className="text-sm text-primary hover:underline">
+    <div className={styles.workbench}>
+      <header className={styles.identity} data-testid="case-identity">
+        <button type="button" onClick={() => router.push('/cases')} className={styles.backButton}>
           ← กลับไปหน้าคดี
         </button>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="min-w-0 text-2xl font-bold tracking-tight">{legalCase.title}</h1>
-          {legalCase.partyRole && (
-            <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-900">
-              {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}
-            </span>
-          )}
-          <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-800">
-            {caseStageOptions('th').find((o) => o.value === legalCase.stage)?.label ?? legalCase.stage}
-          </span>
-          <CaseStatusBadge status={legalCase.status} />
-          <div className="ml-auto flex gap-2">
+        <div className={styles.identityGrid}>
+          <div className={styles.identityMain}>
+            <p className={styles.identityContext}>แฟ้มคดี · {legalCase.ownRef}</p>
+            <div className={styles.titleRow}>
+              <h1 className={styles.title}>{legalCase.title}</h1>
+              {legalCase.partyRole && (
+                <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-900">
+                  {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}
+                </span>
+              )}
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                {caseStageOptions('th').find((o) => o.value === legalCase.stage)?.label ?? legalCase.stage}
+              </span>
+              <CaseStatusBadge status={legalCase.status} />
+            </div>
+            <div className={styles.identityMeta}>
+              <span>ลูกความ <strong>{clientDisplay}</strong></span>
+              {showCustomer && <span>ผู้ว่าจ้าง <strong>{customerDisplay}</strong></span>}
+              <span>ทนายผู้รับผิดชอบ <strong>{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</strong></span>
+            </div>
+          </div>
+          <div className={styles.identityActions}>
             {legalCase.intake && preFiling && (
               <Button size="sm" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>
             )}
+            <Button variant="outline" onClick={() => setRecordingOutcome(true)}>
+              <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
+            </Button>
           </div>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {legalCase.ownRef} · ลูกความ {clientDisplay}
-          {showCustomer && ` · ลูกค้า ${customerDisplay}`}
-        </p>
+      </header>
+
+      <section className={styles.signalStrip} aria-label="สัญญาณสำคัญของคดี" data-testid="case-priority-signals">
+        <button type="button" onClick={() => selectTab('calendar')} className={styles.signalButton}>
+          <span className={styles.signalLabel}>นัดหมายถัดไป</span>
+          <strong className={styles.signalValue}>{priority.nextEvent?.title ?? 'ยังไม่มีนัดถัดไป'}</strong>
+          <span className={styles.signalMeta}>{priority.nextEvent ? formatDateTime(priority.nextEvent.startAt) : 'เปิดไทม์ไลน์เพื่อเพิ่มนัด'}</span>
+        </button>
+        <div className={styles.signal}>
+          <span className={styles.signalLabel}>อายุความ</span>
+          <strong className={styles.signalValue}>{priority.limitationDays == null ? 'ยังไม่ระบุ' : `อีก ${priority.limitationDays} วัน`}</strong>
+          <span className={styles.signalMeta}>{legalCase.limitationDeadline ? `ครบ ${formatDate(legalCase.limitationDeadline)}` : 'ยังไม่มีวันที่ให้ประเมิน'}</span>
+        </div>
+        <button type="button" onClick={() => selectTab('tasks')} className={styles.signalButton}>
+          <span className={styles.signalLabel}>งานค้าง</span>
+          <strong className={styles.signalValue}>{priority.pendingTaskCount} รายการ</strong>
+          <span className={styles.signalMeta}>{priority.nextPendingTask?.dueDate ? `ใกล้สุด ${formatDate(priority.nextPendingTask.dueDate)}` : priority.nextPendingTask ? 'งานถัดไปยังไม่กำหนดวันส่ง' : 'ไม่มีงานค้าง'}</span>
+        </button>
+        <button type="button" onClick={() => selectTab('documents')} className={styles.signalButton}>
+          <span className={styles.signalLabel}>เอกสารที่ต้องมี</span>
+          <strong className={styles.signalValue}>{priority.presentRequiredDocumentCount}/{priority.requiredDocumentCount}</strong>
+          <span className={styles.signalMeta}>{priority.missingRequiredDocumentCount > 0 ? `ขาด ${priority.missingRequiredDocumentCount} รายการ` : priority.requiredDocumentCount > 0 ? 'ครบตามรายการ' : 'ยังไม่มีรายการบังคับ'}</span>
+        </button>
+      </section>
+
+      <div className={styles.stagePanel} data-testid="case-stage-control">
+        <div className={styles.stageHeader}>
+          <p>ขั้นตอนคดี</p>
+          <p>{savingStage ? 'กำลังบันทึกขั้นตอน…' : 'เลือกเพื่อเปลี่ยนขั้นตอนคดี'}</p>
+        </div>
+        <div className={styles.stageScroller}>
+          {caseStageOptions('th').map((option, index) => {
+            const currentIndex = legalCase.stage
+              ? caseStageOptions('th').findIndex((item) => item.value === legalCase.stage)
+              : -1;
+            const isCurrent = option.value === legalCase.stage;
+            const stageClass = isCurrent
+              ? `${styles.stageButton} ${styles.stageCurrent}`
+              : index < currentIndex
+                ? `${styles.stageButton} ${styles.stagePast}`
+                : styles.stageButton;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                disabled={savingStage}
+                aria-current={isCurrent ? 'step' : undefined}
+                onClick={() => handleStageChange(option.value)}
+                className={stageClass}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className={styles.dangerZone}>
+          {legalCase.status !== CaseStatus.CLOSED && legalCase.status !== 'ARCHIVED' ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                setCloseError('');
+                setShowCloseForm(true);
+                setAckOutstanding(false);
+                if (token && id) {
+                  try {
+                    setOutstanding(await api.getCaseOutstanding(token, id));
+                  } catch {
+                    setOutstanding(null);
+                  }
+                }
+              }}
+            >
+              <Lock className="h-4 w-4" />ปิดคดี
+            </Button>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">ปิดเมื่อ {legalCase.closedAt ? formatDate(legalCase.closedAt) : '—'}</p>
+              <Button variant="outline" size="sm" onClick={handleReopenCase} disabled={reopeningCase}>
+                <LockOpen className="h-4 w-4" />{reopeningCase ? 'กำลังเปิด...' : 'เปิดคดีอีกครั้ง'}
+              </Button>
+              {legalCase.status === CaseStatus.CLOSED && (
+                <Button variant="ghost" size="sm" onClick={handleArchiveCase}>เก็บเข้าคลัง</Button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="mb-5">
         {suggestedPlaybook && !hasAppliedPlaybook && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
             <p className="text-sm">
@@ -653,158 +761,6 @@ export default function CaseDetailPage() {
             >
               {applyingPlaybook ? 'กำลังใช้…' : 'ใช้เลย'}
             </button>
-          </div>
-        )}
-        {/*
-          What a lawyer opens the case to learn, before anything else: who
-          holds it, what is next in court, and what is due soonest. The tabs
-          below are the way into each area, so no second set of links here.
-        */}
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <button type="button" onClick={() => selectTab('tasks')} className="rounded-xl border border-border bg-card p-3 text-left shadow-sm hover:bg-muted/40">
-            <p className="text-xs text-muted-foreground">งานที่ต้องทำ</p>
-            <p className="mt-0.5 text-xl font-bold">
-              {tasks.filter((t) => t.status === 'DONE').length}/{tasks.length}
-              {pendingTasks[0]?.dueDate && (
-                <span className="ml-2 text-xs font-medium text-amber-700">ใกล้สุด {formatDate(pendingTasks[0].dueDate)}</span>
-              )}
-            </p>
-            <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-              <div className="h-1.5 rounded-full bg-primary" style={{ width: tasks.length ? `${Math.round((tasks.filter((t) => t.status === 'DONE').length / tasks.length) * 100)}%` : '0%' }} />
-            </div>
-          </button>
-          <button type="button" onClick={() => selectTab('documents')} className="rounded-xl border border-border bg-card p-3 text-left shadow-sm hover:bg-muted/40">
-            <p className="text-xs text-muted-foreground">เอกสารที่ต้องมี</p>
-            <p className="mt-0.5 text-xl font-bold">
-              {requiredDocs.required.filter((r) => r.present).length}/{requiredDocs.required.length}
-              {requiredDocs.missing.length > 0 && (
-                <span className="ml-2 text-xs font-medium text-destructive">ขาด {requiredDocs.missing.length} รายการ</span>
-              )}
-            </p>
-            <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-              <div className="h-1.5 rounded-full bg-emerald-600" style={{ width: requiredDocs.required.length ? `${Math.round((requiredDocs.required.filter((r) => r.present).length / requiredDocs.required.length) * 100)}%` : '0%' }} />
-            </div>
-          </button>
-          {!preFiling ? (
-            /* พ้นก่อนฟ้องแล้ว — งาน Notice/เจรจาจบไป โชว์ข้อมูลชั้นศาลแทน */
-            <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-              <p className="text-xs text-muted-foreground">ศาล / เลขคดี</p>
-              <p className="mt-0.5 text-sm font-bold">{legalCase.courtName || 'ยังไม่ระบุศาล'}</p>
-              <p className="text-xs text-muted-foreground">
-                ดำ {legalCase.blackCaseNumber || '—'} · แดง {legalCase.redCaseNumber || '—'}
-              </p>
-            </div>
-          ) : (
-          <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-            <p className="text-xs text-muted-foreground">Notice / เจรจา</p>
-            {legalCase.intake?.noticeIssuedAt ? (
-              <>
-                <p className="mt-0.5 text-sm font-bold">
-                  {legalCase.intake.noticeDeadline ? `ครบกำหนด ${formatDate(legalCase.intake.noticeDeadline)}` : `ออกแล้ว ${formatDate(legalCase.intake.noticeIssuedAt)}`}
-                </p>
-                <p className="text-xs text-muted-foreground">ถึง {legalCase.intake.noticeRecipient ?? '—'}</p>
-              </>
-            ) : (
-              <>
-                <p className="mt-0.5 text-sm font-bold">ยังไม่ออก Notice</p>
-                {legalCase.intake && preFiling && (
-                  <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => setNoticeOpen(true)}>
-                    ออก Notice ตอนไหนก็ได้ →
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-          )}
-          <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-            <p className="text-xs text-muted-foreground">อายุความ</p>
-            {legalCase.limitationDeadline ? (
-              <>
-                <p className="mt-0.5 text-sm font-bold text-amber-700">
-                  อีก {Math.max(0, Math.ceil((new Date(legalCase.limitationDeadline).getTime() - Date.now()) / 86400000))} วัน
-                </p>
-                <p className="text-xs text-muted-foreground">ครบ {formatDate(legalCase.limitationDeadline)}</p>
-              </>
-            ) : (
-              <p className="mt-0.5 text-sm font-bold text-muted-foreground">ยังไม่ระบุ</p>
-            )}
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setRecordingOutcome(true)}>
-            <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
-          </Button>
-        </div>
-        {/* ขั้นตอนในกระบวนพิจารณา — แยกจากสถานะงานด้านบน */}
-        <div className="mt-4">
-          <p className="text-xs font-medium text-muted-foreground">ขั้นตอนคดี</p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {caseStageOptions('th').map((option, index) => {
-              const currentIndex = legalCase.stage
-                ? caseStageOptions('th').findIndex((o) => o.value === legalCase.stage)
-                : -1;
-              const isCurrent = option.value === legalCase.stage;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  disabled={savingStage}
-                  onClick={() => handleStageChange(option.value)}
-                  className={`min-h-9 rounded-lg px-3 py-1 text-xs transition ${
-                    isCurrent
-                      ? 'bg-primary text-primary-foreground font-medium'
-                      : index < currentIndex
-                        ? 'bg-primary/10 text-primary'
-                        : 'border bg-card text-muted-foreground hover:border-primary/40'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {legalCase.status !== CaseStatus.CLOSED && legalCase.status !== 'ARCHIVED' ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={async () => {
-              setCloseError('');
-              setShowCloseForm(true);
-              setAckOutstanding(false);
-              if (token && id) {
-                try {
-                  setOutstanding(await api.getCaseOutstanding(token, id));
-                } catch {
-                  setOutstanding(null);
-                }
-              }
-            }}
-          >
-            <Lock className="h-4 w-4" />
-            ปิดคดี
-          </Button>
-        ) : (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <p className="text-sm text-muted-foreground">
-              ปิดเมื่อ {legalCase.closedAt ? formatDate(legalCase.closedAt) : '—'}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReopenCase}
-              disabled={reopeningCase}
-            >
-              <LockOpen className="h-4 w-4" />
-              {reopeningCase ? 'กำลังเปิด...' : 'เปิดคดีอีกครั้ง'}
-            </Button>
-            {legalCase.status === CaseStatus.CLOSED && (
-              <Button variant="ghost" size="sm" onClick={handleArchiveCase}>
-                เก็บเข้าคลัง
-              </Button>
-            )}
           </div>
         )}
       </div>
@@ -900,45 +856,43 @@ export default function CaseDetailPage() {
         </Card>
       )}
 
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-2 border-b border-border">
-        <div role="tablist" aria-label="เมนูคดี" className="flex min-w-0 flex-1 flex-wrap gap-1">
-          {CASE_TAB_IDS.map((tabId) => {
-            const selected = activeTab === tabId;
-            return (
-              <button
-                key={tabId}
-                type="button"
-                role="tab"
-                id={`case-tab-${tabId}`}
-                aria-selected={selected}
-                aria-controls={`case-tabpanel-${tabId}`}
-                tabIndex={selected ? 0 : -1}
-                className={
-                  selected
-                    ? 'whitespace-nowrap border-b-2 border-primary px-4 py-3 text-sm font-semibold text-primary'
-                    : 'whitespace-nowrap rounded-t-md px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                }
-                onClick={() => selectTab(tabId)}
-              >
-                {CASE_TAB_LABELS[tabId]}
-              </button>
-            );
-          })}
+      <nav className={styles.tabDock} aria-label="พื้นที่ทำงานคดี">
+        <div className={styles.tabScroller}>
+          <div role="tablist" aria-label="เมนูคดี" className={styles.tabList}>
+            {CASE_TAB_IDS.map((tabId) => {
+              const selected = activeTab === tabId;
+              return (
+                <button
+                  key={tabId}
+                  type="button"
+                  role="tab"
+                  id={`case-tab-${tabId}`}
+                  aria-selected={selected}
+                  aria-controls={`case-tabpanel-${tabId}`}
+                  tabIndex={selected ? 0 : -1}
+                  className={selected ? `${styles.tabButton} ${styles.tabSelected}` : styles.tabButton}
+                  onClick={() => selectTab(tabId)}
+                >
+                  {CASE_TAB_LABELS[tabId]}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mb-2 shrink-0"
-          hidden={activeTab !== 'documents'}
-          aria-expanded={showAiAnalysis}
-          aria-controls="case-ai-analysis-panel"
-          onClick={() => setShowAiAnalysis(true)}
-        >
-          <Sparkles className="h-4 w-4" />
-          สรุปเอกสารรวม
-        </Button>
-      </div>
+        <div className={styles.tabUtility}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            hidden={activeTab !== 'documents'}
+            aria-expanded={showAiAnalysis}
+            aria-controls="case-ai-analysis-panel"
+            onClick={() => setShowAiAnalysis(true)}
+          >
+            <Sparkles className="h-4 w-4" />สรุปเอกสารรวม
+          </Button>
+        </div>
+      </nav>
 
       {activeTab === 'tasks' && (
         <div
@@ -1013,8 +967,8 @@ export default function CaseDetailPage() {
         aria-labelledby="case-tab-overview"
         className="min-w-0"
       >
-      <div className="grid items-start gap-5 lg:grid-cols-12">
-        <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-1">
+      <div className={styles.workspace}>
+        <div className={styles.mainPane}>
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-sm">ข้อมูลคดี</CardTitle>
@@ -1639,8 +1593,8 @@ export default function CaseDetailPage() {
           )}
         </div>
 
-        <div className="min-w-0 space-y-4 row-start-1 lg:col-span-5 lg:col-start-8 lg:row-span-2">
-          <Card>
+        <aside className={styles.actionRail} aria-label="สิ่งที่ต้องทำต่อ">
+          <Card className={styles.actionSection}>
             <CardHeader>
               <CardTitle className="text-sm">
                 เช็คลิสต์คดี
@@ -1723,9 +1677,9 @@ export default function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
-          <Card>
+          <Card className={styles.actionSection}>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-sm">งานที่ต้องทำ</CardTitle>
+              <CardTitle className="text-sm">งานถัดไป</CardTitle>
               <button
                 type="button"
                 className="text-xs text-primary hover:underline"
@@ -1735,7 +1689,7 @@ export default function CaseDetailPage() {
               </button>
             </CardHeader>
             <CardContent className="space-y-2">
-              {pendingTasks.slice(0, 4).map((t) => (
+              {nextActionTasks.slice(0, 3).map((t) => (
                 <button
                   type="button"
                   onClick={() => selectTab('tasks')}
@@ -1750,8 +1704,8 @@ export default function CaseDetailPage() {
                   <span className="text-xs text-muted-foreground">{TASK_STATUS_LABELS[t.status] ?? t.status}</span>
                 </button>
               ))}
-              {pendingTasks.length === 0 && (
-                <InlineEmptyState title="ไม่มีงานค้าง" description="พิมพ์ด้านล่างเพื่อเพิ่มงานแรก" />
+              {nextActionTasks.length === 0 && (
+                <InlineEmptyState title="ไม่มีงานถัดไปนอกเช็คลิสต์" description="พิมพ์ด้านล่างเพื่อเพิ่มงานใหม่" />
               )}
               <div className="space-y-2 border-t border-border pt-3">
                 <input
@@ -1788,7 +1742,7 @@ export default function CaseDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={styles.actionSection}>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-sm">นัดหมาย</CardTitle>
               <Button size="sm" variant="outline" onClick={() => selectTab('calendar')}>+ เพิ่มนัด</Button>
@@ -1810,7 +1764,7 @@ export default function CaseDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={styles.actionSection}>
             <CardHeader><CardTitle className="text-sm">บันทึกย่อ</CardTitle></CardHeader>
             <CardContent>
               <textarea
@@ -1834,7 +1788,7 @@ export default function CaseDetailPage() {
             </CardContent>
           </Card>
 
-        </div>
+        </aside>
       </div>
 
       <div className="mt-6 space-y-6">

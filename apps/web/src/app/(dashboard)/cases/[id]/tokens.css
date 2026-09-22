@@ -1,0 +1,34 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · theme: existing Samnuan · designed-as-app */
+/* Hallmark · pre-emit critique: P4 H5 E4 S5 R5 V4 */
+:root {
+  --case-color-paper: hsl(var(--background));
+  --case-color-surface: hsl(var(--card));
+  --case-color-surface-muted: hsl(var(--muted));
+  --case-color-ink: hsl(var(--foreground));
+  --case-color-muted: hsl(var(--muted-foreground));
+  --case-color-rule: hsl(var(--border));
+  --case-color-accent: hsl(var(--primary));
+  --case-color-accent-soft: hsl(var(--primary) / 0.08);
+  --case-color-focus: hsl(var(--ring));
+  --case-font-display: var(--font-sans);
+  --case-font-body: var(--font-sans);
+  --case-space-1: 0.25rem;
+  --case-space-2: 0.5rem;
+  --case-space-3: 0.75rem;
+  --case-space-4: 1rem;
+  --case-space-5: 1.5rem;
+  --case-space-6: 2rem;
+  --case-space-7: 3rem;
+  --case-text-xs: 0.75rem;
+  --case-text-sm: 0.875rem;
+  --case-text-lg: 1.125rem;
+  --case-text-title: clamp(1.75rem, 1.25rem + 1.4vw, 2.5rem);
+  --case-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --case-ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --case-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --case-dur-short: 160ms;
+  --case-dur-medium: 240ms;
+  --case-rule: 1px solid var(--case-color-rule);
+  --case-radius-control: 0.625rem;
+  --case-radius-panel: 0.875rem;
+}

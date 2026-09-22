@@ -28,13 +28,29 @@
 **Files:**
 - Create: `apps/web/src/app/(dashboard)/cases/[id]/tokens.css`
 - Create: `apps/web/src/app/(dashboard)/cases/[id]/case-detail.module.css`
+- Create: `apps/web/src/lib/case-workbench.ts`
+- Create: `apps/web/src/lib/case-workbench.test.ts`
 - Modify: `apps/web/src/app/(dashboard)/cases/[id]/page.tsx:1-75`
 
 **Interfaces:**
 - Consumes: semantic variables `--background`, `--foreground`, `--card`, `--border`, `--primary`, `--muted`, `--muted-foreground`, `--ring` จาก `apps/web/src/app/globals.css`
 - Produces: CSS Module classes `workbench`, `identity`, `signalStrip`, `stagePanel`, `tabDock`, `workspace`, `mainPane`, `actionRail`, `actionSection`, `dangerZone`
 
-- [ ] **Step 1: Create route-local named tokens**
+- [ ] **Step 1: Write failing tests for honest priority values**
+
+The tests call `buildCasePrioritySummary` with and without dates and assert that missing values remain `null` rather than becoming fabricated urgency.
+
+- [ ] **Step 2: Run the focused test and verify RED**
+
+Run: `pnpm --filter web test -- src/lib/case-workbench.test.ts`
+
+Expected: FAIL because `case-workbench.ts` does not exist yet
+
+- [ ] **Step 3: Implement the display-only priority helper**
+
+Export `buildCasePrioritySummary(input, now)` returning counts, the first pending task and event, and `limitationDays: number | null`. The helper must not mutate or sort its input arrays.
+
+- [ ] **Step 4: Create route-local named tokens**
 
 ```css
 /* Hallmark · genre: modern-minimal · macrostructure: Workbench · theme: existing Samnuan · designed-as-app */
@@ -58,7 +74,7 @@
 }
 ```
 
-- [ ] **Step 2: Create structural CSS Module with mobile-first ordering**
+- [ ] **Step 5: Create structural CSS Module with mobile-first ordering**
 
 ```css
 @import './tokens.css';
@@ -82,22 +98,29 @@
 }
 ```
 
-- [ ] **Step 3: Import the CSS Module without changing global styles**
+- [ ] **Step 6: Import the CSS Module and helper without changing global styles**
 
 ```tsx
 import styles from './case-detail.module.css';
+import { buildCasePrioritySummary } from '@/lib/case-workbench';
 ```
 
-- [ ] **Step 4: Run TypeScript and CSS compilation smoke check**
+- [ ] **Step 7: Run the focused test and verify GREEN**
+
+Run: `pnpm --filter web test -- src/lib/case-workbench.test.ts`
+
+Expected: the new priority-summary tests pass
+
+- [ ] **Step 8: Run TypeScript and CSS compilation smoke check**
 
 Run: `pnpm --filter web exec tsc --noEmit --incremental false`
 
 Expected: no new TypeScript errors from the CSS Module import
 
-- [ ] **Step 5: Commit the isolated style foundation**
+- [ ] **Step 9: Commit the isolated style foundation**
 
 ```bash
-git add 'apps/web/src/app/(dashboard)/cases/[id]/tokens.css' 'apps/web/src/app/(dashboard)/cases/[id]/case-detail.module.css' 'apps/web/src/app/(dashboard)/cases/[id]/page.tsx'
+git add 'apps/web/src/app/(dashboard)/cases/[id]/tokens.css' 'apps/web/src/app/(dashboard)/cases/[id]/case-detail.module.css' 'apps/web/src/app/(dashboard)/cases/[id]/page.tsx' apps/web/src/lib/case-workbench.ts apps/web/src/lib/case-workbench.test.ts
 git commit -m "style: add case workbench layout foundation"
 ```
 
@@ -214,7 +237,7 @@ The tab scroller may scroll horizontally, but the document must not.
 </div>
 ```
 
-Use DOM order `mainPane` then `actionRail`; CSS moves `actionRail` first below 768px without duplicating content.
+Use DOM order `actionRail` then `mainPane` so mobile and assistive-technology reading order starts with next actions. On desktop CSS places `mainPane` in column 1 and `actionRail` in column 2 without duplicating content.
 
 - [ ] **Step 3: Remove the duplicate full pending-task list from overview**
 
