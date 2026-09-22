@@ -125,12 +125,14 @@ export function Modal({
   children,
   className,
   closeOnBackdrop = true,
+  ariaLabel,
 }: {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
   className?: string;
   closeOnBackdrop?: boolean;
+  ariaLabel?: string;
 }) {
   React.useEffect(() => {
     if (!open) return;
@@ -158,6 +160,7 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
+        aria-label={ariaLabel}
         className={cn(
           'relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border bg-card p-6 shadow-card',
           className,

@@ -73,3 +73,83 @@ test('team load failure is visible and retry recovers', async ({ page }) => {
   await expect(page.locator('main [role="alert"]')).toHaveCount(0);
   await expect(page.locator('table')).toContainText('Somchai');
 });
+
+test('new intake leaves initial documents for the workspace after saving', async ({ page }) => {
+  await page.goto('/intake/new');
+  await page.getByRole('button', { name: 'เสร็จสิ้น', exact: true }).click({ timeout: 1_000 }).catch(() => {});
+  await expect(page.getByRole('heading', { name: 'เอกสารเริ่มต้น' })).toHaveCount(0);
+  await expect(page.getByText('ลากไฟล์มาวางที่นี่ หรือกดเลือกไฟล์จากเครื่อง')).toHaveCount(0);
+});
+
+test('creates a payer contact in a dialog and selects the new contact', async ({ page }) => {
+  const payer = {
+    id: 'payer-1',
+    name: 'บริษัท วิริยะประกันภัย จำกัด (มหาชน)',
+    type: 'COMPANY',
+    notes: null,
+    taxId: null,
+    branch: null,
+    address: null,
+    billingEmail: null,
+    billingPhone: null,
+    contacts: [
+      {
+        id: 'contact-existing',
+        name: 'ผู้ติดต่อเดิม',
+        nickname: null,
+        notes: null,
+        email: null,
+        phone: null,
+        position: null,
+        isPrimary: true,
+        portalEnabled: false,
+      },
+    ],
+    _count: { cases: 0 },
+  };
+  const createdContact = {
+    id: 'contact-new',
+    name: 'กมลวรรณ ศรีสุข',
+    nickname: null,
+    notes: null,
+    email: 'kamonwan@example.test',
+    phone: '0812345678',
+    position: 'ฝ่ายสินไหมรถยนต์',
+    isPrimary: false,
+    portalEnabled: false,
+  };
+
+  await page.route('**/clients', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([payer]) });
+      return;
+    }
+    await route.continue();
+  });
+  await page.route('**/clients/payer-1', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...payer, contacts: [...payer.contacts, createdContact] }),
+    });
+  });
+
+  await page.goto('/intake/new');
+  await page.getByRole('button', { name: 'เสร็จสิ้น', exact: true }).click({ timeout: 1_000 }).catch(() => {});
+  await page.locator('#intake-customer-0').selectOption('payer-1');
+  await page.getByRole('button', { name: 'เพิ่มคนติดต่อ' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'เพิ่มคนติดต่อ' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('ชื่อ *', { exact: true }).fill('กมลวรรณ');
+  await dialog.getByLabel('นามสกุล *', { exact: true }).fill('ศรีสุข');
+  await dialog.getByLabel('ตำแหน่ง / ฝ่าย', { exact: true }).fill('ฝ่ายสินไหมรถยนต์');
+  await dialog.getByLabel('เบอร์โทร', { exact: true }).fill('0812345678');
+  await dialog.getByLabel('อีเมล', { exact: true }).fill('kamonwan@example.test');
+  await dialog.getByRole('button', { name: 'บันทึกและเลือกคนนี้' }).click();
+
+  const contactSelect = page.getByLabel('คนติดต่อของผู้มอบหมายรายที่ 1');
+  await expect(dialog).toHaveCount(0);
+  await expect(contactSelect).toHaveValue('contact-new');
+  await expect(contactSelect.locator('option:checked')).toHaveText('กมลวรรณ ศรีสุข · 0812345678');
+});

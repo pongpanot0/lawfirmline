@@ -10,7 +10,7 @@ import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
-import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { CreateClientContactDialog } from '@/components/intake/CreateClientContactDialog';
 import { Plus, X } from 'lucide-react';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 
@@ -33,7 +33,6 @@ export default function NewIntakePage() {
   const [clientsError, setClientsError] = useState(false);
   const [clientsLoading, setClientsLoading] = useState(true);
   const [clientsRetry, setClientsRetry] = useState(0);
-  const [files, setFiles] = useState<File[]>([]);
   const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [assignedIds, setAssignedIds] = useState<string[]>([]);
   // Same rule as the intake detail page and the API: assign only roles below yours.
@@ -42,8 +41,8 @@ export default function NewIntakePage() {
         (u) => u.id !== user.id && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole),
       )
     : [];
-  const [createdIntakeId, setCreatedIntakeId] = useState<string | null>(null);
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
+  const [contactDialogCustomerIndex, setContactDialogCustomerIndex] = useState<number | null>(null);
   const [showNewClient, setShowNewClient] = useState(false);
   // ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน (เช่น บริษัทประกัน) ต่างจากลูกความที่เราว่าความให้
   const [customers, setCustomers] = useState<{ customerId: string; sharePercent: string; contactId?: string }[]>([
@@ -207,27 +206,8 @@ export default function NewIntakePage() {
       if (pickedClients.length) {
         payload.clients = pickedClients.map((c) => ({ clientId: c.clientId }));
       }
-      const created = createdIntakeId
-        ? { id: createdIntakeId }
-        : ((await api.createIntake(token, payload)) as IntakeItem);
-      setCreatedIntakeId(created.id);
-      const failedFiles: File[] = [];
-      for (const file of files) {
-        try {
-          await api.uploadIntakeDocument(token, created.id, file);
-        } catch {
-          failedFiles.push(file);
-        }
-      }
-      setFiles(failedFiles);
-      if (failedFiles.length) {
-        setError(`บันทึกเรื่องแล้ว แต่แนบไฟล์ไม่สำเร็จ ${failedFiles.length} ไฟล์ (รองรับ PDF / TXT) กดอีกครั้งเพื่อแนบไฟล์ที่เหลือ โดยไม่บันทึกซ้ำ`);
-        submitLock.current = false;
-        setSubmitting(false);
-        return;
-      }
+      const created = (await api.createIntake(token, payload)) as IntakeItem;
       // Record เดียวตั้งแต่รับเรื่อง — คดีเปิดแล้ว พาไป case detail เสมอ
-      // (รอบ retry แนบไฟล์ created มีแค่ id — ดึงข้อมูลเต็มมาหา case ก่อน)
       let createdCase = (created as IntakeItem).case;
       if (!createdCase?.id) {
         createdCase = await api.getIntake(token, created.id).then((it) => it.case ?? undefined).catch(() => undefined);
@@ -420,7 +400,7 @@ export default function NewIntakePage() {
                           value={row.customerId}
                           clients={clients}
                           onChange={(customerId) =>
-                            setCustomers((rows) => rows.map((r, i) => (i === index ? { ...r, customerId } : r)))
+                            setCustomers((rows) => rows.map((r, i) => (i === index ? { ...r, customerId, contactId: '' } : r)))
                           }
                           onCreated={(client) =>
                             setClients((rows) => [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')))
@@ -452,7 +432,7 @@ export default function NewIntakePage() {
                         </Button>
                       )}
                     </div>
-                    <div>
+                    <div className="flex items-end gap-2">
                       {(() => {
                         const contacts = clients.find((c) => c.id === row.customerId)?.contacts ?? [];
                         return (
@@ -463,7 +443,7 @@ export default function NewIntakePage() {
                             onChange={(e) =>
                               setCustomers((rows) => rows.map((r, i) => (i === index ? { ...r, contactId: e.target.value } : r)))
                             }
-                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                            className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
                           >
                             <option value="">คนติดต่อ — ไม่ระบุ</option>
                             {contacts.map((ct) => (
@@ -472,6 +452,16 @@ export default function NewIntakePage() {
                           </select>
                         );
                       })()}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        disabled={!row.customerId}
+                        onClick={() => setContactDialogCustomerIndex(index)}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> เพิ่มคนติดต่อ
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -630,53 +620,39 @@ export default function NewIntakePage() {
 
           </section>
 
-          {/* 3 · เอกสารเริ่มต้น */}
-          <section className="rounded-2xl border bg-card p-5 shadow-sm">
-            <h2 className="mb-4 flex items-baseline gap-2.5 border-b border-border pb-2.5 text-[15px] font-bold tracking-tight"><span className="font-mono text-[13px] font-semibold text-primary">03</span>เอกสารเริ่มต้น</h2>
-            <DocumentDropZone
-              multiple
-              accept=".pdf,.txt,application/pdf,text/plain"
-              label="ลากไฟล์มาวางที่นี่ หรือกดเลือกไฟล์จากเครื่อง"
-              hint="อัปได้หลายไฟล์พร้อมกัน (PDF / TXT ไม่เกิน 30MB) — บันทึกแล้วกดให้ AI ช่วยจับคู่ checklist ได้"
-              disabled={submitting || !!createdIntakeId}
-              onFiles={(incoming) => {
-                if (incoming.some((file) => file.size > 30 * 1024 * 1024 || !['application/pdf', 'text/plain'].includes(file.type))) { setError('เลือก PDF / TXT ไม่เกิน 30MB ต่อไฟล์'); return; }
-                const next = [...files]; for (const file of incoming) if (!next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file);
-                if (next.length > 10) { setError('เลือกได้สูงสุด 10 ไฟล์'); return; } setFiles(next); setError('');
-              }}
-            />
-            {files.length > 0 && (
-              <div className="mt-2 space-y-1.5">
-                {files.map((file, index) => (
-                  <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                    <span className="min-w-0 break-words">📄 {file.name}</span>
-                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))} className="shrink-0 text-xs text-primary">เอาออก</button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="mt-2 text-xs text-muted-foreground">checklist เอกสารตามประเภทคดีจะถูกสร้างให้อัตโนมัติหลังบันทึก</p>
-          </section>
-
           {error && (
             <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
           )}
 
           {/* แถบบันทึกลอยติดล่าง — กดได้โดยไม่ต้อง scroll สุดฟอร์ม */}
           <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-end gap-2 border-t border-border bg-background/90 px-1 py-3 backdrop-blur">
-            <Button type="button" variant="outline" disabled={submitting || !!createdIntakeId} onClick={() => router.push('/intake')}>
+            <Button type="button" variant="outline" disabled={submitting} onClick={() => router.push('/intake')}>
               ยกเลิก
             </Button>
             <Button type="submit" disabled={submitting} className="px-5">
-              {submitting
-                ? 'กำลังบันทึก...'
-                : createdIntakeId
-                  ? 'แนบไฟล์ที่เหลืออีกครั้ง'
-                  : 'บันทึก → เปิดพื้นที่ทำงาน'}
+              {submitting ? 'กำลังบันทึก...' : 'บันทึก → เปิดพื้นที่ทำงาน'}
             </Button>
           </div>
         </fieldset>
       </form>
+      {contactDialogCustomerIndex != null && (() => {
+        const row = customers[contactDialogCustomerIndex];
+        const client = clients.find((item) => item.id === row?.customerId);
+        if (!client) return null;
+        return (
+          <CreateClientContactDialog
+            client={client}
+            onClose={() => setContactDialogCustomerIndex(null)}
+            onCreated={(updatedClient, contactId) => {
+              setClients((items) => items.map((item) => (item.id === updatedClient.id ? updatedClient : item)));
+              setCustomers((rows) => rows.map((item, index) =>
+                index === contactDialogCustomerIndex ? { ...item, contactId } : item,
+              ));
+              setContactDialogCustomerIndex(null);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
