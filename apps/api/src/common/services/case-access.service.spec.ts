@@ -18,13 +18,14 @@ describe('CaseAccessService', () => {
   describe('getCaseFilterForUser', () => {
     it('returns only a firm filter for OWNER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
-      expect(service.getCaseFilterForUser(user)).toEqual({ firmId: 'firm-1' });
+      expect(service.getCaseFilterForUser(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
     });
 
     it('returns the staffed-or-assigned filter for LAWYER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
       expect(service.getCaseFilterForUser(user)).toEqual({
         firmId: 'firm-1',
+        deletedAt: null,
         OR: [
           { leadLawyerId: 'u1' },
           { assignments: { some: { userId: 'u1' } } },
@@ -37,6 +38,7 @@ describe('CaseAccessService', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.ASSISTANT } as any;
       expect(service.getCaseFilterForUser(user)).toEqual({
         firmId: 'firm-1',
+        deletedAt: null,
         OR: [
           { leadLawyerId: 'u1' },
           { assignments: { some: { userId: 'u1' } } },
@@ -49,6 +51,7 @@ describe('CaseAccessService', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
       expect(service.getCaseFilterForUser(user)).toEqual({
         firmId: 'firm-1',
+        deletedAt: null,
         OR: [
           { leadLawyerId: 'u1' },
           { assignments: { some: { userId: 'u1' } } },
@@ -99,7 +102,7 @@ describe('CaseAccessService', () => {
   describe('getTaskFilterForUser', () => {
     const firmScope = {
       OR: [
-        { case: { firmId: 'firm-1' } },
+        { case: { firmId: 'firm-1', deletedAt: null } },
         { caseId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } },
       ],
     };
@@ -147,13 +150,14 @@ describe('CaseAccessService', () => {
   describe('getCaseFilterForFinancials', () => {
     it('returns only a firm filter for OWNER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
-      expect(service.getCaseFilterForFinancials(user)).toEqual({ firmId: 'firm-1' });
+      expect(service.getCaseFilterForFinancials(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
     });
 
     it('returns the narrow staffed-or-assigned filter for SENIOR_LAWYER (not widened)', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
       expect(service.getCaseFilterForFinancials(user)).toEqual({
         firmId: 'firm-1',
+        deletedAt: null,
         OR: [
           { leadLawyerId: 'u1' },
           { assignments: { some: { userId: 'u1' } } },
@@ -166,6 +170,7 @@ describe('CaseAccessService', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
       expect(service.getCaseFilterForFinancials(user)).toEqual({
         firmId: 'firm-1',
+        deletedAt: null,
         OR: [
           { leadLawyerId: 'u1' },
           { assignments: { some: { userId: 'u1' } } },
@@ -178,6 +183,7 @@ describe('CaseAccessService', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.ASSISTANT } as any;
       expect(service.getCaseFilterForFinancials(user)).toEqual({
         firmId: 'firm-1',
+        deletedAt: null,
         OR: [
           { leadLawyerId: 'u1' },
           { assignments: { some: { userId: 'u1' } } },

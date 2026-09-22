@@ -15,8 +15,14 @@ export class CaseAccessService {
     return !!legalCase;
   }
 
+  /**
+   * คดีที่ถูกลบ (soft delete) ไม่ควรโผล่ที่ไหนอีก — กรองตรงนี้ที่เดียว
+   * เพราะทุก query ของคดีวิ่งผ่าน filter ชุดนี้หมด
+   */
+  private static readonly NOT_DELETED = { deletedAt: null } as const;
+
   getCaseFilterForUser(user: AuthUser): Prisma.CaseWhereInput {
-    const tenantFilter = { firmId: user.firmId };
+    const tenantFilter = { firmId: user.firmId, ...CaseAccessService.NOT_DELETED };
 
     if (user.firmRole === FirmRole.OWNER) {
       return tenantFilter;
@@ -56,11 +62,12 @@ export class CaseAccessService {
 
   getCaseFilterForFinancials(user: AuthUser): Prisma.CaseWhereInput {
     if (user.firmRole === FirmRole.OWNER) {
-      return { firmId: user.firmId };
+      return { firmId: user.firmId, ...CaseAccessService.NOT_DELETED };
     }
 
     return {
       firmId: user.firmId,
+      ...CaseAccessService.NOT_DELETED,
       OR: [
         { leadLawyerId: user.id },
         { assignments: { some: { userId: user.id } } },
@@ -73,7 +80,7 @@ export class CaseAccessService {
     // Task ไม่มี firmId ตรง ๆ — scope ผ่านคดีของ firm หรือ (task ลอย) ผู้สร้างที่เป็นสมาชิก firm
     const firmScope: Prisma.TaskWhereInput = {
       OR: [
-        { case: { firmId: user.firmId } },
+        { case: { firmId: user.firmId, ...CaseAccessService.NOT_DELETED } },
         {
           caseId: null,
           createdBy: { firmMembers: { some: { firmId: user.firmId } } },

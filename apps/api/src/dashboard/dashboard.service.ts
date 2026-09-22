@@ -239,7 +239,7 @@ export class DashboardService {
     const taskScope: Prisma.TaskWhereInput = {
       assigneeId: { in: lawyerIds },
       status: { not: 'DONE' },
-      OR: [{ caseId: null }, { case: { firmId: user.firmId } }],
+      OR: [{ caseId: null }, { case: { firmId: user.firmId, deletedAt: null } }],
     };
 
     const [openTasks, overdueTasks, openCases, weekHearings] = await Promise.all([

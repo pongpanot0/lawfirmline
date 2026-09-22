@@ -674,12 +674,27 @@ export class CasesService {
     return reopened;
   }
 
+  /**
+   * ลบแบบ soft เท่านั้น — relation ของคดีทั้ง 20 ตารางเป็น onDelete: Cascade
+   * ลบจริงครั้งเดียวคือเอกสาร/งาน/ค่าใช้จ่ายหายถาวร กู้ได้แค่ผ่าน RDS snapshot
+   * คดีที่ลบแล้วถูกกรองออกทุก query ที่ CaseAccessService
+   */
   async remove(user: AuthUser, id: string) {
     if (user.firmRole !== FirmRole.OWNER) {
       throw new ForbiddenException('Only owners can delete cases');
     }
-    await this.findOne(user, id);
-    await this.prisma.case.delete({ where: { id } });
+    const legalCase = await this.findOne(user, id);
+    await this.prisma.$transaction([
+      this.prisma.case.update({ where: { id }, data: { deletedAt: new Date() } }),
+      this.prisma.auditLog.create({
+        data: {
+          firmId: user.firmId,
+          userId: user.id,
+          action: 'CASE_DELETED',
+          metadata: { caseId: id, ownRef: legalCase.ownRef, title: legalCase.title },
+        },
+      }),
+    ]);
     return { deleted: true };
   }
 }
