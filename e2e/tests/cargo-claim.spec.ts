@@ -50,7 +50,7 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
     expect(nextPosition, `${label} should follow the previous case field`).toBeGreaterThanOrEqual(fieldCursor);
     fieldCursor = nextPosition + label.length;
   }
-  await expect(page.getByRole('heading', { name: 'รายการงานคดี' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ภาระงาน' })).toBeVisible();
   await page.getByRole('button', { name: 'เพิ่มคู่ความ' }).click();
   const participantRole = page.getByLabel('บทบาท / Role');
   await expect(participantRole.locator('option[value="JOINT_PLAINTIFF"]')).toHaveText('โจทก์ร่วม');

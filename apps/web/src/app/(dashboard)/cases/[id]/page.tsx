@@ -1741,7 +1741,7 @@ export default function CaseDetailPage() {
           </Card>
           <Card className={styles.actionSection}>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-sm">รายการงานคดี</CardTitle>
+              <CardTitle className="text-sm">ภาระงาน</CardTitle>
               <button
                 type="button"
                 className="text-xs text-primary hover:underline"
@@ -1767,7 +1767,7 @@ export default function CaseDetailPage() {
                 </button>
               ))}
               {nextActionTasks.length === 0 && (
-                <InlineEmptyState title="ยังไม่มีรายการงานคดี" description="พิมพ์ด้านล่างเพื่อเพิ่มงานแรก" />
+                <InlineEmptyState title="ยังไม่มีภาระงาน" description="พิมพ์ด้านล่างเพื่อเพิ่มงานแรก" />
               )}
               <div className="space-y-2 border-t border-border pt-3">
                 <input
