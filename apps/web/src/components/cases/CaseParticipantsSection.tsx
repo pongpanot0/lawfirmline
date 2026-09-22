@@ -10,7 +10,9 @@ import { Input } from '@/components/ui/input';
 
 const ROLE_LABELS: Record<string, string> = {
   PLAINTIFF: 'โจทก์',
+  JOINT_PLAINTIFF: 'โจทก์ร่วม',
   DEFENDANT: 'จำเลย',
+  JOINT_DEFENDANT: 'จำเลยร่วม',
   PETITIONER: 'ผู้ร้อง',
   RESPONDENT: 'ผู้คัดค้าน',
   WITNESS: 'พยาน',
@@ -34,7 +36,9 @@ const SIDE_COLORS: Record<string, string> = {
 
 const ROLE_BADGE_COLORS: Record<string, string> = {
   PLAINTIFF: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+  JOINT_PLAINTIFF: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300',
   DEFENDANT: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  JOINT_DEFENDANT: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   PETITIONER: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300',
   RESPONDENT: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300',
   WITNESS: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
@@ -167,7 +171,10 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="text-sm">คู่ความ / Participants</CardTitle>
+        <div>
+          <CardTitle className="text-sm">คู่ความ / Participants</CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">เพิ่มได้หลายราย และกำหนดฐานะของแต่ละรายแยกกัน</p>
+        </div>
         {!showForm && (
           <Button variant="outline" size="sm" onClick={openCreate}>
             <Plus className="h-3 w-3" />
@@ -211,8 +218,9 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">บทบาท / Role</label>
+                <label htmlFor="case-participant-role" className="text-xs text-muted-foreground">บทบาท / Role</label>
                 <select
+                  id="case-participant-role"
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
@@ -223,8 +231,9 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
                 </select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">ฝ่าย / Side</label>
+                <label htmlFor="case-participant-side" className="text-xs text-muted-foreground">ฝ่าย / Side</label>
                 <select
+                  id="case-participant-side"
                   value={form.side}
                   onChange={(e) => setForm({ ...form, side: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"

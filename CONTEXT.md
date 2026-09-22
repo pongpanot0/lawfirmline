@@ -25,3 +25,13 @@ _Avoid_: Lead lawyer, lead counsel, primary attorney
 **Own Ref**:
 The firm-facing case reference, auto-generated as `{prefix}{YYYY}{NNNN}` (default prefix `TSBREF`, Bangkok year, yearly sequence that resets each January).
 _Avoid_: Manual case number, folder ID (separate storage key)
+
+### Case parties
+
+**Case Participant**:
+A person or organization named in the matter, recorded as one of any number of parties with its own court role and side.
+_Avoid_: Client (the represented party), Customer (the payer)
+
+**Participant Role**:
+The party's procedural status, including Plaintiff, Joint Plaintiff, Defendant, Joint Defendant, Petitioner, and other court roles.
+_Avoid_: Party Role (reserved for the single `Case.partyRole` perspective describing which side the firm represents)

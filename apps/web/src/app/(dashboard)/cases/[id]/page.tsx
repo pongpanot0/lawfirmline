@@ -1342,6 +1342,11 @@ export default function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          <CaseParticipantsSection
+            caseId={legalCase.id}
+            initialParticipants={legalCase.participants}
+          />
         </section>
 
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">
@@ -1500,11 +1505,6 @@ export default function CaseDetailPage() {
               </div>
             </CardContent>
           </Card>
-
-          <CaseParticipantsSection
-            caseId={legalCase.id}
-            initialParticipants={legalCase.participants}
-          />
 
           {legalCase.description && (
             <Card>

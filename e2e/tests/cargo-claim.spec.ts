@@ -11,6 +11,12 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   const closeTour = page.getByRole('button', { name: 'ปิดคำแนะนำ' });
   if (await closeTour.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false)) await closeTour.click();
   await expect(page.locator('nav[aria-label="พื้นที่ทำงานคดี"]')).toHaveCSS('position', 'static');
+  await expect(page.getByText('คู่ความ / Participants')).toBeVisible();
+  await page.getByRole('button', { name: 'เพิ่มคู่ความ' }).click();
+  const participantRole = page.getByLabel('บทบาท / Role');
+  await expect(participantRole.locator('option[value="JOINT_PLAINTIFF"]')).toHaveText('โจทก์ร่วม');
+  await expect(participantRole.locator('option[value="JOINT_DEFENDANT"]')).toHaveText('จำเลยร่วม');
+  await page.getByRole('button', { name: 'ยกเลิก' }).click();
   await expect(page.getByRole('tab', { name: 'Cargo Claim' })).toBeVisible();
   await page.getByRole('tab', { name: 'Cargo Claim' }).click();
 

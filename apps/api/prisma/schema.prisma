@@ -191,7 +191,9 @@ enum MessageSenderType {
 
 enum ParticipantRole {
   PLAINTIFF
+  JOINT_PLAINTIFF
   DEFENDANT
+  JOINT_DEFENDANT
   PETITIONER
   RESPONDENT
   WITNESS
