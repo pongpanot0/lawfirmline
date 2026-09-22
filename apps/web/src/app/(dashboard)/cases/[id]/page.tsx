@@ -140,7 +140,7 @@ export default function CaseDetailPage() {
   const searchParams = useSearchParams();
   const activeTab = parseCaseTab(searchParams.get('tab'));
   const selectTab = (tab: CaseTabId) => {
-    router.replace(caseTabHref(id, tab));
+    router.replace(caseTabHref(id, tab), { scroll: false });
   };
   const [legalCase, setCase] = useState<CaseDetail | null>(null);
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
@@ -651,9 +651,9 @@ export default function CaseDetailPage() {
           </div>
           <div className={styles.identityActions}>
             {legalCase.intake && preFiling && (
-              <Button size="sm" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>
+              <Button size="sm" className="min-h-11" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>
             )}
-            <Button variant="outline" onClick={() => setRecordingOutcome(true)}>
+            <Button variant="outline" className="min-h-11" onClick={() => setRecordingOutcome(true)}>
               <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
             </Button>
           </div>
@@ -731,7 +731,7 @@ export default function CaseDetailPage() {
                 }
               }}
             >
-              <Lock className="h-4 w-4" />ปิดคดี
+              <Lock className="h-4 w-4" />ดำเนินการปิดคดี
             </Button>
           ) : (
             <>
@@ -968,7 +968,7 @@ export default function CaseDetailPage() {
         className="min-w-0"
       >
       <div className={styles.workspace}>
-        <div className={styles.mainPane}>
+        <section className={styles.mainPane} aria-label="ข้อมูลและประวัติคดี">
           <Card>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-sm">ข้อมูลคดี</CardTitle>
@@ -1351,7 +1351,7 @@ export default function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
-        </div>
+        </section>
 
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">
           {legalCase.intake && preFiling && (

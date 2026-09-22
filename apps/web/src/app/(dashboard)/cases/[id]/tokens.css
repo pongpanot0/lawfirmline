@@ -1,5 +1,6 @@
 /* Hallmark · genre: modern-minimal · macrostructure: Workbench · theme: existing Samnuan · designed-as-app */
 /* Hallmark · pre-emit critique: P4 H5 E4 S5 R5 V4 */
+/* Hallmark · contrast: pass (40–41) · mobile: pass (34, 49–57) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) */
 :root {
   --case-color-paper: hsl(var(--background));
   --case-color-surface: hsl(var(--card));
@@ -8,9 +9,10 @@
   --case-color-muted: hsl(var(--muted-foreground));
   --case-color-rule: hsl(var(--border));
   --case-color-accent: hsl(var(--primary));
+  --case-color-accent-ink: hsl(var(--primary-foreground));
   --case-color-accent-soft: hsl(var(--primary) / 0.08);
   --case-color-focus: hsl(var(--ring));
-  --case-font-display: var(--font-sans);
+  --case-font-display: "Trirong", "Noto Sans Thai", serif;
   --case-font-body: var(--font-sans);
   --case-space-1: 0.25rem;
   --case-space-2: 0.5rem;

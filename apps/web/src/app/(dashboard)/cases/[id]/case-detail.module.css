@@ -12,16 +12,15 @@
 }
 
 .backButton {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
   width: max-content;
   max-width: 100%;
   color: var(--case-color-muted);
   font-size: var(--case-text-sm);
   text-align: left;
   transition: color var(--case-dur-short) var(--case-ease-out);
-}
-
-.backButton:hover {
-  color: var(--case-color-accent);
 }
 
 .backButton:focus-visible,
@@ -34,8 +33,8 @@
 
 .identityGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
   gap: var(--case-space-5);
 }
 
@@ -90,13 +89,13 @@
 .identityActions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--case-space-2);
 }
 
 .signalStrip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   margin: var(--case-space-5) 0;
   border-block: var(--case-rule);
 }
@@ -105,7 +104,7 @@
 .signalButton {
   min-width: 0;
   padding: var(--case-space-4);
-  border-left: var(--case-rule);
+  border-top: var(--case-rule);
   background: transparent;
   color: var(--case-color-ink);
   text-align: left;
@@ -113,7 +112,7 @@
 
 .signal:first-child,
 .signalButton:first-child {
-  border-left: 0;
+  border-top: 0;
 }
 
 .signalButton {
@@ -121,8 +120,24 @@
   transition: background-color var(--case-dur-short) var(--case-ease-out);
 }
 
-.signalButton:hover {
+.signalButton:active,
+.tabButton:active {
   background: var(--case-color-accent-soft);
+}
+
+.backButton:active {
+  color: var(--case-color-accent);
+}
+
+.stageButton:active:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.signalButton:disabled,
+.stageButton:disabled,
+.tabButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .signalLabel,
@@ -179,7 +194,7 @@
 }
 
 .stageButton {
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   flex: 0 0 auto;
   white-space: nowrap;
   border: var(--case-rule);
@@ -192,14 +207,8 @@
   transition: background-color var(--case-dur-short) var(--case-ease-out), color var(--case-dur-short) var(--case-ease-out), border-color var(--case-dur-short) var(--case-ease-out);
 }
 
-.stageButton:hover:not(:disabled) {
-  border-color: var(--case-color-accent);
-  color: var(--case-color-ink);
-}
-
 .stageButton:disabled {
   cursor: wait;
-  opacity: 0.6;
 }
 
 .stagePast {
@@ -211,7 +220,12 @@
 .stageCurrent {
   border-color: var(--case-color-accent);
   background: var(--case-color-accent);
-  color: hsl(var(--primary-foreground));
+  color: var(--case-color-accent-ink);
+}
+
+.stageCurrent:focus-visible {
+  outline-color: var(--case-color-paper);
+  box-shadow: 0 0 0 4px var(--case-color-focus);
 }
 
 .dangerZone {
@@ -229,7 +243,7 @@
   z-index: 20;
   display: flex;
   min-width: 0;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: var(--case-space-2);
   margin: 0 0 var(--case-space-5);
@@ -263,23 +277,19 @@
   font-weight: 600;
 }
 
-.tabButton:hover {
-  color: var(--case-color-ink);
-}
-
 .tabSelected {
   border-bottom-color: var(--case-color-accent);
   color: var(--case-color-accent);
 }
 
 .tabUtility {
+  display: none;
   flex: 0 0 auto;
-  padding-bottom: var(--case-space-2);
 }
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--case-space-5);
   align-items: start;
 }
@@ -291,13 +301,13 @@
 
 .mainPane {
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 2;
   display: grid;
   gap: var(--case-space-4);
 }
 
 .actionRail {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 1;
   display: grid;
   gap: var(--case-space-4);
@@ -309,74 +319,84 @@
   background: var(--case-color-surface);
 }
 
-@media (max-width: 1023px) {
-  .workspace {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .mainPane,
-  .actionRail {
-    grid-column: 1;
-  }
-
-  .actionRail {
-    grid-row: 1;
-  }
-
-  .mainPane {
-    grid-row: 2;
-  }
-}
-
-@media (max-width: 767px) {
-  .identityGrid {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-  }
-
-  .identityActions {
-    justify-content: flex-start;
-  }
-
+@media (min-width: 23.4375rem) {
   .signalStrip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .signal:nth-child(3),
-  .signalButton:nth-child(3) {
-    border-left: 0;
+  .signal:nth-child(even),
+  .signalButton:nth-child(even) {
+    border-left: var(--case-rule);
   }
 
-  .signal:nth-child(n + 3),
-  .signalButton:nth-child(n + 3) {
-    border-top: var(--case-rule);
-  }
-
-  .tabDock {
-    align-items: stretch;
-  }
-
-  .tabUtility {
-    display: none;
+  .signal:nth-child(-n + 2),
+  .signalButton:nth-child(-n + 2) {
+    border-top: 0;
   }
 }
 
-@media (max-width: 374px) {
+@media (min-width: 48rem) {
+  .identityGrid {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .identityActions {
+    justify-content: flex-end;
+  }
+
   .signalStrip {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .signal,
-  .signalButton,
-  .signal:nth-child(3),
-  .signalButton:nth-child(3) {
-    border-left: 0;
-    border-top: var(--case-rule);
+  .signalButton {
+    border-top: 0;
+    border-left: var(--case-rule);
   }
 
   .signal:first-child,
   .signalButton:first-child {
-    border-top: 0;
+    border-left: 0;
+  }
+
+  .tabUtility {
+    display: block;
+  }
+}
+
+@media (min-width: 64rem) {
+  .workspace {
+    grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
+  }
+
+  .mainPane {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .actionRail {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .backButton:hover {
+    color: var(--case-color-accent);
+  }
+
+  .signalButton:hover {
+    background: var(--case-color-accent-soft);
+  }
+
+  .stageButton:hover:not(:disabled) {
+    border-color: var(--case-color-accent);
+    color: var(--case-color-ink);
+  }
+
+  .tabButton:hover {
+    color: var(--case-color-ink);
   }
 }
 
