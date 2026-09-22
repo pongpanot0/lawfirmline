@@ -15,6 +15,27 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   await expect(page.getByText('หมายเลขคดีแดง', { exact: true })).toBeVisible();
   const caseInformation = page.getByTestId('case-information');
   await expect(caseInformation.getByText('คู่ความ / Participants')).toBeVisible();
+  const caseInformationText = await caseInformation.innerText();
+  let fieldCursor = 0;
+  for (const label of [
+    'หมายเลขคดีดำ',
+    'หมายเลขคดีแดง',
+    'เลขอ้างอิงสำนักงาน',
+    'ประเภทคดี',
+    'Policy Ref',
+    'Customer Ref',
+    'ระดับศาล',
+    'ศาล',
+    'คู่ความ / Participants',
+    'ข้อหาหรือฐานความผิด',
+    'ทุนทรัพย์',
+    'ชื่อลูกความ',
+    'ลูกค้า (ผู้ว่าจ้าง)',
+  ]) {
+    const nextPosition = caseInformationText.indexOf(label, fieldCursor);
+    expect(nextPosition, `${label} should follow the previous case field`).toBeGreaterThanOrEqual(fieldCursor);
+    fieldCursor = nextPosition + label.length;
+  }
   await expect(page.getByRole('heading', { name: 'รายการงานคดี' })).toBeVisible();
   await page.getByRole('button', { name: 'เพิ่มคู่ความ' }).click();
   const participantRole = page.getByLabel('บทบาท / Role');

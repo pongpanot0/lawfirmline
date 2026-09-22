@@ -168,7 +168,7 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
   const allEmpty = participants.length === 0;
 
   return (
-    <section className="mt-6 border-t border-border pt-5" aria-labelledby="case-participants-heading">
+    <section className="col-span-full mt-2 border-t border-border pt-5" aria-labelledby="case-participants-heading">
       <div className="flex flex-row items-center justify-between gap-3">
         <div>
           <h4 id="case-participants-heading" className="text-sm font-semibold">คู่ความ / Participants</h4>

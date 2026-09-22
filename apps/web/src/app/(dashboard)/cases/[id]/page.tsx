@@ -515,6 +515,8 @@ export default function CaseDetailPage() {
   if (!legalCase) return <p className="text-destructive">{d.admin.caseNotFound}</p>;
 
   const customFields = legalCase.customFields as Record<string, string> | null;
+  const chargeSection = customFields?.chargeSection?.trim() || '—';
+  const policyRef = legalCase.insuranceClaim?.policyNumber?.trim() || '—';
   const clientDisplay = legalCase.client?.name ?? legalCase.clientName ?? '—';
   // ลูกความ = คนที่เราว่าความให้ / ลูกค้า = ผู้ว่าจ้างที่เราวางบิล — คนละคนกันในงานประกัน
   const customerDisplay = formatCustomers(legalCase.customers);
@@ -1159,67 +1161,81 @@ export default function CaseDetailPage() {
                 </form>
               ) : (
                 <>
-              <div>
-                <p className="text-xs text-muted-foreground">เลขอ้างอิงสำนักงาน</p>
-                <p className="font-medium">{legalCase.ownRef}</p>
-                <p className="mt-1 text-xs text-muted-foreground">แฟ้ม {legalCase.folderId ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">เลขอ้างอิงลูกค้า</p>
-                <p className="font-medium">{legalCase.customerRef ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">ประเภทคดี</p>
-                <p className="font-medium">{legalCase.caseType?.name ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">หมายเลขคดีดำ</p>
-                <p className="font-medium">{legalCase.blackCaseNumber ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">หมายเลขคดีแดง</p>
-                <p className="font-medium">{legalCase.redCaseNumber ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">ระดับศาล</p>
-                <p className="font-medium">
-                  {legalCase.courtLevel ? COURT_LEVEL_LABELS[legalCase.courtLevel] : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">ศาล</p>
-                <p className="font-medium">{legalCase.courtName ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">ฝ่ายเรา</p>
-                <p className="font-medium">
-                  {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : legalCase.partyRole === 'DEFENDANT' ? 'จำเลย' : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">ลูกความ</p>
-                <p className="font-medium">{clientDisplay}</p>
-                {legalCase.client?.contacts && legalCase.client.contacts.length > 0 && (
-                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                    {legalCase.client.contacts.slice(0, 2).map((c, i) => (
-                      <p key={i}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</p>
-                    ))}
+                  <div>
+                    <p className="text-xs text-muted-foreground">หมายเลขคดีดำ</p>
+                    <p className="font-medium">{legalCase.blackCaseNumber ?? '—'}</p>
                   </div>
-                )}
-                {legalCase.additionalClients && legalCase.additionalClients.length > 0 && (
-                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                    {legalCase.additionalClients.map((ac) => (
-                      <p key={ac.id}>และ {ac.client.name}</p>
-                    ))}
+                  <div>
+                    <p className="text-xs text-muted-foreground">หมายเลขคดีแดง</p>
+                    <p className="font-medium">{legalCase.redCaseNumber ?? '—'}</p>
                   </div>
-                )}
-              </div>
-              {showCustomer && (
-                <div>
-                  <p className="text-xs text-muted-foreground">ลูกค้า (ผู้ว่าจ้าง)</p>
-                  <p className="font-medium">{customerDisplay}</p>
-                </div>
-              )}
+                  <div>
+                    <p className="text-xs text-muted-foreground">เลขอ้างอิงสำนักงาน</p>
+                    <p className="font-medium">{legalCase.ownRef}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">แฟ้ม {legalCase.folderId ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">ประเภทคดี</p>
+                    <p className="font-medium">{legalCase.caseType?.name ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Policy Ref</p>
+                    <p className="font-medium">{policyRef}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Customer Ref</p>
+                    <p className="font-medium">{legalCase.customerRef ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">ระดับศาล</p>
+                    <p className="font-medium">
+                      {legalCase.courtLevel ? COURT_LEVEL_LABELS[legalCase.courtLevel] : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">ศาล</p>
+                    <p className="font-medium">{legalCase.courtName ?? '—'}</p>
+                  </div>
+                  <CaseParticipantsSection
+                    caseId={legalCase.id}
+                    initialParticipants={legalCase.participants}
+                  />
+                  <div className="col-span-full">
+                    <p className="text-xs text-muted-foreground">ข้อหาหรือฐานความผิด</p>
+                    <p className="font-medium">{chargeSection}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">ทุนทรัพย์</p>
+                    <p className="font-medium">{legalCase.claimedAmount != null ? formatCurrency(legalCase.claimedAmount) : 'ยังไม่ระบุ'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">ฝ่ายเรา</p>
+                    <p className="font-medium">
+                      {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : legalCase.partyRole === 'DEFENDANT' ? 'จำเลย' : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">ชื่อลูกความ</p>
+                    <p className="font-medium">{clientDisplay}</p>
+                    {legalCase.client?.contacts && legalCase.client.contacts.length > 0 && (
+                      <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        {legalCase.client.contacts.slice(0, 2).map((c, i) => (
+                          <p key={i}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</p>
+                        ))}
+                      </div>
+                    )}
+                    {legalCase.additionalClients && legalCase.additionalClients.length > 0 && (
+                      <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        {legalCase.additionalClients.map((ac) => (
+                          <p key={ac.id}>และ {ac.client.name}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">ลูกค้า (ผู้ว่าจ้าง)</p>
+                    <p className="font-medium">{customerDisplay ?? '—'}</p>
+                  </div>
               <div className="col-span-full rounded-lg border border-border bg-muted/30 p-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground">ทีมของคดี</p>
@@ -1319,7 +1335,6 @@ export default function CaseDetailPage() {
                   </div>
                 )}
               </div>
-              <div><p className="text-xs text-muted-foreground">ทุนทรัพย์</p><p className="font-medium">{legalCase.claimedAmount != null ? formatCurrency(legalCase.claimedAmount) : 'ยังไม่ระบุ'}</p></div>
               <div>
                 <p className="text-xs text-muted-foreground">รายได้โดยประมาณ</p>
                 <p className="font-medium text-green-600">
@@ -1332,7 +1347,7 @@ export default function CaseDetailPage() {
                 <p className="text-xs text-muted-foreground">ค่าใช้จ่ายที่อนุมัติ</p>
                 <p className="font-medium text-primary">{formatCurrency(totalSpent)}</p>
               </div>
-              {customFields && Object.entries(customFields).filter(([key]) => key !== CASE_COSTS_KEY).map(([k, v]) => (
+              {customFields && Object.entries(customFields).filter(([key]) => key !== CASE_COSTS_KEY && key !== 'chargeSection').map(([k, v]) => (
                 <div key={k}>
                   <p className="text-xs text-muted-foreground">{k}</p>
                   <p className="font-medium">{v}</p>
@@ -1340,10 +1355,12 @@ export default function CaseDetailPage() {
               ))}
                 </>
               )}
-              <CaseParticipantsSection
-                caseId={legalCase.id}
-                initialParticipants={legalCase.participants}
-              />
+              {editingOverview && (
+                <CaseParticipantsSection
+                  caseId={legalCase.id}
+                  initialParticipants={legalCase.participants}
+                />
+              )}
             </CardContent>
           </Card>
         </section>
