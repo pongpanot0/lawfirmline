@@ -7,6 +7,7 @@ import { DailyDigestScheduler } from './daily-digest.scheduler';
 import { EscalationScheduler } from './escalation.scheduler';
 import { LineMessagingService } from './line-messaging.service';
 import { AssignmentNotifierService } from './assignment-notifier.service';
+import { FirmLinkService } from './firm-link.service';
 import { LineLinkService } from './line-link.service';
 import { LinkCodeAttemptLimiterService } from './link-code-attempt-limiter.service';
 import { EmailService } from './email.service';
@@ -51,6 +52,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     EscalationScheduler,
     LineMessagingService,
     AssignmentNotifierService,
+    FirmLinkService,
     LineLinkService,
     LinkCodeAttemptLimiterService,
     EmailService,
@@ -70,6 +72,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     PushService,
     LineMessagingService,
     AssignmentNotifierService,
+    FirmLinkService,
     LineLinkService,
     EmailService,
     ContactLineLinkService,

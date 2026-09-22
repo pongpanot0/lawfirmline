@@ -341,6 +341,7 @@ export class LineExpenseFlowService {
       `บันทึกค่าใช้จ่ายเป็นฉบับร่างแล้วครับ ✅ ฿${data.amount.toLocaleString('th-TH')}\nตรวจแล้วกดส่งเบิกได้ที่หน้าค่าใช้จ่ายบนเว็บครับ`,
     );
     await this.notify.notifyCreated({
+      firmId: session.firmId,
       target: session.target,
       summaryText: `💸 ค่าใช้จ่ายใหม่ (ฉบับร่าง): ฿${data.amount.toLocaleString('th-TH')} — ${data.description}`,
       entityPath: '/expenses',

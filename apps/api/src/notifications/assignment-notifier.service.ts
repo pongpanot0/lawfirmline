@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService } from './line-messaging.service';
+import { FirmLinkService } from './firm-link.service';
 
 /**
  * Fire-and-forget LINE DMs for assignment/approval events. Depends only on
@@ -18,9 +19,13 @@ export class AssignmentNotifierService {
     private prisma: PrismaService,
     private line: LineMessagingService,
     private config: ConfigService,
+    private firmLink: FirmLinkService,
   ) {}
 
   async notifyAssigned(params: {
+    /** Null only when the trigger has no firm in hand (a standalone todo); the
+     *  firm is then taken from the recipient's own membership. */
+    firmId: string | null;
     userIds: string[];
     actorUserId: string;
     summaryText: string;
@@ -31,10 +36,16 @@ export class AssignmentNotifierService {
       if (!targets.length) return;
       const users = await this.prisma.user.findMany({
         where: { id: { in: targets } },
-        select: { id: true, lineUserId: true },
+        select: {
+          id: true,
+          lineUserId: true,
+          firmMembers: { select: { firmId: true }, orderBy: { createdAt: 'asc' }, take: 1 },
+        },
       });
-      const webUrl = this.config.get<string>('WEB_APP_URL') ?? 'http://localhost:3000';
-      const message = `${params.summaryText}\n\n🔗 ${webUrl}${params.entityPath}`;
+      const firmId = params.firmId ?? users[0]?.firmMembers[0]?.firmId;
+      if (!firmId) return;
+      const link = await this.firmLink.linkFor(firmId, params.entityPath);
+      const message = `${params.summaryText}\n\n🔗 ${link}`;
       for (const u of users) {
         if (!u.lineUserId) continue;
         try {
@@ -60,6 +71,7 @@ export class AssignmentNotifierService {
         select: { userId: true },
       });
       await this.notifyAssigned({
+        firmId: params.firmId,
         userIds: owners.map((o) => o.userId),
         actorUserId: params.actorUserId,
         summaryText: params.summaryText,

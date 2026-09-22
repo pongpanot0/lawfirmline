@@ -177,6 +177,7 @@ export class LineTodoFlowService {
     this.store.clear(session.lineUserId);
     await this.reply(session, `สร้าง Todo สำเร็จแล้วครับ ✅ "${data.title}"`);
     await this.notify.notifyCreated({
+      firmId: session.firmId,
       target: session.target,
       summaryText: `📝 Todo ใหม่: ${data.title}${data.assigneeLabel ? `\nผู้รับผิดชอบ: ${data.assigneeLabel}` : ''}`,
       assigneeUserId: data.assigneeId,

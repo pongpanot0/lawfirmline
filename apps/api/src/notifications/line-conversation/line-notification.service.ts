@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { LineMessagingService } from '../line-messaging.service';
 import { PrismaService } from '../../prisma/prisma.module';
 import { ConversationTarget } from './line-conversation.types';
+import { FirmLinkService } from '../firm-link.service';
 
 @Injectable()
 export class LineNotificationService {
@@ -10,9 +11,11 @@ export class LineNotificationService {
     private line: LineMessagingService,
     private prisma: PrismaService,
     private config: ConfigService,
+    private firmLink: FirmLinkService,
   ) {}
 
   async notifyCreated(params: {
+    firmId: string;
     target: ConversationTarget;
     summaryText: string;
     assigneeUserId?: string | null;
@@ -20,8 +23,9 @@ export class LineNotificationService {
     /** Headline of the direct message to the assignee/recipient. */
     dmHeadline?: string;
   }): Promise<void> {
-    const webUrl = this.config.get<string>('WEB_APP_URL') ?? 'http://localhost:3000';
-    const link = params.entityPath ? `${webUrl}${params.entityPath}` : null;
+    const link = params.entityPath
+      ? await this.firmLink.linkFor(params.firmId, params.entityPath)
+      : null;
     const groupMessage = link ? `${params.summaryText}\n\n🔗 ${link}` : params.summaryText;
 
     const groupOrRoomId = params.target.groupId ?? params.target.roomId;

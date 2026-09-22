@@ -62,6 +62,7 @@ export class EscalationScheduler {
 
       if (targets.size) {
         await this.notifier.notifyAssigned({
+          firmId: task.case?.firmId ?? null,
           userIds: [...targets],
           actorUserId: '',
           summaryText: summary,
@@ -94,13 +95,14 @@ export class EscalationScheduler {
     const holds = await this.prisma.taskOnHold.findMany({
       where: { endedAt: null, nextFollowUpAt: { lte: now } },
       include: {
-        task: { include: { case: { select: { id: true, title: true } } } },
+        task: { include: { case: { select: { id: true, firmId: true, title: true } } } },
       },
     });
 
     for (const hold of holds) {
       const targets = [hold.followerUserId ?? hold.createdById];
       await this.notifier.notifyAssigned({
+        firmId: hold.task.case?.firmId ?? null,
         userIds: targets,
         actorUserId: '',
         summaryText:

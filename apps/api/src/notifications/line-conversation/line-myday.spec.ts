@@ -1,3 +1,4 @@
+import { FirmLinkService } from '../firm-link.service';
 import { LineBotRouterService } from './line-bot-router.service';
 import { ConversationStep, FlowType } from './line-conversation.types';
 
@@ -8,7 +9,7 @@ describe('LineBotRouter my-day command', () => {
     getMessageContent: jest.fn(),
   } as any;
   const auth = {
-    resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1', firmRole: 'LAWYER' }),
+    resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'LAWYER' }),
   } as any;
   const store = { get: jest.fn(), start: jest.fn(), update: jest.fn(), clear: jest.fn() } as any;
   const intakeFlow = { start: jest.fn(), handle: jest.fn() } as any;
@@ -17,16 +18,21 @@ describe('LineBotRouter my-day command', () => {
   const expenseFlow = { start: jest.fn(), handle: jest.fn(), handleImage: jest.fn() } as any;
   const advanceFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const agenda = { getMyDay: jest.fn() } as any;
-  const config = { get: jest.fn().mockReturnValue('https://app.example.com') } as any;
+  const config = {
+    get: jest.fn((key: string) =>
+      key === 'ROOT_DOMAIN' ? 'example.com' : 'https://app.example.com',
+    ),
+  } as any;
 
   const target = { replyToken: 'rt', sourceType: 'user' as const };
 
   let router: LineBotRouterService;
   beforeEach(() => {
     jest.clearAllMocks();
-    auth.resolve.mockResolvedValue({ id: 'u1', firmId: 'f1', firmRole: 'LAWYER' });
+    auth.resolve.mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'LAWYER' });
     router = new LineBotRouterService(
       line, auth, store, intakeFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
+      new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
     );
   });
 
@@ -48,7 +54,7 @@ describe('LineBotRouter my-day command', () => {
     const text = line.replyWithQuickReply.mock.calls[0][1];
     expect(text).toContain('ยื่นคำให้การ');
     expect(text).toContain('นัดสืบพยาน');
-    expect(text).toContain('https://app.example.com/my-day');
+    expect(text).toContain('https://acme.example.com/my-day');
     expect(intakeFlow.start).not.toHaveBeenCalled();
   });
 

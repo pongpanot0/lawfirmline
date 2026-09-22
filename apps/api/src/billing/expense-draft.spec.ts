@@ -1,3 +1,4 @@
+import { FirmLinkService } from '../notifications/firm-link.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -61,6 +62,7 @@ describe('BillingService — drafted expenses', () => {
       providers: [
         BillingService,
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
+        { provide: FirmLinkService, useValue: { linkFor: jest.fn().mockResolvedValue('https://acme.example.com/x'), originForFirm: jest.fn(), rootOrigin: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PettyCashService, useValue: mockPettyCash },
         { provide: CashAdvanceService, useValue: mockCashAdvance },

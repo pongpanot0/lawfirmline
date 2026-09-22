@@ -1,3 +1,4 @@
+import { FirmLinkService } from '../firm-link.service';
 import { LineBotRouterService } from './line-bot-router.service';
 import { ConversationSession, ConversationStep, FlowType } from './line-conversation.types';
 
@@ -10,7 +11,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
     getMessageContent: jest.fn(),
   } as any;
   const auth = {
-    resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1', firmRole: 'OWNER' }),
+    resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'OWNER' }),
   } as any;
   const intakeFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const taskFlow = { start: jest.fn(), handle: jest.fn() } as any;
@@ -18,7 +19,11 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
   const expenseFlow = { start: jest.fn(), handle: jest.fn(), handleImage: jest.fn() } as any;
   const advanceFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const agenda = { getMyDay: jest.fn() } as any;
-  const config = { get: jest.fn().mockReturnValue('https://app.example.com') } as any;
+  const config = {
+    get: jest.fn((key: string) =>
+      key === 'ROOT_DOMAIN' ? 'example.com' : 'https://app.example.com',
+    ),
+  } as any;
 
   const store = {
     get: jest.fn(),
@@ -45,10 +50,11 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
   let router: LineBotRouterService;
   beforeEach(() => {
     jest.clearAllMocks();
-    auth.resolve.mockResolvedValue({ id: 'u1', firmId: 'f1', firmRole: 'OWNER' });
+    auth.resolve.mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'OWNER' });
     store.start.mockImplementation((s: any) => ({ ...s, createdAt: 1, updatedAt: 1 }));
     router = new LineBotRouterService(
       line, auth, store, intakeFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
+      new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
     );
   });
 

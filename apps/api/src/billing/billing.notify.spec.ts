@@ -1,3 +1,4 @@
+import { FirmLinkService } from '../notifications/firm-link.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser, ExpenseClaimStatus, ExpenseStatus, FirmRole } from '@lawfirm/shared';
@@ -37,6 +38,7 @@ describe('Billing LINE notifications', () => {
         { provide: LineMessagingService, useValue: { isConfigured: jest.fn().mockReturnValue(false), pushTo: jest.fn() } },
         { provide: FileStorageService, useValue: {} },
         { provide: AssignmentNotifierService, useValue: mockNotifier },
+        { provide: FirmLinkService, useValue: { linkFor: jest.fn().mockResolvedValue('https://acme.example.com/x'), originForFirm: jest.fn(), rootOrigin: jest.fn() } },
       ],
     }).compile();
     billing = module.get(BillingService);
@@ -50,6 +52,7 @@ describe('Billing LINE notifications', () => {
     mockPrisma.expense.update.mockResolvedValue({ id: 'e1', userId: 'u2', amount: 1500 });
     await billing.updateExpenseStatus(owner, 'e1', { status: ExpenseStatus.APPROVED } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'owner-1',
       summaryText: expect.stringContaining('อนุมัติ'),
@@ -75,6 +78,7 @@ describe('Billing LINE notifications', () => {
     });
     await billing.updateExpenseClaimStatus(owner, 'cl1', { status: ExpenseClaimStatus.PAID } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'owner-1',
       summaryText: expect.stringContaining('จ่ายแล้ว'),
@@ -90,6 +94,7 @@ describe('Billing LINE notifications', () => {
     });
     await advances.issue(owner, { userId: 'u2', amount: 5000, note: 'ค่าเดินทาง' } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'owner-1',
       summaryText: expect.stringContaining('เงินสำรองจ่าย'),

@@ -1,3 +1,4 @@
+import { FirmLinkService } from '../notifications/firm-link.service';
 import { forwardRef, Module } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { BillingController } from './billing.controller';
@@ -8,7 +9,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 @Module({
   imports: [forwardRef(() => NotificationsModule)],
   controllers: [BillingController],
-  providers: [BillingService, PettyCashService, CashAdvanceService],
+  providers: [
+    FirmLinkService,BillingService, PettyCashService, CashAdvanceService],
   exports: [BillingService, CashAdvanceService],
 })
 export class BillingModule {}

@@ -69,6 +69,7 @@ describe('IntakeService assignment notifications', () => {
       assignedUserIds: ['u2', 'u3'],
     } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u2', 'u3'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('เรื่องทดสอบ'),
@@ -85,6 +86,7 @@ describe('IntakeService assignment notifications', () => {
     mockPrisma.intake.update.mockResolvedValue({ id: 'i1', title: 'เรื่องเดิม' });
     await service.update(user, 'i1', { assignedUserIds: ['u2', 'u4'] } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u4'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('เรื่องเดิม'),

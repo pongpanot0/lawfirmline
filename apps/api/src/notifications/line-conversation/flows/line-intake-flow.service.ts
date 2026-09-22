@@ -296,6 +296,7 @@ export class LineIntakeFlowService {
     this.store.clear(session.lineUserId);
     await this.reply(session, `สร้าง Case สำเร็จแล้วครับ ✅\n\n"${data.title}"`);
     await this.notify.notifyCreated({
+      firmId: session.firmId,
       target: session.target,
       summaryText: `📋 สร้าง Intake ใหม่: ${data.title}${data.clientName ? `\nลูกความ: ${data.clientName}` : ''}${
         data.assignedUserLabels?.length ? `\nผู้รับผิดชอบ: ${data.assignedUserLabels.join(', ')}` : ''

@@ -10,6 +10,7 @@ import { CashAdvanceService } from './cash-advance.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
+import { FirmLinkService } from '../notifications/firm-link.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import {
   CreateTimeEntryDto,
@@ -41,6 +42,7 @@ export class BillingService {
     private fileStorage: FileStorageService,
     private line: LineMessagingService,
     private assignmentNotifier: AssignmentNotifierService,
+    private firmLink: FirmLinkService,
   ) {}
 
   private decodeOriginalFilename(originalname: string): string {
@@ -685,6 +687,7 @@ export class BillingService {
     const copy = requesterCopy[dto.status];
     if (copy) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: [expense.userId],
         actorUserId: user.id,
         summaryText: copy,
@@ -878,6 +881,7 @@ export class BillingService {
     const copy = submitterCopy[next];
     if (copy) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: [claim.submittedById],
         actorUserId: user.id,
         summaryText: copy,
@@ -905,11 +909,10 @@ export class BillingService {
 
     if (!ownerLineIds.length || !this.line.isConfigured()) return;
 
-    const webUrl =
-      this.config.get<string>('WEB_APP_URL') ??
-      this.config.get<string>('APP_URL') ??
-      'http://localhost:3005';
-    const link = `${webUrl.replace(/\/$/, '')}/admin/reimbursements?status=PENDING`;
+    const link = await this.firmLink.linkFor(
+      submitter.firmId,
+      '/admin/reimbursements?status=PENDING',
+    );
     const submitterName = `${submitter.firstName ?? ''} ${submitter.lastName ?? ''}`.trim() || 'ทนายความ';
     const message =
       `📋 ${submitterName} ส่งใบเบิก ${claim.itemCount} รายการ\n` +

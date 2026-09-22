@@ -250,6 +250,7 @@ export class LineTaskFlowService {
     const where = data.caseId ? `ในคดี "${data.caseLabel}"` : 'นอกคดี';
     await this.reply(session, `เพิ่มงาน${where}สำเร็จแล้วครับ ✅`);
     await this.notify.notifyCreated({
+      firmId: session.firmId,
       target: session.target,
       summaryText: `✅ งานใหม่${where}: ${data.title}${data.assigneeLabel ? `\nผู้รับผิดชอบ: ${data.assigneeLabel}` : ''}`,
       assigneeUserId: data.assigneeId,

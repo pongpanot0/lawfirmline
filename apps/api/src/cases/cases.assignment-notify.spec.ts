@@ -54,12 +54,14 @@ describe('CasesService assignment notifications', () => {
       buddyIds: ['u3'],
     } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('ทนายเจ้าของคดี'),
       entityPath: '/cases/c1',
     });
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u3'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('เข้าทีมคดี'),
@@ -73,6 +75,7 @@ describe('CasesService assignment notifications', () => {
     mockPrisma.case.update.mockResolvedValue({ id: 'c1', title: 'คดีเดิม', leadLawyerId: 'u4' });
     await service.update(user, 'c1', { leadLawyerId: 'u4' } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u4'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('ทนายเจ้าของคดี'),
@@ -96,6 +99,7 @@ describe('CasesService assignment notifications', () => {
     await service.updateAssignments(user, 'c1', { buddyIds: ['u3', 'u5'] } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledTimes(1);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u5'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('เข้าทีมคดี'),

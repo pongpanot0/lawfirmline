@@ -189,6 +189,7 @@ export class LineAdvanceFlowService {
       `บันทึกเงินสำรองจ่ายสำเร็จแล้วครับ ✅ ฿${data.amount.toLocaleString('th-TH')} ให้ ${data.userLabel}`,
     );
     await this.notify.notifyCreated({
+      firmId: session.firmId,
       target: session.target,
       summaryText: `💰 เงินสำรองจ่าย ฿${data.amount.toLocaleString('th-TH')} → ${data.userLabel}${
         data.note ? `\nหมายเหตุ: ${data.note}` : ''

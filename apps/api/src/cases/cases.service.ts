@@ -359,6 +359,7 @@ export class CasesService {
 
     if (dto.leadLawyerId && dto.leadLawyerId !== user.id) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: [dto.leadLawyerId],
         actorUserId: user.id,
         summaryText: `⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี\nคดี: ${created.title}`,
@@ -367,6 +368,7 @@ export class CasesService {
     }
     if (buddyIds.length) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: buddyIds,
         actorUserId: user.id,
         summaryText: `⚖️ คุณได้รับมอบหมายเข้าทีมคดี\nคดี: ${created.title}`,
@@ -457,6 +459,7 @@ export class CasesService {
       dto.leadLawyerId !== user.id
     ) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: [dto.leadLawyerId],
         actorUserId: user.id,
         summaryText: `⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี\nคดี: ${updated.title}`,
@@ -531,6 +534,7 @@ export class CasesService {
     }
     if (newBuddyIds.length) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: newBuddyIds,
         actorUserId: user.id,
         summaryText: `⚖️ คุณได้รับมอบหมายเข้าทีมคดี\nคดี: ${result?.title ?? legalCase.title}`,
