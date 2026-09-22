@@ -19,6 +19,11 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   const participantsField = caseInformation.getByTestId('case-participants-field');
   await expect(participantsField.getByText('คู่ความ', { exact: true })).toBeVisible();
   await expect(participantsField).toHaveCSS('border-top-width', '0px');
+  const participantRows = participantsField.getByTestId('case-participant-row');
+  if (await participantRows.count()) {
+    await expect(participantRows.first().getByText('ฐานะ', { exact: true })).toBeVisible();
+    await expect(participantRows.first().getByText(/^(ฝ่ายเรา|ฝ่ายตรงข้าม|กลาง)$/)).toHaveCount(0);
+  }
   const leftColumnBox = await caseInformation.boundingBox();
   const rightColumnBox = await actionRail.boundingBox();
   expect(leftColumnBox).toBeTruthy();

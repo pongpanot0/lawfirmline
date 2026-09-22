@@ -27,12 +27,6 @@ const SIDE_LABELS: Record<string, string> = {
   NEUTRAL: 'กลาง',
 };
 
-const SIDE_COLORS: Record<string, string> = {
-  OURS: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
-  OPPONENT: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
-  NEUTRAL: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-};
-
 const ROLE_BADGE_COLORS: Record<string, string> = {
   PLAINTIFF: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
   JOINT_PLAINTIFF: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300',
@@ -360,29 +354,21 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
         )}
 
         {grouped.map(({ side, items }) => (
-          <div key={side}>
-            <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              {SIDE_LABELS[side]}
-            </p>
-            <div className="space-y-2">
+          <div key={side} className="overflow-hidden rounded-lg border border-border">
+            <div className="flex items-center justify-between bg-muted/40 px-3 py-2">
+              <p className="text-xs font-semibold text-foreground">{SIDE_LABELS[side]}</p>
+              <span className="text-xs text-muted-foreground">{items.length} ราย</span>
+            </div>
+            <div className="divide-y divide-border">
               {items.map((p) => (
                 <div
                   key={p.id}
-                  className="flex items-start justify-between gap-2 rounded-lg border border-border px-3 py-2"
+                  data-testid="case-participant-row"
+                  className="grid gap-3 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"
                 >
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-sm font-medium">
-                        {p.name}
-                        {p.nickname ? ` (${p.nickname})` : ''}
-                      </span>
-                      <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${ROLE_BADGE_COLORS[p.role] ?? ROLE_BADGE_COLORS.OTHER}`}>
-                        {ROLE_LABELS[p.role] ?? p.role}
-                      </span>
-                      <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${SIDE_COLORS[p.side] ?? SIDE_COLORS.NEUTRAL}`}>
-                        {SIDE_LABELS[p.side] ?? p.side}
-                      </span>
-                    </div>
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-semibold text-foreground">{p.name}</p>
+                    {p.nickname && <p className="text-xs text-muted-foreground">ชื่อเล่น: {p.nickname}</p>}
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                       {p.phone && <span>{p.phone}</span>}
                       {p.email && <span>{p.email}</span>}
@@ -391,12 +377,18 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
                       {p.medicalLicenseNo && <span>ใบอนุญาตแพทย์: {p.medicalLicenseNo}</span>}
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex items-center gap-2 sm:justify-end">
+                    <span className="text-xs text-muted-foreground">ฐานะ</span>
+                    <span className={`rounded px-2 py-1 text-xs font-medium ${ROLE_BADGE_COLORS[p.role] ?? ROLE_BADGE_COLORS.OTHER}`}>
+                      {ROLE_LABELS[p.role] ?? p.role}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 sm:justify-end">
                     <button
                       type="button"
                       onClick={() => openEdit(p)}
                       className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      title="แก้ไข"
+                      aria-label={`แก้ไข ${p.name}`}
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
@@ -404,7 +396,7 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
                       type="button"
                       onClick={() => handleDelete(p.id, p.name)}
                       className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
-                      title="ลบ"
+                      aria-label={`ลบ ${p.name}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
