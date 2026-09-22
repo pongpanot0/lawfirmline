@@ -1,6 +1,9 @@
 'use client';
 
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
+import { CasePrintForms } from '@/components/cases/CasePrintForms';
+import { CaseOverviewForm } from '@/components/cases/CaseOverviewForm';
+import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
 import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
 import { CASE_COSTS_KEY } from '@/lib/case-costs';
@@ -449,6 +452,10 @@ export default function CaseDetailPage() {
       setOverviewError('กรุณากรอกชื่อคดี');
       return;
     }
+    if (!overviewForm.ownRef.trim()) {
+      setOverviewError('กรุณากรอกเลขอ้างอิงสำนักงาน');
+      return;
+    }
     setSavingOverview(true);
     setOverviewError('');
     try {
@@ -527,7 +534,7 @@ export default function CaseDetailPage() {
   if (!legalCase) return <p className="text-destructive">{d.admin.caseNotFound}</p>;
 
   const customFields = legalCase.customFields as Record<string, string> | null;
-  const chargeSection = customFields?.chargeSection?.trim() || '—';
+  const chargeSection = typeof legalCase.customFields?.chargeSection === 'string' ? legalCase.customFields.chargeSection.trim() : '';
   const policyRef = legalCase.insuranceClaim?.policyNumber?.trim() || '—';
   const clientDisplay = legalCase.client?.name ?? legalCase.clientName ?? '—';
   // ลูกความ = คนที่เราว่าความให้ / ลูกค้า = ผู้ว่าจ้างที่เราวางบิล — คนละคนกันในงานประกัน
@@ -677,6 +684,7 @@ export default function CaseDetailPage() {
             </div>
           </div>
           <div className={styles.identityActions}>
+            <CasePrintForms key={legalCase.id} legalCase={legalCase} />
             {legalCase.intake && preFiling && (
               <Button size="sm" className="min-h-11" onClick={() => setNoticeOpen(true)}>ออก Notice</Button>
             )}
@@ -1007,116 +1015,35 @@ export default function CaseDetailPage() {
       >
       <div className={styles.workspace}>
         <section className={styles.mainPane} aria-label="ข้อมูลและประวัติคดี">
+          <CaseSummaryPanel caseId={id} onChanged={loadCase} />
           <Card data-testid="case-information">
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-              <CardTitle className="text-sm">ข้อมูลคดี</CardTitle>
+              <CardTitle className="text-base">{editingOverview ? 'แก้ไขข้อมูลคดี' : 'ข้อมูลคดี'}</CardTitle>
               {!editingOverview && (
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 text-xs"
+                  className="min-h-11 px-3 text-sm"
                   onClick={startEditOverview}
                 >
                   <Pencil className="h-3 w-3" />
-                  แก้ไข
+                  แก้ไขข้อมูลคดี
                 </Button>
               )}
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               {editingOverview ? (
-                <div className="col-span-full grid gap-4 sm:grid-cols-2" data-testid="case-information-edit">
-                  <div>
-                    <label className="text-xs text-muted-foreground">หมายเลขคดีดำ</label>
-                    <Input value={overviewForm.blackCaseNumber} onChange={(e) => setOverviewForm({ ...overviewForm, blackCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} className="mt-1 h-8 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">หมายเลขคดีแดง</label>
-                    <Input value={overviewForm.redCaseNumber} onChange={(e) => setOverviewForm({ ...overviewForm, redCaseNumber: e.target.value })} placeholder={CASE_NUMBER_HINT} className="mt-1 h-8 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">เลขอ้างอิงสำนักงาน</label>
-                    <Input required value={overviewForm.ownRef} onChange={(e) => setOverviewForm({ ...overviewForm, ownRef: e.target.value })} className="mt-1 h-8 text-sm" />
-                    <p className="mt-1 text-xs text-muted-foreground">แฟ้ม {legalCase.folderId ?? '—'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">ประเภทคดี</label>
-                    <select value={overviewForm.caseTypeId} onChange={(e) => setOverviewForm({ ...overviewForm, caseTypeId: e.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
-                      <option value="">—</option>
-                      {caseTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Policy Ref</label>
-                    <Input value={policyRef === '—' ? '' : policyRef} placeholder="—" readOnly aria-readonly="true" className="mt-1 h-8 bg-muted/30 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Customer Ref</label>
-                    <Input value={overviewForm.customerRef} onChange={(e) => setOverviewForm({ ...overviewForm, customerRef: e.target.value })} className="mt-1 h-8 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">ระดับศาล</label>
-                    <select value={overviewForm.courtLevel} onChange={(e) => setOverviewForm({ ...overviewForm, courtLevel: e.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
-                      <option value="">—</option>
-                      {Object.values(CourtLevel).map((level) => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">ศาล</label>
-                    <select value={overviewForm.courtName} onChange={(e) => setOverviewForm({ ...overviewForm, courtName: e.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
-                      <option value="">—</option>
-                      {courts.map((court) => <option key={court.id} value={court.name}>{court.name}</option>)}
-                      {overviewForm.courtName && !courts.some((court) => court.name === overviewForm.courtName) && <option value={overviewForm.courtName}>{overviewForm.courtName}</option>}
-                    </select>
-                  </div>
-                  <CaseParticipantsSection caseId={legalCase.id} initialParticipants={legalCase.participants} />
-                  <div className="col-span-full">
-                    <label className="text-xs text-muted-foreground">ข้อหาหรือฐานความผิด</label>
-                    <Input value={overviewForm.chargeSection} onChange={(e) => setOverviewForm({ ...overviewForm, chargeSection: e.target.value })} className="mt-1 h-8 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">ทุนทรัพย์</label>
-                    <Input type="number" step="0.01" min="0" value={overviewForm.claimedAmount} onChange={(e) => setOverviewForm({ ...overviewForm, claimedAmount: e.target.value })} className="mt-1 h-8 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">ฝ่ายเรา</label>
-                    <select value={overviewForm.partyRole} onChange={(e) => setOverviewForm({ ...overviewForm, partyRole: e.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
-                      <option value="">ไม่ระบุ</option>
-                      <option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option>
-                      <option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">ชื่อลูกความ</p>
-                    <p className="mt-1 font-medium">{clientDisplay}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">ลูกค้า (ผู้ว่าจ้าง)</p>
-                    <p className="mt-1 font-medium">{customerDisplay ?? '—'}</p>
-                  </div>
-                  <div className="col-span-full grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground">ชื่อคดี *</label>
-                      <Input required value={overviewForm.title} onChange={(e) => setOverviewForm({ ...overviewForm, title: e.target.value })} className="mt-1 h-8 text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">รายได้โดยประมาณ</label>
-                      <Input type="number" step="0.01" min="0" value={overviewForm.estimatedFee} onChange={(e) => setOverviewForm({ ...overviewForm, estimatedFee: e.target.value })} placeholder="เช่น 50000" className="mt-1 h-8 text-sm" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-xs text-muted-foreground">รายละเอียดคดี</label>
-                      <textarea value={overviewForm.description} onChange={(e) => setOverviewForm({ ...overviewForm, description: e.target.value })} rows={3} className="mt-1 w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">ทนายผู้รับผิดชอบ</p>
-                      <p className="mt-1 font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</p>
-                    </div>
-                  </div>
-                  {overviewError && <p className="col-span-full text-sm text-destructive">{overviewError}</p>}
-                  <div className="col-span-full flex gap-2 pt-1">
-                    <Button type="button" size="sm" disabled={savingOverview} onClick={handleSaveOverview}>{savingOverview ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={() => setEditingOverview(false)}>ยกเลิก</Button>
-                  </div>
-                </div>
+                <CaseOverviewForm
+                  value={overviewForm}
+                  onChange={setOverviewForm}
+                  legalCase={legalCase}
+                  caseTypes={caseTypes}
+                  courts={courts}
+                  saving={savingOverview}
+                  error={overviewError}
+                  onSave={handleSaveOverview}
+                  onCancel={() => setEditingOverview(false)}
+                />
               ) : (
                 <>
                   <div>
@@ -1154,13 +1081,17 @@ export default function CaseDetailPage() {
                     <p className="text-xs text-muted-foreground">ศาล</p>
                     <p className="font-medium">{legalCase.courtName ?? '—'}</p>
                   </div>
-                  <CaseParticipantsSection
-                    caseId={legalCase.id}
-                    initialParticipants={legalCase.participants}
-                  />
-                  <div className="col-span-full">
+                  <div className="col-span-full border-t border-border pt-4">
+                    <CaseParticipantsSection
+                      caseId={legalCase.id}
+                      initialParticipants={legalCase.participants}
+                      onChanged={(participants) => setCase(current => current ? { ...current, participants } : current)}
+                    />
+                  </div>
+                  <div className="col-span-full rounded-lg border border-border bg-muted/30 p-3">
                     <p className="text-xs text-muted-foreground">ข้อหาหรือฐานความผิด</p>
-                    <p className="font-medium">{chargeSection}</p>
+                    <p className="mt-1 whitespace-pre-wrap font-medium">{chargeSection || 'ยังไม่ระบุ'}</p>
+                    {!chargeSection && <Button variant="link" className="mt-1 h-auto p-0" onClick={startEditOverview}>เพิ่มข้อหาหรือฐานความผิด</Button>}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">ทุนทรัพย์</p>
@@ -1313,6 +1244,13 @@ export default function CaseDetailPage() {
               ))}
                 </>
               )}
+              {editingOverview && <div className="col-span-full border-t border-border pt-4">
+                <CaseParticipantsSection
+                  caseId={legalCase.id}
+                  initialParticipants={legalCase.participants}
+                  onChanged={(participants) => setCase(current => current ? { ...current, participants } : current)}
+                />
+              </div>}
             </CardContent>
           </Card>
 

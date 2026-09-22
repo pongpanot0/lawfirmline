@@ -96,17 +96,21 @@ describe('BillingService — drafted expenses', () => {
     );
   });
 
-  it('still claims by default, so existing callers are unchanged', async () => {
-    await service.createExpense(lawyer, 'case-1', {
+  it.each([['lawyer', lawyer], ['owner', owner]])('defaults a %s expense to draft without claiming or spending money', async (_role, actor) => {
+    await service.createExpense(actor as AuthUser, 'case-1', {
       amount: 100,
       description: 'ค่าถ่ายเอกสาร',
     } as never);
 
     expect(mockPrisma.expense.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: ExpenseStatus.PENDING, sourceEventId: null }),
+        data: expect.objectContaining({ status: ExpenseStatus.DRAFT, sourceEventId: null }),
       }),
     );
+    expect(mockPrisma.expenseClaim.create).not.toHaveBeenCalled();
+    expect(mockPettyCash.deduct).not.toHaveBeenCalled();
+    expect(mockCashAdvance.consume).not.toHaveBeenCalled();
+    expect(mockLine.pushTo).not.toHaveBeenCalled();
   });
 
   it('refuses a hearing that belongs to another case', async () => {

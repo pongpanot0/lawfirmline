@@ -14,7 +14,7 @@ const text = 'รถชนท้าย บริษัทประกันจ�
 const fact = { statement: 'บริษัทประกันจ่ายค่าซ่อม 50000 บาท', quote: 'บริษัทประกันจ่ายค่าซ่อม 50000 บาท', page: null, status: 'PENDING', source: 'ข้อความที่ผู้ใช้ระบุ', revisions: [] };
 function setup() {
   const rows = { create: jest.fn(async ({ data }) => ({ id: 'r1', ...data })), findMany: jest.fn(async () => []), findFirst: jest.fn(), updateMany: jest.fn(async () => ({ count: 1 })), findUniqueOrThrow: jest.fn() };
-  const prisma = { intakePrecedentAnalysis: rows, document: { findMany: jest.fn(async () => []) } };
+  const prisma = { intakePrecedentAnalysis: rows, case: { findFirst: jest.fn(async () => ({ title: 'คดีทดสอบ', description: 'ข้อเท็จจริงจากทีม', participants: [{ name: 'คู่ความทดสอบ', role: 'DEFENDANT' }], tasks: [{ title: 'เตรียมคำให้การ' }], calendarEvents: [{ title: 'นัดไกล่เกลี่ย' }], activities: [{ title: 'ส่งหลักฐานแล้ว' }] })) }, document: { findMany: jest.fn(async () => []) } };
   const access = { canAccessCase: jest.fn(async () => true), getCaseFilterForUser: jest.fn(() => ({ firmId: 'f1', leadLawyerId: 'u1' })) };
   const iapp = { searchPrecedents: jest.fn(async () => []), getPrecedentDetail: jest.fn() };
   const intel = { extractFactsWithAI: jest.fn(async () => ({ facts: [fact], flags: [] })), extractTextWithOcr: jest.fn(async () => text) };
@@ -29,6 +29,40 @@ function setup() {
 afterEach(() => jest.restoreAllMocks());
 
 describe('research workspace', () => {
+  it('keeps only supported suggestions with real quotes and completed tasks belonging to the case', async () => {
+    const { service, prisma } = setup();
+    const quote = 'ยื่นคำให้การต่อศาลแพ่งเรียบร้อยแล้ว';
+    (prisma.case.findFirst as jest.Mock).mockResolvedValue({ description: quote, tasks: [{ id: 't1', title: 'ยื่นคำให้การ', status: 'TODO' }, { id: 't2', title: 'งานเดิม', status: 'DONE' }] });
+    (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ documentSummary: quote, factsList: [quote], timeline: [], suggestions: [{ field: 'courtName', value: 'ศาลแพ่ง', quote }, { field: 'leadLawyerId', value: 'foreign', quote }, { field: 'claimedAmount', value: '100', quote: 'ข้อความที่ไม่มีจริงในคดี' }], completedTasks: [{ taskId: 't1', quote }, { taskId: 't2', quote }, { taskId: 'foreign', quote }, { taskId: 't1', quote: 'ไม่มีหลักฐาน' }] }) } }] }) });
+    const result = await service.summarizeCase(user, 'case1');
+    expect(result.extractedFacts).toMatchObject({ suggestions: [{ field: 'courtName', value: 'ศาลแพ่ง', quote }], completedTasks: [{ taskId: 't1', title: 'ยื่นคำให้การ', quote }] });
+    expect(result.factsList).toEqual([quote]);
+  });
+  it('summarizes case records without requiring a document or calling precedent search', async () => {
+    const { service, iapp } = setup();
+    const result = await service.summarizeCase(user, 'case1');
+    const prompt = JSON.stringify((fetch as jest.Mock).mock.calls);
+    for (const value of ['ข้อเท็จจริงจากทีม', 'คู่ความทดสอบ', 'เตรียมคำให้การ', 'นัดไกล่เกลี่ย', 'ส่งหลักฐานแล้ว']) expect(prompt).toContain(value);
+    expect(result).toMatchObject({ caseId: 'case1', firmId: 'f1', extractedFacts: { caseSummary: true, summaryOnly: true, selectedAttachments: [] } });
+    expect(iapp.searchPrecedents).not.toHaveBeenCalled();
+  });
+  it('combines case records with documents and records unread and truncated sources', async () => {
+    const { service, prisma } = setup();
+    (prisma.case.findFirst as jest.Mock).mockResolvedValue({ title: 'คดีทดสอบ', description: 'x'.repeat(6100) });
+    (prisma.document.findMany as jest.Mock).mockResolvedValue([{ id: 'd1', filename: 'claim.txt', mimeType: 'text/plain', storagePath: 'claim', version: 2 }, { id: 'd2', filename: 'photo.jpg', mimeType: 'image/jpeg' }]);
+    const result = await service.summarizeCase(user, 'case1');
+    expect(JSON.stringify((fetch as jest.Mock).mock.calls)).toContain(text);
+    expect(result.extractedFacts).toMatchObject({ caseSummary: true, selectedAttachments: [{ id: 'd1', filename: 'claim.txt', version: 2 }], attachmentWarnings: [expect.stringContaining('description'), expect.stringContaining('photo.jpg')] });
+    expect(prisma.case.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'case1', firmId: 'f1', deletedAt: null } }));
+  });
+  it('checks case access before loading any case summary sources', async () => {
+    const { service, prisma, access, rows } = setup();
+    access.canAccessCase.mockResolvedValue(false);
+    await expect(service.summarizeCase(user, 'case2')).rejects.toThrow(NotFoundException);
+    expect(prisma.case.findFirst).not.toHaveBeenCalled();
+    expect(prisma.document.findMany).not.toHaveBeenCalled();
+    expect(rows.create).not.toHaveBeenCalled();
+  });
   it('persists a text-only search in the current user and firm history', async () => {
     const { service, rows, iapp } = setup();
     const result = await service.research(user, text);

@@ -973,7 +973,8 @@ export interface ResearchFact {
   revisions?: Array<{ statement: string; status: string; at: string; userId: string }>;
 }
 export interface IntakePrecedentAnalysisItem {
-  extractedFacts?: { description?: string; summaryOnly?: boolean; factsOnly?: boolean; factItems?: ResearchFact[]; selectedAttachments?: Array<{ id: string; filename: string; version?: number }>; attachmentWarnings?: string[] };
+  // Suggestions are proposals with source quotes, never automatically applied.
+  extractedFacts?: { description?: string; caseSummary?: boolean; summaryOnly?: boolean; factsOnly?: boolean; factItems?: ResearchFact[]; suggestions?: Array<{ field: string; value: string; quote: string }>; completedTasks?: Array<{ taskId: string; title: string; quote: string }>; selectedAttachments?: Array<{ id: string; filename: string; version?: number }>; attachmentWarnings?: string[] };
   id: string;
   status: 'PENDING' | 'COMPLETE' | 'FAILED';
   precedents: IntakePrecedentItem[];
@@ -2529,6 +2530,8 @@ export const api = {
 
   summarizeResearchDocuments: (token: string, attachmentIds: string[], intakeId?: string, caseId?: string) =>
     request<IntakePrecedentAnalysisItem>('/intake/research/summary', { method: 'POST', token, body: JSON.stringify({ attachmentIds, intakeId, caseId }) }),
+  summarizeCase: (token: string, caseId: string) =>
+    request<IntakePrecedentAnalysisItem>(`/intake/research/cases/${caseId}/summary`, { method: 'POST', token }),
   research: (token: string, text: string, intakeId?: string, attachmentIds: string[] = [], factsOnly = false, caseId?: string) =>
     request<IntakePrecedentAnalysisItem>(`/intake/research${factsOnly ? '/facts' : ''}`, { method: 'POST', token, body: JSON.stringify({ text, intakeId, attachmentIds, caseId }) }),
   listResearch: (token: string) => request<IntakePrecedentAnalysisItem[]>('/intake/research', { token }),

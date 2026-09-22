@@ -345,8 +345,8 @@ export class BillingService {
         expensePurpose: dto.expensePurpose,
         date: dto.date ? new Date(dto.date) : new Date(),
         sourceEventId: dto.sourceEventId ?? null,
-        // Omitted means a claim, which is what every existing caller sends.
-        status: dto.status ?? ExpenseStatus.PENDING,
+        // Recording a cost does not submit it for approval, regardless of role.
+        status: dto.status ?? ExpenseStatus.DRAFT,
       },
       include: this.expenseInclude,
     });

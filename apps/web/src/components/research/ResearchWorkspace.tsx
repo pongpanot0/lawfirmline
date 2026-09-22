@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
+import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 
 const STATUS = { PENDING: 'รอตรวจ', REVIEWED: 'ตรวจแล้ว', CONFLICT: 'มีข้อขัดแย้ง', MISSING: 'ข้อมูลขาด' };
 
@@ -96,6 +97,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
   };
 
   return <section aria-label="ข้อเท็จจริงและฎีกา" className="min-w-0 space-y-5">
+    {caseId && <CaseSummaryPanel caseId={caseId} />}
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5">
       <h2 className="text-lg font-semibold">เริ่มจากเรื่องที่ต้องการรู้</h2>
       <p className="text-sm text-muted-foreground">พิมพ์เหตุการณ์เพื่อจัดข้อเท็จจริงหรือค้นฎีกา หรือเลือกเอกสารเพื่อสรุปข้อมูลจากไฟล์</p>
@@ -124,7 +126,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
     </div>
     {loading ? <p role="status">กำลังโหลดประวัติ…</p> : history.length > 0 && <label className="block text-sm">ผลที่บันทึกไว้
       <select className={`${field} mt-1`} disabled={!!busy} value={result?.id ?? ''} onChange={(e) => { setResult(history.find((r) => r.id === e.target.value) ?? null); setEditing(null); setChosenFacts([]); }}>
-        {history.map((row) => <option key={row.id} value={row.id}>{new Date(row.createdAt).toLocaleString('th-TH')} · {row.status === 'FAILED' ? 'ไม่สำเร็จ' : row.extractedFacts?.summaryOnly ? 'สรุปเอกสาร' : row.extractedFacts?.factsOnly ? 'ข้อเท็จจริง' : 'ข้อเท็จจริงและฎีกา'}</option>)}
+        {history.map((row) => <option key={row.id} value={row.id}>{new Date(row.createdAt).toLocaleString('th-TH')} · {row.status === 'FAILED' ? 'ไม่สำเร็จ' : row.extractedFacts?.caseSummary ? 'สรุปคดี' : row.extractedFacts?.summaryOnly ? 'สรุปเอกสาร' : row.extractedFacts?.factsOnly ? 'ข้อเท็จจริง' : 'ข้อเท็จจริงและฎีกา'}</option>)}
       </select>
     </label>}
     {result?.extractedFacts?.description && <Button variant="ghost" disabled={!!busy} onClick={() => { setText(result.extractedFacts?.description ?? ''); document.getElementById('research-text')?.focus(); }}>ใช้ข้อความเดิมค้นต่อ</Button>}
@@ -175,7 +177,7 @@ export function ResearchWorkspace({ intakeId, caseId, initialText = '', document
         </li>)}</ul>
         {chosenFacts.length > 0 && <Button disabled={!!busy} onClick={() => void run(false, chosenFacts.map((index) => `[ผู้ใช้เลือกจากผล ${result.id} ข้อ ${index + 1} · ${STATUS[facts[index].status]} · ${facts[index].source}] ${facts[index].statement}`).join('\n'))}>ค้นฎีกาจาก {chosenFacts.length} ข้อที่เลือก · 10 เครดิต</Button>}
       </div>}
-      <details key={result.id} open={result.extractedFacts?.summaryOnly || undefined} className="rounded-xl border border-border p-4"><summary className="cursor-pointer font-medium">{result.extractedFacts?.summaryOnly ? 'สรุปข้อมูลจากเอกสาร' : 'สรุปเหตุการณ์และลำดับเวลา'}</summary>{result.extractedFacts?.summaryOnly && <p className="mt-2 text-xs text-muted-foreground">ไฟล์ที่ใช้: {result.extractedFacts.selectedAttachments?.map(file => `${file.filename} · รุ่น ${file.version ?? '—'}`).join(', ')} · โปรดตรวจเทียบต้นฉบับก่อนใช้งาน</p>}<p className="mt-3 whitespace-pre-wrap text-sm">{result.documentSummary}</p>{result.timeline?.map((item,index) => <p key={index} className="mt-2 text-sm"><strong>{item.date}</strong> · {item.event}</p>)}</details>
+      <details key={result.id} open={result.extractedFacts?.summaryOnly || undefined} className="rounded-xl border border-border p-4"><summary className="cursor-pointer font-medium">{result.extractedFacts?.caseSummary ? 'สรุปข้อมูลคดีและเอกสาร' : result.extractedFacts?.summaryOnly ? 'สรุปข้อมูลจากเอกสาร' : 'สรุปเหตุการณ์และลำดับเวลา'}</summary>{result.extractedFacts?.summaryOnly && <p className="mt-2 text-xs text-muted-foreground">{result.extractedFacts.caseSummary && 'ใช้ข้อมูลคดีที่บันทึกไว้ร่วมด้วย · '}ไฟล์ที่ใช้: {result.extractedFacts.selectedAttachments?.map(file => `${file.filename} · รุ่น ${file.version ?? '—'}`).join(', ') || 'ไม่มี'} · โปรดตรวจเทียบต้นฉบับก่อนใช้งาน</p>}<p className="mt-3 whitespace-pre-wrap text-sm">{result.documentSummary}</p>{result.timeline?.map((item,index) => <p key={index} className="mt-2 text-sm"><strong>{item.date}</strong> · {item.event}</p>)}</details>
       {!result.extractedFacts?.factsOnly && <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <h2 className="font-semibold">ฎีกาที่ค้นพบ ({result.precedents.length})</h2>
         {!result.precedents.length && <p className="text-sm">ไม่พบฎีกาจากการค้นครั้งนี้ ลองระบุประเด็นให้เจาะจงขึ้น</p>}

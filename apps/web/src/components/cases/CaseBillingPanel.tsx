@@ -30,6 +30,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
   const [loading, setLoading] = useState(true);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [expenseError, setExpenseError] = useState('');
+  const [savingExpense, setSavingExpense] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
     amount: '',
     description: '',
@@ -66,7 +67,8 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !id) return;
+    if (!token || !id || savingExpense) return;
+    setSavingExpense(true);
     setExpenseError('');
     try {
       await api.createExpense(token, id, {
@@ -74,13 +76,15 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         description: expenseForm.description,
         category: expenseForm.category,
         expensePurpose: expenseForm.expensePurpose || undefined,
-        status: user?.firmRole === FirmRole.OWNER ? undefined : ExpenseStatus.DRAFT,
+        status: ExpenseStatus.DRAFT,
       });
       setExpenseForm({ amount: '', description: '', category: EXPENSE_CATEGORIES[0], expensePurpose: '' });
       setShowExpenseForm(false);
       load();
     } catch (err) {
       setExpenseError(err instanceof Error ? err.message : 'บันทึกค่าใช้จ่ายไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setSavingExpense(false);
     }
   };
 
@@ -189,9 +193,10 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
               onChange={(e) => setExpenseForm({ ...expenseForm, expensePurpose: e.target.value })}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
-            {expenseError && <p className="text-sm text-red-600">{expenseError}</p>}
-            <button type="submit" className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">
-              {d.caseBilling.submitForApproval}
+            <p className="text-xs text-slate-500">{d.caseBilling.draftHint}</p>
+            {expenseError && <p role="alert" className="text-sm text-red-600">{expenseError}</p>}
+            <button type="submit" disabled={savingExpense} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white disabled:opacity-50">
+              {savingExpense ? d.caseBilling.savingDraft : d.caseBilling.saveDraft}
             </button>
           </form>
         )}

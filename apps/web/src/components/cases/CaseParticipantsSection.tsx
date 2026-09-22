@@ -65,9 +65,10 @@ type FormState = typeof emptyForm;
 interface Props {
   caseId: string;
   initialParticipants?: CaseParticipantItem[];
+  onChanged?: (participants: CaseParticipantItem[]) => void;
 }
 
-export function CaseParticipantsSection({ caseId, initialParticipants }: Props) {
+export function CaseParticipantsSection({ caseId, initialParticipants, onChanged }: Props) {
   const { token } = useAuth();
   const [participants, setParticipants] = useState<CaseParticipantItem[]>(initialParticipants ?? []);
   const [showForm, setShowForm] = useState(false);
@@ -115,7 +116,7 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
+    if (!token || submitting) return;
     if (!form.name.trim()) {
       setError('กรุณาใส่ชื่อ');
       return;
@@ -129,10 +130,14 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
       }
       if (editingId) {
         const updated = await api.updateParticipant(token, caseId, editingId, data);
-        setParticipants((prev) => prev.map((p) => (p.id === editingId ? updated : p)));
+        const next = participants.map((p) => (p.id === editingId ? updated : p));
+        setParticipants(next);
+        onChanged?.(next);
       } else {
         const created = await api.createParticipant(token, caseId, data);
-        setParticipants((prev) => [...prev, created]);
+        const next = [...participants, created];
+        setParticipants(next);
+        onChanged?.(next);
       }
       setShowForm(false);
       setEditingId(null);
@@ -148,7 +153,9 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
     if (!confirm(`ลบ "${name}" ออกจากรายชื่อคู่ความ?`)) return;
     try {
       await api.deleteParticipant(token, caseId, id);
-      setParticipants((prev) => prev.filter((p) => p.id !== id));
+      const next = participants.filter((p) => p.id !== id);
+      setParticipants(next);
+      onChanged?.(next);
     } catch (err) {
       console.error(err);
     }
@@ -165,11 +172,11 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
     <div className="col-span-full" data-testid="case-participants-field">
       <div className="flex flex-row items-center justify-between gap-3">
         <div>
-          <p className="text-xs text-muted-foreground">คู่ความ</p>
-          <p className="mt-1 text-xs text-muted-foreground">เพิ่มได้หลายราย และกำหนดฐานะของแต่ละรายแยกกัน</p>
+          <h3 className="text-base font-semibold">คู่ความและผู้เกี่ยวข้อง</h3>
+          <p className="mt-1 text-sm text-muted-foreground">ระบุฐานะในคดีและฝ่ายที่สังกัด แล้วบันทึกคู่ความทีละราย</p>
         </div>
         {!showForm && (
-          <Button variant="outline" size="sm" onClick={openCreate}>
+          <Button variant="outline" className="min-h-11 shrink-0" onClick={openCreate}>
             <Plus className="h-3 w-3" />
             เพิ่มคู่ความ
           </Button>
@@ -181,42 +188,43 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
             onSubmit={handleSubmit}
             className="rounded-lg border border-border bg-muted/30 p-4 space-y-3"
           >
+            <fieldset disabled={submitting} className="min-w-0 space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">
                 {editingId ? 'แก้ไขข้อมูลคู่ความ' : 'เพิ่มคู่ความ'}
               </p>
-              <button type="button" onClick={handleCancel}>
+              <button type="button" aria-label="ยกเลิกกรอกคู่ความ" className="flex min-h-11 min-w-11 items-center justify-center" onClick={handleCancel}>
                 <X className="h-4 w-4 text-muted-foreground" />
               </button>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="text-xs text-muted-foreground">ชื่อ-นามสกุล *</label>
+                <label htmlFor="participant-name" className="text-sm font-medium">ชื่อบุคคลหรือชื่อนิติบุคคล *</label>
                 <Input
+                  id="participant-name"
+                  autoFocus
                   required
-                  placeholder="ชื่อ-นามสกุล"
+                  placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="mt-1"
+                  className="mt-1 min-h-11"
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">ชื่อเล่น / Nickname</label>
-                <Input
-                  placeholder="ชื่อเล่น"
-                  value={form.nickname}
-                  onChange={(e) => setForm({ ...form, nickname: e.target.value })}
-                  className="mt-1"
-                />
+                <label htmlFor="participant-person-type" className="text-sm font-medium">ประเภทบุคคล</label>
+                <select id="participant-person-type" value={form.personType} onChange={e => setForm({ ...form, personType: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
+                  <option value="">ยังไม่ระบุ</option><option value="บุคคลธรรมดา">บุคคลธรรมดา</option><option value="นิติบุคคล">นิติบุคคล</option>
+                  {form.personType && !['บุคคลธรรมดา', 'นิติบุคคล'].includes(form.personType) && <option value={form.personType}>{form.personType}</option>}
+                </select>
               </div>
               <div>
-                <label htmlFor="case-participant-role" className="text-xs text-muted-foreground">บทบาท / Role</label>
+                <label htmlFor="case-participant-role" className="text-sm font-medium">ฐานะในคดี</label>
                 <select
                   id="case-participant-role"
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                  className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
                 >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>{ROLE_LABELS[r]}</option>
@@ -224,12 +232,12 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
                 </select>
               </div>
               <div>
-                <label htmlFor="case-participant-side" className="text-xs text-muted-foreground">ฝ่าย / Side</label>
+                <label htmlFor="case-participant-side" className="text-sm font-medium">อยู่ฝ่ายใด</label>
                 <select
                   id="case-participant-side"
                   value={form.side}
                   onChange={(e) => setForm({ ...form, side: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                  className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
                 >
                   {SIDES.map((s) => (
                     <option key={s} value={s}>{SIDE_LABELS[s]}</option>
@@ -237,115 +245,126 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
                 </select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">เบอร์โทร / Phone</label>
+                <label htmlFor="participant-phone" className="text-sm font-medium">โทรศัพท์</label>
                 <Input
                   placeholder="เบอร์โทร"
+                  id="participant-phone"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="mt-1"
+                  className="mt-1 min-h-11"
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">Email</label>
+                <label htmlFor="participant-email" className="text-sm font-medium">อีเมล</label>
                 <Input
                   type="email"
                   placeholder="email@example.com"
+                  id="participant-email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="mt-1"
+                  className="mt-1 min-h-11"
                 />
               </div>
             </div>
 
             <button
               type="button"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              className="flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              aria-expanded={showAdvanced}
               onClick={() => setShowAdvanced((v) => !v)}
             >
               {showAdvanced ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              {showAdvanced ? 'ซ่อนข้อมูลเพิ่มเติม' : 'ข้อมูลเพิ่มเติม'}
+              {showAdvanced ? 'ซ่อนข้อมูลเพิ่มเติม' : 'เพิ่มที่อยู่ เลขประจำตัว และข้อมูลอื่น ๆ'}
             </button>
 
             {showAdvanced && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="text-xs text-muted-foreground">ประเภทบุคคล</label>
+                  <label htmlFor="participant-nickname" className="text-sm font-medium">ชื่อเรียก / ชื่อเล่น</label>
                   <Input
-                    placeholder="นิติบุคคล / บุคคลธรรมดา"
-                    value={form.personType}
-                    onChange={(e) => setForm({ ...form, personType: e.target.value })}
-                    className="mt-1"
+                    id="participant-nickname"
+                    placeholder="ชื่อเรียก (ไม่บังคับ)"
+                    value={form.nickname}
+                    onChange={(e) => setForm({ ...form, nickname: e.target.value })}
+                    className="mt-1 min-h-11"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">เลขบัตรประชาชน / ID</label>
+                  <label htmlFor="participant-idNumber" className="text-sm font-medium">เลขประจำตัวประชาชน / เลขทะเบียนนิติบุคคล</label>
                   <Input
                     placeholder="เลขบัตรประชาชน"
-                    value={form.idNumber}
+                    id="participant-idNumber"
+                  value={form.idNumber}
                     onChange={(e) => setForm({ ...form, idNumber: e.target.value })}
-                    className="mt-1"
+                    className="mt-1 min-h-11"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="text-xs text-muted-foreground">ที่อยู่</label>
+                  <label htmlFor="participant-address" className="text-sm font-medium">ที่อยู่</label>
                   <textarea
                     placeholder="ที่อยู่"
-                    value={form.address}
+                    id="participant-address"
+                  value={form.address}
                     onChange={(e) => setForm({ ...form, address: e.target.value })}
                     rows={2}
-                    className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
+                    className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">ทนายฝ่ายตรงข้าม</label>
+                  <label htmlFor="participant-opposingLawyer" className="text-sm font-medium">ทนายฝ่ายตรงข้าม</label>
                   <Input
                     placeholder="ชื่อทนาย"
-                    value={form.opposingLawyer}
+                    id="participant-opposingLawyer"
+                  value={form.opposingLawyer}
                     onChange={(e) => setForm({ ...form, opposingLawyer: e.target.value })}
-                    className="mt-1"
+                    className="mt-1 min-h-11"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">ประกันฝ่ายตรงข้าม</label>
+                  <label htmlFor="participant-opposingInsurer" className="text-sm font-medium">บริษัทประกันฝ่ายตรงข้าม</label>
                   <Input
                     placeholder="บริษัทประกัน"
-                    value={form.opposingInsurer}
+                    id="participant-opposingInsurer"
+                  value={form.opposingInsurer}
                     onChange={(e) => setForm({ ...form, opposingInsurer: e.target.value })}
-                    className="mt-1"
+                    className="mt-1 min-h-11"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">เลขใบอนุญาตแพทย์</label>
+                  <label htmlFor="participant-medicalLicenseNo" className="text-sm font-medium">เลขใบอนุญาตแพทย์ (ถ้ามี)</label>
                   <Input
                     placeholder="เลขใบอนุญาต"
-                    value={form.medicalLicenseNo}
+                    id="participant-medicalLicenseNo"
+                  value={form.medicalLicenseNo}
                     onChange={(e) => setForm({ ...form, medicalLicenseNo: e.target.value })}
-                    className="mt-1"
+                    className="mt-1 min-h-11"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="text-xs text-muted-foreground">หมายเหตุ</label>
+                  <label htmlFor="participant-notes" className="text-sm font-medium">หมายเหตุ</label>
                   <textarea
                     placeholder="หมายเหตุ"
-                    value={form.notes}
+                    id="participant-notes"
+                  value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
                     rows={2}
-                    className="mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
+                    className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm resize-none"
                   />
                 </div>
               </div>
             )}
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={submitting}>
-                {submitting ? 'กำลังบันทึก...' : editingId ? 'บันทึกการแก้ไข' : 'เพิ่มคู่ความ'}
+                {submitting ? 'กำลังบันทึก...' : 'บันทึกคู่ความรายนี้'}
               </Button>
               <Button type="button" size="sm" variant="ghost" onClick={handleCancel}>
                 ยกเลิก
               </Button>
             </div>
+            </fieldset>
           </form>
         )}
 

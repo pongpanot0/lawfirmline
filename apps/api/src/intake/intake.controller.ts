@@ -77,6 +77,13 @@ export class IntakeController {
     return this.precedentAnalysisService.summarizeDocuments(user, dto.intakeId, dto.caseId, dto.attachmentIds);
   }
 
+  @Post('research/cases/:caseId/summary')
+  @RequireCredits(5)
+  @UseInterceptors(AiCreditsInterceptor)
+  summarizeCase(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
+    return this.precedentAnalysisService.summarizeCase(user, caseId);
+  }
+
   @Patch('research/:analysisId/facts/:index')
   reviewResearchFact(@CurrentUser() user: AuthUser, @Param('analysisId') id: string, @Param('index', ParseIntPipe) index: number, @Body() dto: ReviewResearchFactDto) {
     return this.precedentAnalysisService.reviewFact(user, id, index, dto);

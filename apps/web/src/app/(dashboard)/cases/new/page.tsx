@@ -89,6 +89,7 @@ export default function NewCasePage() {
     blackCaseNumber: '',
     redCaseNumber: '',
     description: '',
+    chargeSection: '',
     claimedAmount: '',
     estimatedFee: '',
     leadLawyerId: '',
@@ -252,7 +253,7 @@ export default function NewCasePage() {
       )
         return 'กรุณากรอกหัวข้อและวันเวลานัดหมายแรก';
       const missing = fieldSchema.find(
-        (f) => f.required && !form.customFields[f.key]?.trim(),
+        (f) => f.required && !(f.key === 'chargeSection' ? form.chargeSection : form.customFields[f.key])?.trim(),
       );
       if (missing) return `กรุณากรอก${missing.label}`;
     }
@@ -316,6 +317,7 @@ export default function NewCasePage() {
         buddyIds: form.buddyIds.filter((id) => id !== form.leadLawyerId),
         customFields: {
           ...form.customFields,
+          chargeSection: form.chargeSection.trim(),
           [CASE_COSTS_KEY]: JSON.stringify(costLines),
         },
         cargoClaimEnabled,
@@ -848,6 +850,12 @@ export default function NewCasePage() {
               </section>
 
               <div>
+                <label htmlFor="case-charge-section" className={fieldLabel}>ข้อหาหรือฐานความผิด{fieldSchema.some(f => f.key === 'chargeSection' && f.required) ? ' *' : ' (ไม่บังคับ)'}</label>
+                <textarea id="case-charge-section" rows={2} maxLength={2000} value={form.chargeSection} onChange={e => setForm({ ...form, chargeSection: e.target.value })} placeholder="เช่น ละเมิด เรียกค่าเสียหาย / ผิดสัญญา" className={inputClass} />
+                <p className="mt-1 text-xs text-muted-foreground">ใช้แสดงในหน้าคดี คำฟ้องหน้าแรก และปกสำนวน</p>
+              </div>
+
+              <div>
                 <label htmlFor="claimed-amount" className={fieldLabel}>
                   ทุนทรัพย์ (บาท)
                 </label>
@@ -1169,7 +1177,7 @@ export default function NewCasePage() {
                   </div>
                 )}
               </section>
-              {fieldSchema.length > 0 && (
+              {fieldSchema.some(field => field.key !== 'chargeSection') && (
                 <section
                   className="space-y-4"
                   aria-label="ข้อมูลเฉพาะประเภทคดี"
@@ -1181,7 +1189,7 @@ export default function NewCasePage() {
                     </p>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {fieldSchema.map((field) => (
+                    {fieldSchema.filter(field => field.key !== 'chargeSection').map((field) => (
                       <div key={field.key}>
                         <label
                           htmlFor={`custom-${field.key}`}
@@ -1317,6 +1325,7 @@ export default function NewCasePage() {
                 <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
                   {[
                     ['ชื่อคดี', form.title],
+                    ['ข้อหาหรือฐานความผิด', form.chargeSection || 'ยังไม่ระบุ'],
                     [
                       'ประมาณการค่าใช้จ่าย',
                       `${(caseCostTotal(costLines).totalCents / 100).toLocaleString('th-TH')} บาท${caseCostTotal(costLines).incomplete ? ' (ยังกรอกอัตราไม่ครบ)' : ''}`,
@@ -1365,7 +1374,7 @@ export default function NewCasePage() {
                       ? [['รายละเอียดคดี', form.description]]
                       : []),
                     ...fieldSchema
-                      .filter((f) => form.customFields[f.key])
+                      .filter((f) => f.key !== 'chargeSection' && form.customFields[f.key])
                       .map((f) => [f.label, form.customFields[f.key]]),
                     ...(form.addInitialActivity
                       ? [
