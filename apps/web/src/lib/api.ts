@@ -1,5 +1,6 @@
 import { withFirmSlugHeaders } from './firm-slug';
 import { taskUpdatePath } from './task-detail';
+import { actionSuccessMessage, isActionRequest, publishActionFeedback } from './action-feedback';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 const TOKEN_KEY = 'lawfirm_access_token';
@@ -57,6 +58,8 @@ async function request<T>(
   options: RequestInit & { token?: string; refreshAuth?: boolean } = {},
 ): Promise<T> {
   const { token, refreshAuth = true, ...fetchOptions } = options;
+  const method = (fetchOptions.method ?? 'GET').toUpperCase();
+  const isAction = isActionRequest(method);
   const isFormData = fetchOptions.body instanceof FormData;
   const headers: HeadersInit = withFirmSlugHeaders({
     ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
@@ -88,8 +91,12 @@ async function request<T>(
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     if (res.status === 401 && refreshAuth) clearSession();
-    throw new ApiError(res.status, parseApiErrorMessage(body, res.statusText));
+    const message = parseApiErrorMessage(body, res.statusText);
+    if (isAction) publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
+    throw new ApiError(res.status, message);
   }
+
+  if (isAction) publishActionFeedback('success', actionSuccessMessage(method));
 
   if (res.status === 204) return undefined as T;
   if (res.headers.get('content-length') === '0') return null as T;
@@ -278,6 +285,7 @@ export interface CaseItem {
   customerRef?: string | null;
   folderId?: string;
   title: string;
+  description?: string | null;
   status: import('@lawfirm/shared').CaseStatus;
   /** ขั้นตอนในกระบวนพิจารณา — แยกจาก status */
   stage?: import('@lawfirm/shared').CaseStage;
@@ -302,6 +310,7 @@ export interface CaseItem {
   client?: { id: string; name: string } | null;
   customers?: CustomerShareItem[];
   additionalClients?: AdditionalClientItem[];
+  participants?: Array<{ name: string; role: string }>;
   cargoClaim?: { id: string } | null;
 }
 

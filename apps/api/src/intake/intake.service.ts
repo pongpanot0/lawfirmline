@@ -47,6 +47,7 @@ import {
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
+import { formatIntakeNotificationReference } from '../notifications/reference-label';
 
 export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
 const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
@@ -555,16 +556,6 @@ export class IntakeService {
       include: this.intakeInclude,
     });
 
-    if (dto.assignedUserIds?.length) {
-      await this.assignmentNotifier.notifyAssigned({
-        firmId: user.firmId,
-        userIds: dto.assignedUserIds,
-        actorUserId: user.id,
-        summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${created.title}`,
-        entityPath: `/intake/${created.id}`,
-      });
-    }
-
     if (dto.preferredPlaybookId) {
       await this.seedPlaybookTasks(user, created.id, dto.preferredPlaybookId);
     }
@@ -586,7 +577,19 @@ export class IntakeService {
       );
     }
 
-    return this.findOne(user, created.id);
+    const intake = await this.findOne(user, created.id);
+    if (dto.assignedUserIds?.length) {
+      const reference = formatIntakeNotificationReference(intake.case?.ownRef);
+      await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
+        userIds: dto.assignedUserIds,
+        actorUserId: user.id,
+        summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${intake.title}${reference ? `\n${reference}` : ''}`,
+        entityPath: `/intake/${intake.id}`,
+      });
+    }
+
+    return intake;
   }
 
   /**
@@ -742,11 +745,12 @@ export class IntakeService {
     }
 
     if (newlyAssigned.length) {
+      const reference = formatIntakeNotificationReference(updated.case?.ownRef);
       await this.assignmentNotifier.notifyAssigned({
         firmId: user.firmId,
         userIds: newlyAssigned,
         actorUserId: user.id,
-        summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${updated.title}`,
+        summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${updated.title}${reference ? `\n${reference}` : ''}`,
         entityPath: `/intake/${updated.id}`,
       });
     }
@@ -1110,6 +1114,14 @@ export class IntakeService {
         // different figure and never becomes the amount claimed by itself.
         claimedAmount: dto.claimedAmount ?? undefined,
       },
+    });
+
+    await this.caseFeed.log({
+      caseId: newCase.id,
+      userId: user.id,
+      type: ActivityType.NOTE,
+      title: 'เปิดคดี',
+      at: newCase.openedAt,
     });
 
     if (this.cargoClaims && intake.preLitigationType === PreLitigationType.TRANSPORT) {

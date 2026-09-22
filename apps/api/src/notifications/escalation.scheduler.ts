@@ -4,6 +4,7 @@ import { TaskStatus } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { AssignmentNotifierService } from './assignment-notifier.service';
 import { AutomationLogService } from '../common/services/automation-log.service';
+import { formatCaseNotificationReference } from './reference-label';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FOLLOW_UP_INTERVAL_DAYS = 7;
@@ -41,7 +42,7 @@ export class EscalationScheduler {
         dueDate: { lte: tomorrowEnd },
         onHold: null,
       },
-      include: { case: { select: { id: true, firmId: true, title: true, leadLawyerId: true } } },
+      include: { case: { select: { id: true, firmId: true, title: true, leadLawyerId: true, ownRef: true, blackCaseNumber: true, redCaseNumber: true } } },
     });
 
     const perFirm = new Map<string, number>();
@@ -54,7 +55,8 @@ export class EscalationScheduler {
       const overdueDays = Math.floor((now.getTime() - task.dueDate.getTime()) / DAY_MS);
       const path = task.caseId ? `/cases/${task.caseId}` : '/todos';
       const label = overdueDays >= 1 ? `เลยกำหนด ${overdueDays} วัน` : 'ครบกำหนดพรุ่งนี้';
-      const summary = `⚠️ งาน "${task.title}"${task.case ? ` (คดี ${task.case.title})` : ''} ${label}`;
+      const reference = task.case && formatCaseNotificationReference(task.case);
+      const summary = `⚠️ งาน "${task.title}"${task.case ? `\n${reference ?? `คดี: ${task.case.title}`}` : ''}\n${label}`;
 
       const targets = new Set<string>();
       if (task.assigneeId) targets.add(task.assigneeId);
@@ -95,7 +97,7 @@ export class EscalationScheduler {
     const holds = await this.prisma.taskOnHold.findMany({
       where: { endedAt: null, nextFollowUpAt: { lte: now } },
       include: {
-        task: { include: { case: { select: { id: true, firmId: true, title: true } } } },
+        task: { include: { case: { select: { id: true, firmId: true, title: true, ownRef: true, blackCaseNumber: true, redCaseNumber: true } } } },
       },
     });
 
@@ -107,7 +109,7 @@ export class EscalationScheduler {
         actorUserId: '',
         summaryText:
           `⏰ ถึงกำหนดตามงานที่พักไว้: "${hold.task.title}"` +
-          `${hold.task.case ? ` (คดี ${hold.task.case.title})` : ''}\nเหตุผลที่พัก: ${hold.reason}`,
+          `${hold.task.case ? `\n${formatCaseNotificationReference(hold.task.case) ?? `คดี: ${hold.task.case.title}`}` : ''}\nเหตุผลที่พัก: ${hold.reason}`,
         entityPath: hold.task.caseId ? `/cases/${hold.task.caseId}` : '/todos',
       });
       await this.prisma.taskOnHold.update({

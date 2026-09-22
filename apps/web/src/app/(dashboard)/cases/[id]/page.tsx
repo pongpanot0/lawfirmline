@@ -100,7 +100,7 @@ import {
   type CaseOutstandingResult,
   type RequiredDocumentsResult,
 } from '@/lib/api';
-import { caseStageOptions, documentCategoryLabel } from '@/lib/stage-labels';
+import { caseStageLabel, caseStageOptions, documentCategoryLabel } from '@/lib/stage-labels';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
@@ -307,20 +307,22 @@ export default function CaseDetailPage() {
       label: string;
       date: string;
       type: string;
+      createdBy?: CaseActivityItem['createdBy'];
       isOpened?: boolean;
     }> = [
-      {
+      ...(activities.some((activity) => activity.title === 'เปิดคดี') ? [] : [{
         id: 'opened',
         label: 'เปิดคดี',
         date: legalCase?.openedAt ?? '',
         type: 'case',
         isOpened: true,
-      },
+      }]),
       ...activities.map((a) => ({
         id: a.id,
         label: a.title,
         date: a.activityAt,
         type: a.type,
+        createdBy: a.createdBy,
       })),
       ...(legalCase?.status === CaseStatus.CLOSED && legalCase.closedAt
         ? [{
@@ -673,7 +675,7 @@ export default function CaseDetailPage() {
                 </span>
               )}
               <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                {caseStageOptions('th').find((o) => o.value === legalCase.stage)?.label ?? legalCase.stage}
+                {legalCase.stage ? caseStageLabel(legalCase.stage, 'th') : null}
               </span>
               <CaseStatusBadge status={legalCase.status} />
             </div>
@@ -1390,6 +1392,9 @@ export default function CaseDetailPage() {
                         <p className="text-xs text-muted-foreground">
                           {item.isOpened ? formatDate(item.date) : formatDateTime(item.date)}
                           {!item.isOpened && ` — ${ACTIVITY_LABELS[item.type] ?? item.type}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          โดย: {item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}`.trim() : 'ไม่ปรากฏข้อมูล'}
                         </p>
                       </div>
                     </div>

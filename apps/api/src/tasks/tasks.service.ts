@@ -21,6 +21,10 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import {
+  formatCaseNotificationReference,
+  formatIntakeNotificationReference,
+} from '../notifications/reference-label';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
 import {
@@ -172,6 +176,24 @@ export class TasksService {
     });
   }
 
+  private async taskAssignmentSummary(title: string, caseId?: string | null, intakeId?: string | null) {
+    let reference: string | null = null;
+    if (caseId) {
+      const legalCase = await this.prisma.case.findUnique({
+        where: { id: caseId },
+        select: { ownRef: true, blackCaseNumber: true, redCaseNumber: true },
+      });
+      reference = legalCase && formatCaseNotificationReference(legalCase);
+    } else if (intakeId) {
+      const intake = await this.prisma.intake.findUnique({
+        where: { id: intakeId },
+        select: { case: { select: { ownRef: true } } },
+      });
+      reference = formatIntakeNotificationReference(intake?.case?.ownRef);
+    }
+    return `📌 คุณได้รับมอบหมายงานใหม่\nงาน: ${title}${reference ? `\n${reference}` : ''}`;
+  }
+
   private async logAssignment(params: {
     taskId: string;
     action: TaskLogAction;
@@ -239,12 +261,7 @@ export class TasksService {
   async createForIntake(user: AuthUser, intakeId: string, dto: CreateTaskDto) {
     await this.assertIntakeAccess(intakeId, user);
     // ไม่ระบุผู้รับผิดชอบ = งานของคนที่สร้าง (เหมือน /todos)
-    const task = await this.create(user, null, { ...dto, assigneeId: dto.assigneeId ?? user.id });
-    return this.prisma.task.update({
-      where: { id: task.id },
-      data: { intakeId },
-      include: this.taskInclude,
-    });
+    return this.create(user, null, { ...dto, assigneeId: dto.assigneeId ?? user.id }, TaskSource.WEB, intakeId);
   }
 
   async updateForIntake(user: AuthUser, intakeId: string, taskId: string, dto: UpdateTaskDto) {
@@ -319,11 +336,13 @@ export class TasksService {
     caseId: string | null,
     dto: CreateTaskDto,
     source: TaskSource = TaskSource.WEB,
+    intakeId?: string,
   ) {
     if (!caseId && dto.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
     const task = await this.prisma.task.create({
       data: {
         caseId,
+        intakeId,
         title: dto.title,
         description: dto.description,
         assigneeId: dto.assigneeId,
@@ -358,7 +377,7 @@ export class TasksService {
         firmId: user.firmId,
         userIds: [dto.assigneeId],
         actorUserId: user.id,
-        summaryText: `📌 คุณได้รับมอบหมายงานใหม่\nงาน: ${dto.title}`,
+        summaryText: await this.taskAssignmentSummary(dto.title, caseId, intakeId),
         entityPath: caseId ? `/cases/${caseId}` : '/todos',
       });
     }
@@ -434,7 +453,7 @@ export class TasksService {
         firmId: user.firmId,
         userIds: [dto.assigneeId],
         actorUserId: user.id,
-        summaryText: `📌 คุณได้รับมอบหมายงานใหม่\nงาน: ${task.title}`,
+        summaryText: await this.taskAssignmentSummary(task.title, task.caseId, task.intakeId),
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
       });
     }

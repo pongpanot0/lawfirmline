@@ -1,4 +1,5 @@
 import { withFirmSlugHeaders } from './firm-slug';
+import { actionSuccessMessage, publishActionFeedback } from './action-feedback';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface ImportPreview { id: string; rows: (ImportRow & { row: number; existingClientId: string | null; errors: string[] })[]; canCommit: boolean }
 export interface SetupProgress { members: number; clients: number; cases: number; invites: number; batches: { id: string; status: string; createdAt: string }[] }
@@ -10,7 +11,8 @@ export interface PlaybookRelease { id: string; name: string; caseTypeId: string 
 export interface PlaybookPreview { release: PlaybookRelease; existing: { id: string } | null; ownerId: string; steps: PlaybookStep[] }
 export async function setupRequest<T>(token: string, path: string, body?: object): Promise<T> {
   const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/practice-setup${path}`, { method: body ? 'POST' : 'GET', headers: withFirmSlugHeaders({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }), body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
-  if (!r.ok) { const error = await r.json().catch(() => ({})); throw new Error(Array.isArray(error.message) ? error.message.join(', ') : error.message ?? `Request failed (${r.status})`); }
+  if (!r.ok) { const error = await r.json().catch(() => ({})); const message = Array.isArray(error.message) ? error.message.join(', ') : error.message ?? `Request failed (${r.status})`; if (body) publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`); throw new Error(message); }
+  if (body) publishActionFeedback('success', actionSuccessMessage('POST'));
   return r.json();
 }
 /** RFC4180-style quoted cells and CRLF; reject incomplete input rather than guessing columns. */

@@ -1,4 +1,5 @@
 import { withFirmSlugHeaders } from './firm-slug';
+import { actionSuccessMessage, isActionRequest, publishActionFeedback } from './action-feedback';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -22,6 +23,8 @@ export class PortalApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit & { token?: string } = {}): Promise<T> {
   const { token, ...fetchOptions } = options;
+  const method = (fetchOptions.method ?? 'GET').toUpperCase();
+  const isAction = isActionRequest(method);
   const headers: HeadersInit = withFirmSlugHeaders({
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> | undefined),
@@ -34,8 +37,11 @@ async function request<T>(path: string, options: RequestInit & { token?: string 
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new PortalApiError(res.status, parseApiErrorMessage(body, res.statusText));
+    const message = parseApiErrorMessage(body, res.statusText);
+    if (isAction) publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
+    throw new PortalApiError(res.status, message);
   }
+  if (isAction) publishActionFeedback('success', actionSuccessMessage(method));
   if (res.status === 204) return undefined as T;
   return res.json();
 }
@@ -63,8 +69,11 @@ async function requestMultipart<T>(path: string, formData: FormData, token: stri
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new PortalApiError(res.status, parseApiErrorMessage(body, res.statusText));
+    const message = parseApiErrorMessage(body, res.statusText);
+    publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
+    throw new PortalApiError(res.status, message);
   }
+  publishActionFeedback('success', actionSuccessMessage('POST'));
   return res.json();
 }
 

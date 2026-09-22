@@ -221,11 +221,14 @@ export enum CaseStage {
   FACT_GATHERING = 'FACT_GATHERING',
   PRE_LITIGATION = 'PRE_LITIGATION',
   FILING = 'FILING',
+  ANSWER = 'ANSWER',
   MEDIATION = 'MEDIATION',
   HEARING = 'HEARING',
   AWAITING_JUDGMENT = 'AWAITING_JUDGMENT',
   ENFORCEMENT = 'ENFORCEMENT',
   CLOSING = 'CLOSING',
+  APPEAL = 'APPEAL',
+  SUPREME = 'SUPREME',
 }
 
 export enum CaseOutcome {
@@ -243,11 +246,10 @@ export const CASE_STAGE_ORDER: CaseStage[] = [
   CaseStage.FACT_GATHERING,
   CaseStage.PRE_LITIGATION,
   CaseStage.FILING,
-  CaseStage.MEDIATION,
-  CaseStage.HEARING,
-  CaseStage.AWAITING_JUDGMENT,
-  CaseStage.ENFORCEMENT,
+  CaseStage.ANSWER,
   CaseStage.CLOSING,
+  CaseStage.APPEAL,
+  CaseStage.SUPREME,
 ];
 
 /**

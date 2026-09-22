@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { EventType } from '@lawfirm/shared';
+import { X } from 'lucide-react';
 import { api, CalendarEventItem, CaseDetail } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
@@ -55,9 +56,19 @@ export function RecordHearingOutcomeDialog({
   }, [load]);
   return (
     <Modal open onClose={onClose} className="max-w-lg">
-      <h2 className="text-lg font-semibold">
-        {th ? 'เลือกนัดศาล' : 'Choose a court appointment'}
-      </h2>
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-lg font-semibold">
+          {th ? 'เลือกนัดศาล' : 'Choose a court appointment'}
+        </h2>
+        <button
+          aria-label={th ? 'ปิดหน้าต่างเลือกนัดศาล' : 'Close appointment picker'}
+          className="-mr-2 -mt-2 rounded p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          onClick={onClose}
+          type="button"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
       <p className="mt-2 text-sm text-muted-foreground">
         {th
           ? 'เปิดแฟ้มของนัด เพื่อเตรียมเอกสารหรือบันทึกผลและงานต่อ'

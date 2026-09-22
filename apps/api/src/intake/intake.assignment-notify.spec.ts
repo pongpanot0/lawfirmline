@@ -62,7 +62,9 @@ describe('IntakeService assignment notifications', () => {
 
   it('notifies assigned members on create', async () => {
     mockPrisma.intake.create.mockResolvedValue({ id: 'i1', title: 'เรื่องทดสอบ', firmId: 'firm-1', relatedCaseId: null, assignedUserIds: ['u2', 'u3'], deadlineDate: null, customers: [], clientId: null, matterType: null });
-    mockPrisma.intake.findFirst.mockResolvedValue({ id: 'i1', firmId: 'firm-1' });
+    mockPrisma.intake.findFirst.mockResolvedValue({
+      id: 'i1', firmId: 'firm-1', title: 'เรื่องทดสอบ', case: { ownRef: 'TSBREF20260002' },
+    });
     await service.create(user, {
       receivedDate: '2026-09-17',
       title: 'เรื่องทดสอบ',
@@ -72,7 +74,7 @@ describe('IntakeService assignment notifications', () => {
       firmId: 'firm-1',
       userIds: ['u2', 'u3'],
       actorUserId: 'user-1',
-      summaryText: expect.stringContaining('เรื่องทดสอบ'),
+      summaryText: '📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: เรื่องทดสอบ\nOur Ref: TSBREF20260002',
       entityPath: '/intake/i1',
     });
   });

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService } from './line-messaging.service';
 import { LineLinkService } from './line-link.service';
 import { PushService } from './push.service';
+import { formatCaseNotificationReference } from './reference-label';
 
 /**
  * The widest lead time a reminder can use. The scheduler only loads events
@@ -62,10 +63,11 @@ export class ReminderScheduler {
 
         if (now >= reminderTime && !alreadySent) {
           const leadTime = formatReminderLeadTime(minutesBefore);
-          const message = `⏰ แจ้งเตือนนัดหมาย (${leadTime}ก่อน)\nคดี: ${event.case.ownRef}\nเรื่อง: ${event.title}\nเวลา: ${event.startAt.toLocaleString('th-TH')}`;
+          const reference = formatCaseNotificationReference(event.case);
+          const message = `⏰ แจ้งเตือนนัดหมาย (${leadTime}ก่อน)\n${reference ?? `คดี: ${event.case.title}`}\nเรื่อง: ${event.title}\nเวลา: ${event.startAt.toLocaleString('th-TH')}`;
 
           this.logger.log(
-            `[REMINDER] ${minutesBefore}min before: "${event.title}" for case ${event.case.ownRef}`,
+            `[REMINDER] ${minutesBefore}min before: "${event.title}" for case ${reference ?? event.case.title}`,
           );
 
           const lineUserIds = await this.lineLink.getLineUserIdsForEvent(event);
@@ -77,7 +79,7 @@ export class ReminderScheduler {
             [event.assigneeId ?? event.case.leadLawyerId],
             {
               title: `⏰ ${event.title} (${leadTime}ก่อน)`,
-              body: `${event.case.ownRef} · ${event.startAt.toLocaleString('th-TH')}`,
+              body: `${reference ?? event.case.title} · ${event.startAt.toLocaleString('th-TH')}`,
               data: { url: `/court-day/${event.id}` },
             },
           );

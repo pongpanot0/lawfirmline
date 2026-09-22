@@ -19,6 +19,7 @@ describe('CasesService assignment notifications', () => {
     $transaction: jest.fn().mockResolvedValue([]),
   };
   const mockNotifier = { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() };
+  const mockCaseFeed = { log: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: 'OWNER' } as any;
 
   beforeEach(async () => {
@@ -28,7 +29,7 @@ describe('CasesService assignment notifications', () => {
       providers: [
         CasesService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: CaseFeedService, useValue: mockCaseFeed },
         {
           provide: CaseAccessService,
           useValue: {
@@ -46,7 +47,9 @@ describe('CasesService assignment notifications', () => {
 
   it('notifies lead and buddies on create', async () => {
     mockPrisma.case.findUnique.mockResolvedValue(null);
-    mockPrisma.case.create.mockResolvedValue({ id: 'c1', title: 'คดีทดสอบ' });
+    mockPrisma.case.create.mockResolvedValue({
+      id: 'c1', title: 'คดีทดสอบ', ownRef: 'TSBREF20260001', blackCaseNumber: 'ผบ.123/2569', redCaseNumber: 'ผบ.456/2569',
+    });
     await service.create(user, {
       title: 'คดีทดสอบ',
       ownRef: 'A-001',
@@ -57,16 +60,32 @@ describe('CasesService assignment notifications', () => {
       firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'user-1',
-      summaryText: expect.stringContaining('ทนายเจ้าของคดี'),
+      summaryText: '⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี\nคดี: คดีทดสอบ\nหมายเลขคดีดำ ผบ.123/2569 · หมายเลขคดีแดง ผบ.456/2569',
       entityPath: '/cases/c1',
     });
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
       firmId: 'firm-1',
       userIds: ['u3'],
       actorUserId: 'user-1',
-      summaryText: expect.stringContaining('เข้าทีมคดี'),
+      summaryText: '⚖️ คุณได้รับมอบหมายเข้าทีมคดี\nคดี: คดีทดสอบ\nหมายเลขคดีดำ ผบ.123/2569 · หมายเลขคดีแดง ผบ.456/2569',
       entityPath: '/cases/c1',
     });
+  });
+
+  it('records who opened the case', async () => {
+    mockPrisma.case.findUnique.mockResolvedValue(null);
+    mockPrisma.firmMember.count.mockResolvedValue(1);
+    mockPrisma.case.create.mockResolvedValue({ id: 'c1', title: 'คดีทดสอบ', openedAt: new Date('2026-09-22') });
+
+    await service.create(user, {
+      title: 'คดีทดสอบ',
+      ownRef: 'A-001',
+      leadLawyerId: 'u2',
+    } as any);
+
+    expect(mockCaseFeed.log).toHaveBeenCalledWith(expect.objectContaining({
+      caseId: 'c1', userId: 'user-1', title: 'เปิดคดี',
+    }));
   });
 
   it('notifies the new lead when leadLawyerId changes', async () => {

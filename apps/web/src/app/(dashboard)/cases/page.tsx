@@ -11,6 +11,8 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { caseStatusOptions, getCaseStatusDisplay } from '@/lib/case-status';
 import { caseStageLabel, caseStageOptions } from '@/lib/stage-labels';
+import { caseNumberDisplay } from '@/lib/case-number-display';
+import { casePartyDisplay } from '@/lib/case-party-display';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,8 +28,6 @@ const PAGE_SIZE = 10;
 
 /** Columns a lawyer can hide — mostly-empty in practice, so they crowd the table by default. */
 const OPTIONAL_COLUMNS = [
-  { key: 'customerRef', label: 'เลขอ้างอิงลูกค้า' },
-  { key: 'courtName', label: 'ศาล' },
   { key: 'estimatedFee', label: 'รายได้โดยประมาณ' },
   { key: 'updatedAt', label: 'อัปเดตล่าสุด' },
 ] as const;
@@ -164,9 +164,14 @@ function CasesPageContent() {
     const header = [
       'Own Ref',
       'Customer Ref',
+      'Black Case Number',
+      'Red Case Number',
+      'ศาล',
+      'โจทก์',
+      'จำเลย',
       'ชื่อคดี',
       'ลูกความ',
-      'ศาล',
+      'หมายเหตุ',
       'เจ้าของคดี',
       'รายได้โดยประมาณ',
       'สถานะ',
@@ -175,9 +180,14 @@ function CasesPageContent() {
     const rows = sorted.map((c) => [
       c.ownRef,
       c.customerRef ?? '',
+      c.blackCaseNumber ?? '',
+      c.redCaseNumber ?? '',
+      c.courtName ?? '',
+      casePartyDisplay(c.participants ?? [], 'plaintiff'),
+      casePartyDisplay(c.participants ?? [], 'defendant'),
       c.title,
       c.clientName ?? '',
-      c.courtName ?? '',
+      c.description ?? '',
       `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}`,
       c.estimatedFee != null ? String(c.estimatedFee) : '',
       getCaseStatusDisplay(c.status, d.caseStatus).label,
@@ -315,7 +325,7 @@ function CasesPageContent() {
             />
           ) : (
             <>
-              {/* Nine columns cannot be read on a phone; each case becomes a card there. */}
+              {/* The full case register is too wide for a phone; each case becomes a card there. */}
               <ul className="divide-y md:hidden">
                 {paginated.map((c) => (
                   <li key={c.id}>
@@ -329,6 +339,16 @@ function CasesPageContent() {
                         {c.clientName ?? '—'}
                         {c.courtName ? ` · ${c.courtName}` : ''}
                       </p>
+                      {(c.blackCaseNumber || c.redCaseNumber) && (
+                        <p className="text-xs text-muted-foreground">
+                          คดีดำ {caseNumberDisplay(c.blackCaseNumber)} · คดีแดง {caseNumberDisplay(c.redCaseNumber)}
+                        </p>
+                      )}
+                      {(c.participants?.length ?? 0) > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          โจทก์ {casePartyDisplay(c.participants ?? [], 'plaintiff')} · จำเลย {casePartyDisplay(c.participants ?? [], 'defendant')}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         {c.leadLawyer.firstName} {c.leadLawyer.lastName}
                         {c.updatedAt ? ` · ${formatDate(c.updatedAt)}` : ''}
@@ -355,10 +375,15 @@ function CasesPageContent() {
                         {d.cases.ownRef} <ArrowUpDown className="h-3 w-3" />
                       </button>
                     </TableHead>
-                    {!hiddenColumns.has('customerRef') && <TableHead>{d.cases.customerRef}</TableHead>}
+                    <TableHead>{d.cases.customerRef}</TableHead>
+                    <TableHead>หมายเลขคดีดำ</TableHead>
+                    <TableHead>หมายเลขคดีแดง</TableHead>
+                    <TableHead>{d.home.court}</TableHead>
+                    <TableHead>โจทก์</TableHead>
+                    <TableHead>จำเลย</TableHead>
                     <TableHead>{d.cases.caseTitle}</TableHead>
                     <TableHead>{d.home.client}</TableHead>
-                    {!hiddenColumns.has('courtName') && <TableHead>{d.home.court}</TableHead>}
+                    <TableHead>หมายเหตุ</TableHead>
                     <TableHead>{d.cases.assignedLawyer}</TableHead>
                     {!hiddenColumns.has('estimatedFee') && <TableHead>รายได้โดยประมาณ</TableHead>}
                     <TableHead>{d.billing.status}</TableHead>
@@ -382,14 +407,15 @@ function CasesPageContent() {
                         </TableCell>
                       )}
                       <TableCell className="font-medium text-primary">{c.ownRef}</TableCell>
-                      {!hiddenColumns.has('customerRef') && (
-                        <TableCell className="text-muted-foreground">{c.customerRef ?? '—'}</TableCell>
-                      )}
+                      <TableCell className="text-muted-foreground">{c.customerRef ?? '—'}</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{caseNumberDisplay(c.blackCaseNumber)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{caseNumberDisplay(c.redCaseNumber)}</TableCell>
+                      <TableCell className="max-w-[180px] truncate text-muted-foreground" title={c.courtName ?? undefined}>{c.courtName ?? '—'}</TableCell>
+                      <TableCell className="max-w-[180px] truncate text-muted-foreground" title={casePartyDisplay(c.participants ?? [], 'plaintiff')}>{casePartyDisplay(c.participants ?? [], 'plaintiff')}</TableCell>
+                      <TableCell className="max-w-[180px] truncate text-muted-foreground" title={casePartyDisplay(c.participants ?? [], 'defendant')}>{casePartyDisplay(c.participants ?? [], 'defendant')}</TableCell>
                       <TableCell className="max-w-[220px] truncate" title={c.title}>{c.title}</TableCell>
                       <TableCell className="max-w-[160px] truncate text-muted-foreground" title={c.clientName ?? undefined}>{c.clientName ?? '—'}</TableCell>
-                      {!hiddenColumns.has('courtName') && (
-                        <TableCell className="max-w-[180px] truncate text-muted-foreground" title={c.courtName ?? undefined}>{c.courtName ?? '—'}</TableCell>
-                      )}
+                      <TableCell className="max-w-[220px] truncate text-muted-foreground" title={c.description ?? undefined}>{c.description ?? '—'}</TableCell>
                       <TableCell>{c.leadLawyer.firstName} {c.leadLawyer.lastName}</TableCell>
                       {!hiddenColumns.has('estimatedFee') && (
                         <TableCell className="text-muted-foreground">

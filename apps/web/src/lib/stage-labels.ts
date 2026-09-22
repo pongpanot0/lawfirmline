@@ -7,11 +7,14 @@ const CASE_STAGE_TH: Record<CaseStage, string> = {
   [CaseStage.FACT_GATHERING]: 'รวบรวมข้อเท็จจริง',
   [CaseStage.PRE_LITIGATION]: 'ก่อนฟ้อง',
   [CaseStage.FILING]: 'ยื่นฟ้อง',
+  [CaseStage.ANSWER]: 'ยื่นคำให้การ',
   [CaseStage.MEDIATION]: 'ไกล่เกลี่ย',
   [CaseStage.HEARING]: 'สืบพยาน',
   [CaseStage.AWAITING_JUDGMENT]: 'รอคำพิพากษา',
   [CaseStage.ENFORCEMENT]: 'บังคับคดี',
   [CaseStage.CLOSING]: 'ปิดคดี',
+  [CaseStage.APPEAL]: 'อุทธรณ์',
+  [CaseStage.SUPREME]: 'ฎีกา',
 };
 
 const CASE_STAGE_EN: Record<CaseStage, string> = {
@@ -19,11 +22,14 @@ const CASE_STAGE_EN: Record<CaseStage, string> = {
   [CaseStage.FACT_GATHERING]: 'Fact gathering',
   [CaseStage.PRE_LITIGATION]: 'Pre-litigation',
   [CaseStage.FILING]: 'Filing',
+  [CaseStage.ANSWER]: 'Answer',
   [CaseStage.MEDIATION]: 'Mediation',
   [CaseStage.HEARING]: 'Hearing',
   [CaseStage.AWAITING_JUDGMENT]: 'Awaiting judgment',
   [CaseStage.ENFORCEMENT]: 'Enforcement',
   [CaseStage.CLOSING]: 'Closing',
+  [CaseStage.APPEAL]: 'Appeal',
+  [CaseStage.SUPREME]: 'Supreme Court',
 };
 
 const INTAKE_STAGE_TH: Record<IntakeStage, string> = {

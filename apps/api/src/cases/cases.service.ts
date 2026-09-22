@@ -26,6 +26,12 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 import { CLIENT_CONTACT_SELECT } from '../clients/client-contact.select';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
 import { Optional } from '@nestjs/common';
+import { formatCaseNotificationReference } from '../notifications/reference-label';
+
+function caseAssignmentSummary(prefix: string, legalCase: { title: string; ownRef?: string | null; blackCaseNumber?: string | null; redCaseNumber?: string | null }) {
+  const reference = formatCaseNotificationReference(legalCase);
+  return `${prefix}\nคดี: ${legalCase.title}${reference ? `\n${reference}` : ''}`;
+}
 
 @Injectable()
 export class CasesService {
@@ -45,6 +51,7 @@ export class CasesService {
     caseType: { select: { id: true, name: true } },
     client: { select: { id: true, name: true } },
     cargoClaim: { select: { id: true } },
+    participants: { select: { name: true, role: true } },
     // งานก่อนฟ้อง (โนติส/เจรจา) ยังบันทึกอยู่บน intake ที่ผูก 1:1 — หน้าคดีใช้แสดงสถานะ
     intake: {
       select: {
@@ -352,6 +359,14 @@ export class CasesService {
       include: this.caseInclude,
     });
 
+    await this.caseFeed.log({
+      caseId: created.id,
+      userId: user.id,
+      type: ActivityType.NOTE,
+      title: 'เปิดคดี',
+      at: created.openedAt,
+    });
+
     if (dto.initialActivity) {
       await this.activitiesService.create(
         user,
@@ -370,7 +385,7 @@ export class CasesService {
         firmId: user.firmId,
         userIds: [dto.leadLawyerId],
         actorUserId: user.id,
-        summaryText: `⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี\nคดี: ${created.title}`,
+        summaryText: caseAssignmentSummary('⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี', created),
         entityPath: `/cases/${created.id}`,
       });
     }
@@ -379,7 +394,7 @@ export class CasesService {
         firmId: user.firmId,
         userIds: buddyIds,
         actorUserId: user.id,
-        summaryText: `⚖️ คุณได้รับมอบหมายเข้าทีมคดี\nคดี: ${created.title}`,
+        summaryText: caseAssignmentSummary('⚖️ คุณได้รับมอบหมายเข้าทีมคดี', created),
         entityPath: `/cases/${created.id}`,
       });
     }
@@ -470,7 +485,7 @@ export class CasesService {
         firmId: user.firmId,
         userIds: [dto.leadLawyerId],
         actorUserId: user.id,
-        summaryText: `⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี\nคดี: ${updated.title}`,
+        summaryText: caseAssignmentSummary('⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี', updated),
         entityPath: `/cases/${id}`,
       });
     }
@@ -545,7 +560,7 @@ export class CasesService {
         firmId: user.firmId,
         userIds: newBuddyIds,
         actorUserId: user.id,
-        summaryText: `⚖️ คุณได้รับมอบหมายเข้าทีมคดี\nคดี: ${result?.title ?? legalCase.title}`,
+        summaryText: caseAssignmentSummary('⚖️ คุณได้รับมอบหมายเข้าทีมคดี', result ?? legalCase),
         entityPath: `/cases/${id}`,
       });
     }
