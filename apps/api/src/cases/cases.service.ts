@@ -24,6 +24,8 @@ import { Prisma } from '../generated/prisma';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CLIENT_CONTACT_SELECT } from '../clients/client-contact.select';
+import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
+import { Optional } from '@nestjs/common';
 
 @Injectable()
 export class CasesService {
@@ -33,6 +35,7 @@ export class CasesService {
     private caseFeed: CaseFeedService,
     private activitiesService: CaseActivitiesService,
     private assignmentNotifier: AssignmentNotifierService,
+    @Optional() private cargoClaims?: CargoClaimsService,
   ) {}
 
   private caseInclude = {
@@ -355,6 +358,10 @@ export class CasesService {
         dto.initialActivity,
         dto.courtName,
       );
+    }
+
+    if ((dto.cargoClaimEnabled || dto.cargoClaim) && this.cargoClaims) {
+      await this.cargoClaims.ensureForCase(user, created.id, dto.cargoClaim);
     }
 
     if (dto.leadLawyerId && dto.leadLawyerId !== user.id) {

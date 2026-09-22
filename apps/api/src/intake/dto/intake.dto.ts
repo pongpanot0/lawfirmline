@@ -15,6 +15,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { UpsertCargoClaimDto } from '../../cargo-claims/dto/cargo-claim.dto';
 
 export enum IntakeStatus {
   RECEIVED = 'RECEIVED',
@@ -270,6 +271,11 @@ export class CreateIntakeDto {
   @Min(0)
   @Max(1_000_000_000)
   settlementOfferAmount?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpsertCargoClaimDto)
+  cargoClaim?: UpsertCargoClaimDto;
 }
 
 export class UpdateIntakeDto {
@@ -466,6 +472,11 @@ export class UpdateIntakeDto {
   @Min(0)
   @Max(1_000_000_000)
   settlementOfferAmount?: number | null;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpsertCargoClaimDto)
+  cargoClaim?: UpsertCargoClaimDto;
 }
 
 export class AssessIntakeDto {

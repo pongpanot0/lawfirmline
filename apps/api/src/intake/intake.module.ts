@@ -10,9 +10,10 @@ import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { ConflictCheckModule } from '../conflict-check/conflict-check.module';
 import { RagModule } from '../rag/rag.module';
+import { CargoClaimsModule } from '../cargo-claims/cargo-claims.module';
 
 @Module({
-  imports: [TasksModule, IntelligenceModule, DocumentsModule, ConflictCheckModule, RagModule, forwardRef(() => NotificationsModule)],
+  imports: [TasksModule, IntelligenceModule, DocumentsModule, ConflictCheckModule, RagModule, CargoClaimsModule, forwardRef(() => NotificationsModule)],
   controllers: [IntakeController],
   providers: [
     IntakeService,

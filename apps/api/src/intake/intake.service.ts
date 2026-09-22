@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -40,11 +40,13 @@ import {
   CreateDocumentRequestDto,
   BulkCreateDocumentRequestsDto,
   UpdateDocumentRequestDto,
+  PreLitigationType,
   PreLitigationStatus,
   CustomerShareDto,
   AdditionalClientDto,
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
+import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
 
 export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
 const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
@@ -68,6 +70,7 @@ export class IntakeService {
     private assignmentNotifier: AssignmentNotifierService,
     private conflictCheck: ConflictCheckService,
     private caseFeed: CaseFeedService,
+    @Optional() private cargoClaims?: CargoClaimsService,
   ) {}
 
   /** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่าย; ถ้าไม่มีใครถูกตั้งเป็นหลัก ให้รายแรกเป็นหลัก */
@@ -566,6 +569,10 @@ export class IntakeService {
       await this.seedPlaybookTasks(user, created.id, dto.preferredPlaybookId);
     }
 
+    if ((dto.preLitigationType === PreLitigationType.TRANSPORT || dto.cargoClaim) && this.cargoClaims) {
+      await this.cargoClaims.ensureForIntake(user, created.id, dto.cargoClaim);
+    }
+
     // Record เดียวตั้งแต่รับเรื่อง — เปิดคดีทันทีที่ขั้น "รับเรื่อง/กลั่นกรอง"
     // (intake ยังเก็บข้อมูลรับเรื่อง/โนติสอยู่เบื้องหลัง ผูก 1:1 กับคดี)
     if (created.relatedCaseId) {
@@ -724,6 +731,15 @@ export class IntakeService {
       },
       include: this.intakeInclude,
     });
+
+    if ((dto.preLitigationType === PreLitigationType.TRANSPORT || dto.cargoClaim) && this.cargoClaims) {
+      if (dto.cargoClaim) {
+        await this.cargoClaims.updateForIntake(user, id, dto.cargoClaim);
+      } else {
+        await this.cargoClaims.ensureForIntake(user, id);
+      }
+      if (updated.case?.id) await this.cargoClaims.attachCase(user, id, updated.case.id);
+    }
 
     if (newlyAssigned.length) {
       await this.assignmentNotifier.notifyAssigned({
@@ -1095,6 +1111,10 @@ export class IntakeService {
         claimedAmount: dto.claimedAmount ?? undefined,
       },
     });
+
+    if (this.cargoClaims && intake.preLitigationType === PreLitigationType.TRANSPORT) {
+      await this.cargoClaims.attachCase(user, intake.id, newCase.id);
+    }
 
     // Carry the intake's whole precedent-analysis history forward onto the case
     // so it stays visible after conversion.

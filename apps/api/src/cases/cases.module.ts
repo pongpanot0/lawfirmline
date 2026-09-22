@@ -14,9 +14,10 @@ import { CalendarModule } from '../calendar/calendar.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntakeModule } from '../intake/intake.module';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { CargoClaimsModule } from '../cargo-claims/cargo-claims.module';
 
 @Module({
-  imports: [CalendarModule, forwardRef(() => NotificationsModule), IntakeModule],
+  imports: [CalendarModule, forwardRef(() => NotificationsModule), IntakeModule, CargoClaimsModule],
   controllers: [
     CasesController,
     CaseActivitiesController,

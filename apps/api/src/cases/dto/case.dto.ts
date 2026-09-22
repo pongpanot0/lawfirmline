@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsEnum,
   IsIn,
   IsNumber,
@@ -28,6 +29,7 @@ import {
   CaseStage,
 } from '@lawfirm/shared';
 import { CustomerShareDto, AdditionalClientDto } from '../../intake/dto/intake.dto';
+import { UpsertCargoClaimDto } from '../../cargo-claims/dto/cargo-claim.dto';
 
 /** Trim incoming strings so stray whitespace never breaks a format check. */
 const Trim = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
@@ -148,6 +150,15 @@ export class CreateCaseDto {
   @ValidateNested()
   @Type(() => InitialActivityDto)
   initialActivity?: InitialActivityDto;
+
+  @IsOptional()
+  @IsBoolean()
+  cargoClaimEnabled?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpsertCargoClaimDto)
+  cargoClaim?: UpsertCargoClaimDto;
 }
 
 export class UpdateCaseDto {
