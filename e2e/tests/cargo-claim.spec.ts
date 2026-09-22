@@ -16,6 +16,7 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   const participantRole = page.getByLabel('บทบาท / Role');
   await expect(participantRole.locator('option[value="JOINT_PLAINTIFF"]')).toHaveText('โจทก์ร่วม');
   await expect(participantRole.locator('option[value="JOINT_DEFENDANT"]')).toHaveText('จำเลยร่วม');
+  await expect(participantRole.locator('option[value="RESPONDENT"]')).toHaveText('ผู้คัดค้าน');
   await page.getByRole('button', { name: 'ยกเลิก' }).click();
   await expect(page.getByRole('tab', { name: 'Cargo Claim' })).toBeVisible();
   await page.getByRole('tab', { name: 'Cargo Claim' }).click();

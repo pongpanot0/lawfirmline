@@ -33,5 +33,5 @@ A person or organization named in the matter, recorded as one of any number of p
 _Avoid_: Client (the represented party), Customer (the payer)
 
 **Participant Role**:
-The party's procedural status, including Plaintiff, Joint Plaintiff, Defendant, Joint Defendant, Petitioner, and other court roles.
+The party's procedural status, including Plaintiff, Joint Plaintiff, Defendant, Joint Defendant, Petitioner, Respondent, and other court roles.
 _Avoid_: Party Role (reserved for the single `Case.partyRole` perspective describing which side the firm represents)

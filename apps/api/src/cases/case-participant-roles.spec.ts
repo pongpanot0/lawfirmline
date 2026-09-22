@@ -7,5 +7,6 @@ describe('Case participant roles', () => {
     expect(ParticipantRole.JOINT_PLAINTIFF).toBe('JOINT_PLAINTIFF');
     expect(ParticipantRole.JOINT_DEFENDANT).toBe('JOINT_DEFENDANT');
     expect(ParticipantRole.PETITIONER).toBe('PETITIONER');
+    expect(ParticipantRole.RESPONDENT).toBe('RESPONDENT');
   });
 });
