@@ -1,5 +1,8 @@
 'use client';
 
+// Hallmark · genre: modern-minimal · macrostructure: Workbench · tone: soft · anchor: Samnuan blue
+// Hallmark · contrast: pass (40–41) · responsive: pass (34, 49–57) · pre-emit: P5 H5 E4 S5 R5 V5
+
 import { CaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import {
   CASE_COSTS_KEY,
@@ -391,65 +394,71 @@ export default function NewCasePage() {
   };
 
   const inputClass =
-    'mt-1 min-w-0 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60';
+    'mt-1 min-h-11 min-w-0 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm transition-colors hover:border-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60';
   const fieldLabel = 'block text-sm font-medium';
   const selectedLawyer = lawyers.find((l) => l.id === form.leadLawyerId);
   const currentIndex = visibleSteps.findIndex((item) => item.value === step);
+  const primaryCustomerName = customers[0]?.customerId
+    ? (clients.find((client) => client.id === customers[0].customerId)?.name ??
+      'กำลังโหลด…')
+    : 'ยังไม่ระบุ';
+  const overviewClientName = form.clientId
+    ? (clients.find((client) => client.id === form.clientId)?.name ??
+      'กำลังโหลด…')
+    : form.useTmpClient
+      ? TMP_CLIENT_PLACEHOLDER
+      : form.clientName.trim() || 'ยังไม่ระบุ';
 
-  // Hallmark · pre-emit critique: P4 H4 E4 S5 R5 V4 · existing Samnuan design tokens
   return (
-    <div className="mx-auto w-full max-w-4xl min-w-0 pb-20 [overflow-wrap:anywhere]">
-      <Link href="/cases" className="text-sm text-primary hover:underline">
-        ← กลับไปหน้าคดี
-      </Link>
-      <h1 className="mt-3 text-2xl font-bold">สร้างคดีใหม่</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        เริ่มจากประเภทคดี แล้วกรอกข้อมูลที่มี
-        ระบบช่วยเตรียมชื่อคดีและเลขอ้างอิงให้
-      </p>
-      <nav aria-label="ขั้นตอนสร้างคดี" className="my-6">
-        <ol className="grid grid-cols-2 gap-2 sm:flex">
-          {visibleSteps.map((item, index) => (
-            <li key={item.value} className="min-w-0 sm:flex-1">
-              <button
-                type="button"
-                disabled={item.value > step || submitting}
-                aria-current={item.value === step ? 'step' : undefined}
-                onClick={() => {
-                  setStep(item.value);
-                  setError('');
-                }}
-                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${item.value === step ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-card text-muted-foreground disabled:opacity-60'}`}
-              >
-                <span className="shrink-0">
-                  {item.value < step ? '✓' : index + 1}
-                </span>
-                <span className="whitespace-nowrap">{item.label}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </nav>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (step === 1) void handleSubmit();
-          else goNext();
-        }}
-        className="rounded-xl border border-border bg-card text-card-foreground shadow-soft"
-      >
-        <fieldset
-          disabled={submitting || analysisBusy || !!createdCaseId}
-          className="min-w-0 space-y-6 p-4 sm:p-6"
+    <div
+      data-hallmark="soft-workbench"
+      className="mx-auto w-full max-w-7xl min-w-0 pb-24 [overflow-wrap:anywhere]"
+    >
+      <header className="mb-6 border-b border-border/70 pb-5 sm:pb-6">
+        <Link
+          href="/cases"
+          className="inline-flex min-h-11 items-center whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:text-primary"
         >
-          <div>
-            <p className="text-xs text-muted-foreground">
+          ← กลับไปหน้าคดี
+        </Link>
+        <div className="mt-3 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              สร้างคดีใหม่
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              ระบุข้อมูลเท่าที่มีในตอนนี้ ข้อมูลศาล เลขคดี
+              และรายละเอียดเสริมเติมภายหลังได้
+            </p>
+          </div>
+          <p className="w-fit whitespace-nowrap rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary">
+            {nextOwnRef ? `เลขอ้างอิงคาดการณ์ ${nextOwnRef}` : 'เลขอ้างอิงสร้างอัตโนมัติ'}
+          </p>
+        </div>
+      </header>
+
+      <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] xl:gap-8">
+        <div className="min-w-0">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (step === 1) void handleSubmit();
+              else goNext();
+            }}
+            className="min-w-0 space-y-4 text-card-foreground"
+          >
+            <fieldset
+              disabled={submitting || analysisBusy || !!createdCaseId}
+              className="min-w-0 space-y-4"
+            >
+          <div className="rounded-2xl border border-primary/10 bg-primary/[0.035] p-4 sm:p-5">
+            <p className="text-xs font-medium text-primary">
               ขั้นตอน {currentIndex + 1} จาก {visibleSteps.length}
             </p>
             <h2
               ref={headingRef}
               tabIndex={-1}
-              className="mt-1 text-lg font-semibold focus:outline-none"
+              className="mt-1 text-xl font-semibold tracking-tight focus:outline-none"
             >
               {visibleSteps[currentIndex]?.label}
             </h2>
@@ -481,10 +490,10 @@ export default function NewCasePage() {
           )}
 
           {step === 0 && (
-            <div className="space-y-6">
+            <div className="space-y-6 rounded-2xl border border-border/80 bg-card p-4 shadow-soft sm:p-6">
               <section className="space-y-3" aria-label="ประเภทคดี">
                 <div className="flex items-start gap-2">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">1</span>
+                  <span aria-hidden="true" className="mt-2 h-px w-5 shrink-0 bg-primary" />
                   <div>
                     <h3 className="text-sm font-semibold">ประเภทคดี</h3>
                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -522,7 +531,7 @@ export default function NewCasePage() {
                           );
                           setPlaybookId((current) => current || playbooks.find((p) => p.caseTypeId === type.id)?.id || current);
                         }}
-                        className={`rounded-lg border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${form.caseTypeId === type.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
+                        className={`min-h-11 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-primary/10 sm:p-4 ${form.caseTypeId === type.id ? 'border-primary/50 bg-primary/[0.055]' : 'border-border bg-background hover:border-primary/25 hover:bg-muted/60'}`}
                       >
                         <span className="flex items-center justify-between gap-2 font-medium">
                           {type.name}
@@ -568,7 +577,7 @@ export default function NewCasePage() {
 
               <section className="space-y-4 border-t border-border pt-5" aria-label="ลูกค้า ลูกความ และชื่อคดี">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">2</span>
+                  <span aria-hidden="true" className="h-px w-5 shrink-0 bg-primary" />
                   <h3 className="text-sm font-semibold">ลูกค้า ลูกความ และชื่อคดี</h3>
                 </div>
                 <div>
@@ -832,7 +841,7 @@ export default function NewCasePage() {
                   แยกจากค่าทนายและค่าใช้จ่ายดำเนินคดี
                 </p>
               </div>
-              <section className="rounded-lg border border-border p-4">
+              <section className="border-t border-border pt-5">
                 <button
                   type="button"
                   className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -979,7 +988,7 @@ export default function NewCasePage() {
                 </div>
               </details>
 
-              <details className="rounded-lg border border-border p-4">
+              <details className="border-t border-border pt-5">
                 <summary className="cursor-pointer text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   ข้อมูลเพิ่มเติม (ไม่บังคับ)
                 </summary>
@@ -1031,7 +1040,7 @@ export default function NewCasePage() {
                 </div>
               </details>
 
-              <section className="rounded-lg border border-border p-4">
+              <section className="border-t border-border pt-5">
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input
                     type="checkbox"
@@ -1139,7 +1148,7 @@ export default function NewCasePage() {
                   aria-label="ข้อมูลเฉพาะประเภทคดี"
                 >
                   <div>
-                    <h3 className="flex items-center gap-2 text-sm font-semibold"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">4</span>ข้อมูลเฉพาะประเภทคดี</h3>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold"><span aria-hidden="true" className="h-px w-5 shrink-0 bg-primary" />ข้อมูลเฉพาะประเภทคดี</h3>
                     <p className="text-sm text-muted-foreground">
                       รายละเอียดที่เกี่ยวข้องกับประเภทคดีที่เลือก
                     </p>
@@ -1209,7 +1218,7 @@ export default function NewCasePage() {
           )}
 
           {step === 1 && (
-            <div className="space-y-6">
+            <div className="space-y-6 rounded-2xl border border-border/80 bg-card p-4 shadow-soft sm:p-6">
               <div>
                 <label htmlFor="lead-lawyer" className={fieldLabel}>
                   ทนายผู้รับผิดชอบ *
@@ -1259,7 +1268,7 @@ export default function NewCasePage() {
                 )}
               </div>
               <section
-                className="rounded-lg border border-border bg-muted/30 p-4"
+                className="border-t border-border pt-5"
                 aria-labelledby="review-heading"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1362,11 +1371,12 @@ export default function NewCasePage() {
               </section>
             </div>
           )}
-        </fieldset>
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-border bg-card pl-4 pr-20 py-4 sm:px-6">
+            </fieldset>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card py-3 pl-4 pr-20 sm:px-5">
           <Button
             type="button"
             variant="outline"
+            className="min-h-11 whitespace-nowrap active:bg-accent/80"
             disabled={submitting || analysisBusy || !!createdCaseId}
             onClick={goBack}
           >
@@ -1374,6 +1384,7 @@ export default function NewCasePage() {
           </Button>
           <Button
             type="submit"
+            className="min-h-11 whitespace-nowrap px-5 active:bg-primary/80"
             disabled={
               submitting ||
               analysisBusy ||
@@ -1389,14 +1400,14 @@ export default function NewCasePage() {
                   : 'สร้างคดี'
                 : 'ถัดไป'}
           </Button>
-        </div>
-      </form>
-      {/*
-        Optional and credit-metered, so it sits below the form as a closed
-        disclosure: the required fields come first and the AI helper never
-        pushes them off-screen.
-      */}
-      <details className="group mt-6 rounded-xl border border-border bg-card shadow-soft">
+            </div>
+          </form>
+          {/*
+            Optional and credit-metered, so it sits below the form as a closed
+            disclosure: the required fields come first and the AI helper never
+            pushes them off-screen.
+          */}
+          <details className="group mt-5 rounded-2xl border border-border/80 bg-card shadow-soft">
         <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium sm:px-6 [&::-webkit-details-marker]:hidden">
           <span className="mr-2 inline-block transition-transform group-open:rotate-90">
             ▸
@@ -1438,7 +1449,79 @@ export default function NewCasePage() {
             </div>
           )}
         </div>
-      </details>
+          </details>
+        </div>
+
+        <aside
+          aria-label="ภาพรวมคดีใหม่"
+          className="order-first min-w-0 space-y-3 lg:order-last lg:sticky lg:top-4"
+        >
+          <nav
+            aria-label="ขั้นตอนสร้างคดี"
+            className="rounded-2xl border border-border/80 bg-card p-3 shadow-soft"
+          >
+            <p className="px-1 pb-2 text-xs font-medium text-muted-foreground">
+              ขั้นตอนสร้างคดี
+            </p>
+            <ol className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+              {visibleSteps.map((item, index) => (
+                <li key={item.value} className="min-w-0">
+                  <button
+                    type="button"
+                    disabled={item.value > step || submitting}
+                    aria-current={item.value === step ? 'step' : undefined}
+                    onClick={() => {
+                      setStep(item.value);
+                      setError('');
+                    }}
+                    className={`flex min-h-11 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-muted ${item.value === step ? 'bg-primary/[0.07] text-primary' : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'}`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${item.value <= step ? 'border-primary/30 bg-background text-primary' : 'border-border bg-muted/40'}`}
+                    >
+                      {item.value < step ? '✓' : index + 1}
+                    </span>
+                    <span className="min-w-0 truncate whitespace-nowrap">
+                      {item.label}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+
+          <section className="hidden rounded-2xl border border-border/70 bg-muted/30 p-4 lg:block">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold">ภาพรวมคดี</h2>
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                บันทึกเมื่อสร้าง
+              </span>
+            </div>
+            <dl className="mt-4 space-y-3 text-sm">
+              {[
+                ['ประเภทคดี', selectedType?.name || 'ยังไม่เลือก'],
+                ['ผู้มอบหมาย', primaryCustomerName],
+                ['ลูกความ', overviewClientName],
+                ['ชื่อคดี', form.title.trim() || 'ระบบช่วยตั้งชื่อให้'],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-2 border-t border-border/60 pt-3 first:border-0 first:pt-0"
+                >
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="min-w-0 break-words text-right text-xs font-medium leading-5">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-4 rounded-xl bg-background/80 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
+              กรอกเฉพาะข้อมูลที่ยืนยันได้ ส่วนข้อมูลศาลและเลขคดีเพิ่มภายหลังได้
+            </p>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }
