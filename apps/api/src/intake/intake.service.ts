@@ -554,6 +554,7 @@ export class IntakeService {
 
     if (dto.assignedUserIds?.length) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: dto.assignedUserIds,
         actorUserId: user.id,
         summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${created.title}`,
@@ -726,6 +727,7 @@ export class IntakeService {
 
     if (newlyAssigned.length) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: newlyAssigned,
         actorUserId: user.id,
         summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${updated.title}`,

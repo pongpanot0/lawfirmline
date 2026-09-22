@@ -355,6 +355,7 @@ export class TasksService {
 
     if (dto.assigneeId && dto.assigneeId !== user.id) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: [dto.assigneeId],
         actorUserId: user.id,
         summaryText: `📌 คุณได้รับมอบหมายงานใหม่\nงาน: ${dto.title}`,
@@ -430,6 +431,7 @@ export class TasksService {
 
     if (dto.assigneeId && dto.assigneeId !== task.assigneeId && dto.assigneeId !== user.id) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: [dto.assigneeId],
         actorUserId: user.id,
         summaryText: `📌 คุณได้รับมอบหมายงานใหม่\nงาน: ${task.title}`,
@@ -476,6 +478,8 @@ export class TasksService {
     for (const t of unblocked) {
       if (!t.assigneeId) continue;
       await this.assignmentNotifier.notifyAssigned({
+        // Unblock runs without an AuthUser; the recipient's own firm is right.
+        firmId: null,
         userIds: [t.assigneeId],
         actorUserId,
         summaryText: `🟢 งานที่รออยู่เริ่มได้แล้ว: "${t.title}"\n(งานก่อนหน้า "${task.title}" เสร็จแล้ว)`,
@@ -622,6 +626,7 @@ export class TasksService {
 
     if (returnToUserId !== user.id) {
       await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
         userIds: [returnToUserId],
         actorUserId: user.id,
         summaryText: `🔁 งานถูกตีกลับให้แก้ไข\nงาน: ${task.title}\nเหตุผล: ${dto.reason}`,

@@ -5,6 +5,7 @@ import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SkipSubscription } from '../saas/decorators/saas.decorators';
+import { FirmLinkService } from '../notifications/firm-link.service';
 import { OutlookOAuthService } from './outlook-oauth.service';
 import { OutlookGraphClient } from './outlook-graph.client';
 import { OutlookConnectionsService } from './outlook-connections.service';
@@ -20,6 +21,7 @@ export class OutlookOAuthController {
     private connections: OutlookConnectionsService,
     private subscriptions: OutlookSubscriptionService,
     private config: ConfigService,
+    private firmLink: FirmLinkService,
   ) {}
 
   /** Called by the settings page — returns the Microsoft consent URL to redirect the browser to. */
@@ -38,9 +40,12 @@ export class OutlookOAuthController {
   @Get('callback')
   @SkipSubscription()
   async callback(@Query('code') code: string, @Query('state') state: string, @Query('error_description') errorDescription: string, @Res() res: Response) {
-    const webAppUrl = (this.config.get<string>('WEB_APP_URL') ?? 'http://localhost:3000').replace(/\/$/, '');
+    // The firm is only known once `state` verifies, so start at the root origin
+    // and narrow to the firm's own subdomain as soon as we have it — otherwise
+    // the user lands on a page with no tenant.
+    let origin = this.firmLink.rootOrigin();
     const redirectTo = (status: 'connected' | 'error', message?: string) => {
-      const url = new URL(`${webAppUrl}/settings/integrations`);
+      const url = new URL(`${origin.replace(/\/$/, '')}/settings/integrations`);
       url.searchParams.set('outlook', status);
       if (message) url.searchParams.set('message', message);
       return res.redirect(url.toString());
@@ -52,6 +57,7 @@ export class OutlookOAuthController {
 
     try {
       const { firmId, userId } = this.oauth.verifyState(state);
+      origin = await this.firmLink.originForFirm(firmId);
       const tokens = await this.oauth.exchangeCodeForTokens(code);
       const mailboxAddress = await this.graph.getMailboxAddress(tokens.accessToken);
 

@@ -41,6 +41,7 @@ describe('TasksService assignment notifications', () => {
     mockPrisma.task.findUnique.mockResolvedValue(created);
     await service.create(user, null, { title: 'ทดสอบ', assigneeId: 'u2' } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('ทดสอบ'),
@@ -64,6 +65,7 @@ describe('TasksService assignment notifications', () => {
     mockPrisma.task.update.mockResolvedValue({ ...existing, assigneeId: 'u3' });
     await service.update('t1', { assigneeId: 'u3' } as any, user, 'c1');
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u3'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('งานเดิม'),
@@ -96,6 +98,7 @@ describe('TasksService assignment notifications', () => {
     mockPrisma.task.findUnique.mockResolvedValue(task);
     await service.reject('c1', 't1', user, { reason: 'แก้ตัวเลข' } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('ตีกลับ'),

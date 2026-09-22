@@ -1,3 +1,4 @@
+import { FirmLinkService } from '../notifications/firm-link.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException } from '@nestjs/common';
@@ -60,6 +61,7 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
         { provide: LineMessagingService, useValue: { isConfigured: () => false, pushTo: jest.fn() } },
         { provide: FileStorageService, useValue: {} },
         { provide: AssignmentNotifierService, useValue: { notifyFirmOwners: jest.fn() } },
+        { provide: FirmLinkService, useValue: { linkFor: jest.fn().mockResolvedValue('https://acme.example.com/x'), originForFirm: jest.fn(), rootOrigin: jest.fn() } },
       ],
     }).compile();
     billing = module.get(BillingService);

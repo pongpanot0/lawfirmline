@@ -34,6 +34,7 @@ export class CashAdvanceService {
     });
 
     await this.assignmentNotifier.notifyAssigned({
+      firmId: owner.firmId,
       userIds: [dto.userId],
       actorUserId: owner.id,
       summaryText: `💰 คุณได้รับเงินสำรองจ่าย ฿${dto.amount.toLocaleString('th-TH')}${dto.note ? `\nหมายเหตุ: ${dto.note}` : ''}`,

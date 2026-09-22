@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AgendaItem, AuthUser } from '@lawfirm/shared';
+import { FirmLinkService } from '../firm-link.service';
 import { AgendaService } from '../../agenda/agenda.service';
 import { LineMessagingService } from '../line-messaging.service';
 import { LineAuthContextService } from './line-auth-context.service';
@@ -42,6 +43,7 @@ export class LineBotRouterService {
     private advanceFlow: LineAdvanceFlowService,
     private agenda: AgendaService,
     private config: ConfigService,
+    private firmLink: FirmLinkService,
   ) {}
 
   async route(
@@ -153,7 +155,7 @@ export class LineBotRouterService {
     target: ConversationTarget,
   ): Promise<void> {
     const day = await this.agenda.getMyDay(authUser);
-    const webUrl = this.config.get<string>('WEB_APP_URL') ?? 'http://localhost:3000';
+    const webUrl = this.firmLink.originForSlug(authUser.firmSlug);
 
     const section = (icon: string, title: string, items: AgendaItem[]): string | null => {
       if (!items.length) return null;
