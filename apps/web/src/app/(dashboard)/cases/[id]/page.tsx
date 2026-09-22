@@ -1080,7 +1080,7 @@ export default function CaseDetailPage() {
                     </legend>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="text-xs text-muted-foreground">เลขดำ</label>
+                        <label className="text-xs text-muted-foreground">หมายเลขคดีดำ</label>
                         <Input
                           value={overviewForm.blackCaseNumber}
                           onChange={(e) => setOverviewForm({ ...overviewForm, blackCaseNumber: e.target.value })}
@@ -1089,7 +1089,7 @@ export default function CaseDetailPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">เลขแดง</label>
+                        <label className="text-xs text-muted-foreground">หมายเลขคดีแดง</label>
                         <Input
                           value={overviewForm.redCaseNumber}
                           onChange={(e) => setOverviewForm({ ...overviewForm, redCaseNumber: e.target.value })}
@@ -1173,11 +1173,11 @@ export default function CaseDetailPage() {
                 <p className="font-medium">{legalCase.caseType?.name ?? '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">เลขดำ</p>
+                <p className="text-xs text-muted-foreground">หมายเลขคดีดำ</p>
                 <p className="font-medium">{legalCase.blackCaseNumber ?? '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">เลขแดง</p>
+                <p className="text-xs text-muted-foreground">หมายเลขคดีแดง</p>
                 <p className="font-medium">{legalCase.redCaseNumber ?? '—'}</p>
               </div>
               <div>

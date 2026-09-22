@@ -230,12 +230,12 @@ export default function NewCasePage() {
         form.blackCaseNumber.trim() &&
         !CASE_NUMBER_REGEX.test(form.blackCaseNumber.trim())
       )
-        return `เลขดำ: ${CASE_NUMBER_HINT}`;
+        return `หมายเลขคดีดำ: ${CASE_NUMBER_HINT}`;
       if (
         form.redCaseNumber.trim() &&
         !CASE_NUMBER_REGEX.test(form.redCaseNumber.trim())
       )
-        return `เลขแดง: ${CASE_NUMBER_HINT}`;
+        return `หมายเลขคดีแดง: ${CASE_NUMBER_HINT}`;
       if (
         form.estimatedFee &&
         (!Number.isFinite(Number(form.estimatedFee)) ||
@@ -901,7 +901,7 @@ export default function NewCasePage() {
                   ข้อมูลศาลและหมายเลขคดี (เติมภายหลังได้)
                 </summary>
                 <p className="text-xs text-muted-foreground">
-                  ยังไม่มีเลขดำ/เลขแดงก็เปิดคดีได้
+                  ยังไม่มีหมายเลขคดีดำ/หมายเลขคดีแดงก็เปิดคดีได้
                   ระบบใช้เลขอ้างอิงสำนักงานติดตามไปก่อน
                   แล้วมาเติมเลขจากศาลในหน้าคดีเมื่อได้รับ
                 </p>
@@ -979,7 +979,7 @@ export default function NewCasePage() {
                     (key) => (
                       <div key={key}>
                         <label htmlFor={key} className={fieldLabel}>
-                          {key === 'blackCaseNumber' ? 'เลขดำ' : 'เลขแดง'}{' '}
+                          {key === 'blackCaseNumber' ? 'หมายเลขคดีดำ' : 'หมายเลขคดีแดง'}{' '}
                           <span className="font-normal text-muted-foreground">
                             (ถ้ามี)
                           </span>
@@ -1335,8 +1335,8 @@ export default function NewCasePage() {
                         ? `${COURT_LEVEL_LABELS[form.courtLevel]} · ${form.courtName}`
                         : `${COURT_LEVEL_LABELS[form.courtLevel]} · ยังไม่ทราบศาล`,
                     ],
-                    ['เลขดำ', form.blackCaseNumber || 'ยังไม่มี'],
-                    ['เลขแดง', form.redCaseNumber || 'ยังไม่มี'],
+                    ['หมายเลขคดีดำ', form.blackCaseNumber || 'ยังไม่มี'],
+                    ['หมายเลขคดีแดง', form.redCaseNumber || 'ยังไม่มี'],
                     [
                       'ผู้รับผิดชอบ',
                       selectedLawyer

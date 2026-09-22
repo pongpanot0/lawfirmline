@@ -1440,7 +1440,7 @@ export default function IntakeDetailPage() {
             {intake.isOngoingElsewhere && (
               <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
                 <p className="font-medium text-amber-900">คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน</p>
-                {intake.externalCaseNumber && <p className="mt-1 text-amber-800">เลขคดี/หมายเลขดำ: {intake.externalCaseNumber}</p>}
+                {intake.externalCaseNumber && <p className="mt-1 text-amber-800">หมายเลขคดีดำ: {intake.externalCaseNumber}</p>}
                 {intake.currentStageNote && <p className="mt-1 text-amber-800">สถานะปัจจุบัน: {intake.currentStageNote}</p>}
               </div>
             )}
@@ -1972,7 +1972,7 @@ export default function IntakeDetailPage() {
                   {editIsOngoingElsewhere && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="block text-sm font-medium">เลขคดี/หมายเลขดำ</label>
+                        <label className="block text-sm font-medium">หมายเลขคดีดำ</label>
                         <input
                           value={editExternalCaseNumber}
                           onChange={(e) => setEditExternalCaseNumber(e.target.value)}

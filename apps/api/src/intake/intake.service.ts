@@ -1235,7 +1235,7 @@ export class IntakeService {
       parts.push(
         [
           'คดีนี้ดำเนินอยู่แล้วที่อื่นก่อนเข้าสำนักงาน:',
-          intake.externalCaseNumber ? `เลขคดี/หมายเลขดำ: ${intake.externalCaseNumber}` : null,
+          intake.externalCaseNumber ? `หมายเลขคดีดำ: ${intake.externalCaseNumber}` : null,
           intake.currentStageNote ? `สถานะปัจจุบัน: ${intake.currentStageNote}` : null,
         ]
           .filter(Boolean)

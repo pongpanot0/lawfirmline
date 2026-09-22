@@ -302,7 +302,7 @@ export const dashboardCopy = {
       title: 'คดี',
       description: 'จัดการคดีทั้งหมดในสำนักงาน',
       newCase: 'สร้างคดีใหม่',
-      searchPlaceholder: 'ค้นหา Own Ref, Customer Ref, เลขดำ, เลขแดง, ลูกค้า...',
+      searchPlaceholder: 'ค้นหา Own Ref, Customer Ref, หมายเลขคดีดำ, หมายเลขคดีแดง, ลูกค้า...',
       allStatuses: 'ทุกสถานะ',
       loading: 'กำลังโหลดคดี...',
       empty: 'ไม่พบคดี',

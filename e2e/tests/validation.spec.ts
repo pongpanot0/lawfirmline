@@ -79,7 +79,7 @@ test.describe('เลขคดีและรายได้โดยประ�
     await expect(page.locator('#blackCaseNumber')).toBeVisible();
   }
 
-  test('เลขดำต้องอยู่ในรูปแบบ เลขที่/ปีพ.ศ.', async ({ page }) => {
+  test('หมายเลขคดีดำต้องอยู่ในรูปแบบ เลขที่/ปีพ.ศ.', async ({ page }) => {
     await openCaseForm(page);
     const black = page.locator('#blackCaseNumber');
 
@@ -93,7 +93,7 @@ test.describe('เลขคดีและรายได้โดยประ�
     expect(await invalid(black)).toBe(false);
   });
 
-  test('เลขแดงต้องอยู่ในรูปแบบ เลขที่/ปีพ.ศ.', async ({ page }) => {
+  test('หมายเลขคดีแดงต้องอยู่ในรูปแบบ เลขที่/ปีพ.ศ.', async ({ page }) => {
     await openCaseForm(page);
     const red = page.locator('#redCaseNumber');
 

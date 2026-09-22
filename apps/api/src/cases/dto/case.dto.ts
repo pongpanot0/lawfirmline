@@ -104,14 +104,14 @@ export class CreateCaseDto {
   @Trim()
   @IsString()
   @ValidateIf((_, value) => value !== '')
-  @Matches(CASE_NUMBER_REGEX, { message: `เลขดำ: ${CASE_NUMBER_HINT}` })
+  @Matches(CASE_NUMBER_REGEX, { message: `หมายเลขคดีดำ: ${CASE_NUMBER_HINT}` })
   blackCaseNumber?: string;
 
   @IsOptional()
   @Trim()
   @IsString()
   @ValidateIf((_, value) => value !== '')
-  @Matches(CASE_NUMBER_REGEX, { message: `เลขแดง: ${CASE_NUMBER_HINT}` })
+  @Matches(CASE_NUMBER_REGEX, { message: `หมายเลขคดีแดง: ${CASE_NUMBER_HINT}` })
   redCaseNumber?: string;
 
   @IsOptional()
@@ -204,14 +204,14 @@ export class UpdateCaseDto {
   @Trim()
   @IsString()
   @ValidateIf((_, value) => value !== '')
-  @Matches(CASE_NUMBER_REGEX, { message: `เลขดำ: ${CASE_NUMBER_HINT}` })
+  @Matches(CASE_NUMBER_REGEX, { message: `หมายเลขคดีดำ: ${CASE_NUMBER_HINT}` })
   blackCaseNumber?: string | null;
 
   @IsOptional()
   @Trim()
   @IsString()
   @ValidateIf((_, value) => value !== '')
-  @Matches(CASE_NUMBER_REGEX, { message: `เลขแดง: ${CASE_NUMBER_HINT}` })
+  @Matches(CASE_NUMBER_REGEX, { message: `หมายเลขคดีแดง: ${CASE_NUMBER_HINT}` })
   redCaseNumber?: string | null;
 
   @IsOptional()

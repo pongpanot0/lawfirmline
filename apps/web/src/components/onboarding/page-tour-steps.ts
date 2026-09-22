@@ -31,7 +31,7 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
   ],
 
   '/cases': [
-    { selector: 'placeholder:Own Ref', title: 'ค้นหาคดี', body: 'ค้นหาด้วย Own Ref, Customer Ref, เลขดำ, เลขแดง หรือชื่อลูกค้า', placement: 'bottom' },
+    { selector: 'placeholder:Own Ref', title: 'ค้นหาคดี', body: 'ค้นหาด้วย Own Ref, Customer Ref, หมายเลขคดีดำ, หมายเลขคดีแดง หรือชื่อลูกค้า', placement: 'bottom' },
     { selector: 'text:สร้างคดีใหม่', title: 'สร้างคดีใหม่', body: 'เปิดคดีใหม่ได้จากปุ่มนี้', placement: 'left' },
   ],
   '/cases/board': [

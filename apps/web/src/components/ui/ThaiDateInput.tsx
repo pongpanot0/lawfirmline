@@ -7,7 +7,7 @@ export const THAI_MONTHS = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ];
 
-/** เลขไทย → เลขอารบิก เหมือน pattern ที่ใช้กับช่องเลขคดี (เลขดำ/เลขแดง) */
+/** เลขไทย → เลขอารบิก เหมือน pattern ที่ใช้กับช่องหมายเลขคดีดำ/หมายเลขคดีแดง */
 export function toArabicDigits(input: string) {
   return input.replace(/[๐-๙]/g, (digit) => String(digit.charCodeAt(0) - 3664));
 }

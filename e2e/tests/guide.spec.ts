@@ -82,7 +82,7 @@ test('03 — รายการคดี', async ({ page }) => {
     title: 'คดี — รายการคดีทั้งหมด',
     route: '/cases',
     description:
-      'ตารางคดีทั้งหมดของสำนักงาน ค้นหาด้วย Own Ref / Customer Ref / เลขดำ / เลขแดง / ชื่อลูกค้า กรองตามสถานะ และส่งออกเป็นไฟล์ได้',
+      'ตารางคดีทั้งหมดของสำนักงาน ค้นหาด้วย Own Ref / Customer Ref / หมายเลขคดีดำ / หมายเลขคดีแดง / ชื่อลูกค้า กรองตามสถานะ และส่งออกเป็นไฟล์ได้',
     callouts: [
       { selector: 'input[placeholder*="Own Ref"]', label: 'ค้นหาคดีจากเลขอ้างอิงหรือชื่อลูกค้า', place: 'bottom' },
       { selector: 'main select', label: 'กรองตามสถานะคดี', place: 'bottom' },
@@ -135,11 +135,11 @@ test('06 — สร้างคดีใหม่ ขั้นที่ 2 ข้
     title: 'สร้างคดีใหม่ — ขั้นที่ 2 ข้อมูลพื้นฐาน',
     route: '/cases/new',
     description:
-      'กรอกข้อมูลคดี Own Ref ถูกสร้างอัตโนมัติ (TSBREF + ปี + เลขรัน) ส่วนเลขดำ/เลขแดงกรอกในรูปแบบ เลขที่/ปีพ.ศ. เช่น 123/2567 และระบุลูกค้ากับรายได้โดยประมาณ',
+      'กรอกข้อมูลคดี Own Ref ถูกสร้างอัตโนมัติ (TSBREF + ปี + เลขรัน) ส่วนหมายเลขคดีดำ/หมายเลขคดีแดงกรอกในรูปแบบ เลขที่/ปีพ.ศ. เช่น 123/2567 และระบุลูกค้ากับรายได้โดยประมาณ',
     callouts: [
       { selector: 'input[placeholder*="เลขอ้างอิงจากลูกค้า"]', label: 'Customer Ref เลขอ้างอิงฝั่งลูกค้า (ไม่บังคับ)', place: 'right' },
-      { selector: 'input[placeholder="เช่น 123/2567"]', label: 'เลขดำ รูปแบบ 123/2567', place: 'right' },
-      { selector: 'input[placeholder="เช่น 456/2567"]', label: 'เลขแดง รูปแบบ 456/2567', place: 'right' },
+      { selector: 'input[placeholder="เช่น 123/2567"]', label: 'หมายเลขคดีดำ รูปแบบ 123/2567', place: 'right' },
+      { selector: 'input[placeholder="เช่น 456/2567"]', label: 'หมายเลขคดีแดง รูปแบบ 456/2567', place: 'right' },
       { selector: 'input[type="number"]', label: 'รายได้โดยประมาณ ต้องเป็นตัวเลขไม่ติดลบ', place: 'right' },
       { selector: 'button:has-text("ถัดไป"), button:has-text("Next")', label: 'ไปขั้นตอนถัดไป', place: 'top' },
     ],
