@@ -62,6 +62,28 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   await expect(page.getByText(/ต้องมีแหล่งอ้างอิงและทนายกดยืนยัน/)).toBeVisible();
   await expect(page.getByRole('button', { name: /ยืนยันโดยทนาย/ })).toBeVisible();
 
+  await page.getByRole('tab', { name: 'ภาพรวม' }).click();
+  const statusFilter = page.getByLabel('กรองตามสถานะงาน');
+  const ownerFilter = page.getByLabel('กรองตามเจ้าของงาน');
+  await expect(statusFilter).toBeVisible();
+  await expect(ownerFilter).toBeVisible();
+
+  await statusFilter.selectOption('DONE');
+  const statusFilteredTasks = page.getByTestId('case-checklist-task');
+  for (let index = 0; index < await statusFilteredTasks.count(); index += 1) {
+    await expect(statusFilteredTasks.nth(index)).toHaveAttribute('data-status', 'DONE');
+  }
+
+  await statusFilter.selectOption('ALL');
+  const firstOwnerValue = await ownerFilter.locator('option:not([value="ALL"])').first().getAttribute('value');
+  expect(firstOwnerValue).toBeTruthy();
+  await ownerFilter.selectOption(firstOwnerValue!);
+  const ownerFilteredTasks = page.getByTestId('case-checklist-task');
+  await expect(ownerFilteredTasks.first()).toBeVisible();
+  for (let index = 0; index < await ownerFilteredTasks.count(); index += 1) {
+    await expect(ownerFilteredTasks.nth(index)).toHaveAttribute('data-assignee-id', firstOwnerValue!);
+  }
+
   await page.goto(`${tenant.origin}/playbooks`);
   await expect(page.getByText(/Cargo Claim Assessment · v1/)).toBeVisible();
   await expect(page.getByText('Cargo · 16 docs')).toBeVisible();

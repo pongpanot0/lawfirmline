@@ -112,6 +112,8 @@ import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 const TASK_STATUS_LABELS: Record<string, string> = {
   TODO: 'ยังไม่เริ่ม',
   IN_PROGRESS: 'กำลังทำ',
+  PENDING_REVIEW: 'รอตรวจ',
+  NEEDS_REVISION: 'ต้องแก้ไข',
   DONE: 'เสร็จแล้ว',
 };
 
@@ -146,6 +148,8 @@ export default function CaseDetailPage() {
   const [legalCase, setCase] = useState<CaseDetail | null>(null);
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [checklistStatusFilter, setChecklistStatusFilter] = useState('ALL');
+  const [checklistOwnerFilter, setChecklistOwnerFilter] = useState('ALL');
   const [requiredDocs, setRequiredDocs] = useState<RequiredDocumentsResult>({ required: [], missing: [] });
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [applyingPlaybook, setApplyingPlaybook] = useState(false);
@@ -578,6 +582,18 @@ export default function CaseDetailPage() {
     ? playbooks.find((p) => p.caseTypeId === legalCase.caseType!.id)
     : undefined;
   const checklistTasks = tasks.filter((t) => t.labels.some((l) => l.startsWith('playbook:')));
+  const checklistOwners = Array.from(
+    new Map(
+      checklistTasks
+        .filter((task) => task.assignee)
+        .map((task) => [task.assignee!.id, task.assignee!] as const),
+    ).values(),
+  );
+  const filteredChecklistTasks = checklistTasks.filter((task) => {
+    if (checklistStatusFilter !== 'ALL' && task.status !== checklistStatusFilter) return false;
+    if (checklistOwnerFilter === 'UNASSIGNED') return !task.assignee;
+    return checklistOwnerFilter === 'ALL' || task.assignee?.id === checklistOwnerFilter;
+  });
   const nextActionTasks = pendingTasks.filter((task) => !task.labels.some((label) => label.startsWith('playbook:')));
   const priority = buildCasePrioritySummary({
     tasks: pendingTasks.concat(tasks.filter((task) => task.status === 'DONE')),
@@ -1615,9 +1631,45 @@ export default function CaseDetailPage() {
             <CardContent className="space-y-3">
               {checklistTasks.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">งานที่ต้องทำ</p>
-                  {checklistTasks.map((t) => (
-                    <label key={t.id} className="flex items-center gap-2 text-sm">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      สถานะงาน
+                      <select
+                        aria-label="กรองตามสถานะงาน"
+                        value={checklistStatusFilter}
+                        onChange={(event) => setChecklistStatusFilter(event.target.value)}
+                        className="mt-1 h-9 w-full rounded-lg border border-input bg-background px-2 text-sm font-normal text-foreground"
+                      >
+                        <option value="ALL">ทุกสถานะ</option>
+                        {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      เจ้าของงาน
+                      <select
+                        aria-label="กรองตามเจ้าของงาน"
+                        value={checklistOwnerFilter}
+                        onChange={(event) => setChecklistOwnerFilter(event.target.value)}
+                        className="mt-1 h-9 w-full rounded-lg border border-input bg-background px-2 text-sm font-normal text-foreground"
+                      >
+                        <option value="ALL">ทุกคน</option>
+                        {checklistOwners.map((owner) => (
+                          <option key={owner.id} value={owner.id}>{owner.firstName} {owner.lastName}</option>
+                        ))}
+                        {checklistTasks.some((task) => !task.assignee) && <option value="UNASSIGNED">ยังไม่มอบหมาย</option>}
+                      </select>
+                    </label>
+                  </div>
+                  {filteredChecklistTasks.map((t) => (
+                    <label
+                      key={t.id}
+                      data-testid="case-checklist-task"
+                      data-status={t.status}
+                      data-assignee-id={t.assignee?.id ?? 'UNASSIGNED'}
+                      className="flex items-center gap-2 text-sm"
+                    >
                       <input
                         type="checkbox"
                         checked={t.status === 'DONE'}
@@ -1628,6 +1680,9 @@ export default function CaseDetailPage() {
                       {t.assignee && <span className="text-xs text-muted-foreground">· {t.assignee.firstName}</span>}
                     </label>
                   ))}
+                  {filteredChecklistTasks.length === 0 && (
+                    <p className="py-2 text-sm text-muted-foreground">ไม่พบงานตามตัวกรอง</p>
+                  )}
                 </div>
               )}
               {requiredDocs.required.length > 0 && (
