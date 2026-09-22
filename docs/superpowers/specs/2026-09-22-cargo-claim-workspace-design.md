@@ -22,7 +22,25 @@
 - การวิเคราะห์: applicable law, jurisdiction, liable party, liability limit, exclusion, time-bar period/trigger/deadline/basis, quantum, recommendation, opinion
 - review metadata: สถานะ draft/confirmed, ผู้ยืนยัน, วันยืนยัน
 
-`CargoDocumentRequirement` เก็บ checklist ต่อ profile เป็นแถวจริง มี stable code, label, required, status, note และ linked document. รายการเริ่มต้น 16 รายการมาจาก Excel ของผู้ใช้
+`CargoDocumentRequirement` เก็บ checklist ต่อ profile เป็นแถวจริง มี stable code, label, required, status, note และ linked document. รายการเริ่มต้นเป็น snapshot จาก Cargo Claim Playbook รุ่นที่ใช้กับเรื่องนั้น ไม่อ่านสดจากค่ารุ่นล่าสุด จึงไม่ทำให้คดีเก่าเปลี่ยนเมื่อเผยแพร่ Playbook รุ่นใหม่
+
+## Cargo Claim Playbook
+
+เอกสาร Excel ทั้งสามไฟล์มีสองชนิดข้อมูลที่ต้องแยกกัน:
+
+- วิธีพิจารณา claim และรายการเอกสาร 16 รายการ เป็นมาตรฐานการทำงาน จัดเก็บเป็น `Cargo Claim Assessment` Playbook แบบ versioned
+- ข้อเท็จจริง ผลวิเคราะห์ อายุความ และความเห็น เป็นข้อมูลเฉพาะเรื่อง จัดเก็บใน Cargo Claim workspace
+
+ระบบสร้าง Cargo Playbook v1 ให้สำนักงานเมื่อเริ่มใช้ครั้งแรก ประกอบด้วยขั้นตอนตั้งแต่ตรวจข้อเท็จจริง/เอกสาร กฎหมายที่ใช้ เขตอำนาจ ผู้รับผิด ข้อจำกัดและข้อยกเว้นความรับผิด อายุความ quantum/subrogation ไปจนถึงการตรวจและยืนยันโดยทนาย เจ้าของสำนักงานสามารถแก้ไขและเผยแพร่เป็นรุ่นถัดไปได้
+
+เมื่อเริ่ม Cargo จาก Intake หรือ Case โดยตรง ระบบจะ:
+
+1. เลือก Cargo Playbook รุ่นล่าสุดของสำนักงาน
+2. snapshot checklist จากรุ่นนั้นลง Cargo Claim
+3. เมื่อมี Case แล้ว apply ขั้นตอนเป็นงาน โดยเก็บ release id ที่ใช้
+4. แสดงชื่อและรุ่นของ Playbook ใน Cargo workspace
+
+Cargo Claim ที่เริ่มจาก Intake จะจำ release เดิมไว้และใช้ release เดิมเมื่อส่งต่อเข้า Case เพื่อให้กระบวนการไม่เปลี่ยนกลางทาง ส่วน Cargo Claim เก่าที่ยังไม่มี release สามารถผูกกับรุ่นล่าสุดผ่านการเปิดใช้งานซ้ำแบบ idempotent
 
 ## UI
 
@@ -54,11 +72,16 @@
 - Intake-to-Case ต้องเชื่อม profile เดิม ไม่ copy เป็น record ใหม่
 - Direct Case ต้องทำงานครบโดยไม่มี Intake
 - Existing cases ที่ไม่ใช่ Cargo Claim ต้องไม่เห็น Cargo tab
+- Playbook รุ่นใหม่มีผลกับเรื่องใหม่เท่านั้น ไม่แก้ checklist หรืองานของเรื่องเดิมย้อนหลัง
+- เคสหนึ่งอาจใช้ Playbook มากกว่าหนึ่งชุดได้ แต่ release เดิมต้อง apply ซ้ำแล้วไม่สร้างงานซ้ำ
 
 ## Acceptance criteria
 
 - สร้าง Cargo Claim จาก Intake และจาก Case โดยตรงได้
 - ทั้งสองทางได้ checklist 16 รายการ
+- ทั้งสองทางผูก Cargo Claim Playbook release และแสดงชื่อ/รุ่นที่ใช้อยู่
+- Intake จำ release เดิมไว้และ apply release เดิมเมื่อส่งต่อเข้า Case
+- เจ้าของสำนักงานแก้ checklist Cargo แล้ว publish เป็นรุ่นถัดไปได้ โดยเรื่องเดิมไม่เปลี่ยน
 - Intake ที่มี paired Case ใช้ Cargo profile id เดียวกัน
 - หน้า Case อ่านและแก้ Cargo facts/analysis ได้
 - checklist อัปเดต status, note และ document link ได้
