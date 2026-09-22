@@ -766,6 +766,9 @@ model Case {
   referralSource     String?
   intakeId           String?     @unique
   closingSummary     String?     @db.Text
+  /// ลบแบบ soft — คดีที่ถูกลบจะถูกกรองออกจากทุก query ผ่าน CaseAccessService
+  /// ไม่ลบจริงเพราะ relation ทั้ง 20 ตารางเป็น onDelete: Cascade กู้คืนไม่ได้
+  deletedAt          DateTime?
   leadLawyerId       String
   openedAt           DateTime    @default(now())
   closedAt           DateTime?

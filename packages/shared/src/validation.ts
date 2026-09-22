@@ -6,10 +6,16 @@
  * and the API rejects it again with the RegExp variants.
  */
 
-/** Thai case number: running number / Buddhist year — e.g. 123/2567 */
-export const CASE_NUMBER_HTML = '[0-9]{1,6}\\/[0-9]{4}';
-export const CASE_NUMBER_REGEX = /^[0-9]{1,6}\/[0-9]{4}$/;
-export const CASE_NUMBER_HINT = 'รูปแบบต้องเป็น เลขที่/ปีพ.ศ. เช่น 123/2567';
+/**
+ * Thai case number: an optional case-type prefix in Thai letters, then the
+ * running number / Buddhist year — e.g. 123/2567, ผบ.1234/2567, กก 1123/2567.
+ * Courts issue the prefix (ประเภทคดี), so rejecting letters made real numbers
+ * unenterable.
+ */
+export const CASE_NUMBER_HTML = '[ก-ฮ]{0,5}(?:\\.|\\s)?[0-9]{1,6}\\/[0-9]{4}';
+export const CASE_NUMBER_REGEX = /^[ก-ฮ]{0,5}(?:\.|\s)?[0-9]{1,6}\/[0-9]{4}$/;
+export const CASE_NUMBER_HINT =
+  'รูปแบบต้องเป็น (ตัวอักษร)เลขที่/ปีพ.ศ. เช่น 123/2567 หรือ ผบ.1234/2567';
 
 /** Phone: digits with optional +, spaces, dashes and parentheses — 8–20 chars */
 // NOTE: `(` and `)` must stay escaped inside the class — HTML `pattern` is
