@@ -30,8 +30,7 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   await expect(actionRail).toHaveCSS('border-left-width', '0px');
   await page.setViewportSize({ width: 1440, height: 1000 });
   const caseInformationText = await caseInformation.innerText();
-  let fieldCursor = 0;
-  for (const label of [
+  const expectedCaseFieldOrder = [
     'หมายเลขคดีดำ',
     'หมายเลขคดีแดง',
     'เลขอ้างอิงสำนักงาน',
@@ -45,11 +44,24 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
     'ทุนทรัพย์',
     'ชื่อลูกความ',
     'ลูกค้า (ผู้ว่าจ้าง)',
-  ]) {
+  ];
+  let fieldCursor = 0;
+  for (const label of expectedCaseFieldOrder) {
     const nextPosition = caseInformationText.indexOf(label, fieldCursor);
     expect(nextPosition, `${label} should follow the previous case field`).toBeGreaterThanOrEqual(fieldCursor);
     fieldCursor = nextPosition + label.length;
   }
+  await caseInformation.getByRole('button', { name: 'แก้ไข', exact: true }).click();
+  const caseInformationEdit = caseInformation.getByTestId('case-information-edit');
+  await expect(caseInformationEdit).toBeVisible();
+  const caseInformationEditText = await caseInformationEdit.innerText();
+  let editFieldCursor = 0;
+  for (const label of expectedCaseFieldOrder) {
+    const nextPosition = caseInformationEditText.indexOf(label, editFieldCursor);
+    expect(nextPosition, `${label} should keep its position while editing`).toBeGreaterThanOrEqual(editFieldCursor);
+    editFieldCursor = nextPosition + label.length;
+  }
+  await caseInformationEdit.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'ภาระงาน' })).toBeVisible();
   await page.getByRole('button', { name: 'เพิ่มคู่ความ' }).click();
   const participantRole = page.getByLabel('บทบาท / Role');
