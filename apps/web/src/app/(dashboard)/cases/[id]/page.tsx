@@ -1062,19 +1062,10 @@ export default function CaseDetailPage() {
                     <p className="font-medium">{legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}</p>
                   </div>
 
-                  {!preFiling && (
-                  <details
-                    className="col-span-full rounded-lg border border-border p-3"
-                    open={Boolean(
-                      overviewForm.blackCaseNumber ||
-                        overviewForm.redCaseNumber ||
-                        overviewForm.courtLevel ||
-                        overviewForm.courtName,
-                    )}
-                  >
-                    <summary className="cursor-pointer text-xs font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      ข้อมูลศาล / เลขคดี (ไม่บังคับ)
-                    </summary>
+                  <fieldset className="col-span-full rounded-lg border border-border p-3">
+                    <legend className="px-1 text-xs font-medium text-muted-foreground">
+                      ข้อมูลศาล / เลขคดี
+                    </legend>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="text-xs text-muted-foreground">เลขดำ</label>
@@ -1137,8 +1128,7 @@ export default function CaseDetailPage() {
                         </select>
                       </div>
                     </div>
-                  </details>
-                  )}
+                  </fieldset>
 
                   {overviewError && <p className="text-sm text-destructive">{overviewError}</p>}
                   <div className="flex gap-2 pt-1">
@@ -1170,13 +1160,6 @@ export default function CaseDetailPage() {
                 <p className="text-xs text-muted-foreground">ประเภทคดี</p>
                 <p className="font-medium">{legalCase.caseType?.name ?? '—'}</p>
               </div>
-              {preFiling ? (
-                <div className="col-span-2">
-                  <p className="text-xs text-muted-foreground">เลขคดีดำ/แดง · ศาล</p>
-                  <p className="font-medium text-muted-foreground">— จะกรอกได้หลังยื่นฟ้อง —</p>
-                </div>
-              ) : (
-                <>
               <div>
                 <p className="text-xs text-muted-foreground">เลขดำ</p>
                 <p className="font-medium">{legalCase.blackCaseNumber ?? '—'}</p>
@@ -1191,14 +1174,10 @@ export default function CaseDetailPage() {
                   {legalCase.courtLevel ? COURT_LEVEL_LABELS[legalCase.courtLevel] : '—'}
                 </p>
               </div>
-                </>
-              )}
-              {!preFiling && (
               <div>
                 <p className="text-xs text-muted-foreground">ศาล</p>
                 <p className="font-medium">{legalCase.courtName ?? '—'}</p>
               </div>
-              )}
               <div>
                 <p className="text-xs text-muted-foreground">ฝ่ายเรา</p>
                 <p className="font-medium">
