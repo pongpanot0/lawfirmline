@@ -168,10 +168,10 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
   const allEmpty = participants.length === 0;
 
   return (
-    <section className="col-span-full mt-2 border-t border-border pt-5" aria-labelledby="case-participants-heading">
+    <div className="col-span-full" data-testid="case-participants-field">
       <div className="flex flex-row items-center justify-between gap-3">
         <div>
-          <h4 id="case-participants-heading" className="text-sm font-semibold">คู่ความ / Participants</h4>
+          <p className="text-xs text-muted-foreground">คู่ความ</p>
           <p className="mt-1 text-xs text-muted-foreground">เพิ่มได้หลายราย และกำหนดฐานะของแต่ละรายแยกกัน</p>
         </div>
         {!showForm && (
@@ -181,7 +181,7 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
           </Button>
         )}
       </div>
-      <div className="mt-4 space-y-4">
+      <div className="mt-2 space-y-4">
         {showForm && (
           <form
             onSubmit={handleSubmit}
@@ -415,6 +415,6 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
           </div>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
