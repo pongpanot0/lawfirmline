@@ -7,6 +7,7 @@ const tenant = JSON.parse(
 ) as { origin: string };
 
 test('direct Case can open the Cargo workbench with 16 source-linkable requirements', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`${tenant.origin}/cases/6e44f682-08b7-4c9a-b524-2d96b8c431f4`);
   const closeTour = page.getByRole('button', { name: 'ปิดคำแนะนำ' });
   if (await closeTour.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false)) await closeTour.click();
@@ -14,7 +15,18 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   await expect(page.getByText('หมายเลขคดีดำ', { exact: true })).toBeVisible();
   await expect(page.getByText('หมายเลขคดีแดง', { exact: true })).toBeVisible();
   const caseInformation = page.getByTestId('case-information');
+  const actionRail = page.getByTestId('case-action-rail');
   await expect(caseInformation.getByText('คู่ความ / Participants')).toBeVisible();
+  const leftColumnBox = await caseInformation.boundingBox();
+  const rightColumnBox = await actionRail.boundingBox();
+  expect(leftColumnBox).toBeTruthy();
+  expect(rightColumnBox).toBeTruthy();
+  expect(rightColumnBox!.x).toBeGreaterThan(leftColumnBox!.x + leftColumnBox!.width);
+  await expect(actionRail).toHaveCSS('border-left-width', '1px');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(actionRail).toHaveCSS('border-left-width', '0px');
+  await page.setViewportSize({ width: 1440, height: 1000 });
   const caseInformationText = await caseInformation.innerText();
   let fieldCursor = 0;
   for (const label of [

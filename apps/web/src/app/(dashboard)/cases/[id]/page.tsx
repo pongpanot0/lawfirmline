@@ -1379,9 +1379,8 @@ export default function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
-        </section>
 
-        <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">
+          <div className="min-w-0 space-y-4">
           {legalCase.intake && preFiling && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -1614,9 +1613,10 @@ export default function CaseDetailPage() {
               </details>
             </Card>
           )}
-        </div>
+          </div>
+        </section>
 
-        <aside className={styles.actionRail} aria-label="สิ่งที่ต้องทำต่อ">
+        <aside className={styles.actionRail} aria-label="สิ่งที่ต้องทำต่อ" data-testid="case-action-rail">
           <Card className={styles.actionSection}>
             <CardHeader>
               <CardTitle className="text-sm">
