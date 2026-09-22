@@ -1669,7 +1669,7 @@ export default function CaseDetailPage() {
           </Card>
           <Card className={styles.actionSection}>
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-sm">งานถัดไป</CardTitle>
+              <CardTitle className="text-sm">รายการงานคดี</CardTitle>
               <button
                 type="button"
                 className="text-xs text-primary hover:underline"
@@ -1695,7 +1695,7 @@ export default function CaseDetailPage() {
                 </button>
               ))}
               {nextActionTasks.length === 0 && (
-                <InlineEmptyState title="ไม่มีงานถัดไปนอกเช็คลิสต์" description="พิมพ์ด้านล่างเพื่อเพิ่มงานใหม่" />
+                <InlineEmptyState title="ยังไม่มีรายการงานคดี" description="พิมพ์ด้านล่างเพื่อเพิ่มงานแรก" />
               )}
               <div className="space-y-2 border-t border-border pt-3">
                 <input
@@ -1707,7 +1707,7 @@ export default function CaseDetailPage() {
                       void addQuickTask();
                     }
                   }}
-                  placeholder="เพิ่มงาน — พิมพ์แล้วกด Enter"
+                  placeholder="เพิ่มงานคดี — พิมพ์แล้วกด Enter"
                   className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
                 />
                 <div className="flex flex-wrap items-center gap-2">
