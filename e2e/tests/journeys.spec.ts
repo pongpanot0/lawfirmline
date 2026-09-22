@@ -196,7 +196,9 @@ test('invalid invitation and missing handoff have a recovery link', async ({ pag
   await page.getByRole('link', { name: 'กลับไปหน้าเข้าสู่ระบบ' }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto('/handoff');
-  await expect(page.locator('p[role="alert"]')).toContainText('ไม่สำเร็จ');
+  await expect(page.locator('p[role="alert"]')).toContainText(
+    'ลิงก์เข้าสู่สำนักงานไม่ครบหรือถูกใช้ไปแล้ว กรุณาเข้าสู่ระบบใหม่',
+  );
   await expect(page.getByRole('link', { name: 'กลับไปหน้าเข้าสู่ระบบ' })).toBeVisible();
 });
 
@@ -261,6 +263,8 @@ test('invalid handoff cannot borrow an existing logged-in session', async ({ pag
   await expect(page.locator('main h1')).toBeVisible();
   const origin = new URL(page.url()).origin;
   await page.goto(`${origin}/handoff#access_token=invalid&refresh_token=invalid`);
-  await expect(page.locator('p[role="alert"]')).toContainText('ไม่สำเร็จ');
+  await expect(page.locator('p[role="alert"]')).toContainText(
+    'ลิงก์เข้าสู่สำนักงานไม่ครบหรือถูกใช้ไปแล้ว กรุณาเข้าสู่ระบบใหม่',
+  );
   await expect(page).toHaveURL(`${origin}/handoff`);
 });
