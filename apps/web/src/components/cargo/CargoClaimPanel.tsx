@@ -118,7 +118,7 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
     <div className="rounded-2xl border border-dashed bg-card p-8 text-center">
       <FileCheck2 className="mx-auto h-8 w-8 text-primary" />
       <h2 className="mt-3 font-semibold">คดีนี้ยังไม่ได้เปิด Cargo Claim workspace</h2>
-      <p className="mt-1 text-sm text-muted-foreground">เปิดเพื่อใช้ข้อเท็จจริงเฉพาะทาง, checklist 16 รายการ และ Time Bar</p>
+      <p className="mt-1 text-sm text-muted-foreground">เปิดเพื่อใช้ Cargo Claim Playbook, checklist เอกสาร และ Time Bar</p>
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
       <Button className="mt-4" onClick={enable} disabled={saving}>เปิด Cargo Claim</Button>
     </div>
@@ -136,7 +136,8 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
               {claim.reviewStatus === 'CONFIRMED' ? 'ทนายยืนยันแล้ว' : 'ฉบับรอตรวจ'}
             </span>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">ข้อเท็จจริง → เอกสาร {received}/16 → Liability & Time Bar → ทนายยืนยัน</p>
+          {claim.playbookRelease && <p className="mt-1 text-xs font-medium text-primary">Playbook: {claim.playbookRelease.name} · v{claim.playbookRelease.version}</p>}
+          <p className="mt-1 text-sm text-muted-foreground">ข้อเท็จจริง → เอกสาร {received}/{claim.requirements.length} → Liability & Time Bar → ทนายยืนยัน</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => void save(false)} disabled={saving}>บันทึกร่าง</Button>
@@ -145,11 +146,15 @@ export function CargoClaimPanel({ caseId, intakeId }: { caseId?: string; intakeI
       </header>
 
       {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
+      {!claim.playbookRelease && <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="font-medium">Cargo Claim นี้สร้างก่อนระบบ Playbook</p><p className="text-xs">ผูกกับ Cargo Claim Assessment รุ่นล่าสุดได้ โดยข้อมูลและ checklist เดิมจะไม่ถูกเขียนทับ</p></div>
+        <Button variant="outline" onClick={enable} disabled={saving}>ผูก Cargo Playbook</Button>
+      </div>}
 
       <div className="flex gap-1 overflow-x-auto rounded-xl border bg-muted/30 p-1" role="tablist">
         {([
           ['facts', 'ข้อเท็จจริงการขนส่ง'],
-          ['checklist', `เอกสาร 16 รายการ (${received}/16)`],
+          ['checklist', `เอกสาร ${claim.requirements.length} รายการ (${received}/${claim.requirements.length})`],
           ['analysis', 'Liability / Time Bar'],
         ] as const).map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={section === id} onClick={() => setSection(id)} className={`min-h-10 whitespace-nowrap rounded-lg px-4 text-sm font-medium ${section === id ? 'bg-background text-primary shadow-sm' : 'text-muted-foreground'}`}>

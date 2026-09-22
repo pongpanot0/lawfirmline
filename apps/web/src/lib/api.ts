@@ -357,6 +357,8 @@ export interface CargoClaimItem extends CargoClaimInput {
   reviewStatus: 'DRAFT' | 'CONFIRMED';
   confirmedAt?: string | null;
   confirmedBy?: { id: string; firstName: string; lastName: string } | null;
+  playbookReleaseId?: string | null;
+  playbookRelease?: { id: string; name: string; version: number; templateKey?: string | null } | null;
   requirements: CargoDocumentRequirementItem[];
 }
 

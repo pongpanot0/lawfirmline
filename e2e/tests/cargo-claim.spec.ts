@@ -16,7 +16,11 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   const enable = page.getByRole('button', { name: 'เปิด Cargo Claim' });
   if (await enable.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false)) await enable.click();
 
+  const adoptPlaybook = page.getByRole('button', { name: 'ผูก Cargo Playbook' });
+  if (await adoptPlaybook.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false)) await adoptPlaybook.click();
+
   await expect(page.getByRole('heading', { name: 'Cargo Claim Workbench' })).toBeVisible();
+  await expect(page.getByText('Playbook: Cargo Claim Assessment · v1')).toBeVisible();
   await page.getByRole('tab', { name: /เอกสาร 16 รายการ/ }).click();
   await expect(page.getByTestId('cargo-requirement')).toHaveCount(16);
   await expect(page.getByText('Bill of Lading / HAWB / MAWB')).toBeVisible();
@@ -24,6 +28,10 @@ test('direct Case can open the Cargo workbench with 16 source-linkable requireme
   await page.getByRole('tab', { name: 'Liability / Time Bar' }).click();
   await expect(page.getByText(/ต้องมีแหล่งอ้างอิงและทนายกดยืนยัน/)).toBeVisible();
   await expect(page.getByRole('button', { name: /ยืนยันโดยทนาย/ })).toBeVisible();
+
+  await page.goto(`${tenant.origin}/playbooks`);
+  await expect(page.getByText(/Cargo Claim Assessment · v1/)).toBeVisible();
+  await expect(page.getByText('Cargo · 16 docs')).toBeVisible();
 });
 
 test('new Intake and new Case expose both Cargo entry paths', async ({ page }) => {

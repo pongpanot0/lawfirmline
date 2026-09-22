@@ -1,5 +1,12 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser } from '@lawfirm/shared';
+import {
+  AuthUser,
+  CARGO_CLAIM_PLAYBOOK_KEY,
+  CARGO_CLAIM_PLAYBOOK_NAME,
+  CARGO_CLAIM_PLAYBOOK_STEPS,
+  CARGO_DOCUMENT_REQUIREMENTS,
+  CargoPlaybookTemplate,
+} from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -115,18 +122,60 @@ export class PracticeSetupService {
     }, { timeout: 30000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
   async listPlaybooks(user: AuthUser) { return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
-  async publish(user: AuthUser, dto: { name: string; caseTypeId?: string; steps: PlaybookStep[] }) {
+  async publish(user: AuthUser, dto: { name: string; caseTypeId?: string; templateKey?: string; cargoTemplate?: CargoPlaybookTemplate; steps: PlaybookStep[] }) {
     this.owner(user);
     if (!dto.name.trim() || !dto.steps.length || dto.steps.some((s) => !s.title.trim())) throw new BadRequestException('ชื่อ Playbook และชื่อขั้นตอนห้ามว่าง / Name and step titles are required');
+    if (dto.templateKey === CARGO_CLAIM_PLAYBOOK_KEY) {
+      const requirements = dto.cargoTemplate?.requirements ?? [];
+      if (!requirements.length || requirements.some((item) => !item.code.trim() || !item.label.trim()) || new Set(requirements.map((item) => item.code)).size !== requirements.length) {
+        throw new BadRequestException('Cargo Playbook ต้องมีรายการเอกสารที่ code ไม่ซ้ำและชื่อไม่ว่าง');
+      }
+    } else if (dto.cargoTemplate) {
+      throw new BadRequestException('Cargo template requires the Cargo Claim template key');
+    }
     if (dto.caseTypeId && !(await this.prisma.caseType.count({ where: { id: dto.caseTypeId, firmId: user.firmId } }))) throw new BadRequestException('ไม่พบประเภทคดีนี้ในสำนักงาน / Case type not found in this firm');
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
-      const previous = await db.playbookRelease.findFirst({ where: { firmId: user.firmId, name: dto.name.trim() }, orderBy: { version: 'desc' } });
+      const previous = await db.playbookRelease.findFirst({
+        where: dto.templateKey
+          ? { firmId: user.firmId, templateKey: dto.templateKey }
+          : { firmId: user.firmId, name: dto.name.trim() },
+        orderBy: { version: 'desc' },
+      });
       // workType is a legacy required column, kept as a mirror of the
       // playbook's own name (its "work type") — caseTypeId is a separate,
       // optional link used only to auto-suggest this playbook on a case.
-      const release = await db.playbookRelease.create({ data: { firmId: user.firmId, name: dto.name.trim(), workType: dto.name.trim(), caseTypeId: dto.caseTypeId ?? null, steps: json(dto.steps), version: (previous?.version ?? 0) + 1, publishedById: user.id } });
+      const release = await db.playbookRelease.create({ data: { firmId: user.firmId, name: dto.name.trim(), workType: dto.name.trim(), caseTypeId: dto.caseTypeId ?? null, templateKey: dto.templateKey ?? null, cargoTemplate: dto.cargoTemplate ? json(dto.cargoTemplate) : undefined, steps: json(dto.steps), version: (previous?.version ?? 0) + 1, publishedById: user.id } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PLAYBOOK_PUBLISHED', metadata: { releaseId: release.id, version: release.version } } }); return release;
+    });
+  }
+  async ensureCargoPlaybook(user: AuthUser) {
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
+      const existing = await db.playbookRelease.findFirst({
+        where: { firmId: user.firmId, templateKey: CARGO_CLAIM_PLAYBOOK_KEY },
+        orderBy: { version: 'desc' },
+      });
+      if (existing) return existing;
+      const template: CargoPlaybookTemplate = {
+        requirements: CARGO_DOCUMENT_REQUIREMENTS.map((item) => ({ ...item })),
+      };
+      const release = await db.playbookRelease.create({
+        data: {
+          firmId: user.firmId,
+          name: CARGO_CLAIM_PLAYBOOK_NAME,
+          workType: CARGO_CLAIM_PLAYBOOK_NAME,
+          templateKey: CARGO_CLAIM_PLAYBOOK_KEY,
+          cargoTemplate: json(template),
+          steps: json(CARGO_CLAIM_PLAYBOOK_STEPS),
+          version: 1,
+          publishedById: user.id,
+        },
+      });
+      await db.auditLog.create({
+        data: { firmId: user.firmId, userId: user.id, action: 'CARGO_PLAYBOOK_CREATED', metadata: { releaseId: release.id, version: 1 } },
+      });
+      return release;
     });
   }
   async previewPlaybook(user: AuthUser, caseId: string, releaseId: string, db: Prisma.TransactionClient = this.prisma) {
@@ -142,10 +191,6 @@ export class PracticeSetupService {
       await db.$queryRaw`SELECT "id" FROM "Case" WHERE "id" = ${caseId} FOR UPDATE`;
       const preview = await this.previewPlaybook(user, caseId, releaseId, db);
       if (preview.existing) return preview.existing;
-      // ต่อคดีหนึ่งใช้ได้แค่ Playbook เดียว — กันข้อมูลปนกันถ้าเลือกผิดแล้วกดซ้ำ
-      if (await db.appliedPlaybook.count({ where: { caseId } })) {
-        throw new BadRequestException('คดีนี้ใช้ Playbook ไปแล้ว ใช้ได้เพียงรุ่นเดียวต่อคดี');
-      }
       const [team, firmMembers] = await Promise.all([
         db.caseAssignment.findMany({ where: { caseId }, select: { userId: true } }),
         db.firmMember.findMany({ where: { firmId: user.firmId }, select: { userId: true, role: true } }),

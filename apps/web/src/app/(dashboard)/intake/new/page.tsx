@@ -261,7 +261,11 @@ export default function NewIntakePage() {
                 <select
                   id="intake-preLitigationType"
                   value={form.preLitigationType}
-                  onChange={(e) => set('preLitigationType', e.target.value)}
+                  onChange={(e) => setForm((current) => ({
+                    ...current,
+                    preLitigationType: e.target.value,
+                    playbookId: e.target.value === 'TRANSPORT' ? '' : current.playbookId,
+                  }))}
                   className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="GENERAL">ทั่วไป</option>
@@ -333,7 +337,7 @@ export default function NewIntakePage() {
               <div className="mt-1 border-t border-dashed border-border pt-3 sm:col-span-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">ทีมและแนวทาง</p>
               </div>
-              <div>
+              {form.preLitigationType === 'TRANSPORT' ? <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-primary sm:col-span-1">Cargo Claim Assessment Playbook จะถูกผูกอัตโนมัติ และใช้ release เดิมเมื่อส่งต่อเข้า Case</div> : <div>
                 <label htmlFor="intake-playbookId" className="block text-xs font-semibold">Playbook</label>
                 <select
                   id="intake-playbookId"
@@ -348,7 +352,7 @@ export default function NewIntakePage() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </div>}
               <div>
                 <label htmlFor="intake-leadLawyerId" className="block text-xs font-semibold">ทนายหลัก</label>
                 <select

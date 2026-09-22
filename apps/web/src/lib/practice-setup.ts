@@ -4,7 +4,9 @@ export interface ImportPreview { id: string; rows: (ImportRow & { row: number; e
 export interface SetupProgress { members: number; clients: number; cases: number; invites: number; batches: { id: string; status: string; createdAt: string }[] }
 export type FirmRoleStr = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
 export interface PlaybookStep { title: string; instructions: string; primaryRole?: FirmRoleStr; secondaryRole?: FirmRoleStr }
-export interface PlaybookRelease { id: string; name: string; caseTypeId: string | null; version: number; steps: PlaybookStep[] }
+export interface CargoPlaybookRequirement { code: string; label: string; requiredByDefault: boolean }
+export interface CargoPlaybookTemplate { requirements: CargoPlaybookRequirement[] }
+export interface PlaybookRelease { id: string; name: string; caseTypeId: string | null; templateKey?: string | null; cargoTemplate?: CargoPlaybookTemplate | null; version: number; steps: PlaybookStep[] }
 export interface PlaybookPreview { release: PlaybookRelease; existing: { id: string } | null; ownerId: string; steps: PlaybookStep[] }
 export async function setupRequest<T>(token: string, path: string, body?: object): Promise<T> {
   const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/practice-setup${path}`, { method: body ? 'POST' : 'GET', headers: withFirmSlugHeaders({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }), body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });

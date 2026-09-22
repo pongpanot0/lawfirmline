@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { AuthUser } from '@lawfirm/shared';
+import { AuthUser, CARGO_CLAIM_PLAYBOOK_KEY } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PracticeSetupService } from './practice-setup.service';
@@ -13,7 +13,22 @@ class StepDto {
   @IsOptional() @IsIn(['OWNER', 'SENIOR_LAWYER', 'LAWYER', 'ASSISTANT']) primaryRole?: 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
   @IsOptional() @IsIn(['OWNER', 'SENIOR_LAWYER', 'LAWYER', 'ASSISTANT']) secondaryRole?: 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
 }
-class ReleaseDto { @IsString() @MaxLength(150) name!: string; @IsOptional() @IsUUID() caseTypeId?: string; @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StepDto) steps!: StepDto[]; }
+class CargoRequirementDto {
+  @IsString() @MaxLength(100) code!: string;
+  @IsString() @MaxLength(300) label!: string;
+  @IsBoolean() requiredByDefault!: boolean;
+}
+class CargoTemplateDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => CargoRequirementDto)
+  requirements!: CargoRequirementDto[];
+}
+class ReleaseDto {
+  @IsString() @MaxLength(150) name!: string;
+  @IsOptional() @IsUUID() caseTypeId?: string;
+  @IsOptional() @IsIn([CARGO_CLAIM_PLAYBOOK_KEY]) templateKey?: string;
+  @IsOptional() @ValidateNested() @Type(() => CargoTemplateDto) cargoTemplate?: CargoTemplateDto;
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StepDto) steps!: StepDto[];
+}
 class ApplyDto { @IsUUID() releaseId!: string; }
 @Controller('practice-setup')
 @UseGuards(JwtAuthGuard)

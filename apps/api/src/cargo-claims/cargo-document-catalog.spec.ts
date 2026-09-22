@@ -1,4 +1,8 @@
-import { CARGO_DOCUMENT_REQUIREMENTS } from '../../../../packages/shared/src/cargo-claim';
+import {
+  CARGO_CLAIM_PLAYBOOK_KEY,
+  CARGO_CLAIM_PLAYBOOK_STEPS,
+  CARGO_DOCUMENT_REQUIREMENTS,
+} from '../../../../packages/shared/src/cargo-claim';
 
 describe('CARGO_DOCUMENT_REQUIREMENTS', () => {
   it('defines the 16 stable cargo-claim document slots from the working checklist', () => {
@@ -22,5 +26,14 @@ describe('CARGO_DOCUMENT_REQUIREMENTS', () => {
     expect(byCode.get('SURVEY_DAMAGE_EVIDENCE')?.requiredByDefault).toBe(true);
     expect(byCode.get('CERTIFICATE_OF_DESTRUCTION')?.requiredByDefault).toBe(false);
     expect(byCode.get('POLICE_DAILY_REPORT')?.requiredByDefault).toBe(false);
+  });
+
+  it('defines a stable, lawyer-gated Cargo Claim playbook', () => {
+    expect(CARGO_CLAIM_PLAYBOOK_KEY).toBe('CARGO_CLAIM_ASSESSMENT');
+    expect(CARGO_CLAIM_PLAYBOOK_STEPS.length).toBeGreaterThanOrEqual(8);
+    expect(CARGO_CLAIM_PLAYBOOK_STEPS.at(-1)).toEqual(expect.objectContaining({
+      primaryRole: 'LAWYER',
+    }));
+    expect(CARGO_CLAIM_PLAYBOOK_STEPS.map((step) => step.title).join(' ')).toMatch(/Time Bar/i);
   });
 });

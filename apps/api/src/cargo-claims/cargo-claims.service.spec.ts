@@ -36,16 +36,29 @@ function setup() {
     canAccessCase: jest.fn(),
     getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }),
   };
+  const practiceSetup = {
+    ensureCargoPlaybook: jest.fn().mockResolvedValue({
+      id: 'release-1',
+      name: 'Cargo Claim Assessment',
+      version: 1,
+      cargoTemplate: { requirements: [
+        { code: 'INVOICE_PACKING_LIST', label: 'Invoice v1', requiredByDefault: true },
+        { code: 'OTHER', label: 'Other v1', requiredByDefault: false },
+      ] },
+    }),
+    applyPlaybook: jest.fn().mockResolvedValue({ id: 'applied-1' }),
+  };
   return {
     prisma,
     caseAccess,
-    service: new CargoClaimsService(prisma as never, caseAccess as never),
+    practiceSetup,
+    service: new CargoClaimsService(prisma as never, caseAccess as never, practiceSetup as never),
   };
 }
 
 describe('CargoClaimsService', () => {
-  it('creates one intake cargo profile with the complete 16-item checklist', async () => {
-    const { service, prisma } = setup();
+  it('snapshots the checklist from the selected Cargo Playbook release', async () => {
+    const { service, prisma, practiceSetup } = setup();
     prisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', cargoClaim: null });
     prisma.cargoClaim.create.mockImplementation(async ({ data }) => ({ id: 'cargo-1', ...data }));
 
@@ -56,22 +69,23 @@ describe('CargoClaimsService', () => {
         data: expect.objectContaining({
           firmId: 'firm-1',
           intakeId: 'intake-1',
+          playbookReleaseId: 'release-1',
           assuredName: 'ABC',
           requirements: {
-            create: expect.arrayContaining([
-              expect.objectContaining({ code: 'INVOICE_PACKING_LIST' }),
-              expect.objectContaining({ code: 'CARRIER_INSURANCE' }),
-            ]),
+            create: [
+              { code: 'INVOICE_PACKING_LIST', label: 'Invoice v1', required: true },
+              { code: 'OTHER', label: 'Other v1', required: false },
+            ],
           },
         }),
       }),
     );
-    expect(prisma.cargoClaim.create.mock.calls[0][0].data.requirements.create).toHaveLength(16);
+    expect(practiceSetup.ensureCargoPlaybook).toHaveBeenCalledWith(user);
   });
 
   it('reuses the intake profile and attaches that same record to its case', async () => {
-    const { service, prisma, caseAccess } = setup();
-    const existing = { id: 'cargo-1', intakeId: 'intake-1', caseId: null, requirements: [] };
+    const { service, prisma, caseAccess, practiceSetup } = setup();
+    const existing = { id: 'cargo-1', intakeId: 'intake-1', caseId: null, playbookReleaseId: 'release-1', requirements: [] };
     prisma.intake.findFirst.mockResolvedValue({ id: 'intake-1', cargoClaim: existing });
     caseAccess.canAccessCase.mockResolvedValue(true);
     prisma.cargoClaim.update.mockResolvedValue({ ...existing, caseId: 'case-1' });
@@ -85,6 +99,7 @@ describe('CargoClaimsService', () => {
     expect(prisma.cargoClaim.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'cargo-1' }, data: { caseId: 'case-1' } }),
     );
+    expect(practiceSetup.applyPlaybook).toHaveBeenCalledWith(user, 'case-1', 'release-1');
   });
 
   it('rejects a direct-case cargo profile when the lawyer cannot access the case', async () => {

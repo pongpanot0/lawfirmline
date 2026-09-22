@@ -1221,6 +1221,7 @@ model CargoClaim {
   firmId                  String
   intakeId                String?           @unique
   caseId                  String?           @unique
+  playbookReleaseId       String?
   assuredName             String?
   shipperName             String?
   consigneeName           String?
@@ -1261,9 +1262,11 @@ model CargoClaim {
   intake       Intake?                    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   case         Case?                      @relation(fields: [caseId], references: [id], onDelete: Cascade)
   confirmedBy  User?                      @relation("CargoClaimConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+  playbookRelease PlaybookRelease?         @relation(fields: [playbookReleaseId], references: [id], onDelete: SetNull)
   requirements CargoDocumentRequirement[]
 
   @@index([firmId])
+  @@index([playbookReleaseId])
 }
 
 model CargoDocumentRequirement {
@@ -2260,13 +2263,19 @@ model PlaybookRelease {
   workType String
   /// ผูกกับประเภทคดี — apply อัตโนมัติ/แนะนำเมื่อเปิดคดีประเภทนี้
   caseTypeId String?
+  /// Stable identity for a reusable system/domain playbook across versions.
+  templateKey String?
+  /// Versioned Cargo document matrix. Matters snapshot this into CargoDocumentRequirement.
+  cargoTemplate Json?
   version Int
   steps Json
   publishedById String
   createdAt DateTime @default(now())
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
   applications AppliedPlaybook[]
+  cargoClaims CargoClaim[]
   @@unique([firmId, name, version])
+  @@index([firmId, templateKey, version])
 }
 model AppliedPlaybook {
   id String @id @default(uuid())

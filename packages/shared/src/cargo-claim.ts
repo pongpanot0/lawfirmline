@@ -21,3 +21,29 @@ export const CARGO_DOCUMENT_REQUIREMENTS = [
 ] as const;
 
 export type CargoDocumentCode = (typeof CARGO_DOCUMENT_REQUIREMENTS)[number]['code'];
+
+export const CARGO_CLAIM_PLAYBOOK_KEY = 'CARGO_CLAIM_ASSESSMENT' as const;
+export const CARGO_CLAIM_PLAYBOOK_NAME = 'Cargo Claim Assessment' as const;
+
+export interface CargoPlaybookRequirement {
+  code: string;
+  label: string;
+  requiredByDefault: boolean;
+}
+
+export interface CargoPlaybookTemplate {
+  requirements: CargoPlaybookRequirement[];
+}
+
+export const CARGO_CLAIM_PLAYBOOK_STEPS = [
+  { title: 'Confirm cargo facts and transport mode', instructions: 'Verify the parties, route, transport document, dates, goods, damage and amount claimed against source documents.', primaryRole: 'ASSISTANT', secondaryRole: 'LAWYER' },
+  { title: 'Collect and verify cargo claim documents', instructions: 'Work through the Playbook document checklist, link each source file and record missing or non-applicable evidence.', primaryRole: 'ASSISTANT', secondaryRole: 'LAWYER' },
+  { title: 'Determine applicable law', instructions: 'Identify the governing contract, convention and statute. Record the legal basis and source.', primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER' },
+  { title: 'Determine jurisdiction', instructions: 'Assess competent court, arbitration or other forum and record the basis.', primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER' },
+  { title: 'Identify liable parties', instructions: 'Distinguish contracting and actual carriers and identify each potential liable party.', primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER' },
+  { title: 'Assess liability limits and exclusions', instructions: 'Analyse contractual and statutory limits, exclusions, defences and any conduct affecting reliance on them.', primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER' },
+  { title: 'Calculate Time Bar', instructions: 'Record the period, trigger date, calculated deadline and legal basis. Treat the result as a lawyer-reviewed conclusion.', primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER' },
+  { title: 'Quantify damage, salvage and subrogation', instructions: 'Reconcile insured loss, salvage, payments, subrogation evidence and recoverable quantum.', primaryRole: 'LAWYER', secondaryRole: 'ASSISTANT' },
+  { title: 'Assess recovery strategy and cost-benefit', instructions: 'Prepare the recommended claim, negotiation or litigation path with risks and proportionality.', primaryRole: 'SENIOR_LAWYER', secondaryRole: 'LAWYER' },
+  { title: 'Lawyer review and confirm Cargo opinion', instructions: 'Review every source-backed fact and conclusion before confirming the Cargo analysis.', primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER' },
+] as const;

@@ -568,7 +568,7 @@ export default function NewCasePage() {
                   />
                   <span>
                     <span className="block text-sm font-semibold">คดีเรียกร้องค่าสินค้าจากการขนส่ง (Cargo Claim)</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">เปิด checklist เอกสาร 16 รายการ และพื้นที่วิเคราะห์ Liability / Time Bar โดยไม่ต้องผ่าน Intake</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">ใช้ Cargo Claim Assessment Playbook รุ่นล่าสุด พร้อม checklist เอกสารและพื้นที่วิเคราะห์ Liability / Time Bar โดยไม่ต้องผ่าน Intake</span>
                   </span>
                 </label>
                 {cargoClaimEnabled && (
@@ -578,7 +578,9 @@ export default function NewCasePage() {
                 )}
               </section>
 
-              {playbooks.length > 0 && (
+              {cargoClaimEnabled && <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-primary">ระบบจะผูก Cargo Claim Playbook และสร้างงานมาตรฐานให้อัตโนมัติหลังเปิดคดี</p>}
+
+              {playbooks.length > 0 && !cargoClaimEnabled && (
                 <section className="space-y-2 border-t border-border pt-5" aria-label="Playbook">
                   <label className="block text-sm font-medium" htmlFor="new-case-playbook">
                     Playbook (ถ้ามี — สร้างงานให้อัตโนมัติหลังเปิดคดี)

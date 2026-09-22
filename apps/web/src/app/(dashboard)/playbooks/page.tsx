@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { DocumentCategory } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
-import { PlaybookRelease, PlaybookStep, FirmRoleStr, setupRequest } from '@/lib/practice-setup';
+import { CargoPlaybookRequirement, PlaybookRelease, PlaybookStep, FirmRoleStr, setupRequest } from '@/lib/practice-setup';
 import { api, CaseTypeItem } from '@/lib/api';
 import { documentCategoryLabel } from '@/lib/stage-labels';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ const ROLE_LABELS: Record<FirmRoleStr, { th: string; en: string }> = {
   ASSISTANT: { th: 'ผู้ช่วย', en: 'Assistant' },
 };
 const ROLE_OPTIONS = Object.keys(ROLE_LABELS) as FirmRoleStr[];
+const CARGO_PLAYBOOK_KEY = 'CARGO_CLAIM_ASSESSMENT';
 
 export default function PlaybooksPage() {
   const { token, user } = useAuth(); const { locale } = useLocale(); const th = locale === 'th';
@@ -27,6 +28,8 @@ export default function PlaybooksPage() {
   const [caseTypeId, setCaseTypeId] = useState('');
   const [steps, setSteps] = useState<PlaybookStep[]>([]);
   const [requiredDocs, setRequiredDocs] = useState<string[]>([]);
+  const [templateKey, setTemplateKey] = useState<string | null>(null);
+  const [cargoRequirements, setCargoRequirements] = useState<CargoPlaybookRequirement[]>([]);
   const [creatingCaseType, setCreatingCaseType] = useState(false);
   const [newCaseTypeName, setNewCaseTypeName] = useState('');
   const [customDoc, setCustomDoc] = useState('');
@@ -45,7 +48,7 @@ export default function PlaybooksPage() {
 
   const resetForm = () => {
     setEditing(true); setCreatingCaseType(false);
-    setName(''); setCaseTypeId(''); setSteps([]); setRequiredDocs([]);
+    setName(''); setCaseTypeId(''); setSteps([]); setRequiredDocs([]); setTemplateKey(null); setCargoRequirements([]);
     setNotice(''); setError('');
   };
 
@@ -54,6 +57,8 @@ export default function PlaybooksPage() {
     setName(playbook.name);
     setCaseTypeId(playbook.caseTypeId ?? '');
     setRequiredDocs(caseTypes.find(t => t.id === playbook.caseTypeId)?.requiredDocuments ?? []);
+    setTemplateKey(playbook.templateKey ?? null);
+    setCargoRequirements(structuredClone(playbook.cargoTemplate?.requirements ?? []));
     setSteps(structuredClone(playbook.steps));
     setNotice(''); setError('');
   };
@@ -101,7 +106,10 @@ export default function PlaybooksPage() {
     if (!token || !name.trim() || !steps.length) return;
     setBusy(true); setError('');
     try {
-      const p = await setupRequest<PlaybookRelease>(token, '/playbooks', { name: name.trim(), caseTypeId: caseTypeId || undefined, steps });
+      const p = await setupRequest<PlaybookRelease>(token, '/playbooks', {
+        name: name.trim(), caseTypeId: caseTypeId || undefined, steps,
+        ...(templateKey === CARGO_PLAYBOOK_KEY ? { templateKey, cargoTemplate: { requirements: cargoRequirements } } : {}),
+      });
       setNotice(`${p.name} v${p.version} · ${th ? 'เผยแพร่แล้ว' : 'Published'}`);
       setEditing(false);
       await load();
@@ -123,7 +131,7 @@ export default function PlaybooksPage() {
       </div>
       {!items.length && <p className="text-sm text-muted-foreground">{th ? 'ยังไม่มี Playbook เลย' : 'No playbooks yet.'}</p>}
       {items.map(p => <details key={p.id} className="rounded-lg border bg-card p-4">
-        <summary className="cursor-pointer font-medium">{p.name} · v{p.version}{p.caseTypeId && <span className="ml-2 text-xs font-normal text-muted-foreground">· {th ? 'ผูกกับ' : 'linked to'} {caseTypes.find(t => t.id === p.caseTypeId)?.name ?? '—'}</span>}</summary>
+        <summary className="cursor-pointer font-medium">{p.name} · v{p.version}{p.templateKey === CARGO_PLAYBOOK_KEY && <span className="ml-2 rounded-full bg-primary/10 px-2 py-1 text-xs font-normal text-primary">Cargo · {p.cargoTemplate?.requirements.length ?? 0} docs</span>}{p.caseTypeId && <span className="ml-2 text-xs font-normal text-muted-foreground">· {th ? 'ผูกกับ' : 'linked to'} {caseTypes.find(t => t.id === p.caseTypeId)?.name ?? '—'}</span>}</summary>
         <ol className="my-3 list-decimal space-y-2 pl-5 text-sm">
           {p.steps.map((s, i) => <li key={i}>{s.title}
             <p className="text-xs text-muted-foreground">
@@ -183,6 +191,18 @@ export default function PlaybooksPage() {
             placeholder={th ? 'เอกสารอื่นที่ไม่อยู่ในรายการ พิมพ์แล้ว Enter' : 'Other document — type and press Enter'} className="flex-1" />
           <Button type="button" variant="outline" disabled={!customDoc.trim()} onClick={addCustomDoc}>{th ? 'เพิ่ม' : 'Add'}</Button>
         </div>
+      </div>}
+
+      {templateKey === CARGO_PLAYBOOK_KEY && <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <div>
+          <p className="text-sm font-medium">{th ? 'Checklist เอกสาร Cargo ของรุ่นนี้' : 'Cargo document checklist for this version'}</p>
+          <p className="text-xs text-muted-foreground">{th ? 'เรื่องใหม่จะ snapshot รายการนี้ เรื่องเดิมจะไม่เปลี่ยนตาม' : 'New matters snapshot this list; existing matters remain unchanged.'}</p>
+        </div>
+        {cargoRequirements.map((item, index) => <div key={item.code} className="grid gap-2 rounded-lg border bg-background p-3 sm:grid-cols-[2rem_minmax(0,1fr)_auto] sm:items-center">
+          <span className="text-xs text-muted-foreground">{index + 1}</span>
+          <Input maxLength={300} value={item.label} onChange={e => setCargoRequirements(rows => rows.map((row, i) => i === index ? { ...row, label: e.target.value } : row))} />
+          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.requiredByDefault} onChange={e => setCargoRequirements(rows => rows.map((row, i) => i === index ? { ...row, requiredByDefault: e.target.checked } : row))} />{th ? 'ต้องมีตั้งต้น' : 'Required by default'}</label>
+        </div>)}
       </div>}
 
       <p className="text-sm font-medium">{th ? 'งานประเภทนี้ต้องทำอะไรบ้าง' : 'What this type of work needs done'}</p>

@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser, CARGO_DOCUMENT_REQUIREMENTS, FirmRole } from '@lawfirm/shared';
+import { AuthUser, CargoPlaybookTemplate, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { UpdateCargoRequirementDto, UpsertCargoClaimDto } from './dto/cargo-claim.dto';
+import { PracticeSetupService } from '../practice-setup/practice-setup.service';
 
 @Injectable()
 export class CargoClaimsService {
@@ -12,11 +13,13 @@ export class CargoClaimsService {
       include: { document: { select: { id: true, filename: true, caseId: true, intakeId: true } } },
     },
     confirmedBy: { select: { id: true, firstName: true, lastName: true } },
+    playbookRelease: { select: { id: true, name: true, version: true, templateKey: true } },
   };
 
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
+    private practiceSetup: PracticeSetupService,
   ) {}
 
   private values(dto: UpsertCargoClaimDto = {}) {
@@ -56,8 +59,8 @@ export class CargoClaimsService {
     };
   }
 
-  private requirementRows() {
-    return CARGO_DOCUMENT_REQUIREMENTS.map((item) => ({
+  private requirementRows(template: CargoPlaybookTemplate) {
+    return template.requirements.map((item) => ({
       code: item.code,
       label: item.label,
       required: item.requiredByDefault,
@@ -81,13 +84,23 @@ export class CargoClaimsService {
 
   async ensureForIntake(user: AuthUser, intakeId: string, dto: UpsertCargoClaimDto = {}) {
     const intake = await this.visibleIntake(user, intakeId);
-    if (intake.cargoClaim) return intake.cargoClaim;
+    if (intake.cargoClaim?.playbookReleaseId) return intake.cargoClaim;
+    const release = await this.practiceSetup.ensureCargoPlaybook(user);
+    if (intake.cargoClaim) {
+      return this.prisma.cargoClaim.update({
+        where: { id: intake.cargoClaim.id },
+        data: { playbookReleaseId: release.id },
+        include: this.include,
+      });
+    }
+    const template = release.cargoTemplate as unknown as CargoPlaybookTemplate;
     return this.prisma.cargoClaim.create({
       data: {
         firmId: user.firmId,
         intakeId,
+        playbookReleaseId: release.id,
         ...this.values(dto),
-        requirements: { create: this.requirementRows() },
+        requirements: { create: this.requirementRows(template) },
       },
       include: this.include,
     });
@@ -96,16 +109,32 @@ export class CargoClaimsService {
   async ensureForCase(user: AuthUser, caseId: string, dto: UpsertCargoClaimDto = {}) {
     await this.assertCase(user, caseId);
     const existing = await this.prisma.cargoClaim.findUnique({ where: { caseId }, include: this.include });
-    if (existing) return existing;
-    return this.prisma.cargoClaim.create({
+    if (existing) {
+      const releaseId = existing.playbookReleaseId ?? (await this.practiceSetup.ensureCargoPlaybook(user)).id;
+      const cargo = existing.playbookReleaseId
+        ? existing
+        : await this.prisma.cargoClaim.update({
+          where: { id: existing.id },
+          data: { playbookReleaseId: releaseId },
+          include: this.include,
+        });
+      await this.practiceSetup.applyPlaybook(user, caseId, releaseId);
+      return cargo;
+    }
+    const release = await this.practiceSetup.ensureCargoPlaybook(user);
+    const template = release.cargoTemplate as unknown as CargoPlaybookTemplate;
+    const created = await this.prisma.cargoClaim.create({
       data: {
         firmId: user.firmId,
         caseId,
+        playbookReleaseId: release.id,
         ...this.values(dto),
-        requirements: { create: this.requirementRows() },
+        requirements: { create: this.requirementRows(template) },
       },
       include: this.include,
     });
+    await this.practiceSetup.applyPlaybook(user, caseId, release.id);
+    return created;
   }
 
   async attachCase(user: AuthUser, intakeId: string, caseId: string) {
@@ -114,12 +143,17 @@ export class CargoClaimsService {
     if (cargo.caseId && cargo.caseId !== caseId) {
       throw new BadRequestException('Cargo claim is already attached to another case');
     }
-    if (cargo.caseId === caseId) return cargo;
-    return this.prisma.cargoClaim.update({
+    if (cargo.caseId === caseId) {
+      if (cargo.playbookReleaseId) await this.practiceSetup.applyPlaybook(user, caseId, cargo.playbookReleaseId);
+      return cargo;
+    }
+    const updated = await this.prisma.cargoClaim.update({
       where: { id: cargo.id },
       data: { caseId },
       include: this.include,
     });
+    if (updated.playbookReleaseId) await this.practiceSetup.applyPlaybook(user, caseId, updated.playbookReleaseId);
+    return updated;
   }
 
   async findForIntake(user: AuthUser, intakeId: string) {
