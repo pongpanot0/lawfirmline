@@ -301,6 +301,62 @@ export interface CaseItem {
   client?: { id: string; name: string } | null;
   customers?: CustomerShareItem[];
   additionalClients?: AdditionalClientItem[];
+  cargoClaim?: { id: string } | null;
+}
+
+export interface CargoDocumentRequirementItem {
+  id: string;
+  code: string;
+  label: string;
+  required: boolean;
+  status: 'REQUESTED' | 'RECEIVED' | 'MISSING' | 'NOT_APPLICABLE';
+  note?: string | null;
+  documentId?: string | null;
+  document?: { id: string; filename: string } | null;
+}
+
+export interface CargoClaimInput {
+  assuredName?: string;
+  shipperName?: string;
+  consigneeName?: string;
+  contractingCarrierName?: string;
+  actualCarrierName?: string;
+  origin?: string;
+  destination?: string;
+  transportMode?: string;
+  transportDocumentNumber?: string;
+  arrivalDate?: string | null;
+  lossDate?: string | null;
+  goodsDescription?: string;
+  movementTerm?: string;
+  damageDescription?: string;
+  damagedWeight?: number | null;
+  weightUnit?: string;
+  claimAmount?: number | null;
+  currency?: string;
+  applicableLaw?: string;
+  jurisdiction?: string;
+  liableParty?: string;
+  liabilityLimit?: string;
+  liabilityExclusion?: string;
+  timeBarPeriod?: string;
+  timeBarTriggerDate?: string | null;
+  timeBarDeadline?: string | null;
+  timeBarBasis?: string;
+  quantumNotes?: string;
+  recommendation?: string;
+  opinion?: string;
+  confirm?: boolean;
+}
+
+export interface CargoClaimItem extends CargoClaimInput {
+  id: string;
+  caseId?: string | null;
+  intakeId?: string | null;
+  reviewStatus: 'DRAFT' | 'CONFIRMED';
+  confirmedAt?: string | null;
+  confirmedBy?: { id: string; firstName: string; lastName: string } | null;
+  requirements: CargoDocumentRequirementItem[];
 }
 
 export interface InsuranceClaimItem {
@@ -1242,6 +1298,28 @@ export const api = {
       token,
       body: JSON.stringify(data),
     }),
+
+  getCaseCargoClaim: (token: string, id: string) =>
+    request<CargoClaimItem | null>(`/cases/${id}/cargo-claim`, { token }),
+
+  enableCaseCargoClaim: (token: string, id: string, data: CargoClaimInput = {}) =>
+    request<CargoClaimItem>(`/cases/${id}/cargo-claim`, {
+      method: 'POST', token, body: JSON.stringify(data),
+    }),
+
+  updateCaseCargoClaim: (token: string, id: string, data: CargoClaimInput) =>
+    request<CargoClaimItem>(`/cases/${id}/cargo-claim`, {
+      method: 'PATCH', token, body: JSON.stringify(data),
+    }),
+
+  updateCaseCargoRequirement: (
+    token: string,
+    id: string,
+    requirementId: string,
+    data: Partial<Pick<CargoDocumentRequirementItem, 'required' | 'status' | 'note' | 'documentId'>>,
+  ) => request<CargoDocumentRequirementItem>(`/cases/${id}/cargo-claim/requirements/${requirementId}`, {
+    method: 'PATCH', token, body: JSON.stringify(data),
+  }),
 
   closeCase: (
     token: string,
@@ -2294,6 +2372,28 @@ export const api = {
   updateIntake: (token: string, id: string, data: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
+  getIntakeCargoClaim: (token: string, id: string) =>
+    request<CargoClaimItem | null>(`/intake/${id}/cargo-claim`, { token }),
+
+  enableIntakeCargoClaim: (token: string, id: string, data: CargoClaimInput = {}) =>
+    request<CargoClaimItem>(`/intake/${id}/cargo-claim`, {
+      method: 'POST', token, body: JSON.stringify(data),
+    }),
+
+  updateIntakeCargoClaim: (token: string, id: string, data: CargoClaimInput) =>
+    request<CargoClaimItem>(`/intake/${id}/cargo-claim`, {
+      method: 'PATCH', token, body: JSON.stringify(data),
+    }),
+
+  updateIntakeCargoRequirement: (
+    token: string,
+    id: string,
+    requirementId: string,
+    data: Partial<Pick<CargoDocumentRequirementItem, 'required' | 'status' | 'note' | 'documentId'>>,
+  ) => request<CargoDocumentRequirementItem>(`/intake/${id}/cargo-claim/requirements/${requirementId}`, {
+    method: 'PATCH', token, body: JSON.stringify(data),
+  }),
+
   assessIntake: (token: string, id: string, data: Record<string, unknown>) =>
     request<IntakeItem>(`/intake/${id}/assess`, { method: 'POST', token, body: JSON.stringify(data) }),
 
@@ -2561,7 +2661,23 @@ export type SuggestibleField =
   | 'courtName'
   | 'incidentDate'
   | 'claimedAmount'
-  | 'estimatedDamage';
+  | 'estimatedDamage'
+  | 'assuredName'
+  | 'shipperName'
+  | 'consigneeName'
+  | 'contractingCarrierName'
+  | 'actualCarrierName'
+  | 'origin'
+  | 'destination'
+  | 'transportMode'
+  | 'transportDocumentNumber'
+  | 'arrivalDate'
+  | 'lossDate'
+  | 'goodsDescription'
+  | 'movementTerm'
+  | 'damageDescription'
+  | 'damagedWeight'
+  | 'currency';
 
 /**
  * A value read out of the uploaded documents, with the sentence it came from.

@@ -74,6 +74,22 @@ export const SUGGESTIBLE_FIELDS = [
   'incidentDate',
   'claimedAmount',
   'estimatedDamage',
+  'assuredName',
+  'shipperName',
+  'consigneeName',
+  'contractingCarrierName',
+  'actualCarrierName',
+  'origin',
+  'destination',
+  'transportMode',
+  'transportDocumentNumber',
+  'arrivalDate',
+  'lossDate',
+  'goodsDescription',
+  'movementTerm',
+  'damageDescription',
+  'damagedWeight',
+  'currency',
 ] as const;
 
 export type SuggestibleField = (typeof SUGGESTIBLE_FIELDS)[number];
@@ -522,6 +538,10 @@ export class DocumentIntelligenceService {
                 '"incidentDate" the date the events complained of happened, as YYYY-MM-DD; ' +
                 '"claimedAmount" the sum being claimed in the suit, digits only; ' +
                 '"estimatedDamage" the loss estimated or assessed, digits only. ' +
+                'For cargo claims also extract when stated: "assuredName", "shipperName", "consigneeName", ' +
+                '"contractingCarrierName", "actualCarrierName", "origin", "destination", "transportMode", ' +
+                '"transportDocumentNumber", "arrivalDate", "lossDate", "goodsDescription", "movementTerm", ' +
+                '"damageDescription", "damagedWeight", and "currency". Dates must be YYYY-MM-DD; weights must be digits only. ' +
                 'claimedAmount and estimatedDamage are different figures — never report one as the other, and omit either unless the document says which it is. ' +
                 'Omit any field the documents do not state. Never infer, calculate or guess a value. ' +
                 'If the documents disagree, return every reading as a separate entry rather than choosing. ' +
@@ -601,11 +621,11 @@ export class DocumentIntelligenceService {
     field: SuggestibleField,
     value: string,
   ): string | null {
-    if (field === 'incidentDate') {
+    if (field === 'incidentDate' || field === 'arrivalDate' || field === 'lossDate') {
       const parsed = new Date(value.trim());
       return isNaN(parsed.getTime()) ? null : parsed.toISOString();
     }
-    if (field === 'claimedAmount' || field === 'estimatedDamage') {
+    if (field === 'claimedAmount' || field === 'estimatedDamage' || field === 'damagedWeight') {
       const digits = value.replace(/[,\s฿]|บาท/g, '');
       const amount = Number(digits);
       return Number.isFinite(amount) && amount >= 0 ? String(amount) : null;

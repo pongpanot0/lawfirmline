@@ -105,6 +105,20 @@ describe('DocumentIntelligenceService.extractFieldsWithAI', () => {
     ]);
   });
 
+  it('keeps cargo facts source-linked and normalizes cargo dates and weight', async () => {
+    replyWith([
+      { field: 'transportDocumentNumber', value: 'BL-9988', sourceFilename: 'bill-of-lading.pdf', sourceExcerpt: 'Bill of Lading No. BL-9988' },
+      { field: 'arrivalDate', value: '2026-08-20', sourceFilename: 'arrival-notice.pdf', sourceExcerpt: 'Arrival date: 20 August 2026' },
+      { field: 'damagedWeight', value: '1,250.500', sourceFilename: 'survey.pdf', sourceExcerpt: 'Damaged cargo net weight 1,250.500 kg' },
+    ]);
+
+    expect(await service.extractFieldsWithAI('เอกสาร')).toEqual([
+      expect.objectContaining({ field: 'transportDocumentNumber', value: 'BL-9988', sourceFilename: 'bill-of-lading.pdf' }),
+      expect.objectContaining({ field: 'arrivalDate', value: '2026-08-20T00:00:00.000Z' }),
+      expect.objectContaining({ field: 'damagedWeight', value: '1250.5' }),
+    ]);
+  });
+
   it('ignores a field it was never asked for and a number that is not one', async () => {
     replyWith([
       { field: 'leadLawyerId', value: 'user-1', sourceExcerpt: 'ทนายคือ...' },

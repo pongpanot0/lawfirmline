@@ -12,6 +12,7 @@ describe('parseCaseTab', () => {
 
   it('accepts each known tab id', () => {
     assert.equal(parseCaseTab('tasks'), 'tasks');
+    assert.equal(parseCaseTab('cargo-claim'), 'cargo-claim');
     assert.equal(parseCaseTab('closing-report'), 'closing-report');
   });
 });

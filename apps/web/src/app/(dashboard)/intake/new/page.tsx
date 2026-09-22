@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { canAssignFirmRole } from '@lawfirm/shared';
-import { api, ClientItem, ApiError, IntakeItem, UserItem, CaseTypeItem } from '@/lib/api';
+import { api, ClientItem, ApiError, IntakeItem, UserItem, CaseTypeItem, type CargoClaimInput } from '@/lib/api';
+import { CargoClaimFields } from '@/components/cargo/CargoClaimFields';
 import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { Button } from '@/components/ui/button';
@@ -71,7 +72,9 @@ export default function NewIntakePage() {
     claimNumber: '',
     playbookId: '',
     leadLawyerId: '',
+    preLitigationType: 'GENERAL',
   });
+  const [cargoClaim, setCargoClaim] = useState<CargoClaimInput>({ currency: 'THB' });
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
 
@@ -178,8 +181,9 @@ export default function NewIntakePage() {
         description: form.description.trim() || undefined,
         referralName,
         receivedDate: form.receivedDate,
-        preLitigationType: 'GENERAL',
+        preLitigationType: form.preLitigationType,
         preLitigationStatus: 'NOT_STARTED',
+        cargoClaim: form.preLitigationType === 'TRANSPORT' ? cargoClaim : undefined,
       };
       if (form.partyRole) payload.partyRole = form.partyRole;
       if (form.opposingParty.trim()) payload.opposingParty = form.opposingParty.trim();
@@ -212,7 +216,9 @@ export default function NewIntakePage() {
       if (!createdCase?.id) {
         createdCase = await api.getIntake(token, created.id).then((it) => it.case ?? undefined).catch(() => undefined);
       }
-      router.push(createdCase?.id ? `/cases/${createdCase.id}` : `/intake/${created.id}`);
+      router.push(createdCase?.id
+        ? `/cases/${createdCase.id}${form.preLitigationType === 'TRANSPORT' ? '?tab=cargo-claim' : ''}`
+        : `/intake/${created.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
@@ -249,6 +255,19 @@ export default function NewIntakePage() {
               <div>
                 <label htmlFor="intake-receivedDate" className="block text-xs font-semibold">วันที่รับเรื่อง *</label>
                 <ThaiDateInput id="intake-receivedDate" required value={form.receivedDate} onChange={(v) => set('receivedDate', v)} className="mt-1 !flex-nowrap [&>select]:!min-w-0" />
+              </div>
+              <div>
+                <label htmlFor="intake-preLitigationType" className="block text-xs font-semibold">ลักษณะงานก่อนฟ้อง</label>
+                <select
+                  id="intake-preLitigationType"
+                  value={form.preLitigationType}
+                  onChange={(e) => set('preLitigationType', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="GENERAL">ทั่วไป</option>
+                  <option value="MEDICAL_CLAIM">สินไหมทางการแพทย์</option>
+                  <option value="TRANSPORT">สินค้าจากการขนส่ง (Cargo Claim)</option>
+                </select>
               </div>
               <div>
                 <label htmlFor="intake-partyRole" className="block text-xs font-semibold">ฝ่ายเรา</label>
@@ -378,6 +397,14 @@ export default function NewIntakePage() {
               />
             </div>
           </section>
+
+          {form.preLitigationType === 'TRANSPORT' && (
+            <section className="rounded-2xl border border-primary/20 bg-card p-5 shadow-sm">
+              <h2 className="mb-1 text-[15px] font-bold">ข้อเท็จจริง Cargo Claim</h2>
+              <p className="mb-4 text-xs text-muted-foreground">กรอกเท่าที่ทราบ รายการเอกสาร 16 รายการจะสร้างให้อัตโนมัติและตามไปยัง Case เดียวกัน</p>
+              <CargoClaimFields value={cargoClaim} onChange={setCargoClaim} />
+            </section>
+          )}
 
           {/* 2 · ลูกความ และผู้มอบหมาย/ผู้จ่าย */}
           <section className="rounded-2xl border bg-card p-5 shadow-sm">

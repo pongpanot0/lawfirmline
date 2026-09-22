@@ -44,6 +44,7 @@ export class CasesService {
     },
     caseType: { select: { id: true, name: true } },
     client: { select: { id: true, name: true } },
+    cargoClaim: { select: { id: true } },
     // งานก่อนฟ้อง (โนติส/เจรจา) ยังบันทึกอยู่บน intake ที่ผูก 1:1 — หน้าคดีใช้แสดงสถานะ
     intake: {
       select: {

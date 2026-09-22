@@ -12,12 +12,28 @@ const FIELD_LABELS: Record<SuggestibleField, string> = {
   incidentDate: 'วันเกิดเหตุ',
   claimedAmount: 'ทุนทรัพย์ที่เรียกร้อง',
   estimatedDamage: 'ความเสียหายโดยประมาณ',
+  assuredName: 'ผู้เอาประกันภัย',
+  shipperName: 'ผู้ส่งสินค้า',
+  consigneeName: 'ผู้รับสินค้า',
+  contractingCarrierName: 'ผู้ขนส่งตามสัญญา',
+  actualCarrierName: 'ผู้ขนส่งจริง',
+  origin: 'ต้นทาง',
+  destination: 'ปลายทาง',
+  transportMode: 'วิธีขนส่ง',
+  transportDocumentNumber: 'เลข B/L / AWB / ใบรับขน',
+  arrivalDate: 'วันที่สินค้าถึง',
+  lossDate: 'วันที่พบความเสียหาย',
+  goodsDescription: 'รายละเอียดสินค้า',
+  movementTerm: 'เงื่อนไขการขนส่ง',
+  damageDescription: 'ลักษณะความเสียหาย',
+  damagedWeight: 'น้ำหนักที่เสียหาย',
+  currency: 'สกุลเงิน',
 };
 
 /** Money and dates read very differently as raw values than as fields. */
 function display(field: SuggestibleField, value: string): string {
   if (!value) return '';
-  if (field === 'incidentDate') return formatDate(value);
+  if (field === 'incidentDate' || field === 'arrivalDate' || field === 'lossDate') return formatDate(value);
   if (field === 'claimedAmount' || field === 'estimatedDamage') {
     const amount = Number(value);
     return Number.isFinite(amount) ? `${amount.toLocaleString('th-TH')} บาท` : value;

@@ -101,6 +101,7 @@ import { caseStageOptions, documentCategoryLabel } from '@/lib/stage-labels';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
+import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -924,6 +925,17 @@ export default function CaseDetailPage() {
           className="min-w-0"
         >
           <CaseDocumentsPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'cargo-claim' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-cargo-claim"
+          aria-labelledby="case-tab-cargo-claim"
+          className="min-w-0"
+        >
+          <CargoClaimPanel caseId={id} />
         </div>
       )}
 

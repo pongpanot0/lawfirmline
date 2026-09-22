@@ -14,6 +14,7 @@ import { ClientCombobox } from './ClientCombobox';
 import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
+import { CargoClaimFields } from '@/components/cargo/CargoClaimFields';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -27,6 +28,7 @@ import {
   ApiError,
   WorkloadSummary,
   FieldSuggestion,
+  CargoClaimInput,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -71,6 +73,8 @@ export default function NewCasePage() {
   const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [playbookId, setPlaybookId] = useState('');
+  const [cargoClaimEnabled, setCargoClaimEnabled] = useState(false);
+  const [cargoClaim, setCargoClaim] = useState<CargoClaimInput>({ currency: 'THB' });
 
   const [form, setForm] = useState({
     caseTypeId: '',
@@ -314,6 +318,8 @@ export default function NewCasePage() {
           ...form.customFields,
           [CASE_COSTS_KEY]: JSON.stringify(costLines),
         },
+        cargoClaimEnabled,
+        cargoClaim: cargoClaimEnabled ? cargoClaim : undefined,
       };
       if (form.clientId) {
         payload.clientId = form.clientId;
@@ -381,7 +387,7 @@ export default function NewCasePage() {
       if (playbookId) {
         await setupRequest(token, `/cases/${created.id}/apply`, { releaseId: playbookId }).catch(console.error);
       }
-      router.push(`/cases/${created.id}`);
+      router.push(`/cases/${created.id}${cargoClaimEnabled ? '?tab=cargo-claim' : ''}`);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -549,6 +555,25 @@ export default function NewCasePage() {
                         )}
                       </button>
                     ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="space-y-4 border-t border-border pt-5" aria-label="Cargo Claim">
+                <label className="flex items-start gap-3 rounded-xl border border-primary/15 bg-primary/[0.035] p-4">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={cargoClaimEnabled}
+                    onChange={(event) => setCargoClaimEnabled(event.target.checked)}
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold">คดีเรียกร้องค่าสินค้าจากการขนส่ง (Cargo Claim)</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">เปิด checklist เอกสาร 16 รายการ และพื้นที่วิเคราะห์ Liability / Time Bar โดยไม่ต้องผ่าน Intake</span>
+                  </span>
+                </label>
+                {cargoClaimEnabled && (
+                  <div className="rounded-xl border bg-muted/20 p-4">
+                    <CargoClaimFields value={cargoClaim} onChange={setCargoClaim} />
                   </div>
                 )}
               </section>

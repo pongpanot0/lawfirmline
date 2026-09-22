@@ -35,6 +35,7 @@ import { formatDate } from '@/lib/utils';
 import { CaseCostLine, initialCaseCosts } from '@/lib/case-costs';
 import { buildQuoteHtml } from '@/lib/quote-doc';
 import { CaseCostCalculator } from '@/components/cases/CaseCostCalculator';
+import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'รับเรื่อง',
@@ -1049,6 +1050,8 @@ export default function IntakeDetailPage() {
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
       )}
+
+      {intake.preLitigationType === 'TRANSPORT' && <CargoClaimPanel intakeId={id} />}
 
       <Card>
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
