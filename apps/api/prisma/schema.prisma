@@ -115,6 +115,11 @@ enum DocRequestStatus {
   NOT_APPLICABLE
 }
 
+enum CargoReviewStatus {
+  DRAFT
+  CONFIRMED
+}
+
 enum IntakeStatus {
   NO_RESPONSE
   RECEIVED
@@ -379,6 +384,7 @@ model Firm {
   expenseClaims      ExpenseClaim[]
   invoices           Invoice[]
   conflictChecks     ConflictCheck[]
+  cargoClaims        CargoClaim[]
 }
 
 model FirmMember {
@@ -606,6 +612,7 @@ model User {
   deviceTokens               DeviceToken[]
   caseStatusLogs             CaseStatusLog[]
   sops                       Sop[]
+  confirmedCargoClaims       CargoClaim[]               @relation("CargoClaimConfirmer")
 }
 
 /// A mobile device's Expo push token. One row per device; a token moves to
@@ -803,6 +810,7 @@ model Case {
   chunks             DocumentChunk[]
   legalQueries       LegalQuery[]
   statusLogs         CaseStatusLog[]
+  cargoClaim         CargoClaim?
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -901,6 +909,7 @@ model Intake {
   customers              IntakeCustomer[]
   additionalClients      IntakeClient[]
   invoices               Invoice[]
+  cargoClaim             CargoClaim?
 
   @@index([firmId])
   @@index([clientId])
@@ -1201,9 +1210,80 @@ model Document {
   publications       DocumentPublication[]
   chunks             DocumentChunk[]
   intakeRequests     IntakeDocumentRequest[]
+  cargoRequirements CargoDocumentRequirement[]
 
   @@index([intakeId])
   @@index([caseId, category])
+}
+
+model CargoClaim {
+  id                      String            @id @default(uuid())
+  firmId                  String
+  intakeId                String?           @unique
+  caseId                  String?           @unique
+  assuredName             String?
+  shipperName             String?
+  consigneeName           String?
+  contractingCarrierName  String?
+  actualCarrierName       String?
+  origin                  String?
+  destination             String?
+  transportMode           String?
+  transportDocumentNumber String?
+  arrivalDate             DateTime?
+  lossDate                DateTime?
+  goodsDescription        String?           @db.Text
+  movementTerm            String?
+  damageDescription       String?           @db.Text
+  damagedWeight           Float?
+  weightUnit              String?
+  claimAmount             Float?
+  currency                String            @default("THB")
+  applicableLaw           String?           @db.Text
+  jurisdiction            String?           @db.Text
+  liableParty             String?           @db.Text
+  liabilityLimit          String?           @db.Text
+  liabilityExclusion      String?           @db.Text
+  timeBarPeriod           String?
+  timeBarTriggerDate      DateTime?
+  timeBarDeadline         DateTime?
+  timeBarBasis            String?           @db.Text
+  quantumNotes            String?           @db.Text
+  recommendation          String?           @db.Text
+  opinion                 String?           @db.Text
+  reviewStatus            CargoReviewStatus @default(DRAFT)
+  confirmedById           String?
+  confirmedAt             DateTime?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  firm         Firm                       @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  intake       Intake?                    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  case         Case?                      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  confirmedBy  User?                      @relation("CargoClaimConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+  requirements CargoDocumentRequirement[]
+
+  @@index([firmId])
+}
+
+model CargoDocumentRequirement {
+  id           String           @id @default(uuid())
+  cargoClaimId String
+  code         String
+  label        String
+  required     Boolean          @default(false)
+  status       DocRequestStatus @default(REQUESTED)
+  note         String?
+  documentId   String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  cargoClaim CargoClaim @relation(fields: [cargoClaimId], references: [id], onDelete: Cascade)
+  document   Document?  @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@unique([cargoClaimId, code])
+  @@index([cargoClaimId, status])
+  @@index([documentId])
 }
 
 model DocumentVersion {
