@@ -981,7 +981,7 @@ export default function CaseDetailPage() {
       >
       <div className={styles.workspace}>
         <section className={styles.mainPane} aria-label="ข้อมูลและประวัติคดี">
-          <Card>
+          <Card data-testid="case-information">
             <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-sm">ข้อมูลคดี</CardTitle>
               {!editingOverview && (
@@ -1340,13 +1340,12 @@ export default function CaseDetailPage() {
               ))}
                 </>
               )}
+              <CaseParticipantsSection
+                caseId={legalCase.id}
+                initialParticipants={legalCase.participants}
+              />
             </CardContent>
           </Card>
-
-          <CaseParticipantsSection
-            caseId={legalCase.id}
-            initialParticipants={legalCase.participants}
-          />
         </section>
 
         <div className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-2">

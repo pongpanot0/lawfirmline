@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Pencil, Trash2, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, CaseParticipantItem } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -169,10 +168,10 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
   const allEmpty = participants.length === 0;
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
+    <section className="mt-6 border-t border-border pt-5" aria-labelledby="case-participants-heading">
+      <div className="flex flex-row items-center justify-between gap-3">
         <div>
-          <CardTitle className="text-sm">คู่ความ / Participants</CardTitle>
+          <h4 id="case-participants-heading" className="text-sm font-semibold">คู่ความ / Participants</h4>
           <p className="mt-1 text-xs text-muted-foreground">เพิ่มได้หลายราย และกำหนดฐานะของแต่ละรายแยกกัน</p>
         </div>
         {!showForm && (
@@ -181,8 +180,8 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
             เพิ่มคู่ความ
           </Button>
         )}
-      </CardHeader>
-      <CardContent className="space-y-4">
+      </div>
+      <div className="mt-4 space-y-4">
         {showForm && (
           <form
             onSubmit={handleSubmit}
@@ -415,7 +414,7 @@ export function CaseParticipantsSection({ caseId, initialParticipants }: Props) 
             </div>
           </div>
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
