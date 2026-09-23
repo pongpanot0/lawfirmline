@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title description">
+  <title id="title">AI ช่วยทนายและทำให้งานสำนักงานเดินต่อ</title>
+  <desc id="description">Legal AI จัดข้อเท็จจริงและหลักฐาน ส่วน Operations AI ช่วยจัดคิวงานและรายงาน โดยทีมสำนักงานตรวจยืนยันก่อนเปลี่ยนข้อมูล</desc>
+  <defs>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#23345C" flood-opacity=".08"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto">
+      <path d="M1 1 8 5 1 9" fill="none" stroke="#8794AE" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      text { font-family: "Noto Sans Thai", "Leelawadee UI", Tahoma, sans-serif; }
+      .ink { fill: #182033; }
+      .muted { fill: #68748C; }
+      .tiny { font-size: 16px; }
+      .body { font-size: 20px; }
+      .title { font-size: 25px; font-weight: 700; }
+      .card { fill: #FFFFFF; stroke: #E0E6F0; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="#F5F7FB"/>
+  <circle cx="1510" cy="54" r="190" fill="#EAF0FF" opacity=".7"/>
+  <circle cx="80" cy="940" r="180" fill="#E8F5F4" opacity=".7"/>
+
+  <text x="88" y="94" class="ink" font-size="46" font-weight="750">AI ช่วยทนายและทำให้งานสำนักงานเดินต่อ</text>
+  <text x="90" y="140" class="muted" font-size="22">Legal AI เข้าใจสำนวน • Operations AI ทำให้งานมีเจ้าของและส่งรายงานได้</text>
+  <rect x="1322" y="72" width="190" height="42" rx="21" fill="#E9EEFC"/>
+  <text x="1417" y="100" text-anchor="middle" fill="#3551B8" font-size="16" font-weight="700">แนวคิดช่วงวางแผน</text>
+
+  <!-- connecting flow -->
+  <path d="M344 447 H374" fill="none" stroke="#8794AE" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M694 447 H724" fill="none" stroke="#8794AE" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1044 447 H1074" fill="none" stroke="#8794AE" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 1 -->
+  <g filter="url(#shadow)">
+    <rect x="80" y="204" width="264" height="492" rx="24" class="card"/>
+  </g>
+  <circle cx="118" cy="248" r="22" fill="#E9EEFC"/>
+  <text x="118" y="254" text-anchor="middle" fill="#3551B8" font-size="15" font-weight="700">01</text>
+  <text x="110" y="304" class="title ink">รับงานจากบริษัทประกัน</text>
+  <text x="110" y="348" class="body muted">อีเมล • เอกสาร • บันทึก</text>
+  <text x="110" y="378" class="body muted">ข้อมูลจากเรื่องเดิม</text>
+  <g transform="translate(110 420)">
+    <rect width="204" height="104" rx="16" fill="#F4F6FB"/>
+    <path d="M24 27h34l14 14v39H24z" fill="#FFFFFF" stroke="#7786A6" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M58 27v15h14M34 55h27M34 65h27" fill="none" stroke="#7786A6" stroke-width="2" stroke-linecap="round"/>
+    <text x="88" y="48" class="tiny ink" font-weight="700">เลขเคลม / ผู้ว่าจ้าง</text>
+    <text x="88" y="72" class="tiny ink" font-weight="700">ลูกความ / ผู้เอาประกัน</text>
+  </g>
+  <text x="110" y="570" class="tiny muted">ตรวจข้อมูลซ้ำและส่วนที่ยังขาด</text>
+  <rect x="110" y="602" width="86" height="32" rx="16" fill="#F0F3F9"/>
+  <text x="153" y="623" text-anchor="middle" class="tiny muted">Intake</text>
+  <rect x="204" y="602" width="90" height="32" rx="16" fill="#F0F3F9"/>
+  <text x="249" y="623" text-anchor="middle" class="tiny muted">กิจกรรม</text>
+
+  <!-- Step 2 -->
+  <g filter="url(#shadow)">
+    <rect x="374" y="204" width="320" height="492" rx="24" class="card"/>
+  </g>
+  <circle cx="412" cy="248" r="22" fill="#E4F4F2"/>
+  <text x="412" y="254" text-anchor="middle" fill="#087F8C" font-size="15" font-weight="700">02</text>
+  <text x="404" y="304" class="title ink">Legal AI เข้าใจสำนวน</text>
+  <text x="404" y="348" class="body muted">• สรุปข้อเท็จจริง</text>
+  <text x="404" y="384" class="body muted">• เรียงเหตุการณ์เป็น timeline</text>
+  <text x="404" y="420" class="body muted">• จับวันสำคัญ</text>
+  <rect x="404" y="456" width="260" height="154" rx="16" fill="#F0F8F7"/>
+  <text x="424" y="489" fill="#087F8C" font-size="16" font-weight="700">ชี้จุดที่ต้องดูต่อ</text>
+  <circle cx="432" cy="523" r="4" fill="#087F8C"/>
+  <text x="446" y="529" class="tiny ink">ข้อมูลยังขาด</text>
+  <circle cx="432" cy="558" r="4" fill="#C48218"/>
+  <text x="446" y="564" class="tiny ink">ข้อมูลขัดกัน</text>
+  <text x="404" y="650" class="tiny muted">ทุกข้อเปิดกลับไปดูเอกสารต้นทางได้</text>
+
+  <!-- Step 3 -->
+  <g filter="url(#shadow)">
+    <rect x="724" y="204" width="320" height="492" rx="24" class="card"/>
+  </g>
+  <circle cx="762" cy="248" r="22" fill="#E9EEFC"/>
+  <text x="762" y="254" text-anchor="middle" fill="#3551B8" font-size="15" font-weight="700">03</text>
+  <text x="754" y="304" class="title ink">Operations AI จัดคิวงาน</text>
+  <text x="754" y="348" class="body muted">อ่านสถานะแล้วชี้งานที่ติด</text>
+  <rect x="754" y="382" width="260" height="184" rx="16" fill="#F0F8F7"/>
+  <text x="774" y="416" fill="#087F8C" class="tiny" font-weight="700">ตัวอย่างคิวที่ต้องจัดการ</text>
+  <circle cx="781" cy="447" r="4" fill="#087F8C"/>
+  <text x="795" y="453" class="tiny ink">ยังไม่มีผู้รับผิดชอบ</text>
+  <circle cx="781" cy="483" r="4" fill="#C48218"/>
+  <text x="795" y="489" class="tiny ink">รอเอกสารเกิน SLA</text>
+  <circle cx="781" cy="519" r="4" fill="#087F8C"/>
+  <text x="795" y="525" class="tiny ink">รายงานบริษัทประกันรอตรวจ</text>
+  <text x="754" y="600" class="tiny muted">แนะนำเจ้าของงานตามทีมและ SOP</text>
+  <text x="754" y="635" class="tiny muted">ใช้กฎเดิมเตือนและติดตามงาน</text>
+
+  <!-- Step 4 -->
+  <g filter="url(#shadow)">
+    <rect x="1074" y="204" width="446" height="492" rx="24" fill="#FFFFFF" stroke="#DCE4F4" stroke-width="1.5"/>
+  </g>
+  <circle cx="1112" cy="248" r="22" fill="#FFF1D8"/>
+  <text x="1112" y="254" text-anchor="middle" fill="#A76A0E" font-size="15" font-weight="700">04</text>
+  <text x="1104" y="304" class="title ink">ทีมตรวจแล้วค่อยลงมือ</text>
+  <rect x="1104" y="330" width="386" height="88" rx="16" fill="#F6F7FA"/>
+  <text x="1124" y="363" class="tiny muted">ผู้รับผิดชอบและทนายตรวจ</text>
+  <text x="1124" y="393" class="body ink" font-weight="700">งานถัดไป • วันสำคัญ • ร่างรายงาน</text>
+  <rect x="1104" y="442" width="386" height="96" rx="16" fill="#FFF8EA" stroke="#F2D8A9"/>
+  <path d="M1133 467l13 22h-26z" fill="#D69529"/>
+  <text x="1133" y="485" text-anchor="middle" fill="#FFFFFF" font-size="13" font-weight="700">!</text>
+  <text x="1160" y="474" fill="#8A5A12" class="tiny" font-weight="700">ตรวจหลักฐาน • ตรวจวัน • ยืนยัน</text>
+  <text x="1160" y="501" class="tiny muted">รับไว้ / แก้ไข / ไม่ใช้</text>
+  <text x="1104" y="576" class="tiny muted">ยืนยันแล้วจึงสร้างงานหรือบันทึกวัน</text>
+  <text x="1104" y="602" class="tiny muted">ตรวจร่างก่อนส่งให้บริษัทประกัน</text>
+  <rect x="1104" y="632" width="112" height="34" rx="17" fill="#E9F5F1"/>
+  <text x="1160" y="654" text-anchor="middle" fill="#11735F" class="tiny" font-weight="700">รอตรวจ</text>
+
+  <!-- Outcome strip -->
+  <rect x="80" y="738" width="1440" height="178" rx="26" fill="#1C2A4A"/>
+  <text x="120" y="788" fill="#AFC1FF" font-size="16" font-weight="700">ผลที่สำนักงานซื้อ</text>
+  <text x="120" y="835" fill="#FFFFFF" font-size="27" font-weight="700">รับเรื่องไวขึ้น</text>
+  <circle cx="355" cy="826" r="4" fill="#86D8CB"/>
+  <text x="380" y="835" fill="#FFFFFF" font-size="27" font-weight="700">งานมีเจ้าของ</text>
+  <circle cx="680" cy="826" r="4" fill="#86D8CB"/>
+  <text x="705" y="835" fill="#FFFFFF" font-size="27" font-weight="700">รายงานไม่หลุดรอบ</text>
+  <line x1="970" y1="774" x2="970" y2="878" stroke="#445276" stroke-width="1.5"/>
+  <text x="1010" y="799" fill="#86D8CB" font-size="22" font-weight="700">AI เสนอ</text>
+  <text x="1010" y="835" fill="#FFFFFF" font-size="22" font-weight="700">ทีมสำนักงานยืนยัน</text>
+  <text x="1010" y="875" fill="#D1D8E8" font-size="17">ไม่ตัดสินวันกฎหมาย • ไม่ส่งรายงานเอง</text>
+
+  <text x="800" y="966" text-anchor="middle" fill="#68748C" font-size="16">เป้าหมาย: ลดคีย์ซ้ำ • เห็นคดีติดตรงไหน • ส่งงานต่อได้ในระบบเดียว</text>
+</svg>
