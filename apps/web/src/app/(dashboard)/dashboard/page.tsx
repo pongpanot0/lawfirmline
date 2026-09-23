@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { ArrowRight, Plus, Search, CalendarDays, CheckCircle2, FileText } from 'lucide-react';
 import { AgendaItemKind, FirmRole } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
-import { api, DashboardStats, MyDayResponse, IntakeItem } from '@/lib/api';
+import { api, DashboardStats, MyDayResponse, IntakeItem, WorkloadSummary } from '@/lib/api';
 import { bangkokDateInputValue, bangkokDayLabel, bangkokTime } from '@/lib/bangkok';
 import { PageLoading } from '@/components/ui/misc';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
+import { ActionCenter } from '@/components/agenda/ActionCenter';
 import { useLocale } from '@/components/landing/LocaleProvider';
 
 type Inbox = Awaited<ReturnType<typeof api.getTaskInbox>>;
@@ -17,12 +18,17 @@ const link = 'inline-flex items-center gap-1 text-sm font-medium text-primary ho
 
 export default function DashboardPage() {
   const { token, user } = useAuth();
+  const actionToken = token ?? getStoredToken();
   const { locale, d } = useLocale();
   const t = (th: string, en: string) => locale === 'th' ? th : en;
+  const isOwner = user?.firmRole === FirmRole.OWNER;
   const [data, setData] = useState<DashboardStats | null>(null);
   const [tasks, setTasks] = useState<Inbox | null>(null);
   const [intakes, setIntakes] = useState<IntakeItem[] | null>(null);
   const [agenda, setAgenda] = useState<MyDayResponse | null>(null);
+  const [teamWorkload, setTeamWorkload] = useState<WorkloadSummary[] | null>(null);
+  const [teamWorkloadLoading, setTeamWorkloadLoading] = useState(false);
+  const [teamWorkloadFailed, setTeamWorkloadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const [section, setSection] = useState<'tasks' | 'matters'>('tasks');
@@ -46,6 +52,22 @@ export default function DashboardPage() {
     });
     return () => { active = false; };
   }, [token, retry]);
+
+  useEffect(() => {
+    if (!isOwner || !actionToken) {
+      setTeamWorkload(null);
+      setTeamWorkloadLoading(false);
+      return;
+    }
+    let active = true;
+    setTeamWorkloadLoading(true);
+    setTeamWorkloadFailed(false);
+    api.getWorkloadSummary(actionToken)
+      .then(result => { if (active) setTeamWorkload(result); })
+      .catch(() => { if (active) { setTeamWorkload(null); setTeamWorkloadFailed(true); } })
+      .finally(() => { if (active) setTeamWorkloadLoading(false); });
+    return () => { active = false; };
+  }, [actionToken, isOwner, retry]);
 
   if (loading) return <PageLoading title={d.common.loading} lines={5} />;
   const failed = <div role="alert" className="p-6 text-sm text-muted-foreground">{t('โหลดข้อมูลไม่สำเร็จ', 'Unable to load data')} <button onClick={() => setRetry(x => x + 1)} className={link}>{t('ลองอีกครั้ง', 'Retry')}</button></div>;
@@ -79,16 +101,49 @@ export default function DashboardPage() {
     .sort((a, b) => a.at.localeCompare(b.at)).slice(0, 4) : [];
   const date = (iso: string) => bangkokDayLabel(bangkokDateInputValue(iso), locale === 'th' ? 'th-TH' : 'en-GB');
   const statuses: Record<string, string> = { TODO: d.todos.columnTodo, IN_PROGRESS: d.todos.columnInProgress, PENDING_REVIEW: d.todos.columnPendingReview, NEEDS_REVISION: d.todos.columnNeedsRevision, DONE: d.todos.columnDone };
+  const rankedTeamWorkload = [...(teamWorkload ?? [])].sort((a, b) => b.weightedScore - a.weightedScore);
+  const highLoadCount = rankedTeamWorkload.filter(person => person.capacity === 'HIGH' || person.capacity === 'OVERLOADED').length;
+  const capacityLabel: Record<WorkloadSummary['capacity'], { text: string; className: string }> = {
+    LOW: { text: t('ภาระเบา', 'Light load'), className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+    NORMAL: { text: t('ปกติ', 'Normal'), className: 'bg-muted text-muted-foreground' },
+    HIGH: { text: t('งานมาก', 'High load'), className: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
+    OVERLOADED: { text: t('งานล้น', 'Overloaded'), className: 'bg-red-500/10 text-red-700 dark:text-red-400' },
+  };
 
   return <div className="mx-auto max-w-[1440px] space-y-6">
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">{data?.firmName ?? 'SAMNUAN'} · {date(new Date().toISOString())}</p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t('ภาพรวมงาน', 'Work overview')}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t('รับเรื่อง ติดตามงาน และเตรียมพร้อมสำหรับนัดถัดไป', 'Receive matters, follow up on work, and prepare for your next appointment.')}</p>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t('ศูนย์ปฏิบัติงาน', 'Legal operations')}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t('คิวรับเรื่อง งานรอตรวจ และกำหนดที่ต้องติดตาม', 'Triage intake, review work, and follow up on deadlines.')}</p>
       </div>
       <Link href="/intake/new" data-tour="new-intake" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"><Plus className="size-4" />{t('รับงานใหม่', 'New intake')}</Link>
     </header>
+
+    {isOwner && <section className={`${panel} p-5`} aria-labelledby="team-workload-heading">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="team-workload-heading" className="text-base font-semibold">{t('ภาระงานทีม', 'Team workload')}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{teamWorkload ? t(`${teamWorkload.length} คน · ภาระงานสูง ${highLoadCount} คน`, `${teamWorkload.length} people · ${highLoadCount} with high load`) : t('เรียงจากผู้ที่มีภาระงานสูง · แสดงกำหนดใน 7 วัน', 'Highest workload first · deadlines within 7 days')}</p>
+        </div>
+        <Link href="/operations" className={link}>{t('ดู Operations ทั้งหมด', 'Open operations')}<ArrowRight className="size-3.5" /></Link>
+      </div>
+      {teamWorkloadLoading ? <p className="mt-4 text-sm text-muted-foreground">{t('กำลังโหลดภาระงานทีม…', 'Loading team workload…')}</p>
+        : teamWorkloadFailed ? <p role="alert" className="mt-4 text-sm text-muted-foreground">{t('โหลดภาระงานทีมไม่สำเร็จ', 'Unable to load team workload')} <button onClick={() => setRetry(value => value + 1)} className={link}>{t('ลองอีกครั้ง', 'Retry')}</button></p>
+          : rankedTeamWorkload.length === 0 ? <p className="mt-4 text-sm text-muted-foreground">{t('ยังไม่มีข้อมูลภาระงานทีม', 'No team workload to show yet.')}</p>
+            : <div className="mt-4 divide-y divide-border/70">
+              {rankedTeamWorkload.slice(0, 5).map(person => <div key={person.userId} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-medium">{person.firstName} {person.lastName}</span>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${capacityLabel[person.capacity].className}`}>{capacityLabel[person.capacity].text}</span>
+                </div>
+                <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">{person.leadCount + person.buddyCount}</span> {t('งานที่รับผิดชอบ', 'assigned matters')} · <span className={person.nearDeadlineCount > 0 ? 'font-medium text-amber-700 dark:text-amber-400' : ''}>{person.nearDeadlineCount} {t('ใกล้กำหนด', 'due soon')}</span></p>
+              </div>)}
+            </div>}
+      {rankedTeamWorkload.length > 5 && <p className="mt-3 text-xs text-muted-foreground">{t(`แสดง 5 จาก ${rankedTeamWorkload.length} คน`, `Showing 5 of ${rankedTeamWorkload.length} people`)}</p>}
+    </section>}
+
+    {actionToken && <ActionCenter token={actionToken} />}
 
     <div className="grid grid-cols-2 gap-y-5 border-y border-border py-5 lg:grid-cols-4">
       {[

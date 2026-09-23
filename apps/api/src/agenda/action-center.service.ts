@@ -10,6 +10,7 @@ export class ActionCenterService {
 
   async list(user: AuthUser) {
     const activeCase = { AND: [this.access.getCaseFilterForUser(user), { status: { not: 'CLOSED' as const } }] };
+    const intakeScope = await this.access.getIntakeFilterForUser(user);
     const taskScope = {
       AND: [this.access.getTaskFilterForUser(user), {
         OR: [
@@ -18,7 +19,7 @@ export class ActionCenterService {
         ],
       }],
     };
-    const [tasks, dates, reviews, drafts, events] = await Promise.all([
+    const [tasks, dates, reviews, drafts, events, intakes] = await Promise.all([
       this.prisma.task.findMany({
         where: { ...taskScope, status: { not: 'DONE' }, OR: [{ assigneeId: null }, { onHold: { endedAt: null } }] },
         include: { case: { select: { ownRef: true } }, assignee: { select: { firstName: true, lastName: true } }, onHold: true },
@@ -42,6 +43,16 @@ export class ActionCenterService {
         include: { responsibility: true, assignee: { select: { firstName: true, lastName: true } }, case: { select: { ownRef: true, leadLawyerId: true, leadLawyer: { select: { firstName: true, lastName: true } } } } },
         orderBy: [{ startAt: 'asc' }, { id: 'asc' }], take: 50,
       }),
+      this.prisma.intake.findMany({
+        where: {
+          ...intakeScope,
+          stage: { not: 'CLOSED' },
+          status: { notIn: ['NO_RESPONSE', 'REJECTED', 'CONVERTED'] },
+          nextFollowUpAt: { not: null },
+        },
+        include: { followUpOwner: { select: { firstName: true, lastName: true } } },
+        orderBy: [{ nextFollowUpAt: 'asc' }, { id: 'asc' }], take: 50,
+      }),
     ]);
     const name = (person: { firstName: string; lastName: string } | null) => person ? `${person.firstName} ${person.lastName}` : null;
     const rows = [
@@ -50,8 +61,9 @@ export class ActionCenterService {
       ...dates.map(s => ({ id: `date:${s.id}`, kind: 'DATE_REVIEW', title: s.label, detail: s.sourceExcerpt, caseRef: s.case.ownRef, owner: name(s.case.leadLawyer), dueAt: s.suggestedDate.toISOString(), url: `/cases/${s.caseId}/calendar` })),
       ...reviews.map(r => ({ id: `review:${r.id}`, kind: 'DOCUMENT_REVIEW', title: r.documentVersion.document.filename, detail: r.scope, caseRef: null, owner: name(user), dueAt: r.dueAt?.toISOString() ?? null, url: `/cases/${r.documentVersion.document.caseId}/documents` })),
       ...drafts.map(d => ({ id: `draft:${d.id}`, kind: 'CLIENT_DRAFT', title: d.subject, detail: null, caseRef: d.case.ownRef, owner: name(d.createdBy), dueAt: null, url: `/cases/${d.caseId}?tab=closing-report&draftId=${d.id}` })),
+      ...intakes.map(i => ({ id: `intake:${i.id}`, kind: 'INTAKE_FOLLOW_UP', title: i.title ?? i.insurerName ?? i.claimNumber ?? i.customerRef ?? '', detail: i.insurerName, caseRef: i.claimNumber ?? i.customerRef, owner: name(i.followUpOwner), dueAt: i.nextFollowUpAt!.toISOString(), url: `/intake/${i.id}` })),
     ];
     rows.sort((a, b) => (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999') || a.id.localeCompare(b.id));
-    return { items: rows, limited: [tasks, dates, reviews, drafts, events].some(group => group.length === 50) };
+    return { items: rows, limited: [tasks, dates, reviews, drafts, events, intakes].some(group => group.length === 50) };
   }
 }
