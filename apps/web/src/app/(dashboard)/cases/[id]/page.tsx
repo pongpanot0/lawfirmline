@@ -2,7 +2,7 @@
 
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CasePrintForms } from '@/components/cases/CasePrintForms';
-import { CaseOverviewForm } from '@/components/cases/CaseOverviewForm';
+import { CaseOverviewForm, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
 import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
 import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
@@ -95,6 +95,7 @@ import {
   WorkloadSummary,
   CaseTypeItem,
   CourtItem,
+  ClientItem,
   ApiError,
   IntakePrecedentAnalysisItem,
   type CaseOutstandingResult,
@@ -170,6 +171,7 @@ export default function CaseDetailPage() {
   const [overviewError, setOverviewError] = useState('');
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [courts, setCourts] = useState<CourtItem[]>([]);
+  const [clients, setClients] = useState<ClientItem[]>([]);
   const [overviewForm, setOverviewForm] = useState({
     title: '',
     ownRef: '',
@@ -184,6 +186,9 @@ export default function CaseDetailPage() {
     chargeSection: '',
     estimatedFee: '',
     description: '',
+    clientId: '',
+    clientName: '',
+    customers: [] as CaseOverviewCustomerValue[],
   });
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
@@ -416,6 +421,15 @@ export default function CaseDetailPage() {
 
   const startEditOverview = async () => {
     if (!legalCase) return;
+    const knownClients = new Map<string, ClientItem>();
+    if (legalCase.client) {
+      knownClients.set(legalCase.client.id, { ...legalCase.client, contacts: [] });
+    }
+    for (const customer of legalCase.customers ?? []) {
+      knownClients.set(customer.customerId, { ...customer.customer, contacts: [] });
+    }
+    const linkedClients = [...knownClients.values()];
+    setClients(linkedClients);
     setOverviewForm({
       title: legalCase.title,
       ownRef: legalCase.ownRef,
@@ -434,6 +448,17 @@ export default function CaseDetailPage() {
       estimatedFee:
         legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
       description: legalCase.description ?? '',
+      clientId: legalCase.clientId ?? '',
+      clientName: legalCase.client?.name ?? legalCase.clientName ?? '',
+      customers: legalCase.customers?.length
+        ? legalCase.customers.map((customer) => ({
+            customerId: customer.customerId,
+            contactId: customer.contactId ?? '',
+            sharePercent: customer.sharePercent != null ? String(customer.sharePercent) : '',
+            isPrimary: customer.isPrimary,
+            note: customer.note ?? '',
+          }))
+        : [{ customerId: '', contactId: '', sharePercent: '', isPrimary: true, note: '' }],
     });
     setOverviewError('');
     setEditingOverview(true);
@@ -441,9 +466,15 @@ export default function CaseDetailPage() {
       Promise.all([
         api.getCaseTypes(token).catch(() => [] as CaseTypeItem[]),
         api.getCourts(token).catch(() => [] as CourtItem[]),
-      ]).then(([types, courtList]) => {
+        api.getClients(token).catch(() => [] as ClientItem[]),
+      ]).then(([types, courtList, clientList]) => {
         setCaseTypes(types);
         setCourts(courtList);
+        const availableClients = new Map(clientList.map((client) => [client.id, client]));
+        for (const client of linkedClients) {
+          if (!availableClients.has(client.id)) availableClients.set(client.id, client);
+        }
+        setClients([...availableClients.values()]);
       });
     }
   };
@@ -470,6 +501,17 @@ export default function CaseDetailPage() {
         ownRef: overviewForm.ownRef.trim(),
         customerRef: overviewForm.customerRef.trim() || null,
         caseTypeId: overviewForm.caseTypeId || undefined,
+        clientId: overviewForm.clientId || null,
+        clientName: overviewForm.clientName.trim() || null,
+        customers: overviewForm.customers
+          .filter((customer) => customer.customerId)
+          .map((customer) => ({
+            customerId: customer.customerId,
+            contactId: customer.contactId || undefined,
+            sharePercent: customer.sharePercent ? Number(customer.sharePercent) : undefined,
+            isPrimary: customer.isPrimary,
+            note: customer.note || undefined,
+          })),
         blackCaseNumber: overviewForm.blackCaseNumber.trim() || null,
         redCaseNumber: overviewForm.redCaseNumber.trim() || null,
         courtLevel: overviewForm.courtLevel || null,
@@ -1041,6 +1083,8 @@ export default function CaseDetailPage() {
                   legalCase={legalCase}
                   caseTypes={caseTypes}
                   courts={courts}
+                  clients={clients}
+                  onClientCreated={(client) => setClients((current) => [...current, client].sort((a, b) => a.name.localeCompare(b.name, 'th')))}
                   saving={savingOverview}
                   error={overviewError}
                   onSave={handleSaveOverview}

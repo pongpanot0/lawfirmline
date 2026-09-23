@@ -180,11 +180,17 @@ export class UpdateCaseDto {
 
   @IsOptional()
   @IsUUID()
-  clientId?: string;
+  clientId?: string | null;
 
   @IsOptional()
   @IsString()
-  clientName?: string;
+  clientName?: string | null;
+
+  @ValidateIf((_, value) => value !== undefined)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerShareDto)
+  customers?: CustomerShareDto[];
 
   @IsOptional()
   @IsIn(['PLAINTIFF', 'DEFENDANT'])

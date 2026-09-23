@@ -76,7 +76,7 @@ export function ClientCombobox({
         autoComplete="off"
         disabled={disabled}
         value={query}
-        placeholder="พิมพ์ค้นหาลูกค้าในรายชื่อ หรือพิมพ์ชื่อใหม่"
+        placeholder="ค้นหาลูกความในรายชื่อ หรือพิมพ์ชื่อใหม่"
         onFocus={() => setOpen(true)}
         onChange={(e) => {
           const value = e.target.value;
@@ -111,7 +111,7 @@ export function ClientCombobox({
         >
           {visibleMatches.length === 0 && (
             <li className="px-3 py-2 text-muted-foreground">
-              ไม่พบชื่อนี้ในรายชื่อ — จะบันทึกเป็นชื่อใหม่ในคดีนี้
+              ไม่พบชื่อนี้ในรายชื่อ — ระบบจะเพิ่มเป็นลูกความใหม่เมื่อสร้างคดี
             </li>
           )}
           {visibleMatches.map((c, i) => (
@@ -131,7 +131,7 @@ export function ClientCombobox({
           ))}
           {query.trim() && !exactMatch && (
             <li className="border-t px-3 py-2 text-xs text-muted-foreground">
-              ใช้ “{query.trim()}” เป็นชื่อลูกค้าที่ยังไม่มีในทะเบียน
+              ชื่อ “{query.trim()}” จะถูกเพิ่มเป็นลูกความใหม่
             </li>
           )}
         </ul>

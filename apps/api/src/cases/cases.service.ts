@@ -426,7 +426,7 @@ export class CasesService {
       }
     }
 
-    const { customFields, ...rest } = dto;
+    const { customFields, customers, ...rest } = dto;
     const stageChanged = !!dto.stage && dto.stage !== before.stage;
     const updated = await this.prisma.case.update({
       where: { id },
@@ -434,6 +434,10 @@ export class CasesService {
         ...rest,
         ownRef: dto.ownRef?.trim() || undefined,
         customFields: customFields as Prisma.InputJsonValue | undefined,
+        customers:
+          customers === undefined
+            ? undefined
+            : { deleteMany: {}, create: this.customerRows(customers) },
         closedAt: dto.closedAt ? new Date(dto.closedAt) : undefined,
         stageChangedAt: stageChanged ? new Date() : undefined,
       },
