@@ -14,7 +14,6 @@ import { ClientCombobox } from './ClientCombobox';
 import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
-import { CargoClaimFields } from '@/components/cargo/CargoClaimFields';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -28,7 +27,6 @@ import {
   ApiError,
   WorkloadSummary,
   FieldSuggestion,
-  CargoClaimInput,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -76,7 +74,6 @@ export default function NewCasePage() {
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [playbookId, setPlaybookId] = useState('');
   const [cargoClaimEnabled, setCargoClaimEnabled] = useState(false);
-  const [cargoClaim, setCargoClaim] = useState<CargoClaimInput>({ currency: 'THB' });
 
   const [form, setForm] = useState({
     caseTypeId: '',
@@ -323,7 +320,6 @@ export default function NewCasePage() {
           [CASE_COSTS_KEY]: JSON.stringify(costLines),
         },
         cargoClaimEnabled,
-        cargoClaim: cargoClaimEnabled ? cargoClaim : undefined,
       };
       if (form.clientId) {
         payload.clientId = form.clientId;
@@ -591,16 +587,6 @@ export default function NewCasePage() {
                     </option>
                   ))}
                 </select>
-                {cargoClaimEnabled && (
-                  <>
-                    <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-primary">
-                      ระบบจะผูก Cargo Claim Assessment Playbook รุ่นล่าสุด พร้อม checklist เอกสารและพื้นที่วิเคราะห์ Liability / Time Bar โดยไม่ต้องผ่าน Intake
-                    </p>
-                    <div className="rounded-xl border bg-muted/20 p-4">
-                      <CargoClaimFields value={cargoClaim} onChange={setCargoClaim} />
-                    </div>
-                  </>
-                )}
               </section>
 
               <section className="space-y-4 border-t border-border pt-5" aria-label="ลูกค้า ลูกความ และชื่อคดี">
