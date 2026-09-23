@@ -4,13 +4,13 @@ import { Suspense, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Download, ArrowUpDown, Columns3, ClipboardList, Briefcase } from 'lucide-react';
-import { Role } from '@lawfirm/shared';
+import { FirmRole, Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CaseItem, IntakeItem, UserItem } from '@/lib/api';
+import { api, CaseItem, UserItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { caseStatusOptions, getCaseStatusDisplay } from '@/lib/case-status';
-import { caseStageLabel, caseStageOptions, intakeStageLabel } from '@/lib/stage-labels';
+import { caseStageLabel, caseStageOptions } from '@/lib/stage-labels';
 import { caseNumberDisplay } from '@/lib/case-number-display';
 import { casePartyDisplay } from '@/lib/case-party-display';
 import { Button } from '@/components/ui/button';
@@ -49,19 +49,16 @@ export default function CasesPage() {
 function CasesPageContent() {
   const d = useDashboardT();
   const { token, user } = useAuth();
+  const canManageLegacyIntakes = user?.role === Role.ADMIN || user?.firmRole === FirmRole.OWNER;
   const router = useRouter();
   const searchParams = useSearchParams();
   const [cases, setCases] = useState<CaseItem[]>([]);
-  const [intakes, setIntakes] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [intakesLoading, setIntakesLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [intakesLoadError, setIntakesLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
-  const [intakeOnly, setIntakeOnly] = useState(searchParams.get('view') === 'intake');
   const [statusFilter, setStatusFilter] = useState('');
-  const [stageFilter, setStageFilter] = useState('');
+  const [stageFilter, setStageFilter] = useState(searchParams.get('stage') ?? (searchParams.get('view') === 'intake' ? 'PRE_LITIGATION' : ''));
   const [lawyerFilter, setLawyerFilter] = useState('');
   const [page, setPage] = useState(0);
   const [sortAsc, setSortAsc] = useState(false);
@@ -71,10 +68,9 @@ function CasesPageContent() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkError, setBulkError] = useState('');
   const [hiddenColumns, setHiddenColumns] = useState<Set<OptionalColumnKey>>(new Set());
-
-  useEffect(() => {
-    setIntakeOnly(searchParams.get('view') === 'intake');
-  }, [searchParams]);
+  const [unlinkedIntakeCount, setUnlinkedIntakeCount] = useState<number | null>(null);
+  const [convertingLegacyIntakes, setConvertingLegacyIntakes] = useState(false);
+  const [legacyConversionMessage, setLegacyConversionMessage] = useState('');
 
   useEffect(() => {
     if (!token) return;
@@ -97,37 +93,15 @@ function CasesPageContent() {
 
   useEffect(() => {
     if (!token) return;
-    let cancelled = false;
-    setIntakesLoading(true);
-    setIntakesLoadError(false);
-
-    void (async () => {
-      const pageSize = 100;
-      const firstPage = await api.getIntakes(token, { page: 1, limit: pageSize });
-      const allItems = [...firstPage.items];
-      const pageCount = Math.ceil(firstPage.total / pageSize);
-      for (let pageNumber = 2; pageNumber <= pageCount; pageNumber += 1) {
-        const nextPage = await api.getIntakes(token, { page: pageNumber, limit: pageSize });
-        allItems.push(...nextPage.items);
-      }
-      if (!cancelled) setIntakes(allItems);
-    })()
-      .catch(() => {
-        if (!cancelled) setIntakesLoadError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setIntakesLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token, reloadKey]);
-
-  useEffect(() => {
-    if (!token) return;
     api.getLawyers(token).then(setLawyers).catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    if (!token || !canManageLegacyIntakes) return;
+    api.getUnlinkedIntakeCount(token)
+      .then(({ count }) => setUnlinkedIntakeCount(count))
+      .catch(() => setUnlinkedIntakeCount(null));
+  }, [token, canManageLegacyIntakes, reloadKey]);
 
   useEffect(() => {
     try {
@@ -152,54 +126,17 @@ function CasesPageContent() {
     });
   };
 
-  const orphanIntakes = useMemo(
-    () => intakes.filter((intake) => !intake.case?.id && !intake.relatedCaseId),
-    [intakes],
-  );
-  const intakeCases = useMemo(
-    () => cases.filter((legalCase) => !!firstIntakeId(legalCase)),
-    [cases],
-  );
-  const visibleOrphanIntakes = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase();
-    if (!term) return orphanIntakes;
-    return orphanIntakes.filter((intake) =>
-      [intake.title, intake.clientName, intake.client?.name, intake.referralName, intake.customerRef]
-        .some((value) => value?.toLocaleLowerCase().includes(term)),
-    );
-  }, [orphanIntakes, search]);
-
   const sorted = useMemo(() => {
-    const queueCases = intakeOnly ? intakeCases : cases;
-    return [...queueCases].sort((a, b) => {
+    return [...cases].sort((a, b) => {
       const cmp = a.ownRef.localeCompare(b.ownRef);
       return sortAsc ? cmp : -cmp;
     });
-  }, [cases, intakeCases, intakeOnly, sortAsc]);
+  }, [cases, sortAsc]);
 
   const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   const canCreate = user?.role === Role.ADMIN || user?.role === Role.LAWYER;
   const pageAllSelected = paginated.length > 0 && paginated.every((c) => selected.has(c.id));
-  const showOrphanIntakes = intakeOnly || (!statusFilter && !stageFilter && !lawyerFilter);
-  const includedOrphanIntakes = showOrphanIntakes ? visibleOrphanIntakes : [];
-
-  const changeQueueView = (showIntakes: boolean) => {
-    setIntakeOnly(showIntakes);
-    setPage(0);
-    setSelected(new Set());
-    if (showIntakes) {
-      setStatusFilter('');
-      setStageFilter('');
-      setLawyerFilter('');
-    }
-    const params = new URLSearchParams(searchParams.toString());
-    if (showIntakes) params.set('view', 'intake');
-    else params.delete('view');
-    const query = params.toString();
-    router.replace(`/cases${query ? `?${query}` : ''}`, { scroll: false });
-  };
-
   const toggleSelectAllOnPage = () => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -235,6 +172,26 @@ function CasesPageContent() {
     setReloadKey((k) => k + 1);
   };
 
+  const convertLegacyIntakes = async () => {
+    if (!token || convertingLegacyIntakes) return;
+    setConvertingLegacyIntakes(true);
+    setLegacyConversionMessage('');
+    try {
+      const result = await api.convertUnlinkedIntakes(token);
+      setUnlinkedIntakeCount(result.remaining);
+      setLegacyConversionMessage(
+        result.failed
+          ? `เปิดคดีได้ ${result.converted} รายการ · เกิดข้อผิดพลาด ${result.failed} รายการ · ยังไม่มีคดี ${result.remaining} รายการ`
+          : `รวมรายการเก่าเป็นคดีก่อนฟ้องแล้ว ${result.converted} รายการ`,
+      );
+      setReloadKey((k) => k + 1);
+    } catch {
+      setLegacyConversionMessage('รวมรายการไม่สำเร็จ ลองอีกครั้งได้');
+    } finally {
+      setConvertingLegacyIntakes(false);
+    }
+  };
+
   const exportCsv = () => {
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const header = [
@@ -253,8 +210,7 @@ function CasesPageContent() {
       'สถานะ',
       'ขั้นตอน',
     ];
-    const rows = [
-      ...sorted.map((c) => [
+    const rows = sorted.map((c) => [
         c.ownRef,
         c.customerRef ?? '',
         c.blackCaseNumber ?? '',
@@ -269,24 +225,7 @@ function CasesPageContent() {
         c.estimatedFee != null ? String(c.estimatedFee) : '',
         getCaseStatusDisplay(c.status, d.caseStatus).label,
         c.stage ? caseStageLabel(c.stage, 'th') : '',
-      ]),
-      ...includedOrphanIntakes.map((intake) => [
-        '',
-        intake.customerRef ?? '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        intake.title || intake.matterType || '',
-        intake.clientName ?? intake.client?.name ?? '',
-        intake.description ?? '',
-        intake.receivedBy ? `${intake.receivedBy.firstName} ${intake.receivedBy.lastName}` : '',
-        intake.estimatedDamage != null ? String(intake.estimatedDamage) : '',
-        intake.status,
-        intake.stage ? intakeStageLabel(intake.stage, 'th') : '',
-      ]),
-    ];
+      ]);
     const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
     const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -304,12 +243,12 @@ function CasesPageContent() {
         description={d.cases.description}
         actions={
           <>
-            <Button variant="outline" size="sm" disabled={sorted.length + includedOrphanIntakes.length === 0} onClick={exportCsv}>
+            <Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={exportCsv}>
               <Download className="h-4 w-4" />
               {d.common.export}
             </Button>
             <Button size="sm" onClick={() => router.push('/intake/new')}>
-              <Plus className="h-4 w-4" />{d.cases.newIntake}
+              <Plus className="h-4 w-4" />คดีใหม่ก่อนฟ้อง
             </Button>
             {canCreate && (
               <Button variant="outline" size="sm" onClick={() => router.push('/cases/new')}>
@@ -320,64 +259,58 @@ function CasesPageContent() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label={d.cases.queueViewLabel}>
-        <Button
-          type="button"
-          size="sm"
-          variant={intakeOnly ? 'outline' : 'default'}
-          aria-pressed={!intakeOnly}
-          onClick={() => changeQueueView(false)}
-        >
-          {d.cases.allMatters}<span className="ml-2 rounded-full bg-background/20 px-2 py-0.5 text-xs">{cases.length + includedOrphanIntakes.length}</span>
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={intakeOnly ? 'default' : 'outline'}
-          aria-pressed={intakeOnly}
-          onClick={() => changeQueueView(true)}
-        >
-          {d.cases.intakeOnly}<span className="ml-2 rounded-full bg-background/20 px-2 py-0.5 text-xs">{intakeCases.length + visibleOrphanIntakes.length}</span>
-        </Button>
+      <div className="mb-4 grid gap-3 sm:grid-cols-2" aria-label="สรุปคดี">
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="flex items-center gap-3 p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Briefcase aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">คดีทั้งหมด</p>
+              <p className="text-xs text-muted-foreground">ตามตัวกรองปัจจุบัน</p>
+            </div>
+            <p className="text-2xl font-semibold tabular-nums text-foreground" aria-live="polite">{loading ? '—' : cases.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="flex items-center gap-3 p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400">
+              <ClipboardList aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">ก่อนฟ้อง</p>
+              <p className="text-xs text-muted-foreground">กำลังเตรียมเรื่องก่อนยื่นฟ้อง</p>
+            </div>
+            <p className="text-2xl font-semibold tabular-nums text-foreground" aria-live="polite">{loading ? '—' : cases.filter((legalCase) => legalCase.stage === 'PRE_LITIGATION').length}</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {showOrphanIntakes && (intakeOnly || visibleOrphanIntakes.length > 0 || intakesLoading || intakesLoadError) && (
-        <Card className="mb-4">
-          <CardContent className="p-0">
-            <div className="border-b px-4 py-3">
-              <h2 className="flex items-center gap-2 font-semibold">
-                {d.cases.intakeWithoutCase}
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal">{visibleOrphanIntakes.length}</span>
-              </h2>
+      {canManageLegacyIntakes && ((unlinkedIntakeCount ?? 0) > 0 || legacyConversionMessage) && (
+        <Card className="mb-4 border-amber-500/40 bg-amber-500/5">
+          <CardContent className="flex flex-wrap items-center gap-3 p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400">
+              <ClipboardList aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                {unlinkedIntakeCount
+                  ? `มีรายการรับเรื่องเก่าที่ยังไม่มีคดี ${unlinkedIntakeCount} รายการ`
+                  : 'จัดการรายการรับเรื่องเก่า'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                รวมเข้าเป็นคดีก่อนฟ้อง โดยเก็บเอกสารและข้อมูลงานเดิมไว้
+              </p>
+              {legacyConversionMessage && (
+                <p className="mt-1 text-xs text-muted-foreground" aria-live="polite">
+                  {legacyConversionMessage}
+                </p>
+              )}
             </div>
-            {intakesLoadError ? (
-              <div className="p-4"><LoadFailed onRetry={() => setReloadKey((key) => key + 1)} /></div>
-            ) : intakesLoading ? (
-              <div className="p-4"><PageLoading title={d.cases.loading} lines={2} /></div>
-            ) : visibleOrphanIntakes.length === 0 ? (
-              <p className="px-4 py-5 text-sm text-muted-foreground">{d.cases.noLinkedCases}</p>
-            ) : (
-              <ul className="divide-y">
-                {visibleOrphanIntakes.map((intake) => (
-                  <li key={intake.id}>
-                    <Link href={`/intake/${intake.id}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50">
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">
-                          {intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
-                        </span>
-                        <span className="mt-1 block truncate text-sm text-muted-foreground">
-                          {intake.clientName || intake.client?.name || intake.referralName || '—'} · รับเมื่อ {formatDate(intake.receivedDate)}
-                        </span>
-                      </span>
-                      {intake.stage && (
-                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                          {intakeStageLabel(intake.stage, 'th')}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+            {(unlinkedIntakeCount ?? 0) > 0 && (
+              <Button size="sm" disabled={convertingLegacyIntakes} onClick={convertLegacyIntakes}>
+                {convertingLegacyIntakes ? 'กำลังรวมรายการ…' : 'รวมเป็นคดีก่อนฟ้อง'}
+              </Button>
             )}
           </CardContent>
         </Card>
@@ -391,44 +324,38 @@ function CasesPageContent() {
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             className="max-w-xs"
           />
-          {!intakeOnly && (
-            <>
-              <select
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-              >
-                <option value="">{d.cases.allStatuses}</option>
-                {caseStatusOptions(d.caseStatus).map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label="กรองตามขั้นตอนงาน"
-                value={stageFilter}
-                onChange={(e) => { setStageFilter(e.target.value); setPage(0); }}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-              >
-                <option value="">ทุกขั้นตอน</option>
-                {caseStageOptions('th').map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <select
-                aria-label="กรองตามทนาย"
-                value={lawyerFilter}
-                onChange={(e) => { setLawyerFilter(e.target.value); setPage(0); }}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-              >
-                <option value="">ทุกคน</option>
-                {lawyers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                ))}
-              </select>
-            </>
-          )}
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            <option value="">{d.cases.allStatuses}</option>
+            {caseStatusOptions(d.caseStatus).map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <select
+            aria-label="กรองตามขั้นตอนงาน"
+            value={stageFilter}
+            onChange={(e) => { setStageFilter(e.target.value); setPage(0); }}
+            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            <option value="">ทุกขั้นตอน</option>
+            {caseStageOptions('th').map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <select
+            aria-label="กรองตามทนาย"
+            value={lawyerFilter}
+            onChange={(e) => { setLawyerFilter(e.target.value); setPage(0); }}
+            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+          >
+            <option value="">ทุกคน</option>
+            {lawyers.map((u) => (
+              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+            ))}
+          </select>
           <details className="group relative ml-auto max-md:hidden">
             <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
               <Columns3 className="h-4 w-4" /> คอลัมน์
@@ -475,19 +402,24 @@ function CasesPageContent() {
       )}
 
       <Card>
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Briefcase aria-hidden="true" className="h-4 w-4 text-primary" />
+            <h2 className="font-semibold">{stageFilter === 'PRE_LITIGATION' ? 'คดีก่อนฟ้อง' : 'คดีทั้งหมด'}</h2>
+          </div>
+          <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{sorted.length}</span>
+        </div>
         <CardContent className="p-0">
           {loadError ? (
             <div className="p-4"><LoadFailed onRetry={() => setReloadKey((k) => k + 1)} /></div>
-          ) : loading || (intakeOnly && intakesLoading) ? (
+          ) : loading ? (
             <div className="p-4"><PageLoading title={d.cases.loading} lines={3} /></div>
           ) : paginated.length === 0 ? (
             <EmptyState
-              icon={intakeOnly ? ClipboardList : Briefcase}
-              title={intakeOnly ? d.cases.noLinkedCases : visibleOrphanIntakes.length ? d.cases.noCasesYet : d.cases.empty}
+              icon={Briefcase}
+              title={d.cases.empty}
               description={d.cases.emptyHint}
-              action={intakeOnly
-                ? <Button onClick={() => router.push('/intake/new')}>{d.cases.newIntake}</Button>
-                : canCreate && <Button onClick={() => router.push('/cases/new')}>{d.cases.newCase}</Button>}
+              action={canCreate && <Button onClick={() => router.push('/intake/new')}>คดีใหม่ก่อนฟ้อง</Button>}
             />
           ) : (
             <>

@@ -596,7 +596,7 @@ export interface TaskPerson {
 export interface TaskItem {
   id: string;
   caseId?: string | null;
-  case?: { id: string; ownRef: string; title: string } | null;
+  case?: { id: string; ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null } | null;
   parentId?: string | null;
   title: string;
   description?: string | null;
@@ -986,7 +986,7 @@ export interface ResearchFact {
 }
 export interface IntakePrecedentAnalysisItem {
   // Suggestions are proposals with source quotes, never automatically applied.
-  extractedFacts?: { description?: string; caseSummary?: boolean; summaryOnly?: boolean; factsOnly?: boolean; factItems?: ResearchFact[]; suggestions?: Array<{ field: string; value: string; quote: string }>; completedTasks?: Array<{ taskId: string; title: string; quote: string }>; selectedAttachments?: Array<{ id: string; filename: string; version?: number }>; attachmentWarnings?: string[] };
+  extractedFacts?: { description?: string; caseSummary?: boolean; summaryOnly?: boolean; factsOnly?: boolean; factItems?: ResearchFact[]; suggestions?: Array<{ field: string; value: string; quote: string }>; completedTasks?: Array<{ taskId: string; title: string; quote: string }>; selectedAttachments?: Array<{ id: string; filename: string; version?: number }>; attachmentWarnings?: string[]; precedentWarning?: string };
   id: string;
   status: 'PENDING' | 'COMPLETE' | 'FAILED';
   precedents: IntakePrecedentItem[];
@@ -1068,6 +1068,14 @@ export interface CaseOutstandingResult {
   upcomingEvents: Array<{ id: string; title: string; startAt: string; type: string }>;
   unapprovedDocuments: Array<{ id: string; filename: string; category: string }>;
   total: number;
+}
+
+function announceDocumentUpload(scope: 'case' | 'intake', scopeId: string, document: DocumentItem) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('jev:document-uploaded', {
+      detail: { scope, scopeId, documentId: document.id, filename: document.filename },
+    }));
+  }
 }
 
 export const api = {
@@ -1594,7 +1602,7 @@ export const api = {
   deleteIntakeTask: (token: string, intakeId: string, taskId: string) =>
     request(`/intake/${intakeId}/tasks/${taskId}`, { method: 'DELETE', token }),
 
-  getTaskInbox: (token: string) => request<Array<TaskItem & { assigneeId: string | null; case: { id: string; ownRef: string; title: string } | null }>>('/dashboard/tasks', { token }),
+  getTaskInbox: (token: string) => request<Array<TaskItem & { assigneeId: string | null }>>('/dashboard/tasks', { token }),
   getMyTodos: (token: string) => request<TaskItem[]>('/todos', { token }),
 
   getActionQueue: (token: string) => request<import('@/components/agenda/ActionCenter').ActionQueue>('/agenda/actions', { token }),
@@ -2205,6 +2213,9 @@ export const api = {
       method: 'POST',
       token,
       body: form,
+    }).then((document) => {
+      announceDocumentUpload('case', caseId, document);
+      return document;
     });
   },
 
@@ -2216,6 +2227,9 @@ export const api = {
       method: 'POST',
       token,
       body: form,
+    }).then((document) => {
+      announceDocumentUpload('case', caseId, document);
+      return document;
     });
   },
 
@@ -2229,8 +2243,16 @@ export const api = {
       method: 'POST',
       token,
       body: form,
+    }).then((document) => {
+      announceDocumentUpload('intake', intakeId, document);
+      return document;
     });
   },
+
+  updateIntakeDocumentCategory: (token: string, intakeId: string, documentId: string, category: string) =>
+    request<DocumentItem>(`/intake/${intakeId}/documents/${documentId}/metadata`, {
+      method: 'PATCH', token, body: JSON.stringify({ category }),
+    }),
 
   classifyIntakeChecklist: (
     token: string,
@@ -2246,6 +2268,13 @@ export const api = {
         body: JSON.stringify({ documentIds, labels }),
       },
     ),
+
+  classifyCaseChecklist: (token: string, caseId: string, documentIds: string[], labels: string[]) =>
+    request<ChecklistClassificationSuggestion[]>(`/cases/${caseId}/documents/classify-checklist`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ documentIds, labels }),
+    }),
 
   downloadIntakeDocument: (token: string, intakeId: string, documentId: string, version?: number) => {
     const qs = version ? `?version=${version}` : '';
@@ -2379,6 +2408,15 @@ export const api = {
       { token },
     );
   },
+
+  getUnlinkedIntakeCount: (token: string) =>
+    request<{ count: number }>('/intake/unlinked/count', { token }),
+
+  convertUnlinkedIntakes: (token: string) =>
+    request<{ converted: number; failed: number; remaining: number }>('/intake/convert-unlinked', {
+      method: 'POST',
+      token,
+    }),
 
   getIntake: (token: string, id: string) =>
     request<IntakeItem>(`/intake/${id}`, { token }),

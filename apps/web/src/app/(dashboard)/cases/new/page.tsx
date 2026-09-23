@@ -46,6 +46,8 @@ import {
   CASE_NUMBER_REGEX,
   FEE_MAX,
   FEE_MIN,
+  CARGO_CLAIM_PLAYBOOK_KEY,
+  CARGO_CLAIM_PLAYBOOK_NAME,
 } from '@lawfirm/shared';
 
 export default function NewCasePage() {
@@ -561,48 +563,45 @@ export default function NewCasePage() {
                 )}
               </section>
 
-              <section className="space-y-4 border-t border-border pt-5" aria-label="Cargo Claim">
-                <label className="flex items-start gap-3 rounded-xl border border-primary/15 bg-primary/[0.035] p-4">
-                  <Checkbox
-                    className="mt-0.5"
-                    checked={cargoClaimEnabled}
-                    onChange={(event) => setCargoClaimEnabled(event.target.checked)}
-                  />
-                  <span>
-                    <span className="block text-sm font-semibold">คดีเรียกร้องค่าสินค้าจากการขนส่ง (Cargo Claim)</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">ใช้ Cargo Claim Assessment Playbook รุ่นล่าสุด พร้อม checklist เอกสารและพื้นที่วิเคราะห์ Liability / Time Bar โดยไม่ต้องผ่าน Intake</span>
-                  </span>
+              <section className="space-y-3 border-t border-border pt-5" aria-label="มาตรฐานงานอัตโนมัติ">
+                <div>
+                  <h3 className="text-sm font-semibold">มาตรฐานงานอัตโนมัติ</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">เลือกมาตรฐานที่ต้องการ หรือไม่เลือกก็ได้ ระบบจะเตรียมงานให้หลังเปิดคดี</p>
+                </div>
+                <label className="block text-sm font-medium" htmlFor="new-case-playbook">
+                  ต้องการใช้มาตรฐานแบบไหน?
                 </label>
+                <select
+                  id="new-case-playbook"
+                  className="h-11 w-full rounded-lg border bg-background px-3 text-sm sm:max-w-xl"
+                  value={cargoClaimEnabled ? CARGO_CLAIM_PLAYBOOK_KEY : playbookId}
+                  onChange={(event) => {
+                    const selected = event.target.value;
+                    const isCargoClaim = selected === CARGO_CLAIM_PLAYBOOK_KEY;
+                    setCargoClaimEnabled(isCargoClaim);
+                    setPlaybookId(isCargoClaim ? '' : selected);
+                  }}
+                >
+                  <option value="">ไม่ใช้มาตรฐานอัตโนมัติ</option>
+                  <option value={CARGO_CLAIM_PLAYBOOK_KEY}>{CARGO_CLAIM_PLAYBOOK_NAME} · รุ่นล่าสุด</option>
+                  {playbooks.filter((playbook) => playbook.templateKey !== CARGO_CLAIM_PLAYBOOK_KEY).map((playbook) => (
+                    <option key={playbook.id} value={playbook.id}>
+                      {playbook.name} · v{playbook.version}
+                      {playbook.caseTypeId === form.caseTypeId ? ' (แนะนำ)' : ''}
+                    </option>
+                  ))}
+                </select>
                 {cargoClaimEnabled && (
-                  <div className="rounded-xl border bg-muted/20 p-4">
-                    <CargoClaimFields value={cargoClaim} onChange={setCargoClaim} />
-                  </div>
+                  <>
+                    <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-primary">
+                      ระบบจะผูก Cargo Claim Assessment Playbook รุ่นล่าสุด พร้อม checklist เอกสารและพื้นที่วิเคราะห์ Liability / Time Bar โดยไม่ต้องผ่าน Intake
+                    </p>
+                    <div className="rounded-xl border bg-muted/20 p-4">
+                      <CargoClaimFields value={cargoClaim} onChange={setCargoClaim} />
+                    </div>
+                  </>
                 )}
               </section>
-
-              {cargoClaimEnabled && <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-primary">ระบบจะผูก Cargo Claim Playbook และสร้างงานมาตรฐานให้อัตโนมัติหลังเปิดคดี</p>}
-
-              {playbooks.length > 0 && !cargoClaimEnabled && (
-                <section className="space-y-2 border-t border-border pt-5" aria-label="Playbook">
-                  <label className="block text-sm font-medium" htmlFor="new-case-playbook">
-                    Playbook (ถ้ามี — สร้างงานให้อัตโนมัติหลังเปิดคดี)
-                  </label>
-                  <select
-                    id="new-case-playbook"
-                    className="h-11 w-full rounded-lg border bg-background px-3 text-sm sm:w-96"
-                    value={playbookId}
-                    onChange={(e) => setPlaybookId(e.target.value)}
-                  >
-                    <option value="">— ไม่ใช้ Playbook —</option>
-                    {playbooks.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} · v{p.version}
-                        {p.caseTypeId === form.caseTypeId ? ' (แนะนำ)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </section>
-              )}
 
               <section className="space-y-4 border-t border-border pt-5" aria-label="ลูกค้า ลูกความ และชื่อคดี">
                 <div className="flex items-center gap-2">

@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Gavel, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { DeadlineTrigger } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, CalendarEventItem, CaseItem, UserItem } from '@/lib/api';
@@ -122,8 +122,12 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold tracking-tight text-foreground">{d.caseCalendar.title}</h2>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
+        <div>
+          <h2 className="font-semibold tracking-tight text-foreground">{d.caseCalendar.title}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">นัด เหตุการณ์ และกำหนดติดตามในมุมมองเดียว</p>
+        </div>
+        <div className="flex items-center gap-2">
         <div role="group" aria-label={d.caseCalendar.title} className="flex rounded-md border border-border p-0.5">
           {(['timeline', 'calendar'] as const).map((v) => (
             <button
@@ -145,13 +149,31 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
           <Plus className="h-4 w-4" />
           {d.calendar.addEventForCase}
         </Button>
+        </div>
       </div>
 
-      <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
-        <h3 className="flex items-center gap-2 font-semibold text-foreground">
-          <Gavel className="size-4 text-muted-foreground" aria-hidden />
-          {d.dateSuggestions.applyTrigger}
-        </h3>
+      {loadError ? (
+        <div className="rounded-xl border bg-card p-6 shadow-soft">
+          <p role="alert" className="text-sm text-destructive">{loadError}</p>
+          <Button size="sm" variant="outline" className="mt-3" onClick={() => setReloadKey((n) => n + 1)}>
+            {d.common.retry}
+          </Button>
+        </div>
+      ) : view === 'timeline' ? (
+        <CaseTimelineView events={events} onEventClick={(event) => setDialog({ event })} />
+      ) : (
+        <CalendarView
+          events={events}
+          month={month}
+          onMonthChange={setMonth}
+          onDayClick={(date) => setDialog({ event: null, defaultDate: date })}
+          onEventClick={(ev) => setDialog({ event: events.find((e) => e.id === ev.id) ?? null })}
+        />
+      )}
+
+      <details className="mt-4 rounded-xl border bg-card px-4 py-3">
+        <summary className="cursor-pointer text-sm font-medium text-foreground">{d.dateSuggestions.applyTrigger}</summary>
+        <div className="pt-3">
         <p className="mb-3 mt-1 text-sm text-muted-foreground">{d.dateSuggestions.applyTriggerHint}</p>
 
         <form onSubmit={handleApply} className="flex flex-wrap items-end gap-3">
@@ -188,7 +210,8 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
 
         {notice && <p className="mt-3 text-sm text-muted-foreground">{notice}</p>}
         {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-      </div>
+        </div>
+      </details>
 
       <DateSuggestionsPanel
         caseId={caseId}
@@ -196,33 +219,6 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
         title={d.dateSuggestions.ruleTitle}
         reloadKey={suggestionsKey}
       />
-
-      {loadError ? (
-        <div className="rounded-xl border bg-card p-6 shadow-soft">
-          <p role="alert" className="text-sm text-destructive">{loadError}</p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-3"
-            onClick={() => setReloadKey((n) => n + 1)}
-          >
-            {d.common.retry}
-          </Button>
-        </div>
-      ) : view === 'timeline' ? (
-        <CaseTimelineView
-          events={events}
-          onEventClick={(event) => setDialog({ event })}
-        />
-      ) : (
-        <CalendarView
-          events={events}
-          month={month}
-          onMonthChange={setMonth}
-          onDayClick={(date) => setDialog({ event: null, defaultDate: date })}
-          onEventClick={(ev) => setDialog({ event: events.find((e) => e.id === ev.id) ?? null })}
-        />
-      )}
 
       {dialog && (
         <CalendarEventDialog

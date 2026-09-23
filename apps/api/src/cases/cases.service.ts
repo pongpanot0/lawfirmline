@@ -336,6 +336,7 @@ export class CasesService {
         folderId: this.generateFolderId(),
         title: dto.title,
         description: dto.description,
+        stage: CaseStage.PRE_LITIGATION,
         clientId: dto.clientId,
         clientName: dto.clientName,
         partyRole: dto.partyRole as any,

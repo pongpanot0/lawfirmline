@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { IntakeService } from './intake.service';
+import { Role } from '@lawfirm/shared';
 import {
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -35,6 +36,7 @@ import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { RequireCredits } from '../common/decorators/require-credits.decorator';
 import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.interceptor';
 import { AuthUser } from '@lawfirm/shared';
@@ -61,6 +63,18 @@ export class IntakeController {
   @UseInterceptors(AiCreditsInterceptor)
   research(@CurrentUser() user: AuthUser, @Body() dto: ResearchDto) {
     return this.precedentAnalysisService.research(user, dto.text, dto.intakeId, dto.attachmentIds, false, dto.caseId);
+  }
+
+  @Get('unlinked/count')
+  @Roles(Role.ADMIN)
+  countUnlinked(@CurrentUser() user: AuthUser) {
+    return this.intakeService.countUnlinked(user);
+  }
+
+  @Post('convert-unlinked')
+  @Roles(Role.ADMIN)
+  convertUnlinked(@CurrentUser() user: AuthUser) {
+    return this.intakeService.convertUnlinked(user);
   }
 
   @Post('research/facts')

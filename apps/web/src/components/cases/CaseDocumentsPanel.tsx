@@ -2,15 +2,14 @@
 
 import { CaseKnowledgePanel } from '@/components/documents/CaseKnowledgePanel';
 import { CaseEvidenceSection } from '@/components/cases/CaseEvidenceSection';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Upload, Eye, Download, Sparkles, CalendarSearch, ClipboardCheck } from 'lucide-react';
+import { Eye, Download, Sparkles, CalendarSearch, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry } from '@/lib/api';
 import { PublishDocumentDialog } from '@/components/documents/PublishDocumentDialog';
-import { DocumentDropZone, DocumentDropZoneHandle } from '@/components/DocumentDropZone';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
-import { Button } from '@/components/ui/button';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -33,10 +32,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [rendered, setRendered] = useState<{ name: string; content: string } | null>(null);
   const [error, setError] = useState('');
-  /** หมวดที่จะติดให้ไฟล์ถัดไปที่อัปโหลด และหมวดที่กำลังกรองอยู่ */
-  const [uploadCategory, setUploadCategory] = useState('OTHER');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const dropRef = useRef<DocumentDropZoneHandle>(null);
   const [suggestionsKey, setSuggestionsKey] = useState(0);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -157,7 +153,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
     setUploading(true);
     setError('');
     try {
-      await api.uploadDocument(token, id, file, { category: uploadCategory });
+      await api.uploadDocument(token, id, file);
       load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : d.caseDocuments.uploadFailed);
@@ -300,22 +296,9 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
 
       <div className="rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{fmt(d.caseDocuments.filesCount, { count: documents.length })}</h2>
-        {/* หมวดติดตอนอัปโหลด — ถามทีหลังคือไม่มีใครกลับมาตอบ */}
-        <label className="mb-3 block text-sm">
-          <span className="mb-1 block font-medium text-muted-foreground">หมวดของไฟล์ที่จะอัปโหลด</span>
-          <select
-            value={uploadCategory}
-            onChange={(e) => setUploadCategory(e.target.value)}
-            className="h-9 w-full max-w-xs rounded-lg border border-input bg-card px-3 text-sm"
-          >
-            {DOCUMENT_CATEGORY_VALUES.map((value) => (
-              <option key={value} value={value}>{documentCategoryLabel(value, 'th')}</option>
-            ))}
-          </select>
-        </label>
+        <p className="mb-3 text-sm text-muted-foreground">อัปโหลดก่อน แล้วให้ Jev เสนอหมวดเอกสารพร้อมข้อความอ้างอิงเพื่อให้ทนายตรวจ</p>
         <div className="mb-4">
           <DocumentDropZone
-            ref={dropRef}
             onFile={handleUpload}
             loading={uploading}
             loadingLabel={d.caseDocuments.uploading}
@@ -441,13 +424,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
           {documents.length === 0 && (
             <InlineEmptyState
               title={d.caseDocuments.noDocuments}
-              description="อัปโหลดไฟล์แรกของคดีนี้ หรือใช้ AI วิเคราะห์ไฟล์หลังอัปโหลด"
-              action={
-                <Button type="button" size="sm" onClick={() => dropRef.current?.open()}>
-                  <Upload className="h-4 w-4" />
-                  {d.caseDocuments.uploadDocument}
-                </Button>
-              }
+              description="ลากไฟล์มาวางในช่องด้านบน หรือคลิกช่องอัปโหลดเพื่อเลือกไฟล์ แล้วจึงใช้ AI วิเคราะห์ได้"
             />
           )}
         </div>

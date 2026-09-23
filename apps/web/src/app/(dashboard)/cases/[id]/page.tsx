@@ -1033,7 +1033,7 @@ export default function CaseDetailPage() {
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+            <CardContent className="grid grid-cols-1 gap-x-8 gap-y-6 text-sm sm:grid-cols-2">
               {editingOverview ? (
                 <CaseOverviewForm
                   value={overviewForm}
@@ -1083,14 +1083,14 @@ export default function CaseDetailPage() {
                     <p className="text-xs text-muted-foreground">ศาล</p>
                     <p className="font-medium">{legalCase.courtName ?? '—'}</p>
                   </div>
-                  <div className="col-span-full border-t border-border pt-4">
+                  <div className="col-span-full border-t border-border pt-6">
                     <CaseParticipantsSection
                       caseId={legalCase.id}
                       initialParticipants={legalCase.participants}
                       onChanged={(participants) => setCase(current => current ? { ...current, participants } : current)}
                     />
                   </div>
-                  <div className="col-span-full rounded-lg border border-border bg-muted/30 p-3">
+                  <div className="col-span-full rounded-lg border border-border bg-muted/30 p-4">
                     <p className="text-xs text-muted-foreground">ข้อหาหรือฐานความผิด</p>
                     <p className="mt-1 whitespace-pre-wrap font-medium">{chargeSection || 'ยังไม่ระบุ'}</p>
                     {!chargeSection && <Button variant="link" className="mt-1 h-auto p-0" onClick={startEditOverview}>เพิ่มข้อหาหรือฐานความผิด</Button>}
@@ -1127,7 +1127,7 @@ export default function CaseDetailPage() {
                     <p className="text-xs text-muted-foreground">ลูกค้า (ผู้ว่าจ้าง)</p>
                     <p className="font-medium">{customerDisplay ?? '—'}</p>
                   </div>
-              <div className="col-span-full rounded-lg border border-border bg-muted/30 p-3">
+              <div className="col-span-full rounded-lg border border-border bg-muted/30 p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground">ทีมของคดี</p>
                   {!editingTeam && user?.firmRole === FirmRole.OWNER && (
@@ -1140,14 +1140,14 @@ export default function CaseDetailPage() {
 
                 {!editingTeam ? (
                   <>
-                    <div className="mt-2">
+                    <div className="mt-3 space-y-1">
                       <p className="text-xs text-muted-foreground">ทนายผู้รับผิดชอบ</p>
                       <p className="font-medium">
                         {legalCase.leadLawyer.firstName} {legalCase.leadLawyer.lastName}
                       </p>
                     </div>
                     {legalCase.assignments.length > 0 && (
-                      <div className="mt-2">
+                      <div className="mt-3 space-y-1">
                         <p className="text-xs text-muted-foreground">ทนายผู้ช่วย</p>
                         <p className="font-medium">
                           {legalCase.assignments
@@ -1158,7 +1158,7 @@ export default function CaseDetailPage() {
                     )}
                   </>
                 ) : (
-                  <div className="mt-2 space-y-3">
+                  <div className="mt-3 space-y-4">
                     <div>
                       <label className="block text-xs font-medium text-muted-foreground">
                         ทนายผู้รับผิดชอบ

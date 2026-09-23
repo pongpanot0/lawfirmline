@@ -3,7 +3,7 @@ import { CASE_STAGE_ORDER, CaseStage, INTAKE_STAGE_ORDER, IntakeStage } from '@l
 type Locale = 'th' | 'en';
 
 const CASE_STAGE_TH: Record<CaseStage, string> = {
-  [CaseStage.INTAKE_REVIEW]: 'รับเรื่อง',
+  [CaseStage.INTAKE_REVIEW]: 'ก่อนฟ้อง',
   [CaseStage.FACT_GATHERING]: 'รวบรวมข้อเท็จจริง',
   [CaseStage.PRE_LITIGATION]: 'ก่อนฟ้อง',
   [CaseStage.FILING]: 'ยื่นฟ้อง',
@@ -18,7 +18,7 @@ const CASE_STAGE_TH: Record<CaseStage, string> = {
 };
 
 const CASE_STAGE_EN: Record<CaseStage, string> = {
-  [CaseStage.INTAKE_REVIEW]: 'Intake review',
+  [CaseStage.INTAKE_REVIEW]: 'Pre-litigation',
   [CaseStage.FACT_GATHERING]: 'Fact gathering',
   [CaseStage.PRE_LITIGATION]: 'Pre-litigation',
   [CaseStage.FILING]: 'Filing',

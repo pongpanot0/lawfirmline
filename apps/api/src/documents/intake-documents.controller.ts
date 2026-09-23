@@ -15,13 +15,15 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { DocumentsService } from './documents.service';
+import { DocumentMetadataDto } from './dto/document-metadata.dto';
 import { UpdateDocumentVisibilityDto } from './dto/update-visibility.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
-import { AuthUser } from '@lawfirm/shared';
+import { AuthUser, Role } from '@lawfirm/shared';
 import { FileStorageService } from '../common/services/file-storage.service';
 
 @Controller('intake/:intakeId/documents')
@@ -66,6 +68,18 @@ export class IntakeDocumentsController {
     @Body() dto: UpdateDocumentVisibilityDto,
   ) {
     return this.documentsService.updateVisibilityForIntake(user, intakeId, documentId, dto.visibleToClient);
+  }
+
+  @Patch(':documentId/metadata')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  updateMetadata(
+    @CurrentUser() user: AuthUser,
+    @Param('intakeId') intakeId: string,
+    @Param('documentId') documentId: string,
+    @Body() dto: DocumentMetadataDto,
+  ) {
+    return this.documentsService.updateMetadataForIntake(user, intakeId, documentId, dto);
   }
 
   @Delete(':documentId')

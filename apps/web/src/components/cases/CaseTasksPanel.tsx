@@ -145,9 +145,11 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
 
   return (
     <div>
-      <CasePlaybook caseId={caseId} onApplied={loadTasks} />
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-xl font-bold tracking-tight text-foreground">{d.caseTasks.title}</h2>
+      <div className="mb-3 flex items-center justify-between rounded-xl border bg-card px-4 py-3">
+        <div>
+          <h2 className="font-semibold tracking-tight text-foreground">{d.caseTasks.title}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">งานที่สร้างและมอบหมายในคดีนี้</p>
+        </div>
         <div className="flex items-center gap-2">
           <TaskViewToggle layout={layout} onChange={setLayout} />
           <Button size="sm" onClick={() => setShowForm(!showForm)}>
@@ -156,6 +158,11 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
           </Button>
         </div>
       </div>
+
+      <details className="mb-4 rounded-xl border bg-card px-4 py-3">
+        <summary className="cursor-pointer text-sm font-medium text-foreground">Playbook เป็นแนวทาง · เลือกเพื่อเพิ่มงานเอง</summary>
+        <div className="pt-3"><CasePlaybook caseId={caseId} onApplied={loadTasks} /></div>
+      </details>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 

@@ -229,9 +229,9 @@ export default function NewIntakePage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl pb-20">
-      <h1 className="mb-1 text-2xl font-bold">รับเรื่องใหม่</h1>
+      <h1 className="mb-1 text-2xl font-bold">คดีใหม่ก่อนฟ้อง</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        กรอกเท่าที่รู้ — บันทึกแล้วได้ workspace เต็ม (งานจาก playbook, checklist เอกสาร, ทีม) เติมที่เหลือทีหลังได้
+        เริ่มคดีตั้งแต่รับเรื่อง — กรอกเท่าที่รู้ แล้วเติมรายละเอียด งาน และเอกสารในพื้นที่คดีภายหลังได้
       </p>
 
       <form onSubmit={handleSubmit}>

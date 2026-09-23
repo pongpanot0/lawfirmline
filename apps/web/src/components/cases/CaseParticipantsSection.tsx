@@ -182,7 +182,7 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
           </Button>
         )}
       </div>
-      <div className="mt-2 space-y-4">
+      <div className="mt-5 space-y-5">
         {showForm && (
           <form
             onSubmit={handleSubmit}
@@ -369,7 +369,7 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
         )}
 
         {allEmpty && !showForm && (
-          <p className="text-sm text-muted-foreground">ยังไม่มีคู่ความ กด "เพิ่มคู่ความ" เพื่อเพิ่มรายชื่อ</p>
+          <p className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">ยังไม่มีคู่ความ กด “เพิ่มคู่ความ” เพื่อเพิ่มรายชื่อ</p>
         )}
 
         {grouped.map(({ side, items }) => (

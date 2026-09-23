@@ -293,7 +293,7 @@ export class TasksService {
       },
       include: {
         ...this.boardInclude,
-        case: { select: { id: true, ownRef: true, title: true } },
+        case: { select: { id: true, ownRef: true, title: true, blackCaseNumber: true, redCaseNumber: true } },
       },
       orderBy: { createdAt: 'desc' },
     });

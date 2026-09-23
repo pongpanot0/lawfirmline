@@ -33,18 +33,18 @@ describe('research workspace', () => {
     const { service, prisma } = setup();
     const quote = 'ยื่นคำให้การต่อศาลแพ่งเรียบร้อยแล้ว';
     (prisma.case.findFirst as jest.Mock).mockResolvedValue({ description: quote, tasks: [{ id: 't1', title: 'ยื่นคำให้การ', status: 'TODO' }, { id: 't2', title: 'งานเดิม', status: 'DONE' }] });
-    (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ documentSummary: quote, factsList: [quote], timeline: [], suggestions: [{ field: 'courtName', value: 'ศาลแพ่ง', quote }, { field: 'leadLawyerId', value: 'foreign', quote }, { field: 'claimedAmount', value: '100', quote: 'ข้อความที่ไม่มีจริงในคดี' }], completedTasks: [{ taskId: 't1', quote }, { taskId: 't2', quote }, { taskId: 'foreign', quote }, { taskId: 't1', quote: 'ไม่มีหลักฐาน' }] }) } }] }) });
+    (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: 'คำค้นฎีกาที่เกี่ยวข้อง' } }] }) }).mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ documentSummary: quote, factsList: [quote], timeline: [], suggestions: [{ field: 'courtName', value: 'ศาลแพ่ง', quote }, { field: 'leadLawyerId', value: 'foreign', quote }, { field: 'claimedAmount', value: '100', quote: 'ข้อความที่ไม่มีจริงในคดี' }], completedTasks: [{ taskId: 't1', quote }, { taskId: 't2', quote }, { taskId: 'foreign', quote }, { taskId: 't1', quote: 'ไม่มีหลักฐาน' }] }) } }] }) });
     const result = await service.summarizeCase(user, 'case1');
     expect(result.extractedFacts).toMatchObject({ suggestions: [{ field: 'courtName', value: 'ศาลแพ่ง', quote }], completedTasks: [{ taskId: 't1', title: 'ยื่นคำให้การ', quote }] });
     expect(result.factsList).toEqual([quote]);
   });
-  it('summarizes case records without requiring a document or calling precedent search', async () => {
+  it('summarizes case records and searches related precedents without requiring a document', async () => {
     const { service, iapp } = setup();
     const result = await service.summarizeCase(user, 'case1');
     const prompt = JSON.stringify((fetch as jest.Mock).mock.calls);
     for (const value of ['ข้อเท็จจริงจากทีม', 'คู่ความทดสอบ', 'เตรียมคำให้การ', 'นัดไกล่เกลี่ย', 'ส่งหลักฐานแล้ว']) expect(prompt).toContain(value);
     expect(result).toMatchObject({ caseId: 'case1', firmId: 'f1', extractedFacts: { caseSummary: true, summaryOnly: true, selectedAttachments: [] } });
-    expect(iapp.searchPrecedents).not.toHaveBeenCalled();
+    expect(iapp.searchPrecedents).toHaveBeenCalledWith('สิทธิไล่เบี้ย', { topK: 5 });
   });
   it('combines case records with documents and records unread and truncated sources', async () => {
     const { service, prisma } = setup();

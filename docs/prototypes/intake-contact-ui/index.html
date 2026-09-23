@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Intake contact creation prototype</title>
+    <style>
+      :root {
+        --canvas: #f7f8fb;
+        --surface: #ffffff;
+        --surface-subtle: #f8faff;
+        --ink: #172033;
+        --muted: #697386;
+        --border: #dfe4ec;
+        --border-strong: #c9d2df;
+        --primary: #2157d8;
+        --primary-soft: #edf3ff;
+        --success: #067647;
+        --success-soft: #ecfdf3;
+        --danger: #b42318;
+        --shadow: 0 12px 36px rgba(33, 43, 54, 0.08);
+        --radius: 16px;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background: var(--canvas);
+        font-family: "Noto Sans Thai", "Leelawadee UI", Tahoma, sans-serif;
+        font-size: 14px;
+      }
+
+      button, input, select { font: inherit; }
+
+      button, select, input { outline: none; }
+
+      button:focus-visible,
+      select:focus-visible,
+      input:focus-visible {
+        box-shadow: 0 0 0 3px rgba(33, 87, 216, 0.18);
+      }
+
+      .prototype-ribbon {
+        position: fixed;
+        inset: 14px auto auto 14px;
+        z-index: 60;
+        border: 1px solid #c8d6fb;
+        border-radius: 999px;
+        background: rgba(237, 243, 255, 0.94);
+        color: #1948b5;
+        padding: 7px 11px;
+        font: 700 10px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        backdrop-filter: blur(8px);
+      }
+
+      .shell {
+        width: min(940px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 52px 0 130px;
+      }
+
+      .page-head { margin-bottom: 24px; }
+      .eyebrow {
+        color: var(--primary);
+        font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      h1 { margin: 10px 0 4px; font-size: 27px; line-height: 1.25; letter-spacing: -0.02em; }
+      .page-head p { margin: 0; color: var(--muted); }
+
+      .summary-strip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 16px;
+        border-left: 3px solid var(--primary);
+        color: #465169;
+        padding-left: 12px;
+        font-size: 12px;
+      }
+      .summary-strip .dot { color: #a3adbd; }
+
+      .card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+      }
+
+      .card-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 20px;
+        padding: 19px 0 13px;
+        border-bottom: 1px solid var(--border);
+      }
+      .step {
+        color: var(--primary);
+        font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .card-head h2 { margin: 0; font-size: 15px; }
+
+      .card-body { padding: 20px; }
+      .label-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 7px;
+      }
+      .label { font-weight: 700; font-size: 13px; }
+      .hint { color: var(--muted); font-weight: 400; }
+      .row {
+        display: grid;
+        grid-template-columns: minmax(230px, 1fr) minmax(250px, 1.15fr);
+        gap: 12px;
+        align-items: end;
+      }
+      .control-with-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+
+      select, input {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid var(--border-strong);
+        border-radius: 9px;
+        background: #fff;
+        color: var(--ink);
+        padding: 9px 12px;
+        transition: border-color 140ms ease, box-shadow 140ms ease;
+      }
+      select:focus, input:focus { border-color: var(--primary); }
+
+      .btn {
+        display: inline-flex;
+        min-height: 42px;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--ink);
+        padding: 9px 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+      }
+      .btn:hover { transform: translateY(-1px); }
+      .btn-primary { background: var(--primary); color: #fff; }
+      .btn-outline { border-color: var(--border-strong); background: #fff; }
+      .btn-contact { color: var(--primary); border-color: #b9caf4; background: var(--primary-soft); white-space: nowrap; }
+      .btn-quiet { color: var(--muted); }
+
+      .under-actions {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-top: 10px;
+        color: var(--primary);
+        font-size: 13px;
+      }
+      .text-action { border: 0; padding: 0; color: var(--primary); background: none; cursor: pointer; }
+      .check { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); }
+      .check input { width: 16px; min-height: 16px; }
+
+      .divider { height: 1px; margin: 20px 0; background: var(--border); }
+      .client-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .add-slot {
+        min-height: 42px;
+        border: 1px dashed var(--border-strong);
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        color: #8a94a6;
+      }
+
+      .contact-editor {
+        margin-top: 14px;
+        border: 1px solid #bdd0ff;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #f8faff 0%, #fff 62%);
+        padding: 16px;
+        animation: reveal 180ms ease-out;
+      }
+      @keyframes reveal {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .editor-head { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+      .editor-head h3 { margin: 0; font-size: 14px; }
+      .editor-head p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+      .editor-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 12px; }
+      .field label { display: block; margin-bottom: 5px; color: #3f4a60; font-size: 12px; font-weight: 700; }
+      .field-wide { grid-column: 1 / -1; }
+      .editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+      .error { min-height: 18px; margin: 5px 0 -4px; color: var(--danger); font-size: 11px; }
+
+      .footer-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 9px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+      }
+
+      .toast {
+        position: fixed;
+        right: 22px;
+        top: 22px;
+        z-index: 80;
+        display: none;
+        align-items: center;
+        gap: 9px;
+        border: 1px solid #a6f4c5;
+        border-radius: 10px;
+        background: var(--success-soft);
+        color: var(--success);
+        box-shadow: var(--shadow);
+        padding: 11px 14px;
+        font-weight: 700;
+      }
+      .toast.show { display: flex; animation: reveal 180ms ease-out; }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: none;
+        place-items: center;
+        background: rgba(23, 32, 51, 0.34);
+        padding: 18px;
+        backdrop-filter: blur(2px);
+      }
+      .overlay.open { display: grid; }
+      .modal {
+        width: min(560px, 100%);
+        border-radius: 15px;
+        background: #fff;
+        box-shadow: 0 24px 70px rgba(23, 32, 51, 0.22);
+        padding: 20px;
+      }
+
+      .drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 49;
+        display: none;
+        background: rgba(23, 32, 51, 0.24);
+      }
+      .drawer-backdrop.open { display: block; }
+      .drawer {
+        position: fixed;
+        z-index: 55;
+        inset: 0 0 0 auto;
+        width: min(440px, 94vw);
+        transform: translateX(102%);
+        background: #fff;
+        box-shadow: -18px 0 55px rgba(23, 32, 51, 0.16);
+        padding: 24px;
+        transition: transform 200ms ease;
+      }
+      .drawer.open { transform: translateX(0); }
+
+      .variant-bar {
+        position: fixed;
+        z-index: 90;
+        left: 50%;
+        bottom: 18px;
+        width: min(660px, calc(100% - 24px));
+        transform: translateX(-50%);
+        border: 1px solid rgba(201, 210, 223, 0.9);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: var(--shadow);
+        padding: 8px;
+        backdrop-filter: blur(10px);
+      }
+      .variant-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+      .variant {
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        padding: 9px 8px;
+        color: #596579;
+        cursor: pointer;
+        font-weight: 700;
+      }
+      .variant.active { background: var(--primary-soft); color: var(--primary); }
+      .state {
+        margin-top: 6px;
+        border-top: 1px solid var(--border);
+        padding: 7px 8px 1px;
+        color: var(--muted);
+        font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      @media (max-width: 720px) {
+        .shell { width: min(100% - 20px, 940px); padding-top: 64px; }
+        .row, .client-grid, .editor-grid { grid-template-columns: 1fr; }
+        .field-wide { grid-column: auto; }
+        .control-with-action { grid-template-columns: 1fr; }
+        .btn-contact { width: 100%; }
+        .card-body { padding: 16px; }
+        .card-head { margin: 0 16px; }
+        .variant { font-size: 12px; }
+        .summary-strip { flex-wrap: wrap; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="prototype-ribbon">Prototype · no data saved</div>
+    <div id="toast" class="toast" role="status">✓ เพิ่มคนติดต่อแล้วและเลือกให้เรียบร้อย</div>
+
+    <main class="shell">
+      <header class="page-head">
+        <span class="eyebrow">Intake / New</span>
+        <h1>รับเรื่องใหม่</h1>
+        <p>กรอกข้อมูลที่รู้ก่อน แล้วเติมรายละเอียดในพื้นที่ทำงานภายหลัง</p>
+        <div class="summary-strip" aria-live="polite">
+          <span>เรื่องที่รับพร้อมแล้ว</span><span class="dot">•</span>
+          <span>ผู้มอบหมาย 1 ราย</span><span class="dot">•</span>
+          <span id="summary-contact">ยังไม่เลือกคนติดต่อ</span>
+        </div>
+      </header>
+
+      <section class="card" aria-labelledby="section-title">
+        <div class="card-head">
+          <span class="step">02</span>
+          <h2 id="section-title">ผู้มอบหมาย และลูกความ</h2>
+        </div>
+        <div class="card-body">
+          <div class="label-row">
+            <span class="label">ผู้มอบหมายรายที่ 1 <span class="hint">— คนที่จ้างเราและเป็นคนจ่าย เช่น บริษัทประกัน</span></span>
+          </div>
+
+          <div class="row">
+            <div>
+              <label class="label" for="payer">ผู้มอบหมาย</label>
+              <select id="payer">
+                <option>บริษัท วิริยะประกันภัย จำกัด (มหาชน)</option>
+                <option>บริษัท กรุงเทพประกันภัย จำกัด (มหาชน)</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="contact">คนติดต่อ</label>
+              <div class="control-with-action">
+                <select id="contact">
+                  <option value="">— ยังไม่ระบุ —</option>
+                  <option value="คุณสุภาวดี · ฝ่ายสินไหม">คุณสุภาวดี · ฝ่ายสินไหม</option>
+                </select>
+                <button id="open-contact" type="button" class="btn btn-contact"><span aria-hidden="true">＋</span> คนติดต่อ</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="inline-slot"></div>
+
+          <div class="under-actions">
+            <button type="button" class="text-action">＋ เพิ่มผู้จ่ายอีกราย</button>
+            <label class="check"><input type="checkbox" /> ลูกความคนเดียวกับผู้มอบหมาย</label>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="client-grid">
+            <div>
+              <label class="label" for="client">ลูกความ <span class="hint">— ยังไม่ทราบได้</span></label>
+              <div class="control-with-action">
+                <select id="client"><option>— เลือกลูกความ —</option></select>
+                <button type="button" class="btn btn-outline">＋ ใหม่</button>
+              </div>
+            </div>
+            <div>
+              <span class="label">ลูกความเพิ่มเติม <span class="hint">(ร่วมฟ้อง/ถูกฟ้อง)</span></span>
+              <div class="add-slot">＋ เพิ่มลูกความ</div>
+            </div>
+          </div>
+
+          <div class="footer-actions">
+            <button type="button" class="btn btn-outline">ยกเลิก</button>
+            <button type="button" class="btn btn-primary">บันทึก → เปิดพื้นที่ทำงาน</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="modal-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal">
+        <div id="modal-slot"></div>
+      </div>
+    </div>
+
+    <div id="drawer-backdrop" class="drawer-backdrop"></div>
+    <aside id="drawer" class="drawer" aria-labelledby="drawer-title">
+      <div id="drawer-slot"></div>
+    </aside>
+
+    <nav class="variant-bar" aria-label="รูปแบบต้นแบบ">
+      <div class="variant-row">
+        <button class="variant" data-variant="inline">Inline · แนะนำ</button>
+        <button class="variant" data-variant="dialog">Dialog</button>
+        <button class="variant" data-variant="drawer">Side panel</button>
+      </div>
+      <div id="state" class="state"></div>
+    </nav>
+
+    <template id="editor-template">
+      <form class="contact-editor" novalidate>
+        <div class="editor-head">
+          <div>
+            <h3 data-title>เพิ่มคนติดต่อของบริษัท วิริยะประกันภัย</h3>
+            <p>คนนี้จะถูกเลือกเป็นผู้ส่งเรื่องทันทีหลังบันทึก</p>
+          </div>
+          <button type="button" class="btn btn-quiet" data-cancel aria-label="ปิด">✕</button>
+        </div>
+        <div class="editor-grid">
+          <div class="field">
+            <label>ชื่อ *</label>
+            <input name="firstName" autocomplete="given-name" placeholder="เช่น สุภาวดี" />
+            <p class="error" data-error-first></p>
+          </div>
+          <div class="field">
+            <label>นามสกุล *</label>
+            <input name="lastName" autocomplete="family-name" placeholder="เช่น วัฒนกุล" />
+            <p class="error" data-error-last></p>
+          </div>
+          <div class="field">
+            <label>ตำแหน่ง / ฝ่าย</label>
+            <input name="position" autocomplete="organization-title" placeholder="เช่น ฝ่ายสินไหมรถยนต์" />
+          </div>
+          <div class="field">
+            <label>เบอร์โทร</label>
+            <input name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="08x-xxx-xxxx" />
+          </div>
+          <div class="field field-wide">
+            <label>อีเมล</label>
+            <input name="email" type="email" autocomplete="off" placeholder="name@company.com" />
+          </div>
+        </div>
+        <div class="editor-actions">
+          <button type="button" class="btn btn-outline" data-cancel>ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกและเลือกคนนี้</button>
+        </div>
+      </form>
+    </template>
+
+    <script>
+      const state = {
+        variant: new URLSearchParams(location.search).get('variant') || 'inline',
+        editorOpen: true,
+        contact: '',
+      };
+
+      const inlineSlot = document.querySelector('#inline-slot');
+      const modalOverlay = document.querySelector('#modal-overlay');
+      const modalSlot = document.querySelector('#modal-slot');
+      const drawer = document.querySelector('#drawer');
+      const drawerBackdrop = document.querySelector('#drawer-backdrop');
+      const drawerSlot = document.querySelector('#drawer-slot');
+      const contactSelect = document.querySelector('#contact');
+      const summaryContact = document.querySelector('#summary-contact');
+      const toast = document.querySelector('#toast');
+
+      function editorNode() {
+        const node = document.querySelector('#editor-template').content.firstElementChild.cloneNode(true);
+        if (state.variant !== 'inline') node.style.marginTop = '0';
+        node.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', closeEditor));
+        node.addEventListener('submit', saveContact);
+        return node;
+      }
+
+      function closeSurfaces() {
+        inlineSlot.replaceChildren();
+        modalSlot.replaceChildren();
+        drawerSlot.replaceChildren();
+        modalOverlay.classList.remove('open');
+        drawer.classList.remove('open');
+        drawerBackdrop.classList.remove('open');
+      }
+
+      function closeEditor() {
+        state.editorOpen = false;
+        closeSurfaces();
+        renderState();
+      }
+
+      function openEditor() {
+        state.editorOpen = true;
+        closeSurfaces();
+        const editor = editorNode();
+        if (state.variant === 'inline') inlineSlot.append(editor);
+        if (state.variant === 'dialog') {
+          modalSlot.append(editor);
+          modalOverlay.classList.add('open');
+        }
+        if (state.variant === 'drawer') {
+          drawerSlot.append(editor);
+          drawer.classList.add('open');
+          drawerBackdrop.classList.add('open');
+        }
+        requestAnimationFrame(() => editor.querySelector('[name="firstName"]').focus());
+        renderState();
+      }
+
+      function saveContact(event) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const firstName = form.elements.firstName.value.trim();
+        const lastName = form.elements.lastName.value.trim();
+        const position = form.elements.position.value.trim();
+        form.querySelector('[data-error-first]').textContent = firstName ? '' : 'กรุณาระบุชื่อ';
+        form.querySelector('[data-error-last]').textContent = lastName ? '' : 'กรุณาระบุนามสกุล';
+        if (!firstName || !lastName) {
+          form.elements[firstName ? 'lastName' : 'firstName'].focus();
+          return;
+        }
+        const fullName = `${firstName} ${lastName}`;
+        const label = [fullName, position].filter(Boolean).join(' · ');
+        const option = new Option(label, label, true, true);
+        contactSelect.add(option);
+        state.contact = label;
+        state.editorOpen = false;
+        summaryContact.textContent = `คนติดต่อ: ${label}`;
+        closeSurfaces();
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2200);
+        renderState();
+      }
+
+      function setVariant(variant) {
+        state.variant = variant;
+        state.editorOpen = true;
+        const url = new URL(location.href);
+        url.searchParams.set('variant', variant);
+        history.replaceState({}, '', url);
+        document.querySelectorAll('.variant').forEach((button) => {
+          button.classList.toggle('active', button.dataset.variant === variant);
+        });
+        openEditor();
+      }
+
+      function renderState() {
+        document.querySelector('#state').textContent = JSON.stringify({
+          variant: state.variant,
+          payer: 'บริษัท วิริยะประกันภัย จำกัด (มหาชน)',
+          editorOpen: state.editorOpen,
+          selectedContact: state.contact || null,
+          initialDocumentsSection: false,
+        });
+      }
+
+      document.querySelector('#open-contact').addEventListener('click', openEditor);
+      document.querySelectorAll('.variant').forEach((button) => button.addEventListener('click', () => setVariant(button.dataset.variant)));
+      modalOverlay.addEventListener('click', (event) => { if (event.target === modalOverlay) closeEditor(); });
+      drawerBackdrop.addEventListener('click', closeEditor);
+      contactSelect.addEventListener('change', () => {
+        state.contact = contactSelect.value;
+        summaryContact.textContent = state.contact ? `คนติดต่อ: ${state.contact}` : 'ยังไม่เลือกคนติดต่อ';
+        renderState();
+      });
+
+      setVariant(['inline', 'dialog', 'drawer'].includes(state.variant) ? state.variant : 'inline');
+    </script>
+  </body>
+</html>

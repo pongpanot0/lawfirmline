@@ -119,6 +119,23 @@ export class DocumentsService {
     });
   }
 
+  async updateMetadataForIntake(
+    user: AuthUser,
+    intakeId: string,
+    documentId: string,
+    dto: DocumentMetadataDto,
+  ) {
+    await this.getFilePathForIntake(user, intakeId, documentId);
+    return this.prisma.document.update({
+      where: { id: documentId },
+      data: {
+        category: dto.category as never,
+        documentDate: dto.documentDate ? new Date(dto.documentDate) : undefined,
+        tags: dto.tags,
+      },
+    });
+  }
+
   /**
    * Give every legacy intake attachment a `Document` row.
    *

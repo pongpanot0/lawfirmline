@@ -89,6 +89,29 @@ export class IntelligenceController {
     return this.intelligenceService.analyzeBatch(files, user.id, caseId);
   }
 
+  @Post('cases/:caseId/documents/classify-checklist')
+  @UseGuards(CaseAccessGuard)
+  @RequireCredits(AI_CREDIT_COST.DOCUMENT_ANALYSIS)
+  @UseInterceptors(AiCreditsInterceptor)
+  async classifyCaseChecklist(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Body() dto: ClassifyChecklistDto,
+  ) {
+    const files = await Promise.all(
+      dto.documentIds.map(async (documentId) => {
+        const file = await this.documentsService.getFilePath(user, caseId, documentId);
+        return {
+          documentId,
+          filename: file.filename,
+          mimeType: file.mimeType,
+          buffer: await this.fileStorage.getBuffer(file.path),
+        };
+      }),
+    );
+    return this.intelligenceService.classifyChecklistDocuments(files, dto.labels);
+  }
+
   @Post('intake/:intakeId/documents/analyze-batch')
   @RequireCredits(AI_CREDIT_COST.DOCUMENT_ANALYSIS)
   @UseInterceptors(AiCreditsInterceptor)

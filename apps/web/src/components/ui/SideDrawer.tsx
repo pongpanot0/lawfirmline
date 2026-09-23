@@ -65,7 +65,12 @@ export function SideDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" aria-label="ปิด" onClick={onClose} className="flex-1 bg-black/30" />
+      <button
+        type="button"
+        aria-label="ปิด"
+        onClick={onClose}
+        className="flex-1 bg-black/30 active:bg-black/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      />
       <aside
         ref={asideRef}
         className="flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card shadow-xl"
@@ -76,7 +81,7 @@ export function SideDrawer({
             type="button"
             onClick={onClose}
             aria-label="ปิด"
-            className="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted active:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <X className="h-5 w-5" />
           </button>

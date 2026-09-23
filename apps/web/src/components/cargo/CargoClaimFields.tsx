@@ -56,6 +56,9 @@ export function CargoClaimFields({
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
+      <p className="text-xs font-normal text-muted-foreground sm:col-span-2">
+        ช่องที่ยังไม่มีข้อมูลเว้นว่างได้ ไม่จำเป็นต้องกรอกทุกช่อง
+      </p>
       {fields.map((field) => (
         <label key={field.key} className={field.area ? 'sm:col-span-2 text-sm font-medium' : 'text-sm font-medium'}>
           {field.label}

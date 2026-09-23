@@ -33,12 +33,18 @@ export function InvoicePanel({
   target,
   customers,
   onChanged,
+  openImmediately = false,
+  formOnly = false,
+  onDismiss,
 }: {
   target: InvoiceTarget;
   /** ลูกค้า (ผู้ว่าจ้าง) ของงานนี้ — ว่างได้เมื่อออกใบเปล่า แล้วจะให้เลือกเอง */
   customers: CustomerShareItem[];
   /** เรียกเมื่อออกบิลสำเร็จ ให้หน้าแม่โหลดรายการเบิก/เวลาใหม่ */
   onChanged?: () => void;
+  openImmediately?: boolean;
+  formOnly?: boolean;
+  onDismiss?: () => void;
 }) {
   const { token, user } = useAuth();
   const { caseId, intakeId } = target;
@@ -47,7 +53,7 @@ export function InvoicePanel({
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [draft, setDraft] = useState<InvoiceDraft | null>(null);
   const [clients, setClients] = useState<ClientItem[]>([]);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(openImmediately);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [dueAt, setDueAt] = useState('');
@@ -184,8 +190,8 @@ export function InvoicePanel({
   const hasWork = Boolean(draft?.timeEntries.length || draft?.expenses.length);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <div className={formOnly ? 'contents' : 'rounded-xl border border-slate-200 bg-white p-6 shadow-sm'}>
+      {!formOnly && <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="font-semibold">ใบแจ้งหนี้</h2>
         <button
           type="button"
@@ -193,16 +199,19 @@ export function InvoicePanel({
             setShowForm(true);
             setError('');
           }}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+          className="min-h-11 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
         >
           {standalone ? '+ ออกใบเปล่า' : '+ ออกใบแจ้งหนี้'}
         </button>
-      </div>
+      </div>}
 
       <SideDrawer
         open={showForm}
         title={standalone ? 'ออกใบแจ้งหนี้เปล่า' : 'ออกใบแจ้งหนี้'}
-        onClose={() => setShowForm(false)}
+        onClose={() => {
+          setShowForm(false);
+          onDismiss?.();
+        }}
       >
         <form onSubmit={handleSubmit} className="space-y-3">
           {caseId &&
@@ -393,7 +402,7 @@ export function InvoicePanel({
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="min-h-11 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           >
             {submitting
               ? 'กำลังออก…'
@@ -404,7 +413,7 @@ export function InvoicePanel({
         </form>
       </SideDrawer>
 
-      <div className="space-y-2">
+      {!formOnly && <div className="space-y-2">
         {invoices.map((inv) => (
           <div
             key={inv.id}
@@ -439,7 +448,7 @@ export function InvoicePanel({
             description="ใบแจ้งหนี้ที่ออกจากงานนี้จะแสดงพร้อมสถานะการชำระเงิน"
           />
         )}
-      </div>
+      </div>}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function IntakePage() {
-  redirect('/cases?view=intake');
+  redirect('/cases?stage=PRE_LITIGATION');
 }

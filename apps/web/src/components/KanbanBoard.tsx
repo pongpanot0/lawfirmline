@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { caseNumberDisplay } from '@/lib/case-number-display';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 
 interface Task {
   id: string;
-  case?: { ownRef: string; title: string } | null;
+  case?: { ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null } | null;
   title: string;
   description?: string | null;
   status: TaskStatus;
@@ -69,6 +70,11 @@ const HANDOFF_SOURCE_STATUSES: TaskStatus[] = [
   TaskStatus.NEEDS_REVISION,
   TaskStatus.DONE,
 ];
+
+function caseReferenceLabel(legalCase: NonNullable<Task['case']>) {
+  if (!legalCase.blackCaseNumber?.trim() && !legalCase.redCaseNumber?.trim()) return legalCase.ownRef;
+  return `คดีดำ ${caseNumberDisplay(legalCase.blackCaseNumber)} · คดีแดง ${caseNumberDisplay(legalCase.redCaseNumber)}`;
+}
 
 export function KanbanBoard({
   tasks,
@@ -195,7 +201,7 @@ export function KanbanBoard({
               <p className="text-sm font-medium text-foreground">{task.title}</p>
             )}
             {showCaseContext && task.case && (
-              <p className="mt-1 text-xs text-muted-foreground">{task.case.ownRef} · {task.case.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{caseReferenceLabel(task.case)} · {task.case.title}</p>
             )}
             {labels.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">

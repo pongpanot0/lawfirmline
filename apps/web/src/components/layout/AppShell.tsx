@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { SamnuanSidebar } from './SamnuanSidebar';
 import { TopNavbar } from './TopNavbar';
 import { AIAssistantPanel } from '@/components/ai/AIAssistantPanel';
+import { JevDocumentReviewQueue } from '@/components/documents/JevDocumentReviewQueue';
 import { PageTour } from '@/components/onboarding/PageTour';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 
@@ -69,6 +70,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
       {pathname !== '/dashboard' && pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (
         <AIAssistantPanel caseId={activeCaseId} intakeId={activeIntakeId} />
       )}
+      <JevDocumentReviewQueue />
       <PageTour pathname={pathname} />
     </div>
   );

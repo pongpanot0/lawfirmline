@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   ActivityType,
   AuthUser,
+  CaseStage,
   DocRequestStatus,
   IntakeStage,
   redactForAi,
@@ -215,6 +216,41 @@ export class IntakeService {
     });
     if (!intake) throw new NotFoundException('Intake not found');
     return intake;
+  }
+
+  private unlinkedWhere(user: AuthUser) {
+    return { firmId: user.firmId, relatedCaseId: null, case: { is: null } };
+  }
+
+  async countUnlinked(user: AuthUser) {
+    const count = await this.prisma.intake.count({ where: this.unlinkedWhere(user) });
+    return { count };
+  }
+
+  async convertUnlinked(user: AuthUser) {
+    const where = this.unlinkedWhere(user);
+    const intakes = await this.prisma.intake.findMany({
+      where,
+      select: { id: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    let converted = 0;
+    let failed = 0;
+
+    for (const intake of intakes) {
+      try {
+        await this.convertToCase(user, intake.id, {});
+        converted++;
+      } catch (error) {
+        failed++;
+        this.logger.error(
+          `Could not convert legacy intake ${intake.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    const remaining = await this.prisma.intake.count({ where });
+    return { converted, failed, remaining };
   }
 
   /**
@@ -564,8 +600,7 @@ export class IntakeService {
       await this.cargoClaims.ensureForIntake(user, created.id, dto.cargoClaim);
     }
 
-    // Record เดียวตั้งแต่รับเรื่อง — เปิดคดีทันทีที่ขั้น "รับเรื่อง/กลั่นกรอง"
-    // (intake ยังเก็บข้อมูลรับเรื่อง/โนติสอยู่เบื้องหลัง ผูก 1:1 กับคดี)
+    // รับเรื่องใหม่เริ่มเป็นคดีในเฟสก่อนฟ้องทันที; intake เก็บข้อมูลต้นทางไว้กับคดี
     if (created.relatedCaseId) {
       await this.attachToExistingCase(user, created, {} as ConvertToCaseDto);
     } else {
@@ -573,7 +608,6 @@ export class IntakeService {
         user,
         created,
         { leadLawyerId: dto.leadLawyerId } as ConvertToCaseDto,
-        'INTAKE_REVIEW',
       );
     }
 
@@ -584,8 +618,8 @@ export class IntakeService {
         firmId: user.firmId,
         userIds: dto.assignedUserIds,
         actorUserId: user.id,
-        summaryText: `📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: ${intake.title}${reference ? `\n${reference}` : ''}`,
-        entityPath: `/intake/${intake.id}`,
+        summaryText: `📁 คุณได้รับมอบหมายคดีใหม่\nคดี: ${intake.title}${reference ? `\n${reference}` : ''}`,
+        entityPath: intake.case?.id ? `/cases/${intake.case.id}` : `/intake/${intake.id}`,
       });
     }
 
@@ -1019,15 +1053,13 @@ export class IntakeService {
   }
 
   /**
-   * เปิดคดีจาก intake — ใช้ร่วมกันทั้งทาง decide (รับดำเนินการ) และทาง
-   * convert เดิม. คดีที่เปิดจาก intake เริ่มที่เฟสก่อนฟ้อง (PRE_LITIGATION)
-   * เพราะงานโนติส/เจรจา/เอกสารคือคดีแล้ว ไม่ใช่ lead.
+   * เปิดคดีจากข้อมูลรับเรื่อง — ใช้ร่วมกันทั้งทาง decide และ convert เดิม.
+   * คดีเริ่มที่เฟสก่อนฟ้อง (PRE_LITIGATION); intake เก็บข้อมูลต้นทางที่ผูกกับคดี.
    */
   private async openCaseFromIntake(
     user: AuthUser,
     intake: Awaited<ReturnType<IntakeService['findOne']>>,
     dto: ConvertToCaseDto,
-    initialStage: string = 'PRE_LITIGATION',
   ) {
     const id = intake.id;
     // Generate ownRef like cases.service.ts
@@ -1104,7 +1136,7 @@ export class IntakeService {
         referralSource: intake.referralName ?? undefined,
         status: 'OPEN' as any,
         // คดีที่ผ่าน intake มาแล้วไม่ต้อง review ซ้ำ — เริ่มที่งานก่อนฟ้องเลย
-        stage: initialStage as any,
+        stage: CaseStage.PRE_LITIGATION,
         stageChangedAt: new Date(),
         leadLawyerId: dto.leadLawyerId ?? user.id,
         intakeId: intake.id,
@@ -1194,11 +1226,9 @@ export class IntakeService {
       data: {
         status: 'CONVERTED' as any,
         statusChangedAt: new Date(),
-        // เปิดคดีตั้งแต่รับเรื่อง = งานรับเรื่อง/ก่อนฟ้องเพิ่งเริ่ม อย่าปิดขั้นตอน
-        // ปิดเฉพาะ convert ตอนตัดสินใจรับ (เข้าขั้นก่อนฟ้องของคดีแล้ว)
-        ...(initialStage === 'INTAKE_REVIEW'
-          ? {}
-          : { stage: IntakeStage.CLOSED as never, stageChangedAt: new Date() }),
+        // งานรับเรื่องถูกรวมเข้าคดีแล้ว เก็บ Intake ไว้เป็นข้อมูลต้นทาง
+        stage: IntakeStage.CLOSED as never,
+        stageChangedAt: new Date(),
       },
     });
 

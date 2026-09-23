@@ -242,7 +242,6 @@ export enum CaseOutcome {
 }
 
 export const CASE_STAGE_ORDER: CaseStage[] = [
-  CaseStage.INTAKE_REVIEW,
   CaseStage.FACT_GATHERING,
   CaseStage.PRE_LITIGATION,
   CaseStage.FILING,

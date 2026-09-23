@@ -754,7 +754,7 @@ model Case {
   title              String
   description        String?
   status             CaseStatus  @default(OPEN)
-  stage              CaseStage   @default(INTAKE_REVIEW)
+  stage              CaseStage   @default(PRE_LITIGATION)
   stageChangedAt     DateTime    @default(now())
   outcome            CaseOutcome @default(IN_PROGRESS)
   clientId           String?
