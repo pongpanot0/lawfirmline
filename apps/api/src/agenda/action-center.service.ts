@@ -26,7 +26,7 @@ export class ActionCenterService {
         orderBy: [{ dueDate: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }], take: 50,
       }),
       this.prisma.documentDateSuggestion.findMany({
-        where: { status: 'PENDING', case: activeCase }, include: { case: { select: { ownRef: true, leadLawyer: { select: { firstName: true, lastName: true } } } } },
+        where: { status: 'PENDING', case: activeCase }, include: { case: { select: { ownRef: true, leadLawyerId: true, leadLawyer: { select: { firstName: true, lastName: true } } } } },
         orderBy: [{ suggestedDate: 'asc' }, { id: 'asc' }], take: 50,
       }),
       this.prisma.reviewRound.findMany({
@@ -56,12 +56,12 @@ export class ActionCenterService {
     ]);
     const name = (person: { firstName: string; lastName: string } | null) => person ? `${person.firstName} ${person.lastName}` : null;
     const rows = [
-      ...events.filter(e => !(e.responsibility?.acceptedAt && e.responsibility.ownerId === (e.assigneeId ?? e.case.leadLawyerId) && e.responsibility.eventUpdatedAt.getTime() === e.updatedAt.getTime())).map(e => ({ id: `ack:${e.id}`, kind: 'ACKNOWLEDGEMENT', title: e.title, detail: null, caseRef: e.case.ownRef, owner: name(e.assignee ?? e.case.leadLawyer), dueAt: e.startAt.toISOString(), url: `/cases/${e.caseId}?tab=calendar&eventId=${e.id}` })),
-      ...tasks.map(t => ({ id: `task:${t.id}`, kind: t.onHold && !t.onHold.endedAt ? 'WAITING' : 'UNASSIGNED', title: t.title, detail: t.onHold?.reason ?? null, caseRef: t.case?.ownRef ?? null, owner: name(t.assignee), dueAt: t.onHold?.nextFollowUpAt?.toISOString() ?? t.dueDate?.toISOString() ?? null, url: t.caseId ? `/cases/${t.caseId}/tasks` : '/todos' })),
-      ...dates.map(s => ({ id: `date:${s.id}`, kind: 'DATE_REVIEW', title: s.label, detail: s.sourceExcerpt, caseRef: s.case.ownRef, owner: name(s.case.leadLawyer), dueAt: s.suggestedDate.toISOString(), url: `/cases/${s.caseId}/calendar` })),
-      ...reviews.map(r => ({ id: `review:${r.id}`, kind: 'DOCUMENT_REVIEW', title: r.documentVersion.document.filename, detail: r.scope, caseRef: null, owner: name(user), dueAt: r.dueAt?.toISOString() ?? null, url: `/cases/${r.documentVersion.document.caseId}/documents` })),
-      ...drafts.map(d => ({ id: `draft:${d.id}`, kind: 'CLIENT_DRAFT', title: d.subject, detail: null, caseRef: d.case.ownRef, owner: name(d.createdBy), dueAt: null, url: `/cases/${d.caseId}?tab=closing-report&draftId=${d.id}` })),
-      ...intakes.map(i => ({ id: `intake:${i.id}`, kind: 'INTAKE_FOLLOW_UP', title: i.title ?? i.insurerName ?? i.claimNumber ?? i.customerRef ?? '', detail: i.insurerName, caseRef: i.claimNumber ?? i.customerRef, owner: name(i.followUpOwner), dueAt: i.nextFollowUpAt!.toISOString(), url: `/intake/${i.id}` })),
+      ...events.filter(e => !(e.responsibility?.acceptedAt && e.responsibility.ownerId === (e.assigneeId ?? e.case.leadLawyerId) && e.responsibility.eventUpdatedAt.getTime() === e.updatedAt.getTime())).map(e => ({ id: `ack:${e.id}`, kind: 'ACKNOWLEDGEMENT', title: e.title, detail: null, caseRef: e.case.ownRef, owner: name(e.assignee ?? e.case.leadLawyer), ownerId: e.assigneeId ?? e.case.leadLawyerId, dueAt: e.startAt.toISOString(), url: `/cases/${e.caseId}?tab=calendar&eventId=${e.id}` })),
+      ...tasks.map(t => ({ id: `task:${t.id}`, kind: t.onHold && !t.onHold.endedAt ? 'WAITING' : 'UNASSIGNED', title: t.title, detail: t.onHold?.reason ?? null, caseRef: t.case?.ownRef ?? null, owner: name(t.assignee), ownerId: t.assigneeId, dueAt: t.onHold?.nextFollowUpAt?.toISOString() ?? t.dueDate?.toISOString() ?? null, url: t.caseId ? `/cases/${t.caseId}/tasks` : '/todos' })),
+      ...dates.map(s => ({ id: `date:${s.id}`, kind: 'DATE_REVIEW', title: s.label, detail: s.sourceExcerpt, caseRef: s.case.ownRef, owner: name(s.case.leadLawyer), ownerId: s.case.leadLawyerId, dueAt: s.suggestedDate.toISOString(), url: `/cases/${s.caseId}/calendar` })),
+      ...reviews.map(r => ({ id: `review:${r.id}`, kind: 'DOCUMENT_REVIEW', title: r.documentVersion.document.filename, detail: r.scope, caseRef: null, owner: name(user), ownerId: user.id, dueAt: r.dueAt?.toISOString() ?? null, url: `/cases/${r.documentVersion.document.caseId}/documents` })),
+      ...drafts.map(d => ({ id: `draft:${d.id}`, kind: 'CLIENT_DRAFT', title: d.subject, detail: null, caseRef: d.case.ownRef, owner: name(d.createdBy), ownerId: d.createdById, dueAt: null, url: `/cases/${d.caseId}?tab=closing-report&draftId=${d.id}` })),
+      ...intakes.map(i => ({ id: `intake:${i.id}`, kind: 'INTAKE_FOLLOW_UP', title: i.title ?? i.insurerName ?? i.claimNumber ?? i.customerRef ?? '', detail: i.insurerName, caseRef: i.claimNumber ?? i.customerRef, owner: name(i.followUpOwner), ownerId: i.followUpOwnerId, dueAt: i.nextFollowUpAt!.toISOString(), url: `/intake/${i.id}` })),
     ];
     rows.sort((a, b) => (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999') || a.id.localeCompare(b.id));
     return { items: rows, limited: [tasks, dates, reviews, drafts, events, intakes].some(group => group.length === 50) };

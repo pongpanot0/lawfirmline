@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Plus, Search, CalendarDays, CheckCircle2, FileText } from 'lucide-react';
+import { ArrowRight, Plus, Search, CalendarDays, FileText } from 'lucide-react';
 import { AgendaItemKind, FirmRole } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, DashboardStats, MyDayResponse, IntakeItem, WorkloadSummary } from '@/lib/api';
@@ -32,7 +32,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const [section, setSection] = useState<'tasks' | 'matters'>('tasks');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState<'all' | 'mine' | 'overdue'>('all');
 
   useEffect(() => {
     const authToken = token ?? getStoredToken();
@@ -73,7 +73,6 @@ export default function DashboardPage() {
   const failed = <div role="alert" className="p-6 text-sm text-muted-foreground">{t('โหลดข้อมูลไม่สำเร็จ', 'Unable to load data')} <button onClick={() => setRetry(x => x + 1)} className={link}>{t('ลองอีกครั้ง', 'Retry')}</button></div>;
   const today = bangkokDateInputValue(new Date());
   const overdue = (task: Inbox[number]) => !!task.dueDate && bangkokDateInputValue(task.dueDate) < today;
-  const filtered = tasks?.filter(task => filter === 'mine' ? task.assigneeId === user?.id : filter === 'overdue' ? overdue(task) : true) ?? [];
   const visibleCases = data?.recentCases.slice(0, 4) ?? [];
   const visibleCaseIds = new Set(visibleCases.map(item => item.id));
   const recentMatters = [
@@ -143,8 +142,6 @@ export default function DashboardPage() {
       {rankedTeamWorkload.length > 5 && <p className="mt-3 text-xs text-muted-foreground">{t(`แสดง 5 จาก ${rankedTeamWorkload.length} คน`, `Showing 5 of ${rankedTeamWorkload.length} people`)}</p>}
     </section>}
 
-    {actionToken && <ActionCenter token={actionToken} />}
-
     <div className="grid grid-cols-2 gap-y-5 border-y border-border py-5 lg:grid-cols-4">
       {[
         { label: t('คดีที่ยังไม่ปิด', 'Unclosed cases'), value: data?.stats.openCases, href: '/cases' },
@@ -168,21 +165,10 @@ export default function DashboardPage() {
                 setSection(next);
                 document.getElementById(`tab-${next}`)?.focus();
               }
-            }} aria-selected={section === tab} onClick={() => setSection(tab)} className={`min-h-14 border-b-2 px-3 text-sm font-semibold ${section === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{tab === 'tasks' ? t('งานที่ต้องทำ', 'Tasks') : t('เรื่องและคดีล่าสุด', 'Recent matters')}</button>)}
+            }} aria-selected={section === tab} onClick={() => setSection(tab)} className={`min-h-14 border-b-2 px-3 text-sm font-semibold ${section === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{tab === 'tasks' ? t('คิวงาน', 'Work queue') : t('เรื่องและคดีล่าสุด', 'Recent matters')}</button>)}
           </div>
           <div role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}>
-          {section === 'tasks' ? <>
-            <div className="flex flex-wrap items-center gap-2 px-5 py-4">
-              {['all', 'mine', 'overdue'].map(value => <button key={value} aria-pressed={filter === value} onClick={() => setFilter(value)} className={`min-h-9 rounded-lg px-3 text-xs font-medium ${filter === value ? 'bg-foreground text-background' : 'bg-muted/60 text-muted-foreground hover:bg-muted'}`}>{value === 'all' ? t('ทั้งหมด', 'All') : value === 'mine' ? t('มอบหมายให้ฉัน', 'Assigned to me') : t('เกินกำหนด', 'Overdue')}</button>)}
-              <span className="ml-auto text-xs text-muted-foreground">{tasks ? filtered.length : '—'} {t('งาน', 'tasks')}</span>
-            </div>
-            {!tasks ? failed : filtered.length === 0 ? <div className="px-6 py-10 text-center"><CheckCircle2 className="mx-auto mb-3 size-6 text-muted-foreground" /><p className="text-sm">{t('ไม่มีงานในรายการนี้', 'No tasks in this list')}</p><p className="mt-1 text-xs text-muted-foreground">{t('เลือกดูทั้งหมด หรือเปิดรายการงานเพื่อจัดการต่อ', 'Choose All or open your work list to continue.')}</p></div> : <div className="divide-y divide-border/70">
-              {filtered.slice(0, 6).map(task => <Link key={task.id} href={task.caseId ? `/cases/${task.caseId}?tab=tasks&task=${task.id}` : `/todos?task=${task.id}`} className="group flex items-start gap-3 px-5 py-4 hover:bg-muted/40">
-                <span className={`mt-1.5 size-2 shrink-0 rounded-full ${overdue(task) ? 'bg-amber-500' : 'bg-primary/50'}`} />
-                <div className="min-w-0 flex-1"><p className="break-words text-sm font-medium group-hover:text-primary">{task.title}</p><p className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground"><span className="font-mono">{task.case?.ownRef ?? t('งานทั่วไป', 'General')}</span><span>· {task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : t('ยังไม่มอบหมาย', 'Unassigned')}</span><span>· {statuses[task.status] ?? task.status}</span></p><p className={`mt-2 text-xs ${overdue(task) ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{task.dueDate ? `${overdue(task) ? t('เกินกำหนด · ', 'Overdue · ') : t('กำหนด ', 'Due ')}${date(task.dueDate)}` : t('ยังไม่กำหนดวันส่ง', 'No due date')}</p></div><ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" />
-              </Link>)}
-            </div>}
-          </> : !intakes || !data ? failed : recentMatters.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">{t('ยังไม่มีเรื่องหรือคดี เริ่มจากปุ่มรับงานใหม่', 'No matters yet. Start with New intake.')}</p> : <div className="divide-y divide-border/70">{recentMatters.map(item => <Link key={item.id} href={item.href} className="group flex items-start gap-3 px-5 py-4 hover:bg-muted/40"><FileText className="mt-1 size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium group-hover:text-primary">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.detail} · {date(item.at)}</p></div>{item.kind === 'case' ? <CaseStatusBadge status={item.status} /> : <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{t('รับเรื่อง', 'Intake')}</span>}<ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" /></Link>)}</div>}
+          {section === 'tasks' ? actionToken ? <ActionCenter token={actionToken} tasks={tasks} tasksFailed={!tasks} userId={user?.id} scope={filter} onScopeChange={setFilter} statuses={statuses} onRetryTasks={() => setRetry(value => value + 1)} /> : failed : !intakes || !data ? failed : recentMatters.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">{t('ยังไม่มีเรื่องหรือคดี เริ่มจากปุ่มรับงานใหม่', 'No matters yet. Start with New intake.')}</p> : <div className="divide-y divide-border/70">{recentMatters.map(item => <Link key={item.id} href={item.href} className="group flex items-start gap-3 px-5 py-4 hover:bg-muted/40"><FileText className="mt-1 size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="break-words text-sm font-medium group-hover:text-primary">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.detail} · {date(item.at)}</p></div>{item.kind === 'case' ? <CaseStatusBadge status={item.status} /> : <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{t('รับเรื่อง', 'Intake')}</span>}<ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" /></Link>)}</div>}
           </div>
           <div className="border-t border-border px-5 py-3"><Link href={section === 'tasks' ? '/todos' : '/cases'} className={link}>{section === 'tasks' ? t('เปิดรายการงานทั้งหมด', 'Open all tasks') : t('เปิดเรื่องและคดีทั้งหมด', 'Open all matters')}<ArrowRight className="size-3.5" /></Link></div>
         </section>
