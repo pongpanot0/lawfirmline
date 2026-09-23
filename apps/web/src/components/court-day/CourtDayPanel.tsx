@@ -85,7 +85,12 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
       } catch {}
       if (response.workspace.completedAt) pending = null;
       setData(response);
-      setState(pending?.state ?? response.workspace.state);
+      const restoredState = pending?.state ?? response.workspace.state;
+      setState({
+        ...restoredState,
+        draftRecipientKind: restoredState.draftRecipientKind ?? 'CLIENT',
+        draftCustomerId: restoredState.draftCustomerId ?? '',
+      });
       setTasks(caseTasks);
       setDocuments(caseDocuments);
       setDirty(!!pending);
@@ -309,7 +314,8 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
         new Date(state.nextAt) > new Date(event.startAt))) &&
     (!state.followUp || !!state.taskTitle.trim()) &&
     (!state.expense ||
-      (/^\d+(\.\d{1,2})?$/.test(state.amount) && Number(state.amount) > 0));
+      (/^\d+(\.\d{1,2})?$/.test(state.amount) && Number(state.amount) > 0)) &&
+    (!state.clientDraft || state.draftRecipientKind !== 'CUSTOMER' || !!state.draftCustomerId);
   const person = event.assignee ?? event.case.leadLawyer;
   const checked = state.checklist.filter((x) => x.done).length;
   const unavailableDocuments = state.documents.filter(
@@ -959,6 +965,34 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   onChange={() => edit({ clientDraft: !state.clientDraft })}
                 >
                   <p className="text-sm text-muted-foreground">{t.draftHelp}</p>
+                  <label className="block text-sm">
+                    {t.draftRecipient}
+                    <select
+                      className={`${inputClass} mt-1`}
+                      value={state.draftRecipientKind ?? 'CLIENT'}
+                      onChange={(e) => edit({ draftRecipientKind: e.target.value as 'CLIENT' | 'CUSTOMER', draftCustomerId: '' })}
+                    >
+                      <option value="CLIENT">{t.representedClient}</option>
+                      {data.event.case.customers.length > 0 && <option value="CUSTOMER">{t.payer}</option>}
+                    </select>
+                  </label>
+                  {state.draftRecipientKind === 'CUSTOMER' && (
+                    <label className="block text-sm">
+                      {t.choosePayer}
+                      <select
+                        className={`${inputClass} mt-1`}
+                        value={state.draftCustomerId ?? ''}
+                        onChange={(e) => edit({ draftCustomerId: e.target.value })}
+                      >
+                        <option value="">{t.choosePayer}</option>
+                        {data.event.case.customers.map(({ customerId, isPrimary, customer }) => (
+                          <option key={customerId} value={customerId}>
+                            {customer.name}{isPrimary ? ` · ${locale === 'th' ? 'หลัก' : 'Primary'}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </Option>
               </section>
             )}
@@ -991,7 +1025,12 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                     />
                   )}
                   {state.clientDraft && (
-                    <ReviewRow title={t.clientDraft} value={t.draftHelp} />
+                    <ReviewRow
+                      title={t.clientDraft}
+                      value={state.draftRecipientKind === 'CUSTOMER'
+                        ? data.event.case.customers.find((row) => row.customerId === state.draftCustomerId)?.customer.name ?? t.choosePayer
+                        : data.event.case.client?.name ?? data.event.case.clientName ?? t.representedClient}
+                    />
                   )}
                 </dl>
                 {!valid && (

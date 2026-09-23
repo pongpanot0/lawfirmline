@@ -15,6 +15,8 @@ export interface CourtDayState {
   amount: string;
   expenseCategory?: string;
   clientDraft: boolean;
+  draftRecipientKind?: 'CLIENT' | 'CUSTOMER';
+  draftCustomerId?: string;
 }
 export interface CourtDayWorkspace {
   eventId: string;
@@ -37,6 +39,10 @@ export interface CourtDayResponse {
     assignee?: { firstName: string; lastName: string } | null;
     case: NonNullable<CalendarEventItem['case']> & {
       leadLawyer: { firstName: string; lastName: string };
+      clientId: string | null;
+      clientName: string | null;
+      client: { id: string; name: string } | null;
+      customers: { customerId: string; isPrimary: boolean; customer: { id: string; name: string } }[];
     };
   };
   workspace: CourtDayWorkspace;
@@ -108,8 +114,12 @@ export const courtDayCopy = {
     expense: 'บันทึกค่าใช้จ่ายเป็นร่าง',
     amount: 'ยอดจริงที่จ่าย (บาท)',
     expenseHelp: 'ยังไม่ส่งเบิกหรือจ่ายเงิน',
-    clientDraft: 'เตรียมร่างแจ้งลูกความ',
+    clientDraft: 'เตรียมร่างรายงานผลนัด',
     draftHelp: 'ใช้ผลนัดที่คุณกรอก ต้องตรวจและอนุมัติแยกก่อนส่ง',
+    draftRecipient: 'ส่งถึง',
+    representedClient: 'ลูกความ / ผู้เอาประกัน',
+    payer: 'ลูกค้า / ผู้ว่าจ้างประกัน',
+    choosePayer: 'เลือกบริษัทประกันหรือผู้ว่าจ้าง',
     reviewHelp: 'ตรวจรายการที่จะบันทึก นัดและงานที่เลือกจะถูกสร้างในคดีนี้',
     confirm: 'ยืนยันบันทึกผลนัด',
     complete: 'บันทึกผลนัดเรียบร้อย',
@@ -118,7 +128,7 @@ export const courtDayCopy = {
     eventSaved: 'เพิ่มนัดครั้งหน้าแล้ว',
     taskSaved: 'สร้างงานติดตามให้คุณแล้ว',
     expenseSaved: 'บันทึกร่างค่าใช้จ่ายแล้ว',
-    draftSaved: 'ร่างแจ้งลูกความพร้อมตรวจ',
+    draftSaved: 'ร่างรายงานผลนัดพร้อมตรวจ',
     draftOpen: 'เปิดตรวจร่าง',
     error: 'บันทึกไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ ลองอีกครั้งได้',
     conflict: 'มีคนแก้ข้อมูลนัดนี้จากอีกหน้าจอ กรุณาตรวจข้อมูลล่าสุดก่อนบันทึก',
@@ -129,7 +139,7 @@ export const courtDayCopy = {
     copied: 'คัดลอกแล้ว',
     required: 'กรอกผลนัดและตรวจช่องที่เลือกให้ครบ',
     emptyOutcome: 'ยังไม่ได้กรอกผลนัด',
-    nothingSent: 'รอบนี้ยังไม่ส่งข้อความถึงลูกความ',
+    nothingSent: 'รอบนี้ยังไม่ได้ส่งข้อความออกไป',
     timezone: 'เวลาไทย',
   },
   en: {
@@ -201,9 +211,13 @@ export const courtDayCopy = {
     expense: 'Save expense as a draft',
     amount: 'Actual amount paid (THB)',
     expenseHelp: 'No reimbursement submission or payment yet',
-    clientDraft: 'Prepare a client update draft',
+    clientDraft: 'Prepare a hearing report draft',
     draftHelp:
       'Uses the outcome you entered. Review and approve separately before sending.',
+    draftRecipient: 'Send to',
+    representedClient: 'Represented client / insured party',
+    payer: 'Hiring customer / insurer',
+    choosePayer: 'Choose the insurer or hiring customer',
     reviewHelp:
       'Check what will be recorded. Selected appointments and tasks will be created in this case.',
     confirm: 'Confirm hearing outcome',
@@ -214,7 +228,7 @@ export const courtDayCopy = {
     eventSaved: 'Next appointment added',
     taskSaved: 'Follow-up task assigned to you',
     expenseSaved: 'Expense draft saved',
-    draftSaved: 'Client update draft ready for review',
+    draftSaved: 'Hearing report draft ready for review',
     draftOpen: 'Review draft',
     error: 'Could not save. Your entries are still here. You can retry.',
     conflict:
@@ -226,7 +240,7 @@ export const courtDayCopy = {
     copied: 'Copied',
     required: 'Enter the outcome and complete the selected fields',
     emptyOutcome: 'No outcome entered',
-    nothingSent: 'No client message has been sent',
+    nothingSent: 'No external message has been sent',
     timezone: 'Bangkok time',
   },
 };

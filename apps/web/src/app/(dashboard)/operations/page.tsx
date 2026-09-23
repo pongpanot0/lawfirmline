@@ -6,7 +6,7 @@ import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { fmt, dateLocale } from '@/lib/i18n/dashboard';
 import { useAuth } from '@/lib/auth';
 import { CaseStatus, FirmRole } from '@lawfirm/shared';
-import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth, TeamPerformanceRow } from '@/lib/api';
+import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth, TeamPerformanceRow, WorkflowMetrics } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
@@ -116,11 +116,13 @@ export default function OperationsPage() {
   const [onHoldLoading, setOnHoldLoading] = useState(true);
   const [caseHealth, setCaseHealth] = useState<CaseHealth | null>(null);
   const [performance, setPerformance] = useState<TeamPerformanceRow[]>([]);
+  const [workflowMetrics, setWorkflowMetrics] = useState<WorkflowMetrics | null>(null);
 
   useEffect(() => {
     if (!token || !isOwner) return;
     api.getCaseHealth(token).then(setCaseHealth).catch(console.error);
     api.getTeamPerformance(token).then(setPerformance).catch(console.error);
+    api.getWorkflowMetrics(token).then(setWorkflowMetrics).catch(console.error);
   }, [token, isOwner]);
 
   useEffect(() => {
@@ -558,8 +560,40 @@ export default function OperationsPage() {
         </TabsContent>
 
         <TabsContent value="performance">
+          {workflowMetrics && (
+            <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <KpiCard
+                label={locale === 'th' ? 'รับเรื่อง → เปิดคดี (วัน)' : 'Intake → case opened (days)'}
+                value={workflowMetrics.intakeToCase.averageDays ?? '—'}
+                change={`n=${workflowMetrics.intakeToCase.sampleCount}`}
+                icon={Scale}
+              />
+              <KpiCard
+                label={locale === 'th' ? 'ขอเอกสาร → ได้รับ (วัน)' : 'Document request → received (days)'}
+                value={workflowMetrics.documentTurnaround.averageDays ?? '—'}
+                change={`n=${workflowMetrics.documentTurnaround.sampleCount}`}
+                icon={AlarmClock}
+              />
+              <KpiCard
+                label={locale === 'th' ? 'นัดศาล → บันทึกผล (วัน)' : 'Hearing → outcome recorded (days)'}
+                value={workflowMetrics.hearingCloseout.averageDays ?? '—'}
+                change={`n=${workflowMetrics.hearingCloseout.sampleCount}`}
+                icon={MousePointerClick}
+              />
+              <KpiCard
+                label={locale === 'th' ? 'เอกสารที่ยังรอรับ' : 'Requested documents outstanding'}
+                value={workflowMetrics.openDocumentRequests}
+                change={locale === 'th' ? `เลยกำหนด ${workflowMetrics.overdueDocumentRequests} รายการ` : `${workflowMetrics.overdueDocumentRequests} overdue`}
+                trend={workflowMetrics.overdueDocumentRequests ? 'down' : 'neutral'}
+                icon={PauseCircle}
+                href="/intake"
+              />
+            </div>
+          )}
           <p className="mb-3 text-sm text-muted-foreground">
-            ตัวชี้วัดกระบวนการ 30 วันล่าสุด — ใช้ดูว่างานไหลหรือไม่ ไม่ใช่จัดอันดับคน
+            {locale === 'th'
+              ? 'ตัวชี้วัดกระบวนการ 30 วันล่าสุด — ใช้ดูว่างานไหลหรือไม่ ไม่ใช่จัดอันดับคน; เวลาเฉลี่ยใช้เฉพาะงานที่มีเวลาปิดจริง งานเก่าไม่รวม'
+              : 'Operational metrics for the last 30 days, to understand flow rather than rank people. Turnaround uses actual completion timestamps; legacy tasks without one are excluded.'}
           </p>
           <Card>
             <CardContent className="p-0">
@@ -568,7 +602,7 @@ export default function OperationsPage() {
                   <TableRow>
                     <TableHead>สมาชิก</TableHead>
                     <TableHead className="text-right">งานเสร็จ (30 วัน)</TableHead>
-                    <TableHead className="text-right">เวลาเฉลี่ยต่อชิ้น (วัน)</TableHead>
+                    <TableHead className="text-right">{locale === 'th' ? 'เวลาเฉลี่ย (วัน · ตัวอย่าง)' : 'Average days · samples'}</TableHead>
                     <TableHead className="text-right">งานค้าง</TableHead>
                     <TableHead className="text-right">เลยกำหนด</TableHead>
                   </TableRow>
@@ -580,7 +614,7 @@ export default function OperationsPage() {
                         {row.firstName} {row.lastName}
                       </TableCell>
                       <TableCell className="text-right">{row.completedCount}</TableCell>
-                      <TableCell className="text-right">{row.avgTurnaroundDays ?? '—'}</TableCell>
+                      <TableCell className="text-right">{row.avgTurnaroundDays ?? '—'} · {row.turnaroundSampleCount}</TableCell>
                       <TableCell className="text-right">{row.openCount}</TableCell>
                       <TableCell className="text-right">
                         {row.overdueCount > 0 ? (

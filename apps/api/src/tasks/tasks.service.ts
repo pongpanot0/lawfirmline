@@ -445,6 +445,10 @@ export class TasksService {
       where: { id },
       data: {
         ...dto,
+        completedAt:
+          dto.status === TaskStatus.DONE
+            ? task.status === TaskStatus.DONE ? undefined : new Date()
+            : dto.status !== undefined ? null : undefined,
         labels: this.labelsFromDto(dto.labels),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
       },
@@ -605,7 +609,7 @@ export class TasksService {
 
     await this.prisma.task.update({
       where: { id: taskId },
-      data: { status: TaskStatus.DONE },
+      data: { status: TaskStatus.DONE, completedAt: new Date() },
     });
     await this.logActivity(caseId, `ปิดงาน "${task.title}"`, user.id);
     await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
@@ -745,7 +749,7 @@ export class TasksService {
 
     await this.prisma.task.update({
       where: { id: taskId },
-      data: { status: TaskStatus.DONE },
+      data: { status: TaskStatus.DONE, completedAt: new Date() },
     });
     await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
 

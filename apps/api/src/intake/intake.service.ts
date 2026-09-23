@@ -451,14 +451,17 @@ export class IntakeService {
       }));
   }
 
-  async setChecklistItem(user: AuthUser, id: string, label: string, documentId: string | null) {
+  async setChecklistItem(user: AuthUser, id: string, label: string, documentId: string | null, requestId?: string) {
     const intake = await this.findOne(user, id);
     await this.seedDocumentRequests(user, id, intake.preLitigationType);
 
     const name = label.trim();
     const existing = await this.prisma.intakeDocumentRequest.findFirst({
-      where: { intakeId: id, name },
+      where: { intakeId: id, ...(requestId ? { id: requestId } : { name }) },
     });
+    if (requestId && (!existing || existing.name.trim().toLocaleLowerCase() !== name.toLocaleLowerCase())) {
+      throw new BadRequestException('รายการเอกสารที่เลือกไม่ตรงกับเรื่องรับเข้า');
+    }
 
     const data =
       documentId === null

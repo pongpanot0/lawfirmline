@@ -112,9 +112,9 @@ export class IntakeController {
   setChecklistItem(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
-    @Body() dto: { label: string; documentId: string | null },
+    @Body() dto: { label: string; documentId: string | null; requestId?: string },
   ) {
-    return this.intakeService.setChecklistItem(user, id, dto.label, dto.documentId ?? null);
+    return this.intakeService.setChecklistItem(user, id, dto.label, dto.documentId ?? null, dto.requestId);
   }
 
   @Get('portal-submissions')

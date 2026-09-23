@@ -42,6 +42,11 @@ export function parseCourtDayDraft(
     )
       return null;
     if (
+      (s.draftRecipientKind !== undefined && !['CLIENT', 'CUSTOMER'].includes(s.draftRecipientKind)) ||
+      (s.draftCustomerId !== undefined && typeof s.draftCustomerId !== 'string')
+    )
+      return null;
+    if (
       !Array.isArray(s.checklist) ||
       !s.checklist.every(
         (x: { id?: unknown; title?: unknown; done?: unknown } | null) =>

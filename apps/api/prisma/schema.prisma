@@ -350,6 +350,11 @@ enum ClosingEmailDraftStatus {
   APPROVED
 }
 
+enum ClosingEmailRecipientKind {
+  CLIENT
+  CUSTOMER
+}
+
 model Firm {
   id                 String             @id @default(uuid())
   name               String
@@ -683,6 +688,7 @@ model Client {
   additionalCaseRoles     CaseClient[]
   additionalIntakeRoles   IntakeClient[]
   billedInvoices          Invoice[]                @relation("InvoiceBillTo")
+  closingDraftRecipients  ClosingEmailDraft[]      @relation("ClosingDraftRecipient")
 
   @@index([firmId])
 }
@@ -1113,6 +1119,8 @@ model Task {
   recurrenceDays Int?
   /// งานนี้เริ่มไม่ได้จนกว่างาน blocker จะเสร็จ (single blocker พอสำหรับ pipeline งานคดี)
   blockedById String?
+  /// Set on the transition to DONE; legacy tasks remain null.
+  completedAt DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -1133,6 +1141,7 @@ model Task {
 
   @@index([dueDate])
   @@index([assigneeId, status, dueDate])
+  @@index([completedAt])
   @@index([parentId])
   @@index([intakeId])
   @@index([blockedById])
@@ -1788,6 +1797,8 @@ model ClosingEmailDraft {
   bodyText            String                  @db.Text
   selectedActivityIds String[]                @default([])
   missingDataNotes    String[]                @default([])
+  recipientKind       ClosingEmailRecipientKind @default(CLIENT)
+  recipientClientId   String?
   status              ClosingEmailDraftStatus @default(DRAFT)
   approvedById        String?
   approvedAt          DateTime?
@@ -1796,9 +1807,11 @@ model ClosingEmailDraft {
 
   case       Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
   createdBy  User  @relation("ClosingEmailDraftCreator", fields: [createdById], references: [id])
-  approvedBy User? @relation("ClosingEmailDraftApprover", fields: [approvedById], references: [id])
+  approvedBy      User?   @relation("ClosingEmailDraftApprover", fields: [approvedById], references: [id])
+  recipientClient Client? @relation("ClosingDraftRecipient", fields: [recipientClientId], references: [id], onDelete: SetNull)
 
   @@index([caseId, createdAt])
+  @@index([recipientClientId])
 }
 
 model InsuranceClaim {

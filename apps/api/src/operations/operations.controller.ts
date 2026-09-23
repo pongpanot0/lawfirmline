@@ -52,6 +52,11 @@ export class OperationsController {
     return this.operationsService.getTeamPerformance(user, days ? Math.max(7, parseInt(days, 10) || 30) : 30);
   }
 
+  @Get('workflow-metrics')
+  getWorkflowMetrics(@CurrentUser() user: AuthUser, @Query('days') days?: string) {
+    return this.operationsService.getWorkflowMetrics(user, days ? Math.min(365, Math.max(7, parseInt(days, 10) || 30)) : 30);
+  }
+
   @Get('onhold')
   getOnHoldTasks(@CurrentUser() user: AuthUser) {
     return this.operationsService.getOnHoldTasks(user);

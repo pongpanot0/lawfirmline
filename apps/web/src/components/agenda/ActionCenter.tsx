@@ -14,8 +14,8 @@ type TaskInbox = Awaited<ReturnType<typeof api.getTaskInbox>>;
 type Scope = 'all' | 'mine' | 'overdue';
 type QueueItem = ActionQueue['items'][number] & { status?: string };
 
-const trackedDueKinds = new Set(['TASK', 'UNASSIGNED', 'INTAKE_FOLLOW_UP', 'WAITING', 'DOCUMENT_REVIEW']);
-const reviewKinds = new Set(['DATE_REVIEW', 'DOCUMENT_REVIEW', 'CLIENT_DRAFT']);
+const trackedDueKinds = new Set(['TASK', 'UNASSIGNED', 'INTAKE_FOLLOW_UP', 'INTAKE_DOCUMENT_REQUIRED', 'INTAKE_DOCUMENT_OPTIONAL', 'WAITING', 'DOCUMENT_REVIEW']);
+const reviewKinds = new Set(['DATE_REVIEW', 'DOCUMENT_REVIEW', 'CLIENT_DRAFT', 'CUSTOMER_DRAFT']);
 
 function daysUntil(item: QueueItem, today: string) {
   if (!item.dueAt || !trackedDueKinds.has(item.kind)) return null;
@@ -38,8 +38,9 @@ function actionPriority(item: QueueItem, today: string) {
     if (untilEvent >= 0 && untilEvent <= 2) return 2;
   }
   if (reviewKinds.has(item.kind)) return 3;
-  if (item.kind === 'UNASSIGNED' || (item.kind === 'INTAKE_FOLLOW_UP' && !item.ownerId)) return 4;
-  if (item.kind === 'INTAKE_FOLLOW_UP') return 5;
+  if (item.kind === 'UNASSIGNED' || (['INTAKE_FOLLOW_UP', 'INTAKE_DOCUMENT_REQUIRED', 'INTAKE_DOCUMENT_OPTIONAL'].includes(item.kind) && !item.ownerId)) return 4;
+  if (item.kind === 'INTAKE_FOLLOW_UP' || item.kind === 'INTAKE_DOCUMENT_REQUIRED') return 5;
+  if (item.kind === 'INTAKE_DOCUMENT_OPTIONAL') return 6;
   if (item.kind === 'WAITING') return 6;
   return 8;
 }
@@ -52,8 +53,11 @@ function focusReason(item: QueueItem, today: string, overdueCount: number, th: b
   if (item.kind === 'ACKNOWLEDGEMENT') return th ? 'วันนัดใกล้ถึงแล้ว แต่ยังไม่ยืนยันผู้รับผิดชอบ' : 'The event is approaching without an acknowledged owner';
   if (item.kind === 'DATE_REVIEW') return th ? 'วันจากเอกสารยังรอทนายตรวจและยืนยัน' : 'A date extracted from a document still needs lawyer confirmation';
   if (item.kind === 'DOCUMENT_REVIEW') return th ? 'เอกสารรอผู้ตรวจตัดสินใจก่อนเดินงานต่อ' : 'A reviewer decision is needed before work can continue';
-  if (item.kind === 'CLIENT_DRAFT') return th ? 'ร่างแจ้งลูกค้ายังรอตรวจ ก่อนส่งออก' : 'A client update is waiting for review before sending';
+  if (item.kind === 'CUSTOMER_DRAFT') return th ? 'ร่างรายงานผู้ว่าจ้างรอตรวจ ก่อนส่งออก' : 'A payer report is waiting for review before sending';
+  if (item.kind === 'CLIENT_DRAFT') return th ? 'ร่างแจ้งลูกความรอตรวจ ก่อนส่งออก' : 'A client update is waiting for review before sending';
   if (item.kind === 'UNASSIGNED' || !item.ownerId) return th ? 'ยังไม่มีผู้รับผิดชอบ ระบุคนรับงานเพื่อให้งานเดินต่อ' : 'No owner is assigned; assign someone to move it forward';
+  if (item.kind === 'INTAKE_DOCUMENT_REQUIRED') return th ? 'เอกสารจำเป็นยังไม่เข้าระบบ ติดตามจากเรื่องรับเข้า' : 'Required intake document is still outstanding';
+  if (item.kind === 'INTAKE_DOCUMENT_OPTIONAL') return th ? 'เอกสารเสริมยังไม่เข้าระบบ ติดตามจากเรื่องรับเข้า' : 'Optional intake document is still outstanding';
   if (item.kind === 'INTAKE_FOLLOW_UP') return th ? 'ถึงรอบติดตามเรื่องรับเข้า' : 'An intake follow-up is due';
   if (item.kind === 'WAITING') return th ? 'งานกำลังรอข้อมูลหรือคำตอบ ควรตรวจรอบติดตาม' : 'Work is waiting on information or a response; check the follow-up';
   return th ? 'เรียงตามวันที่กำหนดและสถานะงาน' : 'Ranked by scheduled date and work status';
@@ -67,7 +71,10 @@ const labels: Record<string, [string, string]> = {
   WAITING: ['รอติดตาม', 'Waiting for follow-up'],
   DATE_REVIEW: ['ตรวจและยืนยันวันที่', 'Confirm suggested date'],
   DOCUMENT_REVIEW: ['เอกสารรอคุณตรวจ', 'Awaiting your review'],
-  CLIENT_DRAFT: ['ร่างแจ้งลูกค้ารอตรวจ', 'Review client update'],
+  CLIENT_DRAFT: ['ร่างแจ้งลูกความรอตรวจ', 'Review client update'],
+  CUSTOMER_DRAFT: ['ร่างรายงานผู้ว่าจ้างรอตรวจ', 'Review payer report'],
+  INTAKE_DOCUMENT_REQUIRED: ['เอกสารจำเป็นที่ยังขาด', 'Required document outstanding'],
+  INTAKE_DOCUMENT_OPTIONAL: ['เอกสารเสริมที่ยังขาด', 'Optional document outstanding'],
 };
 
 export function ActionCenter({ token, tasks, tasksFailed = false, userId, scope = 'all', onScopeChange, statuses = {}, onRetryTasks }: {

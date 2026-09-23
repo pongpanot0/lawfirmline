@@ -62,6 +62,8 @@ export class CourtDayStateDto {
   @IsOptional() @IsIn(EXPENSE_CATEGORIES) expenseCategory?: string;
   @IsString() @MaxLength(25) amount!: string;
   @IsBoolean() clientDraft!: boolean;
+  @IsOptional() @IsIn(['CLIENT', 'CUSTOMER']) draftRecipientKind?: 'CLIENT' | 'CUSTOMER';
+  @ValidateIf((_object, value) => value !== undefined && value !== '') @IsUUID() draftCustomerId?: string;
 }
 export class SaveCourtDayDto {
   @IsInt() @Min(0) version!: number;
