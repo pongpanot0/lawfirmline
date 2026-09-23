@@ -38,7 +38,7 @@ export default function LoginPage() {
   // Apex has no localStorage session of its own (tokens live on the firm subdomain) — so
   // every fresh visit here would otherwise ask for a password again even for someone
   // already signed in elsewhere. Try the cross-subdomain cookie first, silently.
-  const [checkingSession, setCheckingSession] = useState(!getBrowserFirmSlug());
+  const [checkingSession, setCheckingSession] = useState(true);
   useEffect(() => {
     if (loading || user || getBrowserFirmSlug()) {
       setCheckingSession(false);

@@ -312,6 +312,8 @@ export interface CaseItem {
   additionalClients?: AdditionalClientItem[];
   participants?: Array<{ name: string; role: string }>;
   cargoClaim?: { id: string } | null;
+  intake?: { id: string; status: string } | null;
+  relatedIntakes?: Array<{ id: string; status: string }>;
 }
 
 export interface CargoDocumentRequirementItem {
@@ -594,6 +596,7 @@ export interface TaskPerson {
 export interface TaskItem {
   id: string;
   caseId?: string | null;
+  case?: { id: string; ownRef: string; title: string } | null;
   parentId?: string | null;
   title: string;
   description?: string | null;
@@ -646,7 +649,6 @@ export interface TaskSubtaskItem {
 
 export interface TaskDetail extends TaskItem {
   parent?: { id: string; title: string } | null;
-  case?: { id: string; ownRef: string; title: string } | null;
   subtasks: TaskSubtaskItem[];
   attachments: TaskAttachmentItem[];
   comments: TaskCommentItem[];
@@ -712,6 +714,7 @@ export interface DashboardStats {
     ownRef: string;
     title: string;
     status: string;
+    updatedAt: string;
     leadLawyer: { firstName: string; lastName: string };
   }>;
   upcomingHearings: Array<{

@@ -65,6 +65,8 @@ function TodosPageContent() {
   const [createdTask, setCreatedTask] = useState<{ id: string; title: string } | null>(null);
   const [layout, setLayout] = useTaskLayout();
   const [scope, setScope] = useState<'mine' | 'team' | 'review'>('mine');
+  const [taskType, setTaskType] = useState<'all' | 'case' | 'general'>('all');
+  const [includeCompleted, setIncludeCompleted] = useState(false);
   const taskParam = useTaskParam();
   // Creating a task for someone else follows the firm hierarchy: only roles
   // below yours (assigning to yourself is the empty default option).
@@ -76,9 +78,18 @@ function TodosPageContent() {
   const loadTasks = () => {
     if (!token) return;
     setLoadError('');
-    api
-      .getMyTodos(token)
-      .then((items) => setTasks(items))
+    Promise.all([api.getMyTodos(token), api.getTaskInbox(token)])
+      .then(([assignedTasks, accessibleOpenTasks]) => {
+        const tasksById = new Map<string, TaskItem>();
+        for (const task of assignedTasks) tasksById.set(task.id, task);
+        for (const task of accessibleOpenTasks) {
+          const assignedTask = tasksById.get(task.id);
+          tasksById.set(task.id, assignedTask
+            ? { ...task, ...assignedTask, case: task.case ?? assignedTask.case }
+            : task);
+        }
+        setTasks([...tasksById.values()]);
+      })
       // A failed load must not read as "nothing to do" — that is the one
       // wrong answer a task list can give.
       .catch(() => setLoadError(d.todos.loadFailed))
@@ -217,25 +228,40 @@ function TodosPageContent() {
 
   if (loading) return <PageLoading title={d.todos.loading} lines={4} />;
 
-  /**
-   * An owner or senior is served the team's personal tasks too. The page then
-   * says which set is on screen instead of calling everything "mine".
-   */
+  /** Switch scope labels on only when this list includes another assignee. */
   const seesOthers = tasks.some((t) => t.assignee && t.assignee.id !== user?.id);
-  const scopedTasks = !seesOthers
+  const ownershipTasks = !seesOthers
     ? tasks
     : scope === 'team'
       ? tasks
       : scope === 'review'
         ? tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW && t.assignee?.id === user?.id)
         : tasks.filter((t) => !t.assignee || t.assignee.id === user?.id);
-  const visibleTasks = applyTaskFilters(scopedTasks, filters);
+  const scopedTasks = ownershipTasks.filter((task) =>
+    taskType === 'all' || (taskType === 'case' ? Boolean(task.caseId) : !task.caseId),
+  );
+  const completedCount = scopedTasks.filter((task) => task.status === TaskStatus.DONE).length;
+  const tasksForView = includeCompleted
+    ? scopedTasks
+    : scopedTasks.filter((task) => task.status !== TaskStatus.DONE);
+  const visibleTasks = applyTaskFilters(tasksForView, filters);
   const filtering = hasActiveTaskFilters(filters);
   const scopes: { key: typeof scope; label: string }[] = [
     { key: 'mine', label: d.todos.scopeMine },
     { key: 'team', label: d.todos.scopeTeam },
     { key: 'review', label: d.todos.scopeReview },
   ];
+  const taskTypes: { key: typeof taskType; label: string; count: number }[] = [
+    { key: 'all', label: d.todos.scopeAll, count: ownershipTasks.length },
+    { key: 'case', label: d.todos.scopeCase, count: ownershipTasks.filter((task) => task.caseId).length },
+    { key: 'general', label: d.todos.scopeGeneral, count: ownershipTasks.filter((task) => !task.caseId).length },
+  ];
+  const toggleCompleted = () => {
+    if (includeCompleted && filters.status === TaskStatus.DONE) {
+      setFilters((current) => ({ ...current, status: '' }));
+    }
+    setIncludeCompleted(!includeCompleted);
+  };
 
   return (
     <div>
@@ -244,24 +270,8 @@ function TodosPageContent() {
         description={d.todos.description}
         actions={
           <div className="flex items-center gap-2">
-            {seesOthers && (
-              <div role="tablist" aria-label={d.todos.title} className="flex rounded-lg border border-border p-0.5">
-                {scopes.map((s) => (
-                  <button
-                    key={s.key}
-                    role="tab"
-                    type="button"
-                    aria-selected={scope === s.key}
-                    onClick={() => setScope(s.key)}
-                    className={`rounded-md px-2.5 py-1 text-xs ${scope === s.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            )}
             <TaskViewToggle layout={layout} onChange={setLayout} />
-            <Button size="sm" onClick={() => setShowForm(!showForm)}>
+            <Button size="sm" aria-expanded={showForm} onClick={() => setShowForm(!showForm)}>
               <Plus className="h-4 w-4" />
               {d.todos.addTodo}
             </Button>
@@ -269,19 +279,56 @@ function TodosPageContent() {
         }
       />
 
+      {seesOthers && (
+        <div role="group" aria-label={d.todos.taskScope} className="mb-4 flex flex-wrap gap-2">
+          {scopes.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              aria-pressed={scope === s.key}
+              onClick={() => setScope(s.key)}
+              className={`min-h-10 rounded-lg px-3 text-sm font-medium transition-colors ${scope === s.key ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {createdTask && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><p className="min-w-0 break-words text-sm">{text('สร้างงานแล้ว: ', 'Task created: ')}{createdTask.title}</p><Button variant="outline" size="sm" onClick={() => taskParam.open(createdTask.id)}>{text('เปิดรายละเอียด', 'View details')}</Button></div>}
       {error && !showForm && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
       <Card className="mb-4">
         <CardContent className="p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{d.todos.taskType}</p>
+              <div role="group" aria-label={d.todos.taskType} className="flex flex-wrap gap-1.5">
+                {taskTypes.map((type) => (
+                  <button
+                    key={type.key}
+                    type="button"
+                    aria-pressed={taskType === type.key}
+                    onClick={() => setTaskType(type.key)}
+                    className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-medium transition-colors ${taskType === type.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                  >
+                    {type.label}<span className="tabular-nums text-[11px] opacity-70">{type.count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button type="button" size="sm" variant={includeCompleted ? 'outline' : 'ghost'} aria-pressed={includeCompleted} onClick={toggleCompleted}>
+              {includeCompleted ? d.todos.hideCompleted : d.todos.showCompleted} <span className="ml-1 tabular-nums">{completedCount}</span>
+            </Button>
+          </div>
           <TaskFilterBar
             value={filters}
             onChange={setFilters}
             users={users}
             labels={collectTaskLabels(scopedTasks)}
-            statuses={[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.PENDING_REVIEW, TaskStatus.NEEDS_REVISION, TaskStatus.DONE]}
+            statuses={[TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.PENDING_REVIEW, TaskStatus.NEEDS_REVISION, ...(includeCompleted ? [TaskStatus.DONE] : [])]}
             shown={visibleTasks.length}
-            total={scopedTasks.length}
+            total={tasksForView.length}
           />
         </CardContent>
       </Card>
@@ -518,24 +565,33 @@ function TodosPageContent() {
         </div>
       ) : (
       <>
-      {filtering && visibleTasks.length === 0 && (
-        <p role="status" className="mb-3 text-sm text-muted-foreground">{d.todos.noMatches}</p>
+      {visibleTasks.length === 0 ? (
+        <div role="status" className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
+          <p className="text-sm font-medium">{filtering ? d.todos.noMatches : completedCount > 0 && !includeCompleted ? d.todos.noOpenTasks : d.todos.noTasks}</p>
+          {!filtering && completedCount > 0 && !includeCompleted && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setIncludeCompleted(true)}>
+              {d.todos.showCompleted} ({completedCount})
+            </Button>
+          )}
+        </div>
+      ) : (
+        <KanbanBoard
+          layout={layout}
+          tasks={visibleTasks}
+          onStatusChange={handleStatusChange}
+          currentUserId={user?.id ?? ''}
+          showCaseContext
+          enableHandoff
+          requireReviewerOnHandoff
+          reviewerOptions={users}
+          reviewerLoadError={usersLoadError}
+          onRetryReviewers={loadUsers}
+          onHandoff={handleHandoff}
+          onAccept={handleAccept}
+          onReject={handleReject}
+          onOpen={taskParam.open}
+        />
       )}
-      <KanbanBoard
-        layout={layout}
-        tasks={visibleTasks}
-        onStatusChange={handleStatusChange}
-        currentUserId={user?.id ?? ''}
-        enableHandoff
-        requireReviewerOnHandoff
-        reviewerOptions={users}
-        reviewerLoadError={usersLoadError}
-        onRetryReviewers={loadUsers}
-        onHandoff={handleHandoff}
-        onAccept={handleAccept}
-        onReject={handleReject}
-        onOpen={taskParam.open}
-      />
       </>
       )}
       <TaskDetailDrawer

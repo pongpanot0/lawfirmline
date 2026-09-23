@@ -18,7 +18,6 @@ import {
   Moon,
   Sun,
   X,
-  ClipboardList,
   ListTodo,
   Mail,
   type LucideIcon,
@@ -46,18 +45,17 @@ const NAV_GROUPS = [
 const NAV_ITEMS = [
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true, group: 'firm', children: [] as const },
-  { href: '/work', labelKey: 'workInbox' as const, icon: ListTodo, ownerOnly: false, group: 'work', children: [{ href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false }] },
+  { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work', children: [] as const },
   {
-    href: '/intake',
-    labelKey: 'intake' as const,
-    icon: ClipboardList,
+    href: '/cases',
+    labelKey: 'cases' as const,
+    icon: Briefcase,
     ownerOnly: false,
     group: 'work',
     children: [
       { href: '/email-intake', labelKey: 'emailIntake' as const, icon: Mail, ownerOnly: false },
     ],
   },
-  { href: '/cases', labelKey: 'cases' as const, icon: Briefcase, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, ownerOnly: false, group: 'work', children: [] as const },
@@ -249,7 +247,10 @@ function NavItemRow({
   const isRouteActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   // Office settings pages (/admin/*) are reached from Settings, so they
   // light up that entry rather than none.
-  const active = isRouteActive(item.href) || (item.href === '/settings' && pathname.startsWith('/admin/'));
+  const active =
+    isRouteActive(item.href) ||
+    (item.href === '/cases' && pathname.startsWith('/intake')) ||
+    (item.href === '/settings' && pathname.startsWith('/admin/'));
   const Icon = item.icon;
   const label = labels[item.labelKey];
 

@@ -13,14 +13,9 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'main h1', title: 'วันของฉัน', body: 'สิ่งที่ต้องทำวันนี้-พรุ่งนี้ ทั้งนัดและงาน ในที่เดียว', placement: 'right' },
     { selector: 'text:งานทีม', title: 'สลับดูงานทีม', body: 'ดูงานของตัวเองหรือของทั้งทีมได้', placement: 'bottom' },
   ],
-  '/work': [
-    { selector: 'placeholder:ค้นชื่องาน', title: 'ค้นหางาน', body: 'ค้นหางานจากชื่องาน คดี เลขอ้างอิง หรือผู้รับผิดชอบ', placement: 'bottom' },
-    { selector: 'text:มอบหมายให้ฉัน', title: 'กรองงานของฉัน', body: 'กดเพื่อดูเฉพาะงานที่มอบหมายให้คุณ', placement: 'bottom' },
-    { selector: 'text:เพิ่มงานส่วนตัว', title: 'เพิ่มงานส่วนตัว', body: 'งานที่ไม่ผูกกับคดีไหน เพิ่มได้จากปุ่มนี้', placement: 'left' },
-  ],
   '/todos': [
-    { selector: 'text:เพิ่มงาน', title: 'เพิ่มงานส่วนตัว', body: 'งานที่ไม่ผูกกับคดีไหน เพิ่มได้จากปุ่มนี้', placement: 'left' },
-    { selector: 'placeholder:ค้นหาชื่องาน', title: 'ค้นหางาน', body: 'ค้นหางานส่วนตัวจากชื่อได้ที่นี่', placement: 'bottom' },
+    { selector: 'text:เพิ่มงาน', title: 'เพิ่มงาน', body: 'สร้างงานทั่วไปและมอบหมายให้ตัวเองหรือทีมได้', placement: 'left' },
+    { selector: 'placeholder:ค้นหางาน คดี เลขอ้างอิง หรือผู้รับผิดชอบ', title: 'ค้นหางาน', body: 'ค้นหางานจากชื่อ คดี เลขอ้างอิง หรือผู้รับผิดชอบได้', placement: 'bottom' },
   ],
   '/calendar': [
     { selector: 'text:เพิ่มนัด', title: 'ปฏิทินสำนักงาน', body: 'ดูนัดรวมทุกคดีทุกทนาย เพิ่มนัดใหม่ได้จากปุ่มนี้', placement: 'bottom' },

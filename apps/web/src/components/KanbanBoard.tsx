@@ -9,6 +9,7 @@ import { fmt } from '@/lib/i18n/dashboard';
 
 interface Task {
   id: string;
+  case?: { ownRef: string; title: string } | null;
   title: string;
   description?: string | null;
   status: TaskStatus;
@@ -29,6 +30,8 @@ interface KanbanBoardProps {
   isReviewer?: boolean;
   /** Title click opens the task's detail drawer; omitted keeps titles inert. */
   onOpen?: (taskId: string) => void;
+  /** Show case context when tasks from several cases share one board. */
+  showCaseContext?: boolean;
   /** Case-bound tasks only: the lawyer↔senior handoff/review pipeline. */
   enableHandoff?: boolean;
   /**
@@ -73,6 +76,7 @@ export function KanbanBoard({
   currentUserId,
   isReviewer = false,
   onOpen,
+  showCaseContext = false,
   enableHandoff = false,
   onHandoff,
   onAccept,
@@ -189,6 +193,9 @@ export function KanbanBoard({
               </button>
             ) : (
               <p className="text-sm font-medium text-foreground">{task.title}</p>
+            )}
+            {showCaseContext && task.case && (
+              <p className="mt-1 text-xs text-muted-foreground">{task.case.ownRef} · {task.case.title}</p>
             )}
             {labels.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">

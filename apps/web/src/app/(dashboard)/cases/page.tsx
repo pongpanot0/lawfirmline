@@ -3,14 +3,14 @@
 import { Suspense, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Download, ArrowUpDown, Columns3 } from 'lucide-react';
+import { Plus, Download, ArrowUpDown, Columns3, ClipboardList, Briefcase } from 'lucide-react';
 import { Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CaseItem, UserItem } from '@/lib/api';
+import { api, CaseItem, IntakeItem, UserItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { caseStatusOptions, getCaseStatusDisplay } from '@/lib/case-status';
-import { caseStageLabel, caseStageOptions } from '@/lib/stage-labels';
+import { caseStageLabel, caseStageOptions, intakeStageLabel } from '@/lib/stage-labels';
 import { caseNumberDisplay } from '@/lib/case-number-display';
 import { casePartyDisplay } from '@/lib/case-party-display';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import { Briefcase } from 'lucide-react';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const PAGE_SIZE = 10;
@@ -33,6 +32,10 @@ const OPTIONAL_COLUMNS = [
 ] as const;
 type OptionalColumnKey = (typeof OPTIONAL_COLUMNS)[number]['key'];
 const HIDDEN_COLUMNS_KEY = 'samnuan.cases.hiddenColumns';
+
+function firstIntakeId(legalCase: CaseItem) {
+  return legalCase.intake?.id ?? legalCase.relatedIntakes?.[0]?.id ?? null;
+}
 
 export default function CasesPage() {
   const d = useDashboardT();
@@ -49,10 +52,14 @@ function CasesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [cases, setCases] = useState<CaseItem[]>([]);
+  const [intakes, setIntakes] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [intakesLoading, setIntakesLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [intakesLoadError, setIntakesLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
+  const [intakeOnly, setIntakeOnly] = useState(searchParams.get('view') === 'intake');
   const [statusFilter, setStatusFilter] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [lawyerFilter, setLawyerFilter] = useState('');
@@ -64,6 +71,10 @@ function CasesPageContent() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkError, setBulkError] = useState('');
   const [hiddenColumns, setHiddenColumns] = useState<Set<OptionalColumnKey>>(new Set());
+
+  useEffect(() => {
+    setIntakeOnly(searchParams.get('view') === 'intake');
+  }, [searchParams]);
 
   useEffect(() => {
     if (!token) return;
@@ -83,6 +94,35 @@ function CasesPageContent() {
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [token, search, statusFilter, stageFilter, lawyerFilter, reloadKey]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setIntakesLoading(true);
+    setIntakesLoadError(false);
+
+    void (async () => {
+      const pageSize = 100;
+      const firstPage = await api.getIntakes(token, { page: 1, limit: pageSize });
+      const allItems = [...firstPage.items];
+      const pageCount = Math.ceil(firstPage.total / pageSize);
+      for (let pageNumber = 2; pageNumber <= pageCount; pageNumber += 1) {
+        const nextPage = await api.getIntakes(token, { page: pageNumber, limit: pageSize });
+        allItems.push(...nextPage.items);
+      }
+      if (!cancelled) setIntakes(allItems);
+    })()
+      .catch(() => {
+        if (!cancelled) setIntakesLoadError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setIntakesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, reloadKey]);
 
   useEffect(() => {
     if (!token) return;
@@ -112,17 +152,53 @@ function CasesPageContent() {
     });
   };
 
+  const orphanIntakes = useMemo(
+    () => intakes.filter((intake) => !intake.case?.id && !intake.relatedCaseId),
+    [intakes],
+  );
+  const intakeCases = useMemo(
+    () => cases.filter((legalCase) => !!firstIntakeId(legalCase)),
+    [cases],
+  );
+  const visibleOrphanIntakes = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase();
+    if (!term) return orphanIntakes;
+    return orphanIntakes.filter((intake) =>
+      [intake.title, intake.clientName, intake.client?.name, intake.referralName, intake.customerRef]
+        .some((value) => value?.toLocaleLowerCase().includes(term)),
+    );
+  }, [orphanIntakes, search]);
+
   const sorted = useMemo(() => {
-    return [...cases].sort((a, b) => {
+    const queueCases = intakeOnly ? intakeCases : cases;
+    return [...queueCases].sort((a, b) => {
       const cmp = a.ownRef.localeCompare(b.ownRef);
       return sortAsc ? cmp : -cmp;
     });
-  }, [cases, sortAsc]);
+  }, [cases, intakeCases, intakeOnly, sortAsc]);
 
   const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   const canCreate = user?.role === Role.ADMIN || user?.role === Role.LAWYER;
   const pageAllSelected = paginated.length > 0 && paginated.every((c) => selected.has(c.id));
+  const showOrphanIntakes = intakeOnly || (!statusFilter && !stageFilter && !lawyerFilter);
+  const includedOrphanIntakes = showOrphanIntakes ? visibleOrphanIntakes : [];
+
+  const changeQueueView = (showIntakes: boolean) => {
+    setIntakeOnly(showIntakes);
+    setPage(0);
+    setSelected(new Set());
+    if (showIntakes) {
+      setStatusFilter('');
+      setStageFilter('');
+      setLawyerFilter('');
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    if (showIntakes) params.set('view', 'intake');
+    else params.delete('view');
+    const query = params.toString();
+    router.replace(`/cases${query ? `?${query}` : ''}`, { scroll: false });
+  };
 
   const toggleSelectAllOnPage = () => {
     setSelected((prev) => {
@@ -177,28 +253,46 @@ function CasesPageContent() {
       'สถานะ',
       'ขั้นตอน',
     ];
-    const rows = sorted.map((c) => [
-      c.ownRef,
-      c.customerRef ?? '',
-      c.blackCaseNumber ?? '',
-      c.redCaseNumber ?? '',
-      c.courtName ?? '',
-      casePartyDisplay(c.participants ?? [], 'plaintiff'),
-      casePartyDisplay(c.participants ?? [], 'defendant'),
-      c.title,
-      c.clientName ?? '',
-      c.description ?? '',
-      `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}`,
-      c.estimatedFee != null ? String(c.estimatedFee) : '',
-      getCaseStatusDisplay(c.status, d.caseStatus).label,
-      c.stage ? caseStageLabel(c.stage, 'th') : '',
-    ]);
+    const rows = [
+      ...sorted.map((c) => [
+        c.ownRef,
+        c.customerRef ?? '',
+        c.blackCaseNumber ?? '',
+        c.redCaseNumber ?? '',
+        c.courtName ?? '',
+        casePartyDisplay(c.participants ?? [], 'plaintiff'),
+        casePartyDisplay(c.participants ?? [], 'defendant'),
+        c.title,
+        c.clientName ?? '',
+        c.description ?? '',
+        `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}`,
+        c.estimatedFee != null ? String(c.estimatedFee) : '',
+        getCaseStatusDisplay(c.status, d.caseStatus).label,
+        c.stage ? caseStageLabel(c.stage, 'th') : '',
+      ]),
+      ...includedOrphanIntakes.map((intake) => [
+        '',
+        intake.customerRef ?? '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        intake.title || intake.matterType || '',
+        intake.clientName ?? intake.client?.name ?? '',
+        intake.description ?? '',
+        intake.receivedBy ? `${intake.receivedBy.firstName} ${intake.receivedBy.lastName}` : '',
+        intake.estimatedDamage != null ? String(intake.estimatedDamage) : '',
+        intake.status,
+        intake.stage ? intakeStageLabel(intake.stage, 'th') : '',
+      ]),
+    ];
     const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
     const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `cases-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `matters-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -210,18 +304,84 @@ function CasesPageContent() {
         description={d.cases.description}
         actions={
           <>
-            <Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={exportCsv}>
+            <Button variant="outline" size="sm" disabled={sorted.length + includedOrphanIntakes.length === 0} onClick={exportCsv}>
               <Download className="h-4 w-4" />
               {d.common.export}
             </Button>
+            <Button size="sm" onClick={() => router.push('/intake/new')}>
+              <Plus className="h-4 w-4" />{d.cases.newIntake}
+            </Button>
             {canCreate && (
-              <Button size="sm" onClick={() => router.push('/cases/new')}>
+              <Button variant="outline" size="sm" onClick={() => router.push('/cases/new')}>
                 <Plus className="h-4 w-4" />{d.cases.newCase}
               </Button>
             )}
           </>
         }
       />
+
+      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label={d.cases.queueViewLabel}>
+        <Button
+          type="button"
+          size="sm"
+          variant={intakeOnly ? 'outline' : 'default'}
+          aria-pressed={!intakeOnly}
+          onClick={() => changeQueueView(false)}
+        >
+          {d.cases.allMatters}<span className="ml-2 rounded-full bg-background/20 px-2 py-0.5 text-xs">{cases.length + includedOrphanIntakes.length}</span>
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={intakeOnly ? 'default' : 'outline'}
+          aria-pressed={intakeOnly}
+          onClick={() => changeQueueView(true)}
+        >
+          {d.cases.intakeOnly}<span className="ml-2 rounded-full bg-background/20 px-2 py-0.5 text-xs">{intakeCases.length + visibleOrphanIntakes.length}</span>
+        </Button>
+      </div>
+
+      {showOrphanIntakes && (intakeOnly || visibleOrphanIntakes.length > 0 || intakesLoading || intakesLoadError) && (
+        <Card className="mb-4">
+          <CardContent className="p-0">
+            <div className="border-b px-4 py-3">
+              <h2 className="flex items-center gap-2 font-semibold">
+                {d.cases.intakeWithoutCase}
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal">{visibleOrphanIntakes.length}</span>
+              </h2>
+            </div>
+            {intakesLoadError ? (
+              <div className="p-4"><LoadFailed onRetry={() => setReloadKey((key) => key + 1)} /></div>
+            ) : intakesLoading ? (
+              <div className="p-4"><PageLoading title={d.cases.loading} lines={2} /></div>
+            ) : visibleOrphanIntakes.length === 0 ? (
+              <p className="px-4 py-5 text-sm text-muted-foreground">{d.cases.noLinkedCases}</p>
+            ) : (
+              <ul className="divide-y">
+                {visibleOrphanIntakes.map((intake) => (
+                  <li key={intake.id}>
+                    <Link href={`/intake/${intake.id}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">
+                          {intake.title || intake.matterType || intake.clientName || intake.client?.name || '(ไม่ระบุชื่อ)'}
+                        </span>
+                        <span className="mt-1 block truncate text-sm text-muted-foreground">
+                          {intake.clientName || intake.client?.name || intake.referralName || '—'} · รับเมื่อ {formatDate(intake.receivedDate)}
+                        </span>
+                      </span>
+                      {intake.stage && (
+                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                          {intakeStageLabel(intake.stage, 'th')}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-start gap-3 p-4">
@@ -231,40 +391,44 @@ function CasesPageContent() {
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             className="max-w-xs"
           />
-          <select
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-          >
-            <option value="">{d.cases.allStatuses}</option>
-            {caseStatusOptions(d.caseStatus).map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="กรองตามขั้นตอนคดี"
-            value={stageFilter}
-            onChange={(e) => { setStageFilter(e.target.value); setPage(0); }}
-            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-          >
-            <option value="">ทุกขั้นตอน</option>
-            {caseStageOptions('th').map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <select
-            aria-label="กรองตามทนาย"
-            value={lawyerFilter}
-            onChange={(e) => { setLawyerFilter(e.target.value); setPage(0); }}
-            className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
-          >
-            <option value="">ทุกคน</option>
-            {lawyers.map((u) => (
-              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-            ))}
-          </select>
+          {!intakeOnly && (
+            <>
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              >
+                <option value="">{d.cases.allStatuses}</option>
+                {caseStatusOptions(d.caseStatus).map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="กรองตามขั้นตอนงาน"
+                value={stageFilter}
+                onChange={(e) => { setStageFilter(e.target.value); setPage(0); }}
+                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              >
+                <option value="">ทุกขั้นตอน</option>
+                {caseStageOptions('th').map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <select
+                aria-label="กรองตามทนาย"
+                value={lawyerFilter}
+                onChange={(e) => { setLawyerFilter(e.target.value); setPage(0); }}
+                className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
+              >
+                <option value="">ทุกคน</option>
+                {lawyers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                ))}
+              </select>
+            </>
+          )}
           <details className="group relative ml-auto max-md:hidden">
             <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
               <Columns3 className="h-4 w-4" /> คอลัมน์
@@ -314,14 +478,16 @@ function CasesPageContent() {
         <CardContent className="p-0">
           {loadError ? (
             <div className="p-4"><LoadFailed onRetry={() => setReloadKey((k) => k + 1)} /></div>
-          ) : loading ? (
+          ) : loading || (intakeOnly && intakesLoading) ? (
             <div className="p-4"><PageLoading title={d.cases.loading} lines={3} /></div>
           ) : paginated.length === 0 ? (
             <EmptyState
-              icon={Briefcase}
-              title={d.cases.empty}
+              icon={intakeOnly ? ClipboardList : Briefcase}
+              title={intakeOnly ? d.cases.noLinkedCases : visibleOrphanIntakes.length ? d.cases.noCasesYet : d.cases.empty}
               description={d.cases.emptyHint}
-              action={canCreate && <Button onClick={() => router.push('/cases/new')}>{d.cases.newCase}</Button>}
+              action={intakeOnly
+                ? <Button onClick={() => router.push('/intake/new')}>{d.cases.newIntake}</Button>
+                : canCreate && <Button onClick={() => router.push('/cases/new')}>{d.cases.newCase}</Button>}
             />
           ) : (
             <>
@@ -332,7 +498,10 @@ function CasesPageContent() {
                     <Link href={`/cases/${c.id}`} className="block space-y-1.5 p-4 hover:bg-muted/50">
                       <div className="flex items-start justify-between gap-3">
                         <span className="text-sm font-medium text-primary">{c.ownRef}</span>
-                        <CaseStatusBadge status={c.status} />
+                        <span className="flex shrink-0 flex-col items-end gap-1">
+                          <CaseStatusBadge status={c.status} />
+                          {c.stage && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{caseStageLabel(c.stage, 'th')}</span>}
+                        </span>
                       </div>
                       <p className="font-medium leading-snug">{c.title}</p>
                       <p className="text-sm text-muted-foreground">
@@ -354,6 +523,11 @@ function CasesPageContent() {
                         {c.updatedAt ? ` · ${formatDate(c.updatedAt)}` : ''}
                       </p>
                     </Link>
+                    {firstIntakeId(c) && (
+                      <Link href={`/intake/${firstIntakeId(c)}`} className="inline-flex px-4 pb-3 text-xs font-medium text-primary hover:underline">
+                        {d.cases.intakeDetails}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -406,7 +580,20 @@ function CasesPageContent() {
                           />
                         </TableCell>
                       )}
-                      <TableCell className="font-medium text-primary">{c.ownRef}</TableCell>
+                      <TableCell className="font-medium text-primary">
+                        <span className="flex flex-col items-start gap-1">
+                          <span>{c.ownRef}</span>
+                          {firstIntakeId(c) && (
+                            <Link
+                              href={`/intake/${firstIntakeId(c)}`}
+                              className="text-xs font-normal text-primary hover:underline"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {d.cases.intakeDetails}
+                            </Link>
+                          )}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{c.customerRef ?? '—'}</TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">{caseNumberDisplay(c.blackCaseNumber)}</TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">{caseNumberDisplay(c.redCaseNumber)}</TableCell>
@@ -422,7 +609,12 @@ function CasesPageContent() {
                           {c.estimatedFee != null ? formatCurrency(c.estimatedFee) : '—'}
                         </TableCell>
                       )}
-                      <TableCell><CaseStatusBadge status={c.status} /></TableCell>
+                      <TableCell>
+                        <span className="flex flex-col items-start gap-1">
+                          <CaseStatusBadge status={c.status} />
+                          {c.stage && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{caseStageLabel(c.stage, 'th')}</span>}
+                        </span>
+                      </TableCell>
                       {!hiddenColumns.has('updatedAt') && (
                         <TableCell className="text-muted-foreground text-xs">
                           {c.updatedAt ? formatDate(c.updatedAt) : '—'}

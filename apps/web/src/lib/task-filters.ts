@@ -30,7 +30,8 @@ interface FilterableTask {
   priority?: string;
   labels?: string[];
   dueDate?: string | null;
-  assignee?: { id: string } | null;
+  case?: { ownRef?: string; title: string } | null;
+  assignee?: { id: string; firstName?: string; lastName?: string } | null;
 }
 
 export function hasActiveTaskFilters(filters: TaskFilters): boolean {
@@ -56,7 +57,14 @@ export function applyTaskFilters<T extends FilterableTask>(
   const weekEnd = new Date(today.getTime() + 8 * 86400000);
 
   return tasks.filter((task) => {
-    if (search && !task.title.toLowerCase().includes(search)) return false;
+    const searchableText = [
+      task.title,
+      task.case?.ownRef,
+      task.case?.title,
+      task.assignee?.firstName,
+      task.assignee?.lastName,
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (search && !searchableText.includes(search)) return false;
     if (filters.status && task.status !== filters.status) return false;
     if (filters.priority && task.priority !== filters.priority) return false;
     if (filters.assigneeId === 'unassigned') {

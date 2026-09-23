@@ -65,6 +65,7 @@ export class CasesService {
         settlementOfferAmount: true,
       },
     },
+    relatedIntakes: { select: { id: true, status: true } },
     customers: {
       orderBy: [{ isPrimary: 'desc' as const }, { createdAt: 'asc' as const }],
       select: {

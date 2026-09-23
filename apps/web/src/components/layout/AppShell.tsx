@@ -66,7 +66,7 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           {children}
         </main>
       </div>
-      {pathname !== '/work' && pathname !== '/dashboard' && pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (
+      {pathname !== '/dashboard' && pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (
         <AIAssistantPanel caseId={activeCaseId} intakeId={activeIntakeId} />
       )}
       <PageTour pathname={pathname} />

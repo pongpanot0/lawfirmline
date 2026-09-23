@@ -291,7 +291,10 @@ export class TasksService {
         assignee: { firmMembers: { some: { firmId: user.firmId } } },
         ...this.caseAccess.getTaskFilterForUser(user),
       },
-      include: this.boardInclude,
+      include: {
+        ...this.boardInclude,
+        case: { select: { id: true, ownRef: true, title: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return tasks.map((task) => this.toBoardItem(task));
