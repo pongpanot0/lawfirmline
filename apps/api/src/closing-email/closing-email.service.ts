@@ -16,6 +16,7 @@ export interface CaseActivitySummary {
 
 export interface ClosingEmailCaseData {
   caseId: string;
+  clientId?: string | null;
   ownRef: string;
   customerRef: string | null;
   clientName: string | null;
@@ -63,6 +64,7 @@ export class ClosingEmailService {
 
     return {
       caseId: legalCase.id,
+      clientId: legalCase.clientId,
       ownRef: legalCase.ownRef,
       customerRef: legalCase.customerRef,
       clientName: legalCase.clientName,
@@ -135,17 +137,20 @@ export class ClosingEmailService {
       data: {
         caseId,
         createdById: user.id,
+        recipientClientId: data.clientId ?? null,
         subject: rendered.subject,
         bodyText: rendered.bodyText,
         selectedActivityIds: dto.selectedActivityIds,
         missingDataNotes: data.missingDataNotes,
       },
+      include: { recipientClient: { select: { id: true, name: true } } },
     });
   }
 
   listDrafts(caseId: string) {
     return this.prisma.closingEmailDraft.findMany({
       where: { caseId },
+      include: { recipientClient: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -169,6 +174,7 @@ export class ClosingEmailService {
         subject: dto.subject ?? draft.subject,
         bodyText: dto.bodyText ?? draft.bodyText,
       },
+      include: { recipientClient: { select: { id: true, name: true } } },
     });
   }
 
@@ -188,6 +194,7 @@ export class ClosingEmailService {
         approvedById: user.id,
         approvedAt: new Date(),
       },
+      include: { recipientClient: { select: { id: true, name: true } } },
     });
   }
 }

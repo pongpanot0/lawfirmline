@@ -194,9 +194,19 @@ export interface TeamPerformanceRow {
   lastName: string;
   completedCount: number;
   avgTurnaroundDays: number | null;
+  turnaroundSampleCount: number;
   openCount: number;
   overdueCount: number;
   overdueRate: number;
+}
+
+export interface WorkflowMetrics {
+  days: number;
+  intakeToCase: { averageDays: number | null; sampleCount: number };
+  documentTurnaround: { averageDays: number | null; sampleCount: number };
+  hearingCloseout: { averageDays: number | null; sampleCount: number };
+  openDocumentRequests: number;
+  overdueDocumentRequests: number;
 }
 
 export interface SopItem {
@@ -1512,6 +1522,9 @@ export const api = {
   getTeamPerformance: (token: string, days = 30) =>
     request<TeamPerformanceRow[]>(`/operations/performance?days=${days}`, { token }),
 
+  getWorkflowMetrics: (token: string, days = 30) =>
+    request<WorkflowMetrics>(`/operations/workflow-metrics?days=${days}`, { token }),
+
   listSops: (token: string, q?: string) =>
     request<SopItem[]>(`/sops${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),
 
@@ -1548,11 +1561,11 @@ export const api = {
       { token },
     ),
 
-  setIntakeChecklistItem: (token: string, intakeId: string, label: string, documentId: string | null) =>
+  setIntakeChecklistItem: (token: string, intakeId: string, label: string, documentId: string | null, requestId?: string) =>
     request<{ label: string; documentId: string | null }>(`/intake/${intakeId}/checklist`, {
       method: 'PATCH',
       token,
-      body: JSON.stringify({ label, documentId }),
+      body: JSON.stringify({ label, documentId, requestId }),
     }),
 
   startTaskOnHold: (
@@ -2973,6 +2986,9 @@ export interface ClosingEmailDraft {
   caseId: string;
   subject: string;
   bodyText: string;
+  recipientKind: 'CLIENT' | 'CUSTOMER';
+  recipientClientId: string | null;
+  recipientClient?: { id: string; name: string } | null;
   selectedActivityIds: string[];
   missingDataNotes: string[];
   status: 'DRAFT' | 'APPROVED';

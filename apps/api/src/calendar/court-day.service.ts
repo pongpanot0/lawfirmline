@@ -34,6 +34,8 @@ export function newCourtDayState(): CourtDayStateDto {
     expense: false,
     amount: '',
     clientDraft: true,
+    draftRecipientKind: 'CLIENT',
+    draftCustomerId: '',
   };
 }
 
@@ -63,6 +65,10 @@ export class CourtDayService {
             firmId: true,
             ownRef: true,
             title: true,
+            clientId: true,
+            clientName: true,
+            client: { select: { id: true, name: true } },
+            customers: { select: { customerId: true, isPrimary: true, customer: { select: { id: true, name: true } } } },
             courtName: true,
             caseTypeId: true,
             leadLawyerId: true,
@@ -232,6 +238,16 @@ export class CourtDayService {
             'ตรวจยอดค่าใช้จ่าย / Check the expense amount',
           );
         }
+        const recipientKind = state.draftRecipientKind ?? 'CLIENT';
+        const selectedCustomer = state.clientDraft && recipientKind === 'CUSTOMER'
+          ? await db.caseCustomer.findFirst({
+              where: { caseId: event.caseId, customerId: state.draftCustomerId ?? '' },
+              include: { customer: { select: { id: true, name: true } } },
+            })
+          : null;
+        if (state.clientDraft && recipientKind === 'CUSTOMER' && !selectedCustomer) {
+          throw new BadRequestException('เลือกผู้ว่าจ้างที่ผูกกับคดีนี้ก่อนสร้างร่างรายงาน');
+        }
         const claimed = await db.courtDay.updateMany({
           where: { eventId: id, version: dto.version, completedAt: null },
           data: {
@@ -334,9 +350,11 @@ export class CourtDayService {
             data: {
               caseId: event.caseId,
               createdById: user.id,
+              recipientKind,
+              recipientClientId: recipientKind === 'CUSTOMER' ? selectedCustomer!.customer.id : event.case.clientId,
               subject: `รายงานผลนัด ${event.case.ownRef} — ${currentEvent.title}`,
               bodyText: [
-                `เรียน ลูกความ`,
+                `เรียน ${recipientKind === 'CUSTOMER' ? selectedCustomer!.customer.name : event.case.client?.name ?? event.case.clientName ?? 'ลูกความ'}`,
                 `เรื่อง ${event.case.title} (${event.case.ownRef})`,
                 `นัด ${currentEvent.title} วันที่ ${date}`,
                 `ผลนัดที่ทนายบันทึก:\n${state.outcome.trim()}`,

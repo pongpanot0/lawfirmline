@@ -68,7 +68,7 @@ export class OperationsService {
   /**
    * Team performance (operational metrics, ไม่ใช่ leaderboard): completed,
    * average turnaround, overdue rate per member over the window.
-   * ponytail: turnaround ≈ updatedAt - createdAt of DONE tasks (no completedAt column).
+   * Legacy tasks without a completion timestamp are excluded from turnaround samples.
    */
   async getTeamPerformance(user: AuthUser, days = 30) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -76,14 +76,15 @@ export class OperationsService {
     const firmScope = {
       OR: [
         { case: { firmId: user.firmId } },
-        { caseId: null, createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
+        { intake: { firmId: user.firmId } },
+        { caseId: null, intakeId: null, createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
       ],
     };
     const [members, doneTasks, openTasks] = await Promise.all([
       this.getFirmMembers(user.firmId),
       this.prisma.task.findMany({
-        where: { ...firmScope, status: TaskStatus.DONE, updatedAt: { gte: since } },
-        select: { assigneeId: true, createdAt: true, updatedAt: true },
+        where: { ...firmScope, status: TaskStatus.DONE, completedAt: { gte: since } },
+        select: { assigneeId: true, createdAt: true, completedAt: true },
       }),
       this.prisma.task.findMany({
         where: { ...firmScope, status: { not: TaskStatus.DONE } },
@@ -97,7 +98,7 @@ export class OperationsService {
       const overdue = open.filter((t) => t.dueDate && t.dueDate < now);
       const avgTurnaroundDays = done.length
         ? Math.round(
-            (done.reduce((sum, t) => sum + (t.updatedAt.getTime() - t.createdAt.getTime()), 0) /
+            (done.reduce((sum, t) => sum + (t.completedAt!.getTime() - t.createdAt.getTime()), 0) /
               done.length /
               (24 * 60 * 60 * 1000)) *
               10,
@@ -109,11 +110,59 @@ export class OperationsService {
         lastName: m.lastName,
         completedCount: done.length,
         avgTurnaroundDays,
+        turnaroundSampleCount: done.length,
         openCount: open.length,
         overdueCount: overdue.length,
         overdueRate: open.length ? Math.round((overdue.length / open.length) * 100) : 0,
       };
     });
+  }
+
+  async getWorkflowMetrics(user: AuthUser, days = 30) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const intakeWhere = {
+      firmId: user.firmId,
+      status: { notIn: ['NO_RESPONSE', 'REJECTED'] as const },
+    };
+    const [openedCases, receivedRequests, completedHearings, openRequests, overdueRequests] = await Promise.all([
+      this.prisma.case.findMany({
+        where: { firmId: user.firmId, intakeId: { not: null }, openedAt: { gte: since } },
+        select: { openedAt: true, intake: { select: { receivedDate: true } } },
+      }),
+      this.prisma.intakeDocumentRequest.findMany({
+        where: { status: 'RECEIVED', receivedAt: { gte: since }, intake: { is: { firmId: user.firmId } } },
+        select: { requestedAt: true, receivedAt: true },
+      }),
+      this.prisma.courtDay.findMany({
+        where: { completedAt: { gte: since }, event: { is: { case: { is: { firmId: user.firmId } } } } },
+        select: { completedAt: true, event: { select: { startAt: true } } },
+      }),
+      this.prisma.intakeDocumentRequest.count({
+        where: { status: { in: ['REQUESTED', 'MISSING'] }, intake: { is: intakeWhere } },
+      }),
+      this.prisma.intakeDocumentRequest.count({
+        where: { status: { in: ['REQUESTED', 'MISSING'] }, dueDate: { lt: new Date() }, intake: { is: intakeWhere } },
+      }),
+    ]);
+    const summarize = (pairs: Array<[Date, Date | null]>) => {
+      const durations = pairs
+        .filter((pair): pair is [Date, Date] => !!pair[1] && pair[1] >= pair[0])
+        .map(([start, end]) => end.getTime() - start.getTime());
+      return {
+        averageDays: durations.length
+          ? Math.round((durations.reduce((sum, duration) => sum + duration, 0) / durations.length / 86400000) * 10) / 10
+          : null,
+        sampleCount: durations.length,
+      };
+    };
+    return {
+      days,
+      intakeToCase: summarize(openedCases.flatMap((row) => row.intake ? [[row.intake.receivedDate, row.openedAt] as [Date, Date | null]] : [])),
+      documentTurnaround: summarize(receivedRequests.map((row): [Date, Date | null] => [row.requestedAt, row.receivedAt])),
+      hearingCloseout: summarize(completedHearings.map((row): [Date, Date | null] => [row.event.startAt, row.completedAt])),
+      openDocumentRequests: openRequests,
+      overdueDocumentRequests: overdueRequests,
+    };
   }
 
   /**

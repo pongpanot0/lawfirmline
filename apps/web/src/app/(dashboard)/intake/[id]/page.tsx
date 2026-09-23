@@ -340,6 +340,7 @@ export default function IntakeDetailPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [checklistSuggestions, setChecklistSuggestions] = useState<ChecklistClassificationSuggestion[]>([]);
+  const [suggestionRequestIds, setSuggestionRequestIds] = useState<Record<string, string>>({});
   const [confirmedChecklist, setConfirmedChecklist] = useState<Record<string, string>>({});
   const [classifyingChecklist, setClassifyingChecklist] = useState(false);
   const [classifyError, setClassifyError] = useState<string | null>(null);
@@ -416,6 +417,7 @@ export default function IntakeDetailPage() {
       )
       .catch(console.error);
     setChecklistSuggestions([]);
+    setSuggestionRequestIds({});
     setClassifyError(null);
   }, [id, token]);
 
@@ -805,11 +807,17 @@ export default function IntakeDetailPage() {
     }
   };
 
-  const confirmChecklistSuggestion = (suggestion: ChecklistClassificationSuggestion) => {
-    if (!id) return;
-    setConfirmedChecklist((previous) => ({ ...previous, [suggestion.label]: suggestion.documentId }));
-    persistChecklistItem(suggestion.label, suggestion.documentId);
-    setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== suggestion.documentId));
+  const confirmChecklistSuggestion = async (suggestion: ChecklistClassificationSuggestion, requestId?: string) => {
+    if (!id || !token) return;
+    try {
+      await api.setIntakeChecklistItem(token, id, suggestion.label, suggestion.documentId, requestId);
+      setConfirmedChecklist((previous) => ({ ...previous, [suggestion.label]: suggestion.documentId }));
+      setChecklistSuggestions((previous) => previous.filter((item) => item.documentId !== suggestion.documentId));
+      setSuggestionRequestIds((previous) => { const next = { ...previous }; delete next[suggestion.documentId]; return next; });
+      await loadDocumentRequests();
+    } catch (err) {
+      setClassifyError(err instanceof ApiError ? err.message : 'ยืนยันเอกสารไม่สำเร็จ');
+    }
   };
 
   const dismissChecklistSuggestion = (documentId: string) => {
@@ -1126,7 +1134,7 @@ export default function IntakeDetailPage() {
                 onFiles={(files) => void handleUploadFiles(files)}
               />
             )}
-          <div>
+          <div id="document-requests" className="scroll-mt-20">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium">เอกสารที่คาดว่าจะถูกส่งเข้ามา</p>
               {documents.length > 0 &&
@@ -1242,27 +1250,55 @@ export default function IntakeDetailPage() {
             {pendingSuggestions.length > 0 && (
               <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
                 <p className="text-sm font-medium text-amber-950">AI แนะนำประเภทเอกสาร — ยืนยันก่อนติ๊ก checklist</p>
-                {pendingSuggestions.map((suggestion) => (
-                  <div key={suggestion.documentId} className="flex flex-wrap items-start justify-between gap-2 text-sm">
-                    <div className="min-w-0">
-                      <p className="font-medium text-amber-950">
-                        {suggestion.filename}
-                        <span className="font-normal text-amber-900"> → {suggestion.label}</span>
-                      </p>
-                      {suggestion.sourceExcerpt && (
-                        <p className="mt-0.5 text-xs text-amber-900/80">“{suggestion.sourceExcerpt}”</p>
-                      )}
+                {pendingSuggestions.map((suggestion) => {
+                  const matchingRequests = documentRequests.filter((request) =>
+                    request.name.trim().toLocaleLowerCase() === suggestion.label.trim().toLocaleLowerCase() && request.status !== 'NOT_APPLICABLE',
+                  );
+                  const selectedRequestId = suggestionRequestIds[suggestion.documentId];
+                  return (
+                    <div key={suggestion.documentId} className="flex flex-wrap items-start justify-between gap-2 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium text-amber-950">
+                          {suggestion.filename}
+                          <span className="font-normal text-amber-900"> → {suggestion.label}</span>
+                        </p>
+                        {suggestion.sourceExcerpt && (
+                          <p className="mt-0.5 text-xs text-amber-900/80">“{suggestion.sourceExcerpt}”</p>
+                        )}
+                        {matchingRequests.length > 1 && (
+                          <label className="mt-2 block text-xs text-amber-950">
+                            เลือกรายการเอกสารที่จะอัปเดต
+                            <select
+                              className="mt-1 min-h-9 w-full rounded-md border border-amber-300 bg-white px-2"
+                              value={selectedRequestId ?? ''}
+                              onChange={(e) => setSuggestionRequestIds((previous) => ({ ...previous, [suggestion.documentId]: e.target.value }))}
+                            >
+                              <option value="">เลือกรายการ</option>
+                              {matchingRequests.map((request) => (
+                                <option key={request.id} value={request.id}>
+                                  {request.name} · {request.required ? 'จำเป็น' : 'เสริม'}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={matchingRequests.length > 1 && !selectedRequestId}
+                          onClick={() => confirmChecklistSuggestion(suggestion, selectedRequestId ?? matchingRequests[0]?.id)}
+                        >
+                          ยืนยัน
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => dismissChecklistSuggestion(suggestion.documentId)}>
+                          ไม่ใช่
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 gap-2">
-                      <Button type="button" size="sm" onClick={() => confirmChecklistSuggestion(suggestion)}>
-                        ยืนยัน
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => dismissChecklistSuggestion(suggestion.documentId)}>
-                        ไม่ใช่
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

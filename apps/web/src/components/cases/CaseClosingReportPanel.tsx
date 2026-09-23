@@ -203,6 +203,10 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
                 {approved ? 'อนุมัติแล้ว' : 'ยังเป็นร่าง'}
                 {drafts.length > 1 && ` · มีร่างทั้งหมด ${drafts.length} ฉบับ`}
               </p>
+              <p className="mb-2 text-xs text-muted-foreground">
+                ผู้รับ: {draft.recipientKind === 'CUSTOMER' ? 'ลูกค้า / ผู้ว่าจ้าง' : 'ลูกความ / ผู้เอาประกัน'}
+                {draft.recipientClient?.name ? ` · ${draft.recipientClient.name}` : ''}
+              </p>
               {draft.missingDataNotes.length > 0 && (
                 <div className="mb-2 rounded-lg border border-warning/40 bg-warning/10 p-2 text-sm">
                   {draft.missingDataNotes.map((note) => (
