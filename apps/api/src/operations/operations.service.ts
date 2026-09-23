@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, AssignmentType, CaseStatus, Role, TaskStatus } from '@lawfirm/shared';
+import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { WorkloadQueryDto } from './dto/operations.dto';
 
@@ -120,9 +121,9 @@ export class OperationsService {
 
   async getWorkflowMetrics(user: AuthUser, days = 30) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const intakeWhere = {
+    const intakeWhere: Prisma.IntakeWhereInput = {
       firmId: user.firmId,
-      status: { notIn: ['NO_RESPONSE', 'REJECTED'] as const },
+      status: { notIn: ['NO_RESPONSE', 'REJECTED'] },
     };
     const [openedCases, receivedRequests, completedHearings, openRequests, overdueRequests] = await Promise.all([
       this.prisma.case.findMany({
