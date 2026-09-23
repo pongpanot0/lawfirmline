@@ -416,53 +416,51 @@ export default function NewCasePage() {
                   {customers.map((row, index) => {
                     const contacts = clients.find((client) => client.id === row.customerId)?.contacts ?? [];
                     return (
-                      <div key={index} className="flex min-w-0 items-end gap-2">
-                        <div className="min-w-0 flex-1">
-                          <CustomerSelect
-                            id={"case-customer-" + index}
-                            label={"ผู้ว่าจ้างรายที่ " + (index + 1)}
-                            value={row.customerId}
-                            clients={clients}
-                            onChange={(customerId) => setCustomers((rows) => rows.map((item, i) => i === index ? { ...item, customerId, contactId: '' } : item))}
-                            onCreated={(client) => setClients((rows) => [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')))}
-                          />
-                          {row.customerId && (
-                            <div className="mt-2 space-y-2">
-                              {contacts.length > 0 ? (
-                                <select
-                                  aria-label={"ผู้ติดต่อผู้ว่าจ้างรายที่ " + (index + 1)}
-                                  value={row.contactId ?? ''}
-                                  onChange={(event) => setCustomers((rows) => rows.map((item, i) => i === index ? { ...item, contactId: event.target.value } : item))}
-                                  className="min-h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                                >
-                                  <option value="">ยังไม่ระบุผู้ติดต่อ</option>
-                                  {contacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.name}</option>)}
-                                </select>
-                              ) : (
-                                <p className="text-xs text-muted-foreground">ยังไม่มีชื่อผู้ติดต่อ</p>
-                              )}
-                              <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogCustomerIndex(index)}>
-                                <Plus className="h-3.5 w-3.5" /> เพิ่มผู้ติดต่อ
-                              </Button>
-                            </div>
-                          )}
-                        </div>
+                      <div key={index} className={"grid min-w-0 items-end gap-x-2 gap-y-2 " + (customers.length > 1 ? "grid-cols-[minmax(0,1fr)_5rem_auto]" : "grid-cols-1")}>
+                        <CustomerSelect
+                          id={"case-customer-" + index}
+                          label={"ผู้ว่าจ้างรายที่ " + (index + 1)}
+                          value={row.customerId}
+                          clients={clients}
+                          onChange={(customerId) => setCustomers((rows) => rows.map((item, i) => i === index ? { ...item, customerId, contactId: '' } : item))}
+                          onCreated={(client) => setClients((rows) => [...rows, client].sort((a, b) => a.name.localeCompare(b.name, 'th')))}
+                        />
                         {customers.length > 1 && (
-                          <>
-                            <input
-                              aria-label={"สัดส่วนผู้ว่าจ้างรายที่ " + (index + 1)}
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={row.sharePercent}
-                              onChange={(event) => setCustomers((rows) => rows.map((item, i) => i === index ? { ...item, sharePercent: event.target.value } : item))}
-                              placeholder="%"
-                              className="h-10 w-16 rounded-lg border border-input bg-background px-2 text-center text-sm"
-                            />
-                            <Button type="button" variant="ghost" size="icon" aria-label={"ลบผู้ว่าจ้างรายที่ " + (index + 1)} onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))} className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive">
-                              <X className="h-4 w-4" />
+                          <input
+                            aria-label={"สัดส่วนผู้ว่าจ้างรายที่ " + (index + 1)}
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={row.sharePercent}
+                            onChange={(event) => setCustomers((rows) => rows.map((item, i) => i === index ? { ...item, sharePercent: event.target.value } : item))}
+                            placeholder="%"
+                            className="h-10 w-full min-w-0 rounded-lg border border-input bg-background px-2 text-center text-sm"
+                          />
+                        )}
+                        {customers.length > 1 && (
+                          <Button type="button" variant="ghost" size="icon" aria-label={"ลบผู้ว่าจ้างรายที่ " + (index + 1)} onClick={() => setCustomers((rows) => rows.filter((_, i) => i !== index))} className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive">
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {row.customerId && (
+                          <div className="col-span-full min-w-0 space-y-2">
+                            {contacts.length > 0 ? (
+                              <select
+                                aria-label={"ผู้ติดต่อผู้ว่าจ้างรายที่ " + (index + 1)}
+                                value={row.contactId ?? ''}
+                                onChange={(event) => setCustomers((rows) => rows.map((item, i) => i === index ? { ...item, contactId: event.target.value } : item))}
+                                className="min-h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                              >
+                                <option value="">ยังไม่ระบุผู้ติดต่อ</option>
+                                {contacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.name}</option>)}
+                              </select>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">ยังไม่มีชื่อผู้ติดต่อ</p>
+                            )}
+                            <Button type="button" variant="outline" size="sm" onClick={() => setContactDialogCustomerIndex(index)}>
+                              <Plus className="h-3.5 w-3.5" /> เพิ่มผู้ติดต่อ
                             </Button>
-                          </>
+                          </div>
                         )}
                       </div>
                     );
