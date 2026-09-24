@@ -341,13 +341,6 @@ async function main() {
       startAt: atNine(30),
       reminderMinutes: [10080, 1440],
     },
-    {
-      caseId: createdCases[3].id,
-      title: 'Mediation Session',
-      type: EventType.COURT_DATE,
-      startAt: atNine(14),
-      reminderMinutes: [1440, 60],
-    },
   ];
 
   for (const event of events) {

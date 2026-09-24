@@ -209,6 +209,11 @@ export class LineMessagingService {
   }
 
   async sendText(message: string, targetUserIds?: string[]): Promise<boolean> {
+    if (!targetUserIds?.length) {
+      this.logger.warn('LINE message skipped: no recipient IDs');
+      return false;
+    }
+
     if (!this.isConfigured()) {
       this.logger.warn(`LINE not configured. Message: ${message}`);
       return false;
@@ -220,21 +225,12 @@ export class LineMessagingService {
       return false;
     }
 
-    const pushUserIds =
-      targetUserIds && targetUserIds.length > 0
-        ? targetUserIds
-        : this.getPushUserIds();
-
-    if (pushUserIds.length > 0) {
-      let sent = false;
-      for (const userId of pushUserIds) {
-        const ok = await this.pushMessage(token, userId, message);
-        sent = sent || ok;
-      }
-      return sent;
+    let sent = false;
+    for (const userId of targetUserIds) {
+      const ok = await this.pushMessage(token, userId, message);
+      sent = sent || ok;
     }
-
-    return this.broadcastMessage(token, message);
+    return sent;
   }
 
   async pushTo(
@@ -426,11 +422,15 @@ export class LineMessagingService {
     await this.sendText(message, targetUserIds);
   }
 
-  async sendTestMessage(): Promise<{ ok: boolean; mode: 'push' | 'broadcast' | 'none' }> {
+  async sendTestMessage(): Promise<{ ok: boolean; mode: 'push' | 'none' }> {
     const pushUserIds = this.getPushUserIds();
-    const mode = pushUserIds.length > 0 ? 'push' : 'broadcast';
-    const ok = await this.sendText('✅ LexFlow — ทดสอบการเชื่อมต่อ LINE Messaging API สำเร็จ');
-    return { ok, mode };
+    if (pushUserIds.length === 0) return { ok: false, mode: 'none' };
+
+    const ok = await this.sendText(
+      '✅ LexFlow — ทดสอบการเชื่อมต่อ LINE Messaging API สำเร็จ',
+      pushUserIds,
+    );
+    return { ok, mode: 'push' };
   }
 
   getStatus() {
@@ -439,7 +439,7 @@ export class LineMessagingService {
       channelId: this.getChannelId() ?? null,
       hasStaticAccessToken: Boolean(this.getStaticAccessToken()),
       pushTargetCount: this.getPushUserIds().length,
-      deliveryMode: this.getPushUserIds().length > 0 ? 'push' : 'broadcast',
+      deliveryMode: this.getPushUserIds().length > 0 ? 'push' : 'none',
     };
   }
 
@@ -469,28 +469,4 @@ export class LineMessagingService {
     }
   }
 
-  private async broadcastMessage(token: string, text: string): Promise<boolean> {
-    try {
-      const res = await fetch('https://api.line.me/v2/bot/message/broadcast', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [{ type: 'text', text }],
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.text();
-        this.logger.error(`LINE broadcast failed (${res.status}): ${body}`);
-        return false;
-      }
-      return true;
-    } catch (err) {
-      this.logger.error('LINE broadcast error', err);
-      return false;
-    }
-  }
 }

@@ -2370,7 +2370,7 @@ export const api = {
     }),
 
   testLineIntegration: (token: string) =>
-    request<{ ok: boolean; mode: 'push' | 'broadcast' | 'none' }>('/integrations/line/test', {
+    request<{ ok: boolean; mode: 'push' | 'none' }>('/integrations/line/test', {
       method: 'POST',
       token,
     }),
@@ -2706,7 +2706,7 @@ export interface LineIntegrationStatus {
   channelId: string | null;
   hasStaticAccessToken: boolean;
   pushTargetCount: number;
-  deliveryMode: 'push' | 'broadcast';
+  deliveryMode: 'push' | 'none';
 }
 
 export interface LinePersonalStatus {

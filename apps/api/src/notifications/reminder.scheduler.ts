@@ -71,7 +71,11 @@ export class ReminderScheduler {
           );
 
           const lineUserIds = await this.lineLink.getLineUserIdsForEvent(event);
-          const lineSent = await this.lineMessaging.sendText(message, lineUserIds);
+          // Skip LINE when no specific event recipient has linked an account.
+          const lineSent =
+            lineUserIds.length > 0
+              ? await this.lineMessaging.sendText(message, lineUserIds)
+              : false;
 
           // Mobile push goes to whoever attends: the event's assignee when
           // set, otherwise the case's lead lawyer.
