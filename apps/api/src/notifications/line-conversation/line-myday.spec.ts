@@ -33,6 +33,7 @@ describe('LineBotRouter my-day command', () => {
     router = new LineBotRouterService(
       line, auth, store, intakeFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
       new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
+      { start: jest.fn(), handle: jest.fn() } as any,
     );
   });
 

@@ -20,6 +20,12 @@ enum FirmRole {
   ASSISTANT
 }
 
+enum LeaveType {
+  SICK
+  PERSONAL
+  VACATION
+}
+
 enum SubscriptionPlan {
   SOLO
   FIRM
@@ -395,6 +401,7 @@ model Firm {
   invoices           Invoice[]
   conflictChecks     ConflictCheck[]
   cargoClaims        CargoClaim[]
+  leaves             LeaveRequest[]
 }
 
 model FirmMember {
@@ -618,6 +625,7 @@ model User {
   createdDateSuggestions     DocumentDateSuggestion[]  @relation("DateSuggestionCreator")
   reviewedDateSuggestions    DocumentDateSuggestion[]  @relation("DateSuggestionReviewer")
   dailyDigestLogs            DailyDigestLog[]
+  leaveRequests              LeaveRequest[]
   assignedEvents             CalendarEvent[]           @relation("EventAssignee")
   deviceTokens               DeviceToken[]
   caseStatusLogs             CaseStatusLog[]
@@ -1382,6 +1390,29 @@ model CalendarEvent {
 
   @@index([startAt])
   @@index([assigneeId])
+}
+
+model LeaveRequest {
+  id        String    @id @default(uuid())
+  firmId    String
+  userId    String
+  type      LeaveType
+  startDate DateTime  @db.Date
+  endDate   DateTime  @db.Date
+  createdAt DateTime  @default(now())
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([firmId, startDate, endDate])
+  @@index([userId, startDate])
+  @@unique([firmId, userId, startDate, endDate])
+}
+
+model LeaveNoticeLog {
+  key       String    @id
+  claimedAt DateTime  @default(now())
+  sentAt    DateTime?
 }
 
 model ReminderLog {

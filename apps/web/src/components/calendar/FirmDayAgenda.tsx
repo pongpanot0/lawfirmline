@@ -80,7 +80,7 @@ export function FirmDayAgenda({
               <h3 className="font-semibold text-foreground">
                 {DAY.format(new Date(`${key}T00:00:00+07:00`))}
               </h3>
-              <span className="text-xs text-muted-foreground">{dayEvents.length} นัด</span>
+              <span className="text-xs text-muted-foreground">{dayEvents.length} รายการ</span>
               {clashing.size > 0 && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                   {clashing.size} คนมีนัดซ้อน
@@ -99,7 +99,7 @@ export function FirmDayAgenda({
                   }`}
                 >
                   <span className="w-12 shrink-0 tabular-nums text-muted-foreground">
-                    {TIME.format(new Date(event.startAt))}
+                    {event.leaveId ? 'ทั้งวัน' : TIME.format(new Date(event.startAt))}
                   </span>
                   <span
                     style={{ backgroundColor: personColors?.get(eventPersonId(event) ?? '') ?? '#64748b' }}
@@ -109,7 +109,7 @@ export function FirmDayAgenda({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-foreground">{event.title}</span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {event.case ? `${event.case.ownRef} · ${event.case.title}` : 'ไม่ผูกกับคดี'}
+                      {event.leaveId ? 'ลางาน' : event.case ? `${event.case.ownRef} · ${event.case.title}` : 'ไม่ผูกกับคดี'}
                       {(event.courtName ?? event.case?.courtName) &&
                         ` · ${event.courtName ?? event.case?.courtName}`}
                     </span>

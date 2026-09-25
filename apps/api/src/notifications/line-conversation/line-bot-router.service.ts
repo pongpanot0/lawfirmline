@@ -11,6 +11,7 @@ import { LineTaskFlowService } from './flows/line-task-flow.service';
 import { LineTodoFlowService } from './flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './flows/line-expense-flow.service';
 import { LineAdvanceFlowService } from './flows/line-advance-flow.service';
+import { LineLeaveFlowService } from './flows/line-leave-flow.service';
 import { ConversationSession, ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
 import {
   CANCEL_COMMAND,
@@ -44,6 +45,7 @@ export class LineBotRouterService {
     private agenda: AgendaService,
     private config: ConfigService,
     private firmLink: FirmLinkService,
+    private leaveFlow: LineLeaveFlowService,
   ) {}
 
   async route(
@@ -101,7 +103,7 @@ export class LineBotRouterService {
             'ออกจากรายการที่ทำค้างไว้ แล้วเริ่มรายการใหม่ให้ครับ',
           );
         }
-        await this.startFlow(directFlow, started);
+        await this.startFlow(directFlow, started, text);
         return;
       }
       await this.showMainMenu(lineUserId, target);
@@ -147,6 +149,7 @@ export class LineBotRouterService {
     if (existing.flowType === FlowType.TODO) return this.todoFlow.handle(updated, text);
     if (existing.flowType === FlowType.EXPENSE) return this.expenseFlow.handle(updated, text);
     if (existing.flowType === FlowType.ADVANCE) return this.advanceFlow.handle(updated, text);
+    if (existing.flowType === FlowType.LEAVE) return this.leaveFlow.handle(updated, text);
   }
 
   private async replyMyDay(
@@ -194,7 +197,7 @@ export class LineBotRouterService {
     }
   }
 
-  private startFlow(flowType: FlowType, session: ConversationSession): Promise<void> {
+  private startFlow(flowType: FlowType, session: ConversationSession, command?: string): Promise<void> {
     switch (flowType) {
       case FlowType.CASE:
         return this.intakeFlow.start(session);
@@ -206,6 +209,8 @@ export class LineBotRouterService {
         return this.expenseFlow.start(session);
       case FlowType.ADVANCE:
         return this.advanceFlow.start(session);
+      case FlowType.LEAVE:
+        return this.leaveFlow.start(session, command);
     }
   }
 

@@ -4,6 +4,7 @@ export enum FlowType {
   TODO = 'TODO',
   EXPENSE = 'EXPENSE',
   ADVANCE = 'ADVANCE',
+  LEAVE = 'LEAVE',
 }
 
 export enum ConversationStep {
@@ -52,6 +53,13 @@ export enum ConversationStep {
   ADVANCE_CONFIRM = 'ADVANCE_CONFIRM',
   ADVANCE_EDIT_PICK_FIELD = 'ADVANCE_EDIT_PICK_FIELD',
   ADVANCE_EDIT_VALUE = 'ADVANCE_EDIT_VALUE',
+
+  LEAVE_TYPE = 'LEAVE_TYPE',
+  LEAVE_START = 'LEAVE_START',
+  LEAVE_END = 'LEAVE_END',
+  LEAVE_CONFIRM = 'LEAVE_CONFIRM',
+  LEAVE_CANCEL_PICK = 'LEAVE_CANCEL_PICK',
+  LEAVE_CANCEL_CONFIRM = 'LEAVE_CANCEL_CONFIRM',
 }
 
 export interface ConversationTarget {

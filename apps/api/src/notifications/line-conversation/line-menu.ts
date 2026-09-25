@@ -12,6 +12,11 @@ export const MENU_SELECTION_MAP: Record<string, FlowType> = {
   'สร้าง Todo': FlowType.TODO,
   'บันทึกค่าใช้จ่าย': FlowType.EXPENSE,
   'เบิกล่วงหน้า': FlowType.ADVANCE,
+  'ลางาน': FlowType.LEAVE,
+  'ลาป่วย': FlowType.LEAVE,
+  'ลากิจ': FlowType.LEAVE,
+  'พักร้อน': FlowType.LEAVE,
+  'การลาของฉัน': FlowType.LEAVE,
 };
 
 /**
@@ -25,6 +30,8 @@ export const MENU_QUICK_REPLY: QuickReplyItem[] = [
   { label: '📝 สร้าง Todo', text: 'สร้าง Todo' },
   { label: '💸 ค่าใช้จ่าย', text: 'บันทึกค่าใช้จ่าย' },
   { label: '💰 เบิกล่วงหน้า', text: 'เบิกล่วงหน้า' },
+  { label: '🏖️ ลางาน', text: 'ลางาน' },
+  { label: '📅 การลาของฉัน', text: 'การลาของฉัน' },
   { label: '📊 งานวันนี้', text: MYDAY_COMMAND },
 ];
 

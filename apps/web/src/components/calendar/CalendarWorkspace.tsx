@@ -22,7 +22,10 @@ const EVENT_COLORS: Record<string, string> = {
   CLIENT_MEETING: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
   DEADLINE: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
   OTHER: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  LEAVE: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
 };
+
+const LEAVE_LABELS = { SICK: 'ลาป่วย', PERSONAL: 'ลากิจ', VACATION: 'พักร้อน' } as const;
 
 /**
  * One calendar workspace behind /my-day and /court-schedule: the same page
@@ -36,8 +39,9 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     CLIENT_MEETING: d.calendar.typeClientMeeting,
     DEADLINE: d.calendar.typeDeadline,
     OTHER: d.calendar.typeOther,
+    LEAVE: 'ลางาน',
   };
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [view, setView] = useState<'day' | 'month' | 'agenda'>(defaultView);
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [cases, setCases] = useState<CaseItem[]>([]);
@@ -51,6 +55,8 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     { event: CalendarEventItem | null; defaultDate?: Date } | null
   >(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [selectedLeave, setSelectedLeave] = useState<CalendarEventItem | null>(null);
+  const [leaveError, setLeaveError] = useState('');
 
   useEffect(() => {
     if (!token) return;
@@ -67,7 +73,35 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     if (!token) return;
     const from = new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
     const to = new Date(month.getFullYear(), month.getMonth() + 2, 0).toISOString();
-    setEvents(await api.getCalendarEvents(token, { from, to }));
+    const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const [appointments, leaves] = await Promise.all([
+      api.getCalendarEvents(token, { from, to }),
+      api.getLeaves(token, dateKey(new Date(month.getFullYear(), month.getMonth() - 1, 1)), dateKey(new Date(month.getFullYear(), month.getMonth() + 2, 0))),
+    ]);
+    const leaveDays: CalendarEventItem[] = leaves.flatMap((leave) => {
+      const days: CalendarEventItem[] = [];
+      const cursor = new Date(`${leave.startDate.slice(0, 10)}T00:00:00Z`);
+      const end = leave.endDate.slice(0, 10);
+      while (cursor.toISOString().slice(0, 10) <= end) {
+        const date = cursor.toISOString().slice(0, 10);
+        days.push({
+          id: `leave:${leave.id}:${date}`,
+          title: `${LEAVE_LABELS[leave.type]} · ${leave.user.firstName} ${leave.user.lastName}`,
+          type: 'LEAVE',
+          startAt: `${date}T09:00:00+07:00`,
+          endAt: `${date}T18:00:00+07:00`,
+          assigneeId: leave.userId,
+          leaveId: leave.id,
+          leaveType: leave.type,
+          leaveOwnerId: leave.userId,
+          leaveStartDate: leave.startDate.slice(0, 10),
+          leaveEndDate: leave.endDate.slice(0, 10),
+        });
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      return days;
+    });
+    setEvents([...appointments, ...leaveDays].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()));
   }, [token, month]);
 
   useEffect(() => {
@@ -83,6 +117,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   // case's lead lawyer for both filtering and color.
   const people = new Map(users.map(person => [person.id, `${person.firstName} ${person.lastName}`]));
   for (const event of events) {
+    if (event.leaveId && event.assigneeId) people.set(event.assigneeId, event.title.split(' · ')[1] ?? 'สมาชิกสำนักงาน');
     const lead = event.case?.leadLawyer;
     if (lead && !people.has(lead.id)) people.set(lead.id, `${lead.firstName} ${lead.lastName}`);
     if (event.assigneeId && !people.has(event.assigneeId)) people.set(event.assigneeId, 'ผู้รับผิดชอบ (ไม่พบชื่อ)');
@@ -94,9 +129,13 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     return { name: id ? people.get(id) ?? 'ผู้รับผิดชอบ (ไม่พบชื่อ)' : 'ยังไม่ระบุผู้รับผิดชอบ', color: id ? personColors.get(id) ?? '#64748b' : '#64748b' };
   };
   const visibleEvents = personFilter ? events.filter((e) => eventPersonId(e) === personFilter) : events;
+  const openEvent = (event: CalendarEventItem) => {
+    if (event.leaveId) { setLeaveError(''); setSelectedLeave(event); }
+    else setDialog({ event });
+  };
 
   const upcoming = visibleEvents
-    .filter((e) => new Date(e.startAt) >= new Date())
+    .filter((e) => new Date(e.leaveId ? e.endAt ?? e.startAt : e.startAt) >= new Date())
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
     .slice(0, 5);
 
@@ -135,8 +174,8 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                 className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
               >
                 <option value="">ทุกคน</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                {[...people.entries()].map(([id, name]) => (
+                  <option key={id} value={id}>{name}</option>
                 ))}
               </select>
             )}
@@ -174,7 +213,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                 events={visibleEvents}
                 users={users}
                 personColors={personColors}
-                onEventClick={(event) => setDialog({ event })}
+                onEventClick={openEvent}
               />
             )}
           </CardContent>
@@ -203,9 +242,10 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                     month={month}
                     onMonthChange={setMonth}
                     onDayClick={(date) => setDialog({ event: null, defaultDate: date })}
-                    onEventClick={(ev) =>
-                      setDialog({ event: events.find((e) => e.id === ev.id) ?? null })
-                    }
+                    onEventClick={(ev) => {
+                      const event = events.find((e) => e.id === ev.id);
+                      if (event) openEvent(event);
+                    }}
                   />
                 </CardContent>
               </Card>
@@ -233,7 +273,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                   key={e.id}
                   type="button"
                   style={{ borderLeft: `4px solid ${personAppearance(e).color}` }}
-                  onClick={() => setDialog({ event: e })}
+                  onClick={() => openEvent(e)}
                   className="w-full rounded-lg border border-border p-3 text-left hover:bg-accent/50"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -243,7 +283,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                     </Badge>
                   </div>
                   <p className="mt-1 text-xs font-medium">{personAppearance(e).name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(e.startAt)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{e.leaveId ? `${e.leaveStartDate} · ทั้งวัน` : formatDateTime(e.startAt)}</p>
                   {e.case && <p className="text-xs text-primary">{e.case.ownRef}</p>}
                 </button>
               ))}
@@ -267,6 +307,30 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
           onClose={() => setDialog(null)}
           onSaved={loadEvents}
         />
+      )}
+      {selectedLeave && (
+        <div role="dialog" aria-modal="true" aria-label="รายละเอียดการลา" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-card p-5 shadow-xl">
+            <h2 className="text-lg font-semibold">{selectedLeave.title}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{selectedLeave.leaveStartDate} ถึง {selectedLeave.leaveEndDate} · ทั้งวัน</p>
+            {leaveError && <p role="alert" className="mt-3 text-sm text-destructive">{leaveError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              {user?.id === selectedLeave.leaveOwnerId && selectedLeave.leaveId && token && (
+                <Button variant="destructive" size="sm" onClick={async () => {
+                  if (!window.confirm('ยกเลิกรายการลานี้?')) return;
+                  try { await api.cancelLeave(token, selectedLeave.leaveId!); }
+                  catch (error) {
+                    setLeaveError(error instanceof Error ? error.message : 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่');
+                    return;
+                  }
+                  setSelectedLeave(null);
+                  void loadEvents().catch((error) => setLoadError(error instanceof Error ? error.message : d.common.loadFailed));
+                }}>ยกเลิกทั้งช่วงลา</Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setSelectedLeave(null)}>ปิด</Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

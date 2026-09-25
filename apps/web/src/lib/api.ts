@@ -266,7 +266,21 @@ export interface CalendarEventItem {
   endAt?: string | null;
   type: string;
   assigneeId?: string | null;
+  leaveId?: string;
+  leaveType?: 'SICK' | 'PERSONAL' | 'VACATION';
+  leaveOwnerId?: string;
+  leaveStartDate?: string;
+  leaveEndDate?: string;
   case?: { id: string; ownRef: string; title: string; courtName?: string | null; leadLawyer?: { id: string; firstName: string; lastName: string } };
+}
+
+export interface LeaveItem {
+  id: string;
+  userId: string;
+  type: 'SICK' | 'PERSONAL' | 'VACATION';
+  startDate: string;
+  endDate: string;
+  user: { firstName: string; lastName: string };
 }
 
 /** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน ต่างจากลูกความ (client) ที่เราว่าความให้ */
@@ -1797,6 +1811,11 @@ export const api = {
     const qs = query.toString();
     return request<CalendarEventItem[]>(`/calendar/events${qs ? `?${qs}` : ''}`, { token });
   },
+
+  getLeaves: (token: string, from: string, to: string) =>
+    request<LeaveItem[]>(`/leaves?${new URLSearchParams({ from, to })}`, { token }),
+  cancelLeave: (token: string, id: string) =>
+    request(`/leaves/${id}`, { token, method: 'DELETE' }),
 
   getEventResponsibility: (token: string, id: string) => request<import('@/components/calendar/EventResponsibility').Responsibility>(`/calendar/events/${id}/responsibility`, { token }),
   acknowledgeEvent: (token: string, id: string, eventUpdatedAt: string, complete = false) => request(`/calendar/events/${id}/${complete ? 'complete-work' : 'acknowledge'}`, { token, method: 'POST', body: JSON.stringify({ eventUpdatedAt }) }),

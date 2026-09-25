@@ -31,6 +31,7 @@ const typeColors: Record<string, string> = {
   CLIENT_MEETING: 'bg-primary/10 text-primary border-primary/20',
   DEADLINE: 'bg-warning/10 text-warning border-warning/20',
   OTHER: 'bg-muted text-muted-foreground border-border',
+  LEAVE: 'bg-violet-100 text-violet-800 border-violet-200',
 };
 
 export function CalendarView({
@@ -50,6 +51,7 @@ export function CalendarView({
     CLIENT_MEETING: d.calendar.typeClientMeeting,
     DEADLINE: d.calendar.typeDeadline,
     OTHER: d.calendar.typeOther,
+    LEAVE: 'ลางาน',
   };
   const personStyle = (event: CalendarEventData): CSSProperties | undefined => personAppearance ? { borderLeft: `4px solid ${personAppearance(event).color}`, backgroundColor: `color-mix(in srgb, ${personAppearance(event).color} 10%, transparent)` } : undefined;
   const year = month.getFullYear();
@@ -198,7 +200,7 @@ export function CalendarView({
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">
-                    {formatDateTime(e.startAt)}
+                    {e.type === 'LEAVE' ? 'ทั้งวัน' : formatDateTime(e.startAt)}
                   </p>
                   <span className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-[10px] ${typeColors[e.type] ?? typeColors.OTHER}`}>
                     {typeLabels[e.type] ?? typeLabels.OTHER}

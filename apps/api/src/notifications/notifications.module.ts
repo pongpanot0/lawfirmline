@@ -22,6 +22,9 @@ import { LineTaskFlowService } from './line-conversation/flows/line-task-flow.se
 import { LineTodoFlowService } from './line-conversation/flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './line-conversation/flows/line-expense-flow.service';
 import { LineAdvanceFlowService } from './line-conversation/flows/line-advance-flow.service';
+import { LineLeaveFlowService } from './line-conversation/flows/line-leave-flow.service';
+import { LeaveService } from '../leave/leave.service';
+import { LeaveController } from '../leave/leave.controller';
 import { BillingModule } from '../billing/billing.module';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { IntakeModule } from '../intake/intake.module';
@@ -44,7 +47,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     forwardRef(() => BillingModule),
     IntelligenceModule,
   ],
-  controllers: [LineController, DevicesController],
+  controllers: [LineController, DevicesController, LeaveController],
   providers: [
     PushService,
     ReminderScheduler,
@@ -67,6 +70,8 @@ import { AgendaModule } from '../agenda/agenda.module';
     LineTodoFlowService,
     LineExpenseFlowService,
     LineAdvanceFlowService,
+    LineLeaveFlowService,
+    LeaveService,
   ],
   exports: [
     PushService,
