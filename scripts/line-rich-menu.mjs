@@ -1,25 +1,25 @@
 #!/usr/bin/env node
-// Usage: LINE_CHANNEL_ACCESS_TOKEN=... node scripts/line-rich-menu.mjs <image.png|jpg> [--dry-run]
-// Creates the 6-cell rich menu, uploads the image, sets it as default for all users.
-// Cell texts must match MENU_SELECTION_MAP / MYDAY_COMMAND in
-// apps/api/src/notifications/line-conversation/line-bot-router.service.ts.
+// Usage: LINE_CHANNEL_ACCESS_TOKEN=... node scripts/line-rich-menu.mjs <image.jpg> [--dry-run]
+// Tap areas match apps/api/public/line-assets/rich-menu-leave.jpg.
+// Creates the rich menu, uploads the image, sets it as default for all users.
 import { readFileSync } from 'node:fs';
 
 const CELLS = [
-  ['เพิ่ม Task', 0, 0],
-  ['สร้าง Todo', 833, 0],
-  ['สร้าง Case', 1666, 0],
-  ['บันทึกค่าใช้จ่าย', 0, 843],
-  ['เบิกล่วงหน้า', 833, 843],
-  ['ลางาน', 1666, 843],
+  ['เพิ่ม Task', 0, 0, 510, 475],
+  ['สร้าง Todo', 510, 0, 507, 475],
+  ['สร้าง Case', 1017, 0, 510, 475],
+  ['บันทึกค่าใช้จ่าย', 0, 475, 510, 465],
+  ['เบิกล่วงหน้า', 510, 475, 507, 465],
+  ['ลางาน', 1017, 475, 510, 465],
+  ['เมนู', 0, 940, 1527, 90],
 ];
 const menu = {
-  size: { width: 2500, height: 1686 },
+  size: { width: 1527, height: 1030 },
   selected: true,
   name: 'lawfirm-main',
   chatBarText: 'เมนู',
-  areas: CELLS.map(([text, x, y]) => ({
-    bounds: { x, y, width: x === 1666 ? 834 : 833, height: 843 },
+  areas: CELLS.map(([text, x, y, width, height]) => ({
+    bounds: { x, y, width, height },
     action: { type: 'message', text },
   })),
 };
