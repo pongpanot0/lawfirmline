@@ -12,7 +12,7 @@ describe('LineBotRouter my-day command', () => {
     resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'LAWYER' }),
   } as any;
   const store = { get: jest.fn(), start: jest.fn(), update: jest.fn(), clear: jest.fn() } as any;
-  const intakeFlow = { start: jest.fn(), handle: jest.fn() } as any;
+  const caseFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const taskFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const todoFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const expenseFlow = { start: jest.fn(), handle: jest.fn(), handleImage: jest.fn() } as any;
@@ -31,7 +31,7 @@ describe('LineBotRouter my-day command', () => {
     jest.clearAllMocks();
     auth.resolve.mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'LAWYER' });
     router = new LineBotRouterService(
-      line, auth, store, intakeFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
+      line, auth, store, caseFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
       new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
       { start: jest.fn(), handle: jest.fn() } as any,
     );
@@ -56,7 +56,7 @@ describe('LineBotRouter my-day command', () => {
     expect(text).toContain('ยื่นคำให้การ');
     expect(text).toContain('นัดสืบพยาน');
     expect(text).toContain('https://acme.example.com/my-day');
-    expect(intakeFlow.start).not.toHaveBeenCalled();
+    expect(caseFlow.start).not.toHaveBeenCalled();
   });
 
   it('celebrates an empty day', async () => {

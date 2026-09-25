@@ -19,7 +19,7 @@ function webhookEvent(text: string, replyToken = 'e2e-reply-token') {
   };
 }
 
-test('create a case (Intake) end-to-end via the LINE webhook conversation', async ({ request }) => {
+test('create a Case directly via the LINE webhook conversation', async ({ request }) => {
   const secret = process.env.LINE_CHANNEL_SECRET;
   if (!secret) {
     throw new Error(
@@ -45,6 +45,12 @@ test('create a case (Intake) end-to-end via the LINE webhook conversation', asyn
   });
   expect(login.ok()).toBeTruthy();
   const { accessToken } = await login.json();
+  const lawyersResponse = await request.get(`${API}/users/lawyers`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  expect(lawyersResponse.ok()).toBeTruthy();
+  const lawyers = await lawyersResponse.json() as Array<{ firstName: string; lastName: string }>;
+  expect(lawyers.length).toBeGreaterThan(0);
 
   const uniqueTitle = `E2E LINE Case ${Date.now()}`;
 
@@ -53,17 +59,17 @@ test('create a case (Intake) end-to-end via the LINE webhook conversation', asyn
   await postWebhook(uniqueTitle); // case title
   await postWebhook('ไม่มีลูกความแบบนี้'); // client search miss, treated as free-text name
   await postWebhook('ข้าม'); // skip description
+  await postWebhook(`${lawyers[0].firstName} ${lawyers[0].lastName}`); // lead lawyer
+  await postWebhook('พอแล้ว'); // no buddies
+  await postWebhook('ข้าม'); // no deadline
   await postWebhook('ยืนยัน'); // confirm creation
 
-  const intakes = await request.get(`${API}/intake?search=${encodeURIComponent(uniqueTitle)}`, {
+  const cases = await request.get(`${API}/cases?search=${encodeURIComponent(uniqueTitle)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  expect(intakes.ok()).toBeTruthy();
-  const body = await intakes.json();
-  const items = body.items ?? body;
+  expect(cases.ok()).toBeTruthy();
+  const items = await cases.json() as Array<{ title: string; intake?: unknown }>;
   expect(
-    items.some((i: { title: string; referralChannel: string }) =>
-      i.title === uniqueTitle && i.referralChannel === 'LINE',
-    ),
+    items.some((item) => item.title === uniqueTitle && !item.intake),
   ).toBeTruthy();
 });

@@ -6,7 +6,7 @@ import { AgendaService } from '../../agenda/agenda.service';
 import { LineMessagingService } from '../line-messaging.service';
 import { LineAuthContextService } from './line-auth-context.service';
 import { LineConversationStoreService } from './line-conversation-store.service';
-import { LineIntakeFlowService } from './flows/line-intake-flow.service';
+import { LineCaseFlowService } from './flows/line-case-flow.service';
 import { LineTaskFlowService } from './flows/line-task-flow.service';
 import { LineTodoFlowService } from './flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './flows/line-expense-flow.service';
@@ -37,7 +37,7 @@ export class LineBotRouterService {
     private line: LineMessagingService,
     private auth: LineAuthContextService,
     private store: LineConversationStoreService,
-    private intakeFlow: LineIntakeFlowService,
+    private caseFlow: LineCaseFlowService,
     private taskFlow: LineTaskFlowService,
     private todoFlow: LineTodoFlowService,
     private expenseFlow: LineExpenseFlowService,
@@ -144,7 +144,7 @@ export class LineBotRouterService {
       );
       return;
     }
-    if (existing.flowType === FlowType.CASE) return this.intakeFlow.handle(updated, text);
+    if (existing.flowType === FlowType.CASE) return this.caseFlow.handle(updated, text);
     if (existing.flowType === FlowType.TASK) return this.taskFlow.handle(updated, text);
     if (existing.flowType === FlowType.TODO) return this.todoFlow.handle(updated, text);
     if (existing.flowType === FlowType.EXPENSE) return this.expenseFlow.handle(updated, text);
@@ -200,7 +200,7 @@ export class LineBotRouterService {
   private startFlow(flowType: FlowType, session: ConversationSession, command?: string): Promise<void> {
     switch (flowType) {
       case FlowType.CASE:
-        return this.intakeFlow.start(session);
+        return this.caseFlow.start(session);
       case FlowType.TASK:
         return this.taskFlow.start(session);
       case FlowType.TODO:

@@ -1,12 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { AuthUser } from '@lawfirm/shared';
-import { IntakeService } from '../../../intake/intake.service';
-import { ReferralChannel } from '../../../intake/dto/intake.dto';
+import { Injectable, Logger } from '@nestjs/common';
+import { AuthUser, CourtLevel } from '@lawfirm/shared';
+import { TaskSource } from '../../../generated/prisma';
+import { CasesService } from '../../../cases/cases.service';
+import { TasksService } from '../../../tasks/tasks.service';
 import { ClientsService } from '../../../clients/clients.service';
 import { UsersService } from '../../../users/users.service';
 import { LineMessagingService } from '../../line-messaging.service';
 import { LineNotificationService } from '../line-notification.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
+import { LineAuthContextService } from '../line-auth-context.service';
 import { ConversationSession, ConversationStep } from '../line-conversation.types';
 import {
   renderSummary,
@@ -26,21 +28,24 @@ const FIELDS: FieldSpec[] = [
   { key: 'description', label: 'รายละเอียด' },
   {
     key: 'assignedUserLabels',
-    label: 'ผู้รับผิดชอบ',
+    label: 'ทนายเจ้าของคดีและทีม',
     format: (value) => (Array.isArray(value) && value.length ? value.join(', ') : '(ไม่ระบุ)'),
   },
   { key: 'deadlineDate', label: 'วันครบกำหนด', format: formatIsoDate },
 ];
 
 @Injectable()
-export class LineIntakeFlowService {
+export class LineCaseFlowService {
+  private readonly logger = new Logger(LineCaseFlowService.name);
   constructor(
-    private intake: IntakeService,
+    private cases: CasesService,
+    private tasks: TasksService,
     private clients: ClientsService,
     private users: UsersService,
     private line: LineMessagingService,
     private notify: LineNotificationService,
     private store: LineConversationStoreService,
+    private authContext: LineAuthContextService,
   ) {}
 
   async start(session: ConversationSession): Promise<void> {
@@ -57,8 +62,13 @@ export class LineIntakeFlowService {
 
     switch (session.step) {
       case ConversationStep.CASE_TITLE: {
+        const title = text.trim();
+        if (!title) {
+          await this.reply(session, 'กรุณาใส่ชื่อเรื่องคดีครับ');
+          return;
+        }
         this.store.update(session.lineUserId, {
-          data: { ...session.data, title: text },
+          data: { ...session.data, title },
           step: ConversationStep.CASE_CLIENT_SEARCH,
         });
         await this.reply(session, 'ลูกความชื่ออะไรครับ? (พิมพ์ชื่อเพื่อค้นหา)');
@@ -130,8 +140,7 @@ export class LineIntakeFlowService {
           return;
         }
         if (text === 'ไม่ระบุ') {
-          this.store.update(session.lineUserId, { step: ConversationStep.CASE_DEADLINE });
-          await this.reply(session, `คดีนี้มีวันครบกำหนด (deadline) ไหมครับ?\n${DATE_HELP}`, dateQuickReply());
+          await this.reply(session, 'ต้องเลือกทนายเจ้าของคดีอย่างน้อย 1 คนครับ');
           return;
         }
         const picked = resolvePick(session.searchResults, text);
@@ -167,6 +176,12 @@ export class LineIntakeFlowService {
         if (text === 'เพิ่มอีก') {
           this.store.update(session.lineUserId, { step: ConversationStep.CASE_ASSIGNEE_PICK, pagingOffset: 0 });
           await this.showAssigneePage(session, 0);
+          return;
+        }
+        if (text !== 'พอแล้ว') {
+          await this.reply(session, 'กด "เพิ่มอีก" หรือ "พอแล้ว" ครับ', [
+            { label: 'เพิ่มอีก', text: 'เพิ่มอีก' }, { label: 'พอแล้ว', text: 'พอแล้ว' },
+          ]);
           return;
         }
         this.store.update(session.lineUserId, { step: ConversationStep.CASE_DEADLINE });
@@ -253,15 +268,22 @@ export class LineIntakeFlowService {
   }
 
   private async showAssigneePage(session: ConversationSession, offset: number): Promise<void> {
-    const { items, hasMore } = await this.users.findAllByFirm(session.firmId, offset, 12);
+    const lawyers = await this.users.findLawyers(session.firmId);
+    if (!lawyers.length) {
+      await this.reply(session, 'ยังไม่มีทนายในสำนักงาน กรุณาเพิ่มสมาชิกก่อนสร้าง Case ครับ');
+      return;
+    }
+    const items = lawyers.slice(offset, offset + 12).map((user) => ({ id: user.id, label: `${user.firstName} ${user.lastName}` }));
+    const hasMore = lawyers.length > offset + 12;
     this.store.update(session.lineUserId, { searchResults: items });
     const extra = [
       ...(hasMore ? [{ label: 'ดูเพิ่มเติม', text: 'ดูเพิ่มเติม' }] : []),
-      { label: 'ไม่ระบุ', text: 'ไม่ระบุ' },
     ];
     await this.reply(
       session,
-      'มีผู้รับผิดชอบร่วมไหมครับ? (เลือกได้หลายคน)',
+      (session.data.assignedUserIds as string[] | undefined)?.length
+        ? 'เพิ่มทนายในทีมคดีอีกคนครับ'
+        : 'ใครเป็นทนายเจ้าของคดีครับ? เลือกคนแรกเป็นเจ้าของคดี แล้วเพิ่มคนอื่นเป็นทีมได้',
       pickQuickReply(items, extra),
     );
   }
@@ -280,28 +302,47 @@ export class LineIntakeFlowService {
       assignedUserLabels?: string[];
       deadlineDate?: string;
     };
-    const created = await this.intake.create(
-      { id: session.userId, firmId: session.firmId } as unknown as AuthUser,
-      {
-        receivedDate: new Date().toISOString(),
-        title: data.title,
-        clientId: data.clientId,
-        clientName: data.clientName,
-        description: data.description,
-        referralChannel: ReferralChannel.LINE,
-        assignedUserIds: data.assignedUserIds,
-        deadlineDate: data.deadlineDate,
-      },
-    );
+    const authUser = await this.authContext.resolve(session.lineUserId);
+    if (!authUser || authUser.id !== session.userId || authUser.firmId !== session.firmId) {
+      await this.reply(session, 'บัญชี LINE ไม่ตรงกับสำนักงาน กรุณาเชื่อมบัญชีใหม่ครับ');
+      return;
+    }
+    const leadLawyerId = data.assignedUserIds?.[0];
+    if (!leadLawyerId) {
+      await this.reply(session, 'กรุณาเลือกทนายเจ้าของคดีครับ');
+      return;
+    }
+    const created = await this.cases.create(authUser, {
+      title: data.title,
+      clientId: data.clientId,
+      clientName: data.clientName,
+      description: data.description,
+      courtLevel: CourtLevel.TRIAL,
+      leadLawyerId,
+      buddyIds: data.assignedUserIds?.slice(1),
+    });
     this.store.clear(session.lineUserId);
-    await this.reply(session, `สร้าง Case สำเร็จแล้วครับ ✅\n\n"${data.title}"`);
+    let deadlineNotice = '';
+    if (data.deadlineDate) {
+      try {
+        await this.tasks.create(authUser, created.id, {
+          title: 'ติดตามกำหนดคดี',
+          assigneeId: leadLawyerId,
+          dueDate: `${data.deadlineDate}T23:59:00+07:00`,
+        }, TaskSource.LINE);
+      } catch (error) {
+        this.logger.error(`Case ${created.id} deadline task failed: ${(error as Error).message}`);
+        deadlineNotice = '\n⚠️ สร้าง Case แล้ว แต่บันทึกวันครบกำหนดไม่สำเร็จ กรุณาเพิ่มในหน้าคดี';
+      }
+    }
+    await this.reply(session, `สร้าง Case สำเร็จแล้วครับ ✅\n${created.ownRef}\n"${data.title}"${deadlineNotice}`);
     await this.notify.notifyCreated({
       firmId: session.firmId,
       target: session.target,
-      summaryText: `📋 สร้าง Intake ใหม่: ${data.title}${data.clientName ? `\nลูกความ: ${data.clientName}` : ''}${
+      summaryText: `📋 สร้าง Case ใหม่: ${data.title}${data.clientName ? `\nลูกความ: ${data.clientName}` : ''}${
         data.assignedUserLabels?.length ? `\nผู้รับผิดชอบ: ${data.assignedUserLabels.join(', ')}` : ''
-      }${data.deadlineDate ? `\nครบกำหนด: ${data.deadlineDate}` : ''}`,
-      entityPath: `/intake/${created.id}`,
+      }${data.deadlineDate && !deadlineNotice ? `\nครบกำหนด: ${data.deadlineDate}` : ''}`,
+      entityPath: `/cases/${created.id}`,
     });
   }
 

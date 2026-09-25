@@ -51,7 +51,7 @@ describe('buildCarouselMessage', () => {
     const message = buildCarouselMessage('สวัสดีครับ ผมลอว์', [
       {
         title: 'สร้าง Case',
-        text: 'เปิด intake ใหม่จากไลน์',
+        text: 'เปิด Case ใหม่จากไลน์',
         imageUrl: 'https://unused.example/case.jpg',
         actionLabel: 'สร้าง Case',
         actionText: 'สร้าง Case',
@@ -66,7 +66,7 @@ describe('buildCarouselMessage', () => {
         columns: [
           {
             title: 'สร้าง Case',
-            text: 'เปิด intake ใหม่จากไลน์',
+            text: 'เปิด Case ใหม่จากไลน์',
             actions: [{ type: 'message', label: 'สร้าง Case', text: 'สร้าง Case' }],
           },
         ],

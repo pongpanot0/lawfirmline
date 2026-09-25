@@ -13,7 +13,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
   const auth = {
     resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'OWNER' }),
   } as any;
-  const intakeFlow = { start: jest.fn(), handle: jest.fn() } as any;
+  const caseFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const taskFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const todoFlow = { start: jest.fn(), handle: jest.fn() } as any;
   const expenseFlow = { start: jest.fn(), handle: jest.fn(), handleImage: jest.fn() } as any;
@@ -53,7 +53,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
     auth.resolve.mockResolvedValue({ id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'OWNER' });
     store.start.mockImplementation((s: any) => ({ ...s, createdAt: 1, updatedAt: 1 }));
     router = new LineBotRouterService(
-      line, auth, store, intakeFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
+      line, auth, store, caseFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
       new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
       { start: jest.fn(), handle: jest.fn() } as any,
     );

@@ -11,7 +11,7 @@ const CELLS = [
   ['สร้าง Case', 1666, 0],
   ['บันทึกค่าใช้จ่าย', 0, 843],
   ['เบิกล่วงหน้า', 833, 843],
-  ['งานของฉันวันนี้', 1666, 843],
+  ['ลางาน', 1666, 843],
 ];
 const menu = {
   size: { width: 2500, height: 1686 },
@@ -38,6 +38,15 @@ if (!token) {
   console.error('LINE_CHANNEL_ACCESS_TOKEN required');
   process.exit(1);
 }
+if (!/\.(png|jpe?g)$/i.test(imagePath)) {
+  console.error('image must be PNG or JPEG');
+  process.exit(1);
+}
+const image = readFileSync(imagePath);
+if (image.byteLength > 1_000_000) {
+  console.error('image exceeds the 1 MB LINE rich menu limit');
+  process.exit(1);
+}
 
 const headers = { Authorization: `Bearer ${token}` };
 const create = await fetch('https://api.line.me/v2/bot/richmenu', {
@@ -51,8 +60,7 @@ if (!create.ok) {
 }
 const { richMenuId } = await create.json();
 
-const image = readFileSync(imagePath);
-const contentType = imagePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+const contentType = imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
 const upload = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
   method: 'POST',
   headers: { ...headers, 'Content-Type': contentType },

@@ -17,7 +17,7 @@ import { LineConversationStoreService } from './line-conversation/line-conversat
 import { LineAuthContextService } from './line-conversation/line-auth-context.service';
 import { LineBotRouterService } from './line-conversation/line-bot-router.service';
 import { LineNotificationService } from './line-conversation/line-notification.service';
-import { LineIntakeFlowService } from './line-conversation/flows/line-intake-flow.service';
+import { LineCaseFlowService } from './line-conversation/flows/line-case-flow.service';
 import { LineTaskFlowService } from './line-conversation/flows/line-task-flow.service';
 import { LineTodoFlowService } from './line-conversation/flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './line-conversation/flows/line-expense-flow.service';
@@ -27,7 +27,6 @@ import { LeaveService } from '../leave/leave.service';
 import { LeaveController } from '../leave/leave.controller';
 import { BillingModule } from '../billing/billing.module';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
-import { IntakeModule } from '../intake/intake.module';
 import { TasksModule } from '../tasks/tasks.module';
 import { ClientsModule } from '../clients/clients.module';
 import { CasesModule } from '../cases/cases.module';
@@ -37,7 +36,6 @@ import { AgendaModule } from '../agenda/agenda.module';
 
 @Module({
   imports: [
-    forwardRef(() => IntakeModule),
     forwardRef(() => TasksModule),
     forwardRef(() => ClientsModule),
     forwardRef(() => CasesModule),
@@ -65,7 +63,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     LineAuthContextService,
     LineBotRouterService,
     LineNotificationService,
-    LineIntakeFlowService,
+    LineCaseFlowService,
     LineTaskFlowService,
     LineTodoFlowService,
     LineExpenseFlowService,
