@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { DateSuggestionStatus, EventType } from '@lawfirm/shared';
 import { DateSuggestionsService } from './date-suggestions.service';
 import { PrismaService } from '../prisma/prisma.module';
@@ -15,6 +15,8 @@ describe('DateSuggestionsService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    case: { findUnique: jest.fn() },
+    user: { findFirst: jest.fn() },
   };
   const mockCalendar = { createInternal: jest.fn() };
 
@@ -51,6 +53,7 @@ describe('DateSuggestionsService', () => {
       suggestedDate: new Date('2026-10-01T00:00:00.000Z'),
       eventType: EventType.COURT_DATE,
       status: DateSuggestionStatus.PENDING,
+      source: 'RULE',
     };
 
     it('creates a CalendarEvent using stored values when no overrides given', async () => {
@@ -69,6 +72,7 @@ describe('DateSuggestionsService', () => {
         startAt: pending.suggestedDate.toISOString(),
         type: EventType.COURT_DATE,
         reminderMinutes: undefined,
+        assigneeId: undefined,
       }, 'user-1', mockPrisma);
     });
 
@@ -122,7 +126,31 @@ describe('DateSuggestionsService', () => {
         startAt: '2026-11-01T00:00:00.000Z',
         type: EventType.DEADLINE,
         reminderMinutes: undefined,
+        assigneeId: undefined,
       }, 'user-1', mockPrisma);
+    });
+
+    it('requires a lawyer for a document date and rejects a lawyer outside the case firm', async () => {
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue({ ...pending, source: 'DOCUMENT' });
+      await expect(service.confirm('case-1', 'sug-1', 'user-1', {})).rejects.toThrow(BadRequestException);
+      mockPrisma.case.findUnique.mockResolvedValue({ firmId: 'firm-1' });
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      await expect(service.confirm('case-1', 'sug-1', 'user-1', { assigneeId: 'lawyer-2' })).rejects.toThrow(BadRequestException);
+      expect(mockCalendar.createInternal).not.toHaveBeenCalled();
+    });
+
+    it('creates the confirmed document date for the selected lawyer', async () => {
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue({ ...pending, source: 'DOCUMENT' });
+      mockPrisma.case.findUnique.mockResolvedValue({ firmId: 'firm-1' });
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'lawyer-1' });
+      mockCalendar.createInternal.mockResolvedValue({ id: 'event-1' });
+      await service.confirm('case-1', 'sug-1', 'user-1', { assigneeId: 'lawyer-1' });
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ id: 'lawyer-1', firmMembers: { some: { firmId: 'firm-1', role: { in: ['OWNER', 'SENIOR_LAWYER', 'LAWYER'] } } } }),
+      }));
+      expect(mockCalendar.createInternal).toHaveBeenCalledWith(
+        expect.objectContaining({ assigneeId: 'lawyer-1' }), 'user-1', mockPrisma,
+      );
     });
 
     it('marks the suggestion CONFIRMED, storing the created event id and reviewer', async () => {

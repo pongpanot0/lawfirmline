@@ -6,6 +6,8 @@
 import { ClientCombobox } from './ClientCombobox';
 import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
+import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
+import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { CreateClientContactDialog } from '@/components/intake/CreateClientContactDialog';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -18,6 +20,8 @@ import {
   ClientItem,
   ApiError,
   WorkloadSummary,
+  FieldSuggestion,
+  SuggestibleField,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,6 +30,7 @@ import type { CaseFieldSchema } from '@lawfirm/shared';
 import {
   TMP_CLIENT_PLACEHOLDER,
   CourtLevel,
+  FEE_MAX,
   CARGO_CLAIM_PLAYBOOK_KEY,
   CARGO_CLAIM_PLAYBOOK_NAME,
 } from '@lawfirm/shared';
@@ -36,6 +41,8 @@ export default function NewCasePage() {
   const [step, setStep] = useState(0);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const submittingRef = useRef(false);
+  const createdCaseId = useRef('');
+  const pendingUploads = useRef<File[]>([]);
   const [autoTitle, setAutoTitle] = useState(true);
   const [retry, setRetry] = useState(0);
   const [lookupWarning, setLookupWarning] = useState('');
@@ -49,6 +56,10 @@ export default function NewCasePage() {
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [playbookId, setPlaybookId] = useState('');
   const [cargoClaimEnabled, setCargoClaimEnabled] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [suggestions, setSuggestions] = useState<FieldSuggestion[]>([]);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [uploadFailures, setUploadFailures] = useState<string[]>([]);
 
   const [form, setForm] = useState({
     caseTypeId: '',
@@ -58,6 +69,9 @@ export default function NewCasePage() {
     clientType: 'INDIVIDUAL',
     useTmpClient: false,
     chargeSection: '',
+    description: '',
+    courtName: '',
+    claimedAmount: '',
     leadLawyerId: '',
     customFields: {} as Record<string, string>,
   });
@@ -187,7 +201,7 @@ export default function NewCasePage() {
 
   const handleSubmit = async () => {
     if (!token || submittingRef.current) return;
-    for (const target of visibleSteps) {
+    for (const target of createdCaseId.current ? [] : visibleSteps) {
       const message = validationMessage(target.value);
       if (message) {
         setStep(target.value);
@@ -197,10 +211,14 @@ export default function NewCasePage() {
     }
     submittingRef.current = true;
     setSubmitting(true);
-      setError('');
+    setError('');
     try {
+      if (!createdCaseId.current) {
       const payload: Record<string, unknown> = {
         title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        courtName: form.courtName.trim() || undefined,
+        claimedAmount: form.claimedAmount ? Number(form.claimedAmount) : undefined,
         courtLevel: CourtLevel.TRIAL,
         leadLawyerId: form.leadLawyerId,
         caseTypeId: form.caseTypeId,
@@ -241,19 +259,49 @@ export default function NewCasePage() {
         }));
       }
       const created = (await api.createCase(token, payload)) as { id: string };
+      createdCaseId.current = created.id;
+      pendingUploads.current = files;
       if (playbookId) {
         await setupRequest(token, `/cases/${created.id}/apply`, { releaseId: playbookId }).catch(console.error);
       }
-      router.push(`/cases/${created.id}${cargoClaimEnabled ? '?tab=cargo-claim' : ''}`);
+      }
+      const failed: File[] = [];
+      for (const file of pendingUploads.current) {
+        try {
+          await api.uploadDocument(token, createdCaseId.current, file);
+        } catch {
+          failed.push(file);
+        }
+      }
+      pendingUploads.current = failed;
+      setUploadFailures(failed.map((file) => file.name));
+      if (failed.length) {
+        setError(`สร้างคดีแล้ว แต่อัปโหลดเอกสารไม่สำเร็จ: ${failed.map((file) => file.name).join(', ')} — กดลองอีกครั้งได้โดยไม่สร้างคดีซ้ำ`);
+        setSubmitting(false);
+        submittingRef.current = false;
+        return;
+      }
+      router.push(`/cases/${createdCaseId.current}${cargoClaimEnabled ? '?tab=cargo-claim' : ''}`);
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : 'สร้างคดีไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ กรุณาลองใหม่',
+          : createdCaseId.current
+            ? 'สร้างคดีแล้ว แต่ขั้นตอนถัดไปไม่สำเร็จ กรุณาลองใหม่'
+            : 'สร้างคดีไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ กรุณาลองใหม่',
       );
       submittingRef.current = false;
       setSubmitting(false);
     }
+  };
+
+  const applySuggestion = (field: SuggestibleField, value: string) => {
+    if (field === 'title') setAutoTitle(false);
+    setForm((current) => {
+      if (field === 'title' || field === 'courtName' || field === 'claimedAmount')
+        return { ...current, [field]: value };
+      return { ...current, customFields: { ...current.customFields, [field]: field === 'incidentDate' ? value.slice(0, 10) : value } };
+    });
   };
 
   const inputClass =
@@ -310,7 +358,7 @@ export default function NewCasePage() {
             className="min-w-0 space-y-4 text-card-foreground"
           >
             <fieldset
-              disabled={submitting}
+              disabled={submitting || !!createdCaseId.current}
               className="min-w-0 space-y-4"
             >
           <div className="rounded-2xl border border-primary/10 bg-primary/[0.035] p-4 sm:p-5">
@@ -337,6 +385,11 @@ export default function NewCasePage() {
               className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
             >
               <p>{error || lookupWarning}</p>
+              {createdCaseId.current && (
+                <Link className="mt-2 inline-block underline" href={`/cases/${createdCaseId.current}?tab=documents`}>
+                  ไปยังคดีที่สร้างแล้ว
+                </Link>
+              )}
               {((step === 0 && caseTypes.length === 0) || lookupWarning) && (
                 <Button
                   type="button"
@@ -353,6 +406,27 @@ export default function NewCasePage() {
 
           {step === 0 && (
             <div className="space-y-5 rounded-2xl border border-border/80 bg-card p-4 shadow-soft sm:p-6">
+              <BatchAnalysisPanel
+                files={files}
+                onFilesChange={(next) => { setFiles(next); setSuggestions([]); }}
+                onFieldSuggestions={setSuggestions}
+                onUseSummary={(summary) => setForm((current) => ({ ...current, description: [current.description.trim(), summary].filter(Boolean).join('\n\n') }))}
+                onBusyChange={setAnalysisBusy}
+                disabled={submitting}
+              />
+              <SuggestedFieldsPanel
+                suggestions={suggestions}
+                accepts={['title', 'opposingParty', 'courtName', 'incidentDate', 'claimedAmount', 'estimatedDamage']}
+                current={{
+                  title: form.title,
+                  opposingParty: form.customFields.opposingParty,
+                  courtName: form.courtName,
+                  incidentDate: form.customFields.incidentDate,
+                  claimedAmount: form.claimedAmount,
+                  estimatedDamage: form.customFields.estimatedDamage,
+                }}
+                onApply={applySuggestion}
+              />
               <section className="space-y-3" aria-label="ประเภทคดี">
                 <div>
                   <h3 className="text-sm font-semibold">ประเภทคดี <span className="text-destructive">*</span></h3>
@@ -371,7 +445,11 @@ export default function NewCasePage() {
                           setForm((current) =>
                             current.caseTypeId === type.id
                               ? current
-                              : { ...current, caseTypeId: type.id, customFields: {}, chargeSection: '' },
+                              : { ...current, caseTypeId: type.id, customFields: {
+                                  opposingParty: current.customFields.opposingParty ?? '',
+                                  incidentDate: current.customFields.incidentDate ?? '',
+                                  estimatedDamage: current.customFields.estimatedDamage ?? '',
+                                }, chargeSection: '' },
                           );
                           setPlaybookId((current) => current || playbooks.find((playbook) => playbook.caseTypeId === type.id)?.id || current);
                         }}
@@ -520,6 +598,27 @@ export default function NewCasePage() {
                 {autoTitle && <p className="mt-1 text-xs text-muted-foreground">ตั้งชื่อจากประเภทคดีและลูกความให้อัตโนมัติ แก้ไขได้</p>}
               </div>
 
+              <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
+                <label className={fieldLabel}>คู่กรณี
+                  <input value={form.customFields.opposingParty ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, opposingParty: event.target.value } }))} className={inputClass} />
+                </label>
+                <label className={fieldLabel}>ศาล
+                  <input value={form.courtName} onChange={(event) => setForm((current) => ({ ...current, courtName: event.target.value }))} className={inputClass} />
+                </label>
+                <label className={fieldLabel}>วันเกิดเหตุ
+                  <input type="date" value={form.customFields.incidentDate?.slice(0, 10) ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, incidentDate: event.target.value } }))} className={inputClass} />
+                </label>
+                <label className={fieldLabel}>ทุนทรัพย์ที่เรียกร้อง (บาท)
+                  <input type="number" min="0" max={FEE_MAX} step="0.01" value={form.claimedAmount} onChange={(event) => setForm((current) => ({ ...current, claimedAmount: event.target.value }))} className={inputClass} />
+                </label>
+                <label className={fieldLabel}>ความเสียหายโดยประมาณ (บาท)
+                  <input type="number" min="0" max={FEE_MAX} step="0.01" value={form.customFields.estimatedDamage ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, estimatedDamage: event.target.value } }))} className={inputClass} />
+                </label>
+                <label className="text-sm font-medium sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี
+                  <textarea rows={4} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className={inputClass} />
+                </label>
+              </div>
+
               {fieldSchema.some((field) => field.key === 'chargeSection' && field.required) && (
                 <label className="block text-sm font-medium">
                   ข้อหาหรือฐานความผิด *
@@ -575,6 +674,8 @@ export default function NewCasePage() {
                     ['ลูกความ', overviewClientName],
                     ['ผู้ว่าจ้าง', primaryCustomerName],
                     ['ชื่อคดี', form.title],
+                    ['เอกสาร', files.length ? `${files.length} ไฟล์` : 'ไม่มี'],
+                    ['ทุนทรัพย์ที่เรียกร้อง', form.claimedAmount ? `${Number(form.claimedAmount).toLocaleString('th-TH')} บาท` : 'ยังไม่ระบุ'],
                     ['มาตรฐานงาน', cargoClaimEnabled ? CARGO_CLAIM_PLAYBOOK_NAME : (playbooks.find((playbook) => playbook.id === playbookId)?.name || 'ไม่ใช้')],
                     ['ทนายผู้รับผิดชอบ', selectedLawyer ? selectedLawyer.firstName + ' ' + selectedLawyer.lastName : 'ยังไม่ได้เลือก'],
                   ].map(([label, value]) => (
@@ -594,21 +695,24 @@ export default function NewCasePage() {
             variant="outline"
             className="min-h-11 whitespace-nowrap active:bg-accent/80"
             disabled={submitting}
-            onClick={goBack}
+            onClick={() => createdCaseId.current ? router.push(`/cases/${createdCaseId.current}?tab=documents`) : goBack()}
           >
-            {step === 0 ? 'ยกเลิก' : 'ย้อนกลับ'}
+            {createdCaseId.current ? 'ไปยังคดี' : step === 0 ? 'ยกเลิก' : 'ย้อนกลับ'}
           </Button>
           <Button
             type="submit"
             className="min-h-11 whitespace-nowrap px-5 active:bg-primary/80"
             disabled={
               submitting ||
+              analysisBusy ||
               loadingTypes ||
               (step === 0 && !caseTypes.length)
             }
           >
             {submitting
               ? 'กำลังบันทึก…'
+              : uploadFailures.length
+                ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)`
               : step === 1
                 ? 'สร้างคดี'
                 : 'ถัดไป'}

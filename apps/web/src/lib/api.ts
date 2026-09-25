@@ -2216,7 +2216,7 @@ export const api = {
     token: string,
     caseId: string,
     id: string,
-    overrides: { expectedUpdatedAt?: string; label?: string; date?: string; eventType?: string },
+    overrides: { expectedUpdatedAt?: string; label?: string; date?: string; eventType?: string; assigneeId?: string },
   ) =>
     request<DateSuggestionItem>(`/cases/${caseId}/date-suggestions/${id}/confirm`, {
       method: 'POST',

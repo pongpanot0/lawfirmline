@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsDateString, IsEnum, IsArray, IsInt } from 'class-validator';
+import { IsOptional, IsString, IsDateString, IsEnum, IsArray, IsInt, IsUUID } from 'class-validator';
 import { EventType } from '@lawfirm/shared';
 
 export class ConfirmDateSuggestionDto {
@@ -17,6 +17,10 @@ export class ConfirmDateSuggestionDto {
   @IsOptional()
   @IsEnum(EventType)
   eventType?: EventType;
+
+  @IsOptional()
+  @IsUUID()
+  assigneeId?: string;
 
   @IsOptional()
   @IsArray()

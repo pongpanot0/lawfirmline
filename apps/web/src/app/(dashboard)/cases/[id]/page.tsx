@@ -186,6 +186,9 @@ export default function CaseDetailPage() {
     chargeSection: '',
     estimatedFee: '',
     description: '',
+    opposingParty: '',
+    incidentDate: '',
+    estimatedDamage: '',
     clientId: '',
     clientName: '',
     customers: [] as CaseOverviewCustomerValue[],
@@ -448,6 +451,9 @@ export default function CaseDetailPage() {
       estimatedFee:
         legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
       description: legalCase.description ?? '',
+      opposingParty: String(legalCase.customFields?.opposingParty ?? ''),
+      incidentDate: String(legalCase.customFields?.incidentDate ?? ''),
+      estimatedDamage: String(legalCase.customFields?.estimatedDamage ?? ''),
       clientId: legalCase.clientId ?? '',
       clientName: legalCase.client?.name ?? legalCase.clientName ?? '',
       customers: legalCase.customers?.length
@@ -522,6 +528,9 @@ export default function CaseDetailPage() {
         customFields: {
           ...(legalCase.customFields ?? {}),
           chargeSection: overviewForm.chargeSection.trim(),
+          opposingParty: overviewForm.opposingParty.trim(),
+          incidentDate: overviewForm.incidentDate,
+          estimatedDamage: overviewForm.estimatedDamage,
         },
         description: overviewForm.description.trim() || null,
       }) as CaseDetail;
@@ -1282,10 +1291,10 @@ export default function CaseDetailPage() {
                 <p className="text-xs text-muted-foreground">ค่าใช้จ่ายที่อนุมัติ</p>
                 <p className="font-medium text-primary">{formatCurrency(totalSpent)}</p>
               </div>
-              {customFields && Object.entries(customFields).filter(([key]) => key !== CASE_COSTS_KEY && key !== 'chargeSection').map(([k, v]) => (
+              {customFields && Object.entries(customFields).filter(([key, value]) => key !== CASE_COSTS_KEY && key !== 'chargeSection' && value !== '').map(([k, v]) => (
                 <div key={k}>
-                  <p className="text-xs text-muted-foreground">{k}</p>
-                  <p className="font-medium">{v}</p>
+                  <p className="text-xs text-muted-foreground">{{ opposingParty: 'คู่กรณี', incidentDate: 'วันเกิดเหตุ', estimatedDamage: 'ความเสียหายโดยประมาณ' }[k] ?? k}</p>
+                  <p className="font-medium">{k === 'incidentDate' ? formatDate(v) : k === 'estimatedDamage' ? formatCurrency(Number(v)) : v}</p>
                 </div>
               ))}
                 </>

@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { api, DateSuggestionItem } from '@/lib/api';
+import { api, DateSuggestionItem, UserItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
 
-type Draft = { label: string; date: string; eventType: DateSuggestionItem['eventType'] };
+type Draft = { label: string; date: string; time: string; eventType: DateSuggestionItem['eventType']; assigneeId: string };
 
 /**
  * Pending date suggestions for one case, awaiting a lawyer's confirmation.
@@ -34,6 +35,7 @@ export function DateSuggestionsPanel({
   const d = useDashboardT();
   const { token } = useAuth();
   const [suggestions, setSuggestions] = useState<DateSuggestionItem[]>([]);
+  const [lawyers, setLawyers] = useState<UserItem[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -50,24 +52,42 @@ export function DateSuggestionsPanel({
     load();
   }, [load, reloadKey]);
 
+  useEffect(() => {
+    if (!token || source !== 'DOCUMENT') return;
+    api.getLawyers(token)
+      .then((users) => setLawyers(users.filter((lawyer) => lawyer.firmRole !== 'ASSISTANT')))
+      .catch(() => setError('โหลดรายชื่อทนายไม่สำเร็จ กรุณาโหลดหน้าใหม่'));
+  }, [token, source]);
+
   const draftFor = (s: DateSuggestionItem): Draft =>
     drafts[s.id] ?? {
       label: s.label,
-      date: s.suggestedDate.slice(0, 10),
+      date: bangkokInputValue(s.suggestedDate).slice(0, 10),
+      time: bangkokInputValue(s.suggestedDate).slice(11, 16),
       eventType: s.eventType,
+      assigneeId: '',
     };
 
   const confirm = async (s: DateSuggestionItem) => {
     if (!token) return;
     const draft = draftFor(s);
+    if (!draft.date || !draft.time) {
+      setError('กรุณาตรวจวันและเวลานัด');
+      return;
+    }
+    if (source === 'DOCUMENT' && !lawyers.some((lawyer) => lawyer.id === draft.assigneeId)) {
+      setError('กรุณาเลือกทนายผู้รับผิดชอบวันนัด');
+      return;
+    }
     setBusyId(s.id);
     setError('');
     try {
       await api.confirmDateSuggestion(token, caseId, s.id, {
         expectedUpdatedAt: s.updatedAt,
         label: draft.label,
-        date: draft.date ? new Date(draft.date).toISOString() : undefined,
+        date: bangkokInputToIso(`${draft.date}T${draft.time}`),
         eventType: draft.eventType,
+        assigneeId: source === 'DOCUMENT' ? draft.assigneeId : undefined,
       });
       setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
     } catch (e) {
@@ -104,7 +124,7 @@ export function DateSuggestionsPanel({
             const draft = draftFor(s);
             return (
               <div key={s.id} className="rounded-lg border p-3">
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <input
                     type="text"
                     aria-label={d.deadlineRules.label}
@@ -120,6 +140,16 @@ export function DateSuggestionsPanel({
                       setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, date: v } }))
                     }
                   />
+                  <label className="text-xs text-muted-foreground">
+                    เวลา (ประเทศไทย)
+                    <input
+                      type="time"
+                      required
+                      value={draft.time}
+                      onChange={(e) => setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, time: e.target.value } }))}
+                      className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground"
+                    />
+                  </label>
                   <select
                     aria-label={d.calendar.typeDeadline}
                     value={draft.eventType}
@@ -137,6 +167,23 @@ export function DateSuggestionsPanel({
                     <option value="OTHER">{d.calendar.typeOther}</option>
                   </select>
                 </div>
+
+                {source === 'DOCUMENT' && (
+                  <label className="mt-3 block text-sm font-medium">
+                    ทนายผู้รับผิดชอบวันนัด <span className="text-destructive">*</span>
+                    <select
+                      required
+                      value={draft.assigneeId}
+                      onChange={(e) => setDrafts((prev) => ({ ...prev, [s.id]: { ...draft, assigneeId: e.target.value } }))}
+                      className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 text-sm sm:max-w-sm"
+                    >
+                      <option value="">เลือกทนายผู้รับผิดชอบ</option>
+                      {lawyers.map((lawyer) => (
+                        <option key={lawyer.id} value={lawyer.id}>{lawyer.firstName} {lawyer.lastName}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
 
                 {s.source === 'RULE'
                   ? s.deadlineRule && (
