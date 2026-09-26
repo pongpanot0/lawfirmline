@@ -282,7 +282,7 @@ export const portalApi = {
   },
 
   downloadClientUpload: (token: string, caseId: string, documentId: string) =>
-    requestBlob(`/client-portal/cases/${caseId}/client-uploads/${documentId}/file`, token),
+    requestBlob(`/client-portal/cases/${caseId}/documents/${documentId}/file`, token),
 
   getCaseMessages: (token: string, caseId: string) =>
     request<CaseMessageEntry[]>(`/client-portal/cases/${caseId}/messages`, { token }),
