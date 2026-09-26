@@ -34,9 +34,14 @@ export class CaseFeedService {
     /** สถานะที่เปลี่ยน — ระบุเมื่อไรก็ลง `CaseStatusLog` ให้ด้วย */
     statusTransition?: { from: CaseStatus | string; to: CaseStatus | string };
   },
-  /** ส่ง tx มาเมื่อคดียังไม่ commit (เช่นเปิดคดีจากพอร์ทัล) — ไม่งั้น FK ของคดีหาไม่เจอ */
-  db: Prisma.TransactionClient = this.prisma,
+  /**
+   * ส่ง tx มาเมื่อคดียังไม่ commit (เช่นเปิดคดีจากพอร์ทัล) — ไม่งั้น FK ของคดีหาไม่เจอ.
+   * ในโหมด tx จะ throw ต่อ: insert ที่ล้มทำให้ Postgres abort ทั้ง tx อยู่แล้ว ถ้ากลืน error
+   * COMMIT จะกลายเป็น ROLLBACK เงียบ ๆ ขณะที่ผู้เรียกคิดว่าสำเร็จ
+   */
+  tx?: Prisma.TransactionClient,
   ) {
+    const db = tx ?? this.prisma;
     try {
       await db.caseActivity.create({
         data: {
@@ -60,6 +65,7 @@ export class CaseFeedService {
         });
       }
     } catch (error) {
+      if (tx) throw error;
       this.logger.warn(
         `ลง activity feed ของคดี ${params.caseId} ไม่สำเร็จ: ${
           error instanceof Error ? error.message : String(error)

@@ -1418,6 +1418,9 @@ export class IntakeService {
       if (submission.withdrawnByClient) {
         throw new BadRequestException('เรื่องนี้ถูกถอนโดยลูกความแล้ว');
       }
+      if (submission.caseId) {
+        throw new BadRequestException('คำขอนี้เปิดเป็นคดีแล้ว');
+      }
       if (submission.intakeId) {
         const existing = await tx.intake.findFirst({
           where: { id: submission.intakeId, firmId: user.firmId },

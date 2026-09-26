@@ -7,6 +7,7 @@ import { PortalIdentity } from './client-portal-jwt.strategy';
 import { SubmitPortalIntakeDto } from './dto/portal-intake.dto';
 import { mapInternalStatusToExternal } from '../intake/intake-status-mapping';
 import { CaseFeedService } from '../common/services/case-feed.service';
+import { FileStorageService } from '../common/services/file-storage.service';
 import { CasesService } from '../cases/cases.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
@@ -20,6 +21,7 @@ export class ClientPortalIntakeService {
     private readonly documents: DocumentsService,
     private readonly notifier: AssignmentNotifierService,
     private readonly caseFeed: CaseFeedService,
+    private readonly fileStorage: FileStorageService,
   ) {}
 
   private getFileBuffer(file: Express.Multer.File): Buffer {
@@ -42,6 +44,8 @@ export class ClientPortalIntakeService {
   async submit(portalUser: PortalIdentity, dto: SubmitPortalIntakeDto, files: Express.Multer.File[] = []) {
     const referenceNumber = `REQ-${randomUUID().toUpperCase()}`;
 
+    // Files are stored while the tx is open; if it rolls back, remove them so no blob is orphaned.
+    const storedPaths: string[] = [];
     const { submission, legalCase, clientName } = await this.prisma.$transaction(async (tx) => {
       const submission = await tx.portalIntakeSubmission.create({
         data: {
@@ -105,6 +109,7 @@ export class ClientPortalIntakeService {
           buffer: this.getFileBuffer(file),
           mimeType: file.mimetype,
         });
+        storedPaths.push(document.storagePath);
         firstDocumentId ??= document.id;
 
         await tx.portalIntakeAttachment.create({
@@ -143,7 +148,11 @@ export class ClientPortalIntakeService {
       );
 
       return { submission, legalCase, clientName: client.name };
-    }, { timeout: 30000 }); // file uploads to storage run inside the transaction
+    }, { timeout: 30000 }) // file uploads to storage run inside the transaction
+      .catch(async (error) => {
+        await Promise.all(storedPaths.map((p) => this.fileStorage.delete(p).catch(() => undefined)));
+        throw error;
+      });
 
     try {
       await this.notifier.notifyFirmOwners({

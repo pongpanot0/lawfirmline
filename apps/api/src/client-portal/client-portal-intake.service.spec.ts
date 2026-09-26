@@ -35,7 +35,7 @@ describe('ClientPortalIntakeService', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => key),
-    delete: jest.fn(),
+    delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };
@@ -164,6 +164,14 @@ describe('ClientPortalIntakeService', () => {
         }),
       });
       expect(mockFileStorage.put).not.toHaveBeenCalled();
+    });
+
+    it('removes stored files when the transaction fails after they were written', async () => {
+      mockFeed.log.mockRejectedValueOnce(new Error('feed insert failed'));
+
+      await expect(service.submit(portalUser, dto, [file])).rejects.toThrow('feed insert failed');
+      expect(mockFileStorage.delete).toHaveBeenCalledWith('./uploads/cases/case-1/doc-1_v1.pdf');
+      expect(mockNotifier.notifyFirmOwners).not.toHaveBeenCalled();
     });
 
     it('notifies firm owners once, after the transaction', async () => {

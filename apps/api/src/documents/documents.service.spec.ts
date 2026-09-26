@@ -35,7 +35,7 @@ describe('DocumentsService', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
-    delete: jest.fn(),
+    delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };
@@ -92,6 +92,27 @@ describe('DocumentsService', () => {
     });
   });
 
+  describe('createFromClientBuffer cleanup', () => {
+    it('deletes the stored file and rethrows when a later write fails', async () => {
+      const tx = {
+        document: {
+          create: jest.fn().mockResolvedValue({ id: 'doc-1', filename: 'a.pdf' }),
+          update: jest.fn().mockRejectedValue(new Error('update failed')),
+        },
+        documentVersion: { create: jest.fn() },
+        auditLog: { create: jest.fn() },
+      };
+
+      await expect(
+        service.createFromClientBuffer(tx as any, {
+          firmId: 'firm-1', caseId: 'case-1', contactId: 'contact-1', actorUserId: 'owner-1',
+          filename: 'a.pdf', buffer: Buffer.from('x'), mimeType: 'application/pdf',
+        }),
+      ).rejects.toThrow('update failed');
+      expect(mockFileStorage.delete).toHaveBeenCalledWith('./uploads/cases/case-1/doc-1_v1.pdf');
+    });
+  });
+
   describe('updateVisibility', () => {
     it('throws NotFoundException when the document does not belong to the given case', async () => {
       mockPrisma.document.findFirst.mockResolvedValue(null);
@@ -141,7 +162,7 @@ describe('DocumentsService — intake-scoped methods', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
-    delete: jest.fn(),
+    delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };
@@ -228,7 +249,7 @@ describe('DocumentsService.adoptIntakeAttachments', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
-    delete: jest.fn(),
+    delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };
@@ -312,7 +333,7 @@ describe('DocumentsService.removeFromIntake', () => {
     intake: { findFirst: jest.fn() },
     document: {
       findFirst: jest.fn(),
-      delete: jest.fn(),
+      delete: jest.fn().mockResolvedValue(undefined),
       count: jest.fn(),
     },
     documentVersion: { findMany: jest.fn(), count: jest.fn() },
@@ -320,7 +341,7 @@ describe('DocumentsService.removeFromIntake', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
-    delete: jest.fn(),
+    delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };

@@ -336,34 +336,40 @@ export class DocumentsService {
     const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
     const storagePath = await this.fileStorage.put(key, args.buffer, args.mimeType);
 
-    const updated = await tx.document.update({
-      where: { id: document.id },
-      data: { storagePath },
-    });
+    try {
+      const updated = await tx.document.update({
+        where: { id: document.id },
+        data: { storagePath },
+      });
 
-    await tx.documentVersion.create({
-      data: {
-        documentId: document.id,
-        version: 1,
-        storagePath,
-        filename: args.filename,
-        mimeType: args.mimeType,
-        createdById: null,
-      },
-    });
+      await tx.documentVersion.create({
+        data: {
+          documentId: document.id,
+          version: 1,
+          storagePath,
+          filename: args.filename,
+          mimeType: args.mimeType,
+          createdById: null,
+        },
+      });
 
-    await this.caseFeed.log(
-      {
-        caseId,
-        userId: args.actorUserId,
-        type: ActivityType.DOCUMENT,
-        title: `ลูกความส่งเอกสาร: ${updated.filename}`,
-        description: args.description,
-      },
-      tx,
-    );
+      await this.caseFeed.log(
+        {
+          caseId,
+          userId: args.actorUserId,
+          type: ActivityType.DOCUMENT,
+          title: `ลูกความส่งเอกสาร: ${updated.filename}`,
+          description: args.description,
+        },
+        tx,
+      );
 
-    return updated;
+      return updated;
+    } catch (error) {
+      // the rows roll back with the tx; the stored file would not
+      await this.fileStorage.delete(storagePath).catch(() => undefined);
+      throw error;
+    }
   }
 
   async uploadForIntake(

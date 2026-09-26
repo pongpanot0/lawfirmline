@@ -126,3 +126,47 @@ describe('CasesService.createForPortal', () => {
     );
   });
 });
+
+describe('CasesService.create Own Ref allocation', () => {
+  let service: CasesService;
+  const mockPrisma = {
+    firm: { findUnique: jest.fn() },
+    firmMember: { count: jest.fn() },
+    case: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
+  };
+  const user = { id: 'user-1', firmId: 'firm-1' } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockPrisma.firmMember.count.mockResolvedValue(1);
+    mockPrisma.firm.findUnique.mockResolvedValue({ ownRefPrefix: 'ABC' });
+    mockPrisma.case.findMany.mockResolvedValue([]);
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'taken' });
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CasesService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: {} },
+        { provide: CaseActivitiesService, useValue: {} },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(CasesService);
+  });
+
+  it('rejects a manual Own Ref that is already used', async () => {
+    await expect(
+      service.create(user, { title: 'ค', leadLawyerId: 'user-1', ownRef: 'ABC20260001' } as any),
+    ).rejects.toThrow('Own ref already exists');
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+  });
+
+  it('gives up after five generated Own Refs collide', async () => {
+    await expect(service.create(user, { title: 'ค', leadLawyerId: 'user-1' } as any)).rejects.toThrow(
+      'Could not allocate a unique Own Ref — please retry',
+    );
+    expect(mockPrisma.case.findUnique).toHaveBeenCalledTimes(5);
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+  });
+});
