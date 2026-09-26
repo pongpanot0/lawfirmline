@@ -112,6 +112,7 @@ export interface PortalClientUploadItem {
 }
 
 export interface PortalCaseDetail extends PortalCaseSummary {
+  portalRequest: { id: string; referenceNumber: string; title: string } | null;
   nextHearing: { id: string; title: string; startAt: string } | null;
   documents: Array<{ id: string; filename: string; mimeType: string; createdAt: string }>;
   clientUploads: PortalClientUploadItem[];

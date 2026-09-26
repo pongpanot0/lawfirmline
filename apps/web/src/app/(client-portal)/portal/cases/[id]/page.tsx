@@ -113,13 +113,18 @@ export default function PortalCaseDetailPage() {
 
   const handleDownloadClientUpload = async (documentId: string, filename: string) => {
     if (!token || !id) return;
-    const blob = await portalApi.downloadClientUpload(token, id, documentId);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    setUploadError('');
+    try {
+      const blob = await portalApi.downloadClientUpload(token, id, documentId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setUploadError('ดาวน์โหลดไม่สำเร็จ');
+    }
   };
 
   const handleUploadDocument = async () => {
@@ -169,6 +174,11 @@ export default function PortalCaseDetailPage() {
             เลขที่อ้างอิง {detail.ownRef}
             {detail.courtName ? ` · ${detail.courtName}` : ''} · เปิดคดีเมื่อ {formatDate(detail.openedAt)}
           </p>
+          {detail.portalRequest && (
+            <Link href={`/portal/intake/${detail.portalRequest.id}`} className="text-[13px] font-semibold text-primary">
+              คำขอ {detail.portalRequest.referenceNumber}
+            </Link>
+          )}
         </div>
         <Badge variant={status.variant} className="h-fit px-3.5 py-1.5 text-[13px]">
           {status.label}
