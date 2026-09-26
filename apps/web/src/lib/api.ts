@@ -2494,9 +2494,15 @@ export const api = {
   },
 
   renderTemplate: (token: string, caseId: string, templateId: string) =>
-    request<{ name: string; content: string }>(
+    request<{ name: string; content: string; variables: Record<string, string>; missingFields: string[] }>(
       `/cases/${caseId}/document-templates/${templateId}/render`,
       { token },
+    ),
+
+  generateTemplateDocx: (token: string, caseId: string, templateId: string) =>
+    request<{ documentId: string; filename: string }>(
+      `/cases/${caseId}/document-templates/${templateId}/generate`,
+      { method: 'POST', token, silent: true },
     ),
 
   calculateTravel: (token: string, destination: string, origin?: string) => {

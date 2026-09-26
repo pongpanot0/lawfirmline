@@ -8,6 +8,7 @@ import { Eye, Download, Sparkles, CalendarSearch, ClipboardCheck } from 'lucide-
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry } from '@/lib/api';
 import { PublishDocumentDialog } from '@/components/documents/PublishDocumentDialog';
+import { TemplateGenerateDrawer } from '@/components/cases/TemplateGenerateDrawer';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
@@ -30,7 +31,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const [uploading, setUploading] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
-  const [rendered, setRendered] = useState<{ name: string; content: string } | null>(null);
+  const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
   const [error, setError] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [suggestionsKey, setSuggestionsKey] = useState(0);
@@ -194,12 +195,6 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
     }
   };
 
-  const handleRender = async (templateId: string) => {
-    if (!token || !id) return;
-    const result = await api.renderTemplate(token, id, templateId);
-    setRendered(result);
-  };
-
   if (loading) return <PageLoading title={d.documents.loading} lines={3} />;
 
   return (
@@ -276,23 +271,25 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
 
       <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.templates}</h2>
-        <div className="flex flex-wrap gap-2">
-          {templates.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => handleRender(t.id)}
-              className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent"
-            >
-              {t.name}
-            </button>
-          ))}
-        </div>
-        {rendered && (
-          <pre className="mt-4 max-h-64 overflow-auto rounded-lg bg-muted p-4 text-xs whitespace-pre-wrap">
-            {rendered.content}
-          </pre>
-        )}
+        <button
+          type="button"
+          onClick={() => setTemplateDrawerOpen(true)}
+          className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent"
+        >
+          สร้างเอกสารจากแม่แบบ
+        </button>
       </div>
+
+      {token && (
+        <TemplateGenerateDrawer
+          open={templateDrawerOpen}
+          onClose={() => setTemplateDrawerOpen(false)}
+          token={token}
+          caseId={id}
+          templates={templates}
+          onGenerated={load}
+        />
+      )}
 
       <div className="rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{fmt(d.caseDocuments.filesCount, { count: documents.length })}</h2>
