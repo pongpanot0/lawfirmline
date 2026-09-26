@@ -158,6 +158,7 @@ export class ClientPortalIntakeService {
       where: portalRequestScope(portalUser),
       include: {
         intake: { select: { id: true, status: true, decision: true } },
+        case: this.caseLinkInclude(portalUser),
         attachments: { select: { id: true, filename: true, size: true } },
       },
       orderBy: { submittedAt: 'desc' },
@@ -174,6 +175,7 @@ export class ClientPortalIntakeService {
       where: { id: submissionId, ...portalRequestScope(portalUser) },
       include: {
         intake: { select: { id: true, status: true, decision: true } },
+        case: this.caseLinkInclude(portalUser),
         attachments: {
           select: { id: true, filename: true, size: true, createdAt: true },
           orderBy: { createdAt: 'asc' },
@@ -256,6 +258,25 @@ export class ClientPortalIntakeService {
     return map;
   }
 
+  /** Loads this contact's active grant on the linked case, so a shared request only links a case that opens. */
+  private caseLinkInclude(portalUser: PortalIdentity) {
+    const now = new Date();
+    return {
+      select: {
+        contactAccess: {
+          where: {
+            clientContactId: portalUser.clientContactId,
+            revokedAt: null,
+            startDate: { lte: now },
+            OR: [{ endDate: null }, { endDate: { gte: now } }],
+          },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    };
+  }
+
   private toPortalEntry(
     submission: {
       id: string;
@@ -264,6 +285,7 @@ export class ClientPortalIntakeService {
       submittedAt: Date;
       withdrawnByClient: boolean;
       caseId: string | null;
+      case?: { contactAccess: Array<{ id: string }> } | null;
       intake: { id: string; status: string; decision: string | null } | null;
       attachments: Array<{ id: string; filename: string; size: number; createdAt?: Date }>;
     },
@@ -275,7 +297,7 @@ export class ClientPortalIntakeService {
       title: submission.title,
       submittedAt: submission.submittedAt,
       withdrawnByClient: submission.withdrawnByClient,
-      caseId: submission.caseId,
+      caseId: submission.case?.contactAccess.length ? submission.caseId : null,
       externalStatus: submission.intake
         ? mapInternalStatusToExternal(submission.intake as never)
         : 'ส่งแล้ว',

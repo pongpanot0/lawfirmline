@@ -229,9 +229,19 @@ export class ClientPortalService {
         stage: true,
         courtName: true,
         openedAt: true,
+        portalIntakeSubmission: {
+          select: { id: true, referenceNumber: true, title: true, clientContactId: true, accessContactIds: true, revokedContactIds: true },
+        },
       },
     });
     if (!legalCase) throw new NotFoundException('Case not found');
+    const { portalIntakeSubmission: request, ...caseFields } = legalCase;
+    // Link the request only when this contact can open it (same rule as portalRequestScope).
+    const canOpenRequest =
+      request &&
+      !request.revokedContactIds.includes(portalUser.clientContactId) &&
+      (request.clientContactId === portalUser.clientContactId || request.accessContactIds.includes(portalUser.clientContactId));
+    const portalRequest = canOpenRequest ? { id: request.id, referenceNumber: request.referenceNumber, title: request.title } : null;
 
     const [nextHearing, rawDocuments, clientUploads, invoices] = await Promise.all([
       this.prisma.calendarEvent.findFirst({
@@ -305,7 +315,7 @@ export class ClientPortalService {
       };
     });
 
-    return { ...legalCase, nextHearing, documents, clientUploads, invoices };
+    return { ...caseFields, portalRequest, nextHearing, documents, clientUploads, invoices };
   }
 
   async getVisibleDocumentFile(portalUser: PortalIdentity, documentId: string) {

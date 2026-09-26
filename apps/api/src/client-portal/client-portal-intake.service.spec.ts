@@ -292,6 +292,39 @@ describe('ClientPortalIntakeService', () => {
     });
   });
 
+  describe('case link', () => {
+    const base = {
+      id: 'sub-1', referenceNumber: 'REQ-1', title: 'ท', submittedAt: new Date(), withdrawnByClient: false,
+      clientContactId: 'contact-1', intake: null, attachments: [], caseId: 'case-1',
+    };
+
+    it('exposes caseId only when this contact has active access to the case', async () => {
+      mockPrisma.portalIntakeSubmission.findMany.mockResolvedValue([
+        { ...base, case: { contactAccess: [{ id: 'grant-1' }] } },
+        { ...base, id: 'sub-2', clientContactId: 'contact-2', case: { contactAccess: [] } },
+      ]);
+
+      const result = await service.listMine(portalUser);
+
+      expect(result.map((r) => r.caseId)).toEqual(['case-1', null]);
+      const include = mockPrisma.portalIntakeSubmission.findMany.mock.calls[0][0].include;
+      expect(include.case.select.contactAccess.where).toEqual(
+        expect.objectContaining({ clientContactId: 'contact-1', revokedAt: null }),
+      );
+    });
+
+    it('hides the case link on a shared request the contact cannot open', async () => {
+      mockPrisma.portalIntakeSubmission.findFirst.mockResolvedValue({
+        ...base, clientContactId: 'contact-2', detail: 'd', urgencyFlag: false, clientRequestedDate: null,
+        case: { contactAccess: [] },
+      });
+
+      const result = await service.getMine(portalUser, 'sub-1');
+
+      expect(result.caseId).toBeNull();
+    });
+  });
+
   describe('getFirmDocumentFile', () => {
     it('rejects documents that are not visible to the client', async () => {
       mockPrisma.portalIntakeSubmission.findFirst.mockResolvedValue({
