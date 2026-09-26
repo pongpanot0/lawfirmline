@@ -11,6 +11,7 @@ import type {
   CourtDayResponse,
   CourtDayState,
   DashboardStats,
+  LeaveItem,
   MyDayResponse,
   OwnerKpis,
   TaskItem,
@@ -208,6 +209,14 @@ export function useReassignTask() {
       queryClient.invalidateQueries({ queryKey: ['case-tasks', caseId] });
       queryClient.invalidateQueries({ queryKey: ['workload'] });
     },
+  });
+}
+
+export function useLeaves(from: string, to: string, enabled = true) {
+  return useQuery({
+    queryKey: ['leaves', from, to],
+    queryFn: () => api<LeaveItem[]>(`/leaves?from=${from}&to=${to}`),
+    enabled,
   });
 }
 

@@ -148,6 +148,14 @@ export interface OwnerKpis {
   stuckByStage: Array<{ stage: string; count: number; oldestDays: number }>;
 }
 
+export interface LeaveItem {
+  userId: string;
+  type: 'SICK' | 'PERSONAL' | 'VACATION';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  startDate: string;
+  endDate: string;
+}
+
 export interface TimeSuggestion {
   sourceKey: string;
   source: 'event' | 'task' | 'review' | 'messages';
