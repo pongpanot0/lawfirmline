@@ -32,6 +32,9 @@ export class CollectionsService {
     dto: RecordPaymentDto,
   ): Promise<{ invoice: Invoice; payment: InvoicePayment; outstanding: number }> {
     return this.prisma.$transaction(async (tx) => {
+      // Lock the invoice row first so two concurrent payments can't both read
+      // the same outstanding balance and overpay under Read Committed.
+      await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id" = ${invoiceId} FOR UPDATE`;
       const invoice = await tx.invoice.findFirst({
         where: { id: invoiceId, firmId: user.firmId },
         include: { payments: true },
@@ -60,6 +63,9 @@ export class CollectionsService {
         },
       });
       const outstanding = round(outstandingBefore - dto.amount);
+      // Not flipping to PAID: `invoice` here is the pre-payment row (its
+      // `.payments` doesn't include the one just created). Callers wanting
+      // the new payment already get it back separately as `payment`.
       const updatedInvoice: Invoice =
         outstanding <= 0.005
           ? await tx.invoice.update({ where: { id: invoiceId }, data: { status: InvoiceStatus.PAID } })

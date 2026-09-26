@@ -11,6 +11,7 @@ describe('CollectionsService', () => {
   const mockPrisma = {
     invoice: { findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     invoicePayment: { create: jest.fn(), findMany: jest.fn() },
+    $queryRaw: jest.fn().mockResolvedValue(undefined),
     $transaction: jest.fn(async (arg: any) => (typeof arg === 'function' ? arg(mockPrisma) : Promise.all(arg))),
   } as any;
   let service: CollectionsService;
@@ -66,6 +67,22 @@ describe('CollectionsService', () => {
       const result = await service.recordPayment(owner, 'i1', dto);
       expect(mockPrisma.invoice.update).not.toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: InvoiceStatus.PAID }) }));
       expect(result.outstanding).toBe(600);
+    });
+
+    it('locks the invoice row with FOR UPDATE before reading it or creating the payment', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice());
+      mockPrisma.invoicePayment.create.mockResolvedValue({ id: 'p1', amount: 400 });
+      const dto = { amount: 400, receivedAt: '2026-09-26' } as any;
+      await service.recordPayment(owner, 'i1', dto);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+      const lockOrder = mockPrisma.$queryRaw.mock.invocationCallOrder[0];
+      const findOrder = mockPrisma.invoice.findFirst.mock.invocationCallOrder[0];
+      const createOrder = mockPrisma.invoicePayment.create.mock.invocationCallOrder[0];
+      expect(lockOrder).toBeLessThan(findOrder);
+      expect(lockOrder).toBeLessThan(createOrder);
+      const [strings, ...values] = mockPrisma.$queryRaw.mock.calls[0];
+      expect(strings.join('?')).toContain('FOR UPDATE');
+      expect(values).toContain('i1');
     });
 
     it('flips to PAID on an exact payment', async () => {
