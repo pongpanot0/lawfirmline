@@ -648,6 +648,7 @@ model User {
   leaveRequests              LeaveRequest[]            @relation("LeaveRequestUser")
   decidedLeaveRequests       LeaveRequest[]            @relation("LeaveDecider")
   assignedEvents             CalendarEvent[]           @relation("EventAssignee")
+  eventAssignments           CalendarEventAssignee[]   @relation("EventCoAssignee")
   deviceTokens               DeviceToken[]
   caseStatusLogs             CaseStatusLog[]
   sops                       Sop[]
@@ -1411,9 +1412,22 @@ model CalendarEvent {
   expenses           Expense[]
   responsibility     EventResponsibility?
   courtDay           CourtDay?
+  assignees          CalendarEventAssignee[]
 
   @@index([startAt])
   @@index([assigneeId])
+}
+
+model CalendarEventAssignee {
+  eventId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User          @relation("EventCoAssignee", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@index([userId])
 }
 
 model LeaveRequest {
