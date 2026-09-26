@@ -151,6 +151,35 @@ describe('DocumentPublicationService', () => {
     });
   });
 
+  describe('unpublishOpen', () => {
+    it('closes the open publication through unpublish', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.documentPublication.findFirst
+        .mockResolvedValueOnce({ id: 'pub-7' })
+        .mockResolvedValueOnce({ id: 'pub-7' });
+
+      await service.unpublishOpen(user, 'case-1', 'doc-1');
+
+      expect(mockPrisma.documentPublication.findFirst).toHaveBeenNthCalledWith(1, {
+        where: { documentId: 'doc-1', unpublishedAt: null },
+        select: { id: true },
+      });
+      expect(mockPrisma.documentPublication.update).toHaveBeenCalledWith({
+        where: { id: 'pub-7' },
+        data: { unpublishedAt: expect.any(Date), unpublishedById: 'user-1' },
+      });
+    });
+
+    it('does nothing when nothing is published', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.documentPublication.findFirst.mockResolvedValue(null);
+
+      await service.unpublishOpen(user, 'case-1', 'doc-1');
+
+      expect(mockPrisma.documentPublication.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('publish notification dispatch', () => {
     const mockLine = { pushTo: jest.fn() };
     const mockPrefs = { getEnabledMap: jest.fn() };

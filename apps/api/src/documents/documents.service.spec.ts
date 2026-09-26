@@ -6,6 +6,9 @@ import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
+import { DocumentPublicationService } from './document-publication.service';
+
+const mockPublications = { publish: jest.fn(), unpublishOpen: jest.fn() };
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -49,6 +52,7 @@ describe('DocumentsService', () => {
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -125,15 +129,31 @@ describe('DocumentsService', () => {
       });
     });
 
-    it('updates visibility when the document belongs to the case', async () => {
+    it('toggle on publishes the latest version to every contact and keeps visibleToClient in sync', async () => {
       mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
       mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', visibleToClient: true });
 
       await service.updateVisibility(auditUser, 'case-1', 'doc-1', true);
 
+      expect(mockPublications.publish).toHaveBeenCalledWith(auditUser, 'case-1', 'doc-1', {});
+      expect(mockPublications.unpublishOpen).not.toHaveBeenCalled();
       expect(mockPrisma.document.update).toHaveBeenCalledWith({
         where: { id: 'doc-1' },
         data: { visibleToClient: true },
+      });
+    });
+
+    it('toggle off closes the open publication and clears visibleToClient', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', visibleToClient: false });
+
+      await service.updateVisibility(auditUser, 'case-1', 'doc-1', false);
+
+      expect(mockPublications.unpublishOpen).toHaveBeenCalledWith(auditUser, 'case-1', 'doc-1');
+      expect(mockPublications.publish).not.toHaveBeenCalled();
+      expect(mockPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+        data: { visibleToClient: false },
       });
     });
   });
@@ -178,6 +198,7 @@ describe('DocumentsService — intake-scoped methods', () => {
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -274,6 +295,7 @@ describe('DocumentsService.adoptIntakeAttachments', () => {
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -364,6 +386,7 @@ describe('DocumentsService.removeFromIntake', () => {
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);

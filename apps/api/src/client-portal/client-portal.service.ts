@@ -233,7 +233,7 @@ export class ClientPortalService {
     });
     if (!legalCase) throw new NotFoundException('Case not found');
 
-    const [nextHearing, rawDocuments, invoices] = await Promise.all([
+    const [nextHearing, rawDocuments, clientUploads, invoices] = await Promise.all([
       this.prisma.calendarEvent.findFirst({
         where: { caseId, type: 'COURT_DATE', startAt: { gte: new Date() } },
         orderBy: { startAt: 'asc' },
@@ -272,6 +272,12 @@ export class ClientPortalService {
         },
         orderBy: { createdAt: 'desc' },
       }),
+      // what this client's contacts sent in — listed apart from what the firm published
+      this.prisma.document.findMany({
+        where: { caseId, uploadedByContact: { clientId: portalUser.clientId } },
+        select: { id: true, filename: true, mimeType: true, category: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }),
       this.prisma.invoice.findMany({
         where: { caseId, status: { in: ['SENT', 'PAID'] } },
         select: {
@@ -299,7 +305,7 @@ export class ClientPortalService {
       };
     });
 
-    return { ...legalCase, nextHearing, documents, invoices };
+    return { ...legalCase, nextHearing, documents, clientUploads, invoices };
   }
 
   async getVisibleDocumentFile(portalUser: PortalIdentity, documentId: string) {

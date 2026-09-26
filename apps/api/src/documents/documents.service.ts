@@ -9,6 +9,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { DocumentMetadataDto, DocumentQueryDto } from './dto/document-metadata.dto';
 import { Prisma } from '../generated/prisma';
+import { DocumentPublicationService } from './document-publication.service';
 
 @Injectable()
 export class DocumentsService {
@@ -17,6 +18,7 @@ export class DocumentsService {
     private fileStorage: FileStorageService,
     private caseFeed: CaseFeedService,
     private caseAccess: CaseAccessService,
+    private publications: DocumentPublicationService,
   ) {}
 
   /** ค้นเอกสารข้ามทุกคดีที่ user เข้าถึงได้ — ชื่อไฟล์ / หมวด / tag */
@@ -611,6 +613,10 @@ export class DocumentsService {
 
   async updateVisibility(user: AuthUser, caseId: string, documentId: string, visibleToClient: boolean) {
     await this.verifyDocument(caseId, documentId);
+    // The portal only shows published documents, so the eye toggle publishes the latest
+    // version to every contact (or closes the open publication) and mirrors the flag.
+    if (visibleToClient) await this.publications.publish(user, caseId, documentId, {});
+    else await this.publications.unpublishOpen(user, caseId, documentId);
     await this.audit(user, 'DOCUMENT_VISIBILITY_CHANGED', { caseId, documentId, visibleToClient });
     return this.prisma.document.update({
       where: { id: documentId },

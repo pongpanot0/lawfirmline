@@ -173,6 +173,17 @@ export class DocumentPublicationService {
     });
   }
 
+  /** Closes whatever publication is open on the document; nothing open is a no-op. */
+  async unpublishOpen(user: AuthUser, caseId: string, documentId: string) {
+    await this.verifyDocument(caseId, documentId);
+    const open = await this.prisma.documentPublication.findFirst({
+      where: { documentId, unpublishedAt: null },
+      select: { id: true },
+    });
+    if (!open) return null;
+    return this.unpublish(user, caseId, documentId, open.id);
+  }
+
   async listForDocument(user: AuthUser, caseId: string, documentId: string) {
     await this.verifyDocument(caseId, documentId);
 

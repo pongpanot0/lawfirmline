@@ -65,6 +65,27 @@ describe('ClientPortalService case-access scoping', () => {
     });
   });
 
+  describe('getCase clientUploads', () => {
+    it('returns the documents this client uploaded to the case next to the published ones', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', ownRef: 'REF-1' });
+      mockPrisma.calendarEvent.findFirst.mockResolvedValue(null);
+      mockPrisma.invoice.findMany.mockResolvedValue([]);
+      const upload = { id: 'doc-9', filename: 'สลิป.pdf', mimeType: 'application/pdf', category: 'FINANCIAL', createdAt: now };
+      mockPrisma.document.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([upload]);
+
+      const result = await service.getCase(portalUser, 'case-1');
+
+      expect(mockPrisma.document.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: { caseId: 'case-1', uploadedByContact: { clientId: 'client-1' } },
+        }),
+      );
+      expect(result.clientUploads).toEqual([upload]);
+      expect(result.documents).toEqual([]);
+    });
+  });
+
   describe('getVisibleDocumentFile', () => {
     it('throws NotFoundException when the document has no active publication, even if visibleToClient is true', async () => {
       mockPrisma.document.findFirst.mockResolvedValue(null);

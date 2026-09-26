@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import { portalRequestScope } from './portal-workroom.service';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import * as fs from 'fs';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PortalIdentity } from './client-portal-jwt.strategy';
 import { SubmitPortalIntakeDto } from './dto/portal-intake.dto';
@@ -11,7 +10,8 @@ import { FileStorageService } from '../common/services/file-storage.service';
 import { CasesService } from '../cases/cases.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
-import { ActivityType, FirmRole } from '@lawfirm/shared';
+import { ActivityType } from '@lawfirm/shared';
+import { createClientKeyDateSuggestion, firstFirmOwnerId, uploadedFileBuffer } from './portal-case-helpers';
 
 @Injectable()
 export class ClientPortalIntakeService {
@@ -23,12 +23,6 @@ export class ClientPortalIntakeService {
     private readonly caseFeed: CaseFeedService,
     private readonly fileStorage: FileStorageService,
   ) {}
-
-  private getFileBuffer(file: Express.Multer.File): Buffer {
-    if (file.buffer) return file.buffer;
-    if (file.path) return fs.readFileSync(file.path);
-    throw new BadRequestException('Uploaded file is empty');
-  }
 
   // multer/busboy decode multipart field values (including filenames) as
   // latin1 by default, so a UTF-8 filename (e.g. Thai) arrives mojibake'd —
@@ -61,13 +55,7 @@ export class ClientPortalIntakeService {
         },
       });
 
-      const owner = await tx.firmMember.findFirst({
-        where: { firmId: portalUser.firmId, role: FirmRole.OWNER },
-        orderBy: { createdAt: 'asc' },
-        select: { userId: true },
-      });
-      if (!owner) throw new BadRequestException('สำนักงานยังไม่มีเจ้าของบัญชี');
-      const ownerId = owner.userId;
+      const ownerId = await firstFirmOwnerId(tx, portalUser.firmId);
 
       const client = await tx.client.findFirst({
         where: { id: portalUser.clientId, firmId: portalUser.firmId },
@@ -106,7 +94,7 @@ export class ClientPortalIntakeService {
           contactId: portalUser.clientContactId,
           actorUserId: ownerId,
           filename,
-          buffer: this.getFileBuffer(file),
+          buffer: uploadedFileBuffer(file),
           mimeType: file.mimetype,
         });
         storedPaths.push(document.storagePath);
@@ -124,15 +112,12 @@ export class ClientPortalIntakeService {
       }
 
       if (dto.keyDate) {
-        await tx.documentDateSuggestion.create({
-          data: {
-            caseId: legalCase.id,
-            documentId: firstDocumentId,
-            label: dto.keyDateLabel?.trim() || 'วันที่จากลูกความ',
-            suggestedDate: new Date(dto.keyDate),
-            status: 'PENDING',
-            createdById: ownerId,
-          },
+        await createClientKeyDateSuggestion(tx, {
+          caseId: legalCase.id,
+          documentId: firstDocumentId,
+          keyDate: dto.keyDate,
+          keyDateLabel: dto.keyDateLabel,
+          createdById: ownerId,
         });
       }
 
