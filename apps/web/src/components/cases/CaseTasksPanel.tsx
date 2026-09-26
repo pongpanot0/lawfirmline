@@ -19,6 +19,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { priorityLabel } from '@/lib/task-detail';
+import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
+import { useLeaveFlags } from '@/lib/use-leave-flags';
+import { leaveWarning } from '@/lib/leave-flags';
+import { bangkokDateInputValue } from '@/lib/bangkok';
 
 export function CaseTasksPanel({ caseId }: { caseId: string }) {
   const d = useDashboardT();
@@ -40,6 +44,8 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
   const visibleTasks = applyTaskFilters(tasks, filters);
   const filtering = hasActiveTaskFilters(filters);
+  const newTaskDate = newDueDate || bangkokDateInputValue(new Date());
+  const newTaskLeaveFlags = useLeaveFlags(token, newTaskDate);
 
   const loadTasks = () => {
     if (!token || !caseId) return;
@@ -142,6 +148,7 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
   );
   const caseTeam = users.filter((member) => caseTeamIds.has(member.id));
   const others = users.filter((member) => !caseTeamIds.has(member.id));
+  const newAssigneeUser = users.find((u) => u.id === newAssigneeId);
 
   return (
     <div>
@@ -217,23 +224,24 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                     <option value="">{d.caseTasks.assignToMe}</option>
                     {caseTeam.length > 0 && (
                       <optgroup label={d.caseTasks.caseTeam}>
-                        {caseTeam.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.firstName} {u.lastName}
-                          </option>
-                        ))}
+                        <AssigneeOptions users={caseTeam} flags={newTaskLeaveFlags} />
                       </optgroup>
                     )}
                     {others.length > 0 && (
                       <optgroup label={d.caseTasks.otherMembers}>
-                        {others.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.firstName} {u.lastName}
-                          </option>
-                        ))}
+                        <AssigneeOptions users={others} flags={newTaskLeaveFlags} />
                       </optgroup>
                     )}
                   </select>
+                  {newAssigneeUser && newTaskLeaveFlags.has(newAssigneeId) && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                      {leaveWarning(
+                        `${newAssigneeUser.firstName} ${newAssigneeUser.lastName}`,
+                        newTaskDate,
+                        newTaskLeaveFlags.get(newAssigneeId)?.kind,
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>

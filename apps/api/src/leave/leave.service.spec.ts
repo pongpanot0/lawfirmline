@@ -3,6 +3,7 @@ import { FirmRole } from '@lawfirm/shared';
 import { LeaveStatus, LeaveType, Prisma } from '../generated/prisma';
 import { LeaveService } from './leave.service';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
+import { eventForUserWhere } from '../calendar/event-people';
 
 describe('LeaveService notices', () => {
   it('sends Monday, three-day and day-of notices only to other linked firm members, once each', async () => {
@@ -232,7 +233,7 @@ describe('LeaveService approval workflow', () => {
     expect(prisma.calendarEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         case: { firmId: 'firm-a' },
-        OR: [{ assigneeId: 'alice' }, { assigneeId: null, case: { leadLawyerId: 'alice' } }],
+        ...eventForUserWhere('alice'),
       }),
     }));
   });

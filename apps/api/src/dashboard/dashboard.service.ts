@@ -4,6 +4,7 @@ import { Prisma, TaskStatus } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { BillingService } from '../billing/billing.service';
+import { eventAssigneesInclude, eventPeopleIds } from '../calendar/event-people';
 
 @Injectable()
 export class DashboardService {
@@ -262,15 +263,15 @@ export class DashboardService {
           leadLawyerId: { in: lawyerIds },
         },
       }),
-      // A hearing counts against whoever actually attends: the event's
-      // assignee when set, otherwise the case's lead lawyer.
+      // A hearing counts against whoever actually attends: every assignee on
+      // the event, or the case's lead lawyer when none is set.
       this.prisma.calendarEvent.findMany({
         where: {
           case: { firmId: user.firmId },
           type: 'COURT_DATE',
           startAt: { gte: now, lt: weekEndsAt },
         },
-        select: { assigneeId: true, case: { select: { leadLawyerId: true } } },
+        select: { ...eventAssigneesInclude, case: { select: { leadLawyerId: true } } },
       }),
     ]);
 
@@ -287,8 +288,9 @@ export class DashboardService {
     const caseCounts = countBy(openCases as any);
     const hearingCounts = new Map<string, number>();
     for (const event of weekHearings) {
-      const key = event.assigneeId ?? event.case.leadLawyerId;
-      hearingCounts.set(key, (hearingCounts.get(key) ?? 0) + 1);
+      for (const id of eventPeopleIds(event)) {
+        hearingCounts.set(id, (hearingCounts.get(id) ?? 0) + 1);
+      }
     }
 
     const members = lawyers

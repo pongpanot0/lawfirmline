@@ -5,6 +5,7 @@ import { EventType, LeaveStatus, LeaveType, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService, QuickReplyItem } from '../notifications/line-messaging.service';
 import { addBangkokDays, bangkokDayKey, formatBangkokDateThai, formatBangkokDateTime } from '../common/utils/bangkok-time';
+import { eventForUserWhere } from '../calendar/event-people';
 
 const LABEL: Record<LeaveType, string> = {
   SICK: 'ลาป่วย',
@@ -47,14 +48,14 @@ export class LeaveService {
     })));
   }
 
-  /** Court dates on this person's calendar during the leave — assignee, or the case's lead lawyer when unassigned. */
+  /** Court dates on this person's calendar during the leave — one of the event's assignees, or the case's lead lawyer when none is set. */
   async findCourtConflicts(firmId: string, userId: string, start: Date, end: Date) {
     const events = await this.prisma.calendarEvent.findMany({
       where: {
         type: EventType.COURT_DATE,
         startAt: { gte: start, lt: new Date(end.getTime() + 86400000) },
         case: { firmId },
-        OR: [{ assigneeId: userId }, { assigneeId: null, case: { leadLawyerId: userId } }],
+        ...eventForUserWhere(userId),
       },
       include: { case: { select: { ownRef: true } } },
       orderBy: { startAt: 'asc' },

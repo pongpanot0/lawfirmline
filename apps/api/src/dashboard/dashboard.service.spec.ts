@@ -175,8 +175,8 @@ describe('DashboardService', () => {
       { leadLawyerId: 'u-heavy', _count: { _all: 4 } },
     ]);
     mockPrisma.calendarEvent.findMany.mockResolvedValue([
-      { assigneeId: 'u-light', case: { leadLawyerId: 'u-heavy' } },
-      { assigneeId: null, case: { leadLawyerId: 'u-heavy' } },
+      { assignees: [{ userId: 'u-light' }], case: { leadLawyerId: 'u-heavy' } },
+      { assignees: [], case: { leadLawyerId: 'u-heavy' } },
     ]);
 
     const result = await service.getWorkload(user);
@@ -190,5 +190,24 @@ describe('DashboardService', () => {
     });
     expect(result.members[1]).toMatchObject({ openTasks: 3, hearingsThisWeek: 1 });
     expect(result.totals).toMatchObject({ openTasks: 12, overdueTasks: 2, hearingsThisWeek: 2 });
+  });
+
+  it('counts a hearing against every assignee on a multi-assignee event', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'u-a', firstName: 'A', lastName: 'A' },
+      { id: 'u-b', firstName: 'B', lastName: 'B' },
+    ]);
+    mockPrisma.calendarEvent.findMany.mockResolvedValue([
+      {
+        assignees: [{ userId: 'u-a' }, { userId: 'u-b' }],
+        case: { leadLawyerId: 'u-a' },
+      },
+    ]);
+
+    const result = await service.getWorkload(user);
+
+    const byId = Object.fromEntries(result.members.map((m: any) => [m.id, m]));
+    expect(byId['u-a'].hearingsThisWeek).toBe(1);
+    expect(byId['u-b'].hearingsThisWeek).toBe(1);
   });
 });

@@ -66,7 +66,7 @@ export class DateSuggestionsService {
         startAt: overrides.date ?? suggestion.suggestedDate.toISOString(),
         type: (overrides.eventType ?? suggestion.eventType) as EventType,
         reminderMinutes: overrides.reminderMinutes,
-        assigneeId: overrides.assigneeId,
+        assigneeIds: overrides.assigneeId ? [overrides.assigneeId] : undefined,
       }, userId, db);
       return db.documentDateSuggestion.update({
         where: { id },

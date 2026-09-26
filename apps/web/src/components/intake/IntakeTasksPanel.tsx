@@ -6,6 +6,10 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
+import { useLeaveFlags } from '@/lib/use-leave-flags';
+import { leaveWarning } from '@/lib/leave-flags';
+import { bangkokDateInputValue } from '@/lib/bangkok';
 import { Plus, Trash2 } from 'lucide-react';
 
 /**
@@ -25,6 +29,9 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
   const [dueDate, setDueDate] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const taskDate = dueDate || bangkokDateInputValue(new Date());
+  const leaveFlags = useLeaveFlags(token, taskDate);
+  const assigneeUser = lawyers.find((u) => u.id === assigneeId);
 
   const reload = useCallback(() => {
     if (!token) return;
@@ -130,15 +137,18 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
               aria-label="ผู้รับผิดชอบ"
             >
               <option value="">ฉันเอง</option>
-              {lawyers.map((u) => (
-                <option key={u.id} value={u.id}>{u.firstName}</option>
-              ))}
+              <AssigneeOptions users={lawyers} flags={leaveFlags} nameOf={(u) => u.firstName} />
             </select>
             <ThaiDateInput value={dueDate} onChange={setDueDate} />
             <Button type="button" size="sm" onClick={add} disabled={busy || !title.trim()} className="ml-auto">
               <Plus className="mr-1 h-4 w-4" /> เพิ่ม
             </Button>
           </div>
+          {assigneeUser && leaveFlags.has(assigneeUser.id) && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              {leaveWarning(assigneeUser.firstName, taskDate, leaveFlags.get(assigneeUser.id)?.kind)}
+            </p>
+          )}
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </CardContent>

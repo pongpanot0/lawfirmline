@@ -6,6 +6,8 @@ import {
   IsDateString,
   IsArray,
   IsInt,
+  ArrayMaxSize,
+  ArrayUnique,
 } from 'class-validator';
 import { EventType } from '@lawfirm/shared';
 
@@ -44,6 +46,14 @@ export class CreateEventDto {
   @IsOptional()
   @IsUUID()
   assigneeId?: string;
+
+  /** Several attendees; the first is primary. Omit to fall back to the lead lawyer. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  assigneeIds?: string[];
 }
 
 export class UpdateEventDto {
@@ -79,4 +89,12 @@ export class UpdateEventDto {
   @IsOptional()
   @IsUUID()
   assigneeId?: string;
+
+  /** Several attendees; the first is primary. Omit to fall back to the lead lawyer. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  assigneeIds?: string[];
 }

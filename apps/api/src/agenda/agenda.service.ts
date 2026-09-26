@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { TravelService } from '../travel/travel.service';
+import { eventAssigneesInclude } from '../calendar/event-people';
 import {
   addBangkokDays,
   bangkokDayKey,
@@ -46,6 +47,8 @@ interface EventRow {
   courtName: string | null;
   caseId: string;
   case: { id: string; ownRef: string; title: string; courtName: string | null } | null;
+  assigneeId: string | null;
+  assignees: { userId: string; user: { id: string; firstName: string; lastName: string } }[];
 }
 
 interface TaskRow {
@@ -161,6 +164,7 @@ export class AgendaService {
         caseId: true,
         updatedAt: true, assigneeId: true, responsibility: true,
         case: { select: { id: true, ownRef: true, title: true, courtName: true, leadLawyerId: true } },
+        ...eventAssigneesInclude,
       },
       orderBy: { startAt: 'asc' },
       ...(take ? { take } : {}),
@@ -222,8 +226,21 @@ export class AgendaService {
         (kind === AgendaItemKind.COURT_DATE ? row.case?.courtName ?? null : null),
       departBy: null,
       url: `/cases/${row.caseId}/calendar`,
-      assigneeId: null,
-      assigneeName: null,
+      ...this.eventAssigneeFields(row),
+    };
+  }
+
+  /** Primary assignee (assigneeId/assigneeName) plus the full list, primary first. */
+  private eventAssigneeFields(row: EventRow) {
+    const people = row.assignees.map((a) => ({ id: a.userId, name: `${a.user.firstName} ${a.user.lastName}` }));
+    const primary = people.find((p) => p.id === row.assigneeId) ?? null;
+    const assignees = primary
+      ? [primary, ...people.filter((p) => p.id !== row.assigneeId)]
+      : people;
+    return {
+      assigneeId: primary?.id ?? null,
+      assigneeName: primary?.name ?? null,
+      assignees,
     };
   }
 
@@ -246,6 +263,7 @@ export class AgendaService {
       url: row.caseId ? `/cases/${row.caseId}/tasks` : '/todos',
       assigneeId: row.assignee?.id ?? null,
       assigneeName: row.assignee ? `${row.assignee.firstName} ${row.assignee.lastName}` : null,
+      assignees: [],
     };
   }
 

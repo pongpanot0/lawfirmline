@@ -6,6 +6,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { FirmLinkService } from '../notifications/firm-link.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { eventForUserWhere } from '../calendar/event-people';
 
 const lawyer = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as AuthUser;
 const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as AuthUser;
@@ -181,6 +182,12 @@ describe('TimeSuggestionsService', () => {
       mockPrisma.timeEntry.findMany.mockResolvedValue([{ sourceKey: 'event:e1' }]);
       const result = await service.suggest(lawyer, '2026-09-26');
       expect(result).toHaveLength(0);
+    });
+
+    it('scopes event visibility with eventForUserWhere, so every assignee sees it', async () => {
+      await service.suggest(lawyer, '2026-09-26');
+      const where = mockPrisma.calendarEvent.findMany.mock.calls[0][0].where;
+      expect(where).toMatchObject(eventForUserWhere(lawyer.id));
     });
   });
 

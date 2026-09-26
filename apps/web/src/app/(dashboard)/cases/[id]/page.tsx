@@ -11,6 +11,10 @@ import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { RecordHearingOutcomeDialog } from '@/components/cases/RecordHearingOutcomeDialog';
 import { CaseNoticeDialog, PreLitigationUpdateDialog } from '@/components/cases/CaseNoticeDialog';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
+import { useLeaveFlags } from '@/lib/use-leave-flags';
+import { leaveWarning } from '@/lib/leave-flags';
+import { bangkokDateInputValue } from '@/lib/bangkok';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { PRE_LITIGATION_STATUS_LABELS } from '@/lib/pre-litigation';
 import { useEffect, useState, useMemo } from 'react';
@@ -221,6 +225,8 @@ export default function CaseDetailPage() {
   const [quickTaskAssignee, setQuickTaskAssignee] = useState('');
   const [quickTaskDue, setQuickTaskDue] = useState('');
   const [quickTaskBusy, setQuickTaskBusy] = useState(false);
+  const quickTaskDate = quickTaskDue || bangkokDateInputValue(new Date());
+  const quickTaskLeaveFlags = useLeaveFlags(token, quickTaskDate);
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
@@ -1802,15 +1808,22 @@ export default function CaseDetailPage() {
                   aria-label="ผู้รับผิดชอบ"
                 >
                   <option value="">ฉันเอง</option>
-                  {lawyers.map((u) => (
-                    <option key={u.id} value={u.id}>{u.firstName}</option>
-                  ))}
+                  <AssigneeOptions users={lawyers} flags={quickTaskLeaveFlags} nameOf={(u) => u.firstName} />
                 </select>
                 <ThaiDateInput value={quickTaskDue} onChange={setQuickTaskDue} />
                 <Button type="button" size="sm" className="ml-auto" onClick={addQuickTask} disabled={!quickTaskTitle.trim() || quickTaskBusy}>
                   เพิ่ม
                 </Button>
                 </div>
+                {quickTaskAssignee && quickTaskLeaveFlags.has(quickTaskAssignee) && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    {leaveWarning(
+                      lawyers.find((u) => u.id === quickTaskAssignee)?.firstName ?? '',
+                      quickTaskDate,
+                      quickTaskLeaveFlags.get(quickTaskAssignee)?.kind,
+                    )}
+                  </p>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">แนบไฟล์ได้หลังสร้าง — กดที่งานเพื่อเปิดรายละเอียด</p>
             </CardContent>

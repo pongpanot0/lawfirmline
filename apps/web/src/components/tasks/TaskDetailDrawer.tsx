@@ -12,6 +12,9 @@ import { bangkokDateInputValue } from '@/lib/bangkok';
 import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
+import { useLeaveFlags } from '@/lib/use-leave-flags';
+import { leaveWarning } from '@/lib/leave-flags';
 
 interface Props {
   taskId: string | null;
@@ -58,6 +61,11 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
       )
       .catch(() => setSiblingTasks([]));
   }, [token, task?.caseId, task?.id]);
+  const today = bangkokDateInputValue(new Date());
+  const taskDate = task?.dueDate ? bangkokDateInputValue(task.dueDate) : today;
+  const taskLeaveFlags = useLeaveFlags(token, taskDate);
+  const subtaskDate = subtaskDue || today;
+  const subtaskLeaveFlags = useLeaveFlags(token, subtaskDate);
   const fileInput = useRef<HTMLInputElement>(null);
   const asideRef = useRef<HTMLElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
@@ -293,17 +301,25 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 <label htmlFor="td-assignee" className={label}>{d.taskDetail.assignee}</label>
                 <select id="td-assignee" value={task.assignee?.id ?? ''} disabled={busy} onChange={(e) => e.target.value && patch({ assigneeId: e.target.value })} className={field}>
                   <option value="">{d.taskDetail.unassigned}</option>
-                  {users
-                    .filter(
+                  <AssigneeOptions
+                    users={users.filter(
                       (u) =>
                         u.id === user?.id ||
                         u.id === task.assignee?.id ||
                         (!!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)),
-                    )
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                    ))}
+                    )}
+                    flags={taskLeaveFlags}
+                  />
                 </select>
+                {task.assignee && taskLeaveFlags.has(task.assignee.id) && (
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                    {leaveWarning(
+                      `${task.assignee.firstName} ${task.assignee.lastName}`,
+                      taskDate,
+                      taskLeaveFlags.get(task.assignee.id)?.kind,
+                    )}
+                  </p>
+                )}
               </div>
               <div>
                 <label htmlFor="td-due" className={label}>{d.taskDetail.dueDate}</label>
@@ -425,15 +441,14 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                     className={`${field} mt-0 w-auto`}
                   >
                     <option value="">{d.taskDetail.assignee}</option>
-                    {users
-                      .filter(
+                    <AssigneeOptions
+                      users={users.filter(
                         (u) =>
                           u.id === user?.id ||
                           (!!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)),
-                      )
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                      ))}
+                      )}
+                      flags={subtaskLeaveFlags}
+                    />
                   </select>
                   <ThaiDateInput
                     value={subtaskDue}
@@ -442,6 +457,18 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                     className="mt-0"
                   />
                   <Button type="submit" size="sm" variant="outline" disabled={busy || !subtaskTitle.trim()}>{d.taskDetail.addSubtask}</Button>
+                  {subtaskAssigneeId && subtaskLeaveFlags.has(subtaskAssigneeId) && (
+                    <p className="w-full text-xs text-amber-700 dark:text-amber-400">
+                      {leaveWarning(
+                        (() => {
+                          const u = users.find((x) => x.id === subtaskAssigneeId);
+                          return u ? `${u.firstName} ${u.lastName}` : '';
+                        })(),
+                        subtaskDate,
+                        subtaskLeaveFlags.get(subtaskAssigneeId)?.kind,
+                      )}
+                    </p>
+                  )}
                 </form>
               </section>
             )}

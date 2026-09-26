@@ -283,6 +283,7 @@ export interface CalendarEventItem {
   endAt?: string | null;
   type: string;
   assigneeId?: string | null;
+  assignees?: { userId: string; user: { id: string; firstName: string; lastName: string } }[];
   leaveId?: string;
   leaveType?: 'SICK' | 'PERSONAL' | 'VACATION';
   leaveOwnerId?: string;

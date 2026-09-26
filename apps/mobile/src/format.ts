@@ -29,6 +29,14 @@ export function isoDay(d: Date): string {
   ).padStart(2, '0')}`;
 }
 
+/**
+ * `YYYY-MM-DD` of an ISO timestamp as seen on an Asia/Bangkok (UTC+7) wall
+ * clock — a task due at 01:00 UTC is already the next day in Bangkok.
+ */
+export function bangkokDay(iso: string): string {
+  return new Date(new Date(iso).getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return parts.slice(0, 2).map((p) => p[0] ?? '').join('');

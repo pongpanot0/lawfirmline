@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/misc';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
 import { bangkokDayLabel, bangkokTime } from '@/lib/bangkok';
+import { isMineItem } from '@/lib/agenda-item';
 import { cn } from '@/lib/utils';
 
 const KIND_ICON = {
@@ -40,7 +41,7 @@ function AgendaRow({
   // so "done" is never pressed on someone else's work by mistake.
   const { locale } = useLocale();
   const courtDayUrl = item.kind === AgendaItemKind.COURT_DATE ? `/court-day/${item.entityId}` : item.url;
-  const someoneElses = !!item.assigneeId && item.assigneeId !== viewerId;
+  const someoneElses = !isMineItem(item, viewerId);
 
   return (
     <div className="flex items-start gap-3 rounded-lg border border-transparent px-3 py-2.5 transition hover:border-border hover:bg-muted/50">
@@ -225,7 +226,7 @@ export function MyDayPanel() {
 
   // An owner/senior is served the team's items too. "งง" fix: default to the
   // viewer's own items and let them switch to the whole team's explicitly.
-  const isMine = (item: AgendaItem) => !item.assigneeId || item.assigneeId === viewerId;
+  const isMine = (item: AgendaItem) => isMineItem(item, viewerId);
   const seesOthers =
     [...data.overdue, ...data.todayItems, ...data.tomorrow, ...data.upcoming.flatMap((day) => day.items)].some(
       (item) => !isMine(item),
