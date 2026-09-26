@@ -238,7 +238,7 @@ export default function LeavesPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={leave.status} d={d} />
-                  {(leave.status === 'PENDING' || leave.startDate >= today) && (
+                  {leave.status !== 'REJECTED' && (leave.status === 'PENDING' || leave.startDate >= today) && (
                     <Button size="sm" variant="outline" disabled={busyId === leave.id} onClick={() => cancelLeave(leave.id)}>
                       {d.leaves.cancel}
                     </Button>

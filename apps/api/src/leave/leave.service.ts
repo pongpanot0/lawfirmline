@@ -113,6 +113,7 @@ export class LeaveService {
   }
 
   async decide(user: AuthUser, leaveId: string, decision: 'APPROVED' | 'REJECTED') {
+    if (decision !== LeaveStatus.APPROVED && decision !== LeaveStatus.REJECTED) throw new BadRequestException('ผลการพิจารณาต้องเป็นอนุมัติหรือไม่อนุมัติ');
     const leave = await this.prisma.leaveRequest.findFirst({
       where: { id: leaveId, firmId: user.firmId },
       include: { user: { select: { firstName: true, lastName: true, lineUserId: true } } },
@@ -120,11 +121,11 @@ export class LeaveService {
     if (!leave) throw new NotFoundException('ไม่พบรายการลา');
     if (leave.status !== LeaveStatus.PENDING) throw new BadRequestException('คำขอนี้ตัดสินไปแล้ว');
     if (user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('อนุมัติได้เฉพาะเจ้าของสำนักงาน');
-    const decided = await this.prisma.leaveRequest.update({
-      where: { id: leaveId },
-      data: { status: decision, decidedById: user.id, decidedAt: new Date() },
-      include: { user: { select: { firstName: true, lastName: true, lineUserId: true } } },
-    });
+    // Claim only while still PENDING so two owners deciding at once can't both win.
+    const data = { status: decision, decidedById: user.id, decidedAt: new Date() };
+    const claimed = await this.prisma.leaveRequest.updateMany({ where: { id: leaveId, firmId: user.firmId, status: LeaveStatus.PENDING }, data });
+    if (!claimed.count) throw new BadRequestException('คำขอนี้ตัดสินไปแล้ว');
+    const decided = { ...leave, ...data };
     if (decided.user.lineUserId) {
       try {
         await this.sendOnce(`decision:${leaveId}`, decided.user.lineUserId,
@@ -142,6 +143,8 @@ export class LeaveService {
     if (!leave) throw new NotFoundException('ไม่พบรายการลา');
     if (leave.userId !== user.id && user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('ยกเลิกได้เฉพาะรายการลาของตนเอง');
     await this.prisma.leaveRequest.delete({ where: { id } });
+    // Members were only ever told about approved leave — nothing to retract otherwise.
+    if (leave.status !== LeaveStatus.APPROVED) return { deleted: true };
     try {
       for (const member of await this.members(leave.firmId)) {
         if (member.userId === leave.userId || !member.user.lineUserId) continue;

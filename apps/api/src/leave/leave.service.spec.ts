@@ -142,11 +142,14 @@ describe('LeaveService approval workflow', () => {
     return {
       leaveRequest: {
         findFirst: jest.fn(async () => leave),
-        update: jest.fn(async ({ data }: any) => {
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          if (leave.status !== where.status) return { count: 0 };
           leave = { ...leave, ...data };
-          return leave;
+          return { count: 1 };
         }),
+        delete: jest.fn(async () => leave),
       },
+      firmMember: { findMany: jest.fn(async () => [{ userId: 'bob', user: { lineUserId: 'line-bob' } }]) },
       leaveNoticeLog: {
         create: jest.fn(async () => undefined),
         update: jest.fn(async () => undefined),
@@ -183,6 +186,43 @@ describe('LeaveService approval workflow', () => {
     );
     expect(decided.status).toBe('APPROVED');
     expect(line.sendText).toHaveBeenCalledWith(expect.stringContaining('อนุมัติ'), ['line-alice']);
+  });
+
+  it('rejects a decision value other than APPROVED/REJECTED', async () => {
+    const leave = { id: 'leave-1', firmId: 'firm-a', status: LeaveStatus.PENDING, startDate: new Date('2026-10-05'), endDate: new Date('2026-10-05'), user: { lineUserId: null } };
+    const prisma = makeDecidePrisma(leave);
+    const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
+    await expect(new LeaveService(prisma, line).decide(
+      { id: 'owner-1', firmId: 'firm-a', firmRole: FirmRole.OWNER } as any, 'leave-1', 'PENDING' as any,
+    )).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.leaveRequest.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('loses the race: when another owner decided first the claim matches nothing, throws, and no push is sent', async () => {
+    const leave = { id: 'leave-1', firmId: 'firm-a', status: LeaveStatus.PENDING, startDate: new Date('2026-10-05'), endDate: new Date('2026-10-05'), user: { lineUserId: 'line-alice' } };
+    const prisma = makeDecidePrisma(leave);
+    prisma.leaveRequest.updateMany.mockResolvedValueOnce({ count: 0 });
+    const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
+    await expect(new LeaveService(prisma, line).decide(
+      { id: 'owner-2', firmId: 'firm-a', firmRole: FirmRole.OWNER } as any, 'leave-1', 'REJECTED',
+    )).rejects.toThrow('คำขอนี้ตัดสินไปแล้ว');
+    expect(prisma.leaveRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'leave-1', firmId: 'firm-a', status: LeaveStatus.PENDING },
+    }));
+    expect(line.sendText).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [LeaveStatus.APPROVED, 1],
+    [LeaveStatus.PENDING, 0],
+    [LeaveStatus.REJECTED, 0],
+  ])('cancelling a %s leave broadcasts to members %i time(s)', async (status, sends) => {
+    const leave = { id: 'leave-1', firmId: 'firm-a', userId: 'alice', type: LeaveType.VACATION, status, startDate: new Date('2026-10-05'), endDate: new Date('2026-10-05'), user: { firstName: 'Alice', lastName: 'A' } };
+    const prisma = makeDecidePrisma(leave);
+    const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
+    await new LeaveService(prisma, line).cancel({ id: 'alice', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any, 'leave-1');
+    expect(prisma.leaveRequest.delete).toHaveBeenCalled();
+    expect(line.sendText).toHaveBeenCalledTimes(sends);
   });
 
   it('findCourtConflicts matches events assigned to the person, or unassigned events on their lead case', async () => {

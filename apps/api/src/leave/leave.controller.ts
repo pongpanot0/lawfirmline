@@ -6,6 +6,7 @@ import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 import { OwnerOnly } from '../saas/decorators/saas.decorators';
 import { LeaveType } from '../generated/prisma';
 import { LeaveService } from './leave.service';
+import { DecideLeaveDto } from './dto/decide-leave.dto';
 
 @Controller('leaves')
 @UseGuards(JwtAuthGuard)
@@ -30,7 +31,7 @@ export class LeaveController {
   @Patch(':id/decision')
   @UseGuards(FirmRoleGuard)
   @OwnerOnly()
-  decide(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { decision: 'APPROVED' | 'REJECTED' }) {
+  decide(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: DecideLeaveDto) {
     return this.leaves.decide(user, id, body.decision);
   }
 }
