@@ -2136,6 +2136,22 @@ export const api = {
   getTimeEntries: (token: string, caseId: string) =>
     request<TimeEntryItem[]>(`/cases/${caseId}/billing/time-entries`, { token }),
 
+  getTimeSuggestions: (token: string, date: string) =>
+    request<TimeSuggestion[]>(`/time-entries/suggestions?date=${date}`, { token }),
+
+  confirmTimeEntries: (token: string, entries: ConfirmTimeEntryInput[]) =>
+    request<{ created: number }>('/time-entries/confirm', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ entries }),
+    }),
+
+  getFirmTimesheet: (token: string, params: { from: string; to: string; userId?: string }) => {
+    const qs = new URLSearchParams({ from: params.from, to: params.to });
+    if (params.userId) qs.set('userId', params.userId);
+    return request<FirmTimesheetResponse>(`/time-entries?${qs.toString()}`, { token });
+  },
+
   getInvoices: (token: string, caseId: string) =>
     request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, { token }),
 
@@ -3023,6 +3039,50 @@ export interface TimeEntryItem {
   description?: string;
   date: string;
   user: { firstName: string; lastName: string };
+}
+
+export interface TimeSuggestion {
+  sourceKey: string;
+  source: 'event' | 'task' | 'review' | 'messages';
+  caseId: string;
+  caseRef: string | null;
+  description: string;
+  hours: number | null;
+  date: string;
+}
+
+export interface ConfirmTimeEntryInput {
+  caseId: string;
+  hours: number;
+  description: string;
+  date: string;
+  sourceKey?: string;
+  billable?: boolean;
+}
+
+export interface FirmTimesheetEntry {
+  id: string;
+  date: string;
+  hours: number;
+  description: string | null;
+  billable: boolean;
+  caseId: string;
+  caseRef: string | null;
+  userId: string;
+  userName: string;
+  invoiced: boolean;
+}
+
+export interface FirmTimesheetTotal {
+  userId: string;
+  userName: string;
+  hours: number;
+  billableHours: number;
+}
+
+export interface FirmTimesheetResponse {
+  entries: FirmTimesheetEntry[];
+  totals: FirmTimesheetTotal[];
 }
 
 export interface InvoiceItem {

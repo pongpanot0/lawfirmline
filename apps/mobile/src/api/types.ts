@@ -146,3 +146,13 @@ export interface OwnerKpis {
   }>;
   stuckByStage: Array<{ stage: string; count: number; oldestDays: number }>;
 }
+
+export interface TimeSuggestion {
+  sourceKey: string;
+  source: 'event' | 'task' | 'review' | 'messages';
+  caseId: string;
+  caseRef: string | null;
+  description: string;
+  hours: number | null;
+  date: string;
+}
