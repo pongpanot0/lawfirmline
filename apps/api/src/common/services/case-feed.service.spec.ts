@@ -68,4 +68,19 @@ describe('CaseFeedService', () => {
       service.log({ caseId: 'case-1', userId: 'u1', type: ActivityType.NOTE, title: 'x' }),
     ).resolves.toBeUndefined();
   });
+
+  describe('error handling', () => {
+    const params = { caseId: 'case-1', userId: 'u1', type: ActivityType.NOTE, title: 't' };
+
+    it('swallows a failed insert on the default client', async () => {
+      prisma.caseActivity.create.mockRejectedValueOnce(new Error('fk'));
+      await expect(service.log(params)).resolves.toBeUndefined();
+    });
+
+    it('rethrows a failed insert inside a transaction so it cannot turn COMMIT into a silent ROLLBACK', async () => {
+      const tx = { caseActivity: { create: jest.fn().mockRejectedValue(new Error('fk')) } };
+      await expect(service.log(params, tx as any)).rejects.toThrow('fk');
+      expect(prisma.caseActivity.create).not.toHaveBeenCalled();
+    });
+  });
 });

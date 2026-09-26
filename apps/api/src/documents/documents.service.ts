@@ -9,6 +9,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { DocumentMetadataDto, DocumentQueryDto } from './dto/document-metadata.dto';
 import { Prisma } from '../generated/prisma';
+import { DocumentPublicationService } from './document-publication.service';
 
 @Injectable()
 export class DocumentsService {
@@ -17,6 +18,7 @@ export class DocumentsService {
     private fileStorage: FileStorageService,
     private caseFeed: CaseFeedService,
     private caseAccess: CaseAccessService,
+    private publications: DocumentPublicationService,
   ) {}
 
   /** ค้นเอกสารข้ามทุกคดีที่ user เข้าถึงได้ — ชื่อไฟล์ / หมวด / tag */
@@ -37,6 +39,7 @@ export class DocumentsService {
       include: {
         case: { select: { id: true, title: true, ownRef: true } },
         uploadedBy: { select: { firstName: true, lastName: true } },
+        uploadedByContact: { select: { name: true } },
       },
       orderBy: { updatedAt: 'desc' },
       take: 100,
@@ -84,6 +87,7 @@ export class DocumentsService {
         uploadedBy: {
           select: { id: true, firstName: true, lastName: true },
         },
+        uploadedByContact: { select: { name: true } },
         versions: { orderBy: { version: 'desc' } },
       },
       // เอกสารศาลเรียงด้วยวันที่บนหน้าเอกสาร ถ้ามี — ไม่ใช่วันที่อัปโหลด
@@ -188,6 +192,7 @@ export class DocumentsService {
         uploadedBy: {
           select: { id: true, firstName: true, lastName: true },
         },
+        uploadedByContact: { select: { name: true } },
         versions: { orderBy: { version: 'desc' } },
       },
       orderBy: { createdAt: 'desc' },
@@ -285,6 +290,88 @@ export class DocumentsService {
     });
 
     return updated;
+  }
+
+  /**
+   * Same path as `createFromBuffer` for a file sent by a client contact through the portal:
+   * no staff uploader, so the audit row has no userId and the feed entry is written under
+   * `actorUserId` (CaseActivity needs a user). Runs on `tx` so it commits with the new case.
+   */
+  async createFromClientBuffer(
+    tx: Prisma.TransactionClient,
+    args: {
+      firmId: string;
+      caseId: string;
+      contactId: string;
+      actorUserId: string;
+      filename: string;
+      buffer: Buffer;
+      mimeType: string;
+      category?: DocumentCategory;
+      description?: string;
+    },
+  ) {
+    const { caseId } = args;
+    const document = await tx.document.create({
+      data: {
+        caseId,
+        filename: args.filename,
+        storagePath: '',
+        mimeType: args.mimeType,
+        version: 1,
+        category: (args.category ?? DocumentCategory.OTHER) as never,
+        uploadedById: null,
+        uploadedByContactId: args.contactId,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        firmId: args.firmId,
+        userId: null,
+        action: 'DOCUMENT_UPLOADED',
+        metadata: { caseId, documentId: document.id, filename: document.filename, contactId: args.contactId },
+      },
+    });
+
+    const ext = path.extname(args.filename);
+    const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
+    const storagePath = await this.fileStorage.put(key, args.buffer, args.mimeType);
+
+    try {
+      const updated = await tx.document.update({
+        where: { id: document.id },
+        data: { storagePath },
+      });
+
+      await tx.documentVersion.create({
+        data: {
+          documentId: document.id,
+          version: 1,
+          storagePath,
+          filename: args.filename,
+          mimeType: args.mimeType,
+          createdById: null,
+        },
+      });
+
+      await this.caseFeed.log(
+        {
+          caseId,
+          userId: args.actorUserId,
+          type: ActivityType.DOCUMENT,
+          title: `ลูกความส่งเอกสาร: ${updated.filename}`,
+          description: args.description,
+        },
+        tx,
+      );
+
+      return updated;
+    } catch (error) {
+      // the rows roll back with the tx; the stored file would not
+      await this.fileStorage.delete(storagePath).catch(() => undefined);
+      throw error;
+    }
   }
 
   async uploadForIntake(
@@ -526,6 +613,18 @@ export class DocumentsService {
 
   async updateVisibility(user: AuthUser, caseId: string, documentId: string, visibleToClient: boolean) {
     await this.verifyDocument(caseId, documentId);
+    // The portal only shows published documents, so the eye toggle publishes the latest
+    // version to every contact (or closes the open publication) and mirrors the flag.
+    // Already published → only the flag changes: no new publication, no re-notify.
+    if (visibleToClient) {
+      const open = await this.prisma.documentPublication.findFirst({
+        where: { documentId, unpublishedAt: null },
+        select: { id: true },
+      });
+      if (!open) await this.publications.publish(user, caseId, documentId, {});
+    } else {
+      await this.publications.unpublishOpen(user, caseId, documentId);
+    }
     await this.audit(user, 'DOCUMENT_VISIBILITY_CHANGED', { caseId, documentId, visibleToClient });
     return this.prisma.document.update({
       where: { id: documentId },

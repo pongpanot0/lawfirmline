@@ -929,6 +929,14 @@ describe('IntakeService portal conversion', () => {
       expect(tx.intake.create).not.toHaveBeenCalled();
     });
 
+  it('rejects a submission that already opened a case', async () => {
+    tx.portalIntakeSubmission.findFirst.mockResolvedValue({ ...submission, caseId: 'case-1' });
+    await expect(service.convertPortalSubmission(user, submission.id, {})).rejects.toThrow(
+      new BadRequestException('คำขอนี้เปิดเป็นคดีแล้ว'),
+    );
+    expect(tx.intake.create).not.toHaveBeenCalled();
+  });
+
   it('propagates linking failure from the transaction instead of reporting a successful conversion', async () => {
     tx.portalIntakeSubmission.update.mockRejectedValue(new Error('link failed'));
     await expect(service.convertPortalSubmission(user, submission.id, {})).rejects.toThrow('link failed');

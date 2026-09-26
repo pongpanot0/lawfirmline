@@ -338,7 +338,15 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
               >
                 <p className="break-all font-medium text-primary hover:underline">{doc.filename}</p>
                 <p className="text-xs text-muted-foreground">
-                  v{doc.version} — {doc.uploadedBy.firstName} {doc.uploadedBy.lastName}
+                  v{doc.version} —{' '}
+                  {doc.uploadedBy
+                    ? `${doc.uploadedBy.firstName} ${doc.uploadedBy.lastName}`
+                    : doc.uploadedByContact?.name ?? 'ลูกความ'}
+                  {doc.uploadedByContact && (
+                    <span className="ml-1.5 rounded-full border border-primary/30 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      จากลูกความ
+                    </span>
+                  )}
                 </p>
               </button>
               <div className="flex flex-wrap items-center gap-2">
@@ -389,6 +397,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
                 <button
                   type="button"
                   onClick={() => handleToggleVisibility(doc)}
+                  title="แสดงให้ลูกความเห็น (เผยแพร่)"
                   className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium ${
                     doc.visibleToClient
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-700'

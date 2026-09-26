@@ -10,6 +10,7 @@ import { SubmitPortalIntakeDto } from './dto/portal-intake.dto';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { PORTAL_UPLOAD_LIMITS } from './portal-case-helpers';
 
 @Controller('client-portal/intake')
 @UseGuards(ClientPortalGuard)
@@ -21,7 +22,7 @@ export class ClientPortalIntakeController {
   ) {}
 
   @Post()
-  @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: 20 * 1024 * 1024 } }))
+  @UseInterceptors(FilesInterceptor('files', 5, { limits: PORTAL_UPLOAD_LIMITS }))
   submit(
     @CurrentPortalUser() user: PortalIdentity,
     @Body() dto: SubmitPortalIntakeDto,

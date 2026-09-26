@@ -6,6 +6,9 @@ import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
+import { DocumentPublicationService } from './document-publication.service';
+
+const mockPublications = { publish: jest.fn(), unpublishOpen: jest.fn() };
 
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
@@ -29,13 +32,14 @@ describe('DocumentsService', () => {
       update: jest.fn(),
     },
     documentVersion: { create: jest.fn() },
+    documentPublication: { findFirst: jest.fn() },
     auditLog: { create: jest.fn() },
     intake: { findFirst: jest.fn() },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
-    delete: jest.fn(),
+    delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };
@@ -49,9 +53,69 @@ describe('DocumentsService', () => {
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);
+  });
+
+  describe('createFromClientBuffer', () => {
+    it('stores a case document from a client contact with no staff uploader', async () => {
+      const tx = {
+        document: {
+          create: jest.fn().mockResolvedValue({ id: 'doc-1', filename: 'a.pdf' }),
+          update: jest.fn().mockResolvedValue({ id: 'doc-1', filename: 'a.pdf', storagePath: './uploads/cases/case-1/doc-1_v1.pdf' }),
+        },
+        documentVersion: { create: jest.fn() },
+        auditLog: { create: jest.fn() },
+      };
+      const feed = (service as any).caseFeed;
+
+      const doc = await service.createFromClientBuffer(tx as any, {
+        firmId: 'firm-1',
+        caseId: 'case-1',
+        contactId: 'contact-1',
+        actorUserId: 'owner-1',
+        filename: 'a.pdf',
+        buffer: Buffer.from('x'),
+        mimeType: 'application/pdf',
+      });
+
+      expect(tx.document.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ caseId: 'case-1', uploadedByContactId: 'contact-1', uploadedById: null, category: 'OTHER' }),
+      });
+      expect(mockFileStorage.put).toHaveBeenCalledWith('cases/case-1/doc-1_v1.pdf', expect.any(Buffer), 'application/pdf');
+      expect(tx.documentVersion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ documentId: 'doc-1', version: 1, createdById: null }),
+      });
+      expect(tx.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ firmId: 'firm-1', userId: null, action: 'DOCUMENT_UPLOADED' }),
+      });
+      expect(feed.log).toHaveBeenCalledWith(expect.objectContaining({ caseId: 'case-1', userId: 'owner-1' }), tx);
+      expect(mockPrisma.document.create).not.toHaveBeenCalled();
+      expect(doc.storagePath).toBe('./uploads/cases/case-1/doc-1_v1.pdf');
+    });
+  });
+
+  describe('createFromClientBuffer cleanup', () => {
+    it('deletes the stored file and rethrows when a later write fails', async () => {
+      const tx = {
+        document: {
+          create: jest.fn().mockResolvedValue({ id: 'doc-1', filename: 'a.pdf' }),
+          update: jest.fn().mockRejectedValue(new Error('update failed')),
+        },
+        documentVersion: { create: jest.fn() },
+        auditLog: { create: jest.fn() },
+      };
+
+      await expect(
+        service.createFromClientBuffer(tx as any, {
+          firmId: 'firm-1', caseId: 'case-1', contactId: 'contact-1', actorUserId: 'owner-1',
+          filename: 'a.pdf', buffer: Buffer.from('x'), mimeType: 'application/pdf',
+        }),
+      ).rejects.toThrow('update failed');
+      expect(mockFileStorage.delete).toHaveBeenCalledWith('./uploads/cases/case-1/doc-1_v1.pdf');
+    });
   });
 
   describe('updateVisibility', () => {
@@ -66,15 +130,50 @@ describe('DocumentsService', () => {
       });
     });
 
-    it('updates visibility when the document belongs to the case', async () => {
+    it('toggle on publishes the latest version to every contact and keeps visibleToClient in sync', async () => {
       mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.documentPublication.findFirst.mockResolvedValue(null);
       mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', visibleToClient: true });
 
       await service.updateVisibility(auditUser, 'case-1', 'doc-1', true);
 
+      expect(mockPublications.publish).toHaveBeenCalledWith(auditUser, 'case-1', 'doc-1', {});
+      expect(mockPublications.unpublishOpen).not.toHaveBeenCalled();
       expect(mockPrisma.document.update).toHaveBeenCalledWith({
         where: { id: 'doc-1' },
         data: { visibleToClient: true },
+      });
+    });
+
+    it('toggle on with an open publication does not re-publish or re-notify', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.documentPublication.findFirst.mockResolvedValue({ id: 'pub-1' });
+      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', visibleToClient: true });
+
+      await service.updateVisibility(auditUser, 'case-1', 'doc-1', true);
+
+      expect(mockPrisma.documentPublication.findFirst).toHaveBeenCalledWith({
+        where: { documentId: 'doc-1', unpublishedAt: null },
+        select: { id: true },
+      });
+      expect(mockPublications.publish).not.toHaveBeenCalled();
+      expect(mockPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+        data: { visibleToClient: true },
+      });
+    });
+
+    it('toggle off closes the open publication and clears visibleToClient', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', visibleToClient: false });
+
+      await service.updateVisibility(auditUser, 'case-1', 'doc-1', false);
+
+      expect(mockPublications.unpublishOpen).toHaveBeenCalledWith(auditUser, 'case-1', 'doc-1');
+      expect(mockPublications.publish).not.toHaveBeenCalled();
+      expect(mockPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+        data: { visibleToClient: false },
       });
     });
   });
@@ -103,7 +202,7 @@ describe('DocumentsService — intake-scoped methods', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
-    delete: jest.fn(),
+    delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };
@@ -119,6 +218,7 @@ describe('DocumentsService — intake-scoped methods', () => {
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -190,7 +290,7 @@ describe('DocumentsService.adoptIntakeAttachments', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
-    delete: jest.fn(),
+    delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };
@@ -215,6 +315,7 @@ describe('DocumentsService.adoptIntakeAttachments', () => {
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -274,7 +375,7 @@ describe('DocumentsService.removeFromIntake', () => {
     intake: { findFirst: jest.fn() },
     document: {
       findFirst: jest.fn(),
-      delete: jest.fn(),
+      delete: jest.fn().mockResolvedValue(undefined),
       count: jest.fn(),
     },
     documentVersion: { findMany: jest.fn(), count: jest.fn() },
@@ -282,7 +383,7 @@ describe('DocumentsService.removeFromIntake', () => {
   };
   const mockFileStorage = {
     put: jest.fn(async (key: string) => `./uploads/${key}`),
-    delete: jest.fn(),
+    delete: jest.fn().mockResolvedValue(undefined),
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };
@@ -305,6 +406,7 @@ describe('DocumentsService.removeFromIntake', () => {
         { provide: FileStorageService, useValue: mockFileStorage },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn().mockReturnValue({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);

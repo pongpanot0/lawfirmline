@@ -3049,7 +3049,8 @@ export interface DocumentItem {
   tags?: string[];
   visibleToClient: boolean;
   createdAt: string;
-  uploadedBy: { firstName: string; lastName: string };
+  uploadedBy?: { firstName: string; lastName: string } | null;
+  uploadedByContact?: { name: string } | null;
   versions?: DocumentVersionItem[];
 }
 

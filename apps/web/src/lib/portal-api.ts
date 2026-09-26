@@ -103,9 +103,19 @@ export interface PortalCaseSummary {
   nextHearing: PortalHearing | null;
 }
 
+export interface PortalClientUploadItem {
+  id: string;
+  filename: string;
+  mimeType: string;
+  category: string;
+  createdAt: string;
+}
+
 export interface PortalCaseDetail extends PortalCaseSummary {
+  portalRequest: { id: string; referenceNumber: string; title: string } | null;
   nextHearing: { id: string; title: string; startAt: string } | null;
   documents: Array<{ id: string; filename: string; mimeType: string; createdAt: string }>;
+  clientUploads: PortalClientUploadItem[];
   invoices: Array<{
     id: string;
     invoiceNumber: string;
@@ -132,9 +142,17 @@ export interface PortalIntakeSubmissionEntry {
   title: string;
   submittedAt: string;
   withdrawnByClient: boolean;
+  /** ตั้งแต่ส่งคำขอ พอร์ทัลเปิดคดีทันที — ใช้เชื่อมไปหน้าคดีเมื่อมีค่า */
+  caseId: string | null;
   externalStatus: string;
   attachments: Array<{ id: string; filename: string; size: number; createdAt?: string }>;
   firmDocuments: Array<{ id: string; filename: string; mimeType: string; createdAt: string }>;
+}
+
+/** Returned only by submitIntake — carries the case just opened for this request. */
+export interface PortalIntakeSubmitResult extends PortalIntakeSubmissionEntry {
+  caseId: string;
+  caseRef: string;
 }
 
 export interface PortalIntakeSubmissionDetail extends PortalIntakeSubmissionEntry {
@@ -249,6 +267,24 @@ export const portalApi = {
   downloadDocument: (token: string, documentId: string) =>
     requestBlob(`/client-portal/documents/${documentId}/download`, token),
 
+  uploadPortalCaseDocument: (
+    token: string,
+    caseId: string,
+    dto: { docType?: string; note?: string; keyDate?: string; keyDateLabel?: string },
+    file: File,
+  ) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (dto.docType) formData.append('docType', dto.docType);
+    if (dto.note) formData.append('note', dto.note);
+    if (dto.keyDate) formData.append('keyDate', dto.keyDate);
+    if (dto.keyDateLabel) formData.append('keyDateLabel', dto.keyDateLabel);
+    return requestMultipart<PortalClientUploadItem>(`/client-portal/cases/${caseId}/documents`, formData, token);
+  },
+
+  downloadClientUpload: (token: string, caseId: string, documentId: string) =>
+    requestBlob(`/client-portal/cases/${caseId}/documents/${documentId}/file`, token),
+
   getCaseMessages: (token: string, caseId: string) =>
     request<CaseMessageEntry[]>(`/client-portal/cases/${caseId}/messages`, { token }),
 
@@ -261,7 +297,14 @@ export const portalApi = {
 
   submitIntake: (
     token: string,
-    dto: { title: string; detail: string; clientRequestedDate?: string; urgencyFlag?: boolean },
+    dto: {
+      title: string;
+      detail: string;
+      clientRequestedDate?: string;
+      urgencyFlag?: boolean;
+      keyDate?: string;
+      keyDateLabel?: string;
+    },
     files: File[] = [],
   ) => {
     const formData = new FormData();
@@ -269,9 +312,11 @@ export const portalApi = {
     formData.append('detail', dto.detail);
     if (dto.clientRequestedDate) formData.append('clientRequestedDate', dto.clientRequestedDate);
     if (dto.urgencyFlag !== undefined) formData.append('urgencyFlag', String(dto.urgencyFlag));
+    if (dto.keyDate) formData.append('keyDate', dto.keyDate);
+    if (dto.keyDateLabel) formData.append('keyDateLabel', dto.keyDateLabel);
     for (const file of files) formData.append('files', file);
 
-    return requestMultipart<PortalIntakeSubmissionEntry>('/client-portal/intake', formData, token);
+    return requestMultipart<PortalIntakeSubmitResult>('/client-portal/intake', formData, token);
   },
 
   getMyIntakeSubmissions: (token: string) =>

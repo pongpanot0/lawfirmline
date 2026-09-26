@@ -1392,7 +1392,7 @@ export class IntakeService {
 
   async listPortalSubmissions(user: AuthUser) {
     return this.prisma.portalIntakeSubmission.findMany({
-      where: { client: { firmId: user.firmId }, intakeId: null, withdrawnByClient: false },
+      where: { client: { firmId: user.firmId }, intakeId: null, caseId: null, withdrawnByClient: false },
       include: {
         clientContact: { select: { name: true, email: true } },
         client: { select: { name: true } },
@@ -1417,6 +1417,9 @@ export class IntakeService {
       }
       if (submission.withdrawnByClient) {
         throw new BadRequestException('เรื่องนี้ถูกถอนโดยลูกความแล้ว');
+      }
+      if (submission.caseId) {
+        throw new BadRequestException('คำขอนี้เปิดเป็นคดีแล้ว');
       }
       if (submission.intakeId) {
         const existing = await tx.intake.findFirst({

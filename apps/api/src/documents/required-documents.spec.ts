@@ -5,6 +5,9 @@ import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
+import { DocumentPublicationService } from './document-publication.service';
+
+const mockPublications = { publish: jest.fn(), unpublishOpen: jest.fn() };
 
 /**
  * `CaseType.requiredDocuments` เก็บได้ทั้งค่า `DocumentCategory` (เทียบกับ
@@ -23,6 +26,7 @@ describe('DocumentsService.getRequiredDocuments', () => {
         { provide: FileStorageService, useValue: {} },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: () => ({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);
@@ -89,6 +93,7 @@ describe('DocumentsService.setDocumentConfirmed', () => {
         { provide: FileStorageService, useValue: {} },
         { provide: CaseAccessService, useValue: { getCaseFilterForUser: () => ({}) } },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: DocumentPublicationService, useValue: mockPublications },
       ],
     }).compile();
     service = module.get(DocumentsService);
