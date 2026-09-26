@@ -90,4 +90,33 @@ describe('ReminderScheduler', () => {
       data: { eventId: 'evt-1', channel: 'line', minutesBefore: 60 },
     });
   });
+
+  it('pushes to every assignee on a multi-assignee event, deduped', async () => {
+    const event = {
+      id: 'evt-2',
+      title: 'สืบพยาน',
+      startAt: new Date('2026-09-07T03:30:00Z'),
+      caseId: 'case-1',
+      assigneeId: 'user-a',
+      assignees: [{ userId: 'user-a' }, { userId: 'user-b' }],
+      reminderMinutes: [60],
+      reminderLogs: [],
+      case: { ownRef: 'C-001', leadLawyerId: 'user-a', title: 'คดี' },
+    };
+    mockPrisma.calendarEvent.findMany.mockResolvedValue([event]);
+
+    await scheduler.processReminders();
+
+    expect(mockPush.sendToUsers).toHaveBeenCalledWith(
+      ['user-a', 'user-b'],
+      expect.anything(),
+    );
+  });
+
+  it('includes every assignee in the reminder window query', async () => {
+    await scheduler.processReminders();
+
+    const query = mockPrisma.calendarEvent.findMany.mock.calls[0][0];
+    expect(query.include.assignees).toBeDefined();
+  });
 });

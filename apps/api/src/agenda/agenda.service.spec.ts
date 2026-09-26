@@ -17,6 +17,8 @@ function makeEvent(over: Record<string, unknown> = {}) {
     courtName: 'ศาลแพ่ง',
     caseId: 'case-1',
     case: { id: 'case-1', ownRef: 'C-001', title: 'คดีทดสอบ', courtName: 'ศาลแพ่ง' },
+    assigneeId: null,
+    assignees: [],
     ...over,
   };
 }
@@ -259,5 +261,38 @@ describe('AgendaService', () => {
     expect(result.todayItems).toHaveLength(1);
     expect(result.todayItems[0].departBy).toBeNull();
     expect(result.warnings).toEqual([]);
+  });
+
+  it('lists every assignee on the row, primary first, and keeps assigneeId/assigneeName as the primary', async () => {
+    setEvents([
+      makeEvent({
+        assigneeId: 'user-b',
+        assignees: [
+          { userId: 'user-a', user: { id: 'user-a', firstName: 'Ann', lastName: 'A' } },
+          { userId: 'user-b', user: { id: 'user-b', firstName: 'Beam', lastName: 'B' } },
+        ],
+      }),
+    ]);
+
+    const result = await service.getMyDay(user);
+
+    const item = result.todayItems[0];
+    expect(item.assigneeId).toBe('user-b');
+    expect(item.assigneeName).toBe('Beam B');
+    expect(item.assignees).toEqual([
+      { id: 'user-b', name: 'Beam B' },
+      { id: 'user-a', name: 'Ann A' },
+    ]);
+  });
+
+  it('has no primary and no assignees when the case falls back to its lead lawyer', async () => {
+    setEvents([makeEvent({ assigneeId: null, assignees: [] })]);
+
+    const result = await service.getMyDay(user);
+
+    const item = result.todayItems[0];
+    expect(item.assigneeId).toBeNull();
+    expect(item.assigneeName).toBeNull();
+    expect(item.assignees).toEqual([]);
   });
 });

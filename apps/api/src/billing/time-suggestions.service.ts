@@ -8,6 +8,7 @@ import { LineMessagingService } from '../notifications/line-messaging.service';
 import { FirmLinkService } from '../notifications/firm-link.service';
 import { bangkokDayEnd, bangkokDayKey, bangkokDayStart } from '../common/utils/bangkok-time';
 import { ConfirmTimeEntryDto } from './dto/billing.dto';
+import { eventForUserWhere } from '../calendar/event-people';
 
 export type TimeSuggestion = {
   sourceKey: string;
@@ -52,7 +53,7 @@ export class TimeSuggestionsService {
         where: {
           type: { in: [EventType.COURT_DATE, EventType.CLIENT_MEETING] },
           startAt: { gte: from, lt: to },
-          OR: [{ assigneeId: userId }, { assigneeId: null, case: { leadLawyerId: userId } }],
+          ...eventForUserWhere(userId),
           case: caseFilter,
         },
         select: {

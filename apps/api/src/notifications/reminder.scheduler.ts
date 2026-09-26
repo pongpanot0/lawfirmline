@@ -5,6 +5,7 @@ import { LineMessagingService } from './line-messaging.service';
 import { LineLinkService } from './line-link.service';
 import { PushService } from './push.service';
 import { formatCaseNotificationReference } from './reference-label';
+import { eventAssigneesInclude, eventPeopleIds } from '../calendar/event-people';
 
 /**
  * The widest lead time a reminder can use. The scheduler only loads events
@@ -42,7 +43,7 @@ export class ReminderScheduler {
     const horizon = new Date(now.getTime() + MAX_REMINDER_LEAD_MINUTES * 60 * 1000);
     const events = await this.prisma.calendarEvent.findMany({
       where: { startAt: { gt: now, lte: horizon } },
-      include: { reminderLogs: true, case: true },
+      include: { reminderLogs: true, case: true, ...eventAssigneesInclude },
     });
 
     for (const event of events) {
@@ -77,10 +78,10 @@ export class ReminderScheduler {
               ? await this.lineMessaging.sendText(message, lineUserIds)
               : false;
 
-          // Mobile push goes to whoever attends: the event's assignee when
-          // set, otherwise the case's lead lawyer.
+          // Mobile push goes to whoever attends: every assignee on the
+          // event, or the case's lead lawyer when none is set.
           const pushSent = await this.push.sendToUsers(
-            [event.assigneeId ?? event.case.leadLawyerId],
+            eventPeopleIds(event),
             {
               title: `⏰ ${event.title} (${leadTime}ก่อน)`,
               body: `${reference ?? event.case.title} · ${event.startAt.toLocaleString('th-TH')}`,

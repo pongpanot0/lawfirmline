@@ -73,6 +73,8 @@ export interface AgendaItem {
    */
   assigneeId: string | null;
   assigneeName: string | null;
+  /** Every person responsible for the item, primary first. Empty for a task or an unassigned event. */
+  assignees: { id: string; name: string }[];
 }
 
 export interface AgendaDay {
