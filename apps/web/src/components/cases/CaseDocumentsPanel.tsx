@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry } from '@/lib/api';
 import { PublishDocumentDialog } from '@/components/documents/PublishDocumentDialog';
 import { TemplateGenerateDrawer } from '@/components/cases/TemplateGenerateDrawer';
+import { PleadingDraftDrawer } from '@/components/cases/PleadingDraftDrawer';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { DocumentPreviewModal } from '@/components/DocumentPreviewModal';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
@@ -32,6 +33,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
+  const [pleadingDrawerOpen, setPleadingDrawerOpen] = useState(false);
   const [error, setError] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [suggestionsKey, setSuggestionsKey] = useState(0);
@@ -271,13 +273,22 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
 
       <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{d.caseDocuments.templates}</h2>
-        <button
-          type="button"
-          onClick={() => setTemplateDrawerOpen(true)}
-          className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent"
-        >
-          สร้างเอกสารจากแม่แบบ
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setTemplateDrawerOpen(true)}
+            className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            สร้างเอกสารจากแม่แบบ
+          </button>
+          <button
+            type="button"
+            onClick={() => setPleadingDrawerOpen(true)}
+            className="rounded-lg border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            ✦ AI ร่างคำคู่ความ
+          </button>
+        </div>
       </div>
 
       {token && (
@@ -287,6 +298,16 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
           token={token}
           caseId={id}
           templates={templates}
+          onGenerated={load}
+        />
+      )}
+
+      {token && (
+        <PleadingDraftDrawer
+          open={pleadingDrawerOpen}
+          onClose={() => setPleadingDrawerOpen(false)}
+          token={token}
+          caseId={id}
           onGenerated={load}
         />
       )}

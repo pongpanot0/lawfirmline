@@ -2505,6 +2505,35 @@ export const api = {
       { method: 'POST', token, silent: true },
     ),
 
+  generatePleadingDraft: (
+    token: string,
+    caseId: string,
+    data: { kind: string; instructions?: string; documentIds?: string[] },
+  ) =>
+    request<PleadingDraftItem>(`/cases/${caseId}/pleading-drafts`, {
+      method: 'POST',
+      token,
+      silent: true,
+      body: JSON.stringify(data),
+    }),
+
+  getPleadingDrafts: (token: string, caseId: string) =>
+    request<PleadingDraftItem[]>(`/cases/${caseId}/pleading-drafts`, { token }),
+
+  updatePleadingDraft: (token: string, caseId: string, draftId: string, bodyText: string) =>
+    request<PleadingDraftItem>(`/cases/${caseId}/pleading-drafts/${draftId}`, {
+      method: 'PATCH',
+      token,
+      silent: true,
+      body: JSON.stringify({ bodyText }),
+    }),
+
+  approvePleadingDraft: (token: string, caseId: string, draftId: string) =>
+    request<PleadingDraftItem & { documentId: string }>(
+      `/cases/${caseId}/pleading-drafts/${draftId}/approve`,
+      { method: 'POST', token, silent: true },
+    ),
+
   calculateTravel: (token: string, destination: string, origin?: string) => {
     const query = new URLSearchParams({ destination });
     if (origin) query.set('origin', origin);
@@ -3062,6 +3091,26 @@ export interface DocumentTemplateItem {
   id: string;
   name: string;
   description?: string | null;
+}
+
+export interface PleadingCitation {
+  n: number;
+  documentId: string;
+  filename: string;
+  pageStart: number | null;
+  snippet: string;
+}
+
+export interface PleadingDraftItem {
+  id: string;
+  kind: string;
+  instructions: string | null;
+  bodyText: string;
+  citations: PleadingCitation[];
+  unsupportedParagraphs: number[];
+  status: 'DRAFT' | 'APPROVED';
+  documentId: string | null;
+  createdAt: string;
 }
 
 export interface TimeEntryItem {
