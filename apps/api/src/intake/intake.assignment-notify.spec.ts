@@ -74,7 +74,7 @@ describe('IntakeService assignment notifications', () => {
       firmId: 'firm-1',
       userIds: ['u2', 'u3'],
       actorUserId: 'user-1',
-      summaryText: '📥 คุณได้รับมอบหมายเรื่องรับใหม่\nเรื่อง: เรื่องทดสอบ\nOur Ref: TSBREF20260002',
+      summaryText: '📁 คุณได้รับมอบหมายคดีใหม่\nคดี: เรื่องทดสอบ\nOur Ref: TSBREF20260002',
       entityPath: '/intake/i1',
     });
   });
