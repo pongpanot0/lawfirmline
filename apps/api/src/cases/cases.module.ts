@@ -17,7 +17,7 @@ import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 import { CargoClaimsModule } from '../cargo-claims/cargo-claims.module';
 
 @Module({
-  imports: [CalendarModule, forwardRef(() => NotificationsModule), IntakeModule, CargoClaimsModule],
+  imports: [forwardRef(() => CalendarModule), forwardRef(() => NotificationsModule), forwardRef(() => IntakeModule), forwardRef(() => CargoClaimsModule)],
   controllers: [
     CasesController,
     CaseActivitiesController,

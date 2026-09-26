@@ -1,3 +1,4 @@
+import { PracticeSetupModule } from './practice-setup/practice-setup.module';
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -17,10 +18,6 @@ import { DocumentsModule } from './documents/documents.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { BillingModule } from './billing/billing.module';
 import { NotificationsModule } from './notifications/notifications.module';
-// Loaded after Auth/Saas/Notifications so its own NotificationsModule import
-// (for stage-task assignment notifications) doesn't kick off that module's
-// full require chain before Auth/Saas have safely established it themselves.
-import { PracticeSetupModule } from './practice-setup/practice-setup.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { AuditLogModule } from './audit-log/audit-log.module';

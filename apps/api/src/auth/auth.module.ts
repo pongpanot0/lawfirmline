@@ -14,7 +14,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({}),
     forwardRef(() => SaasModule),
-    NotificationsModule,
+    forwardRef(() => NotificationsModule),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, MfaService, SessionService],
