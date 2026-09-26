@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthUser, EventType } from '@lawfirm/shared';
 import { CalendarService } from './calendar.service';
 import { PrismaService } from '../prisma/prisma.module';
@@ -25,8 +25,11 @@ describe('CalendarService case authorization', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    calendarEventAssignee: { deleteMany: jest.fn() },
+    firmMember: { findMany: jest.fn() },
     case: { findUnique: jest.fn(), update: jest.fn() },
     travelLog: { findFirst: jest.fn() },
+    $transaction: jest.fn(),
   };
   const mockCaseAccess = { canAccessCase: jest.fn(), getCaseFilterForUser: jest.fn() };
   const mockLineMessaging = { sendCourtDateAlert: jest.fn() };
@@ -39,6 +42,7 @@ describe('CalendarService case authorization', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(async (cb: any) => cb(mockPrisma));
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CalendarService,
@@ -142,5 +146,156 @@ describe('CalendarService case authorization', () => {
 
     expect(mockCaseAccess.canAccessCase).not.toHaveBeenCalled();
     expect(mockPrisma.calendarEvent.create).toHaveBeenCalled();
+  });
+});
+
+/**
+ * assigneeIds lets an event have several responsible people; assigneeId stays
+ * as the primary (first id) for callers that only read the single field.
+ */
+describe('CalendarService multiple assignees', () => {
+  let service: CalendarService;
+
+  const mockPrisma = {
+    calendarEvent: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    calendarEventAssignee: { deleteMany: jest.fn() },
+    firmMember: { findMany: jest.fn() },
+    case: { findUnique: jest.fn(), update: jest.fn() },
+    travelLog: { findFirst: jest.fn() },
+    $transaction: jest.fn(),
+  };
+  const mockCaseAccess = { canAccessCase: jest.fn(), getCaseFilterForUser: jest.fn() };
+  const mockLineMessaging = { sendCourtDateAlert: jest.fn() };
+  const mockLineLink = { getLineUserIdsForCase: jest.fn().mockResolvedValue([]) };
+  const mockTravel = { getOfficeAddress: jest.fn(), calculateTravel: jest.fn() };
+  const mockDeadlineRules = { applyTrigger: jest.fn() };
+
+  const legalCase = {
+    id: 'case-1',
+    firmId: 'firm-1',
+    caseTypeId: 'type-1',
+    ownRef: 'C-1',
+    title: 'Case',
+    courtName: null,
+    leadLawyer: { firstName: 'A', lastName: 'B' },
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(async (cb: any) => cb(mockPrisma));
+    mockPrisma.case.findUnique.mockResolvedValue(legalCase);
+    mockPrisma.firmMember.findMany.mockImplementation(async ({ where }: any) =>
+      where.userId.in.map((userId: string) => ({ userId })),
+    );
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CalendarService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: mockCaseAccess },
+        { provide: LineMessagingService, useValue: mockLineMessaging },
+        { provide: LineLinkService, useValue: mockLineLink },
+        { provide: TravelService, useValue: mockTravel },
+        { provide: DeadlineRulesService, useValue: mockDeadlineRules },
+      ],
+    }).compile();
+    service = module.get(CalendarService);
+  });
+
+  it('create with 2 ids creates 2 rows and sets assigneeId to the first', async () => {
+    mockPrisma.calendarEvent.create.mockResolvedValue({ id: 'event-1', startAt: new Date() });
+
+    await service.createInternal({
+      caseId: 'case-1',
+      title: 'Hearing',
+      startAt: '2026-09-07T02:00:00.000Z',
+      assigneeIds: ['user-1', 'user-2'],
+    });
+
+    expect(mockPrisma.calendarEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assigneeId: 'user-1',
+          assignees: { create: [{ userId: 'user-1' }, { userId: 'user-2' }] },
+        }),
+      }),
+    );
+  });
+
+  it('legacy assigneeId becomes 1 row', async () => {
+    mockPrisma.calendarEvent.create.mockResolvedValue({ id: 'event-1', startAt: new Date() });
+
+    await service.createInternal({
+      caseId: 'case-1',
+      title: 'Hearing',
+      startAt: '2026-09-07T02:00:00.000Z',
+      assigneeId: 'user-1',
+    });
+
+    expect(mockPrisma.calendarEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assigneeId: 'user-1',
+          assignees: { create: [{ userId: 'user-1' }] },
+        }),
+      }),
+    );
+  });
+
+  it('a non-member id throws BadRequest', async () => {
+    mockPrisma.firmMember.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.createInternal({
+        caseId: 'case-1',
+        title: 'Hearing',
+        startAt: '2026-09-07T02:00:00.000Z',
+        assigneeIds: ['outsider-1'],
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(mockPrisma.calendarEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('update with [] clears the rows and sets assigneeId to null', async () => {
+    mockPrisma.calendarEvent.findUnique.mockResolvedValue({
+      id: 'event-1',
+      caseId: 'case-1',
+      startAt: new Date('2026-09-07T02:00:00.000Z'),
+      case: { firmId: 'firm-1' },
+    });
+    mockPrisma.calendarEvent.update.mockResolvedValue({ id: 'event-1' });
+
+    await service.updateInternal('event-1', { assigneeIds: [] });
+
+    expect(mockPrisma.calendarEventAssignee.deleteMany).toHaveBeenCalledWith({
+      where: { eventId: 'event-1' },
+    });
+    expect(mockPrisma.calendarEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ assigneeId: null, assignees: { create: [] } }),
+      }),
+    );
+  });
+
+  it('update without the field leaves assignees untouched', async () => {
+    mockPrisma.calendarEvent.findUnique.mockResolvedValue({
+      id: 'event-1',
+      caseId: 'case-1',
+      startAt: new Date('2026-09-07T02:00:00.000Z'),
+      case: { firmId: 'firm-1' },
+    });
+    mockPrisma.calendarEvent.update.mockResolvedValue({ id: 'event-1' });
+
+    await service.updateInternal('event-1', { title: 'Renamed' });
+
+    expect(mockPrisma.calendarEventAssignee.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.calendarEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ assignees: expect.anything() }),
+      }),
+    );
   });
 });

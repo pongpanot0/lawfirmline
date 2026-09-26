@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   ConflictException,
   Injectable,
@@ -13,6 +14,7 @@ import { LineLinkService } from '../notifications/line-link.service';
 import { TravelService } from '../travel/travel.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { CreateEventDto, UpdateEventDto } from './dto/calendar.dto';
+import { eventAssigneesInclude } from './event-people';
 import { Prisma } from '../generated/prisma';
 
 @Injectable()
@@ -32,6 +34,7 @@ export class CalendarService {
     case: {
       select: {
         id: true,
+        firmId: true,
         ownRef: true,
         title: true,
         courtName: true,
@@ -40,7 +43,31 @@ export class CalendarService {
     },
     travelLog: true,
     assignee: { select: { id: true, firstName: true, lastName: true } },
+    ...eventAssigneesInclude,
   };
+
+  /**
+   * Normalizes `assigneeIds`/legacy `assigneeId` into an id list, verifying
+   * every id is a member of the firm. Returns undefined when neither field
+   * was sent, so the caller knows to leave assignees untouched.
+   */
+  private async resolveAssigneeIds(
+    firmId: string,
+    dto: { assigneeIds?: string[]; assigneeId?: string },
+  ): Promise<string[] | undefined> {
+    const ids = dto.assigneeIds ?? (dto.assigneeId !== undefined ? [dto.assigneeId] : undefined);
+    if (ids === undefined) return undefined;
+    if (ids.length === 0) return [];
+    const members = await this.prisma.firmMember.findMany({
+      where: { firmId, userId: { in: ids } },
+      select: { userId: true },
+    });
+    const memberIds = new Set(members.map(m => m.userId));
+    if (ids.some(userId => !memberIds.has(userId))) {
+      throw new BadRequestException('ผู้รับผิดชอบต้องเป็นสมาชิกในสำนักงาน');
+    }
+    return ids;
+  }
 
   async findAll(user: AuthUser, from?: string, to?: string) {
     const caseFilter = this.caseAccess.getCaseFilterForUser(user);
@@ -102,9 +129,13 @@ export class CalendarService {
     if (tx) {
       const legalCase = await tx.case.findUnique({ where: { id: dto.caseId } });
       if (!legalCase) throw new NotFoundException('Case not found');
+      const { assigneeId: _legacyAssigneeId, assigneeIds: _assigneeIds, ...eventData } = dto;
+      const ids = (await this.resolveAssigneeIds(legalCase.firmId, dto)) ?? [];
       const event = await tx.calendarEvent.create({ data: {
-        ...dto, startAt: new Date(dto.startAt), endAt: dto.endAt ? new Date(dto.endAt) : undefined,
+        ...eventData, startAt: new Date(dto.startAt), endAt: dto.endAt ? new Date(dto.endAt) : undefined,
         courtName: dto.courtName ?? legalCase.courtName, reminderMinutes: dto.reminderMinutes ?? [4320, 1440, 60],
+        assigneeId: ids[0] ?? null,
+        assignees: { create: ids.map(userId => ({ userId })) },
       }, include: this.eventInclude });
       if (dto.type === EventType.COURT_DATE && actorId) {
         await tx.case.update({ where: { id: dto.caseId }, data: { status: 'COURT_DATE' } });
@@ -119,6 +150,7 @@ export class CalendarService {
     if (!legalCase) throw new NotFoundException('Case not found');
 
     const courtName = dto.courtName ?? legalCase.courtName ?? dto.title;
+    const ids = (await this.resolveAssigneeIds(legalCase.firmId, dto)) ?? [];
     let travelLogId: string | undefined;
 
     if (dto.type === EventType.COURT_DATE && courtName) {
@@ -156,7 +188,8 @@ export class CalendarService {
         endAt: dto.endAt ? new Date(dto.endAt) : undefined,
         type: dto.type,
         reminderMinutes: dto.reminderMinutes ?? [4320, 1440, 60],
-        assigneeId: dto.assigneeId ?? null,
+        assigneeId: ids[0] ?? null,
+        assignees: { create: ids.map(userId => ({ userId })) },
         travelLogId,
       },
       include: this.eventInclude,
@@ -196,10 +229,28 @@ export class CalendarService {
     if (dto.startAt && new Date(dto.startAt).getTime() !== existing.startAt.getTime()) {
       throw new ConflictException('กรุณาใช้เลื่อนนัดเพื่อตรวจผลกระทบก่อน / Use reschedule to review affected deadlines');
     }
+    const { assigneeId: _legacyAssigneeId, assigneeIds: _assigneeIds, ...eventData } = dto;
+    const ids = await this.resolveAssigneeIds(existing.case.firmId, dto);
+    if (ids !== undefined) {
+      return this.prisma.$transaction(async tx => {
+        await tx.calendarEventAssignee.deleteMany({ where: { eventId: id } });
+        return tx.calendarEvent.update({
+          where: { id },
+          data: {
+            ...eventData,
+            startAt: undefined,
+            endAt: dto.endAt ? new Date(dto.endAt) : undefined,
+            assigneeId: ids[0] ?? null,
+            assignees: { create: ids.map(userId => ({ userId })) },
+          },
+          include: this.eventInclude,
+        });
+      });
+    }
     return this.prisma.calendarEvent.update({
       where: { id },
       data: {
-        ...dto,
+        ...eventData,
         startAt: undefined,
         endAt: dto.endAt ? new Date(dto.endAt) : undefined,
       },

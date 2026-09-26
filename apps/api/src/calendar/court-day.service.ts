@@ -14,6 +14,7 @@ import {
   CourtDayStateDto,
   SaveCourtDayDto,
 } from './dto/court-day.dto';
+import { eventAssigneesInclude } from './event-people';
 
 const json = (value: object): Prisma.InputJsonValue =>
   JSON.parse(JSON.stringify(value));
@@ -76,6 +77,7 @@ export class CourtDayService {
           },
         },
         assignee: { select: { id: true, firstName: true, lastName: true } },
+        ...eventAssigneesInclude,
       },
     });
     if (!event)
@@ -280,6 +282,9 @@ export class CourtDayService {
               courtName: currentEvent.courtName,
               type: 'COURT_DATE',
               assigneeId: currentEvent.assigneeId,
+              assignees: {
+                create: currentEvent.assignees.map(a => ({ userId: a.userId })),
+              },
             },
           });
           result.nextEventId = next.id;

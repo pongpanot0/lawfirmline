@@ -72,7 +72,7 @@ describe('DateSuggestionsService', () => {
         startAt: pending.suggestedDate.toISOString(),
         type: EventType.COURT_DATE,
         reminderMinutes: undefined,
-        assigneeId: undefined,
+        assigneeIds: undefined,
       }, 'user-1', mockPrisma);
     });
 
@@ -126,7 +126,7 @@ describe('DateSuggestionsService', () => {
         startAt: '2026-11-01T00:00:00.000Z',
         type: EventType.DEADLINE,
         reminderMinutes: undefined,
-        assigneeId: undefined,
+        assigneeIds: undefined,
       }, 'user-1', mockPrisma);
     });
 
@@ -149,7 +149,7 @@ describe('DateSuggestionsService', () => {
         where: expect.objectContaining({ id: 'lawyer-1', firmMembers: { some: { firmId: 'firm-1', role: { in: ['OWNER', 'SENIOR_LAWYER', 'LAWYER'] } } } }),
       }));
       expect(mockCalendar.createInternal).toHaveBeenCalledWith(
-        expect.objectContaining({ assigneeId: 'lawyer-1' }), 'user-1', mockPrisma,
+        expect.objectContaining({ assigneeIds: ['lawyer-1'] }), 'user-1', mockPrisma,
       );
     });
 
