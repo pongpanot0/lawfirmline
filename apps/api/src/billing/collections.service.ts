@@ -1,16 +1,24 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { InvoiceStatus, Invoice, InvoicePayment } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { RecordPaymentDto } from './dto/billing.dto';
 import { AgingBucket, agingBucket, daysOverdue, summarizeBuckets } from './receivables';
+import { LineMessagingService } from '../notifications/line-messaging.service';
+import { ContactNotificationPreferenceService } from '../notifications/contact-notification-preference.service';
 
 const round = (n: number) => Math.round(n * 100) / 100;
 const DAY_MS = 86400000;
 
 @Injectable()
 export class CollectionsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(CollectionsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private lineMessaging: LineMessagingService,
+    private contactPrefs: ContactNotificationPreferenceService,
+  ) {}
 
   async markSent(user: AuthUser, invoiceId: string): Promise<Invoice> {
     const invoice = await this.prisma.invoice.findFirst({ where: { id: invoiceId, firmId: user.firmId } });
@@ -116,5 +124,61 @@ export class CollectionsService {
       .filter((row) => row.outstanding > 0.005);
 
     return { buckets: summarizeBuckets(rows), rows };
+  }
+
+  async sendReminder(
+    user: AuthUser,
+    invoiceId: string,
+    now: Date = new Date(),
+  ): Promise<{ sent: number; linkedContacts: number }> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, firmId: user.firmId },
+      include: { payments: true, case: { select: { clientId: true } } },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+
+    const paidSoFar = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
+    const outstanding = round(invoice.totalAmount - paidSoFar);
+    if (invoice.status !== InvoiceStatus.SENT || outstanding <= 0.005) {
+      throw new BadRequestException('ต้องส่งใบแจ้งหนี้และมียอดค้างชำระก่อนทวงได้');
+    }
+    if (invoice.lastReminderAt && now.getTime() - invoice.lastReminderAt.getTime() < 24 * 60 * 60 * 1000) {
+      throw new BadRequestException('ทวงใบนี้ไปแล้วภายใน 24 ชม.');
+    }
+
+    const clientId = invoice.billToCustomerId ?? invoice.case?.clientId;
+    const contacts = clientId
+      ? await this.prisma.clientContact.findMany({
+          where: { clientId, lineUserId: { not: null } },
+        })
+      : [];
+    const enabledContacts: typeof contacts = [];
+    for (const contact of contacts) {
+      if (await this.contactPrefs.isChannelEnabled(contact.id, 'LINE')) {
+        enabledContacts.push(contact);
+      }
+    }
+
+    const text =
+      `แจ้งเตือนยอดค้างชำระ\n` +
+      `ใบแจ้งหนี้ ${invoice.invoiceNumber}\n` +
+      `ยอดค้าง ${outstanding.toLocaleString('th-TH')} บาท\n` +
+      `ครบกำหนด ${invoice.dueAt?.toLocaleDateString('th-TH') ?? '-'}\n` +
+      `หากชำระแล้วขออภัยและขอบคุณครับ/ค่ะ`;
+
+    let sent = 0;
+    for (const contact of enabledContacts) {
+      try {
+        if (await this.lineMessaging.pushTo(contact.lineUserId!, text)) sent += 1;
+      } catch (err) {
+        this.logger.error(`Failed to send reminder to contact ${contact.id}`, err as Error);
+      }
+    }
+
+    if (sent > 0) {
+      await this.prisma.invoice.update({ where: { id: invoiceId }, data: { lastReminderAt: now } });
+    }
+
+    return { sent, linkedContacts: contacts.length };
   }
 }

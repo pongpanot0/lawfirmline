@@ -4,6 +4,8 @@ import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { CollectionsService } from './collections.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { InvoiceStatus, PaymentMethod } from '../generated/prisma';
+import { LineMessagingService } from '../notifications/line-messaging.service';
+import { ContactNotificationPreferenceService } from '../notifications/contact-notification-preference.service';
 
 const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as AuthUser;
 
@@ -11,15 +13,23 @@ describe('CollectionsService', () => {
   const mockPrisma = {
     invoice: { findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     invoicePayment: { create: jest.fn(), findMany: jest.fn() },
+    clientContact: { findMany: jest.fn() },
     $queryRaw: jest.fn().mockResolvedValue(undefined),
     $transaction: jest.fn(async (arg: any) => (typeof arg === 'function' ? arg(mockPrisma) : Promise.all(arg))),
   } as any;
+  const mockLineMessaging = { pushTo: jest.fn() };
+  const mockContactPrefs = { isChannelEnabled: jest.fn() };
   let service: CollectionsService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CollectionsService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        CollectionsService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: LineMessagingService, useValue: mockLineMessaging },
+        { provide: ContactNotificationPreferenceService, useValue: mockContactPrefs },
+      ],
     }).compile();
     service = module.get(CollectionsService);
   });
@@ -142,6 +152,96 @@ describe('CollectionsService', () => {
       expect(result.rows[0].daysOverdue).toBe(94);
       expect(result.rows[0].bucket).toBe('90+');
       expect(result.buckets).toEqual({ '0-30': 0, '31-60': 0, '61-90': 0, '90+': 400 });
+    });
+  });
+
+  describe('sendReminder', () => {
+    const baseInvoice = (overrides: any = {}) => ({
+      id: 'i1',
+      firmId: 'firm-1',
+      invoiceNumber: 'INV-1',
+      status: InvoiceStatus.SENT,
+      totalAmount: 1000,
+      payments: [{ amount: 200 }],
+      dueAt: new Date('2026-09-30'),
+      lastReminderAt: null,
+      billToCustomerId: null,
+      case: { clientId: 'client-1' },
+      ...overrides,
+    });
+    const now = new Date('2026-09-26T10:00:00Z');
+
+    it('sends to 2 linked contacts and returns sent+linkedContacts, updating lastReminderAt', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice());
+      mockPrisma.clientContact.findMany.mockResolvedValue([
+        { id: 'c1', lineUserId: 'U1' },
+        { id: 'c2', lineUserId: 'U2' },
+      ]);
+      mockContactPrefs.isChannelEnabled.mockResolvedValue(true);
+      mockLineMessaging.pushTo.mockResolvedValue(true);
+
+      const result = await service.sendReminder(owner, 'i1', now);
+
+      expect(result).toEqual({ sent: 2, linkedContacts: 2 });
+      expect(mockLineMessaging.pushTo).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.invoice.update).toHaveBeenCalledWith({
+        where: { id: 'i1' },
+        data: { lastReminderAt: now },
+      });
+    });
+
+    it('throttles a reminder sent within 24h', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(
+        baseInvoice({ lastReminderAt: new Date('2026-09-26T00:00:00Z') }),
+      );
+      await expect(service.sendReminder(owner, 'i1', now)).rejects.toThrow(
+        new BadRequestException('ทวงใบนี้ไปแล้วภายใน 24 ชม.'),
+      );
+      expect(mockPrisma.clientContact.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns sent:0, linkedContacts:0 without updating lastReminderAt when nobody is linked', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice());
+      mockPrisma.clientContact.findMany.mockResolvedValue([]);
+
+      const result = await service.sendReminder(owner, 'i1', now);
+
+      expect(result).toEqual({ sent: 0, linkedContacts: 0 });
+      expect(mockLineMessaging.pushTo).not.toHaveBeenCalled();
+      expect(mockPrisma.invoice.update).not.toHaveBeenCalled();
+    });
+
+    it('counts a pushTo rejection as not sent and does not throw', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice());
+      mockPrisma.clientContact.findMany.mockResolvedValue([
+        { id: 'c1', lineUserId: 'U1' },
+        { id: 'c2', lineUserId: 'U2' },
+      ]);
+      mockContactPrefs.isChannelEnabled.mockResolvedValue(true);
+      mockLineMessaging.pushTo.mockRejectedValueOnce(new Error('line down')).mockResolvedValueOnce(true);
+
+      const result = await service.sendReminder(owner, 'i1', now);
+
+      expect(result).toEqual({ sent: 1, linkedContacts: 2 });
+      expect(mockPrisma.invoice.update).toHaveBeenCalledWith({
+        where: { id: 'i1' },
+        data: { lastReminderAt: now },
+      });
+    });
+
+    it('throws BadRequest when the invoice is not SENT', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ status: InvoiceStatus.DRAFT }));
+      await expect(service.sendReminder(owner, 'i1', now)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequest when outstanding is 0', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ payments: [{ amount: 1000 }] }));
+      await expect(service.sendReminder(owner, 'i1', now)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFound for another firm\'s invoice', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(null);
+      await expect(service.sendReminder(owner, 'i1', now)).rejects.toThrow(NotFoundException);
     });
   });
 });

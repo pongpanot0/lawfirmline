@@ -296,4 +296,11 @@ export class BillingController {
   listInvoicePayments(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     return this.collectionsService.listPayments(user, invoiceId);
   }
+
+  @Post('invoices/:invoiceId/remind')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  sendInvoiceReminder(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
+    return this.collectionsService.sendReminder(user, invoiceId);
+  }
 }
