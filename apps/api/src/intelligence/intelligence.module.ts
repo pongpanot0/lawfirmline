@@ -9,7 +9,7 @@ import { CalendarModule } from '../calendar/calendar.module';
 import { DocumentsModule } from '../documents/documents.module';
 
 @Module({
-  imports: [CalendarModule, forwardRef(() => DocumentsModule)],
+  imports: [forwardRef(() => CalendarModule), forwardRef(() => DocumentsModule)],
   providers: [DocumentIntelligenceService, DateSuggestionsService, ReceiptExtractionService, AiCreditsInterceptor],
   controllers: [IntelligenceController, DateSuggestionsController],
   exports: [DocumentIntelligenceService, DateSuggestionsService, ReceiptExtractionService],
