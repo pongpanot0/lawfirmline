@@ -354,11 +354,12 @@ export function useReportsSummary() {
   });
 }
 
-/** OWNER only — 403s for everyone else, so don't retry the failure. */
-export function useOwnerKpis() {
+/** OWNER only — pass `enabled` from the user's firm role so non-owners never hit the 403. */
+export function useOwnerKpis(enabled: boolean) {
   return useQuery({
     queryKey: ['owner-kpis'],
     queryFn: () => api<OwnerKpis>('/operations/owner-kpis'),
+    enabled,
     retry: false,
   });
 }

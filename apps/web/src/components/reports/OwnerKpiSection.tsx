@@ -77,6 +77,7 @@ export function OwnerKpiSection({ token }: { token: string }) {
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">ถึงงวดแต่ยังไม่วางบิล</p>
             <p className="mt-2 text-2xl font-bold">{formatCurrency(data.unbilled.amount)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{data.unbilled.hours.toLocaleString('th-TH')} ชม. ยังไม่วางบิล</p>
             <p className="mt-1 text-xs text-muted-foreground">{data.unbilled.caseCount} คดี</p>
           </CardContent>
         </Card>
@@ -102,7 +103,7 @@ export function OwnerKpiSection({ token }: { token: string }) {
 
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">รายได้เดือนนี้</p>
+            <p className="text-xs font-medium text-muted-foreground">เงินรับเดือนนี้</p>
             <p className="mt-2 text-2xl font-bold">{formatCurrency(data.revenue.month)}</p>
             {revenueChange != null && (
               <p

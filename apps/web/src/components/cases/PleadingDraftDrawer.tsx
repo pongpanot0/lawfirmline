@@ -275,11 +275,12 @@ export function PleadingDraftDrawer({
                 <button
                   type="button"
                   onClick={handleApprove}
-                  disabled={approving || draft.status === 'APPROVED'}
+                  disabled={approving || editing || draft.status === 'APPROVED'}
                   className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
                 >
                   {approving ? 'กำลังบันทึก...' : 'ตรวจแล้ว บันทึกเป็นเอกสาร'}
                 </button>
+                {editing && <p className="w-full text-xs text-muted-foreground">บันทึกการแก้ไขก่อน</p>}
               </div>
             </div>
           )}

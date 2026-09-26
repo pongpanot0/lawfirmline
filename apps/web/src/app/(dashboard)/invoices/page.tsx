@@ -29,7 +29,8 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function InvoicesPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const canManageBilling = user?.firmRole === 'OWNER' || user?.role === 'ADMIN';
   const [rows, setRows] = useState<FirmInvoiceItem[]>([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<InvoiceStatus>('ALL');
@@ -164,7 +165,7 @@ export default function InvoicesPage() {
         </div>
       </section>
 
-      <ReceivablesPanel onChanged={() => setRetry((value) => value + 1)} />
+      {canManageBilling && <ReceivablesPanel onChanged={() => setRetry((value) => value + 1)} />}
 
       {loading ? (
         <div role="status" className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
@@ -231,7 +232,7 @@ export default function InvoicesPage() {
                     <span className={`mt-1 inline-flex min-h-6 items-center rounded-full px-2.5 text-xs font-medium ${STATUS_STYLES[row.status] ?? 'bg-muted text-muted-foreground'}`}>
                       {STATUS_LABELS[row.status] ?? row.status}
                     </span>
-                    {row.status === 'DRAFT' && (
+                    {canManageBilling && row.status === 'DRAFT' && (
                       <button
                         type="button"
                         disabled={sendingId === row.id}

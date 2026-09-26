@@ -1,5 +1,6 @@
 import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useAuth } from '@/api/auth';
 import { useOwnerKpis, useReportsSummary } from '@/api/hooks';
 import { Card, ErrorNote, Loading, SectionLabel, StatCard, Tag } from '@/components/ui';
 import { colors, spacing } from '@/theme';
@@ -7,7 +8,8 @@ import { colors, spacing } from '@/theme';
 /** Read-only summary cards — the full report builder stays on web. */
 export default function ReportsScreen() {
   const reports = useReportsSummary();
-  const ownerKpis = useOwnerKpis();
+  const { user } = useAuth();
+  const ownerKpis = useOwnerKpis(user?.firmRole === 'OWNER');
 
   if (reports.isLoading) return <Loading />;
   if (reports.isError || !reports.data)
@@ -37,6 +39,7 @@ export default function ReportsScreen() {
             <StatCard
               label="ยังไม่วางบิล"
               value={`${ownerKpis.data.unbilled.amount.toLocaleString('th-TH')} ฿`}
+              hint={`${ownerKpis.data.unbilled.hours.toLocaleString('th-TH')} ชม. ยังไม่วางบิล`}
             />
             <StatCard
               label="อัตราเก็บเงินได้"
@@ -63,7 +66,7 @@ export default function ReportsScreen() {
               }
             />
             <StatCard
-              label="รายได้เดือนนี้"
+              label="เงินรับเดือนนี้"
               value={`${ownerKpis.data.revenue.month.toLocaleString('th-TH')} ฿`}
             />
           </View>

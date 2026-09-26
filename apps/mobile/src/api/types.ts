@@ -11,6 +11,7 @@ export interface AuthUserInfo {
   firstName: string;
   lastName: string;
   role: string;
+  firmRole?: string | null;
   firmId?: string;
   firmName?: string;
 }
@@ -132,7 +133,7 @@ export interface CourtDayResponse {
 
 export interface OwnerKpis {
   month: string;
-  unbilled: { amount: number; caseCount: number };
+  unbilled: { amount: number; caseCount: number; hours: number };
   collectionRate: { value: number | null; target: 0.95; billed: number; collected: number };
   avgDaysOutstanding: number | null;
   revenue: { month: number; previousMonth: number };

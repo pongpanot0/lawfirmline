@@ -46,10 +46,12 @@ export function StatCard({
   label,
   value,
   tone,
+  hint,
 }: {
   label: string;
   value: number | string;
   tone?: 'warn';
+  hint?: string;
 }) {
   return (
     <Card style={styles.statCard}>
@@ -59,6 +61,7 @@ export function StatCard({
       <Text style={[styles.statValue, tone === 'warn' && { color: colors.warn }]}>
         {value}
       </Text>
+      {hint ? <Text style={styles.statHint}>{hint}</Text> : null}
     </Card>
   );
 }
@@ -153,6 +156,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  statHint: { fontSize: 11, color: colors.faint },
   statValue: {
     fontSize: 24,
     fontFamily: fonts.bold,
