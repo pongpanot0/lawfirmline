@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { FirmLinkService } from '../notifications/firm-link.service';
-import { bangkokDayKey } from '../common/utils/bangkok-time';
+import { bangkokDayEnd, bangkokDayKey, bangkokDayStart } from '../common/utils/bangkok-time';
 import { ConfirmTimeEntryDto } from './dto/billing.dto';
 
 export type TimeSuggestion = {
@@ -23,12 +23,12 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_TIMESHEET_DAYS = 93;
 
-/** [date 00:00+07, next day 00:00+07) as UTC instants — Thailand's offset is fixed. */
+/** [date 00:00+07, next day 00:00+07) as UTC instants. */
 function bangkokDayWindow(date: string): { from: Date; to: Date } {
   if (!DATE_RE.test(date)) throw new BadRequestException('วันที่ต้องเป็น YYYY-MM-DD');
-  const from = new Date(`${date}T00:00:00.000+07:00`);
-  if (Number.isNaN(from.getTime())) throw new BadRequestException('วันที่ไม่ถูกต้อง');
-  return { from, to: new Date(from.getTime() + DAY_MS) };
+  const instant = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(instant.getTime())) throw new BadRequestException('วันที่ไม่ถูกต้อง');
+  return { from: bangkokDayStart(instant), to: bangkokDayEnd(instant) };
 }
 
 @Injectable()
@@ -214,12 +214,14 @@ export class TimeSuggestionsService {
     totals: { userId: string; userName: string; hours: number; billableHours: number }[];
   }> {
     if (!DATE_RE.test(q.from) || !DATE_RE.test(q.to)) throw new BadRequestException('วันที่ต้องเป็น YYYY-MM-DD');
-    const from = new Date(`${q.from}T00:00:00.000+07:00`);
-    const to = new Date(`${q.to}T00:00:00.000+07:00`);
-    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) {
+    const from = bangkokDayStart(new Date(`${q.from}T00:00:00.000Z`));
+    // Exclusive upper bound — the query below covers the whole `to` day, so the
+    // inclusive span is (toExclusive - from) days, not (to - from).
+    const toExclusive = bangkokDayEnd(new Date(`${q.to}T00:00:00.000Z`));
+    if (Number.isNaN(from.getTime()) || Number.isNaN(toExclusive.getTime()) || toExclusive <= from) {
       throw new BadRequestException('ช่วงวันที่ไม่ถูกต้อง');
     }
-    if ((to.getTime() - from.getTime()) / DAY_MS > MAX_TIMESHEET_DAYS) {
+    if ((toExclusive.getTime() - from.getTime()) / DAY_MS > MAX_TIMESHEET_DAYS) {
       throw new BadRequestException('ช่วงวันที่ต้องไม่เกิน 93 วัน');
     }
     const targetUserId = user.firmRole === FirmRole.OWNER ? q.userId : user.id;
@@ -227,7 +229,7 @@ export class TimeSuggestionsService {
     const rows = await this.prisma.timeEntry.findMany({
       where: {
         case: this.caseAccess.getCaseFilterForFinancials(user),
-        date: { gte: from, lt: new Date(to.getTime() + DAY_MS) },
+        date: { gte: from, lt: toExclusive },
         ...(targetUserId ? { userId: targetUserId } : {}),
       },
       include: {

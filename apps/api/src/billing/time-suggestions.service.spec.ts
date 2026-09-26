@@ -10,6 +10,13 @@ import { PrismaService } from '../prisma/prisma.service';
 const lawyer = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as AuthUser;
 const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as AuthUser;
 
+/** `YYYY-MM-DD` `days` calendar days after `dateStr`. */
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 describe('TimeSuggestionsService', () => {
   const mockPrisma = {
     calendarEvent: { findMany: jest.fn() },
@@ -105,6 +112,60 @@ describe('TimeSuggestionsService', () => {
       expect(byCase['case-2'].description).toBe('ตอบลูกความ (1 ข้อความ)');
     });
 
+    it('suggests a completed task with a null hours', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([
+        { id: 't1', title: 'ยื่นคำร้อง', caseId: 'case-1', case: { ownRef: 'CASE-001' } },
+      ]);
+      const result = await service.suggest(lawyer, '2026-09-26');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        source: 'task',
+        sourceKey: 'task:t1',
+        caseId: 'case-1',
+        caseRef: 'CASE-001',
+        description: 'ปิดงาน: ยื่นคำร้อง',
+        hours: null,
+      });
+    });
+
+    it('suggests a review decision using the document filename', async () => {
+      mockPrisma.reviewDecision.findMany.mockResolvedValue([
+        {
+          id: 'r1',
+          reviewRound: {
+            documentVersion: {
+              document: { caseId: 'case-1', filename: 'สัญญาเช่า.pdf', case: { ownRef: 'CASE-001' } },
+            },
+          },
+        },
+      ]);
+      const result = await service.suggest(lawyer, '2026-09-26');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        source: 'review',
+        sourceKey: 'review:r1',
+        caseId: 'case-1',
+        caseRef: 'CASE-001',
+        description: 'ตรวจเอกสาร: สัญญาเช่า.pdf',
+        hours: null,
+      });
+    });
+
+    it('skips a review decision whose document has no caseId', async () => {
+      mockPrisma.reviewDecision.findMany.mockResolvedValue([
+        {
+          id: 'r2',
+          reviewRound: {
+            documentVersion: {
+              document: { caseId: null, filename: 'draft.pdf', case: null },
+            },
+          },
+        },
+      ]);
+      const result = await service.suggest(lawyer, '2026-09-26');
+      expect(result).toHaveLength(0);
+    });
+
     it('excludes a suggestion already confirmed as a time entry', async () => {
       mockPrisma.calendarEvent.findMany.mockResolvedValue([
         {
@@ -166,6 +227,20 @@ describe('TimeSuggestionsService', () => {
     it('rejects a range longer than 93 days', async () => {
       await expect(
         service.timesheet(owner, { from: '2026-01-01', to: '2026-09-26' }),
+      ).rejects.toThrow('ช่วงวันที่ต้องไม่เกิน 93 วัน');
+    });
+
+    it('allows a range of exactly 93 inclusive days', async () => {
+      const from = '2026-01-01';
+      const to = addDays(from, 92); // 92 days later == 93 calendar days inclusive
+      await expect(service.timesheet(owner, { from, to })).resolves.toBeDefined();
+    });
+
+    it('rejects a range of 94 inclusive days', async () => {
+      const from = '2026-01-01';
+      const to = addDays(from, 93); // 93 days later == 94 calendar days inclusive
+      await expect(
+        service.timesheet(owner, { from, to }),
       ).rejects.toThrow('ช่วงวันที่ต้องไม่เกิน 93 วัน');
     });
   });
