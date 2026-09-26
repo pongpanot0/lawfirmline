@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { calendarPersonColors, eventPersonId } from '@/lib/calendar-person-colors';
+import { calendarPersonColors, eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
 import { Plus, Bell } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, CalendarEventItem, CaseItem, UserItem, PublicHolidayItem } from '@/lib/api';
@@ -128,7 +128,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
     const id = source ? eventPersonId(source) : null;
     return { name: id ? people.get(id) ?? 'ผู้รับผิดชอบ (ไม่พบชื่อ)' : 'ยังไม่ระบุผู้รับผิดชอบ', color: id ? personColors.get(id) ?? '#64748b' : '#64748b' };
   };
-  const visibleEvents = personFilter ? events.filter((e) => eventPersonId(e) === personFilter) : events;
+  const visibleEvents = personFilter ? events.filter((e) => eventPeopleIds(e).includes(personFilter)) : events;
   const openEvent = (event: CalendarEventItem) => {
     if (event.leaveId) { setLeaveError(''); setSelectedLeave(event); }
     else setDialog({ event });

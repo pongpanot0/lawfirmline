@@ -1,6 +1,6 @@
 'use client';
 
-import { eventPersonId } from '@/lib/calendar-person-colors';
+import { eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
 import { CalendarEventItem, UserItem } from '@/lib/api';
 import { InlineEmptyState } from '@/components/ui/misc';
 
@@ -17,13 +17,6 @@ const TIME = new Intl.DateTimeFormat('th-TH', {
   timeZone: 'Asia/Bangkok',
 });
 const DAY_KEY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' });
-
-/** Every person on the event — its assignee rows, or the case's lead lawyer. */
-function eventPeopleIds(event: CalendarEventItem): string[] {
-  if (event.assignees?.length) return event.assignees.map((a) => a.userId);
-  if (event.assigneeId) return [event.assigneeId];
-  return event.case?.leadLawyer ? [event.case.leadLawyer.id] : [];
-}
 
 /**
  * ตารางของทั้งสำนักงานเรียงเป็นวัน — เจ้าของสำนักงานต้องเห็นว่าวันนั้นใครไปไหนบ้าง
@@ -126,7 +119,7 @@ export function FirmDayAgenda({
                   {(() => {
                     const people = eventPeopleIds(event);
                     const anyClash = people.some((id) => clashing.has(id));
-                    const names = event.assigneeId
+                    const names = event.assignees?.length
                       ? people.map((id) => nameOf(id)).join(', ')
                       : event.case?.leadLawyer
                         ? `${event.case.leadLawyer.firstName} ${event.case.leadLawyer.lastName} · เจ้าของคดี`

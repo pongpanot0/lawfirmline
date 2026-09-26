@@ -6,3 +6,13 @@ export function calendarPersonColors(ids: string[]): Map<string, string> {
 export function eventPersonId(event: { assigneeId?: string | null; case?: { leadLawyer?: { id: string } | null } | null }): string | null {
   return event.assigneeId ?? event.case?.leadLawyer?.id ?? null;
 }
+/** Every person on the event — its assignee rows, or the case's lead lawyer. */
+export function eventPeopleIds(event: {
+  assignees?: { userId: string }[];
+  assigneeId?: string | null;
+  case?: { leadLawyer?: { id: string } | null } | null;
+}): string[] {
+  if (event.assignees?.length) return event.assignees.map((a) => a.userId);
+  if (event.assigneeId) return [event.assigneeId];
+  return event.case?.leadLawyer ? [event.case.leadLawyer.id] : [];
+}
