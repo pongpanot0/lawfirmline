@@ -56,6 +56,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
       line, auth, store, caseFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
       new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
       { start: jest.fn(), handle: jest.fn() } as any,
+      { decide: jest.fn() } as any,
     );
   });
 

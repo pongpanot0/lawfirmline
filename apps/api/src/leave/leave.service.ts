@@ -1,10 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
-import { LeaveType, Prisma } from '../generated/prisma';
+import { EventType, LeaveStatus, LeaveType, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
-import { LineMessagingService } from '../notifications/line-messaging.service';
-import { addBangkokDays, bangkokDayKey, formatBangkokDateThai } from '../common/utils/bangkok-time';
+import { LineMessagingService, QuickReplyItem } from '../notifications/line-messaging.service';
+import { addBangkokDays, bangkokDayKey, formatBangkokDateThai, formatBangkokDateTime } from '../common/utils/bangkok-time';
 
 const LABEL: Record<LeaveType, string> = {
   SICK: 'ลาป่วย',
@@ -19,9 +19,10 @@ type Leave = {
   firmId: string;
   userId: string;
   type: LeaveType;
+  status: LeaveStatus;
   startDate: Date;
   endDate: Date;
-  user: { firstName: string; lastName: string };
+  user: { firstName: string; lastName: string; lineUserId?: string | null };
 };
 
 @Injectable()
@@ -33,11 +34,39 @@ export class LeaveService {
     const start = this.parseDate(from);
     const end = this.parseDate(to);
     if (end < start || end.getTime() - start.getTime() > 366 * 86400000) throw new BadRequestException('ช่วงวันที่ไม่ถูกต้อง');
-    return this.prisma.leaveRequest.findMany({
+    const leaves = await this.prisma.leaveRequest.findMany({
       where: { firmId: user.firmId, startDate: { lte: end }, endDate: { gte: start } },
       include: { user: { select: { firstName: true, lastName: true } } },
       orderBy: { startDate: 'asc' },
     });
+    return Promise.all(leaves.map(async (leave) => ({
+      ...leave,
+      courtConflicts: leave.status === LeaveStatus.PENDING
+        ? await this.findCourtConflicts(leave.firmId, leave.userId, leave.startDate, leave.endDate)
+        : undefined,
+    })));
+  }
+
+  /** Court dates on this person's calendar during the leave — assignee, or the case's lead lawyer when unassigned. */
+  async findCourtConflicts(firmId: string, userId: string, start: Date, end: Date) {
+    const events = await this.prisma.calendarEvent.findMany({
+      where: {
+        type: EventType.COURT_DATE,
+        startAt: { gte: start, lt: new Date(end.getTime() + 86400000) },
+        case: { firmId },
+        OR: [{ assigneeId: userId }, { assigneeId: null, case: { leadLawyerId: userId } }],
+      },
+      include: { case: { select: { ownRef: true } } },
+      orderBy: { startAt: 'asc' },
+    });
+    return events.map((event) => ({
+      eventId: event.id,
+      caseId: event.caseId,
+      caseRef: event.case.ownRef,
+      title: event.title,
+      courtName: event.courtName,
+      startAt: event.startAt,
+    }));
   }
 
   async myLeaves(user: Pick<AuthUser, 'id' | 'firmId'>) {
@@ -59,24 +88,50 @@ export class LeaveService {
     const member = await this.prisma.firmMember.findUnique({ where: { firmId_userId: { firmId: user.firmId, userId: user.id } } });
     if (!member) throw new ForbiddenException('ไม่ใช่สมาชิกสำนักงานนี้');
     const overlap = await this.prisma.leaveRequest.findFirst({
-      where: { firmId: user.firmId, userId: user.id, startDate: { lte: endDate }, endDate: { gte: startDate } },
+      where: { firmId: user.firmId, userId: user.id, startDate: { lte: endDate }, endDate: { gte: startDate }, status: { not: LeaveStatus.REJECTED } },
     });
     if (overlap) throw new BadRequestException('มีรายการลาทับช่วงนี้แล้ว');
+    const status = input.type === LeaveType.SICK || user.firmRole === FirmRole.OWNER ? LeaveStatus.APPROVED : LeaveStatus.PENDING;
     let leave: Leave;
     try {
       leave = await this.prisma.leaveRequest.create({
-        data: { firmId: user.firmId, userId: user.id, type: input.type, startDate, endDate },
+        data: { firmId: user.firmId, userId: user.id, type: input.type, startDate, endDate, status },
         include: { user: { select: { firstName: true, lastName: true } } },
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new BadRequestException('มีรายการลาช่วงนี้แล้ว');
       throw error;
     }
-    if (leave.type === LeaveType.SICK) {
+    if (leave.status === LeaveStatus.PENDING) {
+      try { await this.sendApprovalRequest(leave); }
+      catch (error) { this.logger.error(`Leave approval request ${leave.id} failed: ${(error as Error).message}`); }
+    } else if (leave.type === LeaveType.SICK) {
       try { await this.sendSick(leave); }
       catch (error) { this.logger.error(`Sick leave ${leave.id} notice failed: ${(error as Error).message}`); }
     }
     return leave;
+  }
+
+  async decide(user: AuthUser, leaveId: string, decision: 'APPROVED' | 'REJECTED') {
+    const leave = await this.prisma.leaveRequest.findFirst({
+      where: { id: leaveId, firmId: user.firmId },
+      include: { user: { select: { firstName: true, lastName: true, lineUserId: true } } },
+    });
+    if (!leave) throw new NotFoundException('ไม่พบรายการลา');
+    if (leave.status !== LeaveStatus.PENDING) throw new BadRequestException('คำขอนี้ตัดสินไปแล้ว');
+    if (user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('อนุมัติได้เฉพาะเจ้าของสำนักงาน');
+    const decided = await this.prisma.leaveRequest.update({
+      where: { id: leaveId },
+      data: { status: decision, decidedById: user.id, decidedAt: new Date() },
+      include: { user: { select: { firstName: true, lastName: true, lineUserId: true } } },
+    });
+    if (decided.user.lineUserId) {
+      try {
+        await this.sendOnce(`decision:${leaveId}`, decided.user.lineUserId,
+          `คำขอลา ${this.rangeText(decided)} ได้รับการ${decision === LeaveStatus.APPROVED ? 'อนุมัติ' : 'ปฏิเสธ'}แล้ว`);
+      } catch (error) { this.logger.error(`Leave decision notice ${leaveId} failed: ${(error as Error).message}`); }
+    }
+    return decided;
   }
 
   async cancel(user: AuthUser, id: string) {
@@ -113,15 +168,18 @@ export class LeaveService {
     });
   }
 
-  private label(leave: Leave, showRange = true) {
-    const name = `${leave.user.firstName} ${leave.user.lastName}`.trim();
-    const dates = leave.startDate.getTime() === leave.endDate.getTime()
+  private rangeText(leave: Pick<Leave, 'startDate' | 'endDate'>) {
+    return leave.startDate.getTime() === leave.endDate.getTime()
       ? formatBangkokDateThai(leave.startDate)
       : `${formatBangkokDateThai(leave.startDate)}–${formatBangkokDateThai(leave.endDate)}`;
-    return `${name} · ${LABEL[leave.type]}${showRange ? ` · ${dates}` : ''}`;
   }
 
-  private async sendOnce(id: string, lineUserId: string, message: string) {
+  private label(leave: Leave, showRange = true) {
+    const name = `${leave.user.firstName} ${leave.user.lastName}`.trim();
+    return `${name} · ${LABEL[leave.type]}${showRange ? ` · ${this.rangeText(leave)}` : ''}`;
+  }
+
+  private async sendOnce(id: string, lineUserId: string, message: string, quickReply?: QuickReplyItem[]) {
     const claimedAt = new Date();
     try {
       await this.prisma.leaveNoticeLog.create({ data: { key: id, claimedAt } });
@@ -134,7 +192,10 @@ export class LeaveService {
       if (!reclaimed.count) return;
     }
     try {
-      const sent = await this.line.sendText(message.slice(0, 4900), [lineUserId]);
+      const text = message.slice(0, 4900);
+      const sent = quickReply?.length
+        ? await this.line.pushTo(lineUserId, text, quickReply)
+        : await this.line.sendText(text, [lineUserId]);
       if (sent) await this.prisma.leaveNoticeLog.update({ where: { key: id }, data: { sentAt: new Date() } });
       else await this.prisma.leaveNoticeLog.deleteMany({ where: { key: id, claimedAt, sentAt: null } });
     } catch (error) {
@@ -150,6 +211,32 @@ export class LeaveService {
         await this.sendOnce(`sick:${leave.id}:${member.userId}`, member.user.lineUserId,
           `🤒 แจ้งลาป่วย\n${this.label(leave)}`);
       } catch (error) { this.logger.error(`Sick leave notice failed for ${member.userId}: ${(error as Error).message}`); }
+    }
+  }
+
+  private async sendApprovalRequest(leave: Leave) {
+    const conflicts = await this.findCourtConflicts(leave.firmId, leave.userId, leave.startDate, leave.endDate);
+    const name = `${leave.user.firstName} ${leave.user.lastName}`.trim();
+    const lines = [
+      'คำขอลา · รออนุมัติ',
+      `${name} · ${LABEL[leave.type]}`,
+      this.rangeText(leave),
+      ...conflicts.map((c) => `⚠ ชนนัดศาล: ${c.caseRef ?? ''} ${formatBangkokDateTime(c.startAt)} ${c.courtName ?? ''}`.replace(/\s+/g, ' ').trim()),
+    ];
+    const text = lines.join('\n');
+    const quickReply: QuickReplyItem[] = [
+      { label: 'อนุมัติ', text: 'อนุมัติลา', data: `leave:approve:${leave.id}` },
+      { label: 'ไม่อนุมัติ', text: 'ไม่อนุมัติลา', data: `leave:reject:${leave.id}` },
+    ];
+    const owners = await this.prisma.firmMember.findMany({
+      where: { firmId: leave.firmId, role: FirmRole.OWNER, user: { lineUserId: { not: null } } },
+      select: { userId: true, user: { select: { lineUserId: true } } },
+    });
+    for (const owner of owners) {
+      if (!owner.user.lineUserId) continue;
+      try {
+        await this.sendOnce(`approve-req:${leave.id}:${owner.userId}`, owner.user.lineUserId, text, quickReply);
+      } catch (error) { this.logger.error(`Leave approval request failed for ${owner.userId}: ${(error as Error).message}`); }
     }
   }
 
@@ -170,7 +257,7 @@ export class LeaveService {
     const todayKey = bangkokDayKey(now);
     const today = day(todayKey);
     const sick = await this.prisma.leaveRequest.findMany({
-      where: { type: LeaveType.SICK, endDate: { gte: today }, createdAt: { gte: addBangkokDays(now, -400) } },
+      where: { type: LeaveType.SICK, status: LeaveStatus.APPROVED, endDate: { gte: today }, createdAt: { gte: addBangkokDays(now, -400) } },
       include: { user: { select: { firstName: true, lastName: true } } },
     });
     for (const leave of sick) await this.sendSick(leave);
@@ -181,7 +268,7 @@ export class LeaveService {
     const weekEnd = day(bangkokDayKey(addBangkokDays(now, 6)));
     const monday = today.getUTCDay() === 1;
     const planned = await this.prisma.leaveRequest.findMany({
-      where: { type: { in: [LeaveType.PERSONAL, LeaveType.VACATION] }, startDate: { lte: monday ? weekEnd : threeDays }, endDate: { gte: today } },
+      where: { type: { in: [LeaveType.PERSONAL, LeaveType.VACATION] }, status: LeaveStatus.APPROVED, startDate: { lte: monday ? weekEnd : threeDays }, endDate: { gte: today } },
       include: { user: { select: { firstName: true, lastName: true } } },
     });
     const byFirm = new Map<string, typeof planned>();
