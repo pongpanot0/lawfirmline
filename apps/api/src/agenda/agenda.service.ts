@@ -14,7 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { TravelService } from '../travel/travel.service';
-import { eventAssigneesInclude, eventForUserWhere } from '../calendar/event-people';
+import { eventAssigneesInclude } from '../calendar/event-people';
 import {
   addBangkokDays,
   bangkokDayKey,
@@ -153,7 +153,6 @@ export class AgendaService {
         case: { AND: [this.caseAccess.getCaseFilterForUser(user), { status: { not: 'CLOSED' } }] },
         NOT: { courtDay: { completedAt: { not: null } } },
         startAt: { gte: from, lt: to },
-        ...eventForUserWhere(user.id),
       },
       select: {
         id: true,

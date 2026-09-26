@@ -295,4 +295,29 @@ describe('AgendaService', () => {
     expect(item.assigneeName).toBeNull();
     expect(item.assignees).toEqual([]);
   });
+
+  it('does not filter events by assignee — an owner still sees an event assigned to someone else', async () => {
+    setEvents([
+      makeEvent({
+        assigneeId: 'someone-else',
+        assignees: [
+          { userId: 'someone-else', user: { id: 'someone-else', firstName: 'Other', lastName: 'Lawyer' } },
+        ],
+      }),
+    ]);
+    const owner = { ...user, id: 'owner-1', firmRole: FirmRole.OWNER } as any;
+
+    const result = await service.getMyDay(owner);
+
+    expect(result.todayItems.map((i) => i.id)).toEqual(['event:evt-1']);
+    // Case access alone decides visibility here — no person-based clause is
+    // layered on top of it, or an owner/senior lawyer would stop seeing
+    // other people's events on My Day.
+    const where = mockPrisma.calendarEvent.findMany.mock.calls[0][0].where;
+    expect(where).toEqual({
+      case: { AND: [{ firmId: 'firm-1' }, { status: { not: 'CLOSED' } }] },
+      NOT: { courtDay: { completedAt: { not: null } } },
+      startAt: { gte: expect.any(Date), lt: expect.any(Date) },
+    });
+  });
 });

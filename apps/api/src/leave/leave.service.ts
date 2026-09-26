@@ -48,7 +48,7 @@ export class LeaveService {
     })));
   }
 
-  /** Court dates on this person's calendar during the leave — assignee, or the case's lead lawyer when unassigned. */
+  /** Court dates on this person's calendar during the leave — one of the event's assignees, or the case's lead lawyer when none is set. */
   async findCourtConflicts(firmId: string, userId: string, start: Date, end: Date) {
     const events = await this.prisma.calendarEvent.findMany({
       where: {

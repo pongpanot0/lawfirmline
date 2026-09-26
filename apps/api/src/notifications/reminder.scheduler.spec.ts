@@ -91,7 +91,7 @@ describe('ReminderScheduler', () => {
     });
   });
 
-  it('pushes to every assignee on a multi-assignee event, deduped', async () => {
+  it('pushes to every assignee on a multi-assignee event', async () => {
     const event = {
       id: 'evt-2',
       title: 'สืบพยาน',
