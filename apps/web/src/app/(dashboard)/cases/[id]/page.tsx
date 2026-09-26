@@ -1820,6 +1820,7 @@ export default function CaseDetailPage() {
                     {leaveWarning(
                       lawyers.find((u) => u.id === quickTaskAssignee)?.firstName ?? '',
                       quickTaskDate,
+                      quickTaskLeaveFlags.get(quickTaskAssignee)?.kind,
                     )}
                   </p>
                 )}

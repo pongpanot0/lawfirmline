@@ -146,7 +146,7 @@ export function IntakeTasksPanel({ intakeId, lawyers, onCountsChange }: {
           </div>
           {assigneeUser && leaveFlags.has(assigneeUser.id) && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              {leaveWarning(assigneeUser.firstName, taskDate)}
+              {leaveWarning(assigneeUser.firstName, taskDate, leaveFlags.get(assigneeUser.id)?.kind)}
             </p>
           )}
         </div>

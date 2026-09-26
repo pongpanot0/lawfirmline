@@ -313,7 +313,11 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 </select>
                 {task.assignee && taskLeaveFlags.has(task.assignee.id) && (
                   <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                    {leaveWarning(`${task.assignee.firstName} ${task.assignee.lastName}`, taskDate)}
+                    {leaveWarning(
+                      `${task.assignee.firstName} ${task.assignee.lastName}`,
+                      taskDate,
+                      taskLeaveFlags.get(task.assignee.id)?.kind,
+                    )}
                   </p>
                 )}
               </div>
@@ -461,6 +465,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                           return u ? `${u.firstName} ${u.lastName}` : '';
                         })(),
                         subtaskDate,
+                        subtaskLeaveFlags.get(subtaskAssigneeId)?.kind,
                       )}
                     </p>
                   )}

@@ -388,7 +388,11 @@ function TodosPageContent() {
                   </select>
                   {newAssigneeUser && newTaskLeaveFlags.has(newAssigneeId) && (
                     <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                      {leaveWarning(`${newAssigneeUser.firstName} ${newAssigneeUser.lastName}`, newTaskDate)}
+                      {leaveWarning(
+                        `${newAssigneeUser.firstName} ${newAssigneeUser.lastName}`,
+                        newTaskDate,
+                        newTaskLeaveFlags.get(newAssigneeId)?.kind,
+                      )}
                     </p>
                   )}
                 </div>
@@ -533,6 +537,7 @@ function TodosPageContent() {
                           return u ? `${u.firstName} ${u.lastName}` : '';
                         })(),
                         subtaskDraftDate,
+                        subtaskDraftLeaveFlags.get(subDraft.assigneeId)?.kind,
                       )}
                     </p>
                   )}

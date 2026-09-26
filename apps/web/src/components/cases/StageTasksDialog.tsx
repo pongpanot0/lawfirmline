@@ -112,7 +112,7 @@ export function StageTasksDialog({
                     </div>
                     {rowAssignee && row.dueDate && rowFlags.has(rowAssignee.id) && (
                       <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                        {leaveWarning(rowAssignee.firstName, row.dueDate)}
+                        {leaveWarning(rowAssignee.firstName, row.dueDate, rowFlags.get(rowAssignee.id)?.kind)}
                       </p>
                     )}
                   </div>

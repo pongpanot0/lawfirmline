@@ -38,6 +38,7 @@ function thaiBEDate(date: string): string {
   return `${d}/${m}/${y + 543}`;
 }
 
-export function leaveWarning(name: string, date: string): string {
+export function leaveWarning(name: string, date: string, kind?: LeaveFlag['kind']): string {
+  if (kind === 'PENDING') return `⚠ ${name} ขอลาวันที่ ${thaiBEDate(date)} (รออนุมัติ)`;
   return `⚠ ${name} ลาวันที่ ${thaiBEDate(date)}`;
 }

@@ -359,7 +359,7 @@ export function CalendarEventDialog({
                 if (!u) return null;
                 return (
                   <p key={id} className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                    {leaveWarning(`${u.firstName} ${u.lastName}`, eventDate)}
+                    {leaveWarning(`${u.firstName} ${u.lastName}`, eventDate, leaveFlags.get(id)?.kind)}
                   </p>
                 );
               })}

@@ -235,7 +235,11 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                   </select>
                   {newAssigneeUser && newTaskLeaveFlags.has(newAssigneeId) && (
                     <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                      {leaveWarning(`${newAssigneeUser.firstName} ${newAssigneeUser.lastName}`, newTaskDate)}
+                      {leaveWarning(
+                        `${newAssigneeUser.firstName} ${newAssigneeUser.lastName}`,
+                        newTaskDate,
+                        newTaskLeaveFlags.get(newAssigneeId)?.kind,
+                      )}
                     </p>
                   )}
                 </div>

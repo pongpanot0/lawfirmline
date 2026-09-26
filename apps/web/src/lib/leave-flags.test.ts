@@ -41,3 +41,10 @@ test('approved wins over pending for the same person', () => {
 test('leaveWarning renders a Thai Buddhist Era date', () => {
   assert.equal(leaveWarning('สมชาย', '2026-10-03'), '⚠ สมชาย ลาวันที่ 3/10/2569');
 });
+
+test('leaveWarning for a pending leave asks for confirmation instead of stating it as fact', () => {
+  assert.equal(
+    leaveWarning('สมชาย', '2026-10-03', 'PENDING'),
+    '⚠ สมชาย ขอลาวันที่ 3/10/2569 (รออนุมัติ)',
+  );
+});

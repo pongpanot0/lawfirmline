@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLawyers, useLeaves, useReassignTask } from '@/api/hooks';
 import type { TaskItem } from '@/api/types';
-import { initials, isoDay } from '@/format';
+import { bangkokDay, initials } from '@/format';
 import { leaveFlagsForDate, leaveWarning } from '@/lib/leave-flags';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { Tag } from '@/components/ui';
@@ -23,7 +23,7 @@ export function ReassignSheet({
 }) {
   const lawyers = useLawyers();
   const reassign = useReassignTask();
-  const date = task?.dueDate ? task.dueDate.slice(0, 10) : isoDay(new Date());
+  const date = task?.dueDate ? bangkokDay(task.dueDate) : bangkokDay(new Date().toISOString());
   const leaves = useLeaves(date, date, !!task);
   const flags = useMemo(() => leaveFlagsForDate(leaves.data ?? [], date), [leaves.data, date]);
   const [pending, setPending] = useState<{ id: string; name: string } | null>(null);
@@ -73,7 +73,7 @@ export function ReassignSheet({
             })}
           {pending ? (
             <View style={styles.confirmBox}>
-              <Text style={styles.warning}>{leaveWarning(pending.name, date)}</Text>
+              <Text style={styles.warning}>{leaveWarning(pending.name, date, flags.get(pending.id)?.kind)}</Text>
               <View style={styles.confirmRow}>
                 <Pressable
                   style={({ pressed }) => [styles.cancelBtn, pressed && { opacity: 0.7 }]}
