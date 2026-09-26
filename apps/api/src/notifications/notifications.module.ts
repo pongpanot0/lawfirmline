@@ -43,7 +43,7 @@ import { AgendaModule } from '../agenda/agenda.module';
     forwardRef(() => SaasModule),
     AgendaModule,
     forwardRef(() => BillingModule),
-    IntelligenceModule,
+    forwardRef(() => IntelligenceModule),
   ],
   controllers: [LineController, DevicesController, LeaveController],
   providers: [
