@@ -10,7 +10,7 @@ import { EmailService } from '../notifications/email.service';
 describe('DocumentPublicationService', () => {
   let service: DocumentPublicationService;
   const mockPrisma = {
-    document: { findFirst: jest.fn() },
+    document: { findFirst: jest.fn(), update: jest.fn() },
     documentVersion: { findFirst: jest.fn() },
     documentPublication: {
       create: jest.fn(),
@@ -122,6 +122,30 @@ describe('DocumentPublicationService', () => {
 
       expect(mockPrisma.documentPublication.create).toHaveBeenCalled();
     });
+    it('sets visibleToClient true so the eye toggle matches', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1', version: 1 });
+      mockPrisma.documentVersion.findFirst.mockResolvedValue({ id: 'ver-1', version: 1 });
+      mockPrisma.documentPublication.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.documentPublication.create.mockResolvedValue({ id: 'pub-1' });
+
+      await service.publish(user, 'case-1', 'doc-1', {});
+
+      expect(mockPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+        data: { visibleToClient: true },
+      });
+    });
+
+    it('rejects a document with no version with a Thai BadRequest', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1', version: 1 });
+      mockPrisma.documentVersion.findFirst.mockResolvedValue(null);
+
+      const err = await service.publish(user, 'case-1', 'doc-1', {}).catch((e) => e);
+
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(err.message).toBe('เอกสารนี้ยังไม่มีเวอร์ชันให้เผยแพร่');
+      expect(mockPrisma.documentPublication.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('unpublish', () => {
@@ -148,6 +172,29 @@ describe('DocumentPublicationService', () => {
         where: { id: 'pub-1' },
         data: { unpublishedAt: expect.any(Date), unpublishedById: 'user-1' },
       });
+        });
+
+    it('clears visibleToClient when the open publication is closed', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.documentPublication.findFirst.mockResolvedValue({ id: 'pub-1', unpublishedAt: null });
+      mockPrisma.documentPublication.update.mockResolvedValue({ id: 'pub-1' });
+
+      await service.unpublish(user, 'case-1', 'doc-1', 'pub-1');
+
+      expect(mockPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+        data: { visibleToClient: false },
+      });
+    });
+
+    it('leaves visibleToClient alone when re-closing an old publication', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.documentPublication.findFirst.mockResolvedValue({ id: 'pub-0', unpublishedAt: new Date() });
+      mockPrisma.documentPublication.update.mockResolvedValue({ id: 'pub-0' });
+
+      await service.unpublish(user, 'case-1', 'doc-1', 'pub-0');
+
+      expect(mockPrisma.document.update).not.toHaveBeenCalled();
     });
   });
 

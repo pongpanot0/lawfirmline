@@ -32,6 +32,7 @@ describe('DocumentsService', () => {
       update: jest.fn(),
     },
     documentVersion: { create: jest.fn() },
+    documentPublication: { findFirst: jest.fn() },
     auditLog: { create: jest.fn() },
     intake: { findFirst: jest.fn() },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
@@ -131,12 +132,31 @@ describe('DocumentsService', () => {
 
     it('toggle on publishes the latest version to every contact and keeps visibleToClient in sync', async () => {
       mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.documentPublication.findFirst.mockResolvedValue(null);
       mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', visibleToClient: true });
 
       await service.updateVisibility(auditUser, 'case-1', 'doc-1', true);
 
       expect(mockPublications.publish).toHaveBeenCalledWith(auditUser, 'case-1', 'doc-1', {});
       expect(mockPublications.unpublishOpen).not.toHaveBeenCalled();
+      expect(mockPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+        data: { visibleToClient: true },
+      });
+    });
+
+    it('toggle on with an open publication does not re-publish or re-notify', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'doc-1', caseId: 'case-1' });
+      mockPrisma.documentPublication.findFirst.mockResolvedValue({ id: 'pub-1' });
+      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', visibleToClient: true });
+
+      await service.updateVisibility(auditUser, 'case-1', 'doc-1', true);
+
+      expect(mockPrisma.documentPublication.findFirst).toHaveBeenCalledWith({
+        where: { documentId: 'doc-1', unpublishedAt: null },
+        select: { id: true },
+      });
+      expect(mockPublications.publish).not.toHaveBeenCalled();
       expect(mockPrisma.document.update).toHaveBeenCalledWith({
         where: { id: 'doc-1' },
         data: { visibleToClient: true },

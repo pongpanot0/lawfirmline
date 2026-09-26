@@ -615,8 +615,16 @@ export class DocumentsService {
     await this.verifyDocument(caseId, documentId);
     // The portal only shows published documents, so the eye toggle publishes the latest
     // version to every contact (or closes the open publication) and mirrors the flag.
-    if (visibleToClient) await this.publications.publish(user, caseId, documentId, {});
-    else await this.publications.unpublishOpen(user, caseId, documentId);
+    // Already published → only the flag changes: no new publication, no re-notify.
+    if (visibleToClient) {
+      const open = await this.prisma.documentPublication.findFirst({
+        where: { documentId, unpublishedAt: null },
+        select: { id: true },
+      });
+      if (!open) await this.publications.publish(user, caseId, documentId, {});
+    } else {
+      await this.publications.unpublishOpen(user, caseId, documentId);
+    }
     await this.audit(user, 'DOCUMENT_VISIBILITY_CHANGED', { caseId, documentId, visibleToClient });
     return this.prisma.document.update({
       where: { id: documentId },
