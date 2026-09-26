@@ -280,6 +280,27 @@ describe('CalendarService multiple assignees', () => {
     );
   });
 
+  it('explicit assigneeId: null clears the rows, same as assigneeIds: []', async () => {
+    mockPrisma.calendarEvent.findUnique.mockResolvedValue({
+      id: 'event-1',
+      caseId: 'case-1',
+      startAt: new Date('2026-09-07T02:00:00.000Z'),
+      case: { firmId: 'firm-1' },
+    });
+    mockPrisma.calendarEvent.update.mockResolvedValue({ id: 'event-1' });
+
+    await service.updateInternal('event-1', { assigneeId: null } as any);
+
+    expect(mockPrisma.calendarEventAssignee.deleteMany).toHaveBeenCalledWith({
+      where: { eventId: 'event-1' },
+    });
+    expect(mockPrisma.calendarEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ assigneeId: null, assignees: { create: [] } }),
+      }),
+    );
+  });
+
   it('update without the field leaves assignees untouched', async () => {
     mockPrisma.calendarEvent.findUnique.mockResolvedValue({
       id: 'event-1',

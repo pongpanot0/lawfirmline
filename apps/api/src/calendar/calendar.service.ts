@@ -53,9 +53,11 @@ export class CalendarService {
    */
   private async resolveAssigneeIds(
     firmId: string,
-    dto: { assigneeIds?: string[]; assigneeId?: string },
+    dto: { assigneeIds?: string[]; assigneeId?: string | null },
   ): Promise<string[] | undefined> {
-    const ids = dto.assigneeIds ?? (dto.assigneeId !== undefined ? [dto.assigneeId] : undefined);
+    const ids =
+      dto.assigneeIds ??
+      (dto.assigneeId != null ? [dto.assigneeId] : dto.assigneeId === null ? [] : undefined);
     if (ids === undefined) return undefined;
     if (ids.length === 0) return [];
     const members = await this.prisma.firmMember.findMany({
