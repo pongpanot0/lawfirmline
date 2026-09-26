@@ -55,11 +55,11 @@ export class ApiError extends Error {
 
 async function request<T>(
   path: string,
-  options: RequestInit & { token?: string; refreshAuth?: boolean } = {},
+  options: RequestInit & { token?: string; refreshAuth?: boolean; silent?: boolean } = {},
 ): Promise<T> {
-  const { token, refreshAuth = true, ...fetchOptions } = options;
+  const { token, refreshAuth = true, silent = false, ...fetchOptions } = options;
   const method = (fetchOptions.method ?? 'GET').toUpperCase();
-  const isAction = isActionRequest(method);
+  const isAction = isActionRequest(method) && !silent;
   const isFormData = fetchOptions.body instanceof FormData;
   const headers: HeadersInit = withFirmSlugHeaders({
     ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
@@ -1372,8 +1372,9 @@ export const api = {
   getReceivables: (token: string) =>
     request<ReceivablesResult>('/invoices/receivables', { token }),
 
+  /** เงียบ — เรียกทีละใบระหว่างทวงหลายใบพร้อมกัน ให้ toast สรุปรวมทำหน้าที่แจ้งผลแทน */
   remindInvoice: (token: string, invoiceId: string) =>
-    request<RemindInvoiceResult>(`/invoices/${invoiceId}/remind`, { method: 'POST', token }),
+    request<RemindInvoiceResult>(`/invoices/${invoiceId}/remind`, { method: 'POST', token, silent: true }),
 
   getCases: (
     token: string,

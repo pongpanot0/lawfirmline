@@ -9,6 +9,7 @@ import { publishActionFeedback } from '@/lib/action-feedback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { RecordPaymentForm } from '@/components/billing/RecordPaymentForm';
@@ -187,12 +188,10 @@ function ReceivableRow({
     <>
       <TableRow>
         <TableCell>
-          <input
-            type="checkbox"
+          <Checkbox
             aria-label={`เลือกใบแจ้งหนี้ ${row.invoiceNumber}`}
             checked={selected}
             onChange={onToggleSelected}
-            className="h-4 w-4 rounded border-input"
           />
         </TableCell>
         <TableCell>
