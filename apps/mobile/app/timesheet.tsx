@@ -10,6 +10,12 @@ import { colors, radius, spacing } from '@/theme';
 
 type RowState = { checked: boolean; hours: string };
 
+/** Hours must be present and within the API's accepted range (0.25–24). */
+const isHoursInRange = (hours: string) => {
+  const n = Number(hours);
+  return hours !== '' && !Number.isNaN(n) && n >= 0.25 && n <= 24;
+};
+
 export default function TimesheetScreen() {
   const insets = useSafeAreaInsets();
   const [date, setDate] = useState(() => isoDay(new Date()));
@@ -31,6 +37,8 @@ export default function TimesheetScreen() {
   const data = suggestions.data ?? [];
   const checkedKeys = data.filter((s) => rows[s.sourceKey]?.checked).map((s) => s.sourceKey);
   const hasMissingHours = checkedKeys.some((key) => !rows[key]?.hours);
+  const hasOutOfRangeHours = checkedKeys.some((key) => rows[key]?.hours && !isHoursInRange(rows[key].hours));
+  const hasInvalidHours = hasMissingHours || hasOutOfRangeHours;
 
   const toggle = (sourceKey: string) =>
     setRows((prev) => ({ ...prev, [sourceKey]: { ...prev[sourceKey], checked: !prev[sourceKey]?.checked } }));
@@ -71,7 +79,7 @@ export default function TimesheetScreen() {
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}
           renderItem={({ item }) => {
             const row = rows[item.sourceKey] ?? { checked: false, hours: '' };
-            const missingHours = row.checked && !row.hours;
+            const invalidHours = row.checked && !isHoursInRange(row.hours);
             return (
               <View style={styles.row}>
                 <Pressable
@@ -92,7 +100,7 @@ export default function TimesheetScreen() {
                   onChangeText={(text) => setHours(item.sourceKey, text)}
                   keyboardType="decimal-pad"
                   placeholder="ชม."
-                  style={[styles.hoursInput, missingHours && styles.hoursInputError]}
+                  style={[styles.hoursInput, invalidHours && styles.hoursInputError]}
                 />
               </View>
             );
@@ -102,11 +110,15 @@ export default function TimesheetScreen() {
       )}
 
       <View style={[styles.footer, { paddingBottom: spacing.md + insets.bottom }]}>
-        {hasMissingHours ? <Text style={styles.warning}>กรอกชั่วโมงก่อน</Text> : null}
+        {hasMissingHours ? (
+          <Text style={styles.warning}>กรอกชั่วโมงก่อน</Text>
+        ) : hasOutOfRangeHours ? (
+          <Text style={styles.warning}>ชั่วโมงต้องอยู่ระหว่าง 0.25–24</Text>
+        ) : null}
         <Button
           title={`ยืนยัน ${checkedKeys.length} รายการ`}
           onPress={confirm}
-          disabled={checkedKeys.length === 0 || hasMissingHours}
+          disabled={checkedKeys.length === 0 || hasInvalidHours}
           busy={confirmTime.isPending}
         />
       </View>

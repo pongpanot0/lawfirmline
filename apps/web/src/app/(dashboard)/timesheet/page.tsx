@@ -24,6 +24,12 @@ const monthEnd = (date: Date) => dateKey(new Date(date.getFullYear(), date.getMo
 
 type RowState = { checked: boolean; hours: string; description: string };
 
+/** Hours must be present and within the API's accepted range (0.25–24). */
+const isHoursInRange = (hours: string) => {
+  const n = Number(hours);
+  return hours !== '' && !Number.isNaN(n) && n >= 0.25 && n <= 24;
+};
+
 export default function TimesheetPage() {
   const d = useDashboardT();
   const { token, user } = useAuth();
@@ -67,6 +73,10 @@ export default function TimesheetPage() {
 
   const checkedCount = useMemo(() => Object.values(rows).filter((r) => r.checked).length, [rows]);
   const hasMissingHours = suggestions.some((s) => rows[s.sourceKey]?.checked && !rows[s.sourceKey]?.hours);
+  const hasOutOfRangeHours = suggestions.some(
+    (s) => rows[s.sourceKey]?.checked && rows[s.sourceKey]?.hours && !isHoursInRange(rows[s.sourceKey].hours),
+  );
+  const hasInvalidHours = hasMissingHours || hasOutOfRangeHours;
 
   const updateRow = (sourceKey: string, patch: Partial<RowState>) =>
     setRows((prev) => ({ ...prev, [sourceKey]: { ...prev[sourceKey], ...patch } }));
@@ -156,7 +166,7 @@ export default function TimesheetPage() {
           {confirmedMsg && <p className="text-sm text-emerald-600">{confirmedMsg}</p>}
 
           {loadingSuggestions ? (
-            <PageLoading title={d.timesheet.loadFailed} lines={2} />
+            <PageLoading title={d.common.loading} lines={2} />
           ) : suggestions.length === 0 ? (
             <InlineEmptyState title={d.timesheet.noSuggestions} />
           ) : (
@@ -173,7 +183,7 @@ export default function TimesheetPage() {
                 <TableBody>
                   {suggestions.map((s) => {
                     const row = rows[s.sourceKey] ?? { checked: false, hours: '', description: s.description };
-                    const missingHours = row.checked && !row.hours;
+                    const invalidHours = row.checked && !isHoursInRange(row.hours);
                     return (
                       <TableRow key={s.sourceKey}>
                         <TableCell>
@@ -196,7 +206,7 @@ export default function TimesheetPage() {
                             min={0.25}
                             max={24}
                             value={row.hours}
-                            className={missingHours ? 'border-destructive' : undefined}
+                            className={invalidHours ? 'border-destructive' : undefined}
                             onChange={(e) => updateRow(s.sourceKey, { hours: e.target.value })}
                           />
                         </TableCell>
@@ -207,10 +217,14 @@ export default function TimesheetPage() {
               </Table>
 
               <div className="flex items-center gap-3">
-                <Button disabled={checkedCount === 0 || hasMissingHours || confirming} onClick={confirmEntries}>
+                <Button disabled={checkedCount === 0 || hasInvalidHours || confirming} onClick={confirmEntries}>
                   {confirming ? d.timesheet.confirming : fmt(d.timesheet.confirmButton, { count: checkedCount })}
                 </Button>
-                {hasMissingHours && <p className="text-sm text-destructive">{d.timesheet.hoursRequired}</p>}
+                {hasMissingHours ? (
+                  <p className="text-sm text-destructive">{d.timesheet.hoursRequired}</p>
+                ) : hasOutOfRangeHours ? (
+                  <p className="text-sm text-destructive">{d.timesheet.hoursOutOfRange}</p>
+                ) : null}
               </div>
             </>
           )}
@@ -248,7 +262,7 @@ export default function TimesheetPage() {
           {timesheetError && <p className="text-sm text-destructive">{timesheetError}</p>}
 
           {loadingTimesheet ? (
-            <PageLoading title={d.timesheet.loadFailed} lines={2} />
+            <PageLoading title={d.common.loading} lines={2} />
           ) : (
             <>
               {isOwner && (
