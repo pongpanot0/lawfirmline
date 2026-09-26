@@ -37,6 +37,7 @@ export class DocumentsService {
       include: {
         case: { select: { id: true, title: true, ownRef: true } },
         uploadedBy: { select: { firstName: true, lastName: true } },
+        uploadedByContact: { select: { name: true } },
       },
       orderBy: { updatedAt: 'desc' },
       take: 100,
@@ -84,6 +85,7 @@ export class DocumentsService {
         uploadedBy: {
           select: { id: true, firstName: true, lastName: true },
         },
+        uploadedByContact: { select: { name: true } },
         versions: { orderBy: { version: 'desc' } },
       },
       // เอกสารศาลเรียงด้วยวันที่บนหน้าเอกสาร ถ้ามี — ไม่ใช่วันที่อัปโหลด
@@ -188,6 +190,7 @@ export class DocumentsService {
         uploadedBy: {
           select: { id: true, firstName: true, lastName: true },
         },
+        uploadedByContact: { select: { name: true } },
         versions: { orderBy: { version: 'desc' } },
       },
       orderBy: { createdAt: 'desc' },

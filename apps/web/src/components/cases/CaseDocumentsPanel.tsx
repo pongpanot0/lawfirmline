@@ -338,7 +338,10 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
               >
                 <p className="break-all font-medium text-primary hover:underline">{doc.filename}</p>
                 <p className="text-xs text-muted-foreground">
-                  v{doc.version} — {doc.uploadedBy.firstName} {doc.uploadedBy.lastName}
+                  v{doc.version} —{' '}
+                  {doc.uploadedBy
+                    ? `${doc.uploadedBy.firstName} ${doc.uploadedBy.lastName}`
+                    : doc.uploadedByContact?.name ?? 'ลูกค้า'}
                 </p>
               </button>
               <div className="flex flex-wrap items-center gap-2">

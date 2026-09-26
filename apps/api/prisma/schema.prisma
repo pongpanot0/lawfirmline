@@ -756,6 +756,7 @@ model ClientContact {
   portalInvites           ClientPortalInvite[]
   caseCustomers           CaseCustomer[]                  @relation("CaseCustomerContact")
   intakeCustomers         IntakeCustomer[]                @relation("IntakeCustomerContact")
+  uploadedDocuments       Document[]
 
   @@index([clientId])
 }
@@ -825,36 +826,37 @@ model Case {
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
-  firm               Firm                      @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  client             Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  leadLawyer         User                      @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
-  caseType           CaseType?                 @relation(fields: [caseTypeId], references: [id])
-  intake             Intake?                   @relation(fields: [intakeId], references: [id])
-  assignments        CaseAssignment[]
-  participants       CaseParticipant[]
-  tasks              Task[]
-  documents          Document[]
-  calendarEvents     CalendarEvent[]
-  activities         CaseActivity[]
-  timeEntries        TimeEntry[]
-  expenses           Expense[]
-  invoices           Invoice[]
-  knowledge          CaseKnowledge[]
-  precedentAnalyses  IntakePrecedentAnalysis[]
-  relatedIntakes     Intake[]                  @relation("CaseRelatedIntakes")
-  dateSuggestions    DocumentDateSuggestion[]
-  closingEmailDrafts ClosingEmailDraft[]
-  appliedPlaybooks   AppliedPlaybook[]
-  insuranceClaim     InsuranceClaim?
-  contactAccess      ContactCaseAccess[]
-  messages           CaseMessage[]
-  customers          CaseCustomer[]
-  additionalClients  CaseClient[]
-  chunks             DocumentChunk[]
-  legalQueries       LegalQuery[]
-  statusLogs         CaseStatusLog[]
-  cargoClaim         CargoClaim?
-  pleadingDrafts     PleadingDraft[]
+  firm                   Firm                      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client                 Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  leadLawyer             User                      @relation("LeadLawyer", fields: [leadLawyerId], references: [id])
+  caseType               CaseType?                 @relation(fields: [caseTypeId], references: [id])
+  intake                 Intake?                   @relation(fields: [intakeId], references: [id])
+  assignments            CaseAssignment[]
+  participants           CaseParticipant[]
+  tasks                  Task[]
+  documents              Document[]
+  calendarEvents         CalendarEvent[]
+  activities             CaseActivity[]
+  timeEntries            TimeEntry[]
+  expenses               Expense[]
+  invoices               Invoice[]
+  knowledge              CaseKnowledge[]
+  precedentAnalyses      IntakePrecedentAnalysis[]
+  relatedIntakes         Intake[]                  @relation("CaseRelatedIntakes")
+  dateSuggestions        DocumentDateSuggestion[]
+  closingEmailDrafts     ClosingEmailDraft[]
+  appliedPlaybooks       AppliedPlaybook[]
+  insuranceClaim         InsuranceClaim?
+  contactAccess          ContactCaseAccess[]
+  messages               CaseMessage[]
+  customers              CaseCustomer[]
+  additionalClients      CaseClient[]
+  chunks                 DocumentChunk[]
+  legalQueries           LegalQuery[]
+  statusLogs             CaseStatusLog[]
+  cargoClaim             CargoClaim?
+  pleadingDrafts         PleadingDraft[]
+  portalIntakeSubmission PortalIntakeSubmission?
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -1229,27 +1231,29 @@ model TaskAssignmentLog {
 }
 
 model Document {
-  id              String           @id @default(uuid())
-  caseId          String?
-  intakeId        String?
-  filename        String
-  storagePath     String
-  mimeType        String
-  version         Int              @default(1)
+  id                  String           @id @default(uuid())
+  caseId              String?
+  intakeId            String?
+  filename            String
+  storagePath         String
+  mimeType            String
+  version             Int              @default(1)
   /// หมวดเอกสาร — enum ไม่ใช่ free text เพราะต้องกรอง/จัดกลุ่ม/ทำรายงานได้จริง
   /// สำนักงานกำหนดว่าคดีประเภทไหนต้องมีหมวดใดผ่าน `CaseType.requiredDocuments`
-  category        DocumentCategory @default(OTHER)
+  category            DocumentCategory @default(OTHER)
   /// วันที่บนหน้าเอกสาร (ไม่ใช่วันอัปโหลด) — เอกสารศาลเรียงด้วยวันที่นี้
-  documentDate    DateTime?
-  tags            String[]         @default([])
-  uploadedById    String
-  visibleToClient Boolean          @default(false)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  documentDate        DateTime?
+  tags                String[]         @default([])
+  uploadedById        String?
+  uploadedByContactId String?
+  visibleToClient     Boolean          @default(false)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   case               Case?                      @relation(fields: [caseId], references: [id], onDelete: Cascade)
   intake             Intake?                    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
-  uploadedBy         User                       @relation(fields: [uploadedById], references: [id])
+  uploadedBy         User?                      @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedByContact  ClientContact?             @relation(fields: [uploadedByContactId], references: [id], onDelete: SetNull)
   versions           DocumentVersion[]
   knowledge          CaseKnowledge[]
   knowledgeCitations KnowledgeCitation[]
@@ -1996,11 +2000,13 @@ model PortalIntakeSubmission {
   withdrawnAt               DateTime?
   withdrawnReason           String?
   intakeId                  String?                @unique
+  caseId                    String?                @unique
   createdAt                 DateTime               @default(now())
 
   client        Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientContact ClientContact            @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
   intake        Intake?                  @relation(fields: [intakeId], references: [id])
+  case          Case?                    @relation(fields: [caseId], references: [id], onDelete: SetNull)
   attachments   PortalIntakeAttachment[]
 
   @@index([clientId, submittedAt])
