@@ -21,5 +21,6 @@ export class CreatePleadingDraftDto {
 export class UpdatePleadingDraftDto {
   @IsString()
   @IsNotEmpty({ message: 'เนื้อหาร่างต้องไม่ว่าง' })
+  @MaxLength(50000, { message: 'เนื้อหาร่างยาวเกิน 50000 ตัวอักษร' })
   bodyText!: string;
 }

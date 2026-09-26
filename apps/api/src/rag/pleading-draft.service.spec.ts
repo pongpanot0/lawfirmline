@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { PleadingDraftService } from './pleading-draft.service';
 
@@ -20,6 +20,7 @@ function setup(draftRow: Record<string, unknown> | null = null) {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(draftRow),
       update: jest.fn().mockImplementation(({ data }) => ({ ...draftRow, ...data })),
+      updateMany: jest.fn().mockImplementation(({ where }) => ({ count: where.status && draftRow?.status !== where.status ? 0 : 1 })),
     },
   };
   const rag = {
@@ -82,15 +83,33 @@ describe('PleadingDraftService', () => {
   it('generate logs a failed run and throws when the model call fails', async () => {
     const { service, rag, prisma } = setup();
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 }) as never;
-    await expect(service.generate(user, 'c1', { kind: 'MOTION' })).rejects.toThrow();
+    await expect(service.generate(user, 'c1', { kind: 'MOTION' })).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(rag.logRun).toHaveBeenCalledWith(expect.objectContaining({ operation: 'pleading_draft', status: 'error' }));
     expect(prisma.pleadingDraft.create).not.toHaveBeenCalled();
   });
 
-  it('update refuses an approved draft', async () => {
-    const { service, prisma } = setup({ id: 'p1', caseId: 'c1', status: 'APPROVED', bodyText: body, citations: [] });
+  it('generate refuses an empty model reply without storing a draft', async () => {
+    const { service, prisma } = setup();
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: '  ' } }] }) }) as never;
+    await expect(service.generate(user, 'c1', { kind: 'ANSWER' })).rejects.toThrow(
+      new BadRequestException('AI ไม่ได้ส่งร่างกลับมา ลองใหม่อีกครั้ง'),
+    );
+    expect(prisma.pleadingDraft.create).not.toHaveBeenCalled();
+  });
+
+  it('update only writes while the draft is still DRAFT', async () => {
+    const { service, prisma } = setup({ id: 'p1', caseId: 'c1', status: 'DRAFT', bodyText: body, citations: [] });
+    const view = await service.update(user, 'c1', 'p1', 'แก้ไข');
+    expect(prisma.pleadingDraft.updateMany).toHaveBeenCalledWith({
+      where: { id: 'p1', caseId: 'c1', firmId: 'f1', status: 'DRAFT' },
+      data: { bodyText: 'แก้ไข' },
+    });
+    expect(view.bodyText).toBe('แก้ไข');
+  });
+
+  it('update refuses an approved draft (claim matches nothing)', async () => {
+    const { service } = setup({ id: 'p1', caseId: 'c1', status: 'APPROVED', bodyText: body, citations: [] });
     await expect(service.update(user, 'c1', 'p1', 'แก้ไข')).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.pleadingDraft.update).not.toHaveBeenCalled();
   });
 
   it('approve saves a .docx to the case and marks the draft approved', async () => {
@@ -102,8 +121,22 @@ describe('PleadingDraftService', () => {
       buffer: expect.any(Buffer),
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     });
-    expect(prisma.pleadingDraft.update.mock.calls[0][0].data).toMatchObject({ status: 'APPROVED', approvedById: 'u1', documentId: 'doc9' });
+    expect(prisma.pleadingDraft.updateMany.mock.calls[0][0]).toMatchObject({
+      where: { id: 'p1', caseId: 'c1', firmId: 'f1', status: 'DRAFT' },
+      data: { status: 'APPROVED', approvedById: 'u1' },
+    });
+    expect(prisma.pleadingDraft.update.mock.calls[0][0].data).toEqual({ documentId: 'doc9' });
     expect(view.documentId).toBe('doc9');
+  });
+
+  it('approve reverts the claim when saving the document fails', async () => {
+    const { service, prisma, documents } = setup({ id: 'p1', caseId: 'c1', kind: 'ANSWER', status: 'DRAFT', bodyText: body, citations: [] });
+    documents.createFromBuffer.mockRejectedValue(new Error('s3 down'));
+    await expect(service.approve(user, 'c1', 'p1')).rejects.toThrow('s3 down');
+    expect(prisma.pleadingDraft.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'p1', firmId: 'f1' },
+      data: { status: 'DRAFT', approvedById: null, approvedAt: null },
+    });
   });
 
   it('approve refuses a draft that is already approved', async () => {

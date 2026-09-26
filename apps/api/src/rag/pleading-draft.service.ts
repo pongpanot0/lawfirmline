@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthUser, redactForAi } from '@lawfirm/shared';
 import { PleadingDraft, PleadingDraftStatus, Prisma } from '../generated/prisma';
@@ -34,6 +34,7 @@ export interface PleadingDraftView {
 
 @Injectable()
 export class PleadingDraftService {
+  private readonly logger = new Logger(PleadingDraftService.name);
   constructor(
     private prisma: PrismaService,
     private rag: RagService,
@@ -99,7 +100,8 @@ export class PleadingDraftService {
       data = await res.json();
     } catch (err) {
       await this.rag.logRun({ ...run, status: 'error', latencyMs: Date.now() - started });
-      throw new Error(`AI pleading draft failed: ${err}`);
+      this.logger.warn(`AI pleading draft failed: ${err}`);
+      throw new ServiceUnavailableException('ระบบ AI ไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง');
     }
     await this.rag.logRun({
       ...run,
@@ -107,6 +109,8 @@ export class PleadingDraftService {
       outputTokens: data.usage?.completion_tokens ?? 0,
       latencyMs: Date.now() - started,
     });
+    const bodyText = data.choices?.[0]?.message?.content?.trim();
+    if (!bodyText) throw new BadRequestException('AI ไม่ได้ส่งร่างกลับมา ลองใหม่อีกครั้ง');
 
     // Keep every numbered source (not just the cited ones) so [N] can be re-mapped after edits.
     const sources = rows.map((r, i) => ({
@@ -122,7 +126,7 @@ export class PleadingDraftService {
         caseId,
         kind: dto.kind,
         instructions: dto.instructions ?? null,
-        bodyText: data.choices?.[0]?.message?.content ?? '',
+        bodyText,
         citations: sources as unknown as Prisma.InputJsonValue,
         createdById: user.id,
       },
@@ -140,36 +144,41 @@ export class PleadingDraftService {
 
   async update(user: AuthUser, caseId: string, id: string, bodyText: string): Promise<PleadingDraftView> {
     const draft = await this.findDraft(user, caseId, id);
-    if (draft.status === PleadingDraftStatus.APPROVED) {
-      throw new BadRequestException('ร่างที่ยืนยันแล้วไม่สามารถแก้ไขได้');
-    }
-    return this.toView(await this.prisma.pleadingDraft.update({ where: { id }, data: { bodyText } }));
+    const { count } = await this.prisma.pleadingDraft.updateMany({
+      where: { id, caseId, firmId: user.firmId, status: PleadingDraftStatus.DRAFT },
+      data: { bodyText },
+    });
+    if (!count) throw new BadRequestException('ร่างที่ยืนยันแล้วไม่สามารถแก้ไขได้');
+    return this.toView({ ...draft, bodyText });
   }
 
   async approve(user: AuthUser, caseId: string, id: string): Promise<PleadingDraftView & { documentId: string }> {
     const draft = await this.findDraft(user, caseId, id);
-    if (draft.status === PleadingDraftStatus.APPROVED) {
-      throw new BadRequestException('ร่างนี้ยืนยันไปแล้ว');
-    }
     const legalCase = await this.findCase(user, caseId);
     const kindTh = KIND_TH[draft.kind] ?? draft.kind;
 
-    const buffer = await buildDocx(`${kindTh} — ${legalCase.ownRef}`, draft.bodyText);
-    const document = await this.documents.createFromBuffer(user, caseId, {
-      filename: `ร่าง${kindTh}-${legalCase.ownRef}.docx`,
-      buffer,
-      mimeType: DOCX_MIME,
+    // Claim first so two concurrent approvals can't both save a .docx.
+    const { count } = await this.prisma.pleadingDraft.updateMany({
+      where: { id, caseId, firmId: user.firmId, status: PleadingDraftStatus.DRAFT },
+      data: { status: PleadingDraftStatus.APPROVED, approvedById: user.id, approvedAt: new Date() },
     });
-    const approved = await this.prisma.pleadingDraft.update({
-      where: { id },
-      data: {
-        status: PleadingDraftStatus.APPROVED,
-        approvedById: user.id,
-        approvedAt: new Date(),
-        documentId: document.id,
-      },
-    });
-    return { ...this.toView(approved), documentId: document.id };
+    if (!count) throw new BadRequestException('ร่างนี้ยืนยันไปแล้ว');
+    try {
+      const buffer = await buildDocx(`${kindTh} — ${legalCase.ownRef}`, draft.bodyText);
+      const document = await this.documents.createFromBuffer(user, caseId, {
+        filename: `ร่าง${kindTh}-${legalCase.ownRef}.docx`,
+        buffer,
+        mimeType: DOCX_MIME,
+      });
+      const approved = await this.prisma.pleadingDraft.update({ where: { id }, data: { documentId: document.id } });
+      return { ...this.toView(approved), documentId: document.id };
+    } catch (error) {
+      await this.prisma.pleadingDraft.updateMany({
+        where: { id, firmId: user.firmId },
+        data: { status: PleadingDraftStatus.DRAFT, approvedById: null, approvedAt: null },
+      });
+      throw error;
+    }
   }
 
   private async findCase(user: AuthUser, caseId: string) {
