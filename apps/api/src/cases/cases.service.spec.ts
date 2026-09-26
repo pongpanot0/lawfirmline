@@ -71,3 +71,58 @@ describe('CasesService.findOne', () => {
     });
   });
 });
+
+describe('CasesService.createForPortal', () => {
+  let service: CasesService;
+  const tx = {
+    firm: { findUnique: jest.fn() },
+    case: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CasesService,
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
+        { provide: PrismaService, useValue: {} },
+        { provide: CaseAccessService, useValue: {} },
+        { provide: CaseActivitiesService, useValue: {} },
+        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(CasesService);
+  });
+
+  it('numbers the case with the firm sequence inside the given transaction and opens it at PRE_LITIGATION', async () => {
+    tx.firm.findUnique.mockResolvedValue({ ownRefPrefix: 'ABC' });
+    tx.case.findMany.mockResolvedValue([{ ownRef: `ABC${new Date().getFullYear()}0007` }]);
+    tx.case.findUnique.mockResolvedValue(null);
+    tx.case.create.mockResolvedValue({ id: 'case-1' });
+
+    await service.createForPortal(tx as any, {
+      firmId: 'firm-1',
+      clientId: 'client-1',
+      clientName: 'บริษัท ก',
+      title: 'ขอคำปรึกษา',
+      description: 'รายละเอียด',
+      leadLawyerId: 'owner-1',
+    });
+
+    expect(tx.case.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          firmId: 'firm-1',
+          ownRef: expect.stringMatching(/^ABC\d{4}0008$/),
+          folderId: expect.stringMatching(/^LF-/),
+          stage: 'PRE_LITIGATION',
+          clientId: 'client-1',
+          clientName: 'บริษัท ก',
+          title: 'ขอคำปรึกษา',
+          description: 'รายละเอียด',
+          leadLawyerId: 'owner-1',
+        }),
+      }),
+    );
+  });
+});

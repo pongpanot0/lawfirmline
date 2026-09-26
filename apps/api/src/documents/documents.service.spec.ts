@@ -54,6 +54,44 @@ describe('DocumentsService', () => {
     service = module.get(DocumentsService);
   });
 
+  describe('createFromClientBuffer', () => {
+    it('stores a case document from a client contact with no staff uploader', async () => {
+      const tx = {
+        document: {
+          create: jest.fn().mockResolvedValue({ id: 'doc-1', filename: 'a.pdf' }),
+          update: jest.fn().mockResolvedValue({ id: 'doc-1', filename: 'a.pdf', storagePath: './uploads/cases/case-1/doc-1_v1.pdf' }),
+        },
+        documentVersion: { create: jest.fn() },
+        auditLog: { create: jest.fn() },
+      };
+      const feed = (service as any).caseFeed;
+
+      const doc = await service.createFromClientBuffer(tx as any, {
+        firmId: 'firm-1',
+        caseId: 'case-1',
+        contactId: 'contact-1',
+        actorUserId: 'owner-1',
+        filename: 'a.pdf',
+        buffer: Buffer.from('x'),
+        mimeType: 'application/pdf',
+      });
+
+      expect(tx.document.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ caseId: 'case-1', uploadedByContactId: 'contact-1', uploadedById: null, category: 'OTHER' }),
+      });
+      expect(mockFileStorage.put).toHaveBeenCalledWith('cases/case-1/doc-1_v1.pdf', expect.any(Buffer), 'application/pdf');
+      expect(tx.documentVersion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ documentId: 'doc-1', version: 1, createdById: null }),
+      });
+      expect(tx.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ firmId: 'firm-1', userId: null, action: 'DOCUMENT_UPLOADED' }),
+      });
+      expect(feed.log).toHaveBeenCalledWith(expect.objectContaining({ caseId: 'case-1', userId: 'owner-1' }), tx);
+      expect(mockPrisma.document.create).not.toHaveBeenCalled();
+      expect(doc.storagePath).toBe('./uploads/cases/case-1/doc-1_v1.pdf');
+    });
+  });
+
   describe('updateVisibility', () => {
     it('throws NotFoundException when the document does not belong to the given case', async () => {
       mockPrisma.document.findFirst.mockResolvedValue(null);

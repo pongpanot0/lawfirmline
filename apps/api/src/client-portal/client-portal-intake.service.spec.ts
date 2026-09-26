@@ -1,14 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ClientPortalIntakeService } from './client-portal-intake.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
+import { CasesService } from '../cases/cases.service';
+import { DocumentsService } from '../documents/documents.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 
 describe('ClientPortalIntakeService', () => {
   let service: ClientPortalIntakeService;
-  const mockPrisma = {
+  const mockPrisma: any = {
+    $transaction: jest.fn(),
+    firmMember: { findFirst: jest.fn() },
+    client: { findFirst: jest.fn() },
+    contactCaseAccess: { upsert: jest.fn() },
+    documentDateSuggestion: { create: jest.fn() },
     portalIntakeSubmission: {
       create: jest.fn(),
+      update: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
       count: jest.fn(),
@@ -29,6 +39,10 @@ describe('ClientPortalIntakeService', () => {
     getBuffer: jest.fn(),
     openDownloadStream: jest.fn(),
   };
+  const mockCases = { createForPortal: jest.fn() };
+  const mockDocuments = { createFromClientBuffer: jest.fn() };
+  const mockNotifier = { notifyFirmOwners: jest.fn() };
+  const mockFeed = { log: jest.fn() };
   const portalUser = {
     clientContactId: 'contact-1',
     clientId: 'client-1',
@@ -45,41 +59,169 @@ describe('ClientPortalIntakeService', () => {
         ClientPortalIntakeService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockFileStorage },
+        { provide: CasesService, useValue: mockCases },
+        { provide: DocumentsService, useValue: mockDocuments },
+        { provide: AssignmentNotifierService, useValue: mockNotifier },
+        { provide: CaseFeedService, useValue: mockFeed },
       ],
     }).compile();
     service = module.get(ClientPortalIntakeService);
   });
 
   describe('submit', () => {
-    it('creates a submission scoped to the authenticated contact and client, never trusting a client-supplied clientId', async () => {
-      mockPrisma.portalIntakeSubmission.count.mockResolvedValue(0);
+    const dto = { title: 'ขอคำปรึกษาเรื่องสัญญา', detail: 'รายละเอียด' };
+    const file = {
+      originalname: 'contract.pdf',
+      mimetype: 'application/pdf',
+      size: 10,
+      buffer: Buffer.from('pdf'),
+    } as Express.Multer.File;
+
+    beforeEach(() => {
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+        const result = await fn(mockPrisma);
+        // notifications must never go out before the transaction commits
+        expect(mockNotifier.notifyFirmOwners).not.toHaveBeenCalled();
+        return result;
+      });
       mockPrisma.portalIntakeSubmission.create.mockResolvedValue({
         id: 'sub-1',
-        referenceNumber: 'REQ-000001',
-        clientId: 'client-1',
-        clientContactId: 'contact-1',
-        title: 'ขอคำปรึกษาเรื่องสัญญา',
-        detail: 'รายละเอียด',
-        urgencyFlag: false,
-        withdrawnByClient: false,
-        submittedAt: new Date('2026-09-05'),
+        referenceNumber: 'REQ-1',
+        title: dto.title,
       });
+      mockPrisma.firmMember.findFirst.mockResolvedValue({ userId: 'owner-1' });
+      mockPrisma.client.findFirst.mockResolvedValue({ name: 'บริษัท ก' });
+      mockCases.createForPortal.mockResolvedValue({ id: 'case-1', ownRef: 'TSBREF20260001' });
+      mockDocuments.createFromClientBuffer.mockResolvedValue({
+        id: 'doc-1',
+        storagePath: './uploads/cases/case-1/doc-1_v1.pdf',
+      });
+    });
 
-      const result = await service.submit(portalUser, {
-        title: 'ขอคำปรึกษาเรื่องสัญญา',
-        detail: 'รายละเอียด',
-      });
+    it('creates the submission scoped to the authenticated contact, never trusting a client-supplied clientId', async () => {
+      await service.submit(portalUser, dto);
 
       expect(mockPrisma.portalIntakeSubmission.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            clientId: 'client-1',
-            clientContactId: 'contact-1',
-            title: 'ขอคำปรึกษาเรื่องสัญญา',
-          }),
+          data: expect.objectContaining({ clientId: 'client-1', clientContactId: 'contact-1', title: dto.title }),
         }),
       );
-      expect(result.referenceNumber).toMatch(/^REQ-\d{6}$/);
+    });
+
+    it('opens a pre-litigation case led by the first owner, links the submission and grants the contact access', async () => {
+      const result = await service.submit(portalUser, dto);
+
+      expect(mockPrisma.firmMember.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { firmId: 'firm-1', role: 'OWNER' },
+          orderBy: { createdAt: 'asc' },
+        }),
+      );
+      expect(mockCases.createForPortal).toHaveBeenCalledWith(mockPrisma, {
+        firmId: 'firm-1',
+        clientId: 'client-1',
+        clientName: 'บริษัท ก',
+        title: dto.title,
+        description: dto.detail,
+        leadLawyerId: 'owner-1',
+      });
+      expect(mockPrisma.portalIntakeSubmission.update).toHaveBeenCalledWith({
+        where: { id: 'sub-1' },
+        data: { caseId: 'case-1' },
+      });
+      expect(mockPrisma.contactCaseAccess.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { clientContactId_caseId: { clientContactId: 'contact-1', caseId: 'case-1' } },
+          create: expect.objectContaining({ clientContactId: 'contact-1', caseId: 'case-1', grantedById: 'owner-1' }),
+        }),
+      );
+      expect(mockFeed.log).toHaveBeenCalledWith(
+        expect.objectContaining({ caseId: 'case-1', userId: 'owner-1', title: 'ลูกความส่งคำขอผ่านพอร์ทัล' }),
+        mockPrisma,
+      );
+      expect(result).toEqual(expect.objectContaining({ id: 'sub-1', caseId: 'case-1', caseRef: 'TSBREF20260001' }));
+    });
+
+    it('adopts uploaded files as case documents from the contact and keeps the request attachment pointing at them', async () => {
+      await service.submit(portalUser, dto, [file]);
+
+      expect(mockDocuments.createFromClientBuffer).toHaveBeenCalledWith(
+        mockPrisma,
+        expect.objectContaining({
+          firmId: 'firm-1',
+          caseId: 'case-1',
+          contactId: 'contact-1',
+          actorUserId: 'owner-1',
+          filename: 'contract.pdf',
+          mimeType: 'application/pdf',
+        }),
+      );
+      expect(mockPrisma.portalIntakeAttachment.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          portalIntakeSubmissionId: 'sub-1',
+          filename: 'contract.pdf',
+          storagePath: './uploads/cases/case-1/doc-1_v1.pdf',
+        }),
+      });
+      expect(mockFileStorage.put).not.toHaveBeenCalled();
+    });
+
+    it('notifies firm owners once, after the transaction', async () => {
+      await service.submit(portalUser, dto);
+
+      expect(mockNotifier.notifyFirmOwners).toHaveBeenCalledTimes(1);
+      expect(mockNotifier.notifyFirmOwners).toHaveBeenCalledWith({
+        firmId: 'firm-1',
+        actorUserId: '',
+        summaryText: `คำขอใหม่จากลูกความ บริษัท ก: ${dto.title}`,
+        entityPath: '/cases/case-1',
+      });
+    });
+
+    it('still succeeds when the notifier throws', async () => {
+      mockNotifier.notifyFirmOwners.mockRejectedValueOnce(new Error('LINE down'));
+
+      await expect(service.submit(portalUser, dto)).resolves.toEqual(
+        expect.objectContaining({ caseId: 'case-1' }),
+      );
+    });
+
+    it('creates a PENDING date suggestion on the first adopted document when keyDate is given', async () => {
+      await service.submit(portalUser, { ...dto, keyDate: '2026-10-15', keyDateLabel: 'วันที่ได้รับหมาย' }, [file]);
+
+      expect(mockPrisma.documentDateSuggestion.create).toHaveBeenCalledWith({
+        data: {
+          caseId: 'case-1',
+          documentId: 'doc-1',
+          label: 'วันที่ได้รับหมาย',
+          suggestedDate: new Date('2026-10-15'),
+          status: 'PENDING',
+          createdById: 'owner-1',
+        },
+      });
+    });
+
+    it('labels a client key date with the default label and no document when nothing was uploaded', async () => {
+      await service.submit(portalUser, { ...dto, keyDate: '2026-10-15' });
+
+      expect(mockPrisma.documentDateSuggestion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ documentId: null, label: 'วันที่จากลูกความ', status: 'PENDING' }),
+      });
+    });
+
+    it('does not create a date suggestion without keyDate', async () => {
+      await service.submit(portalUser, dto);
+      expect(mockPrisma.documentDateSuggestion.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects the request when the firm has no owner', async () => {
+      mockPrisma.firmMember.findFirst.mockResolvedValue(null);
+
+      await expect(service.submit(portalUser, dto)).rejects.toThrow(
+        new BadRequestException('สำนักงานยังไม่มีเจ้าของบัญชี'),
+      );
+      expect(mockCases.createForPortal).not.toHaveBeenCalled();
+      expect(mockNotifier.notifyFirmOwners).not.toHaveBeenCalled();
     });
   });
 

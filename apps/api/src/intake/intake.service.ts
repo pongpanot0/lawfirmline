@@ -1392,7 +1392,7 @@ export class IntakeService {
 
   async listPortalSubmissions(user: AuthUser) {
     return this.prisma.portalIntakeSubmission.findMany({
-      where: { client: { firmId: user.firmId }, intakeId: null, withdrawnByClient: false },
+      where: { client: { firmId: user.firmId }, intakeId: null, caseId: null, withdrawnByClient: false },
       include: {
         clientContact: { select: { name: true, email: true } },
         client: { select: { name: true } },

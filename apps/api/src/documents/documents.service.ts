@@ -290,6 +290,82 @@ export class DocumentsService {
     return updated;
   }
 
+  /**
+   * Same path as `createFromBuffer` for a file sent by a client contact through the portal:
+   * no staff uploader, so the audit row has no userId and the feed entry is written under
+   * `actorUserId` (CaseActivity needs a user). Runs on `tx` so it commits with the new case.
+   */
+  async createFromClientBuffer(
+    tx: Prisma.TransactionClient,
+    args: {
+      firmId: string;
+      caseId: string;
+      contactId: string;
+      actorUserId: string;
+      filename: string;
+      buffer: Buffer;
+      mimeType: string;
+      category?: DocumentCategory;
+      description?: string;
+    },
+  ) {
+    const { caseId } = args;
+    const document = await tx.document.create({
+      data: {
+        caseId,
+        filename: args.filename,
+        storagePath: '',
+        mimeType: args.mimeType,
+        version: 1,
+        category: (args.category ?? DocumentCategory.OTHER) as never,
+        uploadedById: null,
+        uploadedByContactId: args.contactId,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        firmId: args.firmId,
+        userId: null,
+        action: 'DOCUMENT_UPLOADED',
+        metadata: { caseId, documentId: document.id, filename: document.filename, contactId: args.contactId },
+      },
+    });
+
+    const ext = path.extname(args.filename);
+    const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
+    const storagePath = await this.fileStorage.put(key, args.buffer, args.mimeType);
+
+    const updated = await tx.document.update({
+      where: { id: document.id },
+      data: { storagePath },
+    });
+
+    await tx.documentVersion.create({
+      data: {
+        documentId: document.id,
+        version: 1,
+        storagePath,
+        filename: args.filename,
+        mimeType: args.mimeType,
+        createdById: null,
+      },
+    });
+
+    await this.caseFeed.log(
+      {
+        caseId,
+        userId: args.actorUserId,
+        type: ActivityType.DOCUMENT,
+        title: `ลูกความส่งเอกสาร: ${updated.filename}`,
+        description: args.description,
+      },
+      tx,
+    );
+
+    return updated;
+  }
+
   async uploadForIntake(
     user: AuthUser,
     intakeId: string,

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ActivityType, CaseStatus } from '@lawfirm/shared';
 import { PrismaService } from '../../prisma/prisma.module';
+import { Prisma } from '../../generated/prisma';
 
 /**
  * ผู้เขียน activity feed ของคดีแบบอัตโนมัติ
@@ -32,9 +33,12 @@ export class CaseFeedService {
     at?: Date;
     /** สถานะที่เปลี่ยน — ระบุเมื่อไรก็ลง `CaseStatusLog` ให้ด้วย */
     statusTransition?: { from: CaseStatus | string; to: CaseStatus | string };
-  }) {
+  },
+  /** ส่ง tx มาเมื่อคดียังไม่ commit (เช่นเปิดคดีจากพอร์ทัล) — ไม่งั้น FK ของคดีหาไม่เจอ */
+  db: Prisma.TransactionClient = this.prisma,
+  ) {
     try {
-      await this.prisma.caseActivity.create({
+      await db.caseActivity.create({
         data: {
           caseId: params.caseId,
           title: params.title,
@@ -46,7 +50,7 @@ export class CaseFeedService {
       });
 
       if (params.statusTransition) {
-        await this.prisma.caseStatusLog.create({
+        await db.caseStatusLog.create({
           data: {
             caseId: params.caseId,
             fromStatus: params.statusTransition.from as never,
