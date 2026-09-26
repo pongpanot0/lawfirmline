@@ -341,7 +341,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
                   v{doc.version} —{' '}
                   {doc.uploadedBy
                     ? `${doc.uploadedBy.firstName} ${doc.uploadedBy.lastName}`
-                    : doc.uploadedByContact?.name ?? 'ลูกค้า'}
+                    : doc.uploadedByContact?.name ?? 'ลูกความ'}
                 </p>
               </button>
               <div className="flex flex-wrap items-center gap-2">
