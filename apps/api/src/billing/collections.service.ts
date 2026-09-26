@@ -90,7 +90,7 @@ export class CollectionsService {
 
   async getReceivables(user: AuthUser, today: Date = new Date()) {
     const invoices = await this.prisma.invoice.findMany({
-      where: { firmId: user.firmId, status: { not: InvoiceStatus.DRAFT } },
+      where: { firmId: user.firmId, status: InvoiceStatus.SENT },
       include: {
         payments: true,
         billToCustomer: { select: { name: true } },

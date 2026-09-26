@@ -147,11 +147,16 @@ describe('OperationsService.getOwnerKpis', () => {
     mockPrisma.user.findMany.mockResolvedValue([{ id: 'a', firstName: 'A', lastName: 'Aa' }]);
   });
 
+  it('falls back to the current month for an out-of-range month', async () => {
+    const result = await service.getOwnerKpis(user, '2026-13');
+    expect(result.month).not.toBe('2026-13');
+  });
+
   it('shapes the KPI summary and sums unbilled, revenue and per-lawyer totals', async () => {
     const result = await service.getOwnerKpis(user, '2026-09');
 
     expect(result.month).toBe('2026-09');
-    expect(result.unbilled).toEqual({ amount: 2500, caseCount: 2 });
+    expect(result.unbilled).toEqual({ amount: 2500, caseCount: 2, hours: 2 });
     expect(result.collectionRate).toEqual({ value: 0.8, target: 0.95, billed: 3000, collected: 2400 });
     expect(result.avgDaysOutstanding).toEqual(expect.any(Number));
     expect(result.revenue).toEqual({ month: 2400, previousMonth: 0 });

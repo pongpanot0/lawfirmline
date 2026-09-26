@@ -432,7 +432,7 @@ export class OperationsService {
    */
   async getOwnerKpis(user: AuthUser, month?: string) {
     const now = new Date();
-    const resolvedMonth = month && /^\d{4}-\d{2}$/.test(month) ? month : bangkokMonthOf(now);
+    const resolvedMonth = month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : bangkokMonthOf(now);
     const { start, end, prevStart } = monthRange(resolvedMonth);
     const firmId = user.firmId;
     const yearAgo = new Date(now.getTime() - 365 * DAY_MS);
@@ -477,6 +477,7 @@ export class OperationsService {
       ...timeEntries.map((e) => e.caseId),
       ...expenses.map((e) => e.caseId).filter((id): id is string => !!id),
     ]).size;
+    const unbilledHours = round(timeEntries.reduce((sum, e) => sum + e.hours, 0));
 
     const billedInvoices = invoices.filter((inv) => inv.issuedAt && inv.issuedAt >= yearAgo);
     const paidOf = (inv: (typeof invoices)[number]) => inv.payments.reduce((sum, p) => sum + p.amount, 0);
@@ -526,7 +527,7 @@ export class OperationsService {
 
     return {
       month: resolvedMonth,
-      unbilled: { amount: unbilledAmount, caseCount: unbilledCaseCount },
+      unbilled: { amount: unbilledAmount, caseCount: unbilledCaseCount, hours: unbilledHours },
       collectionRate: { value: collectionRate(billed, collected), target: 0.95 as const, billed, collected },
       avgDaysOutstanding,
       revenue: {

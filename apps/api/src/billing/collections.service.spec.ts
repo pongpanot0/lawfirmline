@@ -152,6 +152,9 @@ describe('CollectionsService', () => {
       expect(result.rows[0].daysOverdue).toBe(94);
       expect(result.rows[0].bucket).toBe('90+');
       expect(result.buckets).toEqual({ '0-30': 0, '31-60': 0, '61-90': 0, '90+': 400 });
+      expect(mockPrisma.invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { firmId: owner.firmId, status: InvoiceStatus.SENT },
+      }));
     });
   });
 

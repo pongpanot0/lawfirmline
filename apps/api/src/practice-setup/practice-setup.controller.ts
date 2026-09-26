@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AuthUser, CARGO_CLAIM_PLAYBOOK_KEY, CaseStage } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -37,7 +37,7 @@ class ApplyDto { @IsUUID() releaseId!: string; }
 class StageTaskItemDto {
   @IsString() @MaxLength(200) title!: string;
   @IsOptional() @IsString() @MaxLength(5000) description?: string;
-  @IsOptional() @IsString() dueDate?: string | null;
+  @IsOptional() @IsDateString() dueDate?: string | null;
   @IsOptional() @IsUUID() assigneeId?: string | null;
 }
 class CreateStageTasksDto {
