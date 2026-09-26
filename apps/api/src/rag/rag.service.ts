@@ -41,12 +41,12 @@ export class RagService {
     private embedding: EmbeddingService,
   ) {}
 
-  private chatModel(): string {
+  chatModel(): string {
     // Spec's "GPT-5.6 Luna" — swap via env when the model id is available.
     return this.config.get<string>('OPENAI_MODEL_MAIN') ?? 'gpt-4o';
   }
 
-  private async logRun(run: {
+  async logRun(run: {
     model: string;
     operation: string;
     firmId?: string | null;
@@ -232,6 +232,51 @@ export class RagService {
     });
   }
 
+  /**
+   * Hybrid retrieval over a case's indexed chunks: cosine similarity + trigram
+   * keyword match. word_similarity scores the best-matching region of the
+   * chunk against the query, so it stays meaningful for Thai text (no word
+   * boundaries) and is not diluted by chunk length. Weights favor the
+   * semantic signal. Callers index the case first (ensureCaseIndexed).
+   */
+  async retrieve(
+    caseId: string,
+    firmId: string | null,
+    query: string,
+    documentIds?: string[],
+    userId?: string,
+  ): Promise<Array<{ documentId: string; filename: string; pageStart: number | null; pageEnd: number | null; content: string; score: number }>> {
+    // The query may itself contain client identifiers.
+    const redactedQuery = redactForAi(query).text;
+
+    const embedStarted = Date.now();
+    const { vectors, model: embedModel, inputTokens: embedTokens } = await this.embedding.embed([redactedQuery]);
+    await this.logRun({
+      model: embedModel,
+      operation: 'embed_query',
+      firmId,
+      caseId,
+      userId,
+      inputTokens: embedTokens,
+      latencyMs: Date.now() - embedStarted,
+    });
+
+    const vector = `[${vectors[0].join(',')}]`;
+    return this.prisma.$queryRaw<
+      Array<{ documentId: string; filename: string; pageStart: number | null; pageEnd: number | null; content: string; score: number }>
+    >(Prisma.sql`
+      SELECT c."documentId", d."filename", c."pageStart", c."pageEnd", c."content",
+             0.75 * (1 - (c."embedding" <=> ${vector}::vector))
+             + 0.25 * word_similarity(${redactedQuery}, c."content") AS score
+      FROM "DocumentChunk" c
+      JOIN "Document" d ON d."id" = c."documentId"
+      WHERE c."caseId" = ${caseId} AND c."embedding" IS NOT NULL
+        AND (${!documentIds?.length} OR c."documentId" = ANY(${documentIds ?? []}))
+      ORDER BY score DESC
+      LIMIT ${TOP_K}
+    `);
+  }
+
   async ask(userId: string, caseId: string, question: string, documentIds?: string[]): Promise<RagAnswer> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
@@ -246,36 +291,7 @@ export class RagService {
     // The question may itself contain client identifiers.
     const redactedQuestion = redactForAi(question).text;
 
-    const embedStarted = Date.now();
-    const { vectors, model: embedModel, inputTokens: embedTokens } = await this.embedding.embed([redactedQuestion]);
-    await this.logRun({
-      model: embedModel,
-      operation: 'embed_query',
-      firmId: caseRow?.firmId,
-      caseId,
-      userId,
-      inputTokens: embedTokens,
-      latencyMs: Date.now() - embedStarted,
-    });
-
-    // Hybrid retrieval: cosine similarity + trigram keyword match.
-    // word_similarity scores the best-matching region of the chunk against the
-    // question, so it stays meaningful for Thai text (no word boundaries) and
-    // is not diluted by chunk length. Weights favor the semantic signal.
-    const vector = `[${vectors[0].join(',')}]`;
-    const rows = await this.prisma.$queryRaw<
-      Array<{ documentId: string; filename: string; pageStart: number | null; pageEnd: number | null; content: string; score: number }>
-    >(Prisma.sql`
-      SELECT c."documentId", d."filename", c."pageStart", c."pageEnd", c."content",
-             0.75 * (1 - (c."embedding" <=> ${vector}::vector))
-             + 0.25 * word_similarity(${redactedQuestion}, c."content") AS score
-      FROM "DocumentChunk" c
-      JOIN "Document" d ON d."id" = c."documentId"
-      WHERE c."caseId" = ${caseId} AND c."embedding" IS NOT NULL
-        AND (${!documentIds?.length} OR c."documentId" = ANY(${documentIds ?? []}))
-      ORDER BY score DESC
-      LIMIT ${TOP_K}
-    `);
+    const rows = await this.retrieve(caseId, caseRow?.firmId ?? null, question, documentIds, userId);
 
     // SOP ของสำนักงานที่ใกล้กับคำถาม — ให้คำตอบอ้างขั้นตอนภายในได้ ไม่ใช่แค่เอกสารคดี
     const sops = await this.prisma.$queryRaw<Array<{ id: string; title: string; content: string; score: number }>>(Prisma.sql`
