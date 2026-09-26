@@ -97,4 +97,30 @@ export class ClientPortalDocumentsService {
 
     return document;
   }
+
+  /** A client downloads a document their own contact uploaded to a case they can still see. */
+  async getClientUploadFile(portalUser: PortalIdentity, caseId: string, documentId: string) {
+    const now = new Date();
+    const document = await this.prisma.document.findFirst({
+      where: {
+        id: documentId,
+        caseId,
+        uploadedByContact: { clientId: portalUser.clientId },
+        case: {
+          clientId: portalUser.clientId,
+          contactAccess: {
+            some: {
+              clientContactId: portalUser.clientContactId,
+              revokedAt: null,
+              startDate: { lte: now },
+              OR: [{ endDate: null }, { endDate: { gte: now } }],
+            },
+          },
+        },
+      },
+      select: { storagePath: true, filename: true, mimeType: true },
+    });
+    if (!document) throw new NotFoundException('Document not found');
+    return { path: document.storagePath, filename: document.filename, mimeType: document.mimeType };
+  }
 }

@@ -139,3 +139,63 @@ describe('ClientPortalDocumentsService.uploadToCase', () => {
     expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
   });
 });
+
+describe('ClientPortalDocumentsService.getClientUploadFile', () => {
+  let service: ClientPortalDocumentsService;
+  const mockPrisma: any = { document: { findFirst: jest.fn() } };
+  const portalUser = {
+    clientContactId: 'contact-1',
+    clientId: 'client-1',
+    firmId: 'firm-1',
+    name: 'ทดสอบ',
+    email: 'test@example.com',
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ClientPortalDocumentsService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: FileStorageService, useValue: {} },
+        { provide: DocumentsService, useValue: {} },
+        { provide: AssignmentNotifierService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(ClientPortalDocumentsService);
+  });
+
+  it('returns the file when the contact uploaded it to a case they can still access', async () => {
+    mockPrisma.document.findFirst.mockResolvedValue({
+      storagePath: './uploads/doc-1.pdf',
+      filename: 'receipt.pdf',
+      mimeType: 'application/pdf',
+    });
+
+    const result = await service.getClientUploadFile(portalUser, 'case-1', 'doc-1');
+
+    expect(result).toEqual({ path: './uploads/doc-1.pdf', filename: 'receipt.pdf', mimeType: 'application/pdf' });
+    const where = mockPrisma.document.findFirst.mock.calls[0][0].where;
+    expect(where).toEqual(
+      expect.objectContaining({
+        id: 'doc-1',
+        caseId: 'case-1',
+        uploadedByContact: { clientId: 'client-1' },
+      }),
+    );
+  });
+
+  it('404s when the document belongs to another client', async () => {
+    mockPrisma.document.findFirst.mockResolvedValue(null);
+
+    await expect(service.getClientUploadFile(portalUser, 'case-1', 'doc-1')).rejects.toThrow(NotFoundException);
+  });
+
+  it('404s when the contact access to the case was revoked', async () => {
+    mockPrisma.document.findFirst.mockResolvedValue(null);
+
+    await expect(service.getClientUploadFile(portalUser, 'case-1', 'doc-1')).rejects.toThrow(NotFoundException);
+    const where = mockPrisma.document.findFirst.mock.calls[0][0].where;
+    expect(where.case.contactAccess.some.revokedAt).toBeNull();
+  });
+});

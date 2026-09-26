@@ -263,6 +263,7 @@ export class ClientPortalIntakeService {
       title: string;
       submittedAt: Date;
       withdrawnByClient: boolean;
+      caseId: string | null;
       intake: { id: string; status: string; decision: string | null } | null;
       attachments: Array<{ id: string; filename: string; size: number; createdAt?: Date }>;
     },
@@ -274,6 +275,7 @@ export class ClientPortalIntakeService {
       title: submission.title,
       submittedAt: submission.submittedAt,
       withdrawnByClient: submission.withdrawnByClient,
+      caseId: submission.caseId,
       externalStatus: submission.intake
         ? mapInternalStatusToExternal(submission.intake as never)
         : 'ส่งแล้ว',

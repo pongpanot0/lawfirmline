@@ -3,18 +3,34 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CalendarClock, Download, FileText } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Download, FileText, Paperclip } from 'lucide-react';
+import { DocumentCategory } from '@lawfirm/shared';
 import { usePortalAuth } from '@/lib/portal-auth';
 import { portalApi, PortalCaseDetail, CaseMessageEntry, PortalApiError } from '@/lib/portal-api';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { PortalShell } from '@/components/layout/PortalShell';
 import { StageTrack } from '@/components/portal/StageTrack';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { getCaseStatusDisplay } from '@/lib/case-status';
+import { documentCategoryLabel } from '@/lib/stage-labels';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+
+// เฉพาะหมวดที่ลูกความเลือกได้ — คำฟ้อง/คำสั่งศาล/เอกสารภายในเป็นของสำนักงานเท่านั้น
+const CLIENT_DOCUMENT_CATEGORIES = [
+  DocumentCategory.EVIDENCE,
+  DocumentCategory.CONTRACT,
+  DocumentCategory.CORRESPONDENCE,
+  DocumentCategory.IDENTITY,
+  DocumentCategory.MEDICAL,
+  DocumentCategory.FINANCIAL,
+  DocumentCategory.OTHER,
+] as const;
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'ร่าง',
@@ -32,19 +48,28 @@ export default function PortalCaseDetailPage() {
   const [messageBody, setMessageBody] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadDocType, setUploadDocType] = useState<string>('OTHER');
+  const [uploadNote, setUploadNote] = useState('');
+  const [uploadKeyDate, setUploadKeyDate] = useState('');
+  const [uploadKeyDateLabel, setUploadKeyDateLabel] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && !contact) router.replace('/portal/login');
   }, [loading, contact, router]);
 
-  useEffect(() => {
+  const loadDetail = () => {
     if (!token || !id) return;
     portalApi
       .getCase(token, id)
       .then(setDetail)
       .catch(() => setDetail(null));
-  }, [token, id]);
+  };
+
+  useEffect(() => { loadDetail(); }, [token, id]);
 
   const loadMessages = () => {
     if (!token || !id) return;
@@ -84,6 +109,46 @@ export default function PortalCaseDetailPage() {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadClientUpload = async (documentId: string, filename: string) => {
+    if (!token || !id) return;
+    const blob = await portalApi.downloadClientUpload(token, id, documentId);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleUploadDocument = async () => {
+    if (!token || !id || !uploadFile) return;
+    setUploading(true);
+    setUploadError('');
+    try {
+      await portalApi.uploadPortalCaseDocument(
+        token,
+        id,
+        {
+          docType: uploadDocType || undefined,
+          note: uploadNote || undefined,
+          keyDate: uploadKeyDate || undefined,
+          keyDateLabel: uploadKeyDateLabel || undefined,
+        },
+        uploadFile,
+      );
+      setUploadFile(null);
+      setUploadDocType('OTHER');
+      setUploadNote('');
+      setUploadKeyDate('');
+      setUploadKeyDateLabel('');
+      loadDetail();
+    } catch (e) {
+      setUploadError(e instanceof PortalApiError ? e.message : 'อัปโหลดเอกสารไม่สำเร็จ');
+    } finally {
+      setUploading(false);
+    }
   };
 
   if (loading || !contact || !detail) return null;
@@ -150,6 +215,82 @@ export default function PortalCaseDetailPage() {
                 ))}
               </div>
             )}
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="mb-3 flex items-center gap-2 text-[15.5px] font-bold">
+              <Paperclip className="h-4 w-4 text-muted-foreground" />
+              เอกสารที่คุณส่ง
+            </h2>
+
+            {detail.clientUploads.length === 0 ? (
+              <p className="mb-4 text-sm text-muted-foreground">ยังไม่มีเอกสารที่คุณส่ง</p>
+            ) : (
+              <div className="mb-4 flex flex-col">
+                {detail.clientUploads.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => handleDownloadClientUpload(u.id, u.filename)}
+                    className="flex items-center gap-2.5 border-b border-border py-2.5 text-left last:border-0 hover:bg-accent/50"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{u.filename}</span>
+                    <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="rounded-lg border border-border p-3.5">
+              <p className="mb-2.5 text-[12.5px] font-semibold">ส่งเอกสารเพิ่มเติมสำหรับคดีนี้</p>
+              <div className="mb-2.5">
+                <DocumentDropZone
+                  onFile={setUploadFile}
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  label="ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์"
+                  hint="PDF, JPG, PNG, DOC — ไม่เกิน 20 MB"
+                />
+                {uploadFile && (
+                  <p className="mt-1.5 truncate text-[12px] text-muted-foreground">{uploadFile.name}</p>
+                )}
+              </div>
+              <div className="mb-2.5 grid grid-cols-2 gap-2.5">
+                <select
+                  value={uploadDocType}
+                  onChange={(e) => setUploadDocType(e.target.value)}
+                  className="h-9 rounded-lg border border-input bg-card px-2.5 text-[12.5px]"
+                >
+                  {CLIENT_DOCUMENT_CATEGORIES.map((value) => (
+                    <option key={value} value={value}>
+                      {documentCategoryLabel(value, 'th')}
+                    </option>
+                  ))}
+                </select>
+                <ThaiDateInput value={uploadKeyDate} onChange={setUploadKeyDate} />
+              </div>
+              <div className="mb-2.5">
+                <Input
+                  value={uploadKeyDateLabel}
+                  onChange={(e) => setUploadKeyDateLabel(e.target.value)}
+                  placeholder="ชื่อวันสำคัญ (ถ้ามี) เช่น วันครบกำหนด"
+                />
+              </div>
+              <div className="mb-2.5">
+                <Textarea
+                  value={uploadNote}
+                  onChange={(e) => setUploadNote(e.target.value)}
+                  rows={2}
+                  placeholder="หมายเหตุ (ถ้ามี)"
+                />
+              </div>
+              {uploadError && <p className="mb-2.5 text-[12.5px] text-destructive">{uploadError}</p>}
+              <Button size="sm" disabled={!uploadFile || uploading} onClick={handleUploadDocument}>
+                {uploading ? 'กำลังส่ง...' : 'ส่งเอกสาร'}
+              </Button>
+            </div>
           </Card>
 
           <Card className="p-5">
