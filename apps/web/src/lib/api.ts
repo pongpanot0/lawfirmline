@@ -817,9 +817,59 @@ export interface FirmInvoiceItem {
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+  issuedAt?: string | null;
   dueAt?: string | null;
   ownRef: string;
   clientName: string;
+}
+
+export interface InvoicePaymentItem {
+  id: string;
+  amount: number;
+  method: 'TRANSFER' | 'CHEQUE' | 'CASH' | 'OTHER';
+  receivedAt: string;
+  note?: string | null;
+  recordedById: string;
+  createdAt: string;
+}
+
+export interface RecordInvoicePaymentInput {
+  amount: number;
+  method?: 'TRANSFER' | 'CHEQUE' | 'CASH' | 'OTHER';
+  receivedAt: string;
+  note?: string;
+}
+
+export interface RecordInvoicePaymentResult {
+  invoice: FirmInvoiceItem;
+  payment: InvoicePaymentItem;
+  outstanding: number;
+}
+
+export interface ReceivablesRow {
+  id: string;
+  invoiceNumber: string;
+  customerName: string | null;
+  caseId: string | null;
+  caseRef: string | null;
+  totalAmount: number;
+  paidAmount: number;
+  outstanding: number;
+  issuedAt: string | null;
+  dueAt: string | null;
+  daysOverdue: number;
+  bucket: '0-30' | '31-60' | '61-90' | '90+';
+  lastReminderAt: string | null;
+}
+
+export interface ReceivablesResult {
+  buckets: { '0-30': number; '31-60': number; '61-90': number; '90+': number };
+  rows: ReceivablesRow[];
+}
+
+export interface RemindInvoiceResult {
+  sent: number;
+  linkedContacts: number;
 }
 
 export interface IntakeItem {
@@ -1305,6 +1355,25 @@ export const api = {
 
   getFirmInvoices: (token: string) =>
     request<FirmInvoiceItem[]>('/invoices', { token }),
+
+  markInvoiceSent: (token: string, invoiceId: string) =>
+    request<FirmInvoiceItem>(`/invoices/${invoiceId}/send`, { method: 'PATCH', token }),
+
+  recordInvoicePayment: (token: string, invoiceId: string, data: RecordInvoicePaymentInput) =>
+    request<RecordInvoicePaymentResult>(`/invoices/${invoiceId}/payments`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  getInvoicePayments: (token: string, invoiceId: string) =>
+    request<InvoicePaymentItem[]>(`/invoices/${invoiceId}/payments`, { token }),
+
+  getReceivables: (token: string) =>
+    request<ReceivablesResult>('/invoices/receivables', { token }),
+
+  remindInvoice: (token: string, invoiceId: string) =>
+    request<RemindInvoiceResult>(`/invoices/${invoiceId}/remind`, { method: 'POST', token }),
 
   getCases: (
     token: string,

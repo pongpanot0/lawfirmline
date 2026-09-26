@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, FileText, Plus, Search, X } from 'lucide-react';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
+import { ReceivablesPanel } from '@/components/billing/ReceivablesPanel';
 import { api, FirmInvoiceItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency } from '@/lib/utils';
@@ -36,6 +37,20 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const handleMarkSent = async (invoiceId: string) => {
+    if (!token) return;
+    setSendingId(invoiceId);
+    try {
+      await api.markInvoiceSent(token, invoiceId);
+      setRetry((value) => value + 1);
+    } catch {
+      // ข้อความ error แสดงผ่าน action feedback กลางแล้ว
+    } finally {
+      setSendingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -149,6 +164,8 @@ export default function InvoicesPage() {
         </div>
       </section>
 
+      <ReceivablesPanel onChanged={() => setRetry((value) => value + 1)} />
+
       {loading ? (
         <div role="status" className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
           กำลังโหลดใบแจ้งหนี้…
@@ -214,6 +231,16 @@ export default function InvoicesPage() {
                     <span className={`mt-1 inline-flex min-h-6 items-center rounded-full px-2.5 text-xs font-medium ${STATUS_STYLES[row.status] ?? 'bg-muted text-muted-foreground'}`}>
                       {STATUS_LABELS[row.status] ?? row.status}
                     </span>
+                    {row.status === 'DRAFT' && (
+                      <button
+                        type="button"
+                        disabled={sendingId === row.id}
+                        onClick={() => void handleMarkSent(row.id)}
+                        className="ml-2 mt-1 inline-flex min-h-6 items-center rounded-full border border-input px-2.5 text-xs font-medium hover:bg-muted active:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        {sendingId === row.id ? 'กำลังส่ง…' : 'ส่งใบแจ้งหนี้'}
+                      </button>
+                    )}
                   </div>
                   <p className="col-start-2 row-start-1 whitespace-nowrap text-right font-semibold tabular-nums lg:col-start-4 lg:row-start-1">
                     {formatCurrency(row.totalAmount)}
