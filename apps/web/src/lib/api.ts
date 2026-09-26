@@ -291,13 +291,25 @@ export interface CalendarEventItem {
   case?: { id: string; ownRef: string; title: string; courtName?: string | null; leadLawyer?: { id: string; firstName: string; lastName: string } };
 }
 
+export interface LeaveCourtConflict {
+  eventId: string;
+  caseId: string;
+  caseRef: string | null;
+  title: string;
+  courtName: string | null;
+  startAt: string;
+}
+
 export interface LeaveItem {
   id: string;
   userId: string;
   type: 'SICK' | 'PERSONAL' | 'VACATION';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
   startDate: string;
   endDate: string;
+  decidedAt: string | null;
   user: { firstName: string; lastName: string };
+  courtConflicts?: LeaveCourtConflict[];
 }
 
 /** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน ต่างจากลูกความ (client) ที่เราว่าความให้ */
@@ -1904,6 +1916,10 @@ export const api = {
 
   getLeaves: (token: string, from: string, to: string) =>
     request<LeaveItem[]>(`/leaves?${new URLSearchParams({ from, to })}`, { token }),
+  createLeave: (token: string, data: { type: 'SICK' | 'PERSONAL' | 'VACATION'; startDate: string; endDate: string }) =>
+    request<LeaveItem>('/leaves', { token, method: 'POST', body: JSON.stringify(data) }),
+  decideLeave: (token: string, id: string, decision: 'APPROVED' | 'REJECTED') =>
+    request<LeaveItem>(`/leaves/${id}/decision`, { token, method: 'PATCH', body: JSON.stringify({ decision }) }),
   cancelLeave: (token: string, id: string) =>
     request(`/leaves/${id}`, { token, method: 'DELETE' }),
 

@@ -20,6 +20,7 @@ import {
   X,
   ListTodo,
   Mail,
+  CalendarOff,
   type LucideIcon,
   Sparkles, BookOpen, Workflow } from 'lucide-react';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
@@ -58,6 +59,7 @@ const NAV_ITEMS = [
   },
   { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/leaves', labelKey: 'leaves' as const, icon: CalendarOff, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, ownerOnly: false, group: 'work', children: [] as const },
   {
     href: '/expenses',

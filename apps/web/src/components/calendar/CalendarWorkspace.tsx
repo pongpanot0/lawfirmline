@@ -78,7 +78,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
       api.getCalendarEvents(token, { from, to }),
       api.getLeaves(token, dateKey(new Date(month.getFullYear(), month.getMonth() - 1, 1)), dateKey(new Date(month.getFullYear(), month.getMonth() + 2, 0))),
     ]);
-    const leaveDays: CalendarEventItem[] = leaves.flatMap((leave) => {
+    const leaveDays: CalendarEventItem[] = leaves.filter((leave) => leave.status === 'APPROVED').flatMap((leave) => {
       const days: CalendarEventItem[] = [];
       const cursor = new Date(`${leave.startDate.slice(0, 10)}T00:00:00Z`);
       const end = leave.endDate.slice(0, 10);
