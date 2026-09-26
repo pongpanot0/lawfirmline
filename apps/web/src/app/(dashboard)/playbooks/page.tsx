@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { DocumentCategory } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
-import { CargoPlaybookRequirement, PlaybookRelease, PlaybookStep, FirmRoleStr, setupRequest } from '@/lib/practice-setup';
+import { CargoPlaybookRequirement, PlaybookRelease, PlaybookStep, PlaybookDayBasis, FirmRoleStr, setupRequest } from '@/lib/practice-setup';
 import { api, CaseTypeItem } from '@/lib/api';
-import { documentCategoryLabel } from '@/lib/stage-labels';
+import { documentCategoryLabel, caseStageLabel, caseStageOptions } from '@/lib/stage-labels';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -17,6 +17,10 @@ const ROLE_LABELS: Record<FirmRoleStr, { th: string; en: string }> = {
   ASSISTANT: { th: 'ผู้ช่วย', en: 'Assistant' },
 };
 const ROLE_OPTIONS = Object.keys(ROLE_LABELS) as FirmRoleStr[];
+const DAY_BASIS_LABELS: Record<PlaybookDayBasis, { th: string; en: string }> = {
+  CALENDAR: { th: 'วันปฏิทิน', en: 'Calendar days' },
+  BUSINESS: { th: 'วันทำการ', en: 'Business days' },
+};
 const CARGO_PLAYBOOK_KEY = 'CARGO_CLAIM_ASSESSMENT';
 
 export default function PlaybooksPage() {
@@ -135,7 +139,12 @@ export default function PlaybooksPage() {
         <ol className="my-3 list-decimal space-y-2 pl-5 text-sm">
           {p.steps.map((s, i) => <li key={i}>{s.title}
             <p className="text-xs text-muted-foreground">
-              {[s.primaryRole && ROLE_LABELS[s.primaryRole][th ? 'th' : 'en'], s.secondaryRole && `${th ? 'สำรอง' : 'backup'}: ${ROLE_LABELS[s.secondaryRole][th ? 'th' : 'en']}`].filter(Boolean).join(' · ')}
+              {[
+                s.primaryRole && ROLE_LABELS[s.primaryRole][th ? 'th' : 'en'],
+                s.secondaryRole && `${th ? 'สำรอง' : 'backup'}: ${ROLE_LABELS[s.secondaryRole][th ? 'th' : 'en']}`,
+                s.stage && `${th ? 'ขั้น' : 'stage'}: ${caseStageLabel(s.stage, th ? 'th' : 'en')}`,
+                s.offsetDays != null && `+${s.offsetDays} ${DAY_BASIS_LABELS[s.dayBasis ?? 'CALENDAR'][th ? 'th' : 'en']}`,
+              ].filter(Boolean).join(' · ')}
             </p>
             {s.instructions && <p className="text-xs text-muted-foreground">{s.instructions}</p>}
           </li>)}
@@ -219,6 +228,22 @@ export default function PlaybooksPage() {
             <select className="mt-1 h-11 w-full rounded-lg border bg-background px-2" value={s.secondaryRole ?? ''} onChange={e => edit(i, { secondaryRole: (e.target.value || undefined) as FirmRoleStr | undefined })}>
               <option value="">{th ? 'ไม่มี' : 'None'}</option>
               {ROLE_OPTIONS.map(r => <option key={r} value={r}>{ROLE_LABELS[r][th ? 'th' : 'en']}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="grid gap-3 rounded-lg bg-muted/40 p-3 sm:grid-cols-3">
+          <label className="block text-sm">{th ? 'ผูกกับขั้นตอนคดี (ถ้ามี)' : 'Case stage (optional)'}
+            <select className="mt-1 h-11 w-full rounded-lg border bg-background px-2" value={s.stage ?? ''} onChange={e => edit(i, { stage: (e.target.value || undefined) as PlaybookStep['stage'] })}>
+              <option value="">{th ? 'ไม่ผูก' : 'Not linked'}</option>
+              {caseStageOptions(th ? 'th' : 'en').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </label>
+          <label className="block text-sm">{th ? 'กำหนดส่งหลังเข้าขั้น (วัน)' : 'Due after entering stage (days)'}
+            <Input type="number" min={0} max={365} value={s.offsetDays ?? ''} onChange={e => edit(i, { offsetDays: e.target.value === '' ? undefined : Math.max(0, Math.min(365, Number(e.target.value))) })} />
+          </label>
+          <label className="block text-sm">{th ? 'นับวันแบบ' : 'Count days as'}
+            <select className="mt-1 h-11 w-full rounded-lg border bg-background px-2" value={s.dayBasis ?? 'CALENDAR'} onChange={e => edit(i, { dayBasis: e.target.value as PlaybookDayBasis })}>
+              {(Object.keys(DAY_BASIS_LABELS) as PlaybookDayBasis[]).map(v => <option key={v} value={v}>{DAY_BASIS_LABELS[v][th ? 'th' : 'en']}</option>)}
             </select>
           </label>
         </div>

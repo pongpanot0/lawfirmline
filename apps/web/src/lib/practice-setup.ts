@@ -1,10 +1,22 @@
 import { withFirmSlugHeaders } from './firm-slug';
 import { actionSuccessMessage, publishActionFeedback } from './action-feedback';
+import type { CaseStage } from '@lawfirm/shared';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface ImportPreview { id: string; rows: (ImportRow & { row: number; existingClientId: string | null; errors: string[] })[]; canCommit: boolean }
 export interface SetupProgress { members: number; clients: number; cases: number; invites: number; batches: { id: string; status: string; createdAt: string }[] }
 export type FirmRoleStr = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
-export interface PlaybookStep { title: string; instructions: string; primaryRole?: FirmRoleStr; secondaryRole?: FirmRoleStr }
+export type PlaybookDayBasis = 'CALENDAR' | 'BUSINESS';
+export interface PlaybookStep {
+  title: string;
+  instructions: string;
+  primaryRole?: FirmRoleStr;
+  secondaryRole?: FirmRoleStr;
+  /** ขั้นตอนคดีที่ผูกงานนี้ไว้ — ใช้เสนอสร้างงานตอนย้ายเข้าขั้นนี้ */
+  stage?: CaseStage;
+  /** จำนวนวันหลังเข้าขั้นตอน ก่อนถึงกำหนดส่งงาน */
+  offsetDays?: number;
+  dayBasis?: PlaybookDayBasis;
+}
 export interface CargoPlaybookRequirement { code: string; label: string; requiredByDefault: boolean }
 export interface CargoPlaybookTemplate { requirements: CargoPlaybookRequirement[] }
 export interface PlaybookRelease { id: string; name: string; caseTypeId: string | null; templateKey?: string | null; cargoTemplate?: CargoPlaybookTemplate | null; version: number; steps: PlaybookStep[] }

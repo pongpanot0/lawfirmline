@@ -646,6 +646,22 @@ export interface TaskPerson {
   lastName: string;
 }
 
+// งานที่ Playbook แนะนำเมื่อเรื่องย้ายเข้าขั้นตอนหนึ่ง
+export interface StageTaskProposal {
+  title: string;
+  description: string;
+  dueDate: string | null;
+  assigneeId: string | null;
+  releaseName: string;
+}
+
+export interface StageTaskDraft {
+  title: string;
+  description?: string;
+  dueDate?: string | null;
+  assigneeId?: string | null;
+}
+
 export interface TaskItem {
   id: string;
   caseId?: string | null;
@@ -1720,6 +1736,16 @@ export const api = {
 
   getTasks: (token: string, caseId: string) =>
     request<TaskItem[]>(`/cases/${caseId}/tasks`, { token }),
+
+  // Playbook step ที่ผูกกับขั้นตอนคดี — เสนองานให้สร้างตอนย้ายขั้น
+  getStageTaskProposals: (token: string, caseId: string, stage: string) =>
+    request<StageTaskProposal[]>(`/practice-setup/cases/${caseId}/stage-tasks?stage=${stage}`, { token }),
+  createStageTasks: (token: string, caseId: string, stage: string, tasks: StageTaskDraft[]) =>
+    request<{ created: number; taskIds: string[] }>(`/practice-setup/cases/${caseId}/stage-tasks`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ stage, tasks }),
+    }),
 
   // งาน/checklist ของเรื่องรับเข้า — เปิดคดีแล้วงานถูกย้ายไปเป็นงานคดีอัตโนมัติ
   getIntakeTasks: (token: string, intakeId: string) =>
