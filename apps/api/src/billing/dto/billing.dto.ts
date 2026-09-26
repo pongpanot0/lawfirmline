@@ -24,6 +24,7 @@ import {
   MONEY_MAX,
   MONEY_MIN,
 } from '@lawfirm/shared';
+import { PaymentMethod } from '../../generated/prisma';
 
 /** Trim incoming strings so "   " does not pass @IsNotEmpty. */
 const Trim = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
@@ -236,4 +237,25 @@ export class CreateInvoiceDto {
   @IsArray()
   @IsUUID('4', { each: true })
   expenseIds?: string[];
+}
+
+export class RecordPaymentDto {
+  @Type(() => Number)
+  @IsNumber(money)
+  @Min(0.01)
+  @Max(MONEY_MAX)
+  amount!: number;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  method?: PaymentMethod;
+
+  @IsDateString()
+  receivedAt!: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }
