@@ -21,6 +21,10 @@ import { priorityLabel } from '@/lib/task-detail';
 import { PageLoading } from '@/components/ui/misc';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
+import { useLeaveFlags } from '@/lib/use-leave-flags';
+import { leaveWarning } from '@/lib/leave-flags';
+import { bangkokDateInputValue } from '@/lib/bangkok';
 
 function TodosPageContent() {
   const d = useDashboardT();
@@ -74,6 +78,12 @@ function TodosPageContent() {
     ? users.filter((u) => u.id !== user.id && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole))
     : [];
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
+  const today = bangkokDateInputValue(new Date());
+  const newTaskDate = newDueDate || today;
+  const newTaskLeaveFlags = useLeaveFlags(token, newTaskDate);
+  const subtaskDraftDate = subDraft.dueDate || today;
+  const subtaskDraftLeaveFlags = useLeaveFlags(token, subtaskDraftDate);
+  const newAssigneeUser = assignableUsers.find((u) => u.id === newAssigneeId);
 
   const loadTasks = () => {
     if (!token) return;
@@ -374,12 +384,13 @@ function TodosPageContent() {
                     className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
                   >
                     <option value="">{d.todos.assignToMe}</option>
-                    {assignableUsers.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.firstName} {u.lastName}
-                      </option>
-                    ))}
+                    <AssigneeOptions users={assignableUsers} flags={newTaskLeaveFlags} />
                   </select>
+                  {newAssigneeUser && newTaskLeaveFlags.has(newAssigneeId) && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                      {leaveWarning(`${newAssigneeUser.firstName} ${newAssigneeUser.lastName}`, newTaskDate)}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.dueDate}</label>
@@ -495,9 +506,7 @@ function TodosPageContent() {
                       className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-card px-2 text-sm"
                     >
                       <option value="">{d.todos.assignToMe}</option>
-                      {assignableUsers.map((u) => (
-                        <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                      ))}
+                      <AssigneeOptions users={assignableUsers} flags={subtaskDraftLeaveFlags} />
                     </select>
                     <ThaiDateInput
                       value={subDraft.dueDate}
@@ -516,6 +525,17 @@ function TodosPageContent() {
                       {d.taskDetail.addSubtask}
                     </Button>
                   </div>
+                  {subDraft.assigneeId && subtaskDraftLeaveFlags.has(subDraft.assigneeId) && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      {leaveWarning(
+                        (() => {
+                          const u = assignableUsers.find((x) => x.id === subDraft.assigneeId);
+                          return u ? `${u.firstName} ${u.lastName}` : '';
+                        })(),
+                        subtaskDraftDate,
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
               <div>
