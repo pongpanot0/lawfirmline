@@ -18,6 +18,13 @@ const TIME = new Intl.DateTimeFormat('th-TH', {
 });
 const DAY_KEY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' });
 
+/** Every person on the event — its assignee rows, or the case's lead lawyer. */
+function eventPeopleIds(event: CalendarEventItem): string[] {
+  if (event.assignees?.length) return event.assignees.map((a) => a.userId);
+  if (event.assigneeId) return [event.assigneeId];
+  return event.case?.leadLawyer ? [event.case.leadLawyer.id] : [];
+}
+
 /**
  * ตารางของทั้งสำนักงานเรียงเป็นวัน — เจ้าของสำนักงานต้องเห็นว่าวันนั้นใครไปไหนบ้าง
  * ปฏิทินเดือนบอกได้แค่ว่ามีนัด แต่ไม่บอกว่าคนคนเดียวถูกจองซ้อนกัน
@@ -67,8 +74,10 @@ export function FirmDayAgenda({
         // คนเดียวมีมากกว่าหนึ่งนัดในวันเดียว = ต้องมองก่อนเพื่อน
         const perPerson = new Map<string, number>();
         for (const e of dayEvents) {
-          const who = e.assigneeId ?? e.case?.leadLawyer?.id ?? 'unassigned';
-          perPerson.set(who, (perPerson.get(who) ?? 0) + 1);
+          const people = eventPeopleIds(e);
+          for (const who of people.length ? people : ['unassigned']) {
+            perPerson.set(who, (perPerson.get(who) ?? 0) + 1);
+          }
         }
         const clashing = new Set(
           [...perPerson.entries()].filter(([who, n]) => n > 1 && who !== 'unassigned').map(([who]) => who),
@@ -114,17 +123,28 @@ export function FirmDayAgenda({
                         ` · ${event.courtName ?? event.case?.courtName}`}
                     </span>
                   </span>
-                  <span
-                    className={`max-w-36 rounded-full px-2 py-0.5 text-xs ${
-                      clashing.has(event.assigneeId ?? event.case?.leadLawyer?.id ?? '')
-                        ? 'bg-amber-100 font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                        : !event.assigneeId && !event.case?.leadLawyer
-                          ? 'bg-red-100 font-medium text-red-800 dark:bg-red-950 dark:text-red-300'
-                          : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {event.assigneeId ? nameOf(event.assigneeId) : event.case?.leadLawyer ? `${event.case.leadLawyer.firstName} ${event.case.leadLawyer.lastName} · เจ้าของคดี` : 'ยังไม่ระบุผู้รับผิดชอบ'}
-                  </span>
+                  {(() => {
+                    const people = eventPeopleIds(event);
+                    const anyClash = people.some((id) => clashing.has(id));
+                    const names = event.assigneeId
+                      ? people.map((id) => nameOf(id)).join(', ')
+                      : event.case?.leadLawyer
+                        ? `${event.case.leadLawyer.firstName} ${event.case.leadLawyer.lastName} · เจ้าของคดี`
+                        : 'ยังไม่ระบุผู้รับผิดชอบ';
+                    return (
+                      <span
+                        className={`max-w-36 rounded-full px-2 py-0.5 text-xs ${
+                          anyClash
+                            ? 'bg-amber-100 font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                            : people.length === 0
+                              ? 'bg-red-100 font-medium text-red-800 dark:bg-red-950 dark:text-red-300'
+                              : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {names}
+                      </span>
+                    );
+                  })()}
                 </button>
               ))}
             </div>

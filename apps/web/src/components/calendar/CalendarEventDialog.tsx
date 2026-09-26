@@ -7,6 +7,8 @@ import { useAuth } from '@/lib/auth';
 import { formatDateTime } from '@/lib/utils';
 import { api, CalendarEventItem, CaseItem, TravelResult, UserItem } from '@/lib/api';
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
+import { useLeaveFlags } from '@/lib/use-leave-flags';
+import { leaveWarning } from '@/lib/leave-flags';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
@@ -73,6 +75,20 @@ export function CalendarEventDialog({
    */
   const [mode, setMode] = useState<'view' | 'edit'>(event ? 'view' : 'edit');
 
+  // form.startAt is already a Bangkok wall-clock value (see bangkokInputValue),
+  // so its date portion is the Bangkok calendar day without further conversion.
+  const eventDate = form.startAt.slice(0, 10);
+  const leaveFlags = useLeaveFlags(token, eventDate);
+
+  const toggleAssignee = (userId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      assigneeIds: prev.assigneeIds.includes(userId)
+        ? prev.assigneeIds.filter((id) => id !== userId)
+        : [...prev.assigneeIds, userId],
+    }));
+  };
+
   useEffect(() => {
     setForm(initialForm(event, caseId, caseCourtName, defaultDate));
     setSavedId(event?.id ?? null);
@@ -93,8 +109,8 @@ export function CalendarEventDialog({
       courtName: form.type === 'COURT_DATE' ? form.courtName || undefined : undefined,
       startAt: bangkokInputToIso(form.startAt),
       type: form.type,
-      // No pick means "nobody named", which the API reads as the lead lawyer.
-      assigneeId: form.assigneeId || undefined,
+      // An empty list means "nobody named", which the API reads as the lead lawyer.
+      assigneeIds: form.assigneeIds,
     };
 
     try {
@@ -164,7 +180,14 @@ export function CalendarEventDialog({
       DEADLINE: d.calendar.typeDeadline,
       OTHER: d.calendar.typeOther,
     };
-    const assignee = users.find((u) => u.id === event.assigneeId);
+    // Prefer the API's embedded names; fall back to the roster lookup, then
+    // to the legacy single assigneeId when the event carries no rows at all.
+    const assigneeNames = event.assignees?.length
+      ? event.assignees.map((a) => `${a.user.firstName} ${a.user.lastName}`)
+      : (() => {
+          const single = users.find((u) => u.id === event.assigneeId);
+          return single ? [`${single.firstName} ${single.lastName}`] : [];
+        })();
     const courtName = event.type === 'COURT_DATE' ? event.courtName || event.case?.courtName : null;
     const rows: { label: string; value: React.ReactNode }[] = [
       { label: d.calendar.eventType, value: typeLabels[event.type] ?? event.type },
@@ -182,7 +205,7 @@ export function CalendarEventDialog({
         : []),
       {
         label: d.calendar.assignee,
-        value: assignee ? `${assignee.firstName} ${assignee.lastName}` : d.calendar.assigneeLead,
+        value: assigneeNames.length ? assigneeNames.join(', ') : d.calendar.assigneeLead,
       },
       ...(event.description ? [{ label: d.calendar.eventDescription, value: event.description }] : []),
     ];
@@ -291,24 +314,56 @@ export function CalendarEventDialog({
             />
           </label>
 
-          <label className="block text-sm">
+          <div className="block text-sm">
             <span className="mb-1 block text-muted-foreground">{d.calendar.assignee}</span>
-            <select
-              value={form.assigneeId}
-              onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}
-              className={SELECT_CLASS}
-            >
-              <option value="">{d.calendar.assigneeLead}</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.firstName} {u.lastName}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-1 rounded-lg border border-input bg-card p-2">
+              {users.map((u) => {
+                const checked = form.assigneeIds.includes(u.id);
+                const isPrimary = form.assigneeIds[0] === u.id;
+                const flag = leaveFlags.get(u.id);
+                return (
+                  <label key={u.id} className="flex items-center gap-2 py-0.5">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleAssignee(u.id)}
+                    />
+                    <span className="flex-1">{u.firstName} {u.lastName}</span>
+                    {isPrimary && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        หลัก
+                      </span>
+                    )}
+                    {flag && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs ${
+                          flag.kind === 'ON_LEAVE'
+                            ? 'bg-amber-100 font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {flag.label}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
             <span className="mt-1 block text-xs text-muted-foreground">
               {d.calendar.assigneeHint}
             </span>
-          </label>
+            {form.assigneeIds
+              .filter((id) => leaveFlags.has(id))
+              .map((id) => {
+                const u = users.find((user) => user.id === id);
+                if (!u) return null;
+                return (
+                  <p key={id} className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                    {leaveWarning(`${u.firstName} ${u.lastName}`, eventDate)}
+                  </p>
+                );
+              })}
+          </div>
 
           <label className="block text-sm">
             <span className="mb-1 block text-muted-foreground">{d.calendar.eventDescription}</span>
@@ -363,6 +418,12 @@ function initialForm(
   currentUserId?: string,
 ) {
   if (event) {
+    // Row order from the API is unreliable — put the primary person first,
+    // then the rest, falling back to the legacy single assigneeId.
+    const rest = (event.assignees ?? [])
+      .map((a) => a.userId)
+      .filter((id) => id !== event.assigneeId);
+    const assigneeIds = event.assigneeId ? [event.assigneeId, ...rest] : rest;
     return {
       caseId: event.case?.id ?? caseId ?? '',
       title: event.title,
@@ -370,7 +431,7 @@ function initialForm(
       courtName: event.courtName ?? event.case?.courtName ?? '',
       startAt: bangkokInputValue(event.startAt),
       type: event.type,
-      assigneeId: event.assigneeId ?? '',
+      assigneeIds,
     };
   }
 
@@ -384,6 +445,6 @@ function initialForm(
     startAt: `${day}T09:00`,
     type: 'COURT_DATE',
     // คนสร้างนัดมักสร้างให้ตัวเอง — ตั้งตัวเองเป็นผู้รับผิดชอบไว้ก่อน เปลี่ยนได้
-    assigneeId: currentUserId ?? '',
+    assigneeIds: currentUserId ? [currentUserId] : [],
   };
 }
