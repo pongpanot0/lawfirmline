@@ -1,21 +1,37 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
+  ActivityType,
   AuthUser,
   CARGO_CLAIM_PLAYBOOK_KEY,
   CARGO_CLAIM_PLAYBOOK_NAME,
   CARGO_CLAIM_PLAYBOOK_STEPS,
   CARGO_DOCUMENT_REQUIREMENTS,
   CargoPlaybookTemplate,
+  CaseStage,
+  DeadlineDayBasis,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { AutomationLogService } from '../common/services/automation-log.service';
+import { CaseFeedService } from '../common/services/case-feed.service';
+import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface CheckedRow extends ImportRow { row: number; existingClientId: string | null; errors: string[] }
 export interface Ledger { cases: { id: string; updatedAt: string }[]; clients: { id: string; updatedAt: string }[] }
 export type FirmRoleStr = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
-export interface PlaybookStep { title: string; instructions: string; primaryRole?: FirmRoleStr; secondaryRole?: FirmRoleStr }
+export interface PlaybookStep {
+  title: string;
+  instructions: string;
+  primaryRole?: FirmRoleStr;
+  secondaryRole?: FirmRoleStr;
+  stage?: CaseStage;
+  offsetDays?: number;
+  dayBasis?: 'CALENDAR' | 'BUSINESS';
+}
+export interface StageTaskProposal { title: string; description: string; dueDate: string | null; assigneeId: string | null; releaseName: string }
+export interface StageTaskInput { title: string; description?: string; dueDate?: string | null; assigneeId?: string | null }
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 
 /**
@@ -40,7 +56,14 @@ export function resolveAssignee(params: {
 }
 @Injectable()
 export class PracticeSetupService {
-  constructor(private prisma: PrismaService, private access: CaseAccessService, private automationLog: AutomationLogService) {}
+  constructor(
+    private prisma: PrismaService,
+    private access: CaseAccessService,
+    private automationLog: AutomationLogService,
+    private deadlineRules: DeadlineRulesService,
+    private assignmentNotifier: AssignmentNotifierService,
+    private caseFeed: CaseFeedService,
+  ) {}
   private owner(user: AuthUser) { if (user.firmRole !== 'OWNER') throw new ForbiddenException('เจ้าของสำนักงานเท่านั้น / Firm owner required'); }
   async progress(user: AuthUser) {
     this.owner(user);
@@ -208,5 +231,109 @@ export class PracticeSetupService {
       await this.automationLog.record({ firmId: user.firmId, automation: 'playbook-apply', trigger: { caseId, releaseId, by: user.id }, result: { taskIds: applied.taskIds } });
       return applied;
     });
+  }
+
+  /**
+   * Steps due for a stage, drawn from every release already applied to the case
+   * plus the latest version of each release matching the case's case type —
+   * deduped by title so an applied release and its own case-type release don't
+   * double up the same step.
+   */
+  async proposeStageTasks(user: AuthUser, caseId: string, stage: CaseStage, today: Date = new Date()): Promise<StageTaskProposal[]> {
+    const c = await this.prisma.case.findFirst({ where: { id: caseId, ...this.access.getCaseFilterForUser(user) } });
+    if (!c) throw new NotFoundException('Case not found');
+
+    const [applied, byCaseType] = await Promise.all([
+      this.prisma.appliedPlaybook.findMany({ where: { caseId }, include: { release: true } }),
+      this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId, caseTypeId: c.caseTypeId } }),
+    ]);
+    const latestByName = new Map<string, (typeof byCaseType)[number]>();
+    for (const r of byCaseType) {
+      const existing = latestByName.get(r.name);
+      if (!existing || r.version > existing.version) latestByName.set(r.name, r);
+    }
+    const releases = [...applied.map((a) => a.release), ...latestByName.values()];
+
+    const stepsByTitle = new Map<string, { step: PlaybookStep; releaseName: string }>();
+    for (const release of releases) {
+      for (const step of release.steps as unknown as PlaybookStep[]) {
+        if (step.stage !== stage || stepsByTitle.has(step.title)) continue;
+        stepsByTitle.set(step.title, { step, releaseName: release.name });
+      }
+    }
+    if (!stepsByTitle.size) return [];
+
+    const [team, firmMembers] = await Promise.all([
+      this.prisma.caseAssignment.findMany({ where: { caseId }, select: { userId: true } }),
+      this.prisma.firmMember.findMany({ where: { firmId: user.firmId }, select: { userId: true, role: true } }),
+    ]);
+    const teamIds = new Set([c.leadLawyerId, ...team.map((t) => t.userId)]);
+
+    return Promise.all(
+      [...stepsByTitle.values()].map(async ({ step, releaseName }) => ({
+        title: step.title,
+        description: step.instructions,
+        dueDate:
+          step.offsetDays == null
+            ? null
+            : this.deadlineRules.computeDueDate(
+                today,
+                step.offsetDays,
+                (step.dayBasis ?? 'CALENDAR') as DeadlineDayBasis,
+                await this.deadlineRules.loadHolidays(today, step.offsetDays, this.prisma),
+              ),
+        assigneeId: resolveAssignee({ primaryRole: step.primaryRole, secondaryRole: step.secondaryRole, firmMembers, teamIds, ownerId: c.leadLawyerId }),
+        releaseName,
+      })),
+    );
+  }
+
+  /** Creates the confirmed subset of a stage's proposed tasks and notifies their assignees. */
+  async createStageTasks(user: AuthUser, caseId: string, stage: CaseStage, tasks: StageTaskInput[]): Promise<{ created: number; taskIds: string[] }> {
+    const c = await this.prisma.case.findFirst({ where: { id: caseId, ...this.access.getCaseFilterForUser(user) } });
+    if (!c) throw new NotFoundException('Case not found');
+
+    const assigneeIds = [...new Set(tasks.map((t) => t.assigneeId).filter((id): id is string => !!id))];
+    if (assigneeIds.length) {
+      const members = await this.prisma.firmMember.findMany({ where: { firmId: user.firmId, userId: { in: assigneeIds } }, select: { userId: true } });
+      const memberIds = new Set(members.map((m) => m.userId));
+      if (assigneeIds.some((id) => !memberIds.has(id))) throw new BadRequestException('ผู้รับผิดชอบต้องเป็นสมาชิกสำนักงาน / Assignee must be a firm member of this case');
+    }
+
+    const created = await Promise.all(
+      tasks.map((t) =>
+        this.prisma.task.create({
+          data: {
+            caseId,
+            title: t.title.trim(),
+            description: t.description ?? null,
+            dueDate: t.dueDate ? new Date(t.dueDate) : null,
+            assigneeId: t.assigneeId ?? null,
+            createdById: user.id,
+            labels: [`stage:${stage}`],
+          },
+        }),
+      ),
+    );
+    const taskIds = created.map((t) => t.id);
+    const userIds = [...new Set(created.map((t) => t.assigneeId).filter((id): id is string => !!id))];
+
+    if (userIds.length) {
+      try {
+        await this.assignmentNotifier.notifyAssigned({
+          firmId: user.firmId,
+          userIds,
+          actorUserId: user.id,
+          summaryText: `งานใหม่จากขั้น ${stage}: ${taskIds.length} งาน`,
+          entityPath: `/cases/${caseId}?tab=tasks`,
+        });
+      } catch {
+        // LINE sends never fail the mutation that triggered them.
+      }
+    }
+
+    await this.caseFeed.log({ caseId, userId: user.id, type: ActivityType.TASK, title: `สร้าง ${taskIds.length} งานจากขั้นคดี` });
+
+    return { created: taskIds.length, taskIds };
   }
 }
