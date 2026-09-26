@@ -156,12 +156,3 @@ export interface LeaveItem {
   endDate: string;
 }
 
-export interface TimeSuggestion {
-  sourceKey: string;
-  source: 'event' | 'task' | 'review' | 'messages';
-  caseId: string;
-  caseRef: string | null;
-  description: string;
-  hours: number | null;
-  date: string;
-}

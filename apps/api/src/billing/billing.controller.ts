@@ -16,7 +16,6 @@ import { Response } from 'express';
 import { BillingService } from './billing.service';
 import { CashAdvanceService } from './cash-advance.service';
 import { CollectionsService } from './collections.service';
-import { TimeSuggestionsService } from './time-suggestions.service';
 import {
   CreateTimeEntryDto,
   CreateExpenseDto,
@@ -28,7 +27,6 @@ import {
   SubmitExpensesDto,
   IssueCashAdvanceDto,
   RecordPaymentDto,
-  ConfirmTimeEntriesDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -50,28 +48,7 @@ export class BillingController {
     private fileStorage: FileStorageService,
     private cashAdvanceService: CashAdvanceService,
     private collectionsService: CollectionsService,
-    private timeSuggestionsService: TimeSuggestionsService,
   ) {}
-
-  @Get('time-entries/suggestions')
-  getTimeSuggestions(@CurrentUser() user: AuthUser, @Query('date') date: string) {
-    return this.timeSuggestionsService.suggest(user, date);
-  }
-
-  @Post('time-entries/confirm')
-  confirmTimeEntries(@CurrentUser() user: AuthUser, @Body() dto: ConfirmTimeEntriesDto) {
-    return this.timeSuggestionsService.confirm(user, dto.entries);
-  }
-
-  @Get('time-entries')
-  getFirmTimesheet(
-    @CurrentUser() user: AuthUser,
-    @Query('from') from: string,
-    @Query('to') to: string,
-    @Query('userId') userId?: string,
-  ) {
-    return this.timeSuggestionsService.timesheet(user, { from, to, userId });
-  }
 
   @Get('petty-cash')
   @UseGuards(RolesGuard)

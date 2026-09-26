@@ -15,7 +15,6 @@ import type {
   MyDayResponse,
   OwnerKpis,
   TaskItem,
-  TimeSuggestion,
   WorkloadResponse,
 } from './types';
 
@@ -291,27 +290,6 @@ export function useSubmitExpenses() {
   });
 }
 
-export function useTimeSuggestions(date: string) {
-  return useQuery({
-    queryKey: ['time-suggestions', date],
-    queryFn: () => api<TimeSuggestion[]>(`/time-entries/suggestions?date=${date}`),
-  });
-}
-
-export function useConfirmTime() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (entries: {
-      caseId: string;
-      hours: number;
-      description: string;
-      date: string;
-      sourceKey?: string;
-      billable?: boolean;
-    }[]) => api<{ created: number }>('/time-entries/confirm', { method: 'POST', body: { entries } }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['time-suggestions'] }),
-  });
-}
 
 export function useCreateIntake() {
   return useMutation({
