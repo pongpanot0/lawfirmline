@@ -2,7 +2,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  ArrayMaxSize,
   ArrayMinSize,
   IsNotEmpty,
   IsBoolean,
@@ -238,42 +237,6 @@ export class CreateInvoiceDto {
   @IsArray()
   @IsUUID('4', { each: true })
   expenseIds?: string[];
-}
-
-export class ConfirmTimeEntryDto {
-  @IsUUID()
-  caseId!: string;
-
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.25)
-  @Max(24)
-  hours!: number;
-
-  @Trim()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(500)
-  description!: string;
-
-  @IsDateString()
-  date!: string;
-
-  @IsOptional()
-  @IsString()
-  sourceKey?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  billable?: boolean;
-}
-
-export class ConfirmTimeEntriesDto {
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(50)
-  @ValidateNested({ each: true })
-  @Type(() => ConfirmTimeEntryDto)
-  entries!: ConfirmTimeEntryDto[];
 }
 
 export class RecordPaymentDto {

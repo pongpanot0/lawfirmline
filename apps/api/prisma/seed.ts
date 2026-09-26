@@ -156,7 +156,7 @@ async function main() {
       type: 'INDIVIDUAL',
       contacts: {
         create: [
-          { name: 'John Smith', email: 'john.smith@email.com', phone: '081-234-5678', isPrimary: true, portalEnabled: true },
+          { name: 'John Smith', email: 'john.smith@email.com', phone: '081-234-5678', isPrimary: true, portalEnabled: true, passwordHash },
           { name: 'Jane Smith', email: 'jane.smith@email.com', phone: '082-345-6789', position: 'Spouse' },
         ],
       },
@@ -416,6 +416,7 @@ async function main() {
   console.log('  Senior:    senior@lawfirm.com');
   console.log('  Lawyers:   lawyer1@lawfirm.com, lawyer2@lawfirm.com');
   console.log('  Assistant: assistant@lawfirm.com');
+  console.log('  Client portal: john.smith@email.com (password123) at /portal/login');
 }
 
 main()

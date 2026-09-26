@@ -100,7 +100,6 @@ export default function RootLayout() {
               <Stack.Screen name="event/new" options={{ title: 'นัดหมายใหม่' }} />
               <Stack.Screen name="scan/[caseId]" options={{ title: 'สแกนเอกสาร' }} />
               <Stack.Screen name="reports" options={{ title: 'รายงาน' }} />
-              <Stack.Screen name="timesheet" options={{ title: 'ยืนยันเวลา' }} />
               <Stack.Screen name="knowledge" options={{ title: 'คลังความรู้' }} />
               <Stack.Screen name="operations" options={{ title: 'งานพักไว้' }} />
               <Stack.Screen
