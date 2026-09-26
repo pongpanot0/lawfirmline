@@ -232,7 +232,7 @@ describe('TasksService on-hold', () => {
 
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.DONE },
+        data: { status: TaskStatus.DONE, completedAt: expect.any(Date) },
       });
     });
 
@@ -382,7 +382,7 @@ describe('TasksService on-hold', () => {
 
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.DONE },
+        data: { status: TaskStatus.DONE, completedAt: expect.any(Date) },
       });
     });
 
