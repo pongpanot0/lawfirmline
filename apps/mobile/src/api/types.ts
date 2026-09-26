@@ -129,3 +129,20 @@ export interface CourtDayResponse {
     updatedAt: string | null;
   };
 }
+
+export interface OwnerKpis {
+  month: string;
+  unbilled: { amount: number; caseCount: number };
+  collectionRate: { value: number | null; target: 0.95; billed: number; collected: number };
+  avgDaysOutstanding: number | null;
+  revenue: { month: number; previousMonth: number };
+  byLawyer: Array<{
+    userId: string;
+    name: string;
+    openCases: number;
+    billed: number;
+    collected: number;
+    rate: number | null;
+  }>;
+  stuckByStage: Array<{ stage: string; count: number; oldestDays: number }>;
+}

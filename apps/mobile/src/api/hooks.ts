@@ -12,6 +12,7 @@ import type {
   CourtDayState,
   DashboardStats,
   MyDayResponse,
+  OwnerKpis,
   TaskItem,
   WorkloadResponse,
 } from './types';
@@ -327,6 +328,15 @@ export function useReportsSummary() {
   return useQuery({
     queryKey: ['reports-summary'],
     queryFn: () => api<ReportsSummary>('/reports/summary'),
+  });
+}
+
+/** OWNER only — 403s for everyone else, so don't retry the failure. */
+export function useOwnerKpis() {
+  return useQuery({
+    queryKey: ['owner-kpis'],
+    queryFn: () => api<OwnerKpis>('/operations/owner-kpis'),
+    retry: false,
   });
 }
 

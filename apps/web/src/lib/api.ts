@@ -209,6 +209,23 @@ export interface WorkflowMetrics {
   overdueDocumentRequests: number;
 }
 
+export interface OwnerKpis {
+  month: string;
+  unbilled: { amount: number; caseCount: number };
+  collectionRate: { value: number | null; target: 0.95; billed: number; collected: number };
+  avgDaysOutstanding: number | null;
+  revenue: { month: number; previousMonth: number };
+  byLawyer: Array<{
+    userId: string;
+    name: string;
+    openCases: number;
+    billed: number;
+    collected: number;
+    rate: number | null;
+  }>;
+  stuckByStage: Array<{ stage: string; count: number; oldestDays: number }>;
+}
+
 export interface SopItem {
   id: string;
   title: string;
@@ -1608,6 +1625,9 @@ export const api = {
 
   getWorkflowMetrics: (token: string, days = 30) =>
     request<WorkflowMetrics>(`/operations/workflow-metrics?days=${days}`, { token }),
+
+  getOwnerKpis: (token: string, month?: string) =>
+    request<OwnerKpis>(`/operations/owner-kpis${month ? `?month=${month}` : ''}`, { token }),
 
   listSops: (token: string, q?: string) =>
     request<SopItem[]>(`/sops${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),

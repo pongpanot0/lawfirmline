@@ -12,6 +12,7 @@ import {
   ReportsSummary,
 } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
+import { OwnerKpiSection } from '@/components/reports/OwnerKpiSection';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InlineEmptyState, PageLoading, TableEmptyRow } from '@/components/ui/misc';
 import {
@@ -180,6 +181,8 @@ export default function ReportsPage() {
             : fmt(d.reports.descriptionOwner, { firm: data.firmName })
         }
       />
+
+      {user.firmRole === 'OWNER' && token && <OwnerKpiSection token={token} />}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard

@@ -1,12 +1,13 @@
 import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useReportsSummary } from '@/api/hooks';
+import { useOwnerKpis, useReportsSummary } from '@/api/hooks';
 import { Card, ErrorNote, Loading, SectionLabel, StatCard, Tag } from '@/components/ui';
 import { colors, spacing } from '@/theme';
 
 /** Read-only summary cards — the full report builder stays on web. */
 export default function ReportsScreen() {
   const reports = useReportsSummary();
+  const ownerKpis = useOwnerKpis();
 
   if (reports.isLoading) return <Loading />;
   if (reports.isError || !reports.data)
@@ -28,6 +29,46 @@ export default function ReportsScreen() {
       }
     >
       <Tag tone="info">{scope === 'firm' ? 'ภาพรวมทั้งสำนักงาน' : 'เฉพาะคดีของฉัน'}</Tag>
+
+      {ownerKpis.isSuccess && ownerKpis.data && (
+        <>
+          <SectionLabel>ภาพรวมเจ้าของสำนักงาน</SectionLabel>
+          <View style={styles.statRow}>
+            <StatCard
+              label="ยังไม่วางบิล"
+              value={`${ownerKpis.data.unbilled.amount.toLocaleString('th-TH')} ฿`}
+            />
+            <StatCard
+              label="อัตราเก็บเงินได้"
+              value={
+                ownerKpis.data.collectionRate.value != null
+                  ? `${Math.round(ownerKpis.data.collectionRate.value * 100)}%`
+                  : '—'
+              }
+              tone={
+                ownerKpis.data.collectionRate.value != null &&
+                ownerKpis.data.collectionRate.value < ownerKpis.data.collectionRate.target
+                  ? 'warn'
+                  : undefined
+              }
+            />
+          </View>
+          <View style={[styles.statRow, { marginTop: spacing.sm }]}>
+            <StatCard
+              label="หนี้ค้างเฉลี่ย"
+              value={
+                ownerKpis.data.avgDaysOutstanding != null
+                  ? `${ownerKpis.data.avgDaysOutstanding} วัน`
+                  : '—'
+              }
+            />
+            <StatCard
+              label="รายได้เดือนนี้"
+              value={`${ownerKpis.data.revenue.month.toLocaleString('th-TH')} ฿`}
+            />
+          </View>
+        </>
+      )}
 
       <View style={styles.statRow}>
         <StatCard label="ปิดคดีปีนี้" value={kpis.casesClosedYtd} />
