@@ -217,25 +217,48 @@ export class DocumentsService {
     file: Express.Multer.File,
     meta: DocumentMetadataDto = {},
   ) {
+    return this.createFromBuffer(user, caseId, {
+      filename: decodeUploadFilename(file.originalname),
+      buffer: this.getFileBuffer(file),
+      mimeType: file.mimetype,
+      category: meta.category as DocumentCategory | undefined,
+      documentDate: meta.documentDate,
+      tags: meta.tags,
+    });
+  }
+
+  /** Shared upload path: create → audit → store → version → case feed. Used by `upload` and generated documents (e.g. templates). */
+  async createFromBuffer(
+    user: AuthUser,
+    caseId: string,
+    args: {
+      filename: string;
+      buffer: Buffer;
+      mimeType: string;
+      category?: DocumentCategory;
+      documentDate?: string;
+      tags?: string[];
+    },
+  ) {
     const document = await this.prisma.document.create({
       data: {
         caseId,
-        filename: decodeUploadFilename(file.originalname),
+        filename: args.filename,
         storagePath: '',
-        mimeType: file.mimetype,
+        mimeType: args.mimeType,
         version: 1,
-        category: (meta.category ?? DocumentCategory.OTHER) as never,
-        documentDate: meta.documentDate ? new Date(meta.documentDate) : undefined,
-        tags: meta.tags ?? [],
+        category: (args.category ?? DocumentCategory.OTHER) as never,
+        documentDate: args.documentDate ? new Date(args.documentDate) : undefined,
+        tags: args.tags ?? [],
         uploadedById: user.id,
       },
     });
 
     await this.audit(user, 'DOCUMENT_UPLOADED', { caseId, documentId: document.id, filename: document.filename });
 
-    const ext = path.extname(decodeUploadFilename(file.originalname));
+    const ext = path.extname(args.filename);
     const key = path.posix.join('cases', caseId, `${document.id}_v1${ext}`);
-    const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
+    const storagePath = await this.fileStorage.put(key, args.buffer, args.mimeType);
 
     const updated = await this.prisma.document.update({
       where: { id: document.id },
@@ -247,8 +270,8 @@ export class DocumentsService {
         documentId: document.id,
         version: 1,
         storagePath,
-        filename: decodeUploadFilename(file.originalname),
-        mimeType: file.mimetype,
+        filename: args.filename,
+        mimeType: args.mimeType,
         createdById: user.id,
       },
     });
