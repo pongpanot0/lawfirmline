@@ -14,6 +14,8 @@ export const AI_CREDIT_COST = {
   RAG_QA: 1,
   /** ถามกฎหมายไทยจาก facts ที่เลือก (iApp deka search). */
   LEGAL_ASK: 3,
+  /** ร่างคำคู่ความจากสำนวน (AI, ผู้ใช้กดเอง) */
+  DRAFT_PLEADING: 10,
 } as const;
 
 /** MIME types document analysis can read. */

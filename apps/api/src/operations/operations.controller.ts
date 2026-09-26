@@ -61,4 +61,9 @@ export class OperationsController {
   getOnHoldTasks(@CurrentUser() user: AuthUser) {
     return this.operationsService.getOnHoldTasks(user);
   }
+
+  @Get('owner-kpis')
+  getOwnerKpis(@CurrentUser() user: AuthUser, @Query('month') month?: string) {
+    return this.operationsService.getOwnerKpis(user, month);
+  }
 }

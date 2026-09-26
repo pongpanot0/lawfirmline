@@ -2,6 +2,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ArrayMaxSize,
   ArrayMinSize,
   IsNotEmpty,
   IsBoolean,
@@ -24,6 +25,7 @@ import {
   MONEY_MAX,
   MONEY_MIN,
 } from '@lawfirm/shared';
+import { PaymentMethod } from '../../generated/prisma';
 
 /** Trim incoming strings so "   " does not pass @IsNotEmpty. */
 const Trim = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
@@ -236,4 +238,61 @@ export class CreateInvoiceDto {
   @IsArray()
   @IsUUID('4', { each: true })
   expenseIds?: string[];
+}
+
+export class ConfirmTimeEntryDto {
+  @IsUUID()
+  caseId!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.25)
+  @Max(24)
+  hours!: number;
+
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  description!: string;
+
+  @IsDateString()
+  date!: string;
+
+  @IsOptional()
+  @IsString()
+  sourceKey?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  billable?: boolean;
+}
+
+export class ConfirmTimeEntriesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => ConfirmTimeEntryDto)
+  entries!: ConfirmTimeEntryDto[];
+}
+
+export class RecordPaymentDto {
+  @Type(() => Number)
+  @IsNumber(money)
+  @Min(0.01)
+  @Max(MONEY_MAX)
+  amount!: number;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  method?: PaymentMethod;
+
+  @IsDateString()
+  receivedAt!: string;
+
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }

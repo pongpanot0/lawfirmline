@@ -62,4 +62,14 @@ export class TemplatesController {
   ) {
     return this.templatesService.render(user.firmId, templateId, caseId);
   }
+
+  @Post('cases/:caseId/document-templates/:templateId/generate')
+  @UseGuards(CaseAccessGuard)
+  generate(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('templateId') templateId: string,
+  ) {
+    return this.templatesService.generate(user, caseId, templateId);
+  }
 }

@@ -1,8 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, AssignmentType, CaseStatus, Role, TaskStatus } from '@lawfirm/shared';
-import { Prisma } from '../generated/prisma';
+import { ExpenseStatus, InvoiceStatus, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { WorkloadQueryDto } from './dto/operations.dto';
+import { bangkokMonthOf, collectionRate, monthRange, stuckByStage } from './owner-kpis';
+
+const round = (n: number) => Math.round(n * 100) / 100;
+const DAY_MS = 86400000;
 
 interface ActiveCaseRow {
   id: string;
@@ -419,6 +423,120 @@ export class OperationsService {
         };
       })
       .sort((a, b) => b.count - a.count || a.members.length - b.members.length);
+  }
+
+  /**
+   * Owner KPI summary for a Bangkok calendar month: unbilled work, collection
+   * rate against the 95% target, aging, revenue vs. the previous month, a
+   * per-lawyer breakdown, and cases stuck past the firm's SLA in their stage.
+   */
+  async getOwnerKpis(user: AuthUser, month?: string) {
+    const now = new Date();
+    const resolvedMonth = month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : bangkokMonthOf(now);
+    const { start, end, prevStart } = monthRange(resolvedMonth);
+    const firmId = user.firmId;
+    const yearAgo = new Date(now.getTime() - 365 * DAY_MS);
+
+    const [timeEntries, expenses, invoices, revenueAgg, prevRevenueAgg, openCases, sla] = await Promise.all([
+      this.prisma.timeEntry.findMany({
+        where: { billable: true, invoiceId: null, case: { firmId, deletedAt: null } },
+        select: { hours: true, rate: true, caseId: true },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          billable: true,
+          invoiceId: null,
+          status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] },
+          case: { firmId, deletedAt: null },
+        },
+        select: { amount: true, caseId: true },
+      }),
+      this.prisma.invoice.findMany({
+        where: { firmId, status: { not: InvoiceStatus.DRAFT } },
+        select: {
+          status: true,
+          issuedAt: true,
+          totalAmount: true,
+          case: { select: { leadLawyerId: true } },
+          payments: { select: { amount: true } },
+        },
+      }),
+      this.prisma.invoicePayment.aggregate({ _sum: { amount: true }, where: { firmId, receivedAt: { gte: start, lt: end } } }),
+      this.prisma.invoicePayment.aggregate({ _sum: { amount: true }, where: { firmId, receivedAt: { gte: prevStart, lt: start } } }),
+      this.prisma.case.findMany({
+        where: { firmId, deletedAt: null, status: { notIn: [CaseStatus.CLOSED, CaseStatus.ARCHIVED] } },
+        select: { leadLawyerId: true, stage: true, stageChangedAt: true, createdAt: true },
+      }),
+      this.getSlaConfig(user),
+    ]);
+
+    const unbilledAmount = round(
+      timeEntries.reduce((sum, e) => sum + e.hours * e.rate, 0) + expenses.reduce((sum, e) => sum + e.amount, 0),
+    );
+    const unbilledCaseCount = new Set([
+      ...timeEntries.map((e) => e.caseId),
+      ...expenses.map((e) => e.caseId).filter((id): id is string => !!id),
+    ]).size;
+    const unbilledHours = round(timeEntries.reduce((sum, e) => sum + e.hours, 0));
+
+    const billedInvoices = invoices.filter((inv) => inv.issuedAt && inv.issuedAt >= yearAgo);
+    const paidOf = (inv: (typeof invoices)[number]) => inv.payments.reduce((sum, p) => sum + p.amount, 0);
+    const billed = round(billedInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0));
+    const collected = round(billedInvoices.reduce((sum, inv) => sum + paidOf(inv), 0));
+
+    const sentOutstanding = invoices
+      .filter((inv) => inv.status === InvoiceStatus.SENT && inv.issuedAt)
+      .map((inv) => ({ issuedAt: inv.issuedAt!, outstanding: round(inv.totalAmount - paidOf(inv)) }))
+      .filter((inv) => inv.outstanding > 0.005);
+    const avgDaysOutstanding = sentOutstanding.length
+      ? Math.round(
+          sentOutstanding.reduce((sum, inv) => sum + (now.getTime() - inv.issuedAt.getTime()) / DAY_MS, 0) /
+            sentOutstanding.length,
+        )
+      : null;
+
+    const byLawyerTotals = new Map<string, { billed: number; collected: number }>();
+    for (const inv of billedInvoices) {
+      const lawyerId = inv.case?.leadLawyerId;
+      if (!lawyerId) continue;
+      const entry = byLawyerTotals.get(lawyerId) ?? { billed: 0, collected: 0 };
+      entry.billed += inv.totalAmount;
+      entry.collected += paidOf(inv);
+      byLawyerTotals.set(lawyerId, entry);
+    }
+    const openCaseCountByLawyer = new Map<string, number>();
+    for (const c of openCases) {
+      openCaseCountByLawyer.set(c.leadLawyerId, (openCaseCountByLawyer.get(c.leadLawyerId) ?? 0) + 1);
+    }
+    const lawyerIds = new Set([...byLawyerTotals.keys(), ...openCaseCountByLawyer.keys()]);
+    const lawyers = lawyerIds.size
+      ? await this.prisma.user.findMany({ where: { id: { in: [...lawyerIds] } }, select: { id: true, firstName: true, lastName: true } })
+      : [];
+    const nameById = new Map(lawyers.map((l) => [l.id, `${l.firstName} ${l.lastName}`.trim()]));
+    const byLawyer = [...lawyerIds].map((userId) => {
+      const totals = byLawyerTotals.get(userId) ?? { billed: 0, collected: 0 };
+      return {
+        userId,
+        name: nameById.get(userId) ?? 'Unknown',
+        openCases: openCaseCountByLawyer.get(userId) ?? 0,
+        billed: round(totals.billed),
+        collected: round(totals.collected),
+        rate: collectionRate(totals.billed, totals.collected),
+      };
+    });
+
+    return {
+      month: resolvedMonth,
+      unbilled: { amount: unbilledAmount, caseCount: unbilledCaseCount, hours: unbilledHours },
+      collectionRate: { value: collectionRate(billed, collected), target: 0.95 as const, billed, collected },
+      avgDaysOutstanding,
+      revenue: {
+        month: round(revenueAgg._sum.amount ?? 0),
+        previousMonth: round(prevRevenueAgg._sum.amount ?? 0),
+      },
+      byLawyer,
+      stuckByStage: stuckByStage(openCases, sla.stuckStatusDays, now),
+    };
   }
 
   async getOnHoldTasks(user: AuthUser) {

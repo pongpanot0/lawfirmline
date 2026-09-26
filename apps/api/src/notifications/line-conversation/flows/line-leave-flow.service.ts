@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { LeaveType } from '../../../generated/prisma';
+import { LeaveStatus, LeaveType } from '../../../generated/prisma';
 import { LeaveService } from '../../../leave/leave.service';
 import { LineMessagingService, QuickReplyItem } from '../../line-messaging.service';
 import { LineConversationStoreService } from '../line-conversation-store.service';
@@ -103,15 +103,18 @@ export class LineLeaveFlowService {
         this.store.clear(session.lineUserId);
         return this.reply(session, 'บัญชี LINE ไม่ตรงกับสำนักงาน กรุณาเชื่อมบัญชีใหม่ครับ');
       }
+      let status: LeaveStatus;
       try {
         const data = session.data as { type: LeaveType; startDate: string; endDate: string };
-        await this.leaves.create(user, data);
+        ({ status } = await this.leaves.create(user, data));
       } catch (error) {
         if (error instanceof BadRequestException) return this.reply(session, String(error.message));
         throw error;
       }
       this.store.clear(session.lineUserId);
-      return this.reply(session, 'บันทึกการลาในปฏิทินแล้วครับ ✅');
+      return this.reply(session, status === LeaveStatus.PENDING
+        ? 'ส่งคำขอลาแล้ว รออนุมัติจากเจ้าของสำนักงาน'
+        : 'บันทึกการลาในปฏิทินแล้วครับ ✅');
     }
     this.store.clear(session.lineUserId);
     return this.reply(session, 'รายการหมดเวลาแล้วครับ พิมพ์ "ลางาน" เพื่อเริ่มใหม่');

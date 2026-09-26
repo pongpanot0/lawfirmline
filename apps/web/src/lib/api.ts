@@ -55,11 +55,11 @@ export class ApiError extends Error {
 
 async function request<T>(
   path: string,
-  options: RequestInit & { token?: string; refreshAuth?: boolean } = {},
+  options: RequestInit & { token?: string; refreshAuth?: boolean; silent?: boolean } = {},
 ): Promise<T> {
-  const { token, refreshAuth = true, ...fetchOptions } = options;
+  const { token, refreshAuth = true, silent = false, ...fetchOptions } = options;
   const method = (fetchOptions.method ?? 'GET').toUpperCase();
-  const isAction = isActionRequest(method);
+  const isAction = isActionRequest(method) && !silent;
   const isFormData = fetchOptions.body instanceof FormData;
   const headers: HeadersInit = withFirmSlugHeaders({
     ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
@@ -209,6 +209,23 @@ export interface WorkflowMetrics {
   overdueDocumentRequests: number;
 }
 
+export interface OwnerKpis {
+  month: string;
+  unbilled: { amount: number; caseCount: number; hours: number };
+  collectionRate: { value: number | null; target: 0.95; billed: number; collected: number };
+  avgDaysOutstanding: number | null;
+  revenue: { month: number; previousMonth: number };
+  byLawyer: Array<{
+    userId: string;
+    name: string;
+    openCases: number;
+    billed: number;
+    collected: number;
+    rate: number | null;
+  }>;
+  stuckByStage: Array<{ stage: string; count: number; oldestDays: number }>;
+}
+
 export interface SopItem {
   id: string;
   title: string;
@@ -274,13 +291,25 @@ export interface CalendarEventItem {
   case?: { id: string; ownRef: string; title: string; courtName?: string | null; leadLawyer?: { id: string; firstName: string; lastName: string } };
 }
 
+export interface LeaveCourtConflict {
+  eventId: string;
+  caseId: string;
+  caseRef: string | null;
+  title: string;
+  courtName: string | null;
+  startAt: string;
+}
+
 export interface LeaveItem {
   id: string;
   userId: string;
   type: 'SICK' | 'PERSONAL' | 'VACATION';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
   startDate: string;
   endDate: string;
+  decidedAt: string | null;
   user: { firstName: string; lastName: string };
+  courtConflicts?: LeaveCourtConflict[];
 }
 
 /** ลูกค้า = ผู้ว่าจ้าง/ผู้จ่ายเงิน ต่างจากลูกความ (client) ที่เราว่าความให้ */
@@ -617,6 +646,22 @@ export interface TaskPerson {
   lastName: string;
 }
 
+// งานที่ Playbook แนะนำเมื่อเรื่องย้ายเข้าขั้นตอนหนึ่ง
+export interface StageTaskProposal {
+  title: string;
+  description: string;
+  dueDate: string | null;
+  assigneeId: string | null;
+  releaseName: string;
+}
+
+export interface StageTaskDraft {
+  title: string;
+  description?: string;
+  dueDate?: string | null;
+  assigneeId?: string | null;
+}
+
 export interface TaskItem {
   id: string;
   caseId?: string | null;
@@ -817,9 +862,59 @@ export interface FirmInvoiceItem {
   invoiceNumber: string;
   status: string;
   totalAmount: number;
+  issuedAt?: string | null;
   dueAt?: string | null;
   ownRef: string;
   clientName: string;
+}
+
+export interface InvoicePaymentItem {
+  id: string;
+  amount: number;
+  method: 'TRANSFER' | 'CHEQUE' | 'CASH' | 'OTHER';
+  receivedAt: string;
+  note?: string | null;
+  recordedById: string;
+  createdAt: string;
+}
+
+export interface RecordInvoicePaymentInput {
+  amount: number;
+  method?: 'TRANSFER' | 'CHEQUE' | 'CASH' | 'OTHER';
+  receivedAt: string;
+  note?: string;
+}
+
+export interface RecordInvoicePaymentResult {
+  invoice: FirmInvoiceItem;
+  payment: InvoicePaymentItem;
+  outstanding: number;
+}
+
+export interface ReceivablesRow {
+  id: string;
+  invoiceNumber: string;
+  customerName: string | null;
+  caseId: string | null;
+  caseRef: string | null;
+  totalAmount: number;
+  paidAmount: number;
+  outstanding: number;
+  issuedAt: string | null;
+  dueAt: string | null;
+  daysOverdue: number;
+  bucket: '0-30' | '31-60' | '61-90' | '90+';
+  lastReminderAt: string | null;
+}
+
+export interface ReceivablesResult {
+  buckets: { '0-30': number; '31-60': number; '61-90': number; '90+': number };
+  rows: ReceivablesRow[];
+}
+
+export interface RemindInvoiceResult {
+  sent: number;
+  linkedContacts: number;
 }
 
 export interface IntakeItem {
@@ -1306,6 +1401,26 @@ export const api = {
   getFirmInvoices: (token: string) =>
     request<FirmInvoiceItem[]>('/invoices', { token }),
 
+  markInvoiceSent: (token: string, invoiceId: string) =>
+    request<FirmInvoiceItem>(`/invoices/${invoiceId}/send`, { method: 'PATCH', token }),
+
+  recordInvoicePayment: (token: string, invoiceId: string, data: RecordInvoicePaymentInput) =>
+    request<RecordInvoicePaymentResult>(`/invoices/${invoiceId}/payments`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  getInvoicePayments: (token: string, invoiceId: string) =>
+    request<InvoicePaymentItem[]>(`/invoices/${invoiceId}/payments`, { token }),
+
+  getReceivables: (token: string) =>
+    request<ReceivablesResult>('/invoices/receivables', { token }),
+
+  /** เงียบ — เรียกทีละใบระหว่างทวงหลายใบพร้อมกัน ให้ toast สรุปรวมทำหน้าที่แจ้งผลแทน */
+  remindInvoice: (token: string, invoiceId: string) =>
+    request<RemindInvoiceResult>(`/invoices/${invoiceId}/remind`, { method: 'POST', token, silent: true }),
+
   getCases: (
     token: string,
     params?: {
@@ -1539,6 +1654,9 @@ export const api = {
   getWorkflowMetrics: (token: string, days = 30) =>
     request<WorkflowMetrics>(`/operations/workflow-metrics?days=${days}`, { token }),
 
+  getOwnerKpis: (token: string, month?: string) =>
+    request<OwnerKpis>(`/operations/owner-kpis${month ? `?month=${month}` : ''}`, { token }),
+
   listSops: (token: string, q?: string) =>
     request<SopItem[]>(`/sops${q ? `?q=${encodeURIComponent(q)}` : ''}`, { token }),
 
@@ -1618,6 +1736,16 @@ export const api = {
 
   getTasks: (token: string, caseId: string) =>
     request<TaskItem[]>(`/cases/${caseId}/tasks`, { token }),
+
+  // Playbook step ที่ผูกกับขั้นตอนคดี — เสนองานให้สร้างตอนย้ายขั้น
+  getStageTaskProposals: (token: string, caseId: string, stage: string) =>
+    request<StageTaskProposal[]>(`/practice-setup/cases/${caseId}/stage-tasks?stage=${stage}`, { token }),
+  createStageTasks: (token: string, caseId: string, stage: string, tasks: StageTaskDraft[]) =>
+    request<{ created: number; taskIds: string[] }>(`/practice-setup/cases/${caseId}/stage-tasks`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ stage, tasks }),
+    }),
 
   // งาน/checklist ของเรื่องรับเข้า — เปิดคดีแล้วงานถูกย้ายไปเป็นงานคดีอัตโนมัติ
   getIntakeTasks: (token: string, intakeId: string) =>
@@ -1814,6 +1942,10 @@ export const api = {
 
   getLeaves: (token: string, from: string, to: string) =>
     request<LeaveItem[]>(`/leaves?${new URLSearchParams({ from, to })}`, { token }),
+  createLeave: (token: string, data: { type: 'SICK' | 'PERSONAL' | 'VACATION'; startDate: string; endDate: string }) =>
+    request<LeaveItem>('/leaves', { token, method: 'POST', body: JSON.stringify(data) }),
+  decideLeave: (token: string, id: string, decision: 'APPROVED' | 'REJECTED') =>
+    request<LeaveItem>(`/leaves/${id}/decision`, { token, method: 'PATCH', body: JSON.stringify({ decision }) }),
   cancelLeave: (token: string, id: string) =>
     request(`/leaves/${id}`, { token, method: 'DELETE' }),
 
@@ -2030,6 +2162,22 @@ export const api = {
   getTimeEntries: (token: string, caseId: string) =>
     request<TimeEntryItem[]>(`/cases/${caseId}/billing/time-entries`, { token }),
 
+  getTimeSuggestions: (token: string, date: string) =>
+    request<TimeSuggestion[]>(`/time-entries/suggestions?date=${date}`, { token }),
+
+  confirmTimeEntries: (token: string, entries: ConfirmTimeEntryInput[]) =>
+    request<{ created: number }>('/time-entries/confirm', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ entries }),
+    }),
+
+  getFirmTimesheet: (token: string, params: { from: string; to: string; userId?: string }) => {
+    const qs = new URLSearchParams({ from: params.from, to: params.to });
+    if (params.userId) qs.set('userId', params.userId);
+    return request<FirmTimesheetResponse>(`/time-entries?${qs.toString()}`, { token });
+  },
+
   getInvoices: (token: string, caseId: string) =>
     request<InvoiceItem[]>(`/cases/${caseId}/billing/invoices`, { token }),
 
@@ -2216,7 +2364,7 @@ export const api = {
     token: string,
     caseId: string,
     id: string,
-    overrides: { expectedUpdatedAt?: string; label?: string; date?: string; eventType?: string },
+    overrides: { expectedUpdatedAt?: string; label?: string; date?: string; eventType?: string; assigneeId?: string },
   ) =>
     request<DateSuggestionItem>(`/cases/${caseId}/date-suggestions/${id}/confirm`, {
       method: 'POST',
@@ -2346,9 +2494,44 @@ export const api = {
   },
 
   renderTemplate: (token: string, caseId: string, templateId: string) =>
-    request<{ name: string; content: string }>(
+    request<{ name: string; content: string; variables: Record<string, string>; missingFields: string[] }>(
       `/cases/${caseId}/document-templates/${templateId}/render`,
       { token },
+    ),
+
+  generateTemplateDocx: (token: string, caseId: string, templateId: string) =>
+    request<{ documentId: string; filename: string }>(
+      `/cases/${caseId}/document-templates/${templateId}/generate`,
+      { method: 'POST', token, silent: true },
+    ),
+
+  generatePleadingDraft: (
+    token: string,
+    caseId: string,
+    data: { kind: string; instructions?: string; documentIds?: string[] },
+  ) =>
+    request<PleadingDraftItem>(`/cases/${caseId}/pleading-drafts`, {
+      method: 'POST',
+      token,
+      silent: true,
+      body: JSON.stringify(data),
+    }),
+
+  getPleadingDrafts: (token: string, caseId: string) =>
+    request<PleadingDraftItem[]>(`/cases/${caseId}/pleading-drafts`, { token }),
+
+  updatePleadingDraft: (token: string, caseId: string, draftId: string, bodyText: string) =>
+    request<PleadingDraftItem>(`/cases/${caseId}/pleading-drafts/${draftId}`, {
+      method: 'PATCH',
+      token,
+      silent: true,
+      body: JSON.stringify({ bodyText }),
+    }),
+
+  approvePleadingDraft: (token: string, caseId: string, draftId: string) =>
+    request<PleadingDraftItem & { documentId: string }>(
+      `/cases/${caseId}/pleading-drafts/${draftId}/approve`,
+      { method: 'POST', token, silent: true },
     ),
 
   calculateTravel: (token: string, destination: string, origin?: string) => {
@@ -2910,6 +3093,26 @@ export interface DocumentTemplateItem {
   description?: string | null;
 }
 
+export interface PleadingCitation {
+  n: number;
+  documentId: string;
+  filename: string;
+  pageStart: number | null;
+  snippet: string;
+}
+
+export interface PleadingDraftItem {
+  id: string;
+  kind: string;
+  instructions: string | null;
+  bodyText: string;
+  citations: PleadingCitation[];
+  unsupportedParagraphs: number[];
+  status: 'DRAFT' | 'APPROVED';
+  documentId: string | null;
+  createdAt: string;
+}
+
 export interface TimeEntryItem {
   id: string;
   hours: number;
@@ -2917,6 +3120,50 @@ export interface TimeEntryItem {
   description?: string;
   date: string;
   user: { firstName: string; lastName: string };
+}
+
+export interface TimeSuggestion {
+  sourceKey: string;
+  source: 'event' | 'task' | 'review' | 'messages';
+  caseId: string;
+  caseRef: string | null;
+  description: string;
+  hours: number | null;
+  date: string;
+}
+
+export interface ConfirmTimeEntryInput {
+  caseId: string;
+  hours: number;
+  description: string;
+  date: string;
+  sourceKey?: string;
+  billable?: boolean;
+}
+
+export interface FirmTimesheetEntry {
+  id: string;
+  date: string;
+  hours: number;
+  description: string | null;
+  billable: boolean;
+  caseId: string;
+  caseRef: string | null;
+  userId: string;
+  userName: string;
+  invoiced: boolean;
+}
+
+export interface FirmTimesheetTotal {
+  userId: string;
+  userName: string;
+  hours: number;
+  billableHours: number;
+}
+
+export interface FirmTimesheetResponse {
+  entries: FirmTimesheetEntry[];
+  totals: FirmTimesheetTotal[];
 }
 
 export interface InvoiceItem {

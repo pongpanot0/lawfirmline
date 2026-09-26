@@ -12,7 +12,9 @@ import type {
   CourtDayState,
   DashboardStats,
   MyDayResponse,
+  OwnerKpis,
   TaskItem,
+  TimeSuggestion,
   WorkloadResponse,
 } from './types';
 
@@ -280,6 +282,28 @@ export function useSubmitExpenses() {
   });
 }
 
+export function useTimeSuggestions(date: string) {
+  return useQuery({
+    queryKey: ['time-suggestions', date],
+    queryFn: () => api<TimeSuggestion[]>(`/time-entries/suggestions?date=${date}`),
+  });
+}
+
+export function useConfirmTime() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (entries: {
+      caseId: string;
+      hours: number;
+      description: string;
+      date: string;
+      sourceKey?: string;
+      billable?: boolean;
+    }[]) => api<{ created: number }>('/time-entries/confirm', { method: 'POST', body: { entries } }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['time-suggestions'] }),
+  });
+}
+
 export function useCreateIntake() {
   return useMutation({
     mutationFn: (body: {
@@ -327,6 +351,16 @@ export function useReportsSummary() {
   return useQuery({
     queryKey: ['reports-summary'],
     queryFn: () => api<ReportsSummary>('/reports/summary'),
+  });
+}
+
+/** OWNER only — pass `enabled` from the user's firm role so non-owners never hit the 403. */
+export function useOwnerKpis(enabled: boolean) {
+  return useQuery({
+    queryKey: ['owner-kpis'],
+    queryFn: () => api<OwnerKpis>('/operations/owner-kpis'),
+    enabled,
+    retry: false,
   });
 }
 

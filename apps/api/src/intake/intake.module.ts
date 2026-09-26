@@ -13,7 +13,7 @@ import { RagModule } from '../rag/rag.module';
 import { CargoClaimsModule } from '../cargo-claims/cargo-claims.module';
 
 @Module({
-  imports: [TasksModule, IntelligenceModule, DocumentsModule, ConflictCheckModule, RagModule, CargoClaimsModule, forwardRef(() => NotificationsModule)],
+  imports: [forwardRef(() => TasksModule), forwardRef(() => IntelligenceModule), forwardRef(() => DocumentsModule), ConflictCheckModule, forwardRef(() => RagModule), forwardRef(() => CargoClaimsModule), forwardRef(() => NotificationsModule)],
   controllers: [IntakeController],
   providers: [
     IntakeService,

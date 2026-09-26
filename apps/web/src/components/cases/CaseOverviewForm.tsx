@@ -18,6 +18,7 @@ export interface CaseOverviewValues {
   title: string; ownRef: string; customerRef: string; caseTypeId: string;
   blackCaseNumber: string; redCaseNumber: string; courtLevel: string; courtName: string;
   partyRole: string; claimedAmount: string; chargeSection: string; estimatedFee: string; description: string;
+  opposingParty: string; incidentDate: string; estimatedDamage: string;
   clientId: string; clientName: string; customers: CaseOverviewCustomerValue[];
 }
 
@@ -52,6 +53,8 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
         <label className="text-sm">ฝ่ายที่สำนักงานเป็นทนายให้<select value={value.partyRole} onChange={e => set('partyRole', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option><option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option><option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option></select></label>
         <label className="text-sm sm:col-span-2">ข้อหาหรือฐานความผิด<textarea rows={2} maxLength={2000} value={value.chargeSection} onChange={e => set('chargeSection', e.target.value)} placeholder="เช่น ละเมิด เรียกค่าเสียหาย / ผิดสัญญา" className={input} /><span className="mt-1 block text-xs text-muted-foreground">ระบุเรื่องที่ฟ้องหรือฐานความผิด ใช้ในคำฟ้องหน้าแรกและปกสำนวน</span></label>
         <label className="text-sm sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี<textarea rows={4} value={value.description} onChange={e => set('description', e.target.value)} placeholder="สรุปเหตุการณ์และประเด็นสำคัญของคดี" className={input} /></label>
+        <label className="text-sm">คู่กรณี<input value={value.opposingParty} onChange={e => set('opposingParty', e.target.value)} className={input} /></label>
+        <label className="text-sm">วันเกิดเหตุ<input type="date" value={value.incidentDate.slice(0, 10)} onChange={e => set('incidentDate', e.target.value)} className={input} /></label>
       </section>
       <section className={group} aria-labelledby="case-people-heading">
         <div className="sm:col-span-2"><h3 id="case-people-heading" className="text-base font-bold tracking-tight">ลูกความและผู้ว่าจ้าง</h3><p className="mt-1 text-xs text-muted-foreground">ลูกความคือฝ่ายที่สำนักงานว่าความให้ ส่วนผู้ว่าจ้างคือผู้ติดต่อหรือผู้ชำระค่าบริการ</p></div>
@@ -85,6 +88,7 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
         <label className="text-sm">เลขอ้างอิงสำนักงาน *<input required value={value.ownRef} onChange={e => set('ownRef', e.target.value)} className={input} /></label>
         <label className="text-sm">เลขอ้างอิงลูกค้า (ผู้ว่าจ้าง)<input value={value.customerRef} onChange={e => set('customerRef', e.target.value)} className={input} /></label>
         <label className="text-sm">ทุนทรัพย์ (บาท)<input type="number" min="0" max={FEE_MAX} step="0.01" value={value.claimedAmount} onChange={e => set('claimedAmount', e.target.value)} className={input} /><span className="mt-1 block text-xs text-muted-foreground">จำนวนเงินที่เรียกร้องในคดี</span></label>
+        <label className="text-sm">ความเสียหายโดยประมาณ (บาท)<input type="number" min="0" max={FEE_MAX} step="0.01" value={value.estimatedDamage} onChange={e => set('estimatedDamage', e.target.value)} className={input} /></label>
         <label className="text-sm">ค่าจ้างทนายโดยประมาณ (บาท)<input type="number" min="0" max={FEE_MAX} step="0.01" value={value.estimatedFee} onChange={e => set('estimatedFee', e.target.value)} className={input} /><span className="mt-1 block text-xs text-muted-foreground">รายได้ของสำนักงาน แยกจากทุนทรัพย์</span></label>
       </section>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

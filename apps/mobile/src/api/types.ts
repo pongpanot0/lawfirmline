@@ -11,6 +11,7 @@ export interface AuthUserInfo {
   firstName: string;
   lastName: string;
   role: string;
+  firmRole?: string | null;
   firmId?: string;
   firmName?: string;
 }
@@ -128,4 +129,31 @@ export interface CourtDayResponse {
     completedAt: string | null;
     updatedAt: string | null;
   };
+}
+
+export interface OwnerKpis {
+  month: string;
+  unbilled: { amount: number; caseCount: number; hours: number };
+  collectionRate: { value: number | null; target: 0.95; billed: number; collected: number };
+  avgDaysOutstanding: number | null;
+  revenue: { month: number; previousMonth: number };
+  byLawyer: Array<{
+    userId: string;
+    name: string;
+    openCases: number;
+    billed: number;
+    collected: number;
+    rate: number | null;
+  }>;
+  stuckByStage: Array<{ stage: string; count: number; oldestDays: number }>;
+}
+
+export interface TimeSuggestion {
+  sourceKey: string;
+  source: 'event' | 'task' | 'review' | 'messages';
+  caseId: string;
+  caseRef: string | null;
+  description: string;
+  hours: number | null;
+  date: string;
 }

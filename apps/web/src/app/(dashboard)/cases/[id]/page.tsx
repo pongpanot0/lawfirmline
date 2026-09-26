@@ -100,7 +100,10 @@ import {
   IntakePrecedentAnalysisItem,
   type CaseOutstandingResult,
   type RequiredDocumentsResult,
+  type StageTaskProposal,
+  type StageTaskDraft,
 } from '@/lib/api';
+import { StageTasksDialog } from '@/components/cases/StageTasksDialog';
 import { caseStageLabel, caseStageOptions, documentCategoryLabel } from '@/lib/stage-labels';
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
@@ -186,6 +189,9 @@ export default function CaseDetailPage() {
     chargeSection: '',
     estimatedFee: '',
     description: '',
+    opposingParty: '',
+    incidentDate: '',
+    estimatedDamage: '',
     clientId: '',
     clientName: '',
     customers: [] as CaseOverviewCustomerValue[],
@@ -204,6 +210,9 @@ export default function CaseDetailPage() {
   const [outstanding, setOutstanding] = useState<CaseOutstandingResult | null>(null);
   const [ackOutstanding, setAckOutstanding] = useState(false);
   const [savingStage, setSavingStage] = useState(false);
+  const [pendingStage, setPendingStage] = useState<string | null>(null);
+  const [stageTaskProposals, setStageTaskProposals] = useState<StageTaskProposal[]>([]);
+  const [stageTaskError, setStageTaskError] = useState('');
   const [editingTeam, setEditingTeam] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
   const [teamError, setTeamError] = useState('');
@@ -381,14 +390,77 @@ export default function CaseDetailPage() {
     }
   };
 
+  const applyStageChange = async (stage: string) => {
+    if (!token || !id) return;
+    await api.updateCase(token, id, { stage });
+    loadCase();
+  };
+
   const handleStageChange = async (stage: string) => {
     if (!token || !id || stage === legalCase?.stage) return;
     setSavingStage(true);
     try {
-      await api.updateCase(token, id, { stage });
-      loadCase();
+      let proposals: StageTaskProposal[] = [];
+      try {
+        proposals = await api.getStageTaskProposals(token, id, stage);
+      } catch (err) {
+        console.error(err);
+      }
+      if (!proposals.length) {
+        await applyStageChange(stage);
+        return;
+      }
+      if (lawyers.length === 0) {
+        api.getLawyers(token).then(setLawyers).catch(() => {});
+      }
+      setStageTaskError('');
+      setStageTaskProposals(proposals);
+      setPendingStage(stage);
     } catch (err) {
       console.error(err);
+    } finally {
+      setSavingStage(false);
+    }
+  };
+
+  const closeStageTaskDialog = () => {
+    setPendingStage(null);
+    setStageTaskProposals([]);
+    setStageTaskError('');
+  };
+
+  const handleStageOnly = async () => {
+    if (!pendingStage) return;
+    setSavingStage(true);
+    try {
+      await applyStageChange(pendingStage);
+      closeStageTaskDialog();
+    } catch (err) {
+      console.error(err);
+      setStageTaskError('ย้ายขั้นไม่สำเร็จ');
+    } finally {
+      setSavingStage(false);
+    }
+  };
+
+  const handleStageAndCreateTasks = async (tasks: StageTaskDraft[]) => {
+    if (!token || !id || !pendingStage) return;
+    setSavingStage(true);
+    setStageTaskError('');
+    try {
+      await applyStageChange(pendingStage);
+      try {
+        await api.createStageTasks(token, id, pendingStage, tasks);
+        loadCase();
+      } catch (err) {
+        console.error(err);
+        setStageTaskError('ย้ายขั้นแล้ว แต่สร้างงานไม่สำเร็จ');
+        return;
+      }
+      closeStageTaskDialog();
+    } catch (err) {
+      console.error(err);
+      setStageTaskError('ย้ายขั้นไม่สำเร็จ');
     } finally {
       setSavingStage(false);
     }
@@ -448,6 +520,9 @@ export default function CaseDetailPage() {
       estimatedFee:
         legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
       description: legalCase.description ?? '',
+      opposingParty: String(legalCase.customFields?.opposingParty ?? ''),
+      incidentDate: String(legalCase.customFields?.incidentDate ?? ''),
+      estimatedDamage: String(legalCase.customFields?.estimatedDamage ?? ''),
       clientId: legalCase.clientId ?? '',
       clientName: legalCase.client?.name ?? legalCase.clientName ?? '',
       customers: legalCase.customers?.length
@@ -522,6 +597,9 @@ export default function CaseDetailPage() {
         customFields: {
           ...(legalCase.customFields ?? {}),
           chargeSection: overviewForm.chargeSection.trim(),
+          opposingParty: overviewForm.opposingParty.trim(),
+          incidentDate: overviewForm.incidentDate,
+          estimatedDamage: overviewForm.estimatedDamage,
         },
         description: overviewForm.description.trim() || null,
       }) as CaseDetail;
@@ -792,6 +870,17 @@ export default function CaseDetailPage() {
             );
           })}
         </div>
+        {stageTaskError && <p role="alert" className="text-sm text-destructive">{stageTaskError}</p>}
+        <StageTasksDialog
+          open={pendingStage !== null}
+          stageLabel={pendingStage ? caseStageLabel(pendingStage, 'th') : ''}
+          proposals={stageTaskProposals}
+          lawyers={lawyers}
+          busy={savingStage}
+          onClose={closeStageTaskDialog}
+          onSkip={handleStageOnly}
+          onConfirm={handleStageAndCreateTasks}
+        />
         <div className={styles.dangerZone}>
           {legalCase.status !== CaseStatus.CLOSED && legalCase.status !== 'ARCHIVED' ? (
             <Button
@@ -1282,10 +1371,10 @@ export default function CaseDetailPage() {
                 <p className="text-xs text-muted-foreground">ค่าใช้จ่ายที่อนุมัติ</p>
                 <p className="font-medium text-primary">{formatCurrency(totalSpent)}</p>
               </div>
-              {customFields && Object.entries(customFields).filter(([key]) => key !== CASE_COSTS_KEY && key !== 'chargeSection').map(([k, v]) => (
+              {customFields && Object.entries(customFields).filter(([key, value]) => key !== CASE_COSTS_KEY && key !== 'chargeSection' && value !== '').map(([k, v]) => (
                 <div key={k}>
-                  <p className="text-xs text-muted-foreground">{k}</p>
-                  <p className="font-medium">{v}</p>
+                  <p className="text-xs text-muted-foreground">{{ opposingParty: 'คู่กรณี', incidentDate: 'วันเกิดเหตุ', estimatedDamage: 'ความเสียหายโดยประมาณ' }[k] ?? k}</p>
+                  <p className="font-medium">{k === 'incidentDate' ? formatDate(v) : k === 'estimatedDamage' ? formatCurrency(Number(v)) : v}</p>
                 </div>
               ))}
                 </>

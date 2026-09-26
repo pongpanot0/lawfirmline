@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { DateSuggestionStatus, EventType } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
@@ -45,12 +45,28 @@ export class DateSuggestionsService {
           (overrides.expectedUpdatedAt && suggestion.updatedAt.toISOString() !== overrides.expectedUpdatedAt)) {
         throw new ConflictException('Date suggestion changed; review it again');
       }
+      if (suggestion.source === 'DOCUMENT' && !overrides.assigneeId) {
+        throw new BadRequestException('Select a responsible lawyer for this date');
+      }
+      if (overrides.assigneeId) {
+        const legalCase = await db.case.findUnique({ where: { id: caseId }, select: { firmId: true } });
+        const assignee = legalCase && await db.user.findFirst({
+          where: {
+            id: overrides.assigneeId,
+            role: { in: ['ADMIN', 'LAWYER'] },
+            firmMembers: { some: { firmId: legalCase.firmId, role: { in: ['OWNER', 'SENIOR_LAWYER', 'LAWYER'] } } },
+          },
+          select: { id: true },
+        });
+        if (!assignee) throw new BadRequestException('Responsible lawyer is not in this firm');
+      }
       const event = await this.calendarService.createInternal({
         caseId,
         title: overrides.label ?? suggestion.label,
         startAt: overrides.date ?? suggestion.suggestedDate.toISOString(),
         type: (overrides.eventType ?? suggestion.eventType) as EventType,
         reminderMinutes: overrides.reminderMinutes,
+        assigneeId: overrides.assigneeId,
       }, userId, db);
       return db.documentDateSuggestion.update({
         where: { id },

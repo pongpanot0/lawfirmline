@@ -302,6 +302,24 @@ enum InvoiceStatus {
   PAID
 }
 
+enum PaymentMethod {
+  TRANSFER
+  CHEQUE
+  CASH
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PleadingDraftStatus {
+  DRAFT
+  APPROVED
+}
+
 enum KnowledgeCategory {
   SUMMARY
   CONTRACT
@@ -402,6 +420,8 @@ model Firm {
   conflictChecks     ConflictCheck[]
   cargoClaims        CargoClaim[]
   leaves             LeaveRequest[]
+  invoicePayments    InvoicePayment[]
+  pleadingDrafts     PleadingDraft[]
 }
 
 model FirmMember {
@@ -625,12 +645,15 @@ model User {
   createdDateSuggestions     DocumentDateSuggestion[]  @relation("DateSuggestionCreator")
   reviewedDateSuggestions    DocumentDateSuggestion[]  @relation("DateSuggestionReviewer")
   dailyDigestLogs            DailyDigestLog[]
-  leaveRequests              LeaveRequest[]
+  leaveRequests              LeaveRequest[]            @relation("LeaveRequestUser")
+  decidedLeaveRequests       LeaveRequest[]            @relation("LeaveDecider")
   assignedEvents             CalendarEvent[]           @relation("EventAssignee")
   deviceTokens               DeviceToken[]
   caseStatusLogs             CaseStatusLog[]
   sops                       Sop[]
-  confirmedCargoClaims       CargoClaim[]               @relation("CargoClaimConfirmer")
+  confirmedCargoClaims       CargoClaim[]              @relation("CargoClaimConfirmer")
+  recordedInvoicePayments    InvoicePayment[]          @relation("InvoicePaymentRecorder")
+  createdPleadingDrafts      PleadingDraft[]           @relation("PleadingDraftCreator")
 }
 
 /// A mobile device's Expo push token. One row per device; a token moves to
@@ -650,17 +673,17 @@ model DeviceToken {
 }
 
 model CaseType {
-  id          String   @id @default(uuid())
-  firmId      String
-  name        String
-  description String?
-  fieldSchema Json?
+  id                String   @id @default(uuid())
+  firmId            String
+  name              String
+  description       String?
+  fieldSchema       Json?
   /// หมวดเอกสารที่คดีประเภทนี้ต้องมี — `DocumentCategory[]` (ไม่ใช่ข้อความอิสระ
   /// เพื่อให้เทียบกับ `Document.category` ได้ตรง ๆ) ใช้เช็ค missing documents ต่อคดี
   requiredDocuments Json?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   firm          Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
   cases         Case[]
@@ -672,19 +695,19 @@ model CaseType {
 }
 
 model Client {
-  id        String   @id @default(uuid())
-  firmId    String
-  name      String
-  type      String?
-  notes     String?
+  id           String   @id @default(uuid())
+  firmId       String
+  name         String
+  type         String?
+  notes        String?
   /// ข้อมูลออกเอกสาร (ใบแจ้งหนี้/ใบเสร็จ/ใบเสนอราคา) — กรอกได้ทีหลัง ไม่บังคับ
   taxId        String?
   branch       String?
   address      String?
   billingEmail String?
   billingPhone String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   firm                    Firm                     @relation(fields: [firmId], references: [id], onDelete: Cascade)
   contacts                ClientContact[]
@@ -830,6 +853,7 @@ model Case {
   legalQueries       LegalQuery[]
   statusLogs         CaseStatusLog[]
   cargoClaim         CargoClaim?
+  pleadingDrafts     PleadingDraft[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -941,13 +965,13 @@ model Intake {
 
 /// ประวัติการติดตาม lead หนึ่งครั้ง — ทำไปแล้วอะไร และนัดติดตามรอบถัดไปเมื่อไร
 model IntakeFollowUp {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   intakeId    String
-  note        String   @db.Text
-  contacted   Boolean  @default(true)
+  note        String    @db.Text
+  contacted   Boolean   @default(true)
   nextDueAt   DateTime?
   createdById String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   intake    Intake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   createdBy User   @relation("IntakeFollowUpAuthor", fields: [createdById], references: [id])
@@ -986,17 +1010,17 @@ model IntakeDocumentRequest {
 /// ระบบเจอ และคำตัดสินของทนาย เพราะสิ่งที่ต้องพิสูจน์ย้อนหลังได้คือ "ตรวจแล้ว
 /// และตัดสินใจอย่างนี้" ไม่ใช่แค่ผลลัพธ์สุดท้าย
 model ConflictCheck {
-  id           String         @id @default(uuid())
-  firmId       String
-  intakeId     String?
-  searchTerms  String[]
+  id          String         @id @default(uuid())
+  firmId      String
+  intakeId    String?
+  searchTerms String[]
   /// ผลที่ค้นเจอตอนนั้น (snapshot) — ข้อมูลต้นทางเปลี่ยนภายหลังได้
-  matches      Json
-  matchCount   Int            @default(0)
-  result       ConflictResult @default(NEEDS_REVIEW)
-  notes        String?        @db.Text
-  checkedById  String
-  checkedAt    DateTime       @default(now())
+  matches     Json
+  matchCount  Int            @default(0)
+  result      ConflictResult @default(NEEDS_REVIEW)
+  notes       String?        @db.Text
+  checkedById String
+  checkedAt   DateTime       @default(now())
 
   firm      Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
   intake    Intake? @relation(fields: [intakeId], references: [id], onDelete: Cascade)
@@ -1043,8 +1067,8 @@ model IntakePrecedentAnalysis {
   errorMessage    String?        @db.Text
 
   intake    Intake? @relation(fields: [intakeId], references: [id], onDelete: Cascade)
-  case      Case?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
-  createdBy User   @relation(fields: [createdById], references: [id])
+  case      Case?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  createdBy User    @relation(fields: [createdById], references: [id])
 
   @@index([intakeId, createdAt])
   @@index([caseId])
@@ -1111,26 +1135,26 @@ enum TaskPriority {
 }
 
 model Task {
-  id          String       @id @default(uuid())
-  caseId      String?
-  title       String
-  description String?
-  status      TaskStatus   @default(TODO)
-  assigneeId  String?
-  createdById String
-  dueDate     DateTime?
-  source      TaskSource   @default(WEB)
-  parentId    String?
-  priority    TaskPriority @default(MEDIUM)
-  labels      String[]     @default([])
+  id             String       @id @default(uuid())
+  caseId         String?
+  title          String
+  description    String?
+  status         TaskStatus   @default(TODO)
+  assigneeId     String?
+  createdById    String
+  dueDate        DateTime?
+  source         TaskSource   @default(WEB)
+  parentId       String?
+  priority       TaskPriority @default(MEDIUM)
+  labels         String[]     @default([])
   /// งานประจำ: เมื่อปิดงาน ระบบสร้างงานรอบถัดไปให้อัตโนมัติ ครบกำหนด +N วัน
   recurrenceDays Int?
   /// งานนี้เริ่มไม่ได้จนกว่างาน blocker จะเสร็จ (single blocker พอสำหรับ pipeline งานคดี)
-  blockedById String?
+  blockedById    String?
   /// Set on the transition to DONE; legacy tasks remain null.
-  completedAt DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   case           Case?               @relation(fields: [caseId], references: [id], onDelete: Cascade)
   /// งานของเรื่องรับเข้า — เปิดคดีแล้วถูกย้ายไปเป็นงานคดี (caseId แทน intakeId)
@@ -1204,27 +1228,27 @@ model TaskAssignmentLog {
 }
 
 model Document {
-  id              String   @id @default(uuid())
+  id              String           @id @default(uuid())
   caseId          String?
   intakeId        String?
   filename        String
   storagePath     String
   mimeType        String
-  version         Int      @default(1)
+  version         Int              @default(1)
   /// หมวดเอกสาร — enum ไม่ใช่ free text เพราะต้องกรอง/จัดกลุ่ม/ทำรายงานได้จริง
   /// สำนักงานกำหนดว่าคดีประเภทไหนต้องมีหมวดใดผ่าน `CaseType.requiredDocuments`
   category        DocumentCategory @default(OTHER)
   /// วันที่บนหน้าเอกสาร (ไม่ใช่วันอัปโหลด) — เอกสารศาลเรียงด้วยวันที่นี้
   documentDate    DateTime?
-  tags            String[] @default([])
+  tags            String[]         @default([])
   uploadedById    String
-  visibleToClient Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  visibleToClient Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
-  case            Case?                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  intake          Intake?                  @relation(fields: [intakeId], references: [id], onDelete: Cascade)
-  uploadedBy      User                     @relation(fields: [uploadedById], references: [id])
+  case               Case?                      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  intake             Intake?                    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  uploadedBy         User                       @relation(fields: [uploadedById], references: [id])
   versions           DocumentVersion[]
   knowledge          CaseKnowledge[]
   knowledgeCitations KnowledgeCitation[]
@@ -1232,7 +1256,7 @@ model Document {
   publications       DocumentPublication[]
   chunks             DocumentChunk[]
   intakeRequests     IntakeDocumentRequest[]
-  cargoRequirements CargoDocumentRequirement[]
+  cargoRequirements  CargoDocumentRequirement[]
 
   @@index([intakeId])
   @@index([caseId, category])
@@ -1280,12 +1304,12 @@ model CargoClaim {
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
 
-  firm         Firm                       @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  intake       Intake?                    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
-  case         Case?                      @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  confirmedBy  User?                      @relation("CargoClaimConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
-  playbookRelease PlaybookRelease?         @relation(fields: [playbookReleaseId], references: [id], onDelete: SetNull)
-  requirements CargoDocumentRequirement[]
+  firm            Firm                       @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  intake          Intake?                    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  case            Case?                      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  confirmedBy     User?                      @relation("CargoClaimConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+  playbookRelease PlaybookRelease?           @relation(fields: [playbookReleaseId], references: [id], onDelete: SetNull)
+  requirements    CargoDocumentRequirement[]
 
   @@index([firmId])
   @@index([playbookReleaseId])
@@ -1393,20 +1417,24 @@ model CalendarEvent {
 }
 
 model LeaveRequest {
-  id        String    @id @default(uuid())
-  firmId    String
-  userId    String
-  type      LeaveType
-  startDate DateTime  @db.Date
-  endDate   DateTime  @db.Date
-  createdAt DateTime  @default(now())
+  id          String      @id @default(uuid())
+  firmId      String
+  userId      String
+  type        LeaveType
+  startDate   DateTime    @db.Date
+  endDate     DateTime    @db.Date
+  status      LeaveStatus @default(PENDING)
+  decidedById String?
+  decidedAt   DateTime?
+  createdAt   DateTime    @default(now())
 
-  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firm      Firm  @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user      User  @relation("LeaveRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  decidedBy User? @relation("LeaveDecider", fields: [decidedById], references: [id], onDelete: SetNull)
 
+  @@unique([firmId, userId, startDate, endDate])
   @@index([firmId, startDate, endDate])
   @@index([userId, startDate])
-  @@unique([firmId, userId, startDate, endDate])
 }
 
 model LeaveNoticeLog {
@@ -1438,6 +1466,8 @@ model TimeEntry {
   billable    Boolean  @default(true)
   /// ใบแจ้งหนี้ที่เก็บเงินรายการนี้ไปแล้ว — กันออกบิลซ้ำ
   invoiceId   String?
+  /// คีย์กันซ้ำสำหรับรายการที่สร้างจากแหล่งอัตโนมัติ (เช่น ร่างเวลาจากปฏิทิน)
+  sourceKey   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1445,30 +1475,31 @@ model TimeEntry {
   user    User     @relation(fields: [userId], references: [id])
   invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
+  @@unique([userId, sourceKey])
   @@index([invoiceId])
 }
 
 model Expense {
-  id             String        @id @default(uuid())
-  caseId         String?
-  userId         String
+  id                 String        @id @default(uuid())
+  caseId             String?
+  userId             String
   /// Set when this line is part of a submitted claim round.
-  claimId        String?
-  amount         Float
-  description    String
-  category       String?
-  expensePurpose String?
-  status         ExpenseStatus @default(PENDING)
-  date           DateTime      @default(now())
+  claimId            String?
+  amount             Float
+  description        String
+  category           String?
+  expensePurpose     String?
+  status             ExpenseStatus @default(PENDING)
+  date               DateTime      @default(now())
   /// The hearing this cost came from, when it was drafted off one — so a
   /// reimbursement can be traced back to the trip that caused it.
-  sourceEventId  String?
-  paidAt         DateTime?
-  paidById       String?
+  sourceEventId      String?
+  paidAt             DateTime?
+  paidById           String?
   /// Set when this cost was covered out of a cash advance the owner already
   /// handed the claimant — the expense is recorded straight as PAID and never
   /// enters an ExpenseClaim, since there is nothing left to reimburse.
-  paidFromAdvanceId String?
+  paidFromAdvanceId  String?
   /// Optional receipt photo uploaded with the claim.
   receiptFilename    String?
   /// false = สำนักงานออกเอง ไม่ผลักไปเก็บกับลูกค้า
@@ -1477,8 +1508,8 @@ model Expense {
   invoiceId          String?
   receiptStoragePath String?
   receiptMimeType    String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   case            Case?          @relation(fields: [caseId], references: [id], onDelete: SetNull)
   user            User           @relation(fields: [userId], references: [id])
@@ -1509,10 +1540,10 @@ model ExpenseClaim {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  firm        Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  submittedBy User     @relation("ExpenseClaimSubmitter", fields: [submittedById], references: [id])
-  reviewedBy  User?    @relation("ExpenseClaimReviewer", fields: [reviewedById], references: [id])
-  paidBy      User?    @relation("ExpenseClaimPayer", fields: [paidById], references: [id])
+  firm        Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  submittedBy User      @relation("ExpenseClaimSubmitter", fields: [submittedById], references: [id])
+  reviewedBy  User?     @relation("ExpenseClaimReviewer", fields: [reviewedById], references: [id])
+  paidBy      User?     @relation("ExpenseClaimPayer", fields: [paidById], references: [id])
   expenses    Expense[]
 
   @@index([firmId, status])
@@ -1534,15 +1565,15 @@ model PettyCashFund {
 /// those expenses skip the normal claim → approve → reimburse cycle since the
 /// cash already changed hands.
 model CashAdvance {
-  id           String   @id @default(uuid())
-  firmId       String
-  userId       String
-  amount       Float
-  remaining    Float
-  note         String?
-  issuedById   String
-  issuedAt     DateTime @default(now())
-  createdAt    DateTime @default(now())
+  id         String   @id @default(uuid())
+  firmId     String
+  userId     String
+  amount     Float
+  remaining  Float
+  note       String?
+  issuedById String
+  issuedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   firm     Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
   user     User      @relation("CashAdvanceRecipient", fields: [userId], references: [id])
@@ -1709,34 +1740,56 @@ model DocumentTemplate {
 }
 
 model Invoice {
-  id            String        @id @default(uuid())
-  firmId        String
+  id               String        @id @default(uuid())
+  firmId           String
   /// ใบแจ้งหนี้ออกได้โดยไม่มีคดี — จากเรื่องที่รับเข้ามา หรือออกเปล่าให้ลูกค้าดูก่อน
-  caseId        String?
-  intakeId      String?
-  invoiceNumber String        @unique
-  status        InvoiceStatus @default(DRAFT)
-  totalAmount   Float         @default(0)
-  issuedAt      DateTime?
-  dueAt         DateTime?
-  createdById   String
+  caseId           String?
+  intakeId         String?
+  invoiceNumber    String        @unique
+  status           InvoiceStatus @default(DRAFT)
+  totalAmount      Float         @default(0)
+  issuedAt         DateTime?
+  dueAt            DateTime?
+  /// เวลาที่ส่งการแจ้งเตือนทวงเงินครั้งล่าสุด — กันแจ้งซ้ำถี่เกินไป
+  lastReminderAt   DateTime?
+  createdById      String
   billToCustomerId String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  firm          Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  case          Case?             @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  intake        Intake?           @relation(fields: [intakeId], references: [id], onDelete: Cascade)
-  createdBy     User              @relation("InvoiceCreator", fields: [createdById], references: [id])
-  timeEntries   TimeEntry[]
-  expenses      Expense[]
-  billToCustomer Client?          @relation("InvoiceBillTo", fields: [billToCustomerId], references: [id], onDelete: SetNull)
-  lineItems     InvoiceLineItem[]
+  firm           Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  case           Case?             @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  intake         Intake?           @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  createdBy      User              @relation("InvoiceCreator", fields: [createdById], references: [id])
+  timeEntries    TimeEntry[]
+  expenses       Expense[]
+  billToCustomer Client?           @relation("InvoiceBillTo", fields: [billToCustomerId], references: [id], onDelete: SetNull)
+  lineItems      InvoiceLineItem[]
+  payments       InvoicePayment[]
 
   @@index([firmId])
   @@index([caseId])
   @@index([intakeId])
   @@index([billToCustomerId])
+}
+
+model InvoicePayment {
+  id           String        @id @default(uuid())
+  firmId       String
+  invoiceId    String
+  amount       Float
+  method       PaymentMethod @default(TRANSFER)
+  receivedAt   DateTime      @db.Date
+  note         String?
+  recordedById String
+  createdAt    DateTime      @default(now())
+
+  firm       Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  recordedBy User    @relation("InvoicePaymentRecorder", fields: [recordedById], references: [id])
+
+  @@index([invoiceId])
+  @@index([firmId, receivedAt])
 }
 
 /// ลูกค้า (ผู้ว่าจ้าง/ผู้จ่ายเงิน) ของคดี — ต่างจาก Case.clientId ซึ่งคือลูกความที่เราว่าความให้
@@ -1821,23 +1874,23 @@ model InvoiceLineItem {
 }
 
 model ClosingEmailDraft {
-  id                  String                  @id @default(uuid())
+  id                  String                    @id @default(uuid())
   caseId              String
   createdById         String
   subject             String
-  bodyText            String                  @db.Text
-  selectedActivityIds String[]                @default([])
-  missingDataNotes    String[]                @default([])
+  bodyText            String                    @db.Text
+  selectedActivityIds String[]                  @default([])
+  missingDataNotes    String[]                  @default([])
   recipientKind       ClosingEmailRecipientKind @default(CLIENT)
   recipientClientId   String?
-  status              ClosingEmailDraftStatus @default(DRAFT)
+  status              ClosingEmailDraftStatus   @default(DRAFT)
   approvedById        String?
   approvedAt          DateTime?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
 
-  case       Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  createdBy  User  @relation("ClosingEmailDraftCreator", fields: [createdById], references: [id])
+  case            Case    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdBy       User    @relation("ClosingEmailDraftCreator", fields: [createdById], references: [id])
   approvedBy      User?   @relation("ClosingEmailDraftApprover", fields: [approvedById], references: [id])
   recipientClient Client? @relation("ClosingDraftRecipient", fields: [recipientClientId], references: [id], onDelete: SetNull)
 
@@ -1884,16 +1937,16 @@ model TaskOnHold {
   id             String         @id @default(uuid())
   taskId         String         @unique
   category       OnHoldCategory @default(OTHER)
-  reason         String    @db.Text
-  startedAt      DateTime  @default(now())
+  reason         String         @db.Text
+  startedAt      DateTime       @default(now())
   endedAt        DateTime?
   followerUserId String?
   lastFollowUpAt DateTime?
   nextFollowUpAt DateTime?
-  notes          String?   @db.Text
+  notes          String?        @db.Text
   createdById    String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   task      Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
   follower  User? @relation("TaskOnHoldFollower", fields: [followerUserId], references: [id])
@@ -1904,32 +1957,32 @@ model TaskOnHold {
 }
 
 model PortalIntakeSubmission {
-  accessContactIds String[] @default([])
-  revokedContactIds String[] @default([])
-  officeOwnerId String?
-  scopeText String?
-  proposedDate DateTime?
-  agreedDate DateTime?
-  commitmentVersion Int @default(0)
+  accessContactIds          String[]               @default([])
+  revokedContactIds         String[]               @default([])
+  officeOwnerId             String?
+  scopeText                 String?
+  proposedDate              DateTime?
+  agreedDate                DateTime?
+  commitmentVersion         Int                    @default(0)
   acceptedCommitmentVersion Int?
-  agreementAcceptedAt DateTime?
-  deliveredAt DateTime?
-  deliveryAcknowledgedAt DateTime?
-  messages PortalRequestMessage[]
-  id                  String    @id @default(uuid())
-  clientId            String
-  clientContactId     String
-  referenceNumber     String    @unique
-  title               String
-  detail              String    @db.Text
-  clientRequestedDate DateTime?
-  urgencyFlag         Boolean   @default(false)
-  submittedAt         DateTime  @default(now())
-  withdrawnByClient   Boolean   @default(false)
-  withdrawnAt         DateTime?
-  withdrawnReason     String?
-  intakeId            String?   @unique
-  createdAt           DateTime  @default(now())
+  agreementAcceptedAt       DateTime?
+  deliveredAt               DateTime?
+  deliveryAcknowledgedAt    DateTime?
+  messages                  PortalRequestMessage[]
+  id                        String                 @id @default(uuid())
+  clientId                  String
+  clientContactId           String
+  referenceNumber           String                 @unique
+  title                     String
+  detail                    String                 @db.Text
+  clientRequestedDate       DateTime?
+  urgencyFlag               Boolean                @default(false)
+  submittedAt               DateTime               @default(now())
+  withdrawnByClient         Boolean                @default(false)
+  withdrawnAt               DateTime?
+  withdrawnReason           String?
+  intakeId                  String?                @unique
+  createdAt                 DateTime               @default(now())
 
   client        Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   clientContact ClientContact            @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
@@ -2232,29 +2285,30 @@ model CourtDay {
 
 /// Acknowledgement is valid only for the event revision and responsible lawyer recorded here.
 model EventResponsibility {
-  eventId String @id
+  eventId        String        @id
   eventUpdatedAt DateTime
-  ownerId String
-  acceptedAt DateTime?
-  completedAt DateTime?
-  updatedAt DateTime @updatedAt
-  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ownerId        String
+  acceptedAt     DateTime?
+  completedAt    DateTime?
+  updatedAt      DateTime      @updatedAt
+  event          CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 model PortalRequestMessage {
-  id String @id @default(uuid())
+  id           String                 @id @default(uuid())
   submissionId String
-  requestKey String
-  contentHash String
-  authorId String
-  authorKind String
-  body String @db.Text
-  filename String?
-  storagePath String?
-  mimeType String?
-  size Int?
-  createdAt DateTime @default(now())
-  submission PortalIntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  requestKey   String
+  contentHash  String
+  authorId     String
+  authorKind   String
+  body         String                 @db.Text
+  filename     String?
+  storagePath  String?
+  mimeType     String?
+  size         Int?
+  createdAt    DateTime               @default(now())
+  submission   PortalIntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
   @@unique([submissionId, authorId, requestKey])
   @@index([submissionId, createdAt])
 }
@@ -2304,51 +2358,55 @@ model CaseStatusLog {
   @@index([caseId, createdAt])
 }
 
-
 model PlaybookRelease {
-  id String @id @default(uuid())
-  firmId String
-  name String
-  workType String
+  id            String            @id @default(uuid())
+  firmId        String
+  name          String
+  workType      String
   /// ผูกกับประเภทคดี — apply อัตโนมัติ/แนะนำเมื่อเปิดคดีประเภทนี้
-  caseTypeId String?
+  caseTypeId    String?
   /// Stable identity for a reusable system/domain playbook across versions.
-  templateKey String?
+  templateKey   String?
   /// Versioned Cargo document matrix. Matters snapshot this into CargoDocumentRequirement.
   cargoTemplate Json?
-  version Int
-  steps Json
+  version       Int
+  steps         Json
   publishedById String
-  createdAt DateTime @default(now())
-  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  applications AppliedPlaybook[]
-  cargoClaims CargoClaim[]
+  createdAt     DateTime          @default(now())
+  firm          Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  applications  AppliedPlaybook[]
+  cargoClaims   CargoClaim[]
+
   @@unique([firmId, name, version])
   @@index([firmId, templateKey, version])
 }
+
 model AppliedPlaybook {
-  id String @id @default(uuid())
-  caseId String
-  releaseId String
-  taskIds String[] @default([])
+  id          String          @id @default(uuid())
+  caseId      String
+  releaseId   String
+  taskIds     String[]        @default([])
   appliedById String
-  startDate DateTime
-  createdAt DateTime @default(now())
-  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  release PlaybookRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  startDate   DateTime
+  createdAt   DateTime        @default(now())
+  case        Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  release     PlaybookRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+
   @@unique([caseId, releaseId])
 }
+
 model DataImportBatch {
-  id String @id @default(uuid())
-  firmId String
+  id          String    @id @default(uuid())
+  firmId      String
   createdById String
-  rows Json
-  ledger Json?
-  status String @default("PREVIEW")
-  createdAt DateTime @default(now())
+  rows        Json
+  ledger      Json?
+  status      String    @default("PREVIEW")
+  createdAt   DateTime  @default(now())
   committedAt DateTime?
-  undoneAt DateTime?
-  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  undoneAt    DateTime?
+  firm        Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
   @@index([firmId, createdAt])
 }
 
@@ -2412,6 +2470,31 @@ model LegalQuery {
 
   case      Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
   createdBy User @relation("LegalQueryCreator", fields: [createdById], references: [id])
+
+  @@index([caseId, createdAt])
+}
+
+/// ร่างคำคู่ความจาก AI ตามสำนวนคดี — ทนายกดสั่งร่างเอง (AI is user-invoked only)
+/// และต้องยืนยัน (APPROVED) ก่อนนำไปใช้จริง
+model PleadingDraft {
+  id           String              @id @default(uuid())
+  firmId       String
+  caseId       String
+  kind         String
+  instructions String?
+  bodyText     String              @db.Text
+  citations    Json                @default("[]")
+  status       PleadingDraftStatus @default(DRAFT)
+  documentId   String?
+  createdById  String
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  firm      Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  case      Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdBy User @relation("PleadingDraftCreator", fields: [createdById], references: [id])
 
   @@index([caseId, createdAt])
 }

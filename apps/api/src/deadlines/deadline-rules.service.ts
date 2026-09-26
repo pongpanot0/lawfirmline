@@ -276,7 +276,7 @@ export class DeadlineRulesService {
     return !isBangkokWeekend(date) && !holidays.has(bangkokDayKey(date));
   }
 
-  private async loadHolidays(from: Date, maxOffsetDays: number, client: PrismaClientLike = this.prisma): Promise<Set<string>> {
+  async loadHolidays(from: Date, maxOffsetDays: number, client: PrismaClientLike = this.prisma): Promise<Set<string>> {
     const start = bangkokDayStart(from);
     // Business-day counting can run well past the nominal offset, so load a
     // generous window rather than risk missing a holiday mid-count.

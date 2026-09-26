@@ -12,6 +12,7 @@ import { LineTodoFlowService } from './flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './flows/line-expense-flow.service';
 import { LineAdvanceFlowService } from './flows/line-advance-flow.service';
 import { LineLeaveFlowService } from './flows/line-leave-flow.service';
+import { LeaveService } from '../../leave/leave.service';
 import { ConversationSession, ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
 import {
   CANCEL_COMMAND,
@@ -46,6 +47,7 @@ export class LineBotRouterService {
     private config: ConfigService,
     private firmLink: FirmLinkService,
     private leaveFlow: LineLeaveFlowService,
+    private leaveService: LeaveService,
   ) {}
 
   async route(
@@ -66,6 +68,13 @@ export class LineBotRouterService {
     if (!authUser) {
       if (existing) this.store.clear(lineUserId);
       await this.replyUnlinked(lineUserId, target);
+      return;
+    }
+
+    // A leave approve/reject postback works from any chat state and never starts a flow.
+    const leaveDecision = /^leave:(approve|reject):(.+)$/.exec(text);
+    if (leaveDecision) {
+      await this.replyLeaveDecision(authUser, lineUserId, target, leaveDecision[1] === 'approve' ? 'APPROVED' : 'REJECTED', leaveDecision[2]);
       return;
     }
 
@@ -265,6 +274,27 @@ export class LineBotRouterService {
       await this.line.replyHomeMenu(target.replyToken, MENU_QUICK_REPLY);
     } else {
       await this.line.pushHomeMenu(lineUserId, MENU_QUICK_REPLY);
+    }
+  }
+
+  private async replyLeaveDecision(
+    authUser: AuthUser,
+    lineUserId: string,
+    target: ConversationTarget,
+    decision: 'APPROVED' | 'REJECTED',
+    leaveId: string,
+  ): Promise<void> {
+    let text: string;
+    try {
+      await this.leaveService.decide(authUser, leaveId, decision);
+      text = decision === 'APPROVED' ? 'อนุมัติการลาแล้วครับ' : 'ไม่อนุมัติการลาแล้วครับ';
+    } catch (error) {
+      text = error instanceof Error ? error.message : 'ดำเนินการไม่สำเร็จ กรุณาลองใหม่';
+    }
+    if (target.replyToken) {
+      await this.line.replyWithQuickReply(target.replyToken, text);
+    } else {
+      await this.line.pushTo(lineUserId, text);
     }
   }
 

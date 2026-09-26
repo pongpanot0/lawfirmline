@@ -1,5 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { DocumentsService } from '../documents/documents.service';
+import { buildDocx } from './docx-builder';
+
+const PLAINTIFF_ROLES = ['PLAINTIFF', 'JOINT_PLAINTIFF'];
+const DEFENDANT_ROLES = ['DEFENDANT', 'JOINT_DEFENDANT'];
 
 export interface TemplateInput {
   name: string;
@@ -10,7 +16,10 @@ export interface TemplateInput {
 
 @Injectable()
 export class TemplatesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private documentsService: DocumentsService,
+  ) {}
 
   findAll(firmId: string, caseTypeId?: string) {
     return this.prisma.documentTemplate.findMany({
@@ -53,9 +62,18 @@ export class TemplatesService {
 
     const legalCase = await this.prisma.case.findUnique({
       where: { id: caseId },
-      include: { caseType: true },
+      include: { caseType: true, leadLawyer: true, participants: true },
     });
     if (!legalCase) return null;
+
+    const plaintiffNames = legalCase.participants
+      .filter((p) => PLAINTIFF_ROLES.includes(p.role))
+      .map((p) => p.name)
+      .join(', ');
+    const defendantNames = legalCase.participants
+      .filter((p) => DEFENDANT_ROLES.includes(p.role))
+      .map((p) => p.name)
+      .join(', ');
 
     const vars: Record<string, string> = {
       ownRef: legalCase.ownRef,
@@ -67,13 +85,43 @@ export class TemplatesService {
       title: legalCase.title,
       caseType: legalCase.caseType?.name ?? '',
       date: new Date().toLocaleDateString('th-TH'),
+      blackCaseNumber: legalCase.blackCaseNumber ?? '',
+      redCaseNumber: legalCase.redCaseNumber ?? '',
+      plaintiffNames,
+      defendantNames,
+      lawyerName: `${legalCase.leadLawyer.firstName} ${legalCase.leadLawyer.lastName}`,
+      // ponytail: no license-number field exists on User/FirmMember yet — leave
+      // {{lawyerLicenseNo}} unfilled (reported missing) until one is added.
     };
+
+    const usedKeys = [...template.templateBody.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]);
+    const missingFields = [
+      ...new Set(usedKeys.filter((key) => !(key in vars) || vars[key] === '')),
+    ];
 
     let body = template.templateBody;
     for (const [key, value] of Object.entries(vars)) {
       body = body.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
     }
 
-    return { name: template.name, content: body };
+    return { name: template.name, content: body, variables: vars, missingFields };
+  }
+
+  async generate(user: AuthUser, caseId: string, templateId: string) {
+    const rendered = await this.render(user.firmId, templateId, caseId);
+    if (!rendered) throw new NotFoundException('ไม่พบ template หรือคดีนี้');
+
+    const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
+    const buffer = await buildDocx(rendered.name, rendered.content);
+    const ref = legalCase?.ownRef ?? caseId.slice(0, 8);
+    const filename = `${rendered.name}-${ref}.docx`;
+
+    const document = await this.documentsService.createFromBuffer(user, caseId, {
+      filename,
+      buffer,
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+
+    return { documentId: document.id, filename };
   }
 }

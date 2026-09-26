@@ -15,6 +15,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { BillingService } from './billing.service';
 import { CashAdvanceService } from './cash-advance.service';
+import { CollectionsService } from './collections.service';
+import { TimeSuggestionsService } from './time-suggestions.service';
 import {
   CreateTimeEntryDto,
   CreateExpenseDto,
@@ -25,6 +27,8 @@ import {
   UpdateExpenseClaimStatusDto,
   SubmitExpensesDto,
   IssueCashAdvanceDto,
+  RecordPaymentDto,
+  ConfirmTimeEntriesDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -45,7 +49,29 @@ export class BillingController {
     private billingService: BillingService,
     private fileStorage: FileStorageService,
     private cashAdvanceService: CashAdvanceService,
+    private collectionsService: CollectionsService,
+    private timeSuggestionsService: TimeSuggestionsService,
   ) {}
+
+  @Get('time-entries/suggestions')
+  getTimeSuggestions(@CurrentUser() user: AuthUser, @Query('date') date: string) {
+    return this.timeSuggestionsService.suggest(user, date);
+  }
+
+  @Post('time-entries/confirm')
+  confirmTimeEntries(@CurrentUser() user: AuthUser, @Body() dto: ConfirmTimeEntriesDto) {
+    return this.timeSuggestionsService.confirm(user, dto.entries);
+  }
+
+  @Get('time-entries')
+  getFirmTimesheet(
+    @CurrentUser() user: AuthUser,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.timeSuggestionsService.timesheet(user, { from, to, userId });
+  }
 
   @Get('petty-cash')
   @UseGuards(RolesGuard)
@@ -257,8 +283,47 @@ export class BillingController {
     return this.billingService.createInvoice(user, {}, dto);
   }
 
+  @Get('invoices/receivables')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  getReceivables(@CurrentUser() user: AuthUser) {
+    return this.collectionsService.getReceivables(user);
+  }
+
   @Get('invoices/:invoiceId/print-data')
   getInvoicePrintData(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     return this.billingService.getInvoicePrintData(user, invoiceId);
+  }
+
+  @Patch('invoices/:invoiceId/send')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  markInvoiceSent(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
+    return this.collectionsService.markSent(user, invoiceId);
+  }
+
+  @Post('invoices/:invoiceId/payments')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  recordInvoicePayment(
+    @CurrentUser() user: AuthUser,
+    @Param('invoiceId') invoiceId: string,
+    @Body() dto: RecordPaymentDto,
+  ) {
+    return this.collectionsService.recordPayment(user, invoiceId, dto);
+  }
+
+  @Get('invoices/:invoiceId/payments')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  listInvoicePayments(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
+    return this.collectionsService.listPayments(user, invoiceId);
+  }
+
+  @Post('invoices/:invoiceId/remind')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  sendInvoiceReminder(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
+    return this.collectionsService.sendReminder(user, invoiceId);
   }
 }

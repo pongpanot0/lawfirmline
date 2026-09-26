@@ -5,6 +5,7 @@ import {
   BarChart3,
   BookOpen,
   ChevronRight,
+  Clock,
   Contact,
   FilePlus2,
   LogOut,
@@ -27,6 +28,12 @@ const ITEMS = [
     Icon: Receipt,
     title: 'ค่าใช้จ่าย',
     detail: 'บันทึกค่าใช้จ่ายหน้างาน ถ่ายใบเสร็จ ส่งเบิก',
+  },
+  {
+    route: '/timesheet',
+    Icon: Clock,
+    title: 'ยืนยันเวลา',
+    detail: 'ยืนยันเวลาทำงานจากนัดศาล งาน และกิจกรรมวันนี้',
   },
   {
     route: '/intake/new',

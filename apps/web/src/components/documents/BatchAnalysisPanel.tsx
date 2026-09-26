@@ -32,7 +32,7 @@ export function BatchAnalysisPanel({
 }) {
   const { token } = useAuth();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(() => files.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
@@ -93,6 +93,7 @@ export function BatchAnalysisPanel({
         return;
       }
       onFilesChange?.(next);
+      onFieldSuggestions?.([]);
       setSelected((previous) => [
         ...new Set([...previous, ...incoming.map(fileKey)]),
       ]);
@@ -137,6 +138,8 @@ export function BatchAnalysisPanel({
     lock.current = true;
     setBusy(true);
     setError('');
+    setSummary('');
+    onFieldSuggestions?.([]);
     setProgress('กำลังอ่านและวิเคราะห์ไฟล์ที่เลือกทั้งหมดร่วมกัน…');
     try {
       const result = caseId
@@ -198,6 +201,7 @@ export function BatchAnalysisPanel({
                 selected.length ? [] : rows.slice(0, 10).map((row) => row.id),
               );
               setSummary('');
+              onFieldSuggestions?.([]);
             }}
           >
             {selected.length
@@ -228,6 +232,7 @@ export function BatchAnalysisPanel({
                       : [...previous, row.id],
                   );
                   setSummary('');
+                  onFieldSuggestions?.([]);
                 }}
                 className="mt-1"
               />
@@ -246,6 +251,7 @@ export function BatchAnalysisPanel({
                     previous.filter((id) => id !== row.id),
                   );
                   setSummary('');
+                  onFieldSuggestions?.([]);
                 }}
               >
                 นำออก
