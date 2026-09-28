@@ -205,8 +205,20 @@ describe('stage-driven task proposals', () => {
     const result = await service.proposeStageTasks(user, theCase.id, CaseStage.FILING);
     expect(result.map((r) => r.title)).toEqual(['ยื่นฟ้อง']);
     expect(prisma.task.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { caseId: theCase.id, labels: { has: `stage:${CaseStage.FILING}` } } }),
+      expect.objectContaining({ where: { caseId: theCase.id, title: { in: ['ตรวจเอกสาร', 'ยื่นฟ้อง'] } } }),
     );
+  });
+
+  it('skips steps that already exist as tasks labelled from an applied playbook', async () => {
+    const { service, prisma } = buildService({
+      steps: [
+        { title: 'ตรวจเอกสาร', instructions: 'ทำ A', stage: CaseStage.FILING },
+        { title: 'ยื่นฟ้อง', instructions: 'ทำ B', stage: CaseStage.FILING },
+      ],
+    });
+    prisma.task.findMany.mockResolvedValue([{ title: 'ตรวจเอกสาร' }]); // created via applyPlaybook, labelled playbook:<releaseId>
+    const result = await service.proposeStageTasks(user, theCase.id, CaseStage.FILING);
+    expect(result.map((r) => r.title)).toEqual(['ยื่นฟ้อง']);
   });
 
   it('createStageTasks marks the stage as handled', async () => {

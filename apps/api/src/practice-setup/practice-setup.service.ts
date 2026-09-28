@@ -112,7 +112,7 @@ export class PracticeSetupService {
         const nameKey = r.clientName.normalize('NFKC').toLowerCase();
         let clientId = r.existingClientId ?? newClients.get(nameKey);
         if (!clientId) { const client = await db.client.create({ data: { firmId: user.firmId, name: r.clientName } }); clientId = client.id; newClients.set(nameKey, client.id); ledger.clients.push({ id: client.id, updatedAt: client.updatedAt.toISOString() }); }
-        if (r.caseRef) { const c = await db.case.create({ data: { firmId: user.firmId, clientId, clientName: r.clientName, ownRef: r.caseRef, folderId: r.caseRef, title: r.caseTitle, leadLawyerId: user.id } }); ledger.cases.push({ id: c.id, updatedAt: c.updatedAt.toISOString() }); }
+        if (r.caseRef) { const c = await db.case.create({ data: { firmId: user.firmId, clientId, clientName: r.clientName, ownRef: r.caseRef, folderId: r.caseRef, title: r.caseTitle, leadLawyerId: user.id, stageTasksHandledFor: CaseStage.PRE_LITIGATION } }); ledger.cases.push({ id: c.id, updatedAt: c.updatedAt.toISOString() }); }
       }
       await db.dataImportBatch.update({ where: { id }, data: { status: 'COMMITTED', committedAt: new Date(), ledger: json(ledger) } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'DATA_IMPORT_COMMITTED', metadata: { batchId: id, caseCount: ledger.cases.length, clientCount: ledger.clients.length } } });
@@ -281,8 +281,8 @@ export class PracticeSetupService {
         stepsByTitle.set(step.title, { step, releaseName: release.name });
       }
     }
-    // คดีย้อนกลับมาขั้นเดิม — อย่าเสนองานที่สร้างจากขั้นนี้ไปแล้ว
-    const existing = await this.prisma.task.findMany({ where: { caseId, labels: { has: `stage:${stage}` } }, select: { title: true } });
+    // อย่าเสนองานที่มีอยู่แล้วในคดี ไม่ว่าจะสร้างจากขั้นนี้ (stage:<STAGE>) หรือจากการใช้ playbook (playbook:<releaseId>)
+    const existing = await this.prisma.task.findMany({ where: { caseId, title: { in: [...stepsByTitle.keys()] } }, select: { title: true } });
     for (const t of existing) stepsByTitle.delete(t.title);
     if (!stepsByTitle.size) return [];
 
