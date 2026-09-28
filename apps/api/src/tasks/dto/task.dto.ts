@@ -8,12 +8,28 @@ import {
   IsDateString,
   Max,
   Min,
+  IsBoolean,
+  Length,
+  Matches,
 } from 'class-validator';
-import { TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { TaskPriority, TaskStatus, TaskWorkType } from '@lawfirm/shared';
 
 export class CreateTaskDto {
   @IsString()
+  @Length(1, 200)
   title!: string;
+
+  @IsOptional() @IsEnum(TaskWorkType)
+  workType?: TaskWorkType;
+
+  @IsOptional() @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  scheduledFor?: string;
+
+  @IsOptional() @IsBoolean()
+  requiresReview?: boolean;
+
+  @IsOptional() @IsUUID()
+  reviewerId?: string;
 
   @IsOptional()
   @IsString()
@@ -57,6 +73,18 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsString()
   title?: string;
+
+  @IsOptional() @IsEnum(TaskWorkType)
+  workType?: TaskWorkType;
+
+  @IsOptional() @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  scheduledFor?: string | null;
+
+  @IsOptional() @IsBoolean()
+  requiresReview?: boolean;
+
+  @IsOptional() @IsUUID()
+  reviewerId?: string | null;
 
   @IsOptional()
   @IsString()

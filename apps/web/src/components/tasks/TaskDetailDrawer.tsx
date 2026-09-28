@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { X, Paperclip, Trash2, Download } from 'lucide-react';
-import { canAssignFirmRole, normalizeTaskLabels, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { X, Trash2, Download } from 'lucide-react';
+import { canAssignFirmRole, FirmRole, normalizeTaskLabels, TASK_WORK_TYPES, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { api, ApiError, TaskDetail, UserItem } from '@/lib/api';
 import { formatBytes, downloadTaskAttachment, priorityLabel } from '@/lib/task-detail';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatDateTime } from '@/lib/utils';
-import { bangkokDateInputValue } from '@/lib/bangkok';
+import { bangkokDateInputValue, bangkokInputValue, bangkokInputToIso, bangkokDateInputToIso } from '@/lib/bangkok';
 import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { DateField, DateTimeField, SelectField, TextField, TextareaField } from '@/components/ui/form-fields';
 import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
+import { DocumentDropZone } from '@/components/DocumentDropZone';
 
 interface Props {
   taskId: string | null;
@@ -39,9 +40,15 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [description, setDescription] = useState('');
   const [labelDraft, setLabelDraft] = useState('');
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [addingSubtask, setAddingSubtask] = useState(false);
   const [subtaskDue, setSubtaskDue] = useState('');
   const [subtaskAssigneeId, setSubtaskAssigneeId] = useState('');
   const [comment, setComment] = useState('');
+  const [completed, setCompleted] = useState('');
+  const [remaining, setRemaining] = useState('');
+  const [blocker, setBlocker] = useState('');
+  const [reviewerId, setReviewerId] = useState('');
+  const [reviewNote, setReviewNote] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [siblingTasks, setSiblingTasks] = useState<Array<{ id: string; title: string; status: string }>>([]);
@@ -66,7 +73,6 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const taskLeaveFlags = useLeaveFlags(token, taskDate);
   const subtaskDate = subtaskDue || today;
   const subtaskLeaveFlags = useLeaveFlags(token, subtaskDate);
-  const fileInput = useRef<HTMLInputElement>(null);
   const asideRef = useRef<HTMLElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
   // Navigating parent → subtask → parent quickly can make an older response
@@ -83,6 +89,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
       setTask(detail);
       setTitle(detail.title);
       setDescription(detail.description ?? '');
+      setReviewerId(detail.reviewerId ?? '');
     } catch (err) {
       if (requestedId.current !== taskId) return;
       setTask(null);
@@ -96,9 +103,13 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     setError('');
     setLabelDraft('');
     setSubtaskTitle('');
+    setSubtaskDue('');
+    setSubtaskAssigneeId('');
+    setAddingSubtask(false);
     setComment('');
     setUploadError('');
     setDownloadingId(null);
+    setCompleted(''); setRemaining(''); setBlocker(''); setReviewNote('');
     void load();
   }, [load]);
 
@@ -183,21 +194,30 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     }
   };
 
-  const upload = async (files: FileList | null) => {
+  const upload = async (files: File[]) => {
     if (!token || !task || !files?.length) return;
     setUploadError('');
     setBusy(true);
+    setNotice('');
+    const failures: string[] = [];
+    let saved = 0;
     try {
-      for (const file of Array.from(files)) {
-        await api.uploadTaskAttachment(token, task.id, file);
+      for (const file of files) {
+        try {
+          await api.uploadTaskAttachment(token, task.id, file);
+          saved += 1;
+        } catch (err) {
+          failures.push(`${file.name}: ${err instanceof ApiError && err.message ? err.message : d.taskDetail.uploadFailed}`);
+        }
       }
+      if (failures.length) setUploadError(failures.join(' · '));
+      if (saved) setNotice(`แนบไฟล์แล้ว ${saved} ไฟล์`);
       await load();
       onChanged();
     } catch (err) {
       setUploadError(err instanceof ApiError && err.message ? err.message : d.taskDetail.uploadFailed);
     } finally {
       setBusy(false);
-      if (fileInput.current) fileInput.current.value = '';
     }
   };
 
@@ -225,6 +245,11 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   };
   const field = 'mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   const label = 'text-xs font-medium text-muted-foreground';
+  const manager = !!user && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole);
+  const ownWork = task?.assignee?.id === user?.id;
+  const pendingReview = task?.status === TaskStatus.PENDING_REVIEW;
+  const canReview = pendingReview && ownWork;
+  const statusOptions = task?.requiresReview ? STATUS_OPTIONS.filter((s) => s !== TaskStatus.DONE) : STATUS_OPTIONS;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={d.taskDetail.title}>
@@ -271,14 +296,56 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
 
         {task && (
           <div className="space-y-6 p-4">
+            <section aria-label={d.taskDetail.attachments}>
+              <h3 className="mb-2 text-sm font-semibold">{d.taskDetail.attachments} ({task.attachments.length})</h3>
+              <DocumentDropZone multiple disabled={busy} loading={busy} label="เลือกไฟล์เพิ่ม / ลากไฟล์มาวาง"
+                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.docx,.xlsx,.txt" hint={d.taskDetail.fileTypesHint} onFiles={files => void upload(files)} />
+              {uploadError && <p role="alert" className="mt-2 text-xs text-destructive">{uploadError}</p>}
+              <ul className="mt-2 space-y-1">
+                {task.attachments.map(a => <li key={a.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                  <span className="min-w-0 flex-1 basis-40 break-words">{a.filename}</span>
+                  <span className="text-xs text-muted-foreground">{formatBytes(a.size)} · {a.uploadedBy.firstName}</span>
+                  <button type="button" disabled={downloadingId === a.id} aria-label={`${d.taskDetail.download} ${a.filename}`} onClick={() => void download(a.id, a.filename)} className="rounded p-2 hover:bg-muted disabled:opacity-50"><Download className="h-4 w-4" /></button>
+                  <button type="button" aria-label={`${d.taskDetail.delete} ${a.filename}`} disabled={busy} onClick={() => window.confirm(d.taskDetail.confirmDeleteAttachment) && run(() => api.deleteTaskAttachment(token!, task.id, a.id))} className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                </li>)}
+                {task.attachments.length === 0 && <li className="text-xs text-muted-foreground">{d.taskDetail.noAttachments}</li>}
+              </ul>
+            </section>
+            <section className="space-y-3 rounded-xl border bg-muted/20 p-3">
+              <h3 className="text-sm font-semibold">แผนและความคืบหน้า</h3>
+              <p className="text-xs text-muted-foreground">{TASK_WORK_TYPES.find((t) => t.value === task.workType)?.label ?? 'ยังไม่ระบุประเภทงาน'}{task.requiresReview ? ' · ต้องตรวจงานก่อนเสร็จ' : ''}</p>
+              {ownWork && !pendingReview && task.status !== TaskStatus.DONE && <>
+                {!task.acknowledgedAt && <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => api.acknowledgeTask(token!, task.id), 'รับทราบงานแล้ว')}>ยืนยันรับทราบงาน</Button>}
+                <DateField label="แผนทำงานวันที่" value={task.scheduledFor?.slice(0, 10) ?? ''} disabled={busy} onChange={(e) => { if (e.target.value) void run(() => api.confirmTaskPlan(token!, task.id, e.target.value), 'ยืนยันแผนแล้ว'); }} />
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => api.confirmTaskPlan(token!, task.id, today), 'ยืนยันแผนวันนี้แล้ว')}>{task.planConfirmedAt && task.scheduledFor?.slice(0, 10) === today ? 'ยืนยันแผนวันนี้แล้ว · ยืนยันอีกครั้ง' : 'ยืนยันว่าจะทำงานนี้วันนี้'}</Button>
+                <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.dailyTaskUpdate(token!, task.id, { completed, remaining, blocker }); setCompleted(''); setRemaining(''); setBlocker(''); }, 'บันทึกความคืบหน้าแล้ว'); }}>
+                  <TextareaField label="ทำถึงไหนแล้ว" value={completed} required maxLength={1500} rows={2} disabled={busy} onChange={(e) => setCompleted(e.target.value)} />
+                  <TextareaField label="เหลืออะไร" value={remaining} required maxLength={1500} rows={2} disabled={busy} onChange={(e) => setRemaining(e.target.value)} />
+                  <TextareaField label="ติดอะไร / ต้องการให้ใครช่วย" value={blocker} maxLength={1500} rows={2} disabled={busy} onChange={(e) => setBlocker(e.target.value)} placeholder="เว้นว่างได้ถ้าไม่มี" />
+                  <Button type="submit" size="sm" disabled={busy}>บันทึกความคืบหน้าวันนี้</Button>
+                </form>
+                {task.requiresReview && <div className="space-y-2 border-t pt-3">
+                  <p className="text-xs text-muted-foreground">แนบผลงานด้านล่าง แล้วส่งให้ผู้ตรวจ</p>
+                  {!task.reviewerId && !task.caseId && <SelectField label="ผู้ตรวจ" value={reviewerId} required onChange={(e) => setReviewerId(e.target.value)}><option value="">เลือกผู้ตรวจ</option>{users.filter((u) => u.id !== user?.id && u.firmRole && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(u.firmRole)).map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}</SelectField>}
+                  <Button disabled={busy || (!task.caseId && !reviewerId)} onClick={() => void run(() => task.caseId ? api.handoffTask(token!, task.caseId, task.id, {}) : api.handoffTodo(token!, task.id, { reviewerId }), 'ส่งตรวจแล้ว')}>ส่งผลงานให้ตรวจ</Button>
+                </div>}
+              </>}
+              {canReview && <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">ตรวจผลงานและประวัติด้านล่างก่อนยืนยัน</p>
+                <Button disabled={busy} onClick={() => void run(() => task.caseId ? api.acceptTask(token!, task.caseId, task.id) : api.acceptTodo(token!, task.id), 'ตรวจผ่าน งานเสร็จแล้ว')}>ตรวจผ่านและปิดงาน</Button>
+                <TextareaField label="เหตุผลที่ให้แก้ไข" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} disabled={busy} rows={2} />
+                <Button variant="outline" disabled={busy || !reviewNote.trim()} onClick={() => void run(() => task.caseId ? api.rejectTask(token!, task.caseId, task.id, { reason: reviewNote.trim() }) : api.rejectTodo(token!, task.id, { reason: reviewNote.trim() }), 'ส่งกลับให้แก้ไขแล้ว')}>ส่งกลับให้แก้ไข</Button>
+              </div>}
+              {task.comments.filter((c) => c.kind === 'DAILY_UPDATE').slice(-1).map((c) => <div key={c.id} className="border-t pt-3 text-xs text-muted-foreground"><p className="whitespace-pre-line">{c.body}</p><p className="mt-1">{c.author.firstName} · {formatDateTime(c.createdAt)}</p></div>)}
+              {!ownWork && !pendingReview && <p className="text-xs text-muted-foreground">ผู้รับผิดชอบเป็นผู้ยืนยันแผนและอัปเดตความคืบหน้า</p>}
+            </section>
             <section className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label htmlFor="td-status" className={label}>{d.taskDetail.status}</label>
-                <select id="td-status" value={task.status} disabled={busy || !STATUS_OPTIONS.includes(task.status)} onChange={(e) => patch({ status: e.target.value })} className={field}>
-                  {(STATUS_OPTIONS.includes(task.status) ? STATUS_OPTIONS : [task.status]).map((s) => (
+                <SelectField label={d.taskDetail.status} id="td-status" value={task.status} disabled={busy || pendingReview} onChange={(e) => patch({ status: e.target.value })}>
+                  {([...new Set([task.status, ...statusOptions])]).map((s) => (
                     <option key={s} value={s}>{statusLabel[s]}</option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               <div>
                 <span className={label}>{d.taskDetail.priority}</span>
@@ -298,8 +365,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 </div>
               </div>
               <div>
-                <label htmlFor="td-assignee" className={label}>{d.taskDetail.assignee}</label>
-                <select id="td-assignee" value={task.assignee?.id ?? ''} disabled={busy} onChange={(e) => e.target.value && patch({ assigneeId: e.target.value })} className={field}>
+                <SelectField label={d.taskDetail.assignee} id="td-assignee" value={task.assignee?.id ?? ''} disabled={busy || !manager || pendingReview} onChange={(e) => e.target.value && patch({ assigneeId: e.target.value })}>
                   <option value="">{d.taskDetail.unassigned}</option>
                   <AssigneeOptions
                     users={users.filter(
@@ -310,7 +376,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                     )}
                     flags={taskLeaveFlags}
                   />
-                </select>
+                </SelectField>
                 {task.assignee && taskLeaveFlags.has(task.assignee.id) && (
                   <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                     {leaveWarning(
@@ -322,8 +388,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 )}
               </div>
               <div>
-                <label htmlFor="td-due" className={label}>{d.taskDetail.dueDate}</label>
-                <ThaiDateInput id="td-due" disabled={busy} value={task.dueDate ? bangkokDateInputValue(task.dueDate) : ''} onChange={(v) => v && patch({ dueDate: v })} />
+                <DateTimeField id="td-due" label={d.taskDetail.dueDate} disabled={busy} value={task.dueDate ? bangkokInputValue(task.dueDate) : ''} onChange={(e) => e.target.value && patch({ dueDate: bangkokInputToIso(e.target.value) })} hint="เวลาไทย" />
               </div>
               <div>
                 <label htmlFor="td-recur" className={label}>ทำซ้ำทุก (วัน)</label>
@@ -394,10 +459,13 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
 
             {!task.parentId && (
               <section>
-                <h3 className="text-sm font-semibold">{d.taskDetail.subtasks} {task.subtasks.length > 0 && <span className="text-xs font-normal text-muted-foreground">{task.subtasks.filter((s) => s.status === TaskStatus.DONE).length}/{task.subtasks.length}</span>}</h3>
-                <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold">{d.taskDetail.subtasks} {task.subtasks.length > 0 && <span className="text-xs font-normal text-muted-foreground">{task.subtasks.filter((s) => s.status === TaskStatus.DONE).length}/{task.subtasks.length}</span>}</h3>
+                  {!addingSubtask && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setAddingSubtask(true)}>{d.taskDetail.addSubtask}</Button>}
+                </div>
+                {task.subtasks.length > 0 ? <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
                   {task.subtasks.map((s) => (
-                    <li key={s.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                    <li key={s.id} className="flex flex-wrap items-center gap-3 px-3 py-3 text-sm">
                       <input
                         type="checkbox"
                         aria-label={s.title}
@@ -406,57 +474,59 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                         onChange={(e) => run(() => api.updateAnyTask(token!, { id: s.id, caseId: task.caseId }, { status: e.target.checked ? TaskStatus.DONE : TaskStatus.TODO }))}
                         className="h-4 w-4"
                       />
-                      <button type="button" onClick={() => onNavigate(s.id)} className={`flex-1 text-left hover:text-primary hover:underline ${s.status === TaskStatus.DONE ? 'text-muted-foreground line-through' : ''}`}>
+                      <button type="button" onClick={() => onNavigate(s.id)} className={`min-w-0 flex-1 break-words text-left hover:text-primary hover:underline ${s.status === TaskStatus.DONE ? 'text-muted-foreground line-through' : ''}`}>
                         {s.title}
                       </button>
                       {s.assignee && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{s.assignee.firstName}</span>}
                       {s.dueDate && <span className="text-xs text-muted-foreground">{formatDate(s.dueDate)}</span>}
                     </li>
                   ))}
-                  {task.subtasks.length === 0 && <li className="px-3 py-2 text-xs text-muted-foreground">{d.taskDetail.noSubtasks}</li>}
-                </ul>
-                <form
-                  className="mt-2 flex flex-wrap items-center gap-2"
+                </ul> : !addingSubtask && <p className="mt-2 text-xs text-muted-foreground">{d.taskDetail.noSubtasks}</p>}
+                {addingSubtask && <form
+                  className="mt-3 space-y-3 rounded-xl border border-border bg-muted/20 p-3"
                   onSubmit={(e) => {
                     e.preventDefault();
                     const t = subtaskTitle.trim();
                     if (!t) return;
                     const payload = {
                       title: t,
-                      dueDate: subtaskDue || undefined,
+                      dueDate: subtaskDue ? bangkokDateInputToIso(subtaskDue) : undefined,
                       assigneeId: subtaskAssigneeId || undefined,
                     };
-                    setSubtaskTitle('');
-                    setSubtaskDue('');
-                    setSubtaskAssigneeId('');
-                    void run(() => api.createSubtask(token!, task.id, payload));
+                    void run(async () => {
+                      await api.createSubtask(token!, task.id, payload);
+                      setSubtaskTitle('');
+                      setSubtaskDue('');
+                      setSubtaskAssigneeId('');
+                      setAddingSubtask(false);
+                    }, 'เพิ่มงานย่อยแล้ว');
                   }}
                 >
-                  <input value={subtaskTitle} disabled={busy} onChange={(e) => setSubtaskTitle(e.target.value)} placeholder={d.taskDetail.subtaskPlaceholder} className={`${field} mt-0 min-w-[160px] flex-1`} />
-                  <select
-                    aria-label={d.taskDetail.assignee}
+                  <TextField label="งานย่อยต้องทำอะไร" autoFocus required value={subtaskTitle} disabled={busy} onChange={(e) => setSubtaskTitle(e.target.value)} placeholder="เช่น ตรวจชื่อพยานในถอดเทป" />
+                  <details>
+                    <summary className="cursor-pointer text-xs text-muted-foreground">เลือกคนทำงาน / กำหนดส่ง (ไม่บังคับ)</summary>
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <SelectField
+                    label="คนทำงานย่อย"
                     value={subtaskAssigneeId}
                     disabled={busy}
                     onChange={(e) => setSubtaskAssigneeId(e.target.value)}
-                    className={`${field} mt-0 w-auto`}
                   >
-                    <option value="">{d.taskDetail.assignee}</option>
+                    <option value="">ยังไม่มอบหมาย</option>
                     <AssigneeOptions
                       users={users.filter(
                         (u) =>
                           u.id === user?.id ||
-                          (!!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)),
+                          (manager && !!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)),
                       )}
                       flags={subtaskLeaveFlags}
                     />
-                  </select>
-                  <ThaiDateInput
+                  </SelectField>
+                  <DateField label="กำหนดส่งงานย่อย"
                     value={subtaskDue}
                     disabled={busy}
-                    onChange={setSubtaskDue}
-                    className="mt-0"
+                    onChange={(e) => setSubtaskDue(e.target.value)}
                   />
-                  <Button type="submit" size="sm" variant="outline" disabled={busy || !subtaskTitle.trim()}>{d.taskDetail.addSubtask}</Button>
                   {subtaskAssigneeId && subtaskLeaveFlags.has(subtaskAssigneeId) && (
                     <p className="w-full text-xs text-amber-700 dark:text-amber-400">
                       {leaveWarning(
@@ -469,53 +539,15 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                       )}
                     </p>
                   )}
-                </form>
+                    </div>
+                  </details>
+                  <div className="flex items-center gap-2">
+                    <Button type="submit" size="sm" disabled={busy || !subtaskTitle.trim()}>{busy ? 'กำลังบันทึก…' : 'บันทึกงานย่อย'}</Button>
+                    <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setAddingSubtask(false)}>ยกเลิก</Button>
+                  </div>
+                </form>}
               </section>
             )}
-
-            <section>
-              <h3 className="text-sm font-semibold">{d.taskDetail.attachments}</h3>
-              <div
-                role="button"
-                tabIndex={0}
-                aria-label={d.taskDetail.dropHint}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { e.preventDefault(); void upload(e.dataTransfer.files); }}
-                onClick={() => fileInput.current?.click()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    fileInput.current?.click();
-                  }
-                }}
-                className="mt-2 cursor-pointer rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Paperclip className="mx-auto mb-1 h-4 w-4" />
-                {busy ? d.taskDetail.uploading : d.taskDetail.dropHint}
-                <p className="mt-1">{d.taskDetail.fileTypesHint}</p>
-                <input ref={fileInput} type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.docx,.xlsx,.txt" onChange={(e) => void upload(e.target.files)} />
-              </div>
-              {uploadError && <p role="alert" className="mt-2 text-xs text-destructive">{uploadError}</p>}
-              <ul className="mt-2 space-y-1">
-                {task.attachments.map((a) => (
-                  <li key={a.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                    <span className="min-w-0 flex-1 truncate">{a.filename}</span>
-                    <span className="text-xs text-muted-foreground">{formatBytes(a.size)} · {a.uploadedBy.firstName}</span>
-                    <button
-                      type="button"
-                      disabled={downloadingId === a.id}
-                      aria-label={d.taskDetail.download}
-                      onClick={() => void download(a.id, a.filename)}
-                      className="rounded p-1 hover:bg-muted disabled:opacity-50"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
-                    <button type="button" aria-label={d.taskDetail.delete} disabled={busy} onClick={() => window.confirm(d.taskDetail.confirmDeleteAttachment) && run(() => api.deleteTaskAttachment(token!, task.id, a.id))} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
-                  </li>
-                ))}
-                {task.attachments.length === 0 && <li className="text-xs text-muted-foreground">{d.taskDetail.noAttachments}</li>}
-              </ul>
-            </section>
 
             <section>
               <h3 className="text-sm font-semibold">{d.taskDetail.comments}</h3>
