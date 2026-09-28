@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useRouter } from 'expo-router';
 import {
   BarChart3,
@@ -10,12 +11,19 @@ import {
   LogOut,
   PauseCircle,
   Receipt,
+  CalendarOff,
+  Search,
+  Settings,
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { Card } from '@/components/ui';
-import { colors, spacing } from '@/theme';
+import { colors, spacing, pageContent } from '@/theme';
 
 const ITEMS = [
+  { route: '/settings', Icon: Settings, title: 'ตั้งค่า', detail: 'ปรับขนาดตัวอักษรให้มองเห็นง่าย' },
+  { route: '/search', Icon: Search, title: 'ค้นหาไฟล์', detail: 'ค้นชื่อไฟล์ในทุกคดีที่เข้าถึงได้' },
+  { route: '/leaves', Icon: CalendarOff, title: 'ขอลา', detail: 'เลือกประเภทและวันที่ ดูสถานะคำขอ' },
+  { route: '/expenses/claims', Icon: Receipt, title: 'ชุดเบิก', detail: 'รายการที่ส่งเป็นชุด และสถานะการจ่าย' },
   {
     route: '/clients',
     Icon: Contact,
@@ -29,10 +37,10 @@ const ITEMS = [
     detail: 'บันทึกค่าใช้จ่ายหน้างาน ถ่ายใบเสร็จ ส่งเบิก',
   },
   {
-    route: '/intake/new',
+    route: '/case/new',
     Icon: FilePlus2,
-    title: 'รับเรื่องใหม่',
-    detail: 'จดเรื่องจากลูกความนอกออฟฟิศเข้าคิว intake',
+    title: 'รับเคสใหม่',
+    detail: 'สร้างคดี เลือกคนหลัก คนรอง และแนบไฟล์',
   },
   {
     route: '/reports',
@@ -59,14 +67,14 @@ export default function MoreScreen() {
   const { user, logout } = useAuth();
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={{ padding: spacing.lg }}>
-      {ITEMS.map((item) => (
+    <ScrollView style={styles.screen} contentContainerStyle={pageContent}>
+      {ITEMS.filter((item) => item.route !== '/operations' || user?.firmRole === 'OWNER').map((item) => (
         <Pressable
           key={item.route}
           onPress={() => router.push(item.route as never)}
           style={({ pressed }) => pressed && { opacity: 0.7 }}
         >
-          <Card style={{ marginBottom: spacing.sm }}>
+          <Card style={{ marginBottom: spacing.md }}>
             <View style={styles.row}>
               <item.Icon size={20} color={colors.accentInk} />
               <View style={{ flex: 1 }}>

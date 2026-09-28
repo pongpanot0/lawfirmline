@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import {
@@ -945,14 +946,11 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   </label>
                   <label className="block text-sm">
                     {t.amount}
-                    <Input
+                    <MoneyInput
                       className="mt-1 min-h-11"
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      inputMode="decimal"
+                      min={0.01}
                       value={state.amount}
-                      onChange={(e) => edit({ amount: e.target.value })}
+                      onValueChange={(next) => edit({ amount: next })}
                     />
                   </label>
                   <p className="text-xs text-muted-foreground">

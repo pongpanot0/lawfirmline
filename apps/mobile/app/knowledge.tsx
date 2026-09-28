@@ -1,18 +1,12 @@
 import React, { useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 import { useRouter } from 'expo-router';
 import { Search } from 'lucide-react-native';
 import { useKnowledge } from '@/api/hooks';
-import { Card, EmptyNote, ErrorNote, Loading, Tag } from '@/components/ui';
+import { Button, Card, EmptyNote, ErrorNote, Loading, Tag } from '@/components/ui';
 import { thDate } from '@/format';
-import { colors, radius, spacing } from '@/theme';
+import { colors, radius, spacing, pageContent } from '@/theme';
 
 const CATEGORY_LABEL: Record<string, string> = {
   SUMMARY: 'สรุปคดี',
@@ -30,6 +24,7 @@ export default function KnowledgeScreen() {
 
   return (
     <View style={styles.screen}>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}><Button title="ค้นหาไฟล์ในคดี" ghost onPress={() => router.push('/search')} /></View>
       <View style={styles.searchBox}>
         <Search size={16} color={colors.faint} />
         <TextInput
@@ -52,7 +47,7 @@ export default function KnowledgeScreen() {
         <FlatList
           data={knowledge.data ?? []}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.sm }}
+          contentContainerStyle={pageContent}
           refreshing={knowledge.isRefetching}
           onRefresh={() => knowledge.refetch()}
           renderItem={({ item }) => (
@@ -60,7 +55,7 @@ export default function KnowledgeScreen() {
               onPress={() => item.caseId && router.push(`/case/${item.caseId}`)}
               style={({ pressed }) => pressed && { opacity: 0.7 }}
             >
-              <Card style={{ marginBottom: spacing.sm }}>
+              <Card style={{ marginBottom: spacing.md }}>
                 <View style={styles.row}>
                   <Text style={styles.title} numberOfLines={2}>
                     {item.title}
@@ -98,7 +93,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.button,
     marginHorizontal: spacing.lg,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
     paddingHorizontal: spacing.md,
   },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: colors.text },

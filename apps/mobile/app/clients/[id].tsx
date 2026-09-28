@@ -1,18 +1,11 @@
 import React from 'react';
-import {
-  Linking,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Mail, Phone } from 'lucide-react-native';
 import { useClient } from '@/api/hooks';
 import { Card, EmptyNote, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
-import { colors, spacing, TOUCH } from '@/theme';
+import { colors, spacing, TOUCH, pageContent } from '@/theme';
 
 function ActionButton({
   Icon,
@@ -52,7 +45,7 @@ export default function ClientDetailScreen() {
       <Stack.Screen options={{ title: detail.name }} />
       <ScrollView
         style={styles.screen}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}
+        contentContainerStyle={pageContent}
         refreshControl={
           <RefreshControl refreshing={client.isRefetching} onRefresh={() => client.refetch()} />
         }

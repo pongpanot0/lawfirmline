@@ -86,7 +86,7 @@ export function CargoClaimFields({
             น้ำหนักที่เสียหาย
             <input
               type="number"
-              min="0"
+              min={0}
               step="0.001"
               value={value.damagedWeight ?? ''}
               onChange={(event) => set('damagedWeight', event.target.value ? Number(event.target.value) : null)}
@@ -107,6 +107,7 @@ export function CargoClaimFields({
               onChange={(event) => set('claimAmount', event.target.value ? Number(event.target.value) : null)}
               className={inputClass}
             />
+            {value.claimAmount != null && <span className="mt-1 block text-xs text-muted-foreground">{value.claimAmount.toLocaleString('th-TH', { maximumFractionDigits: 2 })} {value.currency ?? ''}</span>}
           </label>
           <label className="text-sm font-medium">
             สกุลเงิน

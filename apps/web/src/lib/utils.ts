@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number) {
-  return `฿${amount.toLocaleString('th-TH')}`;
+  return `฿${amount.toLocaleString('th-TH', { maximumFractionDigits: 2 })}`;
 }
 
 /**

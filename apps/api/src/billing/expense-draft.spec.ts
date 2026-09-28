@@ -26,9 +26,10 @@ describe('BillingService — drafted expenses', () => {
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
-      updateMany: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     expenseClaim: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       create: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -259,8 +260,27 @@ describe('BillingService — drafted expenses', () => {
       status: 'APPROVED' as never,
     });
 
-    expect(mockPettyCash.deduct).toHaveBeenCalledWith('firm-1', 500);
+    expect(mockPettyCash.deduct).toHaveBeenCalledWith('firm-1', 500, mockPrisma);
     expect(result.status).toBe('APPROVED');
+  });
+
+  it('does not deduct money or update lines when another request changed the claim first', async () => {
+    mockPrisma.expenseClaim.findFirst.mockResolvedValue({
+      id: 'claim-1', status: 'PENDING', expenses: [{ id: 'expense-1', amount: 300 }],
+    });
+    mockPrisma.expenseClaim.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.updateExpenseClaimStatus(owner, 'claim-1', { status: 'APPROVED' as never })).rejects.toThrow('สถานะชุดเบิกเปลี่ยนแล้ว');
+    expect(mockPettyCash.deduct).not.toHaveBeenCalled();
+    expect(mockPrisma.expense.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('does not deduct money twice for a concurrently approved legacy single expense', async () => {
+    mockPrisma.expense.findFirst.mockResolvedValue({
+      id: 'expense-1', status: 'PENDING', claimId: null, userId: lawyer.id, amount: 300,
+    });
+    mockPrisma.expense.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.updateExpenseStatus(owner, 'expense-1', { status: ExpenseStatus.APPROVED })).rejects.toThrow('สถานะค่าใช้จ่ายเปลี่ยนแล้ว');
+    expect(mockPettyCash.deduct).not.toHaveBeenCalled();
   });
 
   it('keeps approval to the owner and still deducts petty cash on a real claim', async () => {
@@ -278,7 +298,7 @@ describe('BillingService — drafted expenses', () => {
     ).rejects.toThrow(ForbiddenException);
 
     await service.updateExpenseStatus(owner, 'expense-1', { status: ExpenseStatus.APPROVED });
-    expect(mockPettyCash.deduct).toHaveBeenCalledWith('firm-1', 500);
+    expect(mockPettyCash.deduct).toHaveBeenCalledWith('firm-1', 500, mockPrisma);
   });
 
   it('blocks per-line approval when the expense belongs to a claim round', async () => {

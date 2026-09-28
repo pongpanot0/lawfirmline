@@ -11,6 +11,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency } from '@/lib/utils';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 
 export function CaseCostCalculator({
   value,
@@ -96,16 +97,14 @@ export function CaseCostCalculator({
             >
               บาทต่อหน่วย
             </label>
-            <input
+            <MoneyInput
               id={`${prefix}-${index}-rate`}
               disabled={disabled}
-              type="number"
-              min="0"
-              max="999999999"
-              step="0.01"
+              min={0}
+              max={999999999}
               value={line.rate}
               placeholder="ระบุอัตรา"
-              onChange={(e) => change(index, 'rate', e.target.value)}
+              onValueChange={(next) => change(index, 'rate', next)}
               className="mt-1 w-full min-w-0 rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>

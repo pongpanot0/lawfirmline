@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { isoDay, thDate } from '@/format';
 import { colors, radius, spacing, TOUCH } from '@/theme';
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
   },
   cell: {
     width: `${100 / 7}%`,
-    aspectRatio: 1.15,
+    minHeight: TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,

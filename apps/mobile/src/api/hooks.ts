@@ -4,6 +4,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { api } from './client';
+import { calendarRangeQuery } from '../format';
 import type {
   CalendarEventItem,
   CaseDetail,
@@ -62,7 +63,7 @@ export function useCalendarRange(from: string, to: string) {
   return useQuery({
     queryKey: ['calendar', from, to],
     queryFn: () =>
-      api<CalendarEventItem[]>(`/calendar/events?from=${from}&to=${to}`),
+      api<CalendarEventItem[]>(`/calendar/events?${calendarRangeQuery(from, to)}`),
   });
 }
 
@@ -113,11 +114,12 @@ export function useToggleTask() {
 export function useCreateTodo() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (title: string) =>
-      api('/todos', { method: 'POST', body: { title } }),
+    mutationFn: (body: { title: string; assigneeId: string }) =>
+      api<TaskItem>('/todos', { method: 'POST', body }),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       queryClient.invalidateQueries({ queryKey: ['my-day'] });
+      queryClient.invalidateQueries({ queryKey: ['workload'] });
     },
   });
 }
@@ -140,13 +142,18 @@ export interface CreateEventBody {
   startAt: string;
   type?: string;
   courtName?: string;
+  assigneeIds?: string[];
+}
+
+export function useCourts() {
+  return useQuery({ queryKey: ['courts'], queryFn: () => api<Array<{ id: string; name: string }>>('/courts') });
 }
 
 export function useCreateEvent() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateEventBody) =>
-      api('/calendar/events', { method: 'POST', body }),
+      api<CalendarEventItem>('/calendar/events', { method: 'POST', body }),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] });
       queryClient.invalidateQueries({ queryKey: ['case-events'] });
@@ -178,6 +185,7 @@ export interface Lawyer {
   id: string;
   firstName: string;
   lastName: string;
+  firmRole?: import('@lawfirm/shared').FirmRole | null;
 }
 
 export function useLawyers() {
@@ -196,16 +204,18 @@ export function useReassignTask() {
       taskId,
       assigneeId,
     }: {
-      caseId: string;
+      caseId?: string | null;
       taskId: string;
       assigneeId: string;
     }) =>
-      api(`/cases/${caseId}/tasks/${taskId}/reassign`, {
+      api(caseId ? `/cases/${caseId}/tasks/${taskId}/reassign` : `/todos/${taskId}`, {
         method: 'PATCH',
         body: { assigneeId },
       }),
     onSettled: (_data, _error, { caseId }) => {
-      queryClient.invalidateQueries({ queryKey: ['case-tasks', caseId] });
+      if (caseId) queryClient.invalidateQueries({ queryKey: ['case-tasks', caseId] });
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['my-day'] });
       queryClient.invalidateQueries({ queryKey: ['workload'] });
     },
   });
@@ -219,10 +229,11 @@ export function useLeaves(from: string, to: string, enabled = true) {
   });
 }
 
-export function useWorkload() {
+export function useWorkload(enabled = true) {
   return useQuery({
     queryKey: ['workload'],
     queryFn: () => api<WorkloadResponse>('/dashboard/workload'),
+    enabled,
   });
 }
 
@@ -270,6 +281,9 @@ export interface ExpenseItem {
   date: string;
   billable?: boolean;
   receiptPath?: string | null;
+  receiptFilename?: string | null;
+  claimId?: string | null;
+  userId?: string;
   case?: { id: string; ownRef: string; title: string } | null;
   user?: { id: string; firstName: string; lastName: string } | null;
 }
@@ -285,8 +299,11 @@ export function useSubmitExpenses() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (expenseIds: string[]) =>
-      api('/expenses/submit', { method: 'POST', body: { expenseIds } }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+      api<ExpenseClaim>('/expenses/submit', { method: 'POST', body: { expenseIds } }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['expense-claims'] });
+    },
   });
 }
 
@@ -404,11 +421,108 @@ export function useSaveCourtDay(eventId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ version, state }: { version: number; state: CourtDayState }) =>
-      api(`/calendar/events/${eventId}/court-day`, {
+      api<CourtDayResponse['workspace']>(`/calendar/events/${eventId}/court-day`, {
         method: 'PATCH',
         body: { version, state },
       }),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ['court-day', eventId] }),
+  });
+}
+
+export interface ExpenseClaim {
+  id: string;
+  status: 'PENDING' | 'APPROVED' | 'PAID' | 'REJECTED';
+  submittedAt: string;
+  reviewedAt: string | null;
+  paidAt: string | null;
+  submittedBy: Lawyer;
+  totalAmount: number;
+  itemCount: number;
+  receiptCount: number;
+  cases: Array<{ id: string; ownRef: string; title: string }>;
+  expenses: ExpenseItem[];
+}
+
+export function useExpenseClaims(enabled = true) {
+  return useQuery({
+    queryKey: ['expense-claims'],
+    queryFn: () => api<ExpenseClaim[]>('/expense-claims'),
+    enabled,
+  });
+}
+
+export function useExpenseClaim(id: string) {
+  return useQuery({
+    queryKey: ['expense-claims', id],
+    queryFn: () => api<ExpenseClaim>(`/expense-claims/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useReviewClaim(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (status: 'APPROVED' | 'PAID' | 'REJECTED') =>
+      api<ExpenseClaim>(`/expense-claims/${id}/status`, { method: 'PATCH', body: { status } }),
+    retry: false,
+    onSuccess: (data) => client.setQueryData(['expense-claims', id], data),
+    onSettled: () => {
+      client.invalidateQueries({ queryKey: ['expense-claims'] });
+      client.invalidateQueries({ queryKey: ['expenses'] });
+    },
+  });
+}
+
+export function useRequestLeave() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { type: LeaveItem['type']; startDate: string; endDate: string }) =>
+      api<LeaveItem>('/leaves', { method: 'POST', body }),
+    retry: false,
+    onSettled: () => {
+      client.invalidateQueries({ queryKey: ['leaves'] });
+      client.invalidateQueries({ queryKey: ['actions'] });
+    },
+  });
+}
+
+export function useMembers() {
+  return useQuery({ queryKey: ['members'], queryFn: () => api<Lawyer[]>('/users/members') });
+}
+
+export function useEvent(id: string) {
+  return useQuery({
+    queryKey: ['event', id],
+    queryFn: () => api<CalendarEventItem>(`/calendar/events/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useUpdateEventTeam(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (assigneeIds: string[]) =>
+      api<CalendarEventItem>(`/calendar/events/${id}`, { method: 'PATCH', body: { assigneeIds } }),
+    retry: false,
+    onSettled: () => {
+      for (const key of ['event', 'calendar', 'case-events', 'my-day', 'court-day', 'workload']) {
+        client.invalidateQueries({ queryKey: [key] });
+      }
+    },
+  });
+}
+
+export function useCompleteCourtDay(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { version: number; eventUpdatedAt: string }) =>
+      api<CourtDayResponse['workspace']>(`/calendar/events/${id}/court-day/complete`, { method: 'POST', body }),
+    retry: false,
+    onSettled: () => {
+      for (const key of ['court-day', 'my-day', 'calendar', 'case-events', 'case-tasks', 'expenses']) {
+        client.invalidateQueries({ queryKey: [key] });
+      }
+    },
   });
 }

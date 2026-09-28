@@ -5,6 +5,7 @@ import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 
 const METHOD_LABELS: Record<string, string> = {
   TRANSFER: 'โอนเงิน',
@@ -69,10 +70,11 @@ export function RecordPaymentForm({
     >
       <label className="text-sm">
         <span className="mb-1 block text-xs text-muted-foreground">จำนวนเงิน</span>
-        <input
-          inputMode="decimal"
+        <MoneyInput
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          min={0.01}
+          max={outstanding}
+          onValueChange={setAmount}
           className="h-9 w-32 rounded-lg border border-input bg-background px-2 text-sm"
         />
       </label>

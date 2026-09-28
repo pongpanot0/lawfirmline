@@ -10,7 +10,6 @@ import {
   MONEY_HINT,
   MONEY_MAX,
   MONEY_MIN,
-  MONEY_STEP,
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, CaseItem, CashAdvanceItem } from '@/lib/api';
@@ -18,8 +17,10 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { formatCurrency } from '@/lib/utils';
 
 const RECEIPT_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,application/pdf';
 
@@ -126,16 +127,14 @@ export default function NewExpensePage() {
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="text-sm font-medium">{d.expenses.amount} *</label>
-              <Input
+              <MoneyInput
                 required
-                type="number"
-                step={MONEY_STEP}
                 min={MONEY_MIN}
                 max={MONEY_MAX}
                 title={MONEY_HINT}
                 placeholder={d.expenses.amount}
                 value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                onValueChange={(next) => setForm({ ...form, amount: next })}
                 className="mt-1"
               />
               <p className="mt-1 text-xs text-muted-foreground">{MONEY_HINT}</p>
@@ -186,7 +185,7 @@ export default function NewExpensePage() {
                   <option value="">{d.expenses.paidFromSelf}</option>
                   {advances.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {d.expenses.paidFromAdvance} — {d.expenses.remaining} ฿{a.remaining.toLocaleString()}
+                      {d.expenses.paidFromAdvance} — {d.expenses.remaining} {formatCurrency(a.remaining)}
                       {a.note ? ` (${a.note})` : ''}
                     </option>
                   ))}

@@ -33,6 +33,11 @@ export class UsersController {
     return this.usersService.findLawyers(user.firmId);
   }
 
+  @Get('members')
+  findMembers(@CurrentUser() user: AuthUser) {
+    return this.usersService.findMembers(user.firmId);
+  }
+
   /** The caller's own notification preferences — no admin role needed. */
   @Get('me/preferences')
   getMyPreferences(@CurrentUser() user: AuthUser) {

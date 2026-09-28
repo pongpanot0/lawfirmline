@@ -1,9 +1,11 @@
 import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useAuth } from '@/api/auth';
 import { useOwnerKpis, useReportsSummary } from '@/api/hooks';
 import { Card, ErrorNote, Loading, SectionLabel, StatCard, Tag } from '@/components/ui';
-import { colors, spacing } from '@/theme';
+import { formatMoney } from '@/format';
+import { colors, spacing, pageContent } from '@/theme';
 
 /** Read-only summary cards — the full report builder stays on web. */
 export default function ReportsScreen() {
@@ -25,7 +27,7 @@ export default function ReportsScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}
+      contentContainerStyle={pageContent}
       refreshControl={
         <RefreshControl refreshing={reports.isRefetching} onRefresh={() => reports.refetch()} />
       }
@@ -38,7 +40,7 @@ export default function ReportsScreen() {
           <View style={styles.statRow}>
             <StatCard
               label="ยังไม่วางบิล"
-              value={`${ownerKpis.data.unbilled.amount.toLocaleString('th-TH')} ฿`}
+              value={`${formatMoney(ownerKpis.data.unbilled.amount)} ฿`}
               hint={`${ownerKpis.data.unbilled.hours.toLocaleString('th-TH')} ชม. ยังไม่วางบิล`}
             />
             <StatCard
@@ -67,7 +69,7 @@ export default function ReportsScreen() {
             />
             <StatCard
               label="เงินรับเดือนนี้"
-              value={`${ownerKpis.data.revenue.month.toLocaleString('th-TH')} ฿`}
+              value={`${formatMoney(ownerKpis.data.revenue.month)} ฿`}
             />
           </View>
         </>
@@ -121,7 +123,7 @@ export default function ReportsScreen() {
                   </Text>
                   <Text style={styles.meta}>{row.hours.toLocaleString('th-TH')} ชม.</Text>
                   <Text style={styles.count}>
-                    {row.revenue.toLocaleString('th-TH')} ฿
+                    {formatMoney(row.revenue)} ฿
                   </Text>
                 </View>
               </View>

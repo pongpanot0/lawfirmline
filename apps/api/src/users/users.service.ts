@@ -100,6 +100,15 @@ export class UsersService {
     };
   }
 
+  /** Names only, including assistants; court companions belong to the active firm. */
+  async findMembers(firmId: string) {
+    return this.prisma.user.findMany({
+      where: { firmMembers: { some: { firmId } } },
+      select: { id: true, firstName: true, lastName: true },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
+  }
+
   /**
    * Delivery is chosen from the LINE link, so the preference is only whether to
    * receive the digest at all.

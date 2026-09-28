@@ -210,4 +210,15 @@ describe('DashboardService', () => {
     expect(byId['u-a'].hearingsThisWeek).toBe(1);
     expect(byId['u-b'].hearingsThisWeek).toBe(1);
   });
+
+  it('includes assistant manpower and scopes the roster to the active firm', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'assistant', firstName: 'ผู้ช่วย', lastName: 'สำนักงาน' },
+    ]);
+    const result = await service.getWorkload(user);
+    expect(mockPrisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { firmMembers: { some: { firmId: user.firmId } } },
+    }));
+    expect(result.members).toEqual([expect.objectContaining({ id: 'assistant', openTasks: 0 })]);
+  });
 });
