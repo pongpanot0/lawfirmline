@@ -46,7 +46,7 @@ Rollback: drop column — ไม่มีข้อมูลอื่นพึ่
 | เปลี่ยน | รายละเอียด |
 |---|---|
 | `createStageTasks` | หลังสร้างงาน ตั้ง `stageTasksHandledFor = stage` |
-| ใหม่ `POST /practice-setup/cases/:caseId/stage-tasks/dismiss` `{ stage }` | ตั้ง `stageTasksHandledFor = stage` + log case feed "ข้ามงานแนะนำขั้น X" · ใช้ `CaseAccessGuard` เหมือน route ข้างเคียง |
+| ใหม่ `POST /practice-setup/cases/:caseId/stage-tasks/dismiss` `{ stage }` | ตั้ง `stageTasksHandledFor = stage` (ไม่ log feed — การย้ายขั้นถูก log อยู่แล้ว) · ใช้ `CaseAccessGuard` เหมือน route ข้างเคียง |
 | `proposeStageTasks` | ตัดขั้นตอนที่คดีมีงาน label `stage:<STAGE>` ชื่อเดียวกันอยู่แล้วออก — กันงานซ้ำเมื่อคดีย้อนกลับมาขั้นเดิม |
 | case detail response | มี `stageTasksHandledFor` (มาจาก Prisma model อยู่แล้ว — ตรวจว่า include/select ไม่ตัดทิ้ง) |
 
