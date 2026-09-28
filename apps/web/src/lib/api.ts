@@ -506,6 +506,18 @@ export interface CaseMessageEntry {
   createdAt: string;
 }
 
+export interface CaseCommentEntry {
+  id: string;
+  caseId: string;
+  authorId: string;
+  authorFirstName: string;
+  authorLastName: string;
+  body: string;
+  mentionedUserIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CaseActivityItem {
   id: string;
   title: string;
@@ -2872,6 +2884,22 @@ export const api = {
 
   unpublishDocument: (token: string, caseId: string, documentId: string, publicationId: string) =>
     request(`/cases/${caseId}/documents/${documentId}/publications/${publicationId}`, {
+      method: 'DELETE',
+      token,
+    }),
+
+  getCaseComments: (token: string, caseId: string) =>
+    request<CaseCommentEntry[]>(`/cases/${caseId}/comments`, { token }),
+
+  createCaseComment: (token: string, caseId: string, body: string, mentionedUserIds?: string[]) =>
+    request<CaseCommentEntry>(`/cases/${caseId}/comments`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ body, mentionedUserIds }),
+    }),
+
+  deleteCaseComment: (token: string, caseId: string, commentId: string) =>
+    request(`/cases/${caseId}/comments/${commentId}`, {
       method: 'DELETE',
       token,
     }),
