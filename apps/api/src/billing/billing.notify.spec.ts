@@ -15,8 +15,8 @@ const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as A
 
 describe('Billing LINE notifications', () => {
   const mockPrisma = {
-    expense: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-    expenseClaim: { findFirst: jest.fn(), update: jest.fn() },
+    expense: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    expenseClaim: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     firmMember: { findFirst: jest.fn(), findMany: jest.fn() },
     cashAdvance: { create: jest.fn() },
     $transaction: jest.fn(async (arg: any) => (typeof arg === 'function' ? arg(mockPrisma) : Promise.all(arg))),

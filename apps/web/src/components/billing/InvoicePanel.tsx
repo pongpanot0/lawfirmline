@@ -16,6 +16,7 @@ import { InlineEmptyState } from '@/components/ui/misc';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'ร่าง',
@@ -303,15 +304,14 @@ export function InvoicePanel({
                   inputMode="decimal"
                   className="w-16 rounded-lg border border-slate-200 px-2 py-2 text-sm"
                 />
-                <input
+                <MoneyInput
                   aria-label={`ราคาต่อหน่วยของรายการที่ ${index + 1}`}
                   value={item.unitPrice}
-                  onChange={(e) =>
+                  onValueChange={(next) =>
                     setItems((rows) =>
-                      rows.map((r, i) => (i === index ? { ...r, unitPrice: e.target.value } : r)),
+                      rows.map((r, i) => (i === index ? { ...r, unitPrice: next } : r)),
                     )
                   }
-                  inputMode="decimal"
                   placeholder="ราคา"
                   className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 />
@@ -427,7 +427,7 @@ export function InvoicePanel({
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <p>฿{inv.totalAmount.toLocaleString()}</p>
+                <p>{formatCurrency(inv.totalAmount)}</p>
                 <p className="text-xs text-slate-400">
                   {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
                 </p>

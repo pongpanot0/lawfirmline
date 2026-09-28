@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Lock } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
@@ -17,7 +18,7 @@ const RELOCK_AFTER_MS = 60 * 1000;
  * security skip the gate — the OS cannot challenge what does not exist.
  */
 export function LockGate({ children }: { children: React.ReactNode }) {
-  const { user, restored } = useAuth();
+  const { user, restored, logout } = useAuth();
   const [locked, setLocked] = useState(false);
   const backgroundedAt = useRef<number | null>(null);
   const challengedRestore = useRef(false);
@@ -33,7 +34,7 @@ export function LockGate({ children }: { children: React.ReactNode }) {
         return;
       }
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'ปลดล็อก LexFlow',
+        promptMessage: 'ปลดล็อก Samnuan',
         cancelLabel: 'ยกเลิก',
       });
       if (result.success) setLocked(false);
@@ -78,9 +79,12 @@ export function LockGate({ children }: { children: React.ReactNode }) {
   return (
     <View style={styles.screen}>
       <Lock color={colors.accentSoft} size={40} />
-      <Text style={styles.title}>LexFlow ถูกล็อกไว้</Text>
+      <Text style={styles.title}>Samnuan ถูกล็อกไว้</Text>
       <Pressable style={styles.button} onPress={challenge}>
         <Text style={styles.buttonText}>ปลดล็อก</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" style={{ padding: spacing.md }} onPress={logout}>
+        <Text style={{ color: colors.bg }}>ออกจากระบบและเข้าสู่ระบบใหม่</Text>
       </Pressable>
     </View>
   );

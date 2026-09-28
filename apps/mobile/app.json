@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "LexFlow",
+    "name": "Samnuan",
     "slug": "lexflow-mobile",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "scheme": "lexflow",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "co.lexflow.mobile",
+      "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
@@ -19,7 +20,15 @@
       "expo-secure-store",
       "expo-status-bar",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      ["expo-image-picker", {
+        "cameraPermission": "Samnuan ใช้กล้องเพื่อถ่ายใบเสร็จและเอกสารคดีที่คุณเลือกแนบ",
+        "photosPermission": "Samnuan ใช้รูปภาพเพื่อแนบใบเสร็จและเอกสารคดีที่คุณเลือก",
+        "microphonePermission": false
+      }],
+      ["expo-local-authentication", {
+        "faceIDPermission": "Samnuan ใช้ Face ID เพื่อปลดล็อกข้อมูลคดีของคุณ"
+      }]
     ],
     "experiments": {
       "typedRoutes": false

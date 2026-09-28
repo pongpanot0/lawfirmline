@@ -1,13 +1,6 @@
 import React, { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
@@ -52,7 +45,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.form}>
-        <Text style={styles.brand}>LexFlow</Text>
+        <Text style={styles.brand}>Samnuan</Text>
         <Text style={styles.subtitle}>ระบบบริหารสำนักงานกฎหมาย</Text>
 
         <TextInput

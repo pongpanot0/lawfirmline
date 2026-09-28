@@ -24,6 +24,7 @@ import {
   SuggestibleField,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, X } from 'lucide-react';
 import type { CaseFieldSchema } from '@lawfirm/shared';
@@ -609,10 +610,10 @@ export default function NewCasePage() {
                   <input type="date" value={form.customFields.incidentDate?.slice(0, 10) ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, incidentDate: event.target.value } }))} className={inputClass} />
                 </label>
                 <label className={fieldLabel}>ทุนทรัพย์ที่เรียกร้อง (บาท)
-                  <input type="number" min="0" max={FEE_MAX} step="0.01" value={form.claimedAmount} onChange={(event) => setForm((current) => ({ ...current, claimedAmount: event.target.value }))} className={inputClass} />
+                  <MoneyInput min={0} max={FEE_MAX} value={form.claimedAmount} onValueChange={(next) => setForm((current) => ({ ...current, claimedAmount: next }))} className={inputClass} />
                 </label>
                 <label className={fieldLabel}>ความเสียหายโดยประมาณ (บาท)
-                  <input type="number" min="0" max={FEE_MAX} step="0.01" value={form.customFields.estimatedDamage ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, estimatedDamage: event.target.value } }))} className={inputClass} />
+                  <MoneyInput min={0} max={FEE_MAX} value={form.customFields.estimatedDamage ?? ''} onValueChange={(next) => setForm((current) => ({ ...current, customFields: { ...current.customFields, estimatedDamage: next } }))} className={inputClass} />
                 </label>
                 <label className="text-sm font-medium sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี
                   <textarea rows={4} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className={inputClass} />

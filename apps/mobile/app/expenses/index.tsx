@@ -1,146 +1,71 @@
-import React from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus } from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
+import { Alert, ScrollView, View, Pressable, RefreshControl } from 'react-native';
+import { Text } from '@/components/AppText';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '@/api/auth';
 import { useExpenses, useSubmitExpenses } from '@/api/hooks';
-import { Button, Card, EmptyNote, ErrorNote, Loading, Tag, TagTone } from '@/components/ui';
-import { thDate } from '@/format';
-import { colors, spacing } from '@/theme';
-
-const STATUS_META: Record<string, { label: string; tone: TagTone }> = {
-  DRAFT: { label: 'ยังไม่ส่งเบิก', tone: 'plain' },
-  PENDING: { label: 'รอตรวจ', tone: 'info' },
-  APPROVED: { label: 'อนุมัติ', tone: 'ok' },
-  PAID: { label: 'จ่ายแล้ว', tone: 'ok' },
-  REJECTED: { label: 'ตีกลับ', tone: 'due' },
-};
+import { draftScope, ExpenseDraft, listExpenseDrafts, removeExpenseDraft } from '@/api/drafts';
+import { Button, Card, EmptyNote, ErrorNote, SectionLabel, Tag } from '@/components/ui';
+import { formatMoney, thDate } from '@/format';
+import { colors, spacing, pageContent } from '@/theme';
 
 export default function ExpensesScreen() {
-  const router = useRouter();
   const { user } = useAuth();
+  const router = useRouter();
   const expenses = useExpenses();
   const submit = useSubmitExpenses();
-  const insets = useSafeAreaInsets();
-
-  if (expenses.isLoading) return <Loading />;
-
-  const mine = (expenses.data ?? []).filter(
-    (expense) => !expense.user || expense.user.id === user?.id,
-  );
-  const drafts = mine.filter((expense) => expense.status === 'DRAFT');
-
-  const submitDrafts = () => {
-    Alert.alert(
-      'ส่งเบิก',
-      `ส่งค่าใช้จ่าย ${drafts.length} รายการ รวม ${drafts
-        .reduce((sum, expense) => sum + expense.amount, 0)
-        .toLocaleString('th-TH')} บาท เพื่อขออนุมัติ?`,
-      [
-        { text: 'ยกเลิก', style: 'cancel' },
-        {
-          text: 'ส่งเบิก',
-          onPress: () => submit.mutate(drafts.map((expense) => expense.id)),
-        },
-      ],
-    );
-  };
-
-  return (
-    <View style={styles.screen}>
-      {expenses.isError ? (
-        <View style={{ padding: spacing.lg }}>
-          <ErrorNote message="โหลดค่าใช้จ่ายไม่สำเร็จ" onRetry={() => expenses.refetch()} />
-        </View>
-      ) : (
-        <FlatList
-          data={mine}
-          keyExtractor={(expense) => expense.id}
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}
-          refreshing={expenses.isRefetching}
-          onRefresh={() => expenses.refetch()}
-          renderItem={({ item }) => {
-            const status = STATUS_META[item.status] ?? {
-              label: item.status,
-              tone: 'plain' as TagTone,
-            };
-            return (
-              <Card style={{ marginBottom: spacing.sm }}>
-                <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.description} numberOfLines={2}>
-                      {item.description}
-                    </Text>
-                    <Text style={styles.meta} numberOfLines={1}>
-                      {[thDate(item.date), item.category, item.case?.ownRef]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </Text>
-                  </View>
-                  <Text style={styles.amount}>
-                    {item.amount.toLocaleString('th-TH')} ฿
-                  </Text>
-                  <Tag tone={status.tone}>{status.label}</Tag>
-                </View>
-              </Card>
-            );
-          }}
-          ListEmptyComponent={<EmptyNote>ยังไม่มีค่าใช้จ่าย</EmptyNote>}
-        />
-      )}
-
-      <View style={[styles.footer, { paddingBottom: spacing.md + insets.bottom }]}>
-        {drafts.length > 0 ? (
-          <Button
-            title={`ส่งเบิก ${drafts.length} รายการ`}
-            onPress={submitDrafts}
-            busy={submit.isPending}
-          />
-        ) : null}
-        <Pressable
-          onPress={() => router.push('/expenses/new')}
-          style={({ pressed }) => [styles.newButton, pressed && { opacity: 0.8 }]}
-        >
-          <Plus size={18} color={colors.ink} />
-          <Text style={styles.newText}>บันทึกค่าใช้จ่ายใหม่</Text>
-        </Pressable>
-      </View>
+  const [local, setLocal] = useState<ExpenseDraft[]>([]);
+  const [localError, setLocalError] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const scope = user ? draftScope(user) : '';
+  const load = useCallback(() => {
+    if (!scope) return;
+    return listExpenseDrafts(scope).then((rows) => { setLocal(rows); setLocalError(''); })
+      .catch(() => setLocalError('โหลดร่างในเครื่องไม่สำเร็จ'));
+  }, [scope]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const drafts = (expenses.data ?? []).filter((item) => (item.userId ?? item.user?.id) === user?.id && item.status === 'DRAFT');
+  const chosen = drafts.filter((item) => selected.includes(item.id));
+  const send = () => Alert.alert('ส่งเบิกเป็นชุด', `${chosen.length} รายการ รวม ${formatMoney(chosen.reduce((sum, item) => sum + item.amount, 0))} บาท`, [
+    { text: 'ยกเลิก', style: 'cancel' },
+    { text: 'ส่งชุดนี้', onPress: () => submit.mutate(chosen.map((item) => item.id), {
+      onSuccess: (claim) => { setSelected([]); router.push(`/expenses/claim/${claim.id}`); },
+      onError: (error) => Alert.alert('ส่งไม่สำเร็จ', error.message),
+    }) },
+  ]);
+  return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={pageContent}
+    refreshControl={<RefreshControl refreshing={expenses.isRefetching} onRefresh={() => { expenses.refetch(); void load(); }} />}>
+    <View style={{ gap: spacing.sm }}>
+      <Button title="เพิ่มค่าใช้จ่าย" onPress={() => router.push('/expenses/new')} />
+      <Button title={user?.firmRole === 'OWNER' ? 'ดูชุดเบิกทีม · อนุมัติ / จ่าย' : 'ดูชุดที่ส่งเบิกแล้ว'} ghost onPress={() => router.push('/expenses/claims')} />
     </View>
-  );
+    <SectionLabel>ร่างในเครื่อง · รอเติมรายละเอียด</SectionLabel>
+    {!!localError && <ErrorNote message={localError} onRetry={load} />}
+    {!local.length && !localError && <EmptyNote>ไม่มีร่างค้าง</EmptyNote>}
+    {local.map((item) => <Card key={item.id} style={{ marginBottom: spacing.md }}>
+      <Pressable accessibilityRole="button" onPress={() => router.push(`/expenses/new?draftId=${item.id}`)} style={{ minHeight: 44 }}>
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>{item.category} · {item.amount ? `${formatMoney(item.amount)} ฿` : 'ยังไม่ใส่ยอด'}</Text>
+        <Text style={{ color: colors.muted }}>{item.caseRef?.label ?? 'ค่าใช้จ่ายสำนักงาน'} · {item.receiptUri ? 'มีใบเสร็จ' : 'ไม่มีใบเสร็จ'}</Text>
+        <Text style={{ color: colors.info }}>{item.savedExpenseId ? 'บันทึกแล้ว · ปิดร่าง' : 'เติมต่อ'}</Text>
+      </Pressable>
+      <Button title="ลบร่าง" ghost onPress={() => Alert.alert('ลบร่างนี้?', 'ข้อมูลและใบเสร็จในเครื่องจะถูกลบ', [
+        { text: 'ยกเลิก', style: 'cancel' }, { text: 'ลบ', style: 'destructive', onPress: async () => {
+          try { await removeExpenseDraft(scope, item); await load(); } catch { Alert.alert('ลบไม่สำเร็จ', 'ลองใหม่อีกครั้ง'); }
+        } },
+      ])} />
+    </Card>)}
+    <SectionLabel>เลือกค่าใช้จ่ายเพื่อรวมเป็นชุดเบิก</SectionLabel>
+    {expenses.isError && <ErrorNote message="โหลดค่าใช้จ่ายไม่สำเร็จ" onRetry={() => expenses.refetch()} />}
+    {expenses.isLoading ? <Text>กำลังโหลด…</Text> : !drafts.length && <EmptyNote>ยังไม่มีรายการพร้อมส่ง</EmptyNote>}
+    {drafts.map((item) => <Pressable key={item.id} accessibilityRole="checkbox" accessibilityState={{ checked: selected.includes(item.id), disabled: submit.isPending }}
+      disabled={submit.isPending} onPress={() => setSelected((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])}>
+      <Card style={{ marginBottom: spacing.md, borderColor: selected.includes(item.id) ? colors.ink : colors.line }}>
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>{selected.includes(item.id) ? '✓ ' : '○ '}{item.category} · {formatMoney(item.amount)} ฿</Text>
+        <Text style={{ color: colors.muted }}>{item.description}</Text>
+        <Text style={{ color: colors.muted }}>{thDate(item.date)} · {item.case?.ownRef ?? 'สำนักงาน'}</Text>
+        <Tag tone="plain">{item.receiptFilename ? 'มีใบเสร็จ' : 'ไม่มีใบเสร็จ'}</Tag>
+      </Card>
+    </Pressable>)}
+    <Button title={`ส่งเบิกชุดนี้ · ${chosen.length} รายการ`} onPress={send} disabled={!chosen.length || expenses.isError || expenses.isFetching} busy={submit.isPending} />
+  </ScrollView>;
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  description: { fontSize: 14, fontWeight: '600', color: colors.text },
-  meta: { fontSize: 12, color: colors.faint, marginTop: 2 },
-  amount: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.ink,
-    fontVariant: ['tabular-nums'],
-  },
-  footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: spacing.lg,
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-  },
-  newButton: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.soft,
-    borderRadius: 10,
-    paddingVertical: 13,
-    minHeight: 48,
-  },
-  newText: { fontWeight: '600', color: colors.ink, fontSize: 15 },
-});

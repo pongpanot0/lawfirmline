@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
@@ -244,9 +245,9 @@ export default function ReimbursementsPage() {
           user
             ? fmt(d.reimbursements.descriptionWithFirm, {
                 firm: user.firmName ?? '',
-                amount: pendingTotal.toLocaleString(),
+                amount: pendingTotal.toLocaleString('th-TH', { maximumFractionDigits: 2 }),
               })
-            : fmt(d.reimbursements.description, { amount: pendingTotal.toLocaleString() })
+            : fmt(d.reimbursements.description, { amount: pendingTotal.toLocaleString('th-TH', { maximumFractionDigits: 2 }) })
         }
       />
 
@@ -269,14 +270,12 @@ export default function ReimbursementsPage() {
                 </option>
               ))}
             </select>
-            <Input
+            <MoneyInput
               required
-              type="number"
               min={0}
-              step="0.01"
               placeholder={d.reimbursements.amount}
               value={advanceForm.amount}
-              onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })}
+              onValueChange={(next) => setAdvanceForm({ ...advanceForm, amount: next })}
               className="w-32"
             />
             <Input

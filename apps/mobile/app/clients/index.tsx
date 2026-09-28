@@ -1,18 +1,12 @@
 import React, { useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 import { useRouter } from 'expo-router';
 import { Search } from 'lucide-react-native';
 import { useClients } from '@/api/hooks';
 import { Card, EmptyNote, ErrorNote, Loading } from '@/components/ui';
 import { initials } from '@/format';
-import { colors, radius, spacing } from '@/theme';
+import { colors, radius, spacing, pageContent } from '@/theme';
 
 export default function ClientsScreen() {
   const router = useRouter();
@@ -44,7 +38,7 @@ export default function ClientsScreen() {
         <FlatList
           data={clients.data ?? []}
           keyExtractor={(client) => client.id}
-          contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.sm }}
+          contentContainerStyle={pageContent}
           refreshing={clients.isRefetching}
           onRefresh={() => clients.refetch()}
           renderItem={({ item }) => (
@@ -52,7 +46,7 @@ export default function ClientsScreen() {
               onPress={() => router.push(`/clients/${item.id}`)}
               style={({ pressed }) => pressed && { opacity: 0.7 }}
             >
-              <Card style={{ marginBottom: spacing.sm }}>
+              <Card style={{ marginBottom: spacing.md }}>
                 <View style={styles.row}>
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>{initials(item.name)}</Text>
@@ -85,7 +79,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.button,
     marginHorizontal: spacing.lg,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
     paddingHorizontal: spacing.md,
   },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: colors.text },

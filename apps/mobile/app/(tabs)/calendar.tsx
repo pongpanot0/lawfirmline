@@ -1,19 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
-import { useCalendarRange } from '@/api/hooks';
+import { useCalendarRange, useWorkload } from '@/api/hooks';
 import type { CalendarEventItem } from '@/api/types';
 import { Card, EmptyNote, ErrorNote, SectionLabel, Tag } from '@/components/ui';
 import { isoDay, thDate, thTime } from '@/format';
-import { colors, spacing, TOUCH } from '@/theme';
+import { colors, spacing, TOUCH, pageContent } from '@/theme';
 
 const TH_MONTHS_FULL = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -34,6 +28,7 @@ function monthGrid(year: number, month: number): Array<Date | null> {
 
 export default function CalendarScreen() {
   const router = useRouter();
+  const { memberId } = useLocalSearchParams<{ memberId?: string }>();
   const today = new Date();
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
   const [selected, setSelected] = useState(isoDay(today));
@@ -41,17 +36,19 @@ export default function CalendarScreen() {
   const from = isoDay(new Date(cursor.y, cursor.m, 1));
   const to = isoDay(new Date(cursor.y, cursor.m + 1, 0));
   const events = useCalendarRange(from, to);
+  const workload = useWorkload(!!memberId);
 
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarEventItem[]>();
     for (const event of events.data ?? []) {
+      if (memberId && event.assigneeId !== memberId && !event.assignees?.some((person) => person.userId === memberId)) continue;
       const key = isoDay(new Date(event.startAt));
       map.set(key, [...(map.get(key) ?? []), event]);
     }
     for (const list of map.values())
       list.sort((a, b) => a.startAt.localeCompare(b.startAt));
     return map;
-  }, [events.data]);
+  }, [events.data, memberId]);
 
   const cells = monthGrid(cursor.y, cursor.m);
   const selectedEvents = byDay.get(selected) ?? [];
@@ -59,15 +56,20 @@ export default function CalendarScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}
+      contentContainerStyle={pageContent}
       refreshControl={
         <RefreshControl refreshing={events.isRefetching} onRefresh={() => events.refetch()} />
       }
     >
+      {memberId && <Pressable accessibilityRole="button" style={styles.filter} onPress={() => router.replace('/(tabs)/calendar')}>
+        <Text style={styles.filterText}>นัดของ {workload.data?.members.find((member) => member.id === memberId)?.name ?? 'สมาชิกทีม'} · ดูทั้งหมด ×</Text>
+      </Pressable>}
       <Card>
         <View style={styles.monthHead}>
           <Pressable
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="เดือนก่อนหน้า"
             style={styles.navButton}
             onPress={() =>
               setCursor(({ y, m }) => (m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 }))
@@ -80,6 +82,8 @@ export default function CalendarScreen() {
           </Text>
           <Pressable
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="เดือนถัดไป"
             style={styles.navButton}
             onPress={() =>
               setCursor(({ y, m }) => (m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))
@@ -90,36 +94,42 @@ export default function CalendarScreen() {
         </View>
 
         <View style={styles.grid}>
-          {TH_DOW.map((d) => (
-            <Text key={d} style={styles.dow}>
-              {d}
-            </Text>
+          <View style={styles.week}>
+            {TH_DOW.map((d) => (
+              <Text key={d} style={styles.dow}>
+                {d}
+              </Text>
+            ))}
+          </View>
+          {Array.from({ length: cells.length / 7 }, (_, week) => (
+            <View key={week} style={styles.week}>
+              {cells.slice(week * 7, week * 7 + 7).map((date, index) => {
+                if (!date) return <View key={`x${index}`} style={styles.cell} />;
+                const key = isoDay(date);
+                const isToday = key === isoDay(today);
+                const isSelected = key === selected;
+                const hasEvents = byDay.has(key);
+                return (
+                  <Pressable
+                    key={key}
+                    style={[styles.cell, isSelected && styles.cellSelected, isToday && styles.cellToday]}
+                    onPress={() => setSelected(key)}
+                  >
+                    <Text
+                      style={[
+                        styles.cellText,
+                        isToday && { color: colors.bg, fontWeight: '700' },
+                        isSelected && !isToday && { color: colors.ink, fontWeight: '700' },
+                      ]}
+                    >
+                      {date.getDate()}
+                    </Text>
+                    {hasEvents ? <View style={styles.dot} /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
           ))}
-          {cells.map((date, index) => {
-            if (!date) return <View key={`x${index}`} style={styles.cell} />;
-            const key = isoDay(date);
-            const isToday = key === isoDay(today);
-            const isSelected = key === selected;
-            const hasEvents = byDay.has(key);
-            return (
-              <Pressable
-                key={key}
-                style={[styles.cell, isSelected && styles.cellSelected, isToday && styles.cellToday]}
-                onPress={() => setSelected(key)}
-              >
-                <Text
-                  style={[
-                    styles.cellText,
-                    isToday && { color: colors.bg, fontWeight: '700' },
-                    isSelected && !isToday && { color: colors.ink, fontWeight: '700' },
-                  ]}
-                >
-                  {date.getDate()}
-                </Text>
-                {hasEvents ? <View style={styles.dot} /> : null}
-              </Pressable>
-            );
-          })}
         </View>
       </Card>
 
@@ -130,9 +140,11 @@ export default function CalendarScreen() {
       ) : null}
 
       <View style={styles.dayHead}>
-        <SectionLabel>{thDate(new Date(selected))}</SectionLabel>
+        <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>{thDate(new Date(selected))}</SectionLabel>
         <Pressable
           style={styles.addButton}
+          accessibilityRole="button"
+          accessibilityLabel="เพิ่มนัดหมาย"
           hitSlop={8}
           onPress={() => router.push(`/event/new?date=${selected}`)}
         >
@@ -163,8 +175,13 @@ export default function CalendarScreen() {
                   <Text style={styles.eventMeta} numberOfLines={1}>
                     {[event.case?.ownRef, event.courtName].filter(Boolean).join(' · ') || '—'}
                   </Text>
+                  <Text style={styles.eventMeta}>หลัก: {event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : 'ยังไม่ระบุ'}</Text>
+                  <Text style={styles.eventMeta}>ร่วม: {event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => `${person.user.firstName} ${person.user.lastName}`).join(', ') || 'ไม่มี'}</Text>
                 </View>
                 {event.type === 'COURT_DATE' ? <Tag tone="court">ศาล</Tag> : null}
+              </Pressable>
+              <Pressable accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center', paddingLeft: 60 }} onPress={() => router.push(`/event/${event.id}/team`)}>
+                <Text style={{ color: colors.info }}>ดู / จัดทีมที่ไปด้วย</Text>
               </Pressable>
             </View>
           ))
@@ -189,9 +206,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   monthTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  grid: { gap: spacing.xs },
+  week: { flexDirection: 'row', alignItems: 'center' },
   dow: {
-    width: `${100 / 7}%`,
+    flex: 1,
     textAlign: 'center',
     fontSize: 11,
     fontWeight: '600',
@@ -199,8 +217,8 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   cell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1.1,
+    flex: 1,
+    height: TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
@@ -218,8 +236,10 @@ const styles = StyleSheet.create({
   },
   dayHead: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
   addButton: {
     flexDirection: 'row',
@@ -228,11 +248,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
     borderRadius: 999,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    marginBottom: 6,
+    minHeight: TOUCH,
+    justifyContent: 'center',
   },
   addText: { color: colors.bg, fontSize: 13, fontWeight: '600' },
   divider: { height: 1, backgroundColor: colors.soft },
+  filter: { minHeight: TOUCH, justifyContent: 'center' },
+  filterText: { color: colors.info, fontWeight: '600' },
   eventRow: {
     flexDirection: 'row',
     gap: spacing.md,

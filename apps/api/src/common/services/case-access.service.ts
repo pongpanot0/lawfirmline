@@ -118,6 +118,23 @@ export class CaseAccessService {
     };
   }
 
+  /** Same access as opening /tasks/:id, including personal tasks created by the caller. */
+  getTaskAccessFilterForUser(user: AuthUser): Prisma.TaskWhereInput {
+    const standalone: Prisma.TaskWhereInput = {
+      caseId: null,
+      AND: [
+        { OR: [
+          { assignee: { firmMembers: { some: { firmId: user.firmId } } } },
+          { createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
+        ] },
+        ...(user.firmRole === FirmRole.OWNER ? [] : [{ OR: [
+          { assigneeId: user.id }, { createdById: user.id }, this.getTaskFilterForUser(user),
+        ] }]),
+      ],
+    };
+    return { OR: [{ case: this.getCaseFilterForUser(user) }, standalone] };
+  }
+
   /** Clients visible when the user owns the firm or has a visible case on them. */
   getClientFilterForUser(user: AuthUser): Prisma.ClientWhereInput {
     if (user.firmRole === FirmRole.OWNER) {

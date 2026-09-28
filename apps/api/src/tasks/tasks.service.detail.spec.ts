@@ -16,7 +16,7 @@ describe('TasksService detail support', () => {
     caseActivity: { create: jest.fn() },
     taskAssignmentLog: { create: jest.fn(), findFirst: jest.fn() },
   };
-  const mockCaseAccess = { getTaskFilterForUser: jest.fn().mockReturnValue({}), canAccessCase: jest.fn() };
+  const mockCaseAccess = { getTaskFilterForUser: jest.fn().mockReturnValue({}), getTaskAccessFilterForUser: jest.fn().mockReturnValue({}), canAccessCase: jest.fn() };
   const mockStorage = { delete: jest.fn() };
   const lawyer = { id: 'u1', firmId: 'f1', firmRole: FirmRole.LAWYER } as any;
   const senior = { id: 'u5', firmId: 'f1', firmRole: FirmRole.SENIOR_LAWYER } as any;
@@ -83,7 +83,7 @@ describe('TasksService detail support', () => {
     });
     it('lets a SENIOR_LAWYER open a lawyer task their board already lists', async () => {
       mockPrisma.task.findUnique.mockResolvedValue({ id: 't1', caseId: null, assigneeId: 'u2', createdById: 'u2' });
-      mockCaseAccess.getTaskFilterForUser.mockReturnValue({
+      mockCaseAccess.getTaskAccessFilterForUser.mockReturnValue({
         OR: [{ assigneeId: 'u5' }, { assignee: { firmMembers: { some: { firmId: 'f1', role: FirmRole.LAWYER } } } }],
       });
       mockPrisma.task.findFirst.mockResolvedValue({ id: 't1' });

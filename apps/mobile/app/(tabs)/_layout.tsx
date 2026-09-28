@@ -2,15 +2,18 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { CalendarDays, Scale, SquareCheckBig, Sun, Users } from 'lucide-react-native';
 import { colors } from '@/theme';
+import { useDisplayPreferences } from '@/components/AppText';
 
 export default function TabsLayout() {
+  const { scale } = useDisplayPreferences();
   return (
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
         headerShadowVisible: false,
         headerTintColor: colors.ink,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontWeight: '700', fontSize: 18 * scale },
+        tabBarLabelStyle: { fontSize: 11 * scale },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.faint,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },

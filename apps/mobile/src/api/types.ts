@@ -52,6 +52,11 @@ export interface CaseListItem {
 }
 
 export interface CaseDetail extends CaseListItem {
+  clientName: string | null;
+  courtLevel: string;
+  caseTypeId?: string | null;
+  leadLawyerId?: string;
+  assignments?: Array<{ userId: string; assignmentType: string; user: { id: string; firstName: string; lastName: string } }>;
   description: string | null;
   claimedAmount: number | null;
   redCaseNumber: string | null;
@@ -65,6 +70,10 @@ export interface TaskItem {
   status: string;
   dueDate: string | null;
   caseId: string | null;
+  createdById?: string;
+  description?: string | null;
+  attachments?: Array<{ id: string; filename: string; size: number }>;
+  comments?: Array<{ id: string; body: string; author: { firstName: string; lastName: string } }>;
   assigneeId?: string | null;
   assignee?: { id: string; firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string } | null;
@@ -78,6 +87,10 @@ export interface CalendarEventItem {
   startAt: string;
   endAt: string | null;
   type: string;
+  updatedAt: string;
+  assigneeId: string | null;
+  assignee?: { id: string; firstName: string; lastName: string } | null;
+  assignees?: Array<{ userId: string; user: { id: string; firstName: string; lastName: string } }>;
   case?: { id: string; ownRef: string; title: string } | null;
 }
 
@@ -115,6 +128,12 @@ export interface CourtDayState {
   followUp: boolean;
   taskTitle: string;
   taskDue: string;
+  expense: boolean;
+  amount: string;
+  expenseCategory?: string;
+  clientDraft: boolean;
+  draftRecipientKind?: 'CLIENT' | 'CUSTOMER';
+  draftCustomerId?: string;
 }
 
 export interface CourtDayResponse {
@@ -149,10 +168,11 @@ export interface OwnerKpis {
 }
 
 export interface LeaveItem {
+  id: string;
   userId: string;
   type: 'SICK' | 'PERSONAL' | 'VACATION';
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   startDate: string;
   endDate: string;
+  user?: { firstName: string; lastName: string };
 }
-

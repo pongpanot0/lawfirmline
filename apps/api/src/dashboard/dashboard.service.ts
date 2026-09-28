@@ -227,7 +227,6 @@ export class DashboardService {
 
     const lawyers = await this.prisma.user.findMany({
       where: {
-        role: { in: ['ADMIN', 'LAWYER'] },
         firmMembers: { some: { firmId: user.firmId } },
       },
       select: { id: true, firstName: true, lastName: true },
