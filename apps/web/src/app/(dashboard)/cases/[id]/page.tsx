@@ -275,13 +275,19 @@ export default function CaseDetailPage() {
       setBannerProposals([]);
       return;
     }
+    let active = true;
     api
       .getStageTaskProposals(token, id, stage)
-      .then(setBannerProposals)
+      .then((p) => {
+        if (active) setBannerProposals(p);
+      })
       .catch((err) => {
         console.error(err);
-        setBannerProposals([]);
+        if (active) setBannerProposals([]);
       });
+    return () => {
+      active = false;
+    };
   }, [token, id, legalCase?.stage, legalCase?.stageTasksHandledFor]);
 
   const openBannerProposals = () => {
@@ -480,14 +486,15 @@ export default function CaseDetailPage() {
     if (!token || !id || !pendingStage) return;
     setSavingStage(true);
     setStageTaskError('');
+    const moving = pendingStage !== legalCase?.stage;
     try {
-      if (pendingStage !== legalCase?.stage) await applyStageChange(pendingStage);
+      if (moving) await applyStageChange(pendingStage);
       try {
         await api.createStageTasks(token, id, pendingStage, tasks);
         loadCase();
       } catch (err) {
         console.error(err);
-        setStageTaskError('ย้ายขั้นแล้ว แต่สร้างงานไม่สำเร็จ');
+        setStageTaskError(moving ? 'ย้ายขั้นแล้ว แต่สร้างงานไม่สำเร็จ' : 'สร้างงานไม่สำเร็จ');
         return;
       }
       closeStageTaskDialog();
@@ -919,6 +926,7 @@ export default function CaseDetailPage() {
           proposals={stageTaskProposals}
           lawyers={lawyers}
           busy={savingStage}
+          moving={pendingStage !== legalCase?.stage}
           onClose={closeStageTaskDialog}
           onSkip={handleStageOnly}
           onConfirm={handleStageAndCreateTasks}

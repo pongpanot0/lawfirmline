@@ -64,17 +64,17 @@ function PlaybooksPageInner() {
     load()
       .then(() => {
         if (appliedDeepLink.current) return;
-        if (params.get('new') === '1') { appliedDeepLink.current = true; resetForm(); router.replace('/playbooks'); }
+        if (user?.firmRole === 'OWNER' && params.get('new') === '1') { appliedDeepLink.current = true; resetForm(); router.replace('/playbooks'); }
       })
       .catch(e => setError(e.message));
   }, [token]);
   useEffect(() => {
-    if (appliedDeepLink.current) return;
+    if (appliedDeepLink.current || user?.firmRole !== 'OWNER') return;
     const id = params.get('id');
     const target = id && items.find((p) => p.id === id);
     if (target) { appliedDeepLink.current = true; startDraft(target); router.replace('/playbooks'); }
     // params intentionally omitted: deep-link is a one-time apply, gated by appliedDeepLink ref
-  }, [items]);
+  }, [items, user]);
 
   const resetForm = () => {
     setEditing(true); setCreatingCaseType(false);

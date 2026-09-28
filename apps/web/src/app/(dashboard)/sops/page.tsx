@@ -167,7 +167,9 @@ export default function SopsPage() {
 
       {loading ? (
         <PageLoading title="กำลังโหลด SOP" lines={3} />
-      ) : onlyAuto ? null : sops.length === 0 ? (
+      ) : onlyAuto ? (
+        autoItems.length === 0 && <EmptyState title="ไม่พบ SOP อัตโนมัติ" description="ยังไม่มี Playbook ที่เผยแพร่ในสำนักงานนี้" />
+      ) : sops.length === 0 ? (
         autoItems.length === 0 && (
           <EmptyState
             title="ยังไม่มี SOP"
