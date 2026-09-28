@@ -1,3 +1,5 @@
+export * from './task-operations';
+
 export enum Role {
   ADMIN = 'ADMIN',
   LAWYER = 'LAWYER',

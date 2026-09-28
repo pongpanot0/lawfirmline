@@ -10,11 +10,11 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 describe('TaskDetailService', () => {
   let service: TaskDetailService;
   const mockPrisma = {
-    task: { findUnique: jest.fn(), create: jest.fn() },
+    task: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     taskComment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn() },
     taskAttachment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn() },
   };
-  const mockTasks = { assertAccess: jest.fn(), findOne: jest.fn() };
+  const mockTasks = { assertAccess: jest.fn(), findOne: jest.fn(), create: jest.fn(), acknowledge: jest.fn() };
   const mockStorage = { put: jest.fn(), delete: jest.fn() };
   const lawyer = { id: 'u1', firmId: 'f1', firmRole: FirmRole.LAWYER } as any;
   const owner = { id: 'u0', firmId: 'f1', firmRole: FirmRole.OWNER } as any;
@@ -35,13 +35,32 @@ describe('TaskDetailService', () => {
 
   it('createSubtask inherits caseId and refuses nesting', async () => {
     mockTasks.assertAccess.mockResolvedValue({ id: 'p1', caseId: 'c1', parentId: null });
-    mockPrisma.task.create.mockResolvedValue({ id: 's1' });
+    mockTasks.create.mockResolvedValue({ id: 's1' });
     mockTasks.findOne.mockResolvedValue({ id: 's1' });
     await service.createSubtask('p1', lawyer, { title: 'sub' });
-    expect(mockPrisma.task.create.mock.calls[0][0].data).toMatchObject({ parentId: 'p1', caseId: 'c1', createdById: 'u1' });
+    expect(mockTasks.create).toHaveBeenCalledWith(lawyer, 'c1', expect.objectContaining({ title: 'sub' }), undefined, undefined);
+    expect(mockPrisma.task.update).toHaveBeenCalledWith({ where: { id: 's1' }, data: { parentId: 'p1' } });
 
     mockTasks.assertAccess.mockResolvedValue({ id: 's1', caseId: 'c1', parentId: 'p1' });
     await expect(service.createSubtask('s1', lawyer, { title: 'x' })).rejects.toThrow(BadRequestException);
+  });
+
+  it('daily progress requires the worker, preserves blockers, and refuses blank progress', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ assigneeId: lawyer.id, status: 'IN_PROGRESS' });
+    await service.dailyUpdate('t1', lawyer, { completed: ' ถอดแล้ว 2 หน้า ', remaining: 'อีก 3 หน้า', blocker: 'ขาดไฟล์เสียง' });
+    expect(mockPrisma.taskComment.create).toHaveBeenCalledWith(expect.objectContaining({ data: { taskId: 't1', authorId: lawyer.id, kind: 'DAILY_UPDATE', body: 'ทำถึงไหน: ถอดแล้ว 2 หน้า\nเหลืออะไร: อีก 3 หน้า\nติดอะไร: ขาดไฟล์เสียง' } }));
+    await expect(service.dailyUpdate('t1', owner, { completed: 'x', remaining: 'y' })).rejects.toThrow(ForbiddenException);
+    await expect(service.dailyUpdate('t1', lawyer, { completed: ' ', remaining: 'y' })).rejects.toThrow(BadRequestException);
+    mockTasks.assertAccess.mockResolvedValue({ assigneeId: lawyer.id, status: 'PENDING_REVIEW' });
+    await expect(service.dailyUpdate('t1', lawyer, { completed: 'x', remaining: 'y' })).rejects.toThrow(ForbiddenException);
+  });
+
+  it('only the current worker confirms a daily plan, stored as a date without a timezone shift', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ assigneeId: lawyer.id, status: 'TODO' });
+    mockPrisma.task.updateMany.mockResolvedValue({ count: 1 });
+    await service.confirmPlan('t1', lawyer, '2026-09-27');
+    expect(mockPrisma.task.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { scheduledFor: new Date('2026-09-27T00:00:00Z'), planConfirmedAt: expect.any(Date) } }));
+    await expect(service.confirmPlan('t1', owner, '2026-09-27')).rejects.toThrow(ForbiddenException);
   });
 
   it('uploadAttachment rejects disallowed mime types before touching storage', async () => {

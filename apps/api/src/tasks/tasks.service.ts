@@ -110,8 +110,9 @@ export class TasksService {
   private standaloneFirmScope(user: AuthUser): Prisma.TaskWhereInput {
     return {
       OR: [
-        { assignee: { firmMembers: { some: { firmId: user.firmId } } } },
-        { createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
+        { firmId: user.firmId },
+        { firmId: null, assignee: { firmMembers: { some: { firmId: user.firmId } } } },
+        { firmId: null, createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
       ],
     };
   }
@@ -125,6 +126,7 @@ export class TasksService {
   async assertAccess(taskId: string, user: AuthUser) {
     const task = await this.prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundException('Task not found');
+    if (task.firmId && task.firmId !== user.firmId) throw new NotFoundException('Task not found');
     if (task.caseId) {
       if (!(await this.caseAccess.canAccessCase(user, task.caseId))) {
         throw new ForbiddenException('You do not have access to this task');
@@ -142,6 +144,11 @@ export class TasksService {
 
     if (user.firmRole === FirmRole.OWNER) return task;
     if (task.assigneeId === user.id || task.createdById === user.id) return task;
+    // Sending for review changes the assignee; the sender still needs to follow the delivered work.
+    if ([TaskStatus.PENDING_REVIEW, TaskStatus.DONE].includes(task.status as TaskStatus)) {
+      const delivered = await this.prisma.taskAssignmentLog.findFirst({ where: { taskId, action: TaskLogAction.HANDED_OFF, fromUserId: user.id } });
+      if (delivered) return task;
+    }
 
     // Anything the board shows must open; otherwise seniors get a 403 on a
     // card they can see.
@@ -301,7 +308,12 @@ export class TasksService {
   }
 
   async assertStandaloneOwnership(id: string, user: AuthUser) {
-    const task = await this.prisma.task.findUnique({ where: { id } });
+    if (user.firmRole === FirmRole.OWNER || user.firmRole === FirmRole.SENIOR_LAWYER) {
+      const task = await this.assertAccess(id, user);
+      if (task.caseId) throw new NotFoundException('Task not found');
+      return;
+    }
+    const task = await this.assertAccess(id, user);
     if (!task || task.caseId !== null) throw new NotFoundException('Task not found');
     if (task.assigneeId !== user.id && task.createdById !== user.id) {
       throw new ForbiddenException('You do not have access to this task');
@@ -324,6 +336,9 @@ export class TasksService {
    */
   private async assertCanAssignTodo(user: AuthUser, assigneeId: string) {
     if (assigneeId === user.id) return;
+    if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole)) {
+      throw new ForbiddenException('เฉพาะ Owner หรือทนายอาวุโสที่มอบหมายงานให้ผู้อื่นได้');
+    }
     const member = await this.prisma.firmMember.findFirst({
       where: { firmId: user.firmId, userId: assigneeId },
       select: { role: true },
@@ -340,13 +355,20 @@ export class TasksService {
     dto: CreateTaskDto,
     source: TaskSource = TaskSource.WEB,
     intakeId?: string,
+    queuePosition = 0,
   ) {
-    if (!caseId && dto.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
+    if (!dto.title.trim()) throw new BadRequestException('ระบุชื่องาน');
+    if (dto.status === TaskStatus.PENDING_REVIEW || dto.status === TaskStatus.NEEDS_REVISION || (dto.requiresReview && dto.status === TaskStatus.DONE)) {
+      throw new BadRequestException('ใช้ขั้นตอนส่งตรวจสำหรับงานที่ต้องตรวจ');
+    }
+    if (dto.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
+    await this.validateReview(user, dto.requiresReview ?? false, dto.reviewerId);
+    if (dto.requiresReview && dto.assigneeId === dto.reviewerId) throw new BadRequestException('ผู้ทำงานและผู้ตรวจต้องเป็นคนละคน');
     const task = await this.prisma.task.create({
       data: {
         caseId,
         intakeId,
-        title: dto.title,
+        title: dto.title.trim(),
         description: dto.description,
         assigneeId: dto.assigneeId,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
@@ -357,6 +379,16 @@ export class TasksService {
         blockedById: dto.blockedById,
         createdById: user.id,
         source,
+        firmId: user.firmId,
+        queuePosition,
+        workType: dto.workType,
+        size: dto.size,
+        scheduledFor: dto.scheduledFor ? new Date(`${dto.scheduledFor.slice(0, 10)}T00:00:00Z`) : undefined,
+        requiresReview: dto.requiresReview,
+        reviewerId: dto.reviewerId,
+        assignedAt: dto.assigneeId && dto.assigneeId !== user.id ? new Date() : undefined,
+        acknowledgedAt: dto.assigneeId === user.id ? new Date() : undefined,
+        completedAt: dto.status === TaskStatus.DONE ? new Date() : undefined,
       },
       include: this.taskInclude,
     });
@@ -400,10 +432,28 @@ export class TasksService {
     }
     const task = await this.findOne(id);
 
+    if (task.firmId && task.firmId !== user.firmId) throw new NotFoundException('Task not found');
+    if (dto.assigneeId && dto.assigneeId !== task.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
+    if (dto.requiresReview !== undefined || dto.reviewerId !== undefined) {
+      if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole)) {
+        throw new ForbiddenException('เฉพาะ Owner หรือทนายอาวุโสที่เปลี่ยนเงื่อนไขตรวจงานได้');
+      }
+      await this.validateReview(user, dto.requiresReview ?? task.requiresReview, dto.reviewerId === undefined ? task.reviewerId : dto.reviewerId);
+    }
+    if (dto.status === TaskStatus.DONE && (dto.requiresReview ?? task.requiresReview)) {
+      throw new BadRequestException('งานนี้ต้องส่งตรวจและผ่านการอนุมัติก่อนเสร็จ');
+    }
+
     if (dto.status === TaskStatus.PENDING_REVIEW || dto.status === TaskStatus.NEEDS_REVISION) {
       throw new BadRequestException(
         'ใช้ปุ่ม "ส่งต่อให้ Senior" หรือ "ตีกลับ" สำหรับสถานะนี้ ไม่สามารถตั้งค่าตรงนี้ได้',
       );
+    }
+    if (task.status === TaskStatus.PENDING_REVIEW && (dto.status !== undefined || dto.assigneeId !== undefined)) {
+      throw new BadRequestException('ใช้ตรวจผ่านหรือตีกลับสำหรับงานที่รอตรวจ');
+    }
+    if ((dto.requiresReview ?? task.requiresReview) && (dto.assigneeId ?? task.assigneeId) === (dto.reviewerId ?? task.reviewerId)) {
+      throw new BadRequestException('ผู้ทำงานและผู้ตรวจต้องเป็นคนละคน');
     }
 
     // Hiding the button is not what keeps someone else's work out of reach.
@@ -415,10 +465,10 @@ export class TasksService {
       const legalCase = task.caseId
         ? await this.prisma.case.findUnique({ where: { id: task.caseId } })
         : null;
-      if (!legalCase) {
+      if (!legalCase && user.firmRole !== FirmRole.OWNER) {
         throw new ForbiddenException('เปลี่ยนสถานะได้เฉพาะงานของตัวเอง');
       }
-      this.assertLeadOrOwner(user, legalCase);
+      if (legalCase) this.assertLeadOrOwner(user, legalCase);
     }
 
     if (dto.assigneeId && !task.caseId && dto.assigneeId !== task.assigneeId) {
@@ -445,6 +495,10 @@ export class TasksService {
       where: { id },
       data: {
         ...dto,
+        scheduledFor: dto.scheduledFor === null ? null : dto.scheduledFor ? new Date(`${dto.scheduledFor.slice(0, 10)}T00:00:00Z`) : undefined,
+        assignedAt: dto.assigneeId && dto.assigneeId !== task.assigneeId ? new Date() : undefined,
+        acknowledgedAt: dto.assigneeId && dto.assigneeId !== task.assigneeId ? (dto.assigneeId === user.id ? new Date() : null) : undefined,
+        planConfirmedAt: dto.scheduledFor !== undefined || (dto.assigneeId && dto.assigneeId !== task.assigneeId) ? null : undefined,
         completedAt:
           dto.status === TaskStatus.DONE
             ? task.status === TaskStatus.DONE ? undefined : new Date()
@@ -472,6 +526,28 @@ export class TasksService {
     return updated;
   }
 
+  private async validateReview(user: AuthUser, required: boolean, reviewerId?: string | null) {
+    if (!required && !reviewerId) return;
+    if (!reviewerId) throw new BadRequestException('เลือกผู้ตรวจสำหรับงานที่ต้องตรวจ');
+    const reviewer = await this.prisma.firmMember.findFirst({
+      where: { firmId: user.firmId, userId: reviewerId, role: { in: [FirmRole.OWNER, FirmRole.SENIOR_LAWYER] } },
+      select: { userId: true },
+    });
+    if (!reviewer) throw new BadRequestException('ผู้ตรวจต้องเป็น Owner หรือทนายอาวุโสในสำนักงานนี้');
+  }
+
+  async acknowledge(taskId: string, user: AuthUser) {
+    const task = await this.assertAccess(taskId, user);
+    if (task.assigneeId !== user.id) throw new ForbiddenException('ผู้รับผิดชอบเท่านั้นที่ยืนยันรับทราบได้');
+    if (task.acknowledgedAt) return task;
+    const changed = await this.prisma.task.updateMany({
+      where: { id: taskId, assigneeId: user.id, assignedAt: task.assignedAt },
+      data: { acknowledgedAt: new Date() },
+    });
+    if (!changed.count) throw new BadRequestException('ผู้รับผิดชอบเปลี่ยนแล้ว กรุณาโหลดงานใหม่');
+    return this.findOne(taskId);
+  }
+
   /**
    * Runs once when a task transitions to DONE: spawn the next occurrence of a
    * recurring task, and tell owners of tasks blocked by this one they can start.
@@ -485,6 +561,13 @@ export class TasksService {
       await this.prisma.task.create({
         data: {
           caseId: task.caseId,
+          firmId: task.firmId,
+          intakeId: task.intakeId,
+          workType: task.workType,
+          size: task.size,
+          requiresReview: task.requiresReview,
+          reviewerId: task.reviewerId,
+          assignedAt: task.assigneeId ? new Date() : null,
           title: task.title,
           description: task.description,
           assigneeId: task.assigneeId,
@@ -560,7 +643,7 @@ export class TasksService {
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!legalCase) throw new NotFoundException('Case not found');
 
-    if (user.id === legalCase.leadLawyerId) {
+    if (user.id === (task.reviewerId ?? legalCase.leadLawyerId)) {
       throw new BadRequestException('คุณเป็น Senior lawyer ของคดีนี้อยู่แล้ว ไม่ต้องส่งต่อ');
     }
     if (task.assigneeId && task.assigneeId !== user.id) {
@@ -576,16 +659,17 @@ export class TasksService {
       throw new BadRequestException('งานนี้ไม่อยู่ในสถานะที่ส่งต่อได้');
     }
 
+    await this.ensureCaseMembership(caseId, task.reviewerId ?? legalCase.leadLawyerId);
     await this.prisma.task.update({
       where: { id: taskId },
-      data: { status: TaskStatus.PENDING_REVIEW, assigneeId: legalCase.leadLawyerId },
+      data: { status: TaskStatus.PENDING_REVIEW, assigneeId: task.reviewerId ?? legalCase.leadLawyerId, completedAt: null },
     });
 
     await this.logAssignment({
       taskId,
       action: TaskLogAction.HANDED_OFF,
       fromUserId: user.id,
-      toUserId: legalCase.leadLawyerId,
+      toUserId: task.reviewerId ?? legalCase.leadLawyerId,
       performedById: user.id,
       note: dto.note,
       stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
@@ -601,7 +685,8 @@ export class TasksService {
 
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!legalCase) throw new NotFoundException('Case not found');
-    this.assertLeadOrOwner(user, legalCase);
+    if (task.reviewerId && task.reviewerId !== user.id) throw new ForbiddenException('เฉพาะผู้ตรวจที่ระบุไว้เท่านั้น');
+    if (!task.reviewerId) this.assertLeadOrOwner(user, legalCase);
 
     if (task.status !== TaskStatus.PENDING_REVIEW) {
       throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
@@ -623,7 +708,8 @@ export class TasksService {
 
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!legalCase) throw new NotFoundException('Case not found');
-    this.assertLeadOrOwner(user, legalCase);
+    if (task.reviewerId && task.reviewerId !== user.id) throw new ForbiddenException('เฉพาะผู้ตรวจที่ระบุไว้เท่านั้น');
+    if (!task.reviewerId) this.assertLeadOrOwner(user, legalCase);
 
     if (task.status !== TaskStatus.PENDING_REVIEW) {
       throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
@@ -671,11 +757,13 @@ export class TasksService {
     if (!legalCase) throw new NotFoundException('Case not found');
     this.assertLeadOrOwner(user, legalCase);
 
+    await this.assertCanAssignTodo(user, dto.assigneeId);
+
     await this.ensureCaseMembership(caseId, dto.assigneeId);
 
     await this.prisma.task.update({
       where: { id: taskId },
-      data: { assigneeId: dto.assigneeId },
+      data: { assigneeId: dto.assigneeId, assignedAt: new Date(), acknowledgedAt: null },
     });
 
     await this.logAssignment({
@@ -692,6 +780,7 @@ export class TasksService {
   }
 
   async handoffStandalone(taskId: string, user: AuthUser, dto: HandoffStandaloneTaskDto) {
+    await this.assertAccess(taskId, user);
     const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId: null } });
     if (!task) throw new NotFoundException('ไม่พบงานนี้');
 
@@ -700,6 +789,9 @@ export class TasksService {
     }
     if (dto.reviewerId === user.id) {
       throw new BadRequestException('ไม่สามารถส่งงานให้ตัวเองตรวจได้');
+    }
+    if (task.reviewerId && task.reviewerId !== dto.reviewerId) {
+      throw new BadRequestException('ส่งงานให้ผู้ตรวจที่ระบุไว้เท่านั้น');
     }
     // A reviewer id comes straight from the client; only someone in the
     // caller's own firm may be handed one of its tasks.
@@ -720,7 +812,7 @@ export class TasksService {
 
     await this.prisma.task.update({
       where: { id: taskId },
-      data: { status: TaskStatus.PENDING_REVIEW, assigneeId: dto.reviewerId },
+      data: { status: TaskStatus.PENDING_REVIEW, assigneeId: dto.reviewerId, completedAt: null },
     });
 
     await this.logAssignment({
@@ -739,6 +831,7 @@ export class TasksService {
   async acceptStandalone(taskId: string, user: AuthUser) {
     const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId: null } });
     if (!task) throw new NotFoundException('ไม่พบงานนี้');
+    if (task.firmId && task.firmId !== user.firmId) throw new NotFoundException('ไม่พบงานนี้');
 
     if (task.assigneeId !== user.id) {
       throw new ForbiddenException('คุณไม่ใช่ผู้ตรวจงานนี้');
@@ -759,6 +852,7 @@ export class TasksService {
   async rejectStandalone(taskId: string, user: AuthUser, dto: RejectTaskDto) {
     const task = await this.prisma.task.findFirst({ where: { id: taskId, caseId: null } });
     if (!task) throw new NotFoundException('ไม่พบงานนี้');
+    if (task.firmId && task.firmId !== user.firmId) throw new NotFoundException('ไม่พบงานนี้');
 
     if (task.assigneeId !== user.id) {
       throw new ForbiddenException('คุณไม่ใช่ผู้ตรวจงานนี้');

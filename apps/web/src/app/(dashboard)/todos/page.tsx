@@ -3,9 +3,9 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
-import { canAssignFirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { canAssignFirmRole, FirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, TaskItem, UserItem } from '@/lib/api';
+import { api, ApiError, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
@@ -14,7 +14,6 @@ import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
 import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { priorityLabel } from '@/lib/task-detail';
@@ -25,6 +24,8 @@ import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
 import { bangkokDateInputValue } from '@/lib/bangkok';
+import { DateField, SelectField, TextField } from '@/components/ui/form-fields';
+import { formatDate } from '@/lib/utils';
 
 function TodosPageContent() {
   const d = useDashboardT();
@@ -66,9 +67,12 @@ function TodosPageContent() {
   const [loadError, setLoadError] = useState('');
   const [usersLoadError, setUsersLoadError] = useState('');
   const [creating, setCreating] = useState(false);
-  const [createdTask, setCreatedTask] = useState<{ id: string; title: string } | null>(null);
+  const [createdTask, setCreatedTask] = useState<{ id: string; title: string; assignee: string } | null>(null);
   const [layout, setLayout] = useTaskLayout();
-  const [scope, setScope] = useState<'mine' | 'team' | 'review'>('mine');
+  const [scope, setScope] = useState<'mine' | 'team' | 'created' | 'review'>('mine');
+  useEffect(() => {
+    setScope(user?.firmRole === FirmRole.OWNER ? 'team' : 'mine');
+  }, [user?.firmRole]);
   const [taskType, setTaskType] = useState<'all' | 'case' | 'general'>('all');
   const [includeCompleted, setIncludeCompleted] = useState(false);
   const taskParam = useTaskParam();
@@ -190,6 +194,9 @@ function TodosPageContent() {
         description: newDescription.trim() || undefined,
         labels: newLabels.length ? newLabels : undefined,
       });
+      const assigneeName = newAssigneeUser
+        ? `${newAssigneeUser.firstName} ${newAssigneeUser.lastName}`
+        : `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim();
       let failedSubtasks = 0;
       for (const sub of newSubtasks) {
         try {
@@ -225,12 +232,16 @@ function TodosPageContent() {
       setSubDraft({ title: '', assigneeId: '', dueDate: '' });
       setNewFiles([]);
       setShowForm(false);
+      setScope('created');
+      setFilters(EMPTY_TASK_FILTERS);
+      setTaskType('all');
+      setIncludeCompleted(created.status === TaskStatus.DONE);
       loadTasks();
-      setCreatedTask({ id: created.id, title: created.title });
-      if (failedUploads || failedSubtasks) taskParam.open(created.id);
-    } catch {
+      setCreatedTask({ id: created.id, title: created.title, assignee: assigneeName });
+      taskParam.open(created.id);
+    } catch (err) {
       // Keep what was typed: the retry should not start from a blank field.
-      setError(d.todos.createFailed);
+      setError(err instanceof ApiError && err.message ? err.message : d.todos.createFailed);
     } finally {
       setCreating(false);
     }
@@ -240,13 +251,13 @@ function TodosPageContent() {
 
   /** Switch scope labels on only when this list includes another assignee. */
   const seesOthers = tasks.some((t) => t.assignee && t.assignee.id !== user?.id);
-  const ownershipTasks = !seesOthers
-    ? tasks
-    : scope === 'team'
+  const ownershipTasks = scope === 'team'
       ? tasks
+      : scope === 'created'
+        ? tasks.filter(t => t.createdById === user?.id)
       : scope === 'review'
         ? tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW && t.assignee?.id === user?.id)
-        : tasks.filter((t) => !t.assignee || t.assignee.id === user?.id);
+        : tasks.filter((t) => t.assignee?.id === user?.id);
   const scopedTasks = ownershipTasks.filter((task) =>
     taskType === 'all' || (taskType === 'case' ? Boolean(task.caseId) : !task.caseId),
   );
@@ -258,14 +269,21 @@ function TodosPageContent() {
   const filtering = hasActiveTaskFilters(filters);
   const scopes: { key: typeof scope; label: string }[] = [
     { key: 'mine', label: d.todos.scopeMine },
+    { key: 'created', label: text('งานที่ฉันสร้าง', 'Created by me') },
     { key: 'team', label: d.todos.scopeTeam },
     { key: 'review', label: d.todos.scopeReview },
   ];
-  const taskTypes: { key: typeof taskType; label: string; count: number }[] = [
-    { key: 'all', label: d.todos.scopeAll, count: ownershipTasks.length },
-    { key: 'case', label: d.todos.scopeCase, count: ownershipTasks.filter((task) => task.caseId).length },
-    { key: 'general', label: d.todos.scopeGeneral, count: ownershipTasks.filter((task) => !task.caseId).length },
+  const quickViews = [
+    { key: 'all', label: text('งานที่ยังไม่เสร็จ', 'Open tasks'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE).length },
+    { key: 'overdue', label: text('เลยกำหนด', 'Overdue'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) < today).length },
+    { key: 'today', label: text('ส่งวันนี้', 'Due today'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) === today).length },
+    { key: 'review', label: text('รอตรวจ', 'Awaiting review'), count: scopedTasks.filter(task => task.status === TaskStatus.PENDING_REVIEW).length },
   ];
+  const quickView = filters.status === TaskStatus.PENDING_REVIEW ? 'review' : filters.due === 'overdue' || filters.due === 'today' ? filters.due : !filters.status && !filters.due && !includeCompleted ? 'all' : '';
+  const statusLabels: Record<TaskStatus, string> = {
+    TODO: text('รอเริ่ม', 'To do'), IN_PROGRESS: text('กำลังทำ', 'In progress'),
+    PENDING_REVIEW: text('รอตรวจ', 'Awaiting review'), NEEDS_REVISION: text('ต้องแก้ไข', 'Needs revision'), DONE: text('เสร็จแล้ว', 'Done'),
+  };
   const toggleCompleted = () => {
     if (includeCompleted && filters.status === TaskStatus.DONE) {
       setFilters((current) => ({ ...current, status: '' }));
@@ -276,11 +294,10 @@ function TodosPageContent() {
   return (
     <div>
       <PageHeader
-        title={seesOthers && scope === 'team' ? d.todos.titleTeam : d.todos.title}
-        description={d.todos.description}
+        title={scope === 'created' ? text('งานที่ฉันสร้าง', 'Created by me') : scope === 'team' ? d.todos.titleTeam : d.todos.title}
+        description={text('เลือกงานเพื่อดูรายละเอียด อัปเดตความคืบหน้า หรือส่งตรวจ', 'Open a task to see details, update progress or submit for review')}
         actions={
           <div className="flex items-center gap-2">
-            <TaskViewToggle layout={layout} onChange={setLayout} />
             <Button size="sm" aria-expanded={showForm} onClick={() => setShowForm(!showForm)}>
               <Plus className="h-4 w-4" />
               {d.todos.addTodo}
@@ -289,48 +306,49 @@ function TodosPageContent() {
         }
       />
 
-      {seesOthers && (
+      {(
         <div role="group" aria-label={d.todos.taskScope} className="mb-4 flex flex-wrap gap-2">
-          {scopes.map((s) => (
+          {scopes.filter(s => s.key !== 'team' || seesOthers || user?.firmRole === FirmRole.OWNER).map((s) => (
             <button
               key={s.key}
               type="button"
               aria-pressed={scope === s.key}
-              onClick={() => setScope(s.key)}
+              onClick={() => { setScope(s.key); setFilters(EMPTY_TASK_FILTERS); setTaskType('all'); setIncludeCompleted(false); }}
               className={`min-h-10 rounded-lg px-3 text-sm font-medium transition-colors ${scope === s.key ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'}`}
             >
-              {s.label}
+              {s.label} <span className="ml-1 opacity-70">{tasks.filter(task => s.key === 'team' || (s.key === 'created' ? task.createdById === user?.id : task.assignee?.id === user?.id && (s.key !== 'review' || task.status === TaskStatus.PENDING_REVIEW))).length}</span>
             </button>
           ))}
         </div>
       )}
 
-      {createdTask && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><p className="min-w-0 break-words text-sm">{text('สร้างงานแล้ว: ', 'Task created: ')}{createdTask.title}</p><Button variant="outline" size="sm" onClick={() => taskParam.open(createdTask.id)}>{text('เปิดรายละเอียด', 'View details')}</Button></div>}
+      {createdTask && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div className="min-w-0 break-words text-sm"><p className="font-medium">{text('สร้างงานแล้ว: ', 'Task created: ')}{createdTask.title}</p><p className="mt-1 text-muted-foreground">{text('มอบหมายให้ ', 'Assigned to ')}{createdTask.assignee} · {text('ติดตามได้ใน “งานที่ฉันสร้าง”', 'Track under Created by me')}</p></div><Button variant="outline" size="sm" onClick={() => taskParam.open(createdTask.id)}>{text('เปิดงาน / แนบไฟล์', 'Open task / Attach files')}</Button></div>}
       {error && !showForm && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
 
       <Card className="mb-4">
-        <CardContent className="p-3">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{d.todos.taskType}</p>
-              <div role="group" aria-label={d.todos.taskType} className="flex flex-wrap gap-1.5">
-                {taskTypes.map((type) => (
-                  <button
-                    key={type.key}
-                    type="button"
-                    aria-pressed={taskType === type.key}
-                    onClick={() => setTaskType(type.key)}
-                    className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-medium transition-colors ${taskType === type.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                  >
-                    {type.label}<span className="tabular-nums text-[11px] opacity-70">{type.count}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Button type="button" size="sm" variant={includeCompleted ? 'outline' : 'ghost'} aria-pressed={includeCompleted} onClick={toggleCompleted}>
-              {includeCompleted ? d.todos.hideCompleted : d.todos.showCompleted} <span className="ml-1 tabular-nums">{completedCount}</span>
-            </Button>
+        <CardContent className="space-y-4 p-4">
+          <div role="group" aria-label={text('เลือกงานที่ต้องติดตาม', 'Focus tasks')} className="flex flex-wrap gap-2">
+            {quickViews.map(view => <button key={view.key} type="button" aria-pressed={quickView === view.key}
+              onClick={() => { setIncludeCompleted(false); setFilters(current => ({ ...current, status: view.key === 'review' ? TaskStatus.PENDING_REVIEW : '', due: view.key === 'overdue' || view.key === 'today' ? view.key : '' })); }}
+              className={`min-h-10 rounded-lg px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${quickView === view.key ? 'bg-primary/10 text-primary' : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}>
+              {view.label} <span className="ml-1 tabular-nums opacity-70">{view.count}</span>
+            </button>)}
           </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <TextField label={text('ค้นหางาน', 'Search tasks')} placeholder={text('ชื่องาน คดี หรือชื่อคนทำงาน', 'Task, case or assignee')} value={filters.search}
+              onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} containerClassName="min-w-0 flex-1 basis-56" />
+            {scope === 'team' && <SelectField label={text('คนทำงาน', 'Assignee')} value={filters.assigneeId} onChange={event => setFilters(current => ({ ...current, assigneeId: event.target.value }))} containerClassName="w-full sm:w-48">
+              <option value="">{text('ทุกคน', 'Everyone')}</option><option value="unassigned">{d.taskDetail.unassigned}</option>
+              {users.map(person => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
+            </SelectField>}
+          </div>
+          <details className="border-t border-border pt-3">
+            <summary className="cursor-pointer text-sm text-muted-foreground">{text('ตัวกรองเพิ่มเติม', 'More filters')}{(filters.priority || filters.label || taskType !== 'all' || includeCompleted || (filters.status && quickView !== 'review') || (filters.due && quickView !== 'overdue' && quickView !== 'today')) && text(' · มีตัวกรองใช้งานอยู่', ' · Filters applied')}</summary>
+            <div className="mt-4 space-y-3">
+              <SelectField label={d.todos.taskType} value={taskType} onChange={event => setTaskType(event.target.value as typeof taskType)} containerClassName="sm:max-w-48">
+                <option value="all">{d.todos.scopeAll}</option><option value="case">{d.todos.scopeCase}</option><option value="general">{d.todos.scopeGeneral}</option>
+              </SelectField>
+              <Button type="button" size="sm" variant="outline" aria-pressed={includeCompleted} onClick={toggleCompleted}>{includeCompleted ? d.todos.hideCompleted : d.todos.showCompleted} ({completedCount})</Button>
           <TaskFilterBar
             value={filters}
             onChange={setFilters}
@@ -340,8 +358,15 @@ function TodosPageContent() {
             shown={visibleTasks.length}
             total={tasksForView.length}
           />
+            </div>
+          </details>
+          {(filtering || taskType !== 'all' || includeCompleted) && <Button type="button" size="sm" variant="ghost" onClick={() => { setFilters(EMPTY_TASK_FILTERS); setTaskType('all'); setIncludeCompleted(false); }}>{text('ล้างตัวกรองทั้งหมด', 'Clear all filters')}</Button>}
         </CardContent>
       </Card>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <p aria-live="polite" className="text-sm text-muted-foreground">{text(`แสดง ${visibleTasks.length} งาน · เรียงตามกำหนดส่ง`, `${visibleTasks.length} tasks · Ordered by due date`)}</p>
+        <TaskViewToggle layout={layout} onChange={setLayout} />
+      </div>
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={d.todos.addTodo} onKeyDown={event => {
@@ -365,8 +390,8 @@ function TodosPageContent() {
               <fieldset disabled={creating} className="flex min-w-0 flex-col gap-4">
               <p className="text-sm text-muted-foreground">{text('พิมพ์ชื่องานก็สร้างได้ทันที มอบหมายให้ตัวเองเป็นค่าเริ่มต้น', 'Only a task name is required. Assigned to you by default.')}</p>
               {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-              <label htmlFor="new-task-title" className="text-sm font-medium">{text('ต้องทำอะไร', 'What needs to be done?')}</label>
-              <Input
+              <TextField
+                label={text('ต้องทำอะไร', 'What needs to be done?')}
                 id="new-task-title"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
@@ -376,16 +401,14 @@ function TodosPageContent() {
               />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.assignee}</label>
-                  <select
-                    aria-label={d.taskDetail.assignee}
+                  <SelectField
+                    label={text('ใครเป็นคนทำ', 'Who will do this?')}
                     value={newAssigneeId}
                     onChange={(e) => setNewAssigneeId(e.target.value)}
-                    className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
                   >
                     <option value="">{d.todos.assignToMe}</option>
                     <AssigneeOptions users={assignableUsers} flags={newTaskLeaveFlags} />
-                  </select>
+                  </SelectField>
                   {newAssigneeUser && newTaskLeaveFlags.has(newAssigneeId) && (
                     <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                       {leaveWarning(
@@ -397,14 +420,22 @@ function TodosPageContent() {
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">{d.taskDetail.dueDate}</label>
-                  <ThaiDateInput
+                  <DateField
+                    label={d.taskDetail.dueDate}
                     value={newDueDate}
-                    onChange={setNewDueDate}
-                    className="mt-1"
+                    onChange={event => setNewDueDate(event.target.value)}
                   />
                 </div>
               </div>
+              <section className="space-y-2" aria-label={text('ไฟล์แนบสำหรับงานใหม่', 'New task attachments')}>
+                <p className="text-sm font-medium">{text('ไฟล์แนบ (ไม่บังคับ)', 'Attachments (optional)')}</p>
+                <DocumentDropZone multiple disabled={creating} label={text('เลือกไฟล์แนบ', 'Choose attachments')} accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.docx,.xlsx,.txt"
+                  hint="PDF, รูปภาพ, DOCX, XLSX, TXT · ไม่เกิน 30MB" onFiles={files => setNewFiles(previous => [...previous, ...files])} />
+                {newFiles.length > 0 && <ul className="space-y-1">{newFiles.map((file, index) => <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                  <span className="min-w-0 break-words">{file.name}</span><button type="button" aria-label={`เอา ${file.name} ออก`} className="shrink-0 p-2 text-muted-foreground" onClick={() => setNewFiles(previous => previous.filter((_, i) => i !== index))}>×</button>
+                </li>)}</ul>}
+                {newFiles.length > 0 && <p className="text-xs text-muted-foreground">{text(`จะบันทึก ${newFiles.length} ไฟล์พร้อมงานเมื่อกดสร้างงาน`, `${newFiles.length} files will be uploaded when you create this task`)}</p>}
+              </section>
               <details className="rounded-xl border border-border p-3">
                 <summary className="cursor-pointer text-sm font-medium">{text('รายละเอียดเพิ่มเติม (ไม่บังคับ)', 'More details (optional)')}</summary>
                 <div className="mt-4 space-y-4">
@@ -543,32 +574,6 @@ function TodosPageContent() {
                   )}
                 </div>
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">ไฟล์แนบ</label>
-                <DocumentDropZone
-                  multiple
-                  accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.docx,.xlsx,.txt"
-                  hint="PDF, รูปภาพ, DOCX, XLSX, TXT · ไม่เกิน 30MB"
-                  onFiles={(files) => setNewFiles((prev) => [...prev, ...files])}
-                />
-                {newFiles.length > 0 && (
-                  <ul className="mt-2 space-y-1">
-                    {newFiles.map((f, i) => (
-                      <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs">
-                        <span className="truncate">{f.name}</span>
-                        <button
-                          type="button"
-                          aria-label={`เอา ${f.name} ออก`}
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setNewFiles((prev) => prev.filter((_, x) => x !== i))}
-                        >
-                          ×
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
                 </div>
               </details>
               </fieldset>
@@ -600,7 +605,23 @@ function TodosPageContent() {
           )}
         </div>
       ) : (
-        <KanbanBoard
+        layout === 'list' ? <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+          {[...visibleTasks].sort((a, b) => Number(a.status === TaskStatus.DONE) - Number(b.status === TaskStatus.DONE) || (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) - (b.dueDate ? new Date(b.dueDate).getTime() : Infinity)).map(task => {
+            const overdue = task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) < today;
+            return <li key={task.id}><button type="button" onClick={() => taskParam.open(task.id)} className="flex w-full flex-wrap items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5">
+              <div className="min-w-0 flex-1 basis-56">
+                <p className="break-words text-sm font-semibold">{task.title}</p>
+                <p className="mt-1 break-words text-xs text-muted-foreground">{task.case ? `${task.case.ownRef} · ${task.case.title}` : text('งานทั่วไป', 'General task')} · {task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : d.taskDetail.unassigned}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {task.priority === TaskPriority.HIGH && <span className="font-medium text-destructive">{text('สำคัญมาก', 'High priority')}</span>}
+                <span className={`rounded-full px-2.5 py-1 ${task.status === TaskStatus.PENDING_REVIEW ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300' : task.status === TaskStatus.DONE ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-muted text-muted-foreground'}`}>{statusLabels[task.status]}</span>
+                <span className={overdue ? 'font-medium text-destructive' : 'text-muted-foreground'}>{overdue ? text('เลยกำหนด · ', 'Overdue · ') : ''}{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>
+                <span className="ml-1 font-medium text-primary">{text('เปิดงาน →', 'Open task →')}</span>
+              </div>
+            </button></li>;
+          })}
+        </ul> : <KanbanBoard
           layout={layout}
           tasks={visibleTasks}
           onStatusChange={handleStatusChange}

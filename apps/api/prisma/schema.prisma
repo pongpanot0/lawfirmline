@@ -430,6 +430,7 @@ model FirmMember {
   userId    String
   role      FirmRole
   createdAt DateTime @default(now())
+  taskWorkTypes String[] @default([])
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1137,6 +1138,21 @@ enum TaskPriority {
   HIGH
 }
 
+enum TaskSize {
+  S
+  M
+  L
+}
+
+enum TaskWorkType {
+  TRANSCRIPTION
+  DOCUMENTS
+  DRAFTING
+  RESEARCH
+  COURT
+  GENERAL
+}
+
 model Task {
   id             String       @id @default(uuid())
   caseId         String?
@@ -1156,6 +1172,18 @@ model Task {
   blockedById    String?
   /// Set on the transition to DONE; legacy tasks remain null.
   completedAt    DateTime?
+  /// Explicit tenant for new tasks; older case/intake tasks retain their existing scope.
+  firmId         String?
+  workType       TaskWorkType?
+  /// ขนาดงานโดยประมาณ ใช้คิดแต้มภาระงาน (S=1 M=2 L=4)
+  size           TaskSize     @default(M)
+  scheduledFor   DateTime? @db.Date
+  queuePosition  Int @default(0)
+  requiresReview Boolean @default(false)
+  reviewerId     String?
+  assignedAt     DateTime?
+  acknowledgedAt DateTime?
+  planConfirmedAt DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -1180,6 +1208,8 @@ model Task {
   @@index([parentId])
   @@index([intakeId])
   @@index([blockedById])
+  @@index([firmId, assigneeId, queuePosition])
+  @@index([scheduledFor])
 }
 
 model TaskAttachment {
@@ -1203,6 +1233,7 @@ model TaskComment {
   taskId    String
   authorId  String
   body      String   @db.Text
+  kind      String   @default("COMMENT")
   createdAt DateTime @default(now())
 
   task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)

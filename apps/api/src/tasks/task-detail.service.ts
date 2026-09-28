@@ -6,12 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as path from 'path';
-import { AuthUser, FirmRole, TaskPriority } from '@lawfirm/shared';
+import { AuthUser, FirmRole, TaskPriority, TaskStatus, dailyTaskUpdateText } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { TasksService } from './tasks.service';
 import { CreateSubtaskDto, CreateTaskCommentDto } from './dto/task-detail.dto';
+import { DailyTaskUpdateDto } from './dto/task-daily-update.dto';
 
 export const TASK_ATTACHMENT_MAX_BYTES = 30 * 1024 * 1024;
 export const TASK_ATTACHMENT_MIME_TYPES = new Set([
@@ -74,18 +75,33 @@ export class TaskDetailService {
     if (parent.parentId) {
       throw new BadRequestException('งานย่อยมีได้ชั้นเดียว สร้างงานย่อยจากงานหลักเท่านั้น');
     }
-    const created = await this.prisma.task.create({
-      data: {
-        parentId: parent.id,
-        caseId: parent.caseId,
-        title: dto.title.trim(),
-        assigneeId: dto.assigneeId,
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-        priority: dto.priority ?? TaskPriority.MEDIUM,
-        createdById: user.id,
-      },
-    });
+    const created = await this.tasks.create(user, parent.caseId, { ...dto, title: dto.title.trim(), priority: dto.priority ?? TaskPriority.MEDIUM }, undefined, parent.intakeId ?? undefined);
+    await this.prisma.task.update({ where: { id: created.id }, data: { parentId: parent.id } });
     return this.tasks.findOne(created.id);
+  }
+
+  acknowledge(taskId: string, user: AuthUser) {
+    return this.tasks.acknowledge(taskId, user);
+  }
+
+  async confirmPlan(taskId: string, user: AuthUser, date: string) {
+    const task = await this.tasks.assertAccess(taskId, user);
+    if (task.assigneeId !== user.id || [TaskStatus.PENDING_REVIEW, TaskStatus.DONE].includes(task.status as TaskStatus)) throw new ForbiddenException('ยืนยันแผนได้เฉพาะงานของตัวเองที่ยังทำอยู่');
+    const result = await this.prisma.task.updateMany({ where: { id: taskId, assigneeId: user.id, status: task.status }, data: { scheduledFor: new Date(`${date}T00:00:00Z`), planConfirmedAt: new Date() } });
+    if (!result.count) throw new BadRequestException('งานเปลี่ยนแล้ว กรุณาโหลดใหม่');
+    return this.tasks.findOne(taskId);
+  }
+
+  async dailyUpdate(taskId: string, user: AuthUser, dto: DailyTaskUpdateDto) {
+    const task = await this.tasks.assertAccess(taskId, user);
+    if (task.assigneeId !== user.id || [TaskStatus.PENDING_REVIEW, TaskStatus.DONE].includes(task.status as TaskStatus)) {
+      throw new ForbiddenException('ผู้ทำงานอัปเดตความคืบหน้าได้เฉพาะงานของตัวเองที่ยังไม่ส่งตรวจหรือเสร็จ');
+    }
+    if (!dto.completed.trim() || !dto.remaining.trim()) throw new BadRequestException('ระบุว่าทำถึงไหนและเหลืออะไร');
+    return this.prisma.taskComment.create({
+      data: { taskId, authorId: user.id, kind: 'DAILY_UPDATE', body: dailyTaskUpdateText(dto) },
+      include: { author: person },
+    });
   }
 
   async addComment(taskId: string, user: AuthUser, dto: CreateTaskCommentDto) {
