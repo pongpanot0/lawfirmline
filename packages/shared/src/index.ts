@@ -251,6 +251,21 @@ export const CASE_STAGE_ORDER: CaseStage[] = [
   CaseStage.SUPREME,
 ];
 
+export const CASE_STAGE_LABELS_TH: Record<CaseStage, string> = {
+  [CaseStage.INTAKE_REVIEW]: 'ก่อนฟ้อง',
+  [CaseStage.FACT_GATHERING]: 'รวบรวมข้อเท็จจริง',
+  [CaseStage.PRE_LITIGATION]: 'ก่อนฟ้อง',
+  [CaseStage.FILING]: 'ยื่นฟ้อง',
+  [CaseStage.ANSWER]: 'ยื่นคำให้การ',
+  [CaseStage.MEDIATION]: 'ไกล่เกลี่ย',
+  [CaseStage.HEARING]: 'สืบพยาน',
+  [CaseStage.AWAITING_JUDGMENT]: 'รอคำพิพากษา',
+  [CaseStage.ENFORCEMENT]: 'บังคับคดี',
+  [CaseStage.CLOSING]: 'ปิดคดี',
+  [CaseStage.APPEAL]: 'อุทธรณ์',
+  [CaseStage.SUPREME]: 'ฎีกา',
+};
+
 /**
  * ขั้นตอนของงานรับเรื่อง — แยกจากผลลัพธ์ (IntakeStatus)
  * เรียงตามลำดับที่งานเดินจริง

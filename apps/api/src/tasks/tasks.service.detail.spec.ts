@@ -11,6 +11,7 @@ describe('TasksService detail support', () => {
   let service: TasksService;
   const mockPrisma = {
     task: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn(), create: jest.fn(), delete: jest.fn() },
+    taskObserver: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
     caseActivity: { create: jest.fn() },

@@ -637,6 +637,8 @@ model User {
   taskLogsFrom               TaskAssignmentLog[]       @relation("TaskLogFrom")
   taskLogsTo                 TaskAssignmentLog[]       @relation("TaskLogTo")
   taskLogsPerformed          TaskAssignmentLog[]       @relation("TaskLogPerformer")
+  observedTasks              TaskObserver[]            @relation("TaskObserver")
+  addedObservations          TaskObserver[]            @relation("TaskObserverAddedBy")
   grantedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessGranted")
   revokedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessRevoked")
   publishedDocuments         DocumentPublication[]     @relation("DocumentPublicationPublished")
@@ -1191,6 +1193,7 @@ model Task {
   subtasks       Task[]              @relation("TaskSubtasks")
   attachments    TaskAttachment[]
   comments       TaskComment[]
+  observers      TaskObserver[]
 
   @@index([dueDate])
   @@index([assigneeId, status, dueDate])
@@ -1227,6 +1230,21 @@ model TaskComment {
   author User @relation("TaskCommentAuthor", fields: [authorId], references: [id])
 
   @@index([taskId, createdAt])
+}
+
+model TaskObserver {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  addedById String
+  createdAt DateTime @default(now())
+
+  task    Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User @relation("TaskObserver", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy User @relation("TaskObserverAddedBy", fields: [addedById], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, userId])
+  @@index([userId])
 }
 
 model TaskAssignmentLog {

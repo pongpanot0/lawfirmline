@@ -689,11 +689,14 @@ export interface TaskItem {
   recurrenceDays?: number | null;
   blockedById?: string | null;
   createdById?: string;
+  createdBy?: TaskPerson | null;
   assignee?: TaskPerson | null;
+  observers?: Array<{ id: string; userId: string; user: TaskPerson; createdAt: string }> | null;
   subtaskCount?: number;
   subtaskDoneCount?: number;
   attachmentCount?: number;
   commentCount?: number;
+  observerCount?: number;
   assignmentLogs?: Array<{
     action: import('@lawfirm/shared').TaskLogAction;
     note?: string | null;
@@ -727,6 +730,7 @@ export interface TaskSubtaskItem {
   dueDate?: string | null;
   priority: import('@lawfirm/shared').TaskPriority;
   assignee?: TaskPerson | null;
+  _count?: { attachments?: number; comments?: number };
 }
 
 export interface TaskDetail extends TaskItem {
