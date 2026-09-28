@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { AuthUser } from '@lawfirm/shared';
@@ -27,10 +27,10 @@ export class CaseCommentsService {
   ) {}
 
   async listComments(user: AuthUser, caseId: string): Promise<CaseCommentDTO[]> {
-    // Verify access via CaseAccessService
+    // Verify case exists and user has access
     const hasAccess = await this.caseAccess.canAccessCase(user, caseId);
     if (!hasAccess) {
-      return [];
+      throw new NotFoundException('Case not found');
     }
 
     const comments = await this.prisma.caseComment.findMany({
@@ -72,10 +72,10 @@ export class CaseCommentsService {
     body: string,
     mentionedUserIds?: string[],
   ): Promise<CaseCommentDTO> {
-    // Verify access and that body is valid
+    // Verify case exists and user has access
     const hasAccess = await this.caseAccess.canAccessCase(user, caseId);
     if (!hasAccess) {
-      throw new Error('No access to case');
+      throw new NotFoundException('Case not found');
     }
 
     if (!body || body.trim().length === 0 || body.length > 5000) {
@@ -196,7 +196,7 @@ export class CaseCommentsService {
     // Verify access to case
     const hasAccess = await this.caseAccess.canAccessCase(user, caseId);
     if (!hasAccess) {
-      throw new Error('No access to case');
+      throw new NotFoundException('Case not found');
     }
 
     const comment = await this.prisma.caseComment.findUnique({
@@ -205,7 +205,7 @@ export class CaseCommentsService {
     });
 
     if (!comment || comment.caseId !== caseId) {
-      throw new Error('Comment not found');
+      throw new NotFoundException('Comment not found');
     }
 
     // Only author or firm owner can delete
@@ -218,7 +218,7 @@ export class CaseCommentsService {
     const isOwner = firmMember?.role === 'OWNER';
 
     if (!isAuthor && !isOwner) {
-      throw new Error('No permission to delete comment');
+      throw new ForbiddenException('You cannot delete this comment');
     }
 
     await this.prisma.caseComment.delete({

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Trash2, AtSign } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, CaseCommentEntry } from '@/lib/api';
@@ -28,9 +28,15 @@ interface CaseTeamMember {
   lastName: string;
 }
 
+interface MentionMatch {
+  startIdx: number;
+  endIdx: number;
+  userId: string;
+}
+
 export function CaseCommentsPanel({
   caseId,
-  teamMembers,
+  teamMembers = [],
 }: {
   caseId: string;
   teamMembers?: CaseTeamMember[];
@@ -43,7 +49,31 @@ export function CaseCommentsPanel({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Extract current @mention query from body at cursor position
+  const getMentionContext = (text: string, cursorPos: number) => {
+    const beforeCursor = text.substring(0, cursorPos);
+    const lastAt = beforeCursor.lastIndexOf('@');
+    if (lastAt === -1) return null;
+    const afterLastAt = beforeCursor.substring(lastAt + 1);
+    if (!/^\w*$/.test(afterLastAt)) return null; // Only alphanumerics after @
+    return { startIdx: lastAt + 1, query: afterLastAt.toLowerCase() };
+  };
+
+  const filteredMembers = useMemo(() => {
+    if (!showMentionPicker) return [];
+    return teamMembers.filter(
+      (m) =>
+        m.firstName.toLowerCase().includes(mentionQuery) ||
+        m.lastName.toLowerCase().includes(mentionQuery),
+    );
+  }, [showMentionPicker, mentionQuery, teamMembers]);
 
   const load = () => {
     if (!token || !caseId) return;
@@ -62,12 +92,112 @@ export function CaseCommentsPanel({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [comments.length]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowMentionPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setBody(newText);
+
+    // Check if typing @ for mentions
+    const cursorPos = e.target.selectionStart;
+    const context = getMentionContext(newText, cursorPos);
+
+    if (context) {
+      setShowMentionPicker(true);
+      setMentionQuery(context.query);
+      setMentionIndex(0);
+    } else {
+      setShowMentionPicker(false);
+    }
+
+    // Detect deleted mentions
+    const prevMatches = extractMentionMatches(body);
+    const newMatches = extractMentionMatches(newText);
+    const deletedIds = prevMatches
+      .filter((m) => !newMatches.some((nm) => nm.userId === m.userId))
+      .map((m) => m.userId);
+    if (deletedIds.length > 0) {
+      setMentionedUserIds((ids) => ids.filter((id) => !deletedIds.includes(id)));
+    }
+  };
+
+  const extractMentionMatches = (text: string): MentionMatch[] => {
+    const matches: MentionMatch[] = [];
+    const members = new Map(teamMembers.map((m) => [`${m.firstName} ${m.lastName}`, m.id]));
+
+    for (const [name, id] of members) {
+      const regex = new RegExp(`@${name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}(?!\\w)`, 'g');
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        matches.push({ startIdx: match.index, endIdx: match.index + match[0].length, userId: id });
+      }
+    }
+    return matches;
+  };
+
+  const insertMention = (member: CaseTeamMember) => {
+    if (!textareaRef.current) return;
+    const cursorPos = textareaRef.current.selectionStart;
+    const context = getMentionContext(body, cursorPos);
+    if (!context) return;
+
+    const beforeMention = body.substring(0, context.startIdx - 1);
+    const afterMention = body.substring(cursorPos);
+    const mentionText = `@${member.firstName} ${member.lastName} `;
+    const newBody = beforeMention + mentionText + afterMention;
+
+    setBody(newBody);
+    setShowMentionPicker(false);
+    setMentionedUserIds((ids) =>
+      ids.includes(member.id) ? ids : [...ids, member.id],
+    );
+
+    // Move cursor after inserted mention
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newCursorPos = beforeMention.length + mentionText.length;
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        textareaRef.current.focus();
+      }
+    }, 0);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showMentionPicker && filteredMembers.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % filteredMembers.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + filteredMembers.length) % filteredMembers.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        insertMention(filteredMembers[mentionIndex]);
+      } else if (e.key === 'Escape') {
+        setShowMentionPicker(false);
+      }
+    } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      void handleSend();
+    }
+  };
+
   const handleSend = async () => {
     if (!token || !caseId || !body.trim()) return;
     setSending(true);
     setError('');
     try {
-      await api.createCaseComment(token, caseId, body.trim(), mentionedUserIds.length > 0 ? mentionedUserIds : undefined);
+      const matches = extractMentionMatches(body);
+      const ids = Array.from(new Set(matches.map((m) => m.userId)));
+      await api.createCaseComment(token, caseId, body.trim(), ids.length > 0 ? ids : undefined);
       setBody('');
       setMentionedUserIds([]);
       load();
@@ -78,11 +208,32 @@ export function CaseCommentsPanel({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      e.preventDefault();
-      void handleSend();
+  const renderBodyWithMentions = (text: string, mIds: string[]) => {
+    const members = new Map(mIds.map((id) => {
+      const member = teamMembers.find((m) => m.id === id);
+      return member ? [`${member.firstName} ${member.lastName}`, member.id] : null;
+    }).filter(Boolean) as Array<[string, string]>);
+
+    if (members.size === 0) return text;
+
+    const parts: React.ReactNode[] = [];
+    let lastIdx = 0;
+
+    for (const [name, id] of members) {
+      const regex = new RegExp(`@${name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}(?!\\w)`, 'g');
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        parts.push(text.substring(lastIdx, match.index));
+        parts.push(
+          <span key={`mention-${id}-${match.index}`} className="font-semibold text-primary">
+            {match[0]}
+          </span>,
+        );
+        lastIdx = match.index + match[0].length;
+      }
     }
+    parts.push(text.substring(lastIdx));
+    return parts;
   };
 
   const handleDelete = async (commentId: string) => {
@@ -156,7 +307,9 @@ export function CaseCommentsPanel({
                       </button>
                     )}
                   </div>
-                  <p className="whitespace-pre-wrap text-sm text-foreground">{c.body}</p>
+                  <p className="whitespace-pre-wrap text-sm text-foreground">
+                    {renderBodyWithMentions(c.body, c.mentionedUserIds)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -168,14 +321,37 @@ export function CaseCommentsPanel({
       {error && <p className="px-5 pb-2 text-sm text-destructive">{error}</p>}
 
       <div className="border-t p-4">
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={handleKeyDown}
-          rows={3}
-          className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-soft transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          placeholder="พิมพ์ความเห็น (⌘+Enter เพื่อส่ง)..."
-        />
+        <div className="relative">
+          <textarea
+            ref={textareaRef}
+            value={body}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            rows={3}
+            className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-soft transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="พิมพ์ความเห็น (@ เพื่อกล่าวถึง, ⌘+Enter เพื่อส่ง)..."
+          />
+          {showMentionPicker && filteredMembers.length > 0 && (
+            <div
+              ref={pickerRef}
+              className="absolute bottom-full left-0 mb-2 max-h-48 w-full overflow-y-auto rounded-lg border bg-popover shadow-lg"
+            >
+              {filteredMembers.map((member, idx) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => insertMention(member)}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-accent ${
+                    idx === mentionIndex ? 'bg-accent' : ''
+                  }`}
+                >
+                  <AtSign className="mr-2 inline h-3.5 w-3.5" />
+                  {member.firstName} {member.lastName}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="mt-2 flex justify-end gap-2">
           <Button
             type="button"
@@ -183,6 +359,7 @@ export function CaseCommentsPanel({
             onClick={() => {
               setBody('');
               setMentionedUserIds([]);
+              setShowMentionPicker(false);
             }}
           >
             ยกเลิก

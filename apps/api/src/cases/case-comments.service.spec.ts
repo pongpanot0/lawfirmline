@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
 import { CaseCommentsService } from './case-comments.service';
 import { PrismaService } from '../prisma/prisma.module';
@@ -49,13 +50,11 @@ describe('CaseCommentsService', () => {
   });
 
   describe('listComments', () => {
-    it('returns empty list when user has no access', async () => {
+    it('throws NotFoundException when user has no access', async () => {
       const user = { id: 'user-1', firmId: 'firm-1' } as any;
       mockCaseAccess.canAccessCase.mockResolvedValue(false);
 
-      const result = await service.listComments(user, 'case-1');
-
-      expect(result).toEqual([]);
+      await expect(service.listComments(user, 'case-1')).rejects.toThrow(NotFoundException);
       expect(mockPrisma.caseComment.findMany).not.toHaveBeenCalled();
     });
 
@@ -89,12 +88,12 @@ describe('CaseCommentsService', () => {
   });
 
   describe('createComment', () => {
-    it('throws error when user has no access', async () => {
+    it('throws NotFoundException when user has no access', async () => {
       const user = { id: 'user-1', firmId: 'firm-1' } as any;
       mockCaseAccess.canAccessCase.mockResolvedValue(false);
 
       await expect(service.createComment(user, 'case-1', 'Test comment')).rejects.toThrow(
-        'No access to case',
+        NotFoundException,
       );
     });
 
@@ -174,22 +173,22 @@ describe('CaseCommentsService', () => {
   });
 
   describe('deleteComment', () => {
-    it('throws error when user has no access to case', async () => {
+    it('throws NotFoundException when user has no access to case', async () => {
       const user = { id: 'user-1', firmId: 'firm-1' } as any;
       mockCaseAccess.canAccessCase.mockResolvedValue(false);
 
       await expect(service.deleteComment(user, 'case-1', 'comment-1')).rejects.toThrow(
-        'No access to case',
+        NotFoundException,
       );
     });
 
-    it('throws error when comment not found', async () => {
+    it('throws NotFoundException when comment not found', async () => {
       const user = { id: 'user-1', firmId: 'firm-1' } as any;
       mockCaseAccess.canAccessCase.mockResolvedValue(true);
       mockPrisma.caseComment.findUnique.mockResolvedValue(null);
 
       await expect(service.deleteComment(user, 'case-1', 'comment-1')).rejects.toThrow(
-        'Comment not found',
+        NotFoundException,
       );
     });
 
@@ -241,7 +240,7 @@ describe('CaseCommentsService', () => {
       });
 
       await expect(service.deleteComment(user, 'case-1', 'comment-1')).rejects.toThrow(
-        'No permission to delete comment',
+        ForbiddenException,
       );
     });
   });
