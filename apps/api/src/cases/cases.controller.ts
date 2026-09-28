@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { CasesService } from './cases.service';
 import { CreateCaseDto, UpdateCaseDto, CaseQueryDto, UpdateCaseAssignmentsDto } from './dto/case.dto';
+import { CreateCaseCommentDto } from './dto/case-comment.dto';
 import { CloseCaseDto } from './dto/close-case.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -22,6 +23,7 @@ import { AuthUser, Role } from '@lawfirm/shared';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 import { OwnerOnly } from '../saas/decorators/saas.decorators';
 import { IntakePrecedentAnalysisService } from '../intake/intake-precedent-analysis.service';
+import { CaseCommentsService } from './case-comments.service';
 
 @Controller('cases')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -29,6 +31,7 @@ export class CasesController {
   constructor(
     private casesService: CasesService,
     private precedentAnalysisService: IntakePrecedentAnalysisService,
+    private caseCommentsService: CaseCommentsService,
   ) {}
 
   @Get()
@@ -116,5 +119,33 @@ export class CasesController {
   @UseGuards(CaseAccessGuard)
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.casesService.remove(user, id);
+  }
+
+  @Get(':id/comments')
+  @UseGuards(CaseAccessGuard)
+  listComments(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.caseCommentsService.listComments(user, id);
+  }
+
+  @Post(':id/comments')
+  @UseGuards(CaseAccessGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  createComment(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: CreateCaseCommentDto,
+  ) {
+    return this.caseCommentsService.createComment(user, id, dto.body, dto.mentionedUserIds);
+  }
+
+  @Delete(':id/comments/:commentId')
+  @UseGuards(CaseAccessGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  deleteComment(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('commentId') commentId: string,
+  ) {
+    return this.caseCommentsService.deleteComment(user, id, commentId);
   }
 }

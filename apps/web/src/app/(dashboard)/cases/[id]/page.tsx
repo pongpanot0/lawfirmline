@@ -87,6 +87,11 @@ const CaseClosingReportPanel = dynamic(
   () => import('@/components/cases/CaseClosingReportPanel').then((m) => m.CaseClosingReportPanel),
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
 );
+
+const CaseCommentsPanel = dynamic(
+  () => import('@/components/cases/CaseCommentsPanel').then((m) => m.CaseCommentsPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
 import { useAuth } from '@/lib/auth';
 import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -1098,6 +1103,22 @@ export default function CaseDetailPage() {
           className="min-w-0"
         >
           <CaseDocumentsPanel caseId={id} />
+        </div>
+      )}
+
+      {activeTab === 'comments' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-comments"
+          aria-labelledby="case-tab-comments"
+          className="min-w-0"
+        >
+          <CaseCommentsPanel
+            caseId={id}
+            teamMembers={[legalCase.leadLawyer, ...legalCase.assignments.map((a) => a.user)].filter(
+              (m, i, all) => all.findIndex((x) => x.id === m.id) === i,
+            )}
+          />
         </div>
       )}
 

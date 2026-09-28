@@ -655,6 +655,7 @@ model User {
   confirmedCargoClaims       CargoClaim[]              @relation("CargoClaimConfirmer")
   recordedInvoicePayments    InvoicePayment[]          @relation("InvoicePaymentRecorder")
   createdPleadingDrafts      PleadingDraft[]           @relation("PleadingDraftCreator")
+  caseComments               CaseComment[]
 }
 
 /// A mobile device's Expo push token. One row per device; a token moves to
@@ -857,12 +858,29 @@ model Case {
   cargoClaim             CargoClaim?
   pleadingDrafts         PleadingDraft[]
   portalIntakeSubmission PortalIntakeSubmission?
+  comments               CaseComment[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
   @@index([firmId])
   @@index([clientId])
   @@index([firmId, stage])
+}
+
+model CaseComment {
+  id                String   @id @default(uuid())
+  caseId            String
+  authorId          String
+  body              String   @db.Text
+  mentionedUserIds  String[] @default([])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  case   Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@index([authorId])
 }
 
 model Intake {
