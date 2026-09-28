@@ -147,19 +147,22 @@ export class PracticeSetupService {
   }
   /**
    * Seeds the built-in playbook for each default case type the firm has not
-   * covered yet. A case type that already has any playbook linked is left
-   * alone, and a default once seeded is never re-seeded (its templateKey stays
-   * on v1 even after the firm republishes it under its own edits).
+   * covered yet. It links to the firm's case type by current or legacy name;
+   * a firm with neither still gets the playbook, unlinked, to link by hand. A
+   * case type that already has any playbook linked is left alone, and a default
+   * once seeded is never re-seeded (its templateKey stays on v1 even after the
+   * firm republishes it under its own edits).
    */
   async ensureDefaultPlaybooks(user: AuthUser) {
     const [releases, caseTypes] = await Promise.all([
       this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, select: { templateKey: true, caseTypeId: true } }),
-      this.prisma.caseType.findMany({ where: { firmId: user.firmId, name: { in: DEFAULT_PLAYBOOKS.map((p) => p.caseTypeName) } }, select: { id: true, name: true } }),
+      this.prisma.caseType.findMany({ where: { firmId: user.firmId, name: { in: DEFAULT_PLAYBOOKS.flatMap((p) => p.caseTypeNames) } }, select: { id: true, name: true } }),
     ]);
     const data = DEFAULT_PLAYBOOKS.flatMap((p) => {
-      const caseType = caseTypes.find((c) => c.name === p.caseTypeName);
-      if (!caseType || releases.some((r) => r.templateKey === p.key || r.caseTypeId === caseType.id)) return [];
-      return [{ firmId: user.firmId, name: p.name, workType: p.name, caseTypeId: caseType.id, templateKey: p.key, steps: json(p.steps), version: 1, publishedById: user.id }];
+      if (releases.some((r) => r.templateKey === p.key)) return [];
+      const caseType = p.caseTypeNames.map((name) => caseTypes.find((c) => c.name === name)).find(Boolean);
+      if (caseType && releases.some((r) => r.caseTypeId === caseType.id)) return [];
+      return [{ firmId: user.firmId, name: p.name, workType: p.name, caseTypeId: caseType?.id ?? null, templateKey: p.key, steps: json(p.steps), version: 1, publishedById: user.id }];
     });
     if (data.length) await this.prisma.playbookRelease.createMany({ data, skipDuplicates: true });
   }

@@ -17,7 +17,9 @@ export interface DefaultPlaybookStep {
 export interface DefaultPlaybookDefinition {
   key: string;
   name: string;
-  caseTypeName: string;
+  /** Case-type names to link to, current Thai default first; later entries are the
+   * English defaults firms got before 2026-07-25. */
+  caseTypeNames: string[];
   steps: DefaultPlaybookStep[];
 }
 
@@ -26,7 +28,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
   {
     key: 'DEFAULT_CIVIL',
     name: 'คดีแพ่งมาตรฐาน (ศาลชั้นต้น–ฎีกา–บังคับคดี)',
-    caseTypeName: 'คดีความ',
+    caseTypeNames: ['คดีความ', 'Litigation'],
     steps: [
       {
         title: 'ตรวจสอบผลประโยชน์ขัดกัน (Conflict check)',
@@ -145,7 +147,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
   {
     key: 'DEFAULT_CRIMINAL',
     name: 'คดีอาญามาตรฐาน (ผู้เสียหาย/จำเลย)',
-    caseTypeName: 'คดีอาญา',
+    caseTypeNames: ['คดีอาญา', 'Criminal'],
     steps: [
       {
         title: 'ตรวจสอบผลประโยชน์ขัดกัน (Conflict check)',
@@ -239,7 +241,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
   {
     key: 'DEFAULT_FAMILY',
     name: 'คดีครอบครัวและมรดก (หย่า/อำนาจปกครอง/ผู้จัดการมรดก)',
-    caseTypeName: 'คดีครอบครัว',
+    caseTypeNames: ['คดีครอบครัว', 'Family Law'],
     steps: [
       {
         title: 'ตรวจสอบผลประโยชน์ขัดกัน (Conflict check)',
@@ -323,7 +325,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
   {
     key: 'DEFAULT_CORPORATE',
     name: 'งานบริษัท (จดทะเบียน/สัญญา/Due Diligence)',
-    caseTypeName: 'คดีบริษัท',
+    caseTypeNames: ['คดีบริษัท', 'Corporate'],
     steps: [
       {
         title: 'ตรวจสอบผลประโยชน์ขัดกันและ KYC ลูกความ',
@@ -397,7 +399,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
   {
     key: 'DEFAULT_IP',
     name: 'เครื่องหมายการค้า (จดทะเบียนและการละเมิด)',
-    caseTypeName: 'ทรัพย์สินทางปัญญา',
+    caseTypeNames: ['ทรัพย์สินทางปัญญา', 'Intellectual Property'],
     steps: [
       {
         title: 'ตรวจสอบผลประโยชน์ขัดกัน (Conflict check)',
