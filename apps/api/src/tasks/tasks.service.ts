@@ -565,12 +565,29 @@ export class TasksService {
 
   /**
    * Runs once when a task transitions to DONE: spawn the next occurrence of a
-   * recurring task, and tell owners of tasks blocked by this one they can start.
+   * recurring task, notify observers and parent observers, and tell owners of
+   * tasks blocked by this one they can start.
    */
   private async onTaskCompleted(
     task: import('../generated/prisma').Task,
     actorUserId: string,
   ) {
+    // Notify observers and parent observers (if subtask) that task is complete
+    const notifyIds = [...new Set([
+      ...(await this.getParentObserverIds(task.id)),
+      ...(task.parentId ? await this.getParentObserverIds(task.parentId) : []),
+    ])].filter((id) => id !== actorUserId);
+
+    if (notifyIds.length) {
+      await this.notifyViaAssignmentNotifier({
+        firmId: null,
+        userIds: notifyIds,
+        actorUserId,
+        summaryText: `✅ งานเสร็จแล้ว: "${task.title}"`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+      });
+    }
+
     if (task.recurrenceDays) {
       const base = task.dueDate && task.dueDate > new Date() ? task.dueDate : new Date();
       await this.prisma.task.create({
@@ -937,5 +954,28 @@ export class TasksService {
       where: { id: hold.id },
       data: { endedAt: new Date() },
     });
+  }
+
+  async getParentObserverIds(parentTaskId: string): Promise<string[]> {
+    const observers = await this.prisma.taskObserver.findMany({
+      where: { taskId: parentTaskId },
+      select: { userId: true },
+    });
+    return observers.map((o) => o.userId);
+  }
+
+  async notifyViaAssignmentNotifier(params: {
+    firmId: string | null;
+    userIds: string[];
+    actorUserId: string;
+    summaryText: string;
+    entityPath: string;
+  }) {
+    if (!params.userIds.length) return;
+    try {
+      await this.assignmentNotifier.notifyAssigned(params);
+    } catch (err) {
+      this.logger.error('Notification failed (non-blocking)', err);
+    }
   }
 }
