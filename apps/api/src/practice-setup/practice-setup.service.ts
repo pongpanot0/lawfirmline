@@ -9,6 +9,7 @@ import {
   CargoPlaybookTemplate,
   CaseStage,
   DeadlineDayBasis,
+  DEFAULT_PLAYBOOKS,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
@@ -144,7 +145,25 @@ export class PracticeSetupService {
       return { undone: true };
     }, { timeout: 30000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
-  async listPlaybooks(user: AuthUser) { return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
+  /**
+   * Seeds the built-in playbook for each default case type the firm has not
+   * covered yet. A case type that already has any playbook linked is left
+   * alone, and a default once seeded is never re-seeded (its templateKey stays
+   * on v1 even after the firm republishes it under its own edits).
+   */
+  async ensureDefaultPlaybooks(user: AuthUser) {
+    const [releases, caseTypes] = await Promise.all([
+      this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, select: { templateKey: true, caseTypeId: true } }),
+      this.prisma.caseType.findMany({ where: { firmId: user.firmId, name: { in: DEFAULT_PLAYBOOKS.map((p) => p.caseTypeName) } }, select: { id: true, name: true } }),
+    ]);
+    const data = DEFAULT_PLAYBOOKS.flatMap((p) => {
+      const caseType = caseTypes.find((c) => c.name === p.caseTypeName);
+      if (!caseType || releases.some((r) => r.templateKey === p.key || r.caseTypeId === caseType.id)) return [];
+      return [{ firmId: user.firmId, name: p.name, workType: p.name, caseTypeId: caseType.id, templateKey: p.key, steps: json(p.steps), version: 1, publishedById: user.id }];
+    });
+    if (data.length) await this.prisma.playbookRelease.createMany({ data, skipDuplicates: true });
+  }
+  async listPlaybooks(user: AuthUser) { await this.ensureDefaultPlaybooks(user); return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
   async publish(user: AuthUser, dto: { name: string; caseTypeId?: string; templateKey?: string; cargoTemplate?: CargoPlaybookTemplate; steps: PlaybookStep[] }) {
     this.owner(user);
     if (!dto.name.trim() || !dto.steps.length || dto.steps.some((s) => !s.title.trim())) throw new BadRequestException('ชื่อ Playbook และชื่อขั้นตอนห้ามว่าง / Name and step titles are required');
@@ -242,6 +261,7 @@ export class PracticeSetupService {
   async proposeStageTasks(user: AuthUser, caseId: string, stage: CaseStage, today: Date = new Date()): Promise<StageTaskProposal[]> {
     const c = await this.prisma.case.findFirst({ where: { id: caseId, ...this.access.getCaseFilterForUser(user) } });
     if (!c) throw new NotFoundException('Case not found');
+    await this.ensureDefaultPlaybooks(user);
 
     const [applied, byCaseType] = await Promise.all([
       this.prisma.appliedPlaybook.findMany({ where: { caseId }, include: { release: true } }),

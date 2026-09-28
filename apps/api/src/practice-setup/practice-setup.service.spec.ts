@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { CARGO_CLAIM_PLAYBOOK_KEY, CaseStage, DeadlineDayBasis, FirmRole, Role, SubscriptionStatus, type AuthUser } from '@lawfirm/shared';
+import { CARGO_CLAIM_PLAYBOOK_KEY, CaseStage, DEFAULT_PLAYBOOKS, DeadlineDayBasis, FirmRole, Role, SubscriptionStatus, type AuthUser } from '@lawfirm/shared';
 import { PracticeSetupService, resolveAssignee } from './practice-setup.service';
 
 describe('resolveAssignee', () => {
@@ -106,6 +106,7 @@ describe('stage-driven task proposals', () => {
           { id: 'release-1', name: 'Release A', version: 1, steps: overrides.steps ?? [] },
         ]),
       },
+      caseType: { findMany: jest.fn().mockResolvedValue([]) },
       caseAssignment: { findMany: jest.fn().mockResolvedValue([]) },
       firmMember: { findMany: jest.fn().mockResolvedValue([]) },
       task: { create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: `task-${data.title}`, ...data })) },
@@ -188,5 +189,48 @@ describe('stage-driven task proposals', () => {
       expect.objectContaining({ firmId: user.firmId, userIds: ['member-1'], actorUserId: user.id }),
     );
     expect(caseFeed.log).toHaveBeenCalledWith(expect.objectContaining({ caseId: theCase.id, userId: user.id }));
+  });
+});
+
+describe('default playbooks', () => {
+  const user = { id: 'owner-1', firmId: 'firm-1' } as AuthUser;
+
+  it('seeds a default only for case types with no linked playbook, once', async () => {
+    const [first, second] = DEFAULT_PLAYBOOKS;
+    const prisma = {
+      playbookRelease: {
+        findMany: jest.fn().mockResolvedValue([{ templateKey: null, caseTypeId: 'ct-first' }]),
+        createMany: jest.fn(),
+      },
+      caseType: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'ct-first', name: first.caseTypeName },
+          { id: 'ct-second', name: second.caseTypeName },
+        ]),
+      },
+    };
+    const service = new PracticeSetupService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    await service.ensureDefaultPlaybooks(user);
+    const data = prisma.playbookRelease.createMany.mock.calls[0][0].data;
+    expect(data).toHaveLength(1);
+    expect(data[0]).toMatchObject({ templateKey: second.key, caseTypeId: 'ct-second', version: 1 });
+
+    prisma.playbookRelease.findMany.mockResolvedValue([{ templateKey: null, caseTypeId: 'ct-first' }, { templateKey: second.key, caseTypeId: 'ct-second' }]);
+    await service.ensureDefaultPlaybooks(user);
+    expect(prisma.playbookRelease.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('every default step targets a real stage and a sane offset', () => {
+    for (const p of DEFAULT_PLAYBOOKS) {
+      expect(p.steps.length).toBeGreaterThan(0);
+      for (const s of p.steps) {
+        expect(s.title.trim()).not.toBe('');
+        if (s.stage) expect(Object.values(CaseStage)).toContain(s.stage);
+        if (s.offsetDays != null) expect(s.offsetDays).toBeGreaterThanOrEqual(0);
+        if (s.offsetDays != null) expect(s.offsetDays).toBeLessThanOrEqual(365);
+      }
+    }
+    expect(new Set(DEFAULT_PLAYBOOKS.map((p) => p.key)).size).toBe(DEFAULT_PLAYBOOKS.length);
   });
 });

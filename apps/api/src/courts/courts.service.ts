@@ -10,12 +10,14 @@ type PrismaClientLike = PrismaService | Prisma.TransactionClient;
 export class CourtsService {
   constructor(private prisma: PrismaService) {}
 
+  /** Tops up any catalog court missing by name, so a grown default list reaches existing databases. Deactivated courts keep their row and stay inactive. */
   async provisionDefaults(db: PrismaClientLike = this.prisma) {
-    const existing = await db.court.count();
-    if (existing > 0) return;
+    const existing = new Set((await db.court.findMany({ select: { name: true } })).map((c) => c.name));
+    const missing = DEFAULT_THAI_COURTS.filter((name) => !existing.has(name));
+    if (!missing.length) return;
 
     await db.court.createMany({
-      data: DEFAULT_THAI_COURTS.map((name) => ({ name })),
+      data: missing.map((name) => ({ name })),
       skipDuplicates: true,
     });
   }
