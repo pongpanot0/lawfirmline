@@ -1,26 +1,28 @@
 import { randomUUID } from 'crypto';
 import { portalRequestScope } from './portal-workroom.service';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PortalIdentity } from './client-portal-jwt.strategy';
 import { SubmitPortalIntakeDto } from './dto/portal-intake.dto';
 import { mapInternalStatusToExternal } from '../intake/intake-status-mapping';
+import { CaseFeedService } from '../common/services/case-feed.service';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { CasesService } from '../cases/cases.service';
+import { DocumentsService } from '../documents/documents.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { ActivityType } from '@lawfirm/shared';
+import { createClientKeyDateSuggestion, firstFirmOwnerId, uploadedFileBuffer } from './portal-case-helpers';
 
 @Injectable()
 export class ClientPortalIntakeService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly cases: CasesService,
+    private readonly documents: DocumentsService,
+    private readonly notifier: AssignmentNotifierService,
+    private readonly caseFeed: CaseFeedService,
     private readonly fileStorage: FileStorageService,
   ) {}
-
-  private getFileBuffer(file: Express.Multer.File): Buffer {
-    if (file.buffer) return file.buffer;
-    if (file.path) return fs.readFileSync(file.path);
-    throw new BadRequestException('Uploaded file is empty');
-  }
 
   // multer/busboy decode multipart field values (including filenames) as
   // latin1 by default, so a UTF-8 filename (e.g. Thai) arrives mojibake'd —
@@ -29,48 +31,126 @@ export class ClientPortalIntakeService {
     return Buffer.from(originalname, 'latin1').toString('utf8');
   }
 
+  /**
+   * A portal request opens a PRE_LITIGATION case straight away: the firm's first owner leads it,
+   * the contact gets access, and uploaded files become case documents. Owners are alerted after commit.
+   */
   async submit(portalUser: PortalIdentity, dto: SubmitPortalIntakeDto, files: Express.Multer.File[] = []) {
     const referenceNumber = `REQ-${randomUUID().toUpperCase()}`;
 
-    const submission = await this.prisma.portalIntakeSubmission.create({
-      data: {
-        clientId: portalUser.clientId,
-        clientContactId: portalUser.clientContactId,
-        referenceNumber,
-        title: dto.title,
-        detail: dto.detail,
-        clientRequestedDate: dto.clientRequestedDate
-          ? new Date(dto.clientRequestedDate)
-          : undefined,
-        urgencyFlag: dto.urgencyFlag ?? false,
-      },
-    });
+    // Files are stored while the tx is open; if it rolls back, remove them so no blob is orphaned.
+    const storedPaths: string[] = [];
+    const { submission, legalCase, clientName } = await this.prisma.$transaction(async (tx) => {
+      const submission = await tx.portalIntakeSubmission.create({
+        data: {
+          clientId: portalUser.clientId,
+          clientContactId: portalUser.clientContactId,
+          referenceNumber,
+          title: dto.title,
+          detail: dto.detail,
+          clientRequestedDate: dto.clientRequestedDate
+            ? new Date(dto.clientRequestedDate)
+            : undefined,
+          urgencyFlag: dto.urgencyFlag ?? false,
+        },
+      });
 
-    if (files.length > 0) {
+      const ownerId = await firstFirmOwnerId(tx, portalUser.firmId);
+
+      const client = await tx.client.findFirst({
+        where: { id: portalUser.clientId, firmId: portalUser.firmId },
+        select: { name: true },
+      });
+      if (!client) throw new NotFoundException('ไม่พบลูกความ');
+
+      const legalCase = await this.cases.createForPortal(tx, {
+        firmId: portalUser.firmId,
+        clientId: portalUser.clientId,
+        clientName: client.name,
+        title: dto.title,
+        description: dto.detail,
+        leadLawyerId: ownerId,
+      });
+
+      await tx.portalIntakeSubmission.update({
+        where: { id: submission.id },
+        data: { caseId: legalCase.id },
+      });
+
+      await tx.contactCaseAccess.upsert({
+        where: { clientContactId_caseId: { clientContactId: portalUser.clientContactId, caseId: legalCase.id } },
+        create: { clientContactId: portalUser.clientContactId, caseId: legalCase.id, grantedById: ownerId },
+        update: {}, // the case is brand new, so the row can't pre-exist
+      });
+
+      // The file is stored once as a case document; the request's attachment row points at the
+      // same stored file because the portal request views and download route still read attachments.
+      let firstDocumentId: string | null = null;
       for (const file of files) {
         const filename = this.decodeOriginalFilename(file.originalname);
-        const attachment = await this.prisma.portalIntakeAttachment.create({
+        const document = await this.documents.createFromClientBuffer(tx, {
+          firmId: portalUser.firmId,
+          caseId: legalCase.id,
+          contactId: portalUser.clientContactId,
+          actorUserId: ownerId,
+          filename,
+          buffer: uploadedFileBuffer(file),
+          mimeType: file.mimetype,
+        });
+        storedPaths.push(document.storagePath);
+        firstDocumentId ??= document.id;
+
+        await tx.portalIntakeAttachment.create({
           data: {
             portalIntakeSubmissionId: submission.id,
             filename,
-            storagePath: '',
+            storagePath: document.storagePath,
             mimeType: file.mimetype,
             size: file.size,
           },
         });
+      }
 
-        const ext = path.extname(filename);
-        const key = path.posix.join('portal-intake', submission.id, `${attachment.id}${ext}`);
-        const storagePath = await this.fileStorage.put(key, this.getFileBuffer(file), file.mimetype);
-
-        await this.prisma.portalIntakeAttachment.update({
-          where: { id: attachment.id },
-          data: { storagePath },
+      if (dto.keyDate) {
+        await createClientKeyDateSuggestion(tx, {
+          caseId: legalCase.id,
+          documentId: firstDocumentId,
+          keyDate: dto.keyDate,
+          keyDateLabel: dto.keyDateLabel,
+          createdById: ownerId,
         });
       }
+
+      await this.caseFeed.log(
+        {
+          caseId: legalCase.id,
+          userId: ownerId,
+          type: ActivityType.NOTE,
+          title: 'ลูกความส่งคำขอผ่านพอร์ทัล',
+          description: dto.title,
+        },
+        tx,
+      );
+
+      return { submission, legalCase, clientName: client.name };
+    }, { timeout: 30000 }) // file uploads to storage run inside the transaction
+      .catch(async (error) => {
+        await Promise.all(storedPaths.map((p) => this.fileStorage.delete(p).catch(() => undefined)));
+        throw error;
+      });
+
+    try {
+      await this.notifier.notifyFirmOwners({
+        firmId: portalUser.firmId,
+        actorUserId: '',
+        summaryText: `คำขอใหม่จากลูกความ ${clientName}: ${dto.title}`,
+        entityPath: `/cases/${legalCase.id}`,
+      });
+    } catch {
+      // alerting owners must never fail the client's request
     }
 
-    return submission;
+    return { ...submission, caseId: legalCase.id, caseRef: legalCase.ownRef };
   }
 
   async listMine(portalUser: PortalIdentity) {
@@ -78,6 +158,7 @@ export class ClientPortalIntakeService {
       where: portalRequestScope(portalUser),
       include: {
         intake: { select: { id: true, status: true, decision: true } },
+        case: this.caseLinkInclude(portalUser),
         attachments: { select: { id: true, filename: true, size: true } },
       },
       orderBy: { submittedAt: 'desc' },
@@ -94,6 +175,7 @@ export class ClientPortalIntakeService {
       where: { id: submissionId, ...portalRequestScope(portalUser) },
       include: {
         intake: { select: { id: true, status: true, decision: true } },
+        case: this.caseLinkInclude(portalUser),
         attachments: {
           select: { id: true, filename: true, size: true, createdAt: true },
           orderBy: { createdAt: 'asc' },
@@ -176,6 +258,25 @@ export class ClientPortalIntakeService {
     return map;
   }
 
+  /** Loads this contact's active grant on the linked case, so a shared request only links a case that opens. */
+  private caseLinkInclude(portalUser: PortalIdentity) {
+    const now = new Date();
+    return {
+      select: {
+        contactAccess: {
+          where: {
+            clientContactId: portalUser.clientContactId,
+            revokedAt: null,
+            startDate: { lte: now },
+            OR: [{ endDate: null }, { endDate: { gte: now } }],
+          },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    };
+  }
+
   private toPortalEntry(
     submission: {
       id: string;
@@ -183,6 +284,8 @@ export class ClientPortalIntakeService {
       title: string;
       submittedAt: Date;
       withdrawnByClient: boolean;
+      caseId: string | null;
+      case?: { contactAccess: Array<{ id: string }> } | null;
       intake: { id: string; status: string; decision: string | null } | null;
       attachments: Array<{ id: string; filename: string; size: number; createdAt?: Date }>;
     },
@@ -194,6 +297,7 @@ export class ClientPortalIntakeService {
       title: submission.title,
       submittedAt: submission.submittedAt,
       withdrawnByClient: submission.withdrawnByClient,
+      caseId: submission.case?.contactAccess.length ? submission.caseId : null,
       externalStatus: submission.intake
         ? mapInternalStatusToExternal(submission.intake as never)
         : 'ส่งแล้ว',

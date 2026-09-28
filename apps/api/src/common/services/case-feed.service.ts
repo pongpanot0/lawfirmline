@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ActivityType, CaseStatus } from '@lawfirm/shared';
 import { PrismaService } from '../../prisma/prisma.module';
+import { Prisma } from '../../generated/prisma';
 
 /**
  * ผู้เขียน activity feed ของคดีแบบอัตโนมัติ
@@ -32,9 +33,17 @@ export class CaseFeedService {
     at?: Date;
     /** สถานะที่เปลี่ยน — ระบุเมื่อไรก็ลง `CaseStatusLog` ให้ด้วย */
     statusTransition?: { from: CaseStatus | string; to: CaseStatus | string };
-  }) {
+  },
+  /**
+   * ส่ง tx มาเมื่อคดียังไม่ commit (เช่นเปิดคดีจากพอร์ทัล) — ไม่งั้น FK ของคดีหาไม่เจอ.
+   * ในโหมด tx จะ throw ต่อ: insert ที่ล้มทำให้ Postgres abort ทั้ง tx อยู่แล้ว ถ้ากลืน error
+   * COMMIT จะกลายเป็น ROLLBACK เงียบ ๆ ขณะที่ผู้เรียกคิดว่าสำเร็จ
+   */
+  tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
     try {
-      await this.prisma.caseActivity.create({
+      await db.caseActivity.create({
         data: {
           caseId: params.caseId,
           title: params.title,
@@ -46,7 +55,7 @@ export class CaseFeedService {
       });
 
       if (params.statusTransition) {
-        await this.prisma.caseStatusLog.create({
+        await db.caseStatusLog.create({
           data: {
             caseId: params.caseId,
             fromStatus: params.statusTransition.from as never,
@@ -56,6 +65,7 @@ export class CaseFeedService {
         });
       }
     } catch (error) {
+      if (tx) throw error;
       this.logger.warn(
         `ลง activity feed ของคดี ${params.caseId} ไม่สำเร็จ: ${
           error instanceof Error ? error.message : String(error)

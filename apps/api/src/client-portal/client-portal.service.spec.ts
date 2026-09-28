@@ -65,6 +65,58 @@ describe('ClientPortalService case-access scoping', () => {
     });
   });
 
+  describe('getCase clientUploads', () => {
+    it('returns the documents this client uploaded to the case next to the published ones', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', ownRef: 'REF-1' });
+      mockPrisma.calendarEvent.findFirst.mockResolvedValue(null);
+      mockPrisma.invoice.findMany.mockResolvedValue([]);
+      const upload = { id: 'doc-9', filename: 'สลิป.pdf', mimeType: 'application/pdf', category: 'FINANCIAL', createdAt: now };
+      mockPrisma.document.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([upload]);
+
+      const result = await service.getCase(portalUser, 'case-1');
+
+      expect(mockPrisma.document.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: { caseId: 'case-1', uploadedByContact: { clientId: 'client-1' } },
+        }),
+      );
+      expect(result.clientUploads).toEqual([upload]);
+      expect(result.documents).toEqual([]);
+    });
+  });
+
+  describe('getCase portalRequest', () => {
+    const submission = {
+      id: 'sub-1', referenceNumber: 'PR-001', title: 'ขอร่างสัญญา',
+      clientContactId: 'contact-1', accessContactIds: [], revokedContactIds: [],
+    };
+    beforeEach(() => {
+      mockPrisma.calendarEvent.findFirst.mockResolvedValue(null);
+      mockPrisma.invoice.findMany.mockResolvedValue([]);
+      mockPrisma.document.findMany.mockResolvedValue([]);
+    });
+
+    it('returns the request the case was opened from', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', portalIntakeSubmission: submission });
+
+      const result = await service.getCase(portalUser, 'case-1');
+
+      expect(result.portalRequest).toEqual({ id: 'sub-1', referenceNumber: 'PR-001', title: 'ขอร่างสัญญา' });
+      expect(result).not.toHaveProperty('portalIntakeSubmission');
+    });
+
+    it('returns null when the case has no request or this contact cannot open it', async () => {
+      mockPrisma.case.findFirst.mockResolvedValueOnce({ id: 'case-1', portalIntakeSubmission: null });
+      expect((await service.getCase(portalUser, 'case-1')).portalRequest).toBeNull();
+
+      mockPrisma.case.findFirst.mockResolvedValueOnce({
+        id: 'case-1', portalIntakeSubmission: { ...submission, clientContactId: 'contact-2' },
+      });
+      expect((await service.getCase(portalUser, 'case-1')).portalRequest).toBeNull();
+    });
+  });
+
   describe('getVisibleDocumentFile', () => {
     it('throws NotFoundException when the document has no active publication, even if visibleToClient is true', async () => {
       mockPrisma.document.findFirst.mockResolvedValue(null);

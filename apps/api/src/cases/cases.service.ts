@@ -214,8 +214,8 @@ export class CasesService {
    * Own Ref format: {prefix}{YYYY}{NNNN}
    * e.g. TSBREF20260001 — sequence runs through the calendar year, resets each Jan 1 (Bangkok).
    */
-  async generateOwnRef(firmId: string): Promise<string> {
-    const firm = await this.prisma.firm.findUnique({
+  async generateOwnRef(firmId: string, db: Prisma.TransactionClient = this.prisma): Promise<string> {
+    const firm = await db.firm.findUnique({
       where: { id: firmId },
       select: { ownRefPrefix: true },
     });
@@ -223,7 +223,7 @@ export class CasesService {
     const year = this.bangkokYear();
     const yearKey = `${prefix}${year}`;
 
-    const existing = await this.prisma.case.findMany({
+    const existing = await db.case.findMany({
       where: {
         firmId,
         ownRef: { startsWith: yearKey },
@@ -268,25 +268,62 @@ export class CasesService {
     return clients.map((c) => ({ clientId: c.clientId, note: c.note ?? null }));
   }
 
-  async create(user: AuthUser, dto: CreateCaseDto) {
-    let ownRef = dto.ownRef?.trim()
-      ? dto.ownRef.trim()
-      : await this.generateOwnRef(user.firmId);
+  /**
+   * Shared core of every case creation: allocates the Own Ref (or checks a requested one),
+   * a folder id, and opens the case at PRE_LITIGATION.
+   */
+  private async insertCase(
+    db: Prisma.TransactionClient,
+    firmId: string,
+    requestedOwnRef: string | undefined,
+    data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId' | 'stage'>,
+  ) {
+    const manualRef = requestedOwnRef?.trim();
+    let ownRef = manualRef || (await this.generateOwnRef(firmId, db));
 
     for (let attempt = 0; attempt < 5; attempt++) {
-      const existing = await this.prisma.case.findUnique({
-        where: { firmId_ownRef: { firmId: user.firmId, ownRef } },
+      const existing = await db.case.findUnique({
+        where: { firmId_ownRef: { firmId, ownRef } },
       });
       if (!existing) break;
-      if (dto.ownRef?.trim()) {
+      if (manualRef) {
         throw new ConflictException('Own ref already exists');
       }
       if (attempt === 4) {
         throw new ConflictException('Could not allocate a unique Own Ref — please retry');
       }
-      ownRef = await this.generateOwnRef(user.firmId);
+      ownRef = await this.generateOwnRef(firmId, db);
     }
 
+    return db.case.create({
+      data: {
+        ...data,
+        firmId,
+        ownRef,
+        folderId: this.generateFolderId(),
+        stage: CaseStage.PRE_LITIGATION,
+      },
+      include: this.caseInclude,
+    });
+  }
+
+  /** Opens a case for a client's portal request, inside the caller's transaction. */
+  createForPortal(
+    tx: Prisma.TransactionClient,
+    params: {
+      firmId: string;
+      clientId: string;
+      clientName: string;
+      title: string;
+      description: string;
+      leadLawyerId: string;
+    },
+  ) {
+    const { firmId, ...data } = params;
+    return this.insertCase(tx, firmId, undefined, data);
+  }
+
+  async create(user: AuthUser, dto: CreateCaseDto) {
     if (dto.caseTypeId) {
       const caseType = await this.prisma.caseType.findFirst({
         where: { id: dto.caseTypeId, firmId: user.firmId, isActive: true },
@@ -328,37 +365,30 @@ export class CasesService {
       }),
     );
 
-    const created = await this.prisma.case.create({
-      data: {
-        firmId: user.firmId,
-        ownRef,
-        customerRef: dto.customerRef,
-        folderId: this.generateFolderId(),
-        title: dto.title,
-        description: dto.description,
-        stage: CaseStage.PRE_LITIGATION,
-        clientId: dto.clientId,
-        clientName: dto.clientName,
-        partyRole: dto.partyRole as any,
-        courtName: dto.courtName,
-        courtLevel: dto.courtLevel,
-        blackCaseNumber: dto.blackCaseNumber || null,
-        redCaseNumber: dto.redCaseNumber || null,
-        customFields: dto.customFields as Prisma.InputJsonValue,
-        estimatedFee: dto.estimatedFee,
-        claimedAmount: dto.claimedAmount,
-        status: dto.status,
-        caseTypeId: dto.caseTypeId ?? undefined,
-        leadLawyerId: dto.leadLawyerId,
-        assignments: assignments.length ? { create: assignments } : undefined,
-        customers: dto.customers?.length
-          ? { create: this.customerRows(dto.customers) }
-          : undefined,
-        additionalClients: dto.clients?.length
-          ? { create: this.additionalClientRows(dto.clients) }
-          : undefined,
-      },
-      include: this.caseInclude,
+    const created = await this.insertCase(this.prisma, user.firmId, dto.ownRef, {
+      customerRef: dto.customerRef,
+      title: dto.title,
+      description: dto.description,
+      clientId: dto.clientId,
+      clientName: dto.clientName,
+      partyRole: dto.partyRole as any,
+      courtName: dto.courtName,
+      courtLevel: dto.courtLevel,
+      blackCaseNumber: dto.blackCaseNumber || null,
+      redCaseNumber: dto.redCaseNumber || null,
+      customFields: dto.customFields as Prisma.InputJsonValue,
+      estimatedFee: dto.estimatedFee,
+      claimedAmount: dto.claimedAmount,
+      status: dto.status,
+      caseTypeId: dto.caseTypeId ?? undefined,
+      leadLawyerId: dto.leadLawyerId,
+      assignments: assignments.length ? { create: assignments } : undefined,
+      customers: dto.customers?.length
+        ? { create: this.customerRows(dto.customers) }
+        : undefined,
+      additionalClients: dto.clients?.length
+        ? { create: this.additionalClientRows(dto.clients) }
+        : undefined,
     });
 
     await this.caseFeed.log({

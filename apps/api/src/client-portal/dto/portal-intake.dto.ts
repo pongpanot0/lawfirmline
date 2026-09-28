@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsDateString, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDateString, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class SubmitPortalIntakeDto {
   @IsString()
@@ -20,4 +20,14 @@ export class SubmitPortalIntakeDto {
   @Transform(({ value }) => (typeof value === 'string' ? value === 'true' : value))
   @IsBoolean()
   urgencyFlag?: boolean;
+
+  /** วันสำคัญที่ลูกความแจ้ง — กลายเป็นวันที่รอทนายยืนยันในคดี */
+  @IsOptional()
+  @IsDateString({}, { message: 'วันที่ไม่ถูกต้อง' })
+  keyDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100, { message: 'ชื่อวันสำคัญต้องไม่เกิน 100 ตัวอักษร' })
+  keyDateLabel?: string;
 }

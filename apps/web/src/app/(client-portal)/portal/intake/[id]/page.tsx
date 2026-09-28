@@ -108,6 +108,15 @@ export default function PortalIntakeDetailPage() {
         </Badge>
       </div>
 
+      {item.caseId && (
+        <Link
+          href={`/portal/cases/${item.caseId}`}
+          className={buttonVariants({ variant: 'outline', className: 'mb-5 inline-flex' })}
+        >
+          ไปที่หน้าคดี
+        </Link>
+      )}
+
       {token && <RequestWorkroom id={id} token={token} />}
 
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_1fr]">

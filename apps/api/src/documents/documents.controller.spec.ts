@@ -80,6 +80,14 @@ describe('DocumentsController RolesGuard outcome', () => {
     expect(guard.canActivate(context)).toBe(true);
   });
 
+  it('refuses the visibility toggle (it publishes) to a non-owner LAWYER, same rule as publish', () => {
+    const context = buildContext(DocumentsController.prototype.updateVisibility, {
+      role: Role.LAWYER,
+      firmRole: FirmRole.LAWYER,
+    });
+    expect(guard.canActivate(context)).toBe(false);
+  });
+
   it('allows a firm OWNER on upload regardless of professional role', () => {
     const context = buildContext(DocumentsController.prototype.upload, {
       role: Role.LAWYER,

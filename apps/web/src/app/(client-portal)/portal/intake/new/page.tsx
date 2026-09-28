@@ -22,9 +22,11 @@ export default function NewIntakePage() {
   const [detail, setDetail] = useState('');
   const [clientRequestedDate, setClientRequestedDate] = useState('');
   const [urgencyFlag, setUrgencyFlag] = useState(false);
+  const [keyDate, setKeyDate] = useState('');
+  const [keyDateLabel, setKeyDateLabel] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [referenceNumber, setReferenceNumber] = useState<string | null>(null);
+  const [result, setResult] = useState<{ referenceNumber: string; caseId: string; caseRef: string } | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -39,12 +41,19 @@ export default function NewIntakePage() {
     setSubmitting(true);
     setError('');
     try {
-      const result = await portalApi.submitIntake(
+      const submitted = await portalApi.submitIntake(
         token,
-        { title, detail, clientRequestedDate: clientRequestedDate || undefined, urgencyFlag },
+        {
+          title,
+          detail,
+          clientRequestedDate: clientRequestedDate || undefined,
+          urgencyFlag,
+          keyDate: keyDate || undefined,
+          keyDateLabel: keyDateLabel || undefined,
+        },
         files,
       );
-      setReferenceNumber(result.referenceNumber);
+      setResult({ referenceNumber: submitted.referenceNumber, caseId: submitted.caseId, caseRef: submitted.caseRef });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ส่งเรื่องไม่สำเร็จ กรุณาลองใหม่');
     } finally {
@@ -54,20 +63,23 @@ export default function NewIntakePage() {
 
   if (loading || !contact) return null;
 
-  if (referenceNumber) {
+  if (result) {
     return (
       <PortalShell>
         <Card className="mx-auto max-w-md p-9 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success/15 text-success">
             <CheckCircle2 className="h-7 w-7" />
           </div>
-          <h1 className="mb-1.5 text-[19px] font-bold">ส่งเรื่องสำเร็จ</h1>
+          <h1 className="mb-1.5 text-[19px] font-bold">ส่งคำขอแล้ว — เปิดเป็นคดี {result.caseRef}</h1>
           <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-            เลขอ้างอิงของท่านคือ <b className="text-foreground">{referenceNumber}</b>
+            เลขอ้างอิงของท่านคือ <b className="text-foreground">{result.referenceNumber}</b>
             <br />
             ทีมกฎหมายจะตรวจสอบและติดต่อกลับภายใน 1 วันทำการ
           </p>
-          <Link href="/portal/intake" className={buttonVariants({ className: 'w-full' })}>
+          <Link href={`/portal/cases/${result.caseId}`} className={buttonVariants({ className: 'w-full' })}>
+            ไปที่หน้าคดี
+          </Link>
+          <Link href="/portal/intake" className="mt-2.5 inline-block text-[12.5px] font-semibold text-primary">
             ดูรายการเรื่องที่ส่ง
           </Link>
         </Card>
@@ -118,6 +130,22 @@ export default function NewIntakePage() {
           />
           <p className="mt-1.5 text-[11.5px] text-muted-foreground">
             ระบุเฉพาะกรณีมีกำหนดเวลาที่ต้องดำเนินการ เช่น วันครบกำหนดฟ้อง
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-1.5 block text-[12.5px] font-semibold">วันสำคัญ (ถ้ามี)</label>
+          <div className="flex flex-wrap gap-2.5">
+            <ThaiDateInput className="max-w-[220px]" value={keyDate} onChange={setKeyDate} />
+            <Input
+              value={keyDateLabel}
+              onChange={(e) => setKeyDateLabel(e.target.value)}
+              placeholder="ชื่อวันสำคัญ เช่น วันครบกำหนดฟ้อง"
+              className="max-w-[260px]"
+            />
+          </div>
+          <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+            ทนายจะเป็นผู้ยืนยันวันนี้อีกครั้งก่อนขึ้นปฏิทิน
           </p>
         </div>
 

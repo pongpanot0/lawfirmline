@@ -37,7 +37,7 @@ export class DocumentPublicationService {
     const documentVersion = await this.prisma.documentVersion.findFirst({
       where: { documentId, version: document.version },
     });
-    if (!documentVersion) throw new NotFoundException('Document version not found');
+    if (!documentVersion) throw new BadRequestException('เอกสารนี้ยังไม่มีเวอร์ชันให้เผยแพร่');
     if (!document.caseId) throw new NotFoundException('Case not found');
 
     if (dto.recipientContacts && dto.recipientContacts.length > 0) {
@@ -70,6 +70,8 @@ export class DocumentPublicationService {
         recipientContacts: dto.recipientContacts ?? [],
       },
     });
+    // Keep the eye toggle in sync with the dialog path: published means visible.
+    await this.prisma.document.update({ where: { id: documentId }, data: { visibleToClient: true } });
 
     await this.notifyPublication(caseId, dto.recipientContacts ?? [], publication.title ?? 'เอกสารใหม่');
 
@@ -167,10 +169,26 @@ export class DocumentPublicationService {
     });
     if (!publication) throw new NotFoundException('Publication not found');
 
-    return this.prisma.documentPublication.update({
+    const closed = await this.prisma.documentPublication.update({
       where: { id: publicationId },
       data: { unpublishedAt: new Date(), unpublishedById: user.id },
     });
+    // Closing the open publication hides the document; re-closing an old one changes nothing.
+    if (!publication.unpublishedAt) {
+      await this.prisma.document.update({ where: { id: documentId }, data: { visibleToClient: false } });
+    }
+    return closed;
+  }
+
+  /** Closes whatever publication is open on the document; nothing open is a no-op. */
+  async unpublishOpen(user: AuthUser, caseId: string, documentId: string) {
+    await this.verifyDocument(caseId, documentId);
+    const open = await this.prisma.documentPublication.findFirst({
+      where: { documentId, unpublishedAt: null },
+      select: { id: true },
+    });
+    if (!open) return null;
+    return this.unpublish(user, caseId, documentId, open.id);
   }
 
   async listForDocument(user: AuthUser, caseId: string, documentId: string) {

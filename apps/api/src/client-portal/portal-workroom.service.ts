@@ -17,7 +17,9 @@ export class PortalWorkroomService {
   private async scope(actor: WorkroomActor): Promise<Prisma.PortalIntakeSubmissionWhereInput> {
     if ('portal' in actor) return portalRequestScope(actor.portal);
     const u = actor.staff;
-    return { client: { firmId: u.firmId }, ...(u.firmRole === 'OWNER' || u.firmRole === 'SENIOR_LAWYER' ? {} : { intake: await this.access.getIntakeFilterForUser(u) }) };
+    if (u.firmRole === 'OWNER' || u.firmRole === 'SENIOR_LAWYER') return { client: { firmId: u.firmId } };
+    // Requests are backed by an intake (F01) or opened straight as a case — either grants access.
+    return { client: { firmId: u.firmId }, OR: [{ intake: await this.access.getIntakeFilterForUser(u) }, { case: this.access.getCaseFilterForUser(u) }] };
   }
   private async authorized(actor: WorkroomActor, id: string, db: Prisma.TransactionClient = this.prisma) {
     const s = await db.portalIntakeSubmission.findFirst({ where: { id, ...await this.scope(actor) } });
@@ -75,7 +77,7 @@ export class PortalWorkroomService {
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "PortalIntakeSubmission" WHERE "id" = ${id} FOR UPDATE`;
       const s = await this.authorized({ staff: user }, id, db);
-      if (!s.intakeId || s.withdrawnByClient || s.deliveredAt) throw new BadRequestException('รับเข้า F01 และตรวจสถานะก่อน / Receive into Intake before proposing scope');
+      if (!(s.intakeId || s.caseId) || s.withdrawnByClient || s.deliveredAt) throw new BadRequestException('รับเข้า F01 หรือเปิดเป็นคดีก่อน และตรวจสถานะ / Receive into Intake or open a case before proposing scope');
       if (s.commitmentVersion !== dto.version) throw new ConflictException('ข้อเสนอเปลี่ยนแล้ว / Proposal changed');
       if (!dto.scopeText.trim()) throw new BadRequestException('ระบุขอบเขตงาน / Scope required');
       const updated = await db.portalIntakeSubmission.update({ where: { id }, data: { scopeText: dto.scopeText.trim(), proposedDate: new Date(dto.proposedDate), officeOwnerId: user.id, commitmentVersion: { increment: 1 }, acceptedCommitmentVersion: null, agreementAcceptedAt: null, agreedDate: null } });
