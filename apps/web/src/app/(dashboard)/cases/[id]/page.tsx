@@ -222,6 +222,7 @@ export default function CaseDetailPage() {
   const [savingStage, setSavingStage] = useState(false);
   const [pendingStage, setPendingStage] = useState<string | null>(null);
   const [stageTaskProposals, setStageTaskProposals] = useState<StageTaskProposal[]>([]);
+  const [bannerProposals, setBannerProposals] = useState<StageTaskProposal[]>([]);
   const [stageTaskError, setStageTaskError] = useState('');
   const [editingTeam, setEditingTeam] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
@@ -272,6 +273,36 @@ export default function CaseDetailPage() {
   useEffect(() => {
     loadCase();
   }, [token, id]);
+
+  // ขั้นเปลี่ยนจากทางไหนก็ได้ (ปิดคดี, แปลงเรื่องรับเข้า, ...) — ถ้ายังไม่ได้จัดการงานแนะนำของขั้นนี้ให้เสนอ
+  useEffect(() => {
+    const stage = legalCase?.stage;
+    if (!token || !id || !stage || stage === legalCase?.stageTasksHandledFor) {
+      setBannerProposals([]);
+      return;
+    }
+    let active = true;
+    api
+      .getStageTaskProposals(token, id, stage)
+      .then((p) => {
+        if (active) setBannerProposals(p);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) setBannerProposals([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, id, legalCase?.stage, legalCase?.stageTasksHandledFor]);
+
+  const openBannerProposals = () => {
+    if (!legalCase?.stage) return;
+    if (lawyers.length === 0) api.getLawyers(token!).then(setLawyers).catch(() => {});
+    setStageTaskError('');
+    setStageTaskProposals(bannerProposals);
+    setPendingStage(legalCase.stage);
+  };
 
   useEffect(() => {
     if (!showAiAnalysis) return;
@@ -442,10 +473,12 @@ export default function CaseDetailPage() {
   };
 
   const handleStageOnly = async () => {
-    if (!pendingStage) return;
+    if (!token || !id || !pendingStage) return;
     setSavingStage(true);
     try {
-      await applyStageChange(pendingStage);
+      if (pendingStage !== legalCase?.stage) await applyStageChange(pendingStage);
+      await api.dismissStageTasks(token!, id!, pendingStage).catch(console.error);
+      loadCase();
       closeStageTaskDialog();
     } catch (err) {
       console.error(err);
@@ -459,14 +492,15 @@ export default function CaseDetailPage() {
     if (!token || !id || !pendingStage) return;
     setSavingStage(true);
     setStageTaskError('');
+    const moving = pendingStage !== legalCase?.stage;
     try {
-      await applyStageChange(pendingStage);
+      if (moving) await applyStageChange(pendingStage);
       try {
         await api.createStageTasks(token, id, pendingStage, tasks);
         loadCase();
       } catch (err) {
         console.error(err);
-        setStageTaskError('ย้ายขั้นแล้ว แต่สร้างงานไม่สำเร็จ');
+        setStageTaskError(moving ? 'ย้ายขั้นแล้ว แต่สร้างงานไม่สำเร็จ' : 'สร้างงานไม่สำเร็จ');
         return;
       }
       closeStageTaskDialog();
@@ -836,6 +870,15 @@ export default function CaseDetailPage() {
         </div>
       </header>
 
+      {bannerProposals.length > 0 && pendingStage === null && legalCase.stage && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+          <span>
+            ⚡ ขั้น <b>{caseStageLabel(legalCase.stage, 'th')}</b> มีงานแนะนำ {bannerProposals.length} งาน
+          </span>
+          <Button size="sm" onClick={openBannerProposals}>ดูและสร้างงาน</Button>
+        </div>
+      )}
+
       <section className={styles.signalStrip} aria-label="สัญญาณสำคัญของคดี" data-testid="case-priority-signals">
         <button type="button" onClick={() => selectTab('calendar')} className={styles.signalButton}>
           <span className={styles.signalLabel}>นัดหมายถัดไป</span>
@@ -896,6 +939,7 @@ export default function CaseDetailPage() {
           proposals={stageTaskProposals}
           lawyers={lawyers}
           busy={savingStage}
+          moving={pendingStage !== legalCase?.stage}
           onClose={closeStageTaskDialog}
           onSkip={handleStageOnly}
           onConfirm={handleStageAndCreateTasks}

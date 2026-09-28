@@ -345,6 +345,7 @@ export interface CaseItem {
   /** ขั้นตอนในกระบวนพิจารณา — แยกจาก status */
   stage?: import('@lawfirm/shared').CaseStage;
   stageChangedAt?: string;
+  stageTasksHandledFor?: string | null;
   outcome?: import('@lawfirm/shared').CaseOutcome;
   clientId?: string | null;
   clientName?: string | null;
@@ -1846,6 +1847,12 @@ export const api = {
       method: 'POST',
       token,
       body: JSON.stringify({ stage, tasks }),
+    }),
+  dismissStageTasks: (token: string, caseId: string, stage: string) =>
+    request<{ dismissed: true }>(`/practice-setup/cases/${caseId}/stage-tasks/dismiss`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ stage }),
     }),
 
   // งาน/checklist ของเรื่องรับเข้า — เปิดคดีแล้วงานถูกย้ายไปเป็นงานคดีอัตโนมัติ

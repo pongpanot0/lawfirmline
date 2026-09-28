@@ -1,16 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { FirmRole } from '@lawfirm/shared';
 import { api, ApiError, SopItem } from '@/lib/api';
+import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
-import { BookOpen, Plus, Pencil, Trash2 } from 'lucide-react';
+import { BookOpen, Plus, Pencil, Trash2, Zap } from 'lucide-react';
 
 export default function SopsPage() {
   const { token, user } = useAuth();
@@ -21,6 +23,22 @@ export default function SopsPage() {
   const [editing, setEditing] = useState<Partial<SopItem> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
+  const [onlyAuto, setOnlyAuto] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    setupRequest<PlaybookRelease[]>(token, '/playbooks')
+      .then((all) => {
+        // API ส่งทุก version — เก็บเฉพาะ version ล่าสุดของแต่ละชื่อ
+        const latest = new Map<string, PlaybookRelease>();
+        for (const p of all) if (!latest.has(p.name) || p.version > latest.get(p.name)!.version) latest.set(p.name, p);
+        setPlaybooks([...latest.values()]);
+      })
+      .catch(console.error);
+  }, [token]);
+
+  const autoItems = playbooks.filter((p) => !q || p.name.toLowerCase().includes(q.toLowerCase()));
 
   const load = () => {
     if (!token) return;
@@ -68,22 +86,35 @@ export default function SopsPage() {
     <div>
       <PageHeader
         title="SOP / คู่มือการทำงาน"
-        description="ขั้นตอนมาตรฐานของสำนักงาน — วิธีเปิดคดี ส่งรีวิว ปิดคดี ฯลฯ"
+        description="คู่มือให้คนอ่าน และ SOP อัตโนมัติ (⚡) ที่ระบบสร้างงานให้เมื่อคดีเข้าขั้น"
         actions={
           isOwner ? (
-            <Button size="sm" onClick={() => setEditing({})}>
-              <Plus className="mr-1 h-4 w-4" /> เพิ่ม SOP
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setEditing({})}>
+                <Plus className="mr-1 h-4 w-4" /> SOP เอกสาร
+              </Button>
+              <Link href="/playbooks?new=1">
+                <Button size="sm">
+                  <Zap className="mr-1 h-4 w-4" /> SOP อัตโนมัติ
+                </Button>
+              </Link>
+            </div>
           ) : undefined
         }
       />
 
-      <Input
-        placeholder="ค้นหา SOP..."
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        className="mb-4 max-w-sm"
-      />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Input
+          placeholder="ค้นหา SOP..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="max-w-sm"
+        />
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={onlyAuto} onChange={(e) => setOnlyAuto(e.target.checked)} />
+          เฉพาะ SOP อัตโนมัติ
+        </label>
+      </div>
 
       {editing && (
         <Card className="mb-4">
@@ -117,13 +148,34 @@ export default function SopsPage() {
         </Card>
       )}
 
+      {autoItems.length > 0 && (
+        <div className="mb-3 space-y-3">
+          {autoItems.map((p) => (
+            <Link key={p.id} href={`/playbooks?id=${p.id}`} className="block">
+              <Card className="transition-colors hover:border-primary/50">
+                <CardContent className="flex items-center gap-2 p-4">
+                  <Zap className="h-4 w-4 shrink-0 text-amber-500" />
+                  <span className="font-semibold">{p.name}</span>
+                  <Badge variant="muted">อัตโนมัติ · {p.steps.length} ขั้นตอน</Badge>
+                  <span className="ml-auto text-xs text-muted-foreground">v{p.version}</span>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <PageLoading title="กำลังโหลด SOP" lines={3} />
+      ) : onlyAuto ? (
+        autoItems.length === 0 && <EmptyState title="ไม่พบ SOP อัตโนมัติ" description="ยังไม่มี Playbook ที่เผยแพร่ในสำนักงานนี้" />
       ) : sops.length === 0 ? (
-        <EmptyState
-          title="ยังไม่มี SOP"
-          description={isOwner ? 'เพิ่มคู่มือขั้นตอนแรกของสำนักงาน' : 'เจ้าของสำนักงานยังไม่ได้เพิ่ม SOP'}
-        />
+        autoItems.length === 0 && (
+          <EmptyState
+            title="ยังไม่มี SOP"
+            description={isOwner ? 'เพิ่มคู่มือขั้นตอนแรกของสำนักงาน' : 'เจ้าของสำนักงานยังไม่ได้เพิ่ม SOP'}
+          />
+        )
       ) : (
         <div className="space-y-3">
           {sops.map((sop) => (

@@ -45,6 +45,7 @@ class CreateStageTasksDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StageTaskItemDto)
   tasks!: StageTaskItemDto[];
 }
+class DismissStageTasksDto { @IsEnum(CaseStage) stage!: CaseStage; }
 @Controller('practice-setup')
 @UseGuards(JwtAuthGuard)
 export class PracticeSetupController {
@@ -66,5 +67,10 @@ export class PracticeSetupController {
   @UseGuards(CaseAccessGuard)
   createStageTasks(@CurrentUser() u: AuthUser, @Param('caseId', ParseUUIDPipe) id: string, @Body() dto: CreateStageTasksDto) {
     return this.service.createStageTasks(u, id, dto.stage, dto.tasks);
+  }
+  @Post('cases/:caseId/stage-tasks/dismiss')
+  @UseGuards(CaseAccessGuard)
+  dismissStageTasks(@CurrentUser() u: AuthUser, @Param('caseId', ParseUUIDPipe) id: string, @Body() dto: DismissStageTasksDto) {
+    return this.service.dismissStageTasks(u, id, dto.stage);
   }
 }

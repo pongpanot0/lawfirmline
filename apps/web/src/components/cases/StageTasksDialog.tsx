@@ -21,6 +21,7 @@ export function StageTasksDialog({
   proposals,
   lawyers,
   busy,
+  moving,
   onClose,
   onSkip,
   onConfirm,
@@ -30,6 +31,7 @@ export function StageTasksDialog({
   proposals: StageTaskProposal[];
   lawyers: UserItem[];
   busy: boolean;
+  moving: boolean;
   onClose: () => void;
   onSkip: () => void;
   onConfirm: (tasks: StageTaskDraft[]) => void;
@@ -72,8 +74,10 @@ export function StageTasksDialog({
     onConfirm(tasks);
   };
 
+  const title = moving ? `ย้ายไป "${stageLabel}"?` : `งานแนะนำขั้น "${stageLabel}"`;
+
   return (
-    <SideDrawer open={open} title={`ย้ายไป "${stageLabel}"?`} onClose={onClose}>
+    <SideDrawer open={open} title={title} onClose={onClose}>
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           Playbook แนะนำให้สร้างงานต่อไปนี้ — เลือกรายการที่ต้องการสร้าง แก้ไขวันส่งหรือผู้รับผิดชอบได้
@@ -124,10 +128,10 @@ export function StageTasksDialog({
       </div>
       <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-border pt-3">
         <Button type="button" variant="outline" disabled={busy} onClick={onSkip}>
-          ย้ายขั้นอย่างเดียว
+          {moving ? 'ย้ายขั้นอย่างเดียว' : 'ข้าม'}
         </Button>
         <Button type="button" disabled={busy || selectedCount === 0} onClick={confirm}>
-          {`ย้ายและสร้าง ${selectedCount} งาน`}
+          {moving ? `ย้ายและสร้าง ${selectedCount} งาน` : `สร้าง ${selectedCount} งาน`}
         </Button>
       </div>
     </SideDrawer>

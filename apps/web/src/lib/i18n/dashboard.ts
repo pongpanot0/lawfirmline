@@ -44,7 +44,7 @@ export const dashboardCopy = {
       reports: 'รายงาน',
       team: 'จัดการทีม',
       operations: 'ภาระงานทีม',
-      sops: 'SOP / คู่มือ',
+      sops: 'SOP / คู่มือ & อัตโนมัติ',
       playbooks: 'Playbook / วิธีทำงาน',
       aiUsage: 'การใช้งาน AI',
       research: 'ข้อเท็จจริงและฎีกา',
@@ -1115,7 +1115,7 @@ export const dashboardCopy = {
     nav: {
       tagline: 'Legal workflows & operations',
       groupWork: 'Daily work',
-      sops: 'SOPs',
+      sops: 'SOPs & automations',
       playbooks: 'Playbooks',
       groupFirm: 'Firm',
       dashboard: 'Legal Operations',
