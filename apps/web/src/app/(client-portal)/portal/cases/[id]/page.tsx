@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { PortalShell } from '@/components/layout/PortalShell';
 import { StageTrack } from '@/components/portal/StageTrack';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { getCaseStatusDisplay } from '@/lib/case-status';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
@@ -167,7 +167,7 @@ export default function PortalCaseDetailPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="mb-1 text-[14.5px] font-bold">฿{inv.totalAmount.toLocaleString()}</p>
+                      <p className="mb-1 text-[14.5px] font-bold">{formatCurrency(inv.totalAmount)}</p>
                       <Badge variant={inv.status === 'PAID' ? 'success' : 'warning'}>
                         {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
                       </Badge>

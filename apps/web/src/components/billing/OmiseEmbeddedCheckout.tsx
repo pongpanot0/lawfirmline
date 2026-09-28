@@ -271,7 +271,7 @@ export function OmiseEmbeddedCheckout({
         amount: chargeAmount * 100,
         currency: 'THB',
         frameLabel: 'Samnuan',
-        frameDescription: `${plan.name} — ${chargeAmount.toLocaleString()} THB/${yearly ? 'year' : 'month'}`,
+        frameDescription: `${plan.name} — ${chargeAmount.toLocaleString('en-US')} THB/${yearly ? 'year' : 'month'}`,
         onCreateTokenSuccess: async (nonce: string) => {
           try {
             await completeCardPayment(nonce);

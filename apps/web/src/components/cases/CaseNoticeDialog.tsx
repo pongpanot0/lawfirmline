@@ -5,6 +5,7 @@ import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { PRE_LITIGATION_STATUS_LABELS } from '@/lib/pre-litigation';
 
 /**
@@ -176,12 +177,10 @@ export function PreLitigationUpdateDialog({
           </div>
           <div>
             <label className="block text-sm font-medium">ข้อเสนอจ่าย/ค่าสินไหม (บาท)</label>
-            <input
-              type="number"
+            <MoneyInput
               min={0}
-              step="0.01"
               value={offer}
-              onChange={(e) => setOffer(e.target.value)}
+              onValueChange={setOffer}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
               placeholder="ถ้ามี"
             />

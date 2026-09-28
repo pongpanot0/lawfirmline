@@ -8,7 +8,6 @@ import {
   MONEY_HINT,
   MONEY_MAX,
   MONEY_MIN,
-  MONEY_STEP,
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -16,6 +15,7 @@ import { api, TimeEntryItem, ExpenseItem, CustomerShareItem } from '@/lib/api';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ExpenseStatusBadge } from '@/components/ExpenseStatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 
 export function CaseBillingPanel({ caseId }: { caseId: string }) {
@@ -134,11 +134,11 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">{d.caseBilling.timeBilled}</p>
-          <p className="text-2xl font-bold text-green-600">฿{totalBilled.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-green-600">{formatCurrency(totalBilled)}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">{d.caseBilling.allExpenses}</p>
-          <p className="text-2xl font-bold text-orange-600">฿{totalExpenses.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalExpenses)}</p>
         </div>
       </div>
 
@@ -157,16 +157,14 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
           <form onSubmit={handleCreateExpense} className="mb-4 space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-4">
             <div className="grid gap-3 md:grid-cols-2">
               <div>
-                <input
+                <MoneyInput
                   required
-                  type="number"
-                  step={MONEY_STEP}
                   min={MONEY_MIN}
                   max={MONEY_MAX}
                   title={MONEY_HINT}
                   placeholder={d.caseBilling.amount}
                   value={expenseForm.amount}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                  onValueChange={(next) => setExpenseForm({ ...expenseForm, amount: next })}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 />
                 <p className="mt-1 text-xs text-slate-500">{MONEY_HINT}</p>
@@ -228,7 +226,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                   </label>
                 )}
                 <div>
-                  <p className="font-medium">฿{e.amount.toLocaleString()}</p>
+                  <p className="font-medium">{formatCurrency(e.amount)}</p>
                   <ExpenseStatusBadge status={e.status} />
                 </div>
               </div>
@@ -265,7 +263,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
               </div>
               <div className="text-right">
                 <p>{e.hours}h @ ฿{e.rate}</p>
-                <p className="text-xs text-slate-400">฿{(e.hours * e.rate).toLocaleString()}</p>
+                <p className="text-xs text-slate-400">{formatCurrency(e.hours * e.rate)}</p>
               </div>
             </div>
           ))}

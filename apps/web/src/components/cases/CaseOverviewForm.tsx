@@ -4,6 +4,7 @@ import { CASE_NUMBER_HINT, CASE_NUMBER_HTML, CourtLevel, COURT_LEVEL_LABELS, FEE
 import type { CaseDetail, CaseTypeItem, ClientItem, CourtItem } from '@/lib/api';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { Button } from '@/components/ui/button';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Plus, X } from 'lucide-react';
 
 export interface CaseOverviewCustomerValue {
@@ -87,9 +88,9 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
         <h3 id="case-reference-heading" className="font-semibold sm:col-span-2">เลขอ้างอิงและจำนวนเงิน</h3>
         <label className="text-sm">เลขอ้างอิงสำนักงาน *<input required value={value.ownRef} onChange={e => set('ownRef', e.target.value)} className={input} /></label>
         <label className="text-sm">เลขอ้างอิงลูกค้า (ผู้ว่าจ้าง)<input value={value.customerRef} onChange={e => set('customerRef', e.target.value)} className={input} /></label>
-        <label className="text-sm">ทุนทรัพย์ (บาท)<input type="number" min="0" max={FEE_MAX} step="0.01" value={value.claimedAmount} onChange={e => set('claimedAmount', e.target.value)} className={input} /><span className="mt-1 block text-xs text-muted-foreground">จำนวนเงินที่เรียกร้องในคดี</span></label>
-        <label className="text-sm">ความเสียหายโดยประมาณ (บาท)<input type="number" min="0" max={FEE_MAX} step="0.01" value={value.estimatedDamage} onChange={e => set('estimatedDamage', e.target.value)} className={input} /></label>
-        <label className="text-sm">ค่าจ้างทนายโดยประมาณ (บาท)<input type="number" min="0" max={FEE_MAX} step="0.01" value={value.estimatedFee} onChange={e => set('estimatedFee', e.target.value)} className={input} /><span className="mt-1 block text-xs text-muted-foreground">รายได้ของสำนักงาน แยกจากทุนทรัพย์</span></label>
+        <label className="text-sm">ทุนทรัพย์ (บาท)<MoneyInput min={0} max={FEE_MAX} value={value.claimedAmount} onValueChange={next => set('claimedAmount', next)} className={input} /><span className="mt-1 block text-xs text-muted-foreground">จำนวนเงินที่เรียกร้องในคดี</span></label>
+        <label className="text-sm">ความเสียหายโดยประมาณ (บาท)<MoneyInput min={0} max={FEE_MAX} value={value.estimatedDamage} onValueChange={next => set('estimatedDamage', next)} className={input} /></label>
+        <label className="text-sm">ค่าจ้างทนายโดยประมาณ (บาท)<MoneyInput min={0} max={FEE_MAX} value={value.estimatedFee} onValueChange={next => set('estimatedFee', next)} className={input} /><span className="mt-1 block text-xs text-muted-foreground">รายได้ของสำนักงาน แยกจากทุนทรัพย์</span></label>
       </section>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="flex flex-wrap items-center gap-3 bg-card py-3">

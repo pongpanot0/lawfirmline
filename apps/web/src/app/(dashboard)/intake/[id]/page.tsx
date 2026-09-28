@@ -28,6 +28,7 @@ import { ConflictCheckPanel } from '@/components/intake/ConflictCheckPanel';
 import { IntakeFollowUpPanel } from '@/components/intake/IntakeFollowUpPanel';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
 import { Button } from '@/components/ui/button';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
@@ -1722,12 +1723,10 @@ export default function IntakeDetailPage() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium">ทุนทรัพย์ที่เรียกร้อง (บาท)</label>
-                          <input
-                            type="number"
+                          <MoneyInput
                             min={0}
-                            step="0.01"
                             value={decideClaimedAmount}
-                            onChange={(e) => setDecideClaimedAmount(e.target.value)}
+                            onValueChange={setDecideClaimedAmount}
                             className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                           />
                         </div>
@@ -1778,13 +1777,11 @@ export default function IntakeDetailPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium">ข้อเสนอจ่าย/ค่าสินไหม (บาท)</label>
-                    <input
-                      type="number"
+                    <MoneyInput
                       value={settlementOfferAmount}
-                      onChange={(e) => setSettlementOfferAmount(e.target.value)}
+                      onValueChange={setSettlementOfferAmount}
                       className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                       min={0}
-                      step="0.01"
                       placeholder="ถ้ามี"
                     />
                   </div>
@@ -1944,13 +1941,11 @@ export default function IntakeDetailPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium">ความเสียหายโดยประมาณ (บาท)</label>
-                      <input
-                        type="number"
+                      <MoneyInput
                         value={editEstimatedDamage}
-                        onChange={(e) => setEditEstimatedDamage(e.target.value)}
+                        onValueChange={setEditEstimatedDamage}
                         className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                         min={0}
-                        step="0.01"
                       />
                     </div>
                   </div>
