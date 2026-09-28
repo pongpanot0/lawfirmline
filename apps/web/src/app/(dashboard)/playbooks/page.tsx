@@ -1,6 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { DocumentCategory } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
@@ -24,7 +25,16 @@ const DAY_BASIS_LABELS: Record<PlaybookDayBasis, { th: string; en: string }> = {
 const CARGO_PLAYBOOK_KEY = 'CARGO_CLAIM_ASSESSMENT';
 
 export default function PlaybooksPage() {
+  return (
+    <Suspense>
+      <PlaybooksPageInner />
+    </Suspense>
+  );
+}
+
+function PlaybooksPageInner() {
   const { token, user } = useAuth(); const { locale } = useLocale(); const th = locale === 'th';
+  const params = useSearchParams();
   const [items, setItems] = useState<PlaybookRelease[]>([]);
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [editing, setEditing] = useState(false);
@@ -48,7 +58,16 @@ export default function PlaybooksPage() {
     ]);
     setItems(playbooks); setCaseTypes(types);
   };
-  useEffect(() => { load().catch(e => setError(e.message)); }, [token]);
+  useEffect(() => {
+    load()
+      .then(() => { if (params.get('new') === '1') resetForm(); })
+      .catch(e => setError(e.message));
+  }, [token]);
+  useEffect(() => {
+    const id = params.get('id');
+    const target = id && items.find((p) => p.id === id);
+    if (target) startDraft(target);
+  }, [items]);
 
   const resetForm = () => {
     setEditing(true); setCreatingCaseType(false);
@@ -122,7 +141,8 @@ export default function PlaybooksPage() {
 
   return <div className="mx-auto max-w-4xl space-y-6">
     <header>
-      <h1 className="text-2xl font-semibold">Playbooks</h1>
+      <Link href="/sops" className="text-sm text-primary">← SOP</Link>
+      <h1 className="text-2xl font-semibold">{th ? 'SOP อัตโนมัติ' : 'Automated SOPs'}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{th ? 'วิธีทำงานมาตรฐานของแต่ละประเภทงาน — ต้องทำอะไรบ้าง ใครทำ พนักงานใหม่เปิดมาก็รู้ทันที' : 'The standard way to work each type of matter — what to do, and who does it.'}</p>
     </header>
     {error && <p role="alert" className="text-destructive">{error}</p>}
