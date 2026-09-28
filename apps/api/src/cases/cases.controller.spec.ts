@@ -3,6 +3,7 @@ import { CasesController } from './cases.controller';
 import { CasesService } from './cases.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { IntakePrecedentAnalysisService } from '../intake/intake-precedent-analysis.service';
+import { CaseCommentsService } from './case-comments.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -21,6 +22,7 @@ describe('CasesController precedent analysis', () => {
       providers: [
         { provide: CasesService, useValue: mockCasesService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
+        { provide: CaseCommentsService, useValue: {} },
       ],
     })
       .overrideGuard(JwtAuthGuard)

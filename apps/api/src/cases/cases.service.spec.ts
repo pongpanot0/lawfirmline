@@ -158,13 +158,23 @@ describe('CasesService.create Own Ref allocation', () => {
   it('rejects a manual Own Ref that is already used', async () => {
     await expect(
       service.create(user, { title: 'ค', leadLawyerId: 'user-1', ownRef: 'ABC20260001' } as any),
-    ).rejects.toThrow('หมายเลขคดีนี้ใช้แล้ว');
+    ).rejects.toThrow('เลขคดีนี้ถูกใช้กับคดีอื่นในสำนักงานแล้ว');
     expect(mockPrisma.case.create).not.toHaveBeenCalled();
+  });
+
+  it('regenerates when the pre-filled suggestion was taken meanwhile', async () => {
+    mockPrisma.case.findUnique.mockResolvedValueOnce({ id: 'taken' }).mockResolvedValueOnce(null);
+    mockPrisma.case.findMany.mockResolvedValue([{ ownRef: 'ABC20260001' }]);
+    mockPrisma.case.create.mockImplementation(({ data }) => Promise.resolve({ id: 'new', ...data }));
+
+    await service.create(user, { title: 'ค', leadLawyerId: 'user-1', ownRef: 'ABC20260001', ownRefSuggested: 'ABC20260001' } as any);
+
+    expect(mockPrisma.case.create.mock.calls[0][0].data.ownRef).not.toBe('ABC20260001');
   });
 
   it('gives up after five generated Own Refs collide', async () => {
     await expect(service.create(user, { title: 'ค', leadLawyerId: 'user-1' } as any)).rejects.toThrow(
-      'Could not allocate a unique case number — please retry',
+      'ออกเลขคดีไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
     );
     expect(mockPrisma.case.findUnique).toHaveBeenCalledTimes(5);
     expect(mockPrisma.case.create).not.toHaveBeenCalled();

@@ -118,6 +118,7 @@ import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
 import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
+import { CaseNumberInline } from '@/components/cases/CaseNumberInline';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -797,7 +798,14 @@ export default function CaseDetailPage() {
         </button>
         <div className={styles.identityGrid}>
           <div className={styles.identityMain}>
-            <p className={styles.identityContext}>แฟ้มคดี · {legalCase.ownRef}</p>
+            <p className={styles.identityContext}>
+              แฟ้มคดี ·{' '}
+              <CaseNumberInline
+                caseId={legalCase.id}
+                ownRef={legalCase.ownRef}
+                onSaved={(ownRef) => setCase((prev) => (prev ? { ...prev, ownRef } : prev))}
+              />
+            </p>
             <div className={styles.titleRow}>
               <h1 className={styles.title}>{legalCase.title}</h1>
               {legalCase.partyRole && (

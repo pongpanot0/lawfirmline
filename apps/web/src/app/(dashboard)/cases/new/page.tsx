@@ -225,6 +225,7 @@ export default function NewCasePage() {
       const payload: Record<string, unknown> = {
         title: form.title.trim(),
         ownRef: form.ownRef.trim() || undefined,
+        ownRefSuggested: nextOwnRef || undefined,
         description: form.description.trim() || undefined,
         courtName: form.courtName.trim() || undefined,
         claimedAmount: form.claimedAmount ? Number(form.claimedAmount) : undefined,

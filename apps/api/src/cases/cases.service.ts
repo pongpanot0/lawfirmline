@@ -28,6 +28,8 @@ import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
 import { Optional } from '@nestjs/common';
 import { formatCaseNotificationReference } from '../notifications/reference-label';
 
+const OWN_REF_TAKEN_MESSAGE = 'เลขคดีนี้ถูกใช้กับคดีอื่นในสำนักงานแล้ว กรุณาใช้เลขอื่น';
+
 function caseAssignmentSummary(prefix: string, legalCase: { title: string; ownRef?: string | null; blackCaseNumber?: string | null; redCaseNumber?: string | null }) {
   const reference = formatCaseNotificationReference(legalCase);
   return `${prefix}\nคดี: ${legalCase.title}${reference ? `\n${reference}` : ''}`;
@@ -271,54 +273,34 @@ export class CasesService {
   /**
    * Shared core of every case creation: allocates the Own Ref (or checks a requested one),
    * a folder id, and opens the case at PRE_LITIGATION.
-   * If a suggested ref is provided and it's taken, re-generates instead of failing.
+   *
+   * `suggestedOwnRef` is the number the form pre-filled. A request that sends it back
+   * unchanged is still "auto": if someone else took it meanwhile, a fresh number is
+   * generated instead of failing. Only a number the user actually typed is strict.
    */
   private async insertCase(
     db: Prisma.TransactionClient,
     firmId: string,
-    suggestedOwnRef: string | undefined,
+    requestedOwnRef: string | undefined,
     data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId' | 'stage'>,
-    isAutoSuggestion: boolean = true,
+    suggestedOwnRef?: string,
   ) {
-    const suggested = suggestedOwnRef?.trim();
-    let ownRef: string;
+    const requested = requestedOwnRef?.trim();
+    const isManual = !!requested && requested !== suggestedOwnRef?.trim();
+    let ownRef = requested || (await this.generateOwnRef(firmId, db));
 
-    // If a ref is explicitly provided (not auto-suggested), it must be unique or fail
-    if (suggested && !isAutoSuggestion) {
+    for (let attempt = 0; attempt < 5; attempt++) {
       const existing = await db.case.findUnique({
-        where: { firmId_ownRef: { firmId, ownRef: suggested } },
+        where: { firmId_ownRef: { firmId, ownRef } },
       });
-      if (existing) {
-        throw new ConflictException('หมายเลขคดีนี้ใช้แล้ว');
+      if (!existing) break;
+      if (isManual) {
+        throw new ConflictException(OWN_REF_TAKEN_MESSAGE);
       }
-      ownRef = suggested;
-    } else {
-      // Use suggestion if available and unique; otherwise generate new
-      if (suggested) {
-        const existing = await db.case.findUnique({
-          where: { firmId_ownRef: { firmId, ownRef: suggested } },
-        });
-        if (!existing) {
-          ownRef = suggested;
-        } else {
-          // Suggestion taken; regenerate
-          ownRef = await this.generateOwnRef(firmId, db);
-        }
-      } else {
-        ownRef = await this.generateOwnRef(firmId, db);
+      if (attempt === 4) {
+        throw new ConflictException('ออกเลขคดีไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
       }
-
-      // Ensure uniqueness even after auto-generation
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const existing = await db.case.findUnique({
-          where: { firmId_ownRef: { firmId, ownRef } },
-        });
-        if (!existing) break;
-        if (attempt === 4) {
-          throw new ConflictException('Could not allocate a unique case number — please retry');
-        }
-        ownRef = await this.generateOwnRef(firmId, db);
-      }
+      ownRef = await this.generateOwnRef(firmId, db);
     }
 
     return db.case.create({
@@ -415,7 +397,7 @@ export class CasesService {
       additionalClients: dto.clients?.length
         ? { create: this.additionalClientRows(dto.clients) }
         : undefined,
-    }, !dto.ownRef);
+    }, dto.ownRefSuggested);
 
     await this.caseFeed.log({
       caseId: created.id,
@@ -467,7 +449,7 @@ export class CasesService {
       const existing = await this.prisma.case.findUnique({
         where: { firmId_ownRef: { firmId: user.firmId, ownRef: dto.ownRef.trim() } },
       });
-      if (existing) throw new ConflictException('เลขอ้างอิงสำนักงานนี้ถูกใช้กับคดีอื่นแล้ว');
+      if (existing) throw new ConflictException(OWN_REF_TAKEN_MESSAGE);
     }
 
     if (dto.leadLawyerId) {
