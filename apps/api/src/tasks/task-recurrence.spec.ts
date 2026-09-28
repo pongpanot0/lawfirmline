@@ -30,6 +30,7 @@ describe('TasksService — recurrence + dependency unlock on completion', () => 
       create: jest.fn(),
       findMany: jest.fn(),
     },
+    taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
     case: { findUnique: jest.fn() },
     firmMember: { count: jest.fn().mockResolvedValue(1) },
     caseActivity: { create: jest.fn() },

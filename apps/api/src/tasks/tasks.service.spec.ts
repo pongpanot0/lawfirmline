@@ -11,6 +11,7 @@ describe('TasksService on-hold', () => {
   let service: TasksService;
   const mockPrisma = {
     task: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn().mockResolvedValue([]), findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', recurrenceDays: null }) },
+    taskObserver: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
     firmMember: { count: jest.fn() },
@@ -512,6 +513,7 @@ describe('TasksService.update — who may change a status', () => {
   let service: TasksService;
   const mockPrisma = {
     task: { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn().mockResolvedValue([]), findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', recurrenceDays: null }) },
+    taskObserver: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     case: { findUnique: jest.fn() },
     caseActivity: { create: jest.fn() },
     taskAssignmentLog: { create: jest.fn() },

@@ -44,7 +44,7 @@ const NAV_GROUPS = [
 ] as const;
 
 const NAV_ITEMS = [
-  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true, group: 'work', children: [] as const },
+  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work', children: [] as const },
   {

@@ -45,12 +45,23 @@ export class TaskDetailService {
       include: {
         assignee: person,
         createdBy: person,
+        observers: {
+          select: {
+            id: true,
+            userId: true,
+            user: { select: { id: true, firstName: true, lastName: true } },
+            createdAt: true,
+          },
+        },
         onHold: true,
         parent: { select: { id: true, title: true } },
         case: { select: { id: true, ownRef: true, title: true } },
         subtasks: {
           orderBy: { createdAt: 'asc' },
-          include: { assignee: person },
+          include: {
+            assignee: person,
+            _count: { select: { attachments: true, comments: true } },
+          },
         },
         attachments: {
           orderBy: { createdAt: 'asc' },
@@ -72,11 +83,28 @@ export class TaskDetailService {
 
   async createSubtask(taskId: string, user: AuthUser, dto: CreateSubtaskDto) {
     const parent = await this.tasks.assertAccess(taskId, user);
+    // Enforce one level only — no subtasks of subtasks
     if (parent.parentId) {
       throw new BadRequestException('งานย่อยมีได้ชั้นเดียว สร้างงานย่อยจากงานหลักเท่านั้น');
     }
     const created = await this.tasks.create(user, parent.caseId, { ...dto, title: dto.title.trim(), priority: dto.priority ?? TaskPriority.MEDIUM }, undefined, parent.intakeId ?? undefined);
     await this.prisma.task.update({ where: { id: created.id }, data: { parentId: parent.id } });
+
+    // tasks.create already told the subtask's own assignee; the parent's
+    // assignee and observers also need to hear about new work under it.
+    const parentIds = [...new Set([
+      parent.assigneeId,
+      ...(await this.tasks.getParentObserverIds(parent.id)),
+    ].filter(Boolean) as string[])].filter((id) => id !== user.id && id !== dto.assigneeId);
+    if (parentIds.length) {
+      await this.tasks.notifyViaAssignmentNotifier({
+        firmId: user.firmId,
+        userIds: parentIds,
+        actorUserId: user.id,
+        summaryText: `📌 งานย่อยใหม่: "${created.title}"`,
+        entityPath: parent.caseId ? `/cases/${parent.caseId}` : '/todos',
+      });
+    }
     return this.tasks.findOne(created.id);
   }
 
@@ -106,10 +134,35 @@ export class TaskDetailService {
 
   async addComment(taskId: string, user: AuthUser, dto: CreateTaskCommentDto) {
     await this.tasks.assertAccess(taskId, user);
-    return this.prisma.taskComment.create({
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: { assigneeId: true, parentId: true, caseId: true, title: true, createdById: true },
+    });
+    if (!task) throw new NotFoundException('Task not found');
+
+    const comment = await this.prisma.taskComment.create({
       data: { taskId, authorId: user.id, body: dto.body.trim() },
       include: { author: person },
     });
+
+    // Notify assignee, observers, and if subtask, notify parent observers
+    const notifyIds = [...new Set([
+      task.assigneeId,
+      ...(await this.tasks.getParentObserverIds(taskId)),
+      ...(task.parentId ? await this.tasks.getParentObserverIds(task.parentId) : []),
+    ].filter(Boolean) as string[])].filter((id) => id !== user.id);
+
+    if (notifyIds.length) {
+      await this.tasks.notifyViaAssignmentNotifier({
+        firmId: null,
+        userIds: notifyIds,
+        actorUserId: user.id,
+        summaryText: `💬 ความเห็นใหม่ในงาน: "${task.title}"`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+      });
+    }
+
+    return comment;
   }
 
   async deleteComment(taskId: string, commentId: string, user: AuthUser) {

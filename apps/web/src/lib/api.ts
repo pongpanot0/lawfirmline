@@ -1,4 +1,5 @@
 import { withFirmSlugHeaders } from './firm-slug';
+import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { taskUpdatePath } from './task-detail';
 import { actionSuccessMessage, isActionRequest, publishActionFeedback } from './action-feedback';
 
@@ -473,6 +474,45 @@ export interface ClientItem {
   cases?: CaseItem[];
 }
 
+export interface Client360Overview {
+  client: Pick<ClientItem, 'id' | 'name' | 'type' | 'contacts'>;
+  cases: Array<{
+    id: string; ownRef: string; customerRef: string | null; title: string;
+    status: string; stage: string; outcome: string; openedAt: string;
+    closedAt: string | null; closingSummary: string | null;
+    blackCaseNumber: string | null; redCaseNumber: string | null;
+    policyRef: string | null; roles: Array<'REPRESENTED' | 'PAYER'>;
+    leadLawyer: { id: string; firstName: string; lastName: string };
+  }>;
+  tasks: Array<{
+    id: string; caseId: string; title: string; description: string | null;
+    status: string; dueDate: string | null;
+    assignee: { id: string; firstName: string; lastName: string } | null;
+  }>;
+  activities: Array<{
+    id: string; caseId: string; title: string; description: string | null;
+    activityAt: string; type: string; contactData: {
+      contactId: string; contactName: string; contactPhone: string | null;
+      channel: string; recipientUserId: string; recipientName: string;
+      reached: boolean; taskId: string | null;
+    } | null;
+    createdBy: { firstName: string; lastName: string };
+  }>;
+  lawyers: Array<{ id: string; firstName: string; lastName: string; role: string }>;
+  latestReport: { id: string; year: number; audience: string; publishedAt: string } | null;
+}
+
+export interface LogClientContactPayload {
+  caseId: string;
+  contactId: string;
+  recipientUserId: string;
+  channel: 'INBOUND_CALL' | 'OUTBOUND_CALL' | 'EMAIL' | 'LINE' | 'MEETING';
+  reached: boolean;
+  note: string;
+  followupTitle?: string;
+  followupDueDate?: string;
+}
+
 export interface CourtItem {
   id: string;
   name: string;
@@ -505,6 +545,18 @@ export interface CaseMessageEntry {
   mimeType?: string | null;
   size?: number | null;
   createdAt: string;
+}
+
+export interface CaseCommentEntry {
+  id: string;
+  caseId: string;
+  authorId: string;
+  authorFirstName: string;
+  authorLastName: string;
+  body: string;
+  mentionedUserIds: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CaseActivityItem {
@@ -685,11 +737,14 @@ export interface TaskItem {
   recurrenceDays?: number | null;
   blockedById?: string | null;
   createdById?: string;
+  createdBy?: TaskPerson | null;
   assignee?: TaskPerson | null;
+  observers?: Array<{ id: string; userId: string; user: TaskPerson; createdAt: string }> | null;
   subtaskCount?: number;
   subtaskDoneCount?: number;
   attachmentCount?: number;
   commentCount?: number;
+  observerCount?: number;
   assignmentLogs?: Array<{
     action: import('@lawfirm/shared').TaskLogAction;
     note?: string | null;
@@ -724,6 +779,7 @@ export interface TaskSubtaskItem {
   dueDate?: string | null;
   priority: import('@lawfirm/shared').TaskPriority;
   assignee?: TaskPerson | null;
+  _count?: { attachments: number; comments: number };
 }
 
 export interface TaskDetail extends TaskItem {
@@ -1396,6 +1452,19 @@ export const api = {
   getOmiseConfig: () =>
     request<{ publicKey: string | null; mockMode: boolean }>('/saas/omise/public-key'),
 
+  getFirmSettings: (token: string) =>
+    request<{ ownRefPrefix: string }>('/saas/firm/settings', { token }),
+
+  updateFirmSettings: (token: string, data: { ownRefPrefix?: string }) =>
+    request<{ ownRefPrefix: string }>('/saas/firm/settings', {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  getNextOwnRef: (token: string) =>
+    request<{ ownRef: string }>('/cases/next-own-ref', { token }),
+
   getMe: (token: string, options?: { refreshAuth?: boolean }) =>
     request<import('@lawfirm/shared').AuthUser>('/auth/me', { token, ...options }),
 
@@ -1456,8 +1525,6 @@ export const api = {
   getCase: (token: string, id: string) =>
     request<CaseDetail>(`/cases/${id}`, { token }),
 
-  getNextOwnRef: (token: string) =>
-    request<{ ownRef: string }>('/cases/next-own-ref', { token }),
 
   createCase: (token: string, data: Record<string, unknown>) =>
     request('/cases', {
@@ -1620,8 +1687,16 @@ export const api = {
     request<import('@lawfirm/shared').DailyWorkboard>(`/operations/daily?date=${encodeURIComponent(date)}`, { token }),
   createDailyTask: (token: string, data: Record<string, unknown>) =>
     request<TaskItem>('/operations/tasks', { token, method: 'POST', body: JSON.stringify(data) }),
-  assignDailyTask: (token: string, id: string, data: { assigneeId: string; placeFirst: boolean }) =>
+  getTeamRadar: (token: string, date: string) =>
+    request<import('@lawfirm/shared').TeamRadar>(`/operations/radar?date=${encodeURIComponent(date)}`, { token }),
+  getPersonWorkload: (token: string, userId: string, from?: string) =>
+    request<import('@lawfirm/shared').PersonWorkload>(`/operations/people/${userId}${from ? `?from=${from}` : ''}`, { token }),
+  followUpTask: (token: string, id: string) =>
+    request<{ followedUpAt: string; alreadySent: boolean }>(`/operations/tasks/${id}/follow-up`, { token, method: 'POST' }),
+  assignDailyTask: (token: string, id: string, data: { assigneeId: string; placeFirst: boolean; size?: import('@lawfirm/shared').TaskSize }) =>
     request<TaskItem>(`/operations/tasks/${id}/assign`, { token, method: 'PATCH', body: JSON.stringify(data) }),
+  setTaskSize: (token: string, id: string, size: import('@lawfirm/shared').TaskSize) =>
+    request<{ id: string; size: import('@lawfirm/shared').TaskSize }>(`/operations/tasks/${id}/size`, { token, method: 'PATCH', body: JSON.stringify({ size }) }),
   moveDailyTask: (token: string, id: string, direction: 'UP' | 'DOWN') =>
     request(`/operations/tasks/${id}/order`, { token, method: 'PATCH', body: JSON.stringify({ direction }) }),
   setMemberWorkTypes: (token: string, id: string, workTypes: import('@lawfirm/shared').TaskWorkType[]) =>
@@ -2016,6 +2091,42 @@ export const api = {
 
   getClient: (token: string, id: string) =>
     request<ClientItem>(`/clients/${id}`, { token }),
+
+  getClient360: (token: string, id: string) =>
+    request<Client360Overview>(`/clients/${id}/overview`, { token }),
+
+  logClientContact: (token: string, id: string, data: LogClientContactPayload) =>
+    request<{ activityId: string; taskId: string | null }>(`/clients/${id}/contact-logs`, {
+      method: 'POST', token, body: JSON.stringify(data),
+    }),
+
+  previewClientAnnualReport: (
+    token: string,
+    clientId: string,
+    data: { year: number; audience: 'REPRESENTED' | 'PAYER'; caseIds?: string[] },
+  ) => request<{ snapshot: AnnualReportSnapshot; fingerprint: string }>(
+    `/clients/${clientId}/annual-reports/preview`,
+    { method: 'POST', token, body: JSON.stringify(data), silent: true },
+  ),
+
+  publishClientAnnualReport: (
+    token: string,
+    clientId: string,
+    data: {
+      year: number; audience: 'REPRESENTED' | 'PAYER'; caseIds: string[];
+      contactIds: string[]; fingerprint: string;
+    },
+  ) => request<AnnualReportListItem>(`/clients/${clientId}/annual-reports`, {
+    method: 'POST', token, body: JSON.stringify(data),
+  }),
+
+  listClientAnnualReports: (token: string, clientId: string) =>
+    request<AnnualReportListItem[]>(`/clients/${clientId}/annual-reports`, { token }),
+
+  revokeClientAnnualReport: (token: string, clientId: string, reportId: string) =>
+    request<{ revoked: true }>(`/clients/${clientId}/annual-reports/${reportId}/revoke`, {
+      method: 'POST', token,
+    }),
 
   createClient: (token: string, data: Record<string, unknown>) =>
     request<ClientItem>('/clients', { method: 'POST', token, body: JSON.stringify(data) }),
@@ -2904,6 +3015,22 @@ export const api = {
 
   unpublishDocument: (token: string, caseId: string, documentId: string, publicationId: string) =>
     request(`/cases/${caseId}/documents/${documentId}/publications/${publicationId}`, {
+      method: 'DELETE',
+      token,
+    }),
+
+  getCaseComments: (token: string, caseId: string) =>
+    request<CaseCommentEntry[]>(`/cases/${caseId}/comments`, { token }),
+
+  createCaseComment: (token: string, caseId: string, body: string, mentionedUserIds?: string[]) =>
+    request<CaseCommentEntry>(`/cases/${caseId}/comments`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ body, mentionedUserIds }),
+    }),
+
+  deleteCaseComment: (token: string, caseId: string, commentId: string) =>
+    request(`/cases/${caseId}/comments/${commentId}`, {
       method: 'DELETE',
       token,
     }),

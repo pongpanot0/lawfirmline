@@ -10,6 +10,7 @@ import { api, ApiError, LineIntegrationStatus, LinePersonalStatus, MailboxConnec
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { MfaToggle } from '@/components/settings/MfaToggle';
 import { SessionsPanel } from '@/components/settings/SessionsPanel';
+import { CaseNumberPrefixCard } from '@/components/settings/CaseNumberPrefixCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -259,6 +260,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         )}
+        {user?.firmRole === 'OWNER' && <CaseNumberPrefixCard />}
 
         <Card>
           <CardHeader><CardTitle>{d.settings.profile}</CardTitle></CardHeader>

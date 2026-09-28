@@ -135,7 +135,7 @@ export class CaseAccessService {
     return { OR: [{ case: this.getCaseFilterForUser(user) }, standalone] };
   }
 
-  /** Clients visible when the user owns the firm or has a visible case on them. */
+  /** Clients visible when the user owns the firm or has a visible case in any client role. */
   getClientFilterForUser(user: AuthUser): Prisma.ClientWhereInput {
     if (user.firmRole === FirmRole.OWNER) {
       return { firmId: user.firmId };
@@ -143,7 +143,11 @@ export class CaseAccessService {
 
     return {
       firmId: user.firmId,
-      cases: { some: this.getCaseFilterForUser(user) },
+      OR: [
+        { cases: { some: this.getCaseFilterForUser(user) } },
+        { additionalCaseRoles: { some: { case: this.getCaseFilterForUser(user) } } },
+        { caseCustomerRoles: { some: { case: this.getCaseFilterForUser(user) } } },
+      ],
     };
   }
 

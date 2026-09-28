@@ -1,6 +1,7 @@
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, MinLength, Matches, Length } from 'class-validator';
 import { FirmRole } from '@lawfirm/shared';
 import { BillingPeriod, SubscriptionPlan } from '../../generated/prisma';
+import { Transform } from 'class-transformer';
 
 export class InviteUserDto {
   @IsEmail()
@@ -74,4 +75,13 @@ export class PromptPayCheckoutDto {
   @IsOptional()
   @IsEnum(BillingPeriod)
   billingPeriod?: BillingPeriod;
+}
+
+export class UpdateFirmSettingsDto {
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @Length(1, 12, { message: 'Prefix must be 1-12 characters' })
+  @Matches(/^[A-Z0-9\-]+$/, { message: 'Prefix must contain only uppercase letters, numbers, and hyphens' })
+  ownRefPrefix?: string;
 }

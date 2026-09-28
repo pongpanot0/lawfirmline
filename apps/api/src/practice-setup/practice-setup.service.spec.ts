@@ -105,6 +105,7 @@ describe('stage-driven task proposals', () => {
         findMany: jest.fn().mockResolvedValue([
           { id: 'release-1', name: 'Release A', version: 1, steps: overrides.steps ?? [] },
         ]),
+        createMany: jest.fn(),
       },
       caseType: { findMany: jest.fn().mockResolvedValue([]) },
       caseAssignment: { findMany: jest.fn().mockResolvedValue([]) },
@@ -112,6 +113,7 @@ describe('stage-driven task proposals', () => {
       task: {
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: `task-${data.title}`, ...data })),
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
       },
     };
     const access = { getCaseFilterForUser: jest.fn().mockReturnValue({}) };
@@ -179,17 +181,35 @@ describe('stage-driven task proposals', () => {
   it('createStageTasks creates labelled tasks and notifies the assignees', async () => {
     const { service, prisma, assignmentNotifier, caseFeed } = buildService();
     prisma.firmMember.findMany.mockResolvedValue([{ userId: 'member-1' }]);
+    let parentCreated = false;
+    prisma.task.findFirst.mockImplementation(() => null); // No existing parent
+    prisma.task.create.mockImplementation(({ data }) => {
+      if (!parentCreated && data.parentId === undefined) {
+        parentCreated = true;
+        return Promise.resolve({ id: 'parent-1', ...data });
+      }
+      return Promise.resolve({ id: `task-${Math.random()}`, ...data });
+    });
 
     const result = await service.createStageTasks(user, theCase.id, CaseStage.FILING, [
       { title: 'งานใหม่', assigneeId: 'member-1', dueDate: '2026-10-01' },
     ]);
 
     expect(result.created).toBe(1);
-    expect(prisma.task.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ caseId: theCase.id, labels: [`stage:${CaseStage.FILING}`], assigneeId: 'member-1' }) }),
-    );
+    expect(result.parentId).toBe('parent-1');
+    expect(result.taskIds).toHaveLength(1);
+    // Should have created 2 tasks: parent + subtask
+    expect(prisma.task.create).toHaveBeenCalledTimes(2);
+    // Verify structure of calls
+    const calls = prisma.task.create.mock.calls;
+    // First call: parent (no parentId set)
+    expect(calls[0][0].data.parentId).toBeUndefined();
+    expect(calls[0][0].data.labels).toContain(`stage:${CaseStage.FILING}`);
+    // Second call: subtask with parent
+    expect(calls[1][0].data.parentId).toBe('parent-1');
+    expect(calls[1][0].data.assigneeId).toBe('member-1');
     expect(assignmentNotifier.notifyAssigned).toHaveBeenCalledWith(
-      expect.objectContaining({ firmId: user.firmId, userIds: ['member-1'], actorUserId: user.id }),
+      expect.objectContaining({ firmId: user.firmId, userIds: expect.arrayContaining(['member-1', 'owner-1']), actorUserId: user.id }),
     );
     expect(caseFeed.log).toHaveBeenCalledWith(expect.objectContaining({ caseId: theCase.id, userId: user.id }));
   });
@@ -241,13 +261,208 @@ describe('stage-driven task proposals', () => {
     await expect(service.dismissStageTasks(user, 'other-case', CaseStage.CLOSING)).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.case.update).not.toHaveBeenCalled();
   });
+
+  it('createStageTasks reuses an open parent task for the same stage', async () => {
+    const { service, prisma, assignmentNotifier } = buildService();
+    prisma.firmMember.findMany.mockResolvedValue([{ userId: 'member-1' }, { userId: 'member-2' }]);
+    const existingParent = { id: 'parent-1', title: 'ยื่นฟ้อง', parentId: null, status: 'TODO' };
+    prisma.task.findFirst.mockResolvedValue(existingParent);
+    prisma.task.create.mockImplementation(({ data }) => Promise.resolve({ id: `task-${Math.random()}`, ...data }));
+
+    const result = await service.createStageTasks(user, theCase.id, CaseStage.FILING, [
+      { title: 'งานใหม่ 1', assigneeId: 'member-1' },
+      { title: 'งานใหม่ 2', assigneeId: 'member-2' },
+    ]);
+
+    expect(result.created).toBe(2);
+    expect(result.parentId).toBe('parent-1');
+    // No parent created since one exists
+    expect(prisma.task.create).toHaveBeenCalledTimes(2);
+    // Both calls should have parentId
+    expect(prisma.task.create.mock.calls.every((call) => call[0].data.parentId === 'parent-1')).toBe(true);
+    expect(assignmentNotifier.notifyAssigned).toHaveBeenCalledWith(
+      expect.objectContaining({ firmId: user.firmId, userIds: expect.arrayContaining(['member-1', 'member-2']), actorUserId: user.id }),
+    );
+  });
+
+  it('createStageTasks does not reuse a DONE parent task', async () => {
+    const { service, prisma } = buildService();
+    prisma.firmMember.findMany.mockResolvedValue([{ userId: 'member-1' }]);
+    const doneParent = { id: 'old-parent', status: 'DONE' };
+    let createCount = 0;
+    prisma.task.findFirst.mockResolvedValue(null); // Query returns null because status=DONE is excluded
+    prisma.task.create.mockImplementation(({ data }) => {
+      createCount++;
+      if (createCount === 1) return Promise.resolve({ id: 'new-parent', ...data });
+      return Promise.resolve({ id: `task-${createCount}`, ...data });
+    });
+
+    const result = await service.createStageTasks(user, theCase.id, CaseStage.FILING, [
+      { title: 'งานใหม่', assigneeId: 'member-1' },
+    ]);
+
+    expect(result.parentId).toBe('new-parent');
+    expect(result.created).toBe(1);
+  });
+});
+
+describe('applyPlaybook with stage grouping', () => {
+  const user: AuthUser = {
+    id: 'lawyer-1', email: 'lawyer@example.com', firstName: 'Lawyer', lastName: 'One',
+    role: Role.LAWYER, firmId: 'firm-1', firmSlug: 'firm', firmName: 'Firm', firmRole: FirmRole.LAWYER,
+    subscriptionStatus: SubscriptionStatus.ACTIVE, subscriptionPlan: null, trialEndAt: null,
+    currentPeriodEnd: null, maxUsers: 10, mfaEnabled: false,
+  };
+  const theCase = { id: 'case-1', firmId: 'firm-1', caseTypeId: 'ct-1', leadLawyerId: 'owner-1' };
+
+  it('groups staged steps into parent+subtasks and keeps unstaged steps flat', async () => {
+    const steps = [
+      { title: 'Step A (Filing)', instructions: 'Instr A', stage: CaseStage.FILING, primaryRole: 'LAWYER' },
+      { title: 'Step B (Filing)', instructions: 'Instr B', stage: CaseStage.FILING, primaryRole: 'LAWYER' },
+      { title: 'Step C (No Stage)', instructions: 'Instr C', primaryRole: 'LAWYER' },
+      { title: 'Step D (Answer)', instructions: 'Instr D', stage: CaseStage.ANSWER, primaryRole: 'LAWYER' },
+    ];
+
+    const db = {
+      $queryRaw: jest.fn(),
+      case: { findFirst: jest.fn().mockResolvedValue(theCase) },
+      appliedPlaybook: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      playbookRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release-1', steps }) },
+      caseAssignment: { findMany: jest.fn().mockResolvedValue([]) },
+      firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'lawyer-1', role: 'LAWYER' }]) },
+      task: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      auditLog: { create: jest.fn() },
+    };
+
+    let taskId = 1;
+    db.task.create.mockImplementation(({ data }) => {
+      const id = `task-${taskId++}`;
+      return Promise.resolve({ id, ...data });
+    });
+    db.appliedPlaybook.create.mockImplementation(({ data }) => Promise.resolve({ id: 'pb-1', ...data }));
+
+    const prisma = { $transaction: jest.fn((callback) => callback(db)) };
+    const service = new PracticeSetupService(
+      prisma as never,
+      { getCaseFilterForUser: jest.fn().mockReturnValue({}) } as never,
+      { record: jest.fn() } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const result = await service.applyPlaybook(user, theCase.id, 'release-1');
+
+    // Should create:
+    // - Parent for FILING stage
+    // - 2 subtasks for FILING (Step A, Step B)
+    // - Parent for ANSWER stage
+    // - 1 subtask for ANSWER (Step D)
+    // - 1 flat task (Step C, no stage)
+    // Total: 6 tasks
+    expect(db.task.create).toHaveBeenCalledTimes(6);
+    expect(result.taskIds).toHaveLength(6);
+
+    // Check structure
+    const calls = db.task.create.mock.calls;
+    const parentCalls = calls.filter((call) => !call[0].data.parentId);
+    const subtaskCalls = calls.filter((call) => call[0].data.parentId);
+
+    expect(parentCalls.length).toBe(3); // 2 stage parents + 1 flat
+    expect(subtaskCalls.length).toBe(3); // 2 Filing + 1 Answer
+  });
+
+  it('creates all tasks with playbook:releaseId label', async () => {
+    const steps = [
+      { title: 'Staged Task', instructions: 'Instr', stage: CaseStage.FILING, primaryRole: 'LAWYER' },
+      { title: 'Flat Task', instructions: 'Instr', primaryRole: 'LAWYER' },
+    ];
+
+    const db = {
+      $queryRaw: jest.fn(),
+      case: { findFirst: jest.fn().mockResolvedValue(theCase) },
+      appliedPlaybook: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      playbookRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release-v2', steps }) },
+      caseAssignment: { findMany: jest.fn().mockResolvedValue([]) },
+      firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'lawyer-1', role: 'LAWYER' }]) },
+      task: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      auditLog: { create: jest.fn() },
+    };
+
+    let taskId = 1;
+    db.task.create.mockImplementation(({ data }) => {
+      const id = `task-${taskId++}`;
+      return Promise.resolve({ id, ...data });
+    });
+    db.appliedPlaybook.create.mockImplementation(({ data }) => Promise.resolve({ id: 'pb-2', ...data }));
+
+    const prisma = { $transaction: jest.fn((callback) => callback(db)) };
+    const service = new PracticeSetupService(
+      prisma as never,
+      { getCaseFilterForUser: jest.fn().mockReturnValue({}) } as never,
+      { record: jest.fn() } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await service.applyPlaybook(user, theCase.id, 'release-v2');
+
+    const calls = db.task.create.mock.calls;
+    // All tasks should have playbook:release-v2 in labels
+    for (const call of calls) {
+      expect(call[0].data.labels).toContain('playbook:release-v2');
+    }
+  });
+
+  it('returns all created taskIds including parents and subtasks', async () => {
+    const steps = [
+      { title: 'Task 1', instructions: 'Instr', stage: CaseStage.FILING, primaryRole: 'LAWYER' },
+      { title: 'Task 2', instructions: 'Instr', stage: CaseStage.FILING, primaryRole: 'LAWYER' },
+    ];
+
+    const db = {
+      $queryRaw: jest.fn(),
+      case: { findFirst: jest.fn().mockResolvedValue(theCase) },
+      appliedPlaybook: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      playbookRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release-1', steps }) },
+      caseAssignment: { findMany: jest.fn().mockResolvedValue([]) },
+      firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'lawyer-1', role: 'LAWYER' }]) },
+      task: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      auditLog: { create: jest.fn() },
+    };
+
+    const createdIds: string[] = [];
+    db.task.create.mockImplementation(({ data }) => {
+      const id = `task-${createdIds.length}`;
+      createdIds.push(id);
+      return Promise.resolve({ id, ...data });
+    });
+    db.appliedPlaybook.create.mockImplementation(({ data }) => Promise.resolve({ id: 'pb-3', ...data }));
+
+    const prisma = { $transaction: jest.fn((callback) => callback(db)) };
+    const service = new PracticeSetupService(
+      prisma as never,
+      { getCaseFilterForUser: jest.fn().mockReturnValue({}) } as never,
+      { record: jest.fn() } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const result = await service.applyPlaybook(user, theCase.id, 'release-1');
+
+    // Should have 1 parent + 2 subtasks
+    expect(result.taskIds).toEqual(createdIds);
+    expect(result.taskIds).toHaveLength(3);
+  });
 });
 
 describe('default playbooks', () => {
   const user = { id: 'owner-1', firmId: 'firm-1' } as AuthUser;
 
-  it('seeds a default only for case types with no linked playbook, once', async () => {
-    const [first, second] = DEFAULT_PLAYBOOKS;
+  it('links by current or legacy name, seeds unlinked when no case type matches, and never re-seeds', async () => {
+    const [first, second, ...rest] = DEFAULT_PLAYBOOKS;
     const prisma = {
       playbookRelease: {
         findMany: jest.fn().mockResolvedValue([{ templateKey: null, caseTypeId: 'ct-first' }]),
@@ -255,8 +470,8 @@ describe('default playbooks', () => {
       },
       caseType: {
         findMany: jest.fn().mockResolvedValue([
-          { id: 'ct-first', name: first.caseTypeName },
-          { id: 'ct-second', name: second.caseTypeName },
+          { id: 'ct-first', name: first.caseTypeNames[0] },
+          { id: 'ct-legacy', name: second.caseTypeNames[1] },
         ]),
       },
     };
@@ -264,12 +479,26 @@ describe('default playbooks', () => {
 
     await service.ensureDefaultPlaybooks(user);
     const data = prisma.playbookRelease.createMany.mock.calls[0][0].data;
-    expect(data).toHaveLength(1);
-    expect(data[0]).toMatchObject({ templateKey: second.key, caseTypeId: 'ct-second', version: 1 });
+    // first: its case type already has the firm's own playbook, so skipped
+    expect(data.map((d: { templateKey: string }) => d.templateKey)).toEqual([second.key, ...rest.map((p) => p.key)]);
+    expect(data[0]).toMatchObject({ caseTypeId: 'ct-legacy', version: 1 });
+    for (const d of data.slice(1)) expect(d.caseTypeId).toBeNull();
 
-    prisma.playbookRelease.findMany.mockResolvedValue([{ templateKey: null, caseTypeId: 'ct-first' }, { templateKey: second.key, caseTypeId: 'ct-second' }]);
+    prisma.playbookRelease.findMany.mockResolvedValue([{ templateKey: null, caseTypeId: 'ct-first' }, ...data]);
     await service.ensureDefaultPlaybooks(user);
     expect(prisma.playbookRelease.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('listPlaybooks seeds the Cargo Claim playbook too', async () => {
+    const prisma = { playbookRelease: { findMany: jest.fn().mockResolvedValue([]) } };
+    const service = new PracticeSetupService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+    const defaults = jest.spyOn(service, 'ensureDefaultPlaybooks').mockResolvedValue();
+    const cargo = jest.spyOn(service, 'ensureCargoPlaybook').mockResolvedValue({} as never);
+
+    await service.listPlaybooks(user);
+
+    expect(defaults).toHaveBeenCalledWith(user);
+    expect(cargo).toHaveBeenCalledWith(user);
   });
 
   it('every default step targets a real stage and a sane offset', () => {

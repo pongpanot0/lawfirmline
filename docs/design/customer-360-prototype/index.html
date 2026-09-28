@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Customer 360 — Samnuan UI Prototype</title>
+  <style>
+    :root {
+      --ink: #17243b;
+      --ink-soft: #45546a;
+      --muted: #69788d;
+      --line: #dfe6ef;
+      --paper: #ffffff;
+      --surface: #f4f7fb;
+      --blue: #2555d4;
+      --blue-soft: #e9efff;
+      --mint: #0b7469;
+      --mint-soft: #e7f5f1;
+      --amber: #9b5a12;
+      --amber-soft: #fff4e3;
+      --red: #aa3d39;
+      --shadow: 0 8px 30px rgba(24, 48, 87, .045);
+      font-family: "Noto Sans Thai", "Sarabun", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--surface);
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; min-width: 320px; }
+    section[id], main[id] { scroll-margin-top: 110px; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 3px solid #8aa9ff; outline-offset: 2px;
+    }
+    .app { display: grid; grid-template-columns: 226px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar { background: var(--paper); border-right: 1px solid var(--line); padding: 22px 12px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 0 13px 24px; border-bottom: 1px solid var(--line); }
+    .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: white; background: var(--ink); font: 700 20px Georgia, serif; }
+    .brand b { display: block; font-size: 16px; letter-spacing: -.04em; }
+    .brand small { display: block; color: var(--muted); font-size: 10px; }
+    .nav-label { color: #95a0b0; font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 26px 14px 8px; }
+    .nav-link { display: flex; align-items: center; gap: 11px; padding: 10px 13px; margin: 2px 0; border-radius: 9px; color: var(--ink-soft); font-size: 13px; font-weight: 650; }
+    .nav-link:hover, .nav-link.active { background: var(--blue-soft); color: var(--blue); }
+    .nav-icon { width: 19px; text-align: center; font-size: 17px; font-weight: 400; }
+    .nav-footer { margin-top: auto; border-top: 1px solid var(--line); padding: 17px 12px 0; font-size: 12px; color: var(--muted); }
+    .nav-footer strong { display: block; margin-top: 4px; color: var(--ink); font-size: 13px; }
+    .workspace { min-width: 0; }
+    .topbar { height: 64px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.93); display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 32px; position: sticky; top: 0; z-index: 5; backdrop-filter: blur(12px); }
+    .top-left { display: flex; align-items: center; gap: 22px; min-width: 0; }
+    .top-left strong { font-size: 13px; white-space: nowrap; }
+    .top-search { width: min(400px, 34vw); height: 38px; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; display: flex; align-items: center; padding: 0 12px; color: #96a2b1; font-size: 12px; }
+    .top-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
+    .avatar-mini { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); font-weight: 750; }
+    .mobile-brand, .mobile-nav { display: none; }
+    .content { max-width: 1420px; padding: 28px 34px 70px; margin: 0 auto; }
+    .breadcrumb { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 9px; margin-bottom: 19px; }
+    .breadcrumb a { color: var(--blue); }
+    .demo-label { display: inline-flex; align-items: center; border: 1px dashed #b1c2dd; border-radius: 20px; color: #52657f; font-size: 10px; font-weight: 700; padding: 3px 9px; margin-left: 6px; white-space: nowrap; }
+    .customer-head { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+    .head-main { padding: 25px 28px 20px; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .eyebrow { color: var(--blue); font-size: 10px; letter-spacing: .13em; font-weight: 800; text-transform: uppercase; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(26px, 3vw, 34px); letter-spacing: -.055em; line-height: 1.3; margin: 6px 0 7px; }
+    .customer-sub { color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+    .dot { color: #b7c0cc; }
+    .head-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .btn { border: 1px solid var(--line); background: var(--paper); border-radius: 8px; min-height: 37px; padding: 8px 13px; color: var(--ink); font-size: 12px; font-weight: 750; display: inline-flex; justify-content: center; align-items: center; gap: 7px; white-space: nowrap; }
+    .btn:hover { border-color: #b4c5e7; background: #f9fbff; }
+    .btn.primary { background: var(--blue); border-color: var(--blue); color: white; }
+    .btn.primary:hover { background: #1749cb; }
+    .btn.quiet { background: transparent; border-color: transparent; color: var(--blue); }
+    .btn.small { min-height: 30px; padding: 5px 10px; font-size: 11px; }
+    .relationship { display: grid; grid-template-columns: 1.15fr 1fr 1fr 1.35fr; border-top: 1px solid var(--line); background: #fbfcff; }
+    .relation-cell { min-width: 0; padding: 17px 25px; border-right: 1px solid var(--line); }
+    .relation-cell:last-child { border-right: 0; }
+    .relation-cell small { display: block; color: var(--muted); font-size: 10px; font-weight: 700; margin-bottom: 4px; }
+    .relation-cell strong { display: block; font-size: 16px; letter-spacing: -.035em; }
+    .relation-cell a { color: var(--blue); }
+    .relation-cell .small-detail { color: var(--muted); font-size: 11px; margin-top: 2px; display: block; }
+    .work-grid { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; margin-top: 20px; align-items: start; }
+    .main-stack, .side-stack { min-width: 0; display: grid; gap: 20px; }
+    .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 23px; min-width: 0; }
+    .panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+    .section-overline { color: var(--muted); text-transform: uppercase; font-size: 10px; font-weight: 800; letter-spacing: .12em; margin-bottom: 3px; }
+    h2 { margin: 0; font-size: 20px; line-height: 1.35; letter-spacing: -.04em; }
+    .panel-heading p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+    .count { color: var(--blue); background: var(--blue-soft); border-radius: 20px; padding: 3px 8px; font-size: 11px; font-weight: 800; }
+    .attention { border-left: 3px solid var(--blue); }
+    .task-list { display: grid; gap: 8px; }
+    .task-row { border: 1px solid var(--line); border-radius: 9px; padding: 13px 14px; display: grid; grid-template-columns: 85px minmax(0,1fr) auto; align-items: center; gap: 13px; }
+    .task-row:hover { border-color: #bfd0ef; }
+    .task-state { font-size: 10px; font-weight: 850; color: var(--blue); }
+    .task-state.late { color: var(--red); }
+    .task-main strong { display: block; font-size: 12px; line-height: 1.5; }
+    .task-main span { color: var(--muted); font-size: 10px; }
+    .task-owner { font-size: 11px; color: var(--ink-soft); text-align: right; }
+    .task-owner b { display: block; margin-bottom: 4px; }
+    .task-owner button { border: 0; background: none; color: var(--blue); font-weight: 750; font-size: 10px; padding: 0; }
+    .task-empty { color: var(--amber) !important; }
+    .panel-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 0 0 16px; }
+    .segmented { display: flex; gap: 3px; border: 1px solid var(--line); border-radius: 9px; padding: 3px; background: #f7f9fc; overflow-x: auto; max-width: 100%; }
+    .segmented button { border: 0; background: transparent; border-radius: 6px; padding: 6px 9px; font-size: 11px; font-weight: 750; color: var(--muted); white-space: nowrap; }
+    .segmented button[aria-pressed="true"] { background: var(--paper); color: var(--blue); box-shadow: 0 1px 4px rgba(25,50,90,.1); }
+    .input { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); min-height: 36px; padding: 8px 10px; width: 100%; }
+    .case-search { width: 215px; max-width: 100%; font-size: 11px; }
+    .case-list { border-top: 1px solid var(--line); }
+    .case-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 118px 83px 18px; gap: 13px; align-items: center; text-align: left; padding: 15px 2px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); }
+    .case-row:hover { background: #f8faff; }
+    .case-row:last-child { border-bottom: 0; }
+    .case-title { display: block; font-size: 12px; font-weight: 800; line-height: 1.5; }
+    .case-sub { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .role-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag { display: inline-flex; width: fit-content; align-items: center; border-radius: 5px; padding: 3px 6px; font-size: 10px; font-weight: 750; white-space: nowrap; color: #2253bf; background: #eaf0ff; }
+    .tag.payer { color: #0c6a60; background: #e6f5f2; }
+    .tag.warn { color: var(--amber); background: var(--amber-soft); }
+    .tag.muted { color: var(--ink-soft); background: #edf1f6; }
+    .case-stage { font-size: 10px; color: var(--ink-soft); }
+    .case-stage strong { display: block; font-size: 11px; color: var(--ink); }
+    .case-arrow { color: #93a2b9; font-size: 18px; }
+    .empty { padding: 22px; color: var(--muted); background: var(--surface); border-radius: 8px; text-align: center; font-size: 12px; }
+    .timeline { list-style: none; padding: 0 0 0 9px; margin: 0; border-left: 1px solid #cad7eb; }
+    .event { position: relative; padding: 0 0 20px 22px; }
+    .event:last-child { padding-bottom: 1px; }
+    .event::before { content: ""; position: absolute; left: -14px; top: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--paper); border: 2px solid var(--blue); }
+    .event[data-type="task"]::before { border-color: var(--mint); }
+    .event-date { color: var(--muted); font-size: 10px; font-weight: 750; }
+    .event-title { font-size: 12px; font-weight: 800; margin: 3px 0 1px; }
+    .event-detail { color: var(--ink-soft); font-size: 11px; line-height: 1.6; }
+    .event-case { color: var(--blue); font-size: 10px; font-weight: 750; margin-top: 4px; }
+    .contact-card { display: flex; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+    .contact-card:first-of-type { border-top: 0; }
+    .initials { width: 34px; height: 34px; border-radius: 10px; background: #e5ecfb; color: var(--blue); display: grid; place-items: center; font-size: 11px; font-weight: 850; flex: none; }
+    .contact-card strong { display: block; font-size: 12px; }
+    .contact-card span { display: block; color: var(--muted); font-size: 10px; line-height: 1.6; }
+    .contact-actions { display: flex; gap: 12px; margin-top: 5px; }
+    .contact-actions a { color: var(--blue); font-weight: 750; font-size: 10px; }
+    .report-card { border: 1px solid #d9e3f5; background: #f8faff; border-radius: 10px; padding: 17px; }
+    .report-year { font-size: 26px; font-weight: 850; letter-spacing: -.06em; line-height: 1; }
+    .report-card p { margin: 7px 0 13px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .report-facts { display: flex; gap: 13px; padding-top: 12px; border-top: 1px solid #dbe5f5; color: var(--ink-soft); font-size: 10px; }
+    .report-facts strong { color: var(--ink); display: block; font-size: 15px; }
+    .text-link { border: 0; background: none; color: var(--blue); font-size: 11px; font-weight: 800; padding: 0; }
+    .prototype-note { color: #8a97a7; font-size: 10px; margin: 18px 0 0; line-height: 1.6; }
+    dialog { border: 1px solid var(--line); border-radius: 16px; padding: 0; width: min(520px, calc(100vw - 24px)); max-height: min(88vh, 850px); box-shadow: 0 30px 80px rgba(17,34,64,.25); color: var(--ink); }
+    dialog::backdrop { background: rgba(13, 25, 47, .52); }
+    .modal-head { padding: 22px 24px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
+    .modal-head h2 { font-size: 19px; }
+    .modal-head p { color: var(--muted); font-size: 11px; margin: 4px 0 0; }
+    .close { width: 30px; height: 30px; border: 0; border-radius: 7px; background: var(--surface); color: var(--muted); font-size: 19px; line-height: 1; }
+    .modal-body { padding: 21px 24px; display: grid; gap: 13px; overflow: auto; max-height: 60vh; }
+    .field { display: grid; gap: 5px; font-size: 11px; color: var(--ink-soft); font-weight: 750; }
+    .field textarea { min-height: 90px; resize: vertical; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .checkline { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 650; color: var(--ink-soft); }
+    .choice-group { border: 0; padding: 0; margin: 0; }
+    .choice-group legend { font-size: 11px; color: var(--ink-soft); font-weight: 750; margin-bottom: 6px; }
+    .choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .choice-option { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--line); border-radius: 9px; padding: 11px; font-size: 11px; line-height: 1.5; cursor: pointer; }
+    .choice-option:has(input:checked) { border-color: var(--blue); background: var(--blue-soft); }
+    .choice-option input { margin: 2px 0 0; accent-color: var(--blue); }
+    .choice-option strong, .choice-option small { display: block; }
+    .choice-option small { color: var(--muted); font-size: 10px; }
+    .auto-task-preview { border: 1px solid #b5dfd6; background: #effaf6; color: #155b53; border-radius: 9px; padding: 12px 14px; font-size: 11px; line-height: 1.7; }
+    .auto-task-preview strong { display: block; font-size: 12px; }
+    .modal-foot { padding: 16px 24px 22px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--line); }
+    .detail-label { font-size: 10px; text-transform: uppercase; color: var(--muted); font-weight: 800; letter-spacing: .07em; }
+    .detail-value { margin: 3px 0 0; font-size: 12px; font-weight: 700; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .toast { position: fixed; z-index: 30; bottom: 23px; right: 25px; background: var(--ink); color: white; border-radius: 9px; padding: 11px 16px; box-shadow: 0 12px 34px rgba(20,30,50,.2); font-size: 12px; opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity .18s, transform .18s; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 1140px) {
+      .work-grid { grid-template-columns: minmax(0, 1fr) 250px; }
+      .relation-cell { padding: 15px; }
+      .content { padding: 24px; }
+    }
+    @media (max-width: 900px) {
+      .app { display: block; }
+      .sidebar { display: none; }
+      .topbar { height: 54px; padding: 0 18px; }
+      .top-left, .top-search { display: none; }
+      .mobile-brand { display: flex; align-items: center; gap: 9px; font-weight: 850; font-size: 14px; }
+      .mobile-brand .brand-mark { width: 28px; height: 28px; font-size: 17px; }
+      .mobile-nav { display: flex; overflow-x: auto; gap: 4px; background: white; border-bottom: 1px solid var(--line); padding: 6px 12px; position: sticky; top: 54px; z-index: 4; }
+      .mobile-nav a { font-size: 11px; font-weight: 750; color: var(--muted); white-space: nowrap; padding: 7px 10px; border-radius: 7px; }
+      .mobile-nav a.active { color: var(--blue); background: var(--blue-soft); }
+    }
+    @media (max-width: 720px) {
+      .content { padding: 17px 14px 45px; }
+      .head-main { padding: 20px; flex-direction: column; }
+      h1 { font-size: 26px; }
+      .head-actions { width: 100%; justify-content: stretch; }
+      .head-actions .btn { flex: 1; }
+      .relationship { grid-template-columns: 1fr 1fr; }
+      .relation-cell:nth-child(2) { border-right: 0; }
+      .relation-cell:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .work-grid { grid-template-columns: 1fr; }
+      .panel { padding: 18px; }
+      .task-row { grid-template-columns: 66px minmax(0,1fr); }
+      .task-owner { grid-column: 2; text-align: left; display: flex; gap: 8px; align-items: center; }
+      .task-owner b { margin: 0; }
+      .case-row { grid-template-columns: minmax(0,1fr) 20px; gap: 7px; }
+      .case-row .role-tags, .case-row .case-stage { grid-column: 1; }
+      .case-arrow { grid-column: 2; grid-row: 1 / 4; }
+      .panel-tools { align-items: stretch; }
+      .case-search { width: 100%; }
+      .two { grid-template-columns: 1fr; }
+      .choice-row { grid-template-columns: 1fr; }
+      .task-main strong, .case-title, .event-title, .contact-card strong { font-size: 13px; }
+      .task-main span, .case-sub, .event-detail, .event-case, .contact-card span, .case-stage { font-size: 11px; }
+      .task-state, .event-date, .tag { font-size: 11px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="เมนูสำนักงาน">
+      <div class="brand"><span class="brand-mark">S</span><span><b>Samnuan</b><small>ระบบจัดการสำนักงานกฎหมาย</small></span></div>
+      <div class="nav-label">งานประจำวัน</div>
+      <a class="nav-link" href="#next"><span class="nav-icon">◉</span> ภาระงานทีม</a>
+      <a class="nav-link" href="#cases"><span class="nav-icon">▤</span> เรื่องและคดี</a>
+      <a class="nav-link active" href="#customer"><span class="nav-icon">♧</span> ลูกค้า</a>
+      <a class="nav-link" href="#timeline"><span class="nav-icon">◷</span> ประวัติการติดต่อ</a>
+      <div class="nav-label">สำนักงาน</div>
+      <a class="nav-link" href="#report"><span class="nav-icon">▥</span> รายงานประจำปี</a>
+      <div class="nav-footer">ตัวอย่างหน้าจอ Customer 360<strong>มุมมอง Owner</strong></div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="mobile-brand"><span class="brand-mark">S</span> Samnuan</div>
+        <div class="top-left"><strong>ลูกค้า</strong><div class="top-search" aria-hidden="true">⌕ &nbsp; ค้นหาคดี ลูกค้า หรือเอกสาร...</div></div>
+        <div class="top-right"><span>สำนักงานทนายความตัวอย่าง</span><span class="avatar-mini" aria-label="Owner">PP</span></div>
+      </header>
+      <nav class="mobile-nav" aria-label="เมนูมือถือ">
+        <a href="#next">งานวันนี้</a><a href="#cases">คดี</a><a href="#customer" class="active">ลูกค้า</a><a href="#timeline">ประวัติ</a><a href="#report">รายงาน</a>
+      </nav>
+      <main class="content" id="customer">
+        <div class="breadcrumb"><a href="#customer">ลูกค้า</a><span>›</span><span>บริษัท นทีประกันภัย จำกัด</span><span class="demo-label">ข้อมูลตัวอย่าง · Prototype</span></div>
+
+        <section class="customer-head" aria-labelledby="customer-name">
+          <div class="head-main">
+            <div>
+              <div class="eyebrow">Customer 360 / ภาพรวมความสัมพันธ์</div>
+              <h1 id="customer-name">บริษัท นทีประกันภัย จำกัด</h1>
+              <div class="customer-sub"><span>ลูกค้านิติบุคคล</span><span class="dot">•</span><span>ดูแลต่อเนื่องตั้งแต่ 2565</span><span class="dot">•</span><span>ติดต่อครั้งล่าสุด 27 ก.ย. 2569</span></div>
+            </div>
+            <div class="head-actions">
+              <button class="btn primary" id="openContact">＋ บันทึกการติดต่อ</button>
+              <button class="btn" id="openNewCase">＋ เปิด Case ใหม่</button>
+            </div>
+          </div>
+          <div class="relationship" aria-label="สรุปความสัมพันธ์">
+            <div class="relation-cell"><small>ผู้ติดต่อหลัก</small><strong>คุณมณี สุขใจ</strong><span class="small-detail">ผู้จัดการสินไหม · <a href="tel:+66812345678">โทร 081-234-5678</a></span></div>
+            <div class="relation-cell"><small>คดีที่เป็นลูกความ</small><strong id="representedTotal">2 เรื่อง</strong><span class="small-detail">รวมคดีที่มีสองบทบาท</span></div>
+            <div class="relation-cell"><small>คดีที่เป็นผู้ว่าจ้าง</small><strong id="payerTotal">3 เรื่อง</strong><span class="small-detail">รวมคดีที่มีสองบทบาท</span></div>
+            <div class="relation-cell"><small>งานติดตามถัดไป</small><strong>วันนี้ · 28 ก.ย.</strong><span class="small-detail">โทรกลับเรื่องเอกสารกรมธรรม์</span></div>
+          </div>
+        </section>
+
+        <div class="work-grid">
+          <div class="main-stack">
+            <section class="panel attention" id="next" aria-labelledby="next-title">
+              <div class="panel-heading"><div><div class="section-overline">Next action</div><h2 id="next-title">ต้องทำต่อ</h2><p>เริ่มจากเรื่องที่มีเจ้าของและวันกำหนดชัดเจน</p></div><span class="count" id="taskCount">2 งาน</span></div>
+              <div class="task-list" id="taskList">
+                <div class="task-row"><span class="task-state late">เลยกำหนด<br>26 ก.ย.</span><div class="task-main"><strong>ตอบคำถามยอดชำระคดีขนส่งสินค้า</strong><span>TSB-2569-008 · ลูกค้ารอคำตอบ</span></div><div class="task-owner"><b class="task-empty">ยังไม่มีผู้รับ</b><button data-task="assign">มอบหมาย →</button></div></div>
+                <div class="task-row"><span class="task-state">วันนี้<br>28 ก.ย.</span><div class="task-main"><strong>โทรกลับคุณมณีเรื่องเอกสารกรมธรรม์</strong><span>TSB-2569-001 · รอเลขกรมธรรม์</span></div><div class="task-owner"><b>ทนาย กิตติ</b><button data-task="call">เปิดงาน →</button></div></div>
+              </div>
+            </section>
+
+            <section class="panel" id="cases" aria-labelledby="cases-title">
+              <div class="panel-heading"><div><div class="section-overline">Matters</div><h2 id="cases-title">คดีที่เกี่ยวข้อง <span class="count" id="caseCount">4</span></h2><p>ลูกความและผู้ว่าจ้างอยู่ในรายการเดียว โดยไม่ทำให้คดีซ้ำ</p></div></div>
+              <div class="panel-tools">
+                <div class="segmented" role="group" aria-label="กรองคดีตามบทบาท">
+                  <button data-filter="all" aria-pressed="true">ทั้งหมด</button>
+                  <button data-filter="represented" aria-pressed="false">ลูกความ</button>
+                  <button data-filter="payer" aria-pressed="false">ผู้ว่าจ้าง</button>
+                  <button data-filter="closed" aria-pressed="false">ปิดแล้ว</button>
+                </div>
+                <input class="input case-search" id="caseSearch" type="search" placeholder="ค้นชื่อคดี / เลขอ้างอิง" aria-label="ค้นคดี">
+              </div>
+              <div class="case-list" id="caseList">
+                <button class="case-row" data-role="represented payer" data-state="open" data-ref="TSB-2569-001" data-title="เรียกค่าสินไหมเหตุเพลิงไหม้" data-stage="ก่อนฟ้อง" data-customer-ref="NTI-CL-1098" data-policy-ref="FIRE-88421" data-contact="27 ก.ย. 2569">
+                  <span><span class="case-title">เรียกค่าสินไหมเหตุเพลิงไหม้</span><span class="case-sub">TSB-2569-001 · Customer Ref: NTI-CL-1098 · ติดต่อ 27 ก.ย.</span></span>
+                  <span class="role-tags"><span class="tag">ลูกความ</span><span class="tag payer">ผู้ว่าจ้าง</span></span>
+                  <span class="case-stage"><strong>ก่อนฟ้อง</strong>กำลังดำเนินการ</span><span class="case-arrow">›</span>
+                </button>
+                <button class="case-row" data-role="payer" data-state="open" data-ref="TSB-2569-008" data-title="คดีขนส่งสินค้าเสียหาย" data-stage="สืบพยาน" data-customer-ref="NTI-CG-284" data-policy-ref="CARGO-2025-41" data-contact="24 ก.ย. 2569">
+                  <span><span class="case-title">คดีขนส่งสินค้าเสียหาย</span><span class="case-sub">TSB-2569-008 · Customer Ref: NTI-CG-284 · ติดต่อ 24 ก.ย.</span></span>
+                  <span class="role-tags"><span class="tag payer">ผู้ว่าจ้าง</span></span>
+                  <span class="case-stage"><strong>สืบพยาน</strong>รอลูกค้าตอบ</span><span class="case-arrow">›</span>
+                </button>
+                <button class="case-row" data-role="represented" data-state="closed" data-ref="TSB-2568-014" data-title="ข้อพิพาทสัญญาประกันภัยรถยนต์" data-stage="ปิดคดี" data-customer-ref="NTI-MT-671" data-policy-ref="MOTOR-19773" data-contact="15 ก.ย. 2569">
+                  <span><span class="case-title">ข้อพิพาทสัญญาประกันภัยรถยนต์</span><span class="case-sub">TSB-2568-014 · Customer Ref: NTI-MT-671 · ปิดคดี 18 ธ.ค. 2568</span></span>
+                  <span class="role-tags"><span class="tag">ลูกความ</span><span class="tag muted">ปิดแล้ว</span></span>
+                  <span class="case-stage"><strong>ปิดคดี</strong>ส่งมอบแล้ว</span><span class="case-arrow">›</span>
+                </button>
+                <button class="case-row" data-role="payer" data-state="open" data-ref="TSB-2569-021" data-title="ติดตามเอกสารก่อนฟ้องคดีทรัพย์สิน" data-stage="ก่อนฟ้อง" data-customer-ref="NTI-PR-112" data-policy-ref="PROPERTY-61" data-contact="12 ก.ย. 2569">
+                  <span><span class="case-title">ติดตามเอกสารก่อนฟ้องคดีทรัพย์สิน</span><span class="case-sub">TSB-2569-021 · Customer Ref: NTI-PR-112 · ติดต่อ 12 ก.ย.</span></span>
+                  <span class="role-tags"><span class="tag payer">ผู้ว่าจ้าง</span></span>
+                  <span class="case-stage"><strong>ก่อนฟ้อง</strong>รอเอกสาร</span><span class="case-arrow">›</span>
+                </button>
+              </div>
+              <div class="empty" id="caseEmpty" hidden>ไม่พบคดีตามตัวกรองนี้ ลองเปลี่ยนบทบาทหรือคำค้น</div>
+            </section>
+
+            <section class="panel" id="timeline" aria-labelledby="timeline-title">
+              <div class="panel-heading"><div><div class="section-overline">Relationship history</div><h2 id="timeline-title">ประวัติความสัมพันธ์</h2><p>กิจกรรมจาก Case ที่คุณมีสิทธิ์ดู</p></div><button class="text-link" id="contactFromTimeline">＋ บันทึกการติดต่อ</button></div>
+              <div class="panel-tools"><div class="segmented" role="group" aria-label="กรองประวัติ"><button data-timeline="all" aria-pressed="true">ทั้งหมด</button><button data-timeline="contact" aria-pressed="false">การติดต่อ</button><button data-timeline="task" aria-pressed="false">งาน / ส่งมอบ</button></div></div>
+              <ol class="timeline" id="timelineList">
+                <li class="event" data-type="contact"><div class="event-date">27 ก.ย. 2569 · โทรศัพท์</div><div class="event-title">คุยกับคุณมณีเรื่องกรมธรรม์</div><div class="event-detail">ลูกค้าจะส่งสำเนากรมธรรม์ฉบับล่าสุดก่อนวันศุกร์</div><div class="event-case">TSB-2569-001 · ทนาย กิตติ</div></li>
+                <li class="event" data-type="task"><div class="event-date">24 ก.ย. 2569 · งานติดตาม</div><div class="event-title">รอคำตอบยอดชำระ</div><div class="event-detail">ทีมการเงินขอรายละเอียดใบแจ้งหนี้เพิ่มเติม</div><div class="event-case">TSB-2569-008 · ยังไม่มีผู้รับ</div></li>
+                <li class="event" data-type="contact"><div class="event-date">15 ก.ย. 2569 · อีเมล</div><div class="event-title">ส่งรายละเอียดการปิดคดีให้คุณอร</div><div class="event-detail">ผู้ติดต่อยืนยันรับเอกสารแล้ว</div><div class="event-case">TSB-2568-014 · ทนาย พิมพ์</div></li>
+                <li class="event" data-type="task"><div class="event-date">18 ธ.ค. 2568 · ส่งมอบ</div><div class="event-title">ปิดข้อพิพาทสัญญาประกันภัยรถยนต์</div><div class="event-detail">ตกลงชำระครบและส่งหนังสือสรุปผล</div><div class="event-case">TSB-2568-014 · ทนาย พิมพ์</div></li>
+              </ol>
+              <div class="empty" id="timelineEmpty" hidden>ยังไม่มีกิจกรรมประเภทนี้</div>
+            </section>
+          </div>
+
+          <div class="side-stack">
+            <section class="panel" aria-labelledby="contacts-title">
+              <div class="panel-heading"><div><div class="section-overline">People</div><h2 id="contacts-title">ผู้ติดต่อ</h2><p>แยกบัญชีและสิทธิ์พอร์ทัลรายคน</p></div></div>
+              <div class="contact-card"><span class="initials">มณ</span><div><strong>คุณมณี สุขใจ <span class="tag">หลัก</span></strong><span>ผู้จัดการสินไหม</span><div class="contact-actions"><a href="tel:+66812345678">โทร</a><a href="mailto:manee@example.com">อีเมล</a></div></div></div>
+              <div class="contact-card"><span class="initials">อร</span><div><strong>คุณอร ศรีสุข</strong><span>ฝ่ายกฎหมาย</span><div class="contact-actions"><a href="tel:+66819876543">โทร</a><a href="mailto:orn@example.com">อีเมล</a></div></div></div>
+              <p class="prototype-note">สิทธิ์เปิดคดีและรายงานในพอร์ทัลกำหนดแยกจากรายชื่อนี้</p>
+            </section>
+            <section class="panel" id="report" aria-labelledby="report-title">
+              <div class="panel-heading"><div><div class="section-overline">Approved report</div><h2 id="report-title">รายงานประจำปี</h2></div></div>
+              <div class="report-card"><div class="report-year">2568</div><p>ฉบับที่เผยแพร่ให้ผู้ติดต่อ 2 คน<br>15 ม.ค. 2569</p><div class="report-facts"><span><strong>12</strong> คดีทั้งหมด</span><span><strong>7</strong> ปิดแล้วสิ้นปี</span><span><strong>5</strong> ดำเนินอยู่</span></div></div>
+              <button class="btn quiet" id="openReport" style="margin-top:12px;padding-left:0">ดูฉบับที่เผยแพร่ →</button>
+            </section>
+          </div>
+        </div>
+        <p class="prototype-note">ต้นแบบหน้าจอสำหรับทบทวน UX เท่านั้น ข้อมูลและการบันทึกในหน้านี้เป็นตัวอย่างในเบราว์เซอร์ ยังไม่เชื่อมฐานข้อมูลหรือส่งข้อความออกไป</p>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="contactDialog" aria-labelledby="contactDialogTitle">
+    <form id="contactForm">
+      <div class="modal-head"><div><h2 id="contactDialogTitle">บันทึกการติดต่อ</h2><p>กิจกรรมนี้จะอยู่ใน Case เดิมและหน้า Customer 360</p></div><button class="close" type="button" data-close="contactDialog" aria-label="ปิด">×</button></div>
+      <div class="modal-body">
+        <label class="field">Case ที่เกี่ยวข้อง<select class="input" id="contactCase" required><option value="">เลือก Case</option><option>TSB-2569-001 · เรียกค่าสินไหมเหตุเพลิงไหม้</option><option>TSB-2569-008 · คดีขนส่งสินค้าเสียหาย</option><option>TSB-2568-014 · ข้อพิพาทสัญญาประกันภัยรถยนต์</option><option>TSB-2569-021 · ติดตามเอกสารก่อนฟ้อง</option></select></label>
+        <div class="two"><label class="field">ผู้ติดต่อจากลูกค้า<select class="input" id="contactPerson" required><option data-phone="081-234-5678">คุณมณี สุขใจ</option><option data-phone="081-987-6543">คุณอร ศรีสุข</option></select></label><label class="field">ช่องทาง<select class="input" id="contactChannel"><option>ลูกค้าโทรเข้า</option><option>สำนักงานโทรออก</option><option>อีเมล</option><option>ประชุม</option><option>LINE</option></select></label></div>
+        <label class="field">ลูกค้าต้องการติดต่อใคร<select class="input" id="contactLawyer" required><option value="">เลือกทนาย</option><option>ทนาย กิตติ</option><option>ทนาย พิมพ์</option></select></label>
+        <fieldset class="choice-group"><legend>ลูกค้าได้ติดต่อทนายคนนั้นหรือไม่</legend><div class="choice-row"><label class="choice-option"><input type="radio" name="contactReached" value="yes" required><span><strong>ได้คุยแล้ว</strong><small>บันทึกผลการสนทนา</small></span></label><label class="choice-option"><input type="radio" name="contactReached" value="no" required><span><strong>ยังไม่ได้คุย</strong><small>เช่น ทนายไปศาลหรือไม่ว่าง</small></span></label></div></fieldset>
+        <label class="field"><span id="contactNoteLabel">ผลการคุย / ข้อความที่ฝากไว้</span><textarea class="input" id="contactNote" required placeholder="เช่น ลูกค้าต้องการสอบถามเรื่องเอกสาร"></textarea></label>
+        <div class="auto-task-preview" id="callbackPreview" role="status" aria-live="polite" hidden><strong>สร้างงานโทรกลับอัตโนมัติ</strong><span id="callbackSummary"></span></div>
+        <label class="checkline" id="manualFollowup" hidden><input type="checkbox" id="needsFollowup"> มีงานอื่นที่ต้องติดตามต่อ</label>
+        <div id="followupFields" hidden><div class="two"><label class="field">สิ่งที่ต้องทำ<input class="input" id="followupTitle" placeholder="เช่น โทรยืนยันเอกสาร"></label><label class="field">กำหนดวัน<input class="input" id="followupDate" type="date"></label></div><label class="field" style="margin-top:10px">ผู้รับผิดชอบ<select class="input" id="followupOwner"><option>ทนาย กิตติ</option><option>ทนาย พิมพ์</option><option>ยังไม่มีผู้รับ</option></select></label></div>
+      </div>
+      <div class="modal-foot"><button class="btn" type="button" data-close="contactDialog">ยกเลิก</button><button class="btn primary" type="submit" id="saveContact">บันทึกการติดต่อ</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="caseDialog" aria-labelledby="caseDialogTitle">
+    <div class="modal-head"><div><div class="eyebrow">Case / รายละเอียด</div><h2 id="caseDialogTitle">คดี</h2><p id="caseDialogRef"></p></div><button class="close" type="button" data-close="caseDialog" aria-label="ปิด">×</button></div>
+    <div class="modal-body"><div class="detail-grid"><div><div class="detail-label">บทบาทลูกค้า</div><p class="detail-value" id="caseDialogRole"></p></div><div><div class="detail-label">ขั้นตอน</div><p class="detail-value" id="caseDialogStage"></p></div><div><div class="detail-label">Customer Ref</div><p class="detail-value" id="caseDialogCustomer"></p></div><div><div class="detail-label">Policy Ref</div><p class="detail-value" id="caseDialogPolicy"></p></div><div><div class="detail-label">ติดต่อครั้งล่าสุด</div><p class="detail-value" id="caseDialogContact"></p></div></div></div>
+    <div class="modal-foot"><button class="btn" type="button" data-close="caseDialog">ปิด</button><button class="btn primary" type="button" id="contactFromCase">บันทึกการติดต่อใน Case นี้</button></div>
+  </dialog>
+
+  <dialog id="newCaseDialog" aria-labelledby="newCaseTitle">
+    <form id="newCaseForm"><div class="modal-head"><div><h2 id="newCaseTitle">เปิด Case ใหม่</h2><p>เริ่มที่ขั้นก่อนฟ้องเสมอ เลือกบทบาทของลูกค้ารายนี้</p></div><button class="close" type="button" data-close="newCaseDialog" aria-label="ปิด">×</button></div>
+      <div class="modal-body"><label class="field">ชื่อเรื่อง<input class="input" id="newCaseName" required placeholder="เช่น ขอคำปรึกษาข้อพิพาทกรมธรรม์"></label><label class="field">ลูกค้ารายนี้เป็น<select class="input" id="newCaseRole"><option value="payer">ผู้ว่าจ้าง</option><option value="represented">ลูกความ</option><option value="represented payer">ทั้งลูกความและผู้ว่าจ้าง</option></select></label><p class="prototype-note">ต้นแบบนี้เพิ่มรายการบนหน้าจอเท่านั้น ไม่บันทึกในระบบจริง</p></div>
+      <div class="modal-foot"><button class="btn" type="button" data-close="newCaseDialog">ยกเลิก</button><button class="btn primary" type="submit">สร้าง Case ขั้นก่อนฟ้อง</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="reportDialog" aria-labelledby="reportDialogTitle">
+    <div class="modal-head"><div><div class="eyebrow">Approved annual report</div><h2 id="reportDialogTitle">รายงานคดีปี 2568</h2><p>ตัวอย่างฉบับที่เผยแพร่แล้ว</p></div><button class="close" type="button" data-close="reportDialog" aria-label="ปิด">×</button></div>
+    <div class="modal-body"><div class="detail-grid"><div><div class="detail-label">คดีทั้งหมด</div><p class="detail-value">12 คดี</p></div><div><div class="detail-label">ปิดแล้วสิ้นปี</div><p class="detail-value">7 คดี</p></div><div><div class="detail-label">ดำเนินอยู่</div><p class="detail-value">5 คดี</p></div><div><div class="detail-label">ผู้รับที่อนุมัติ</div><p class="detail-value">2 คน</p></div></div><p class="prototype-note">รายละเอียดคดีและยอดจริงจะแสดงจากฉบับรายงานที่อนุมัติในระบบ</p></div>
+    <div class="modal-foot"><button class="btn" type="button" data-close="reportDialog">ปิด</button></div>
+  </dialog>
+  <div class="toast" role="status" aria-live="polite" id="toast"></div>
+
+  <script>
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+    const dialogs = {
+      contact: $('#contactDialog'), case: $('#caseDialog'),
+      newCase: $('#newCaseDialog'), report: $('#reportDialog')
+    };
+    let caseFilter = 'all';
+    let timelineFilter = 'all';
+    let selectedCase = null;
+    let toastTimer;
+
+    function showToast(message) {
+      const toast = $('#toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    function openContact(caseRef) {
+      $('#contactForm').reset();
+      updateContactOutcome();
+      if (caseRef) {
+        const option = $$('#contactCase option').find((item) => item.textContent.startsWith(caseRef));
+        $('#contactCase').value = option ? option.value : '';
+      }
+      dialogs.contact.showModal();
+    }
+    function updateContactOutcome() {
+      const outcome = $('input[name="contactReached"]:checked')?.value;
+      const missed = outcome === 'no';
+      $('#callbackPreview').hidden = !missed;
+      $('#manualFollowup').hidden = outcome !== 'yes';
+      $('#contactNoteLabel').textContent = missed ? 'ข้อความที่ลูกค้าฝาก / เหตุที่ยังไม่ได้คุย' : 'ผลการคุย / ข้อความที่ฝากไว้';
+      $('#contactNote').placeholder = missed ? 'เช่น ทนายไปศาล ลูกค้าขอให้โทรกลับเรื่องเอกสาร' : 'เช่น ลูกค้าจะส่งเอกสารภายในวันศุกร์';
+      $('#saveContact').textContent = missed ? 'บันทึกและสร้างงานโทรกลับ' : 'บันทึกการติดต่อ';
+      if (outcome !== 'yes') {
+        $('#needsFollowup').checked = false;
+        $('#followupFields').hidden = true;
+        $('#followupTitle').required = false;
+        $('#followupDate').required = false;
+      }
+      const lawyer = $('#contactLawyer').value || 'ทนายที่เลือก';
+      const person = $('#contactPerson').value;
+      const phone = $('#contactPerson').selectedOptions[0]?.dataset.phone || 'ไม่มีเบอร์';
+      const ref = $('#contactCase').value.split(' · ')[0] || 'Case ที่เลือก';
+      const action = $('#contactChannel').value === 'ลูกค้าโทรเข้า' ? 'โทรกลับ' : 'ติดต่อกลับ';
+      $('#callbackSummary').textContent = `มอบหมายให้ ${lawyer} ${action} ${person} (${phone}) วันนี้ · ${ref}`;
+    }
+    function addTask(title, context, ownerName, dueText, kind) {
+      const task = document.createElement('div');
+      task.className = 'task-row';
+      task.dataset.kind = kind;
+      const due = document.createElement('span');
+      due.className = 'task-state';
+      due.textContent = dueText;
+      const main = document.createElement('div');
+      main.className = 'task-main';
+      const name = document.createElement('strong');
+      name.textContent = title;
+      const detail = document.createElement('span');
+      detail.textContent = context;
+      main.append(name, detail);
+      const owner = document.createElement('div');
+      owner.className = 'task-owner';
+      const ownerLabel = document.createElement('b');
+      ownerLabel.textContent = ownerName;
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.dataset.task = 'call';
+      open.textContent = 'เปิดงาน →';
+      owner.append(ownerLabel, open);
+      task.append(due, main, owner);
+      $('#taskList').prepend(task);
+      $('#taskCount').textContent = $$('#taskList .task-row').length + ' งาน';
+    }
+    function updateCaseCounts() {
+      const rows = $$('.case-row');
+      $('#representedTotal').textContent = rows.filter((row) => row.dataset.role.includes('represented')).length + ' เรื่อง';
+      $('#payerTotal').textContent = rows.filter((row) => row.dataset.role.includes('payer')).length + ' เรื่อง';
+    }
+    function filterCases() {
+      const term = $('#caseSearch').value.trim().toLocaleLowerCase();
+      let shown = 0;
+      $$('.case-row').forEach((row) => {
+        const roleMatches = caseFilter === 'all' || (caseFilter === 'closed' ? row.dataset.state === 'closed' : row.dataset.role.includes(caseFilter));
+        const textMatches = (row.dataset.title + ' ' + row.dataset.ref + ' ' + row.dataset.customerRef).toLocaleLowerCase().includes(term);
+        row.hidden = !(roleMatches && textMatches);
+        if (!row.hidden) shown++;
+      });
+      $('#caseCount').textContent = shown;
+      $('#caseEmpty').hidden = shown > 0;
+    }
+    function filterTimeline() {
+      let shown = 0;
+      $$('#timelineList .event').forEach((event) => {
+        event.hidden = timelineFilter !== 'all' && event.dataset.type !== timelineFilter;
+        if (!event.hidden) shown++;
+      });
+      $('#timelineEmpty').hidden = shown > 0;
+    }
+    function openCase(row) {
+      selectedCase = row;
+      $('#caseDialogTitle').textContent = row.dataset.title;
+      $('#caseDialogRef').textContent = row.dataset.ref;
+      $('#caseDialogRole').textContent = row.dataset.role.includes('represented') && row.dataset.role.includes('payer')
+        ? 'ลูกความและผู้ว่าจ้าง' : row.dataset.role.includes('represented') ? 'ลูกความ' : 'ผู้ว่าจ้าง';
+      $('#caseDialogStage').textContent = row.dataset.stage;
+      $('#caseDialogCustomer').textContent = row.dataset.customerRef || 'ไม่ระบุ';
+      $('#caseDialogPolicy').textContent = row.dataset.policyRef || 'ไม่ระบุ';
+      $('#caseDialogContact').textContent = row.dataset.contact || 'ยังไม่มี';
+      dialogs.case.showModal();
+    }
+    $$('[data-filter]').forEach((button) => button.addEventListener('click', () => {
+      caseFilter = button.dataset.filter;
+      $$('[data-filter]').forEach((item) => item.setAttribute('aria-pressed', item === button ? 'true' : 'false'));
+      filterCases();
+    }));
+    $$('[data-timeline]').forEach((button) => button.addEventListener('click', () => {
+      timelineFilter = button.dataset.timeline;
+      $$('[data-timeline]').forEach((item) => item.setAttribute('aria-pressed', item === button ? 'true' : 'false'));
+      filterTimeline();
+    }));
+    $('#caseSearch').addEventListener('input', filterCases);
+    $('#caseList').addEventListener('click', (event) => {
+      const row = event.target.closest('.case-row');
+      if (row) openCase(row);
+    });
+    $('#openContact').addEventListener('click', () => openContact());
+    $('#contactFromTimeline').addEventListener('click', () => openContact());
+    $('#contactFromCase').addEventListener('click', () => {
+      const ref = selectedCase && selectedCase.dataset.ref;
+      dialogs.case.close();
+      openContact(ref);
+    });
+    $('#openNewCase').addEventListener('click', () => dialogs.newCase.showModal());
+    $('#openReport').addEventListener('click', () => dialogs.report.showModal());
+    $$('[data-close]').forEach((button) => button.addEventListener('click', () => $('#' + button.dataset.close).close()));
+    Object.values(dialogs).forEach((dialog) => dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    }));
+    $$('input[name="contactReached"]').forEach((input) => input.addEventListener('change', updateContactOutcome));
+    ['#contactLawyer', '#contactPerson', '#contactCase', '#contactChannel'].forEach((selector) => $(selector).addEventListener('change', updateContactOutcome));
+    $('#needsFollowup').addEventListener('change', (event) => {
+      $('#followupFields').hidden = !event.target.checked;
+      $('#followupTitle').required = event.target.checked;
+      $('#followupDate').required = event.target.checked;
+    });
+    $('#contactForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const caseText = $('#contactCase').selectedOptions[0].textContent;
+      const ref = caseText.split(' · ')[0];
+      const person = $('#contactPerson').value;
+      const channel = $('#contactChannel').value;
+      const lawyer = $('#contactLawyer').value;
+      const missed = $('input[name="contactReached"]:checked').value === 'no';
+      const phone = $('#contactPerson').selectedOptions[0].dataset.phone;
+      const note = $('#contactNote').value.trim();
+      const item = document.createElement('li');
+      item.className = 'event';
+      item.dataset.type = 'contact';
+      const date = document.createElement('div');
+      date.className = 'event-date';
+      date.textContent = 'วันนี้ · ' + channel;
+      const title = document.createElement('div');
+      title.className = 'event-title';
+      title.textContent = missed ? person + ' ติดต่อหา' + lawyer + ' · ยังไม่ได้คุย' : person + ' ได้คุยกับ' + lawyer;
+      const detail = document.createElement('div');
+      detail.className = 'event-detail';
+      detail.textContent = note + (missed ? ' · สร้างงานโทรกลับให้' + lawyer : '');
+      const caseLabel = document.createElement('div');
+      caseLabel.className = 'event-case';
+      caseLabel.textContent = ref + ' · บันทึกจาก Customer 360';
+      item.append(date, title, detail, caseLabel);
+      $('#timelineList').prepend(item);
+      if (missed) {
+        const taskTitle = (channel === 'ลูกค้าโทรเข้า' ? 'โทรกลับ' : 'ติดต่อกลับ') + person;
+        addTask(taskTitle, ref + ' · ' + phone + ' · ' + note, lawyer, 'วันนี้', 'callback');
+        const taskEvent = document.createElement('li');
+        taskEvent.className = 'event';
+        taskEvent.dataset.type = 'task';
+        const taskDate = document.createElement('div');
+        taskDate.className = 'event-date';
+        taskDate.textContent = 'วันนี้ · งานโทรกลับ';
+        const taskName = document.createElement('div');
+        taskName.className = 'event-title';
+        taskName.textContent = taskTitle;
+        const taskDetail = document.createElement('div');
+        taskDetail.className = 'event-detail';
+        taskDetail.textContent = phone + ' · ' + note;
+        const taskCase = document.createElement('div');
+        taskCase.className = 'event-case';
+        taskCase.textContent = ref + ' · ' + lawyer;
+        taskEvent.append(taskDate, taskName, taskDetail, taskCase);
+        $('#timelineList').prepend(taskEvent);
+      } else if ($('#needsFollowup').checked) {
+        addTask($('#followupTitle').value, ref + ' · จากการติดต่อ', $('#followupOwner').value, $('#followupDate').value, 'manual');
+      }
+      filterTimeline();
+      dialogs.contact.close();
+      event.target.reset();
+      $('#followupFields').hidden = true;
+      showToast(missed ? 'บันทึกและสร้างงานโทรกลับให้' + lawyer + 'แล้ว' : 'บันทึกการติดต่อในต้นแบบแล้ว');
+    });
+    $('#newCaseForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const title = $('#newCaseName').value.trim();
+      const role = $('#newCaseRole').value;
+      const ref = 'ตัวอย่าง-' + String($$('.case-row').length + 1).padStart(3, '0');
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'case-row';
+      row.dataset.role = role;
+      row.dataset.state = 'open';
+      row.dataset.ref = ref;
+      row.dataset.title = title;
+      row.dataset.stage = 'ก่อนฟ้อง';
+      row.dataset.customerRef = '';
+      row.dataset.policyRef = '';
+      row.dataset.contact = 'ยังไม่มี';
+      const summary = document.createElement('span');
+      const name = document.createElement('span');
+      name.className = 'case-title';
+      name.textContent = title;
+      const meta = document.createElement('span');
+      meta.className = 'case-sub';
+      meta.textContent = ref + ' · Case ขั้นก่อนฟ้อง';
+      summary.append(name, meta);
+      const roles = document.createElement('span');
+      roles.className = 'role-tags';
+      role.split(' ').forEach((value) => {
+        const badge = document.createElement('span');
+        badge.className = 'tag' + (value === 'payer' ? ' payer' : '');
+        badge.textContent = value === 'payer' ? 'ผู้ว่าจ้าง' : 'ลูกความ';
+        roles.append(badge);
+      });
+      const stage = document.createElement('span');
+      stage.className = 'case-stage';
+      const stageName = document.createElement('strong');
+      stageName.textContent = 'ก่อนฟ้อง';
+      stage.append(stageName, 'เริ่มติดต่อ');
+      const arrow = document.createElement('span');
+      arrow.className = 'case-arrow';
+      arrow.textContent = '›';
+      row.append(summary, roles, stage, arrow);
+      $('#caseList').prepend(row);
+      updateCaseCounts();
+      filterCases();
+      dialogs.newCase.close();
+      event.target.reset();
+      showToast('เพิ่ม Case ตัวอย่างบนหน้าจอแล้ว');
+    });
+    $('#taskList').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-task]');
+      if (button) showToast(button.dataset.task === 'assign' ? 'ต้นแบบ: เปิดหน้ามอบหมายงาน' : 'ต้นแบบ: เปิดงานติดตาม');
+    });
+  </script>
+</body>
+</html>

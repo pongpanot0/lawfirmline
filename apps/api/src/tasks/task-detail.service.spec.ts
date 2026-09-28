@@ -13,8 +13,16 @@ describe('TaskDetailService', () => {
     task: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     taskComment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn() },
     taskAttachment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn() },
+    taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
   };
-  const mockTasks = { assertAccess: jest.fn(), findOne: jest.fn(), create: jest.fn(), acknowledge: jest.fn() };
+  const mockTasks = {
+    assertAccess: jest.fn(),
+    findOne: jest.fn(),
+    getParentObserverIds: jest.fn().mockResolvedValue([]),
+    notifyViaAssignmentNotifier: jest.fn().mockResolvedValue(undefined),
+    create: jest.fn(),
+    acknowledge: jest.fn(),
+  };
   const mockStorage = { put: jest.fn(), delete: jest.fn() };
   const lawyer = { id: 'u1', firmId: 'f1', firmRole: FirmRole.LAWYER } as any;
   const owner = { id: 'u0', firmId: 'f1', firmRole: FirmRole.OWNER } as any;

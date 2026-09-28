@@ -638,6 +638,8 @@ model User {
   taskLogsFrom               TaskAssignmentLog[]       @relation("TaskLogFrom")
   taskLogsTo                 TaskAssignmentLog[]       @relation("TaskLogTo")
   taskLogsPerformed          TaskAssignmentLog[]       @relation("TaskLogPerformer")
+  observedTasks              TaskObserver[]            @relation("TaskObserver")
+  addedObservations          TaskObserver[]            @relation("TaskObserverAddedBy")
   grantedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessGranted")
   revokedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessRevoked")
   publishedDocuments         DocumentPublication[]     @relation("DocumentPublicationPublished")
@@ -656,6 +658,7 @@ model User {
   confirmedCargoClaims       CargoClaim[]              @relation("CargoClaimConfirmer")
   recordedInvoicePayments    InvoicePayment[]          @relation("InvoicePaymentRecorder")
   createdPleadingDrafts      PleadingDraft[]           @relation("PleadingDraftCreator")
+  caseComments               CaseComment[]
 }
 
 /// A mobile device's Expo push token. One row per device; a token moves to
@@ -722,6 +725,7 @@ model Client {
   additionalIntakeRoles   IntakeClient[]
   billedInvoices          Invoice[]                @relation("InvoiceBillTo")
   closingDraftRecipients  ClosingEmailDraft[]      @relation("ClosingDraftRecipient")
+  annualReports           ClientAnnualReport[]
 
   @@index([firmId])
 }
@@ -760,6 +764,26 @@ model ClientContact {
   uploadedDocuments       Document[]
 
   @@index([clientId])
+}
+
+/// Approved annual snapshot, shared only with named portal contacts.
+model ClientAnnualReport {
+  id                  String    @id @default(uuid())
+  firmId              String
+  clientId            String
+  year                Int
+  audience            String
+  snapshot            Json
+  fingerprint         String
+  recipientContactIds String[]  @default([])
+  publishedById       String
+  publishedAt         DateTime  @default(now())
+  revokedAt           DateTime?
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([firmId, clientId, year])
+  @@index([recipientContactIds], type: Gin)
 }
 
 model ClientPortalLoginToken {
@@ -860,12 +884,29 @@ model Case {
   cargoClaim             CargoClaim?
   pleadingDrafts         PleadingDraft[]
   portalIntakeSubmission PortalIntakeSubmission?
+  comments               CaseComment[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
   @@index([firmId])
   @@index([clientId])
   @@index([firmId, stage])
+}
+
+model CaseComment {
+  id                String   @id @default(uuid())
+  caseId            String
+  authorId          String
+  body              String   @db.Text
+  mentionedUserIds  String[] @default([])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  case   Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@index([authorId])
 }
 
 model Intake {
@@ -1112,6 +1153,8 @@ model CaseActivity {
   description String?
   activityAt  DateTime     @default(now())
   type        ActivityType @default(OTHER)
+  /// Structured staff contact log; null for ordinary case activities.
+  contactData Json?
   createdById String
   createdAt   DateTime     @default(now())
 
@@ -1138,6 +1181,12 @@ enum TaskPriority {
   LOW
   MEDIUM
   HIGH
+}
+
+enum TaskSize {
+  S
+  M
+  L
 }
 
 enum TaskWorkType {
@@ -1171,6 +1220,8 @@ model Task {
   /// Explicit tenant for new tasks; older case/intake tasks retain their existing scope.
   firmId         String?
   workType       TaskWorkType?
+  /// ขนาดงานโดยประมาณ ใช้คิดแต้มภาระงาน (S=1 M=2 L=4)
+  size           TaskSize     @default(M)
   scheduledFor   DateTime? @db.Date
   queuePosition  Int @default(0)
   requiresReview Boolean @default(false)
@@ -1195,6 +1246,7 @@ model Task {
   subtasks       Task[]              @relation("TaskSubtasks")
   attachments    TaskAttachment[]
   comments       TaskComment[]
+  observers      TaskObserver[]
 
   @@index([dueDate])
   @@index([assigneeId, status, dueDate])
@@ -1234,6 +1286,21 @@ model TaskComment {
   author User @relation("TaskCommentAuthor", fields: [authorId], references: [id])
 
   @@index([taskId, createdAt])
+}
+
+model TaskObserver {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  addedById String
+  createdAt DateTime @default(now())
+
+  task    Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User @relation("TaskObserver", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy User @relation("TaskObserverAddedBy", fields: [addedById], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, userId])
+  @@index([userId])
 }
 
 model TaskAssignmentLog {

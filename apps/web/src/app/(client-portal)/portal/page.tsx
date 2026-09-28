@@ -12,6 +12,7 @@ import {
   Plus,
   Inbox,
   FileCheck2,
+  FileBarChart2,
 } from 'lucide-react';
 import { usePortalAuth } from '@/lib/portal-auth';
 import { portalApi, PortalCaseSummary, PortalDashboardSummary } from '@/lib/portal-api';
@@ -71,6 +72,10 @@ export default function PortalDashboardPage() {
           <Link href="/portal/operations" className={buttonVariants({ variant: 'outline' })}>
             <Briefcase className="h-4 w-4" />
             งานดำเนินการ
+          </Link>
+          <Link href="/portal/reports" className={buttonVariants({ variant: 'outline' })}>
+            <FileBarChart2 className="h-4 w-4" />
+            รายงานประจำปี
           </Link>
           <Link href="/portal/intake" className={buttonVariants({ variant: 'outline' })}>
             <Inbox className="h-4 w-4" />

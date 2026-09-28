@@ -20,6 +20,7 @@ import { PageLoading } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { priorityLabel } from '@/lib/task-detail';
 import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
+import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
 import { bangkokDateInputValue } from '@/lib/bangkok';
@@ -33,6 +34,7 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState('');
   const [newAssigneeId, setNewAssigneeId] = useState('');
+  const [newObserverIds, setNewObserverIds] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [newDueDate, setNewDueDate] = useState('');
   const [newPriority, setNewPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
@@ -113,9 +115,11 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
         assigneeId: newAssigneeId || undefined,
         dueDate: newDueDate || undefined,
         priority: newPriority,
+        observerIds: newObserverIds.length > 0 ? newObserverIds : undefined,
       });
       setNewTitle('');
       setNewAssigneeId('');
+      setNewObserverIds([]);
       setNewDueDate('');
       setNewPriority(TaskPriority.MEDIUM);
       setShowForm(false);
@@ -265,6 +269,17 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                         <option key={p} value={p}>{priorityLabel(d, p)}</option>
                       ))}
                     </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">{d.taskDetail.observers || 'ผู้ติดตาม'}</label>
+                  <div className="mt-1">
+                    <MultiUserSelect
+                      users={users}
+                      value={newObserverIds}
+                      onChange={setNewObserverIds}
+                      placeholder={d.taskDetail.observersPlaceholder || 'เลือกผู้ติดตาม'}
+                    />
                   </div>
                 </div>
               </fieldset>

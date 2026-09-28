@@ -8,6 +8,7 @@ import {
   CARGO_DOCUMENT_REQUIREMENTS,
   CargoPlaybookTemplate,
   CaseStage,
+  CASE_STAGE_LABELS_TH,
   DeadlineDayBasis,
   DEFAULT_PLAYBOOKS,
 } from '@lawfirm/shared';
@@ -147,23 +148,27 @@ export class PracticeSetupService {
   }
   /**
    * Seeds the built-in playbook for each default case type the firm has not
-   * covered yet. A case type that already has any playbook linked is left
-   * alone, and a default once seeded is never re-seeded (its templateKey stays
-   * on v1 even after the firm republishes it under its own edits).
+   * covered yet. It links to the firm's case type by current or legacy name;
+   * a firm with neither still gets the playbook, unlinked, to link by hand. A
+   * case type that already has any playbook linked is left alone, and a default
+   * once seeded is never re-seeded (its templateKey stays on v1 even after the
+   * firm republishes it under its own edits).
    */
   async ensureDefaultPlaybooks(user: AuthUser) {
     const [releases, caseTypes] = await Promise.all([
       this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, select: { templateKey: true, caseTypeId: true } }),
-      this.prisma.caseType.findMany({ where: { firmId: user.firmId, name: { in: DEFAULT_PLAYBOOKS.map((p) => p.caseTypeName) } }, select: { id: true, name: true } }),
+      this.prisma.caseType.findMany({ where: { firmId: user.firmId, name: { in: DEFAULT_PLAYBOOKS.flatMap((p) => p.caseTypeNames) } }, select: { id: true, name: true } }),
     ]);
     const data = DEFAULT_PLAYBOOKS.flatMap((p) => {
-      const caseType = caseTypes.find((c) => c.name === p.caseTypeName);
-      if (!caseType || releases.some((r) => r.templateKey === p.key || r.caseTypeId === caseType.id)) return [];
-      return [{ firmId: user.firmId, name: p.name, workType: p.name, caseTypeId: caseType.id, templateKey: p.key, steps: json(p.steps), version: 1, publishedById: user.id }];
+      if (releases.some((r) => r.templateKey === p.key)) return [];
+      const caseType = p.caseTypeNames.map((name) => caseTypes.find((c) => c.name === name)).find(Boolean);
+      if (caseType && releases.some((r) => r.caseTypeId === caseType.id)) return [];
+      return [{ firmId: user.firmId, name: p.name, workType: p.name, caseTypeId: caseType?.id ?? null, templateKey: p.key, steps: json(p.steps), version: 1, publishedById: user.id }];
     });
     if (data.length) await this.prisma.playbookRelease.createMany({ data, skipDuplicates: true });
   }
-  async listPlaybooks(user: AuthUser) { await this.ensureDefaultPlaybooks(user); return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
+  /** Also seeds the Cargo Claim playbook, which otherwise only appears once cargo claim is first turned on for a case. */
+  async listPlaybooks(user: AuthUser) { await this.ensureDefaultPlaybooks(user); await this.ensureCargoPlaybook(user); return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
   async publish(user: AuthUser, dto: { name: string; caseTypeId?: string; templateKey?: string; cargoTemplate?: CargoPlaybookTemplate; steps: PlaybookStep[] }) {
     this.owner(user);
     if (!dto.name.trim() || !dto.steps.length || dto.steps.some((s) => !s.title.trim())) throw new BadRequestException('ชื่อ Playbook และชื่อขั้นตอนห้ามว่าง / Name and step titles are required');
@@ -233,17 +238,77 @@ export class PracticeSetupService {
       await db.$queryRaw`SELECT "id" FROM "Case" WHERE "id" = ${caseId} FOR UPDATE`;
       const preview = await this.previewPlaybook(user, caseId, releaseId, db);
       if (preview.existing) return preview.existing;
-      const [team, firmMembers] = await Promise.all([
+      const [team, firmMembers, theCase] = await Promise.all([
         db.caseAssignment.findMany({ where: { caseId }, select: { userId: true } }),
         db.firmMember.findMany({ where: { firmId: user.firmId }, select: { userId: true, role: true } }),
+        db.case.findFirst({ where: { id: caseId } }),
       ]);
       const teamIds = new Set([preview.ownerId, ...team.map(t => t.userId)]);
       const taskIds: string[] = [];
+
+      // Group steps by stage
+      const stageGroups = new Map<CaseStage | undefined, PlaybookStep[]>();
       for (const step of preview.steps) {
-        const assigneeId = resolveAssignee({ primaryRole: step.primaryRole, secondaryRole: step.secondaryRole, firmMembers, teamIds, ownerId: preview.ownerId });
-        const task = await db.task.create({ data: { caseId, title: step.title.trim(), description: step.instructions, assigneeId, createdById: user.id, labels: [`playbook:${releaseId}`] } });
-        taskIds.push(task.id);
+        if (!stageGroups.has(step.stage)) stageGroups.set(step.stage, []);
+        stageGroups.get(step.stage)!.push(step);
       }
+
+      // Process each stage group
+      for (const [stage, steps] of stageGroups) {
+        if (stage) {
+          // Find or create parent for this stage
+          let parent = await db.task.findFirst({
+            where: { caseId, parentId: null, labels: { has: `stage:${stage}` }, status: { not: 'DONE' } },
+          });
+
+          if (!parent) {
+            parent = await db.task.create({
+              data: {
+                caseId,
+                title: CASE_STAGE_LABELS_TH[stage],
+                assigneeId: preview.ownerId,
+                createdById: user.id,
+                labels: [`stage:${stage}`, `playbook:${releaseId}`],
+              },
+            });
+            taskIds.push(parent.id);
+          }
+
+          // Create subtasks
+          for (const step of steps) {
+            const assigneeId = resolveAssignee({ primaryRole: step.primaryRole, secondaryRole: step.secondaryRole, firmMembers, teamIds, ownerId: preview.ownerId });
+            const subtask = await db.task.create({
+              data: {
+                caseId,
+                title: step.title.trim(),
+                description: step.instructions,
+                assigneeId,
+                createdById: user.id,
+                parentId: parent.id,
+                labels: [`stage:${stage}`, `playbook:${releaseId}`],
+              },
+            });
+            taskIds.push(subtask.id);
+          }
+        } else {
+          // No stage: create flat tasks
+          for (const step of steps) {
+            const assigneeId = resolveAssignee({ primaryRole: step.primaryRole, secondaryRole: step.secondaryRole, firmMembers, teamIds, ownerId: preview.ownerId });
+            const task = await db.task.create({
+              data: {
+                caseId,
+                title: step.title.trim(),
+                description: step.instructions,
+                assigneeId,
+                createdById: user.id,
+                labels: [`playbook:${releaseId}`],
+              },
+            });
+            taskIds.push(task.id);
+          }
+        }
+      }
+
       const applied = await db.appliedPlaybook.create({ data: { caseId, releaseId, startDate: new Date(), taskIds, appliedById: user.id } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PLAYBOOK_APPLIED', metadata: { caseId, releaseId, taskIds } } }); return applied;
     }).then(async (applied) => {
@@ -312,7 +377,7 @@ export class PracticeSetupService {
   }
 
   /** Creates the confirmed subset of a stage's proposed tasks and notifies their assignees. */
-  async createStageTasks(user: AuthUser, caseId: string, stage: CaseStage, tasks: StageTaskInput[]): Promise<{ created: number; taskIds: string[] }> {
+  async createStageTasks(user: AuthUser, caseId: string, stage: CaseStage, tasks: StageTaskInput[]): Promise<{ created: number; taskIds: string[]; parentId: string }> {
     const c = await this.prisma.case.findFirst({ where: { id: caseId, ...this.access.getCaseFilterForUser(user) } });
     if (!c) throw new NotFoundException('Case not found');
 
@@ -323,6 +388,29 @@ export class PracticeSetupService {
       if (assigneeIds.some((id) => !memberIds.has(id))) throw new BadRequestException('ผู้รับผิดชอบต้องเป็นสมาชิกสำนักงาน / Assignee must be a firm member of this case');
     }
 
+    // Find or create open parent task for this stage
+    let parent = await this.prisma.task.findFirst({
+      where: {
+        caseId,
+        parentId: null,
+        labels: { has: `stage:${stage}` },
+        status: { not: 'DONE' },
+      },
+    });
+
+    if (!parent) {
+      parent = await this.prisma.task.create({
+        data: {
+          caseId,
+          title: CASE_STAGE_LABELS_TH[stage],
+          assigneeId: c.leadLawyerId,
+          createdById: user.id,
+          labels: [`stage:${stage}`],
+        },
+      });
+    }
+
+    // Create subtasks
     const created = await Promise.all(
       tasks.map((t) =>
         this.prisma.task.create({
@@ -333,6 +421,7 @@ export class PracticeSetupService {
             dueDate: t.dueDate ? new Date(t.dueDate) : null,
             assigneeId: t.assigneeId ?? null,
             createdById: user.id,
+            parentId: parent.id,
             labels: [`stage:${stage}`],
           },
         }),
@@ -341,13 +430,19 @@ export class PracticeSetupService {
     await this.prisma.case.update({ where: { id: caseId }, data: { stageTasksHandledFor: stage } });
 
     const taskIds = created.map((t) => t.id);
-    const userIds = [...new Set(created.map((t) => t.assigneeId).filter((id): id is string => !!id))];
 
-    if (userIds.length) {
+    // Notify: all subtask assignees + lead lawyer (if new parent), excluding actor
+    const notifySet = new Set<string>();
+    created.forEach((t) => {
+      if (t.assigneeId && t.assigneeId !== user.id) notifySet.add(t.assigneeId);
+    });
+    if (parent.createdById === user.id && parent.assigneeId && parent.assigneeId !== user.id) notifySet.add(parent.assigneeId);
+
+    if (notifySet.size) {
       try {
         await this.assignmentNotifier.notifyAssigned({
           firmId: user.firmId,
-          userIds,
+          userIds: [...notifySet],
           actorUserId: user.id,
           summaryText: `งานใหม่จากขั้น ${stage}: ${taskIds.length} งาน`,
           entityPath: `/cases/${caseId}?tab=tasks`,
@@ -359,7 +454,7 @@ export class PracticeSetupService {
 
     await this.caseFeed.log({ caseId, userId: user.id, type: ActivityType.TASK, title: `สร้าง ${taskIds.length} งานจากขั้นคดี` });
 
-    return { created: taskIds.length, taskIds };
+    return { created: taskIds.length, taskIds, parentId: parent.id };
   }
 
   /** ผู้ใช้เลือกไม่สร้างงานแนะนำของขั้นนี้ — ซ่อนแถบงานแนะนำจนกว่าคดีจะเปลี่ยนขั้น */

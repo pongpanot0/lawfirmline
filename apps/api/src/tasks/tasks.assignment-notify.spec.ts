@@ -10,6 +10,7 @@ describe('TasksService assignment notifications', () => {
   let service: TasksService;
   const mockPrisma = {
     task: { create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
     firmMember: { count: jest.fn(), findFirst: jest.fn() },
