@@ -677,7 +677,9 @@ export interface TaskItem {
   recurrenceDays?: number | null;
   blockedById?: string | null;
   createdById?: string;
+  createdBy?: TaskPerson | null;
   assignee?: TaskPerson | null;
+  observers?: TaskPerson[];
   subtaskCount?: number;
   subtaskDoneCount?: number;
   attachmentCount?: number;
@@ -715,6 +717,7 @@ export interface TaskSubtaskItem {
   dueDate?: string | null;
   priority: import('@lawfirm/shared').TaskPriority;
   assignee?: TaskPerson | null;
+  _count?: { attachments: number; comments: number };
 }
 
 export interface TaskDetail extends TaskItem {

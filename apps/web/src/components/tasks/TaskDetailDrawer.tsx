@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
+import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
 
@@ -44,6 +45,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [comment, setComment] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [observerIds, setObserverIds] = useState<string[]>([]);
   const [siblingTasks, setSiblingTasks] = useState<Array<{ id: string; title: string; status: string }>>([]);
 
   // ตัวเลือก "รอ task อื่นเสร็จก่อน" — เฉพาะงานในคดีเดียวกัน
@@ -83,6 +85,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
       setTask(detail);
       setTitle(detail.title);
       setDescription(detail.description ?? '');
+      setObserverIds(detail.observers?.map((o) => o.id) ?? []);
     } catch (err) {
       if (requestedId.current !== taskId) return;
       setTask(null);
@@ -99,6 +102,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     setComment('');
     setUploadError('');
     setDownloadingId(null);
+    setObserverIds([]);
     void load();
   }, [load]);
 
@@ -271,6 +275,47 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
 
         {task && (
           <div className="space-y-6 p-4">
+            <section>
+              <h3 className="text-sm font-semibold mb-3">{d.taskDetail.relatedPeople || 'ผู้เกี่ยวข้อง'}</h3>
+              <div className="space-y-3">
+                {task.createdBy && (
+                  <div className="text-sm">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{d.taskDetail.creator || 'ผู้สร้าง'}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                        {task.createdBy.firstName.charAt(0)}{task.createdBy.lastName.charAt(0)}
+                      </div>
+                      <span>{task.createdBy.firstName} {task.createdBy.lastName}</span>
+                    </div>
+                  </div>
+                )}
+                {task.assignee && (
+                  <div className="text-sm">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{d.taskDetail.assignee}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                        {task.assignee.firstName.charAt(0)}{task.assignee.lastName.charAt(0)}
+                      </div>
+                      <span>{task.assignee.firstName} {task.assignee.lastName}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="text-sm">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{d.taskDetail.observers || 'ผู้ติดตาม'}</p>
+                  <MultiUserSelect
+                    users={users.filter((u) => u.id === user?.id || (!!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)))}
+                    value={observerIds}
+                    onChange={(ids) => {
+                      setObserverIds(ids);
+                      void patch({ observerIds: ids });
+                    }}
+                    placeholder={d.taskDetail.observersPlaceholder || 'เลือกผู้ติดตาม'}
+                    disabled={busy}
+                  />
+                </div>
+              </div>
+            </section>
+
             <section className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label htmlFor="td-status" className={label}>{d.taskDetail.status}</label>
@@ -409,8 +454,21 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                       <button type="button" onClick={() => onNavigate(s.id)} className={`flex-1 text-left hover:text-primary hover:underline ${s.status === TaskStatus.DONE ? 'text-muted-foreground line-through' : ''}`}>
                         {s.title}
                       </button>
-                      {s.assignee && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{s.assignee.firstName}</span>}
+                      {s.assignee && (
+                        <button type="button" onClick={() => onNavigate(s.id)} className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/80">
+                          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary/20 text-[9px] font-medium">
+                            {s.assignee.firstName.charAt(0)}
+                          </span>
+                          {s.assignee.firstName}
+                        </button>
+                      )}
                       {s.dueDate && <span className="text-xs text-muted-foreground">{formatDate(s.dueDate)}</span>}
+                      {s._count && (s._count.attachments > 0 || s._count.comments > 0) && (
+                        <div className="flex gap-1 text-xs text-muted-foreground">
+                          {s._count.attachments > 0 && <span>📎{s._count.attachments}</span>}
+                          {s._count.comments > 0 && <span>💬{s._count.comments}</span>}
+                        </div>
+                      )}
                     </li>
                   ))}
                   {task.subtasks.length === 0 && <li className="px-3 py-2 text-xs text-muted-foreground">{d.taskDetail.noSubtasks}</li>}
