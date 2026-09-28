@@ -110,6 +110,6 @@ export function TeamRadar() {
       </table>
     </div>}
 
-    <PersonWorkloadDrawer userId={personId} onClose={closePerson} />
+    <PersonWorkloadDrawer userId={personId} onClose={closePerson} onChanged={() => void load()} />
   </section>;
 }

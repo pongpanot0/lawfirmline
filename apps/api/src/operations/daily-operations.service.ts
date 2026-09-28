@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AssignmentType, AuthUser, FirmRole, PersonWorkload, TaskStatus, TaskWorkType, TeamRadar, taskPoints } from '@lawfirm/shared';
+import { AssignmentType, AuthUser, FirmRole, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
@@ -190,6 +190,14 @@ export class DailyOperationsService {
     const task = await this.prisma.task.findFirst({ where: { AND: [{ id: taskId }, dailyTaskScope(user.firmId)] } });
     if (!task) throw new NotFoundException('ไม่พบงานในสำนักงาน');
     return task;
+  }
+
+  /** Size is the owner's load estimate only — no status, assignee, or case-lead rules apply. */
+  async size(user: AuthUser, taskId: string, size: TaskSize) {
+    this.owner(user);
+    const task = await this.inFirm(user, taskId);
+    if (task.status === TaskStatus.DONE) throw new BadRequestException('งานที่เสร็จแล้วไม่ต้องประเมินขนาด');
+    return this.prisma.task.update({ where: { id: taskId }, data: { size }, select: { id: true, size: true } });
   }
 
   async move(user: AuthUser, taskId: string, direction: 'UP' | 'DOWN') {

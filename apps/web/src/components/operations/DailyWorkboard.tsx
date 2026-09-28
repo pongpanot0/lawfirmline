@@ -134,7 +134,7 @@ export function DailyWorkboard() {
     <SideDrawer open={assignment !== null} title={assignment === 'NEW' ? 'เพิ่มงานใหม่' : 'มอบหมายงาน'} onClose={closeAssignment}>
       {board && token && assignment && <WorkAssignmentForm key={assignment === 'NEW' ? 'new' : assignment.id} board={board} token={token} task={assignment === 'NEW' ? undefined : assignment} onSaving={setAssignmentBusy} onSaved={() => { setAssignment(null); void load(); }} onClose={closeAssignment} />}
     </SideDrawer>
-    <PersonWorkloadDrawer userId={personId} onClose={closePerson} />
+    <PersonWorkloadDrawer userId={personId} onClose={closePerson} onChanged={() => void load()} />
     <SideDrawer open={member !== null} title={`ประเภทงานของ ${member?.firstName ?? ''}`} onClose={closeMember}>
       {member && <form className="space-y-4 p-5" onSubmit={async (e) => { e.preventDefault(); if (!token || busy) return; setBusy(true); setMemberError(''); try { await api.setMemberWorkTypes(token, member.userId, types); setMember(null); await load(); } catch (err) { setMemberError(err instanceof Error ? err.message : 'บันทึกไม่ได้'); } finally { setBusy(false); } }}>
         <p className="text-sm text-muted-foreground">ใช้ประกอบคำแนะนำเวลาจัดงาน Owner ยังเป็นผู้ตัดสินใจ</p>

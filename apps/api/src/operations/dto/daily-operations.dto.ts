@@ -18,6 +18,10 @@ export class AssignDailyTaskDto {
   @IsOptional() @IsEnum(TaskSize) size?: TaskSize;
 }
 
+export class TaskSizeDto {
+  @IsEnum(TaskSize) size!: TaskSize;
+}
+
 export class MoveDailyTaskDto {
   @IsEnum({ UP: 'UP', DOWN: 'DOWN' }) direction!: 'UP' | 'DOWN';
 }

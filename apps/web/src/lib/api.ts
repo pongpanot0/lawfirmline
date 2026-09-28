@@ -1625,6 +1625,8 @@ export const api = {
     request<import('@lawfirm/shared').PersonWorkload>(`/operations/people/${userId}`, { token }),
   assignDailyTask: (token: string, id: string, data: { assigneeId: string; placeFirst: boolean; size?: import('@lawfirm/shared').TaskSize }) =>
     request<TaskItem>(`/operations/tasks/${id}/assign`, { token, method: 'PATCH', body: JSON.stringify(data) }),
+  setTaskSize: (token: string, id: string, size: import('@lawfirm/shared').TaskSize) =>
+    request<{ id: string; size: import('@lawfirm/shared').TaskSize }>(`/operations/tasks/${id}/size`, { token, method: 'PATCH', body: JSON.stringify({ size }) }),
   moveDailyTask: (token: string, id: string, direction: 'UP' | 'DOWN') =>
     request(`/operations/tasks/${id}/order`, { token, method: 'PATCH', body: JSON.stringify({ direction }) }),
   setMemberWorkTypes: (token: string, id: string, workTypes: import('@lawfirm/shared').TaskWorkType[]) =>

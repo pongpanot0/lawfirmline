@@ -68,4 +68,14 @@ describe('Owner daily operations', () => {
     await expect(service.radar({ ...owner, firmRole: FirmRole.LAWYER }, '2026-09-28')).rejects.toThrow(ForbiddenException);
     await expect(service.person({ ...owner, firmRole: FirmRole.LAWYER }, 'w')).rejects.toThrow(ForbiddenException);
   });
+  it('sizes an open firm task and refuses done or foreign ones', async () => {
+    prisma.task.findFirst.mockResolvedValueOnce(rows[0]);
+    await service.size(owner, 'a', 'L' as any);
+    expect(prisma.task.update).toHaveBeenCalledWith({ where: { id: 'a' }, data: { size: 'L' }, select: { id: true, size: true } });
+    prisma.task.findFirst.mockResolvedValueOnce({ ...rows[0], status: 'DONE' });
+    await expect(service.size(owner, 'a', 'S' as any)).rejects.toThrow('งานที่เสร็จแล้ว');
+    prisma.task.findFirst.mockResolvedValueOnce(null);
+    await expect(service.size(owner, 'foreign', 'S' as any)).rejects.toThrow(NotFoundException);
+    await expect(service.size({ ...owner, firmRole: FirmRole.LAWYER }, 'a', 'S' as any)).rejects.toThrow(ForbiddenException);
+  });
 });
