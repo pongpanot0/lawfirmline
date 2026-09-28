@@ -1113,7 +1113,12 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-comments"
           className="min-w-0"
         >
-          <CaseCommentsPanel caseId={id} />
+          <CaseCommentsPanel
+            caseId={id}
+            teamMembers={[legalCase.leadLawyer, ...legalCase.assignments.map((a) => a.user)].filter(
+              (m, i, all) => all.findIndex((x) => x.id === m.id) === i,
+            )}
+          />
         </div>
       )}
 

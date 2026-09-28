@@ -62,7 +62,7 @@ export function CaseCommentsPanel({
     const lastAt = beforeCursor.lastIndexOf('@');
     if (lastAt === -1) return null;
     const afterLastAt = beforeCursor.substring(lastAt + 1);
-    if (!/^\w*$/.test(afterLastAt)) return null; // Only alphanumerics after @
+    if (!/^[^\s@]*$/.test(afterLastAt)) return null; // any name chars (incl. Thai) until whitespace
     return { startIdx: lastAt + 1, query: afterLastAt.toLowerCase() };
   };
 
@@ -134,7 +134,7 @@ export function CaseCommentsPanel({
     const members = new Map(teamMembers.map((m) => [`${m.firstName} ${m.lastName}`, m.id]));
 
     for (const [name, id] of members) {
-      const regex = new RegExp(`@${name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}(?!\\w)`, 'g');
+      const regex = new RegExp(`@${name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}(?![^\\s@])`, 'g');
       let match;
       while ((match = regex.exec(text)) !== null) {
         matches.push({ startIdx: match.index, endIdx: match.index + match[0].length, userId: id });
@@ -220,7 +220,7 @@ export function CaseCommentsPanel({
     let lastIdx = 0;
 
     for (const [name, id] of members) {
-      const regex = new RegExp(`@${name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}(?!\\w)`, 'g');
+      const regex = new RegExp(`@${name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}(?![^\\s@])`, 'g');
       let match;
       while ((match = regex.exec(text)) !== null) {
         parts.push(text.substring(lastIdx, match.index));
