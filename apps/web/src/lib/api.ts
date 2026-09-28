@@ -730,7 +730,7 @@ export interface TaskSubtaskItem {
   dueDate?: string | null;
   priority: import('@lawfirm/shared').TaskPriority;
   assignee?: TaskPerson | null;
-  _count?: { attachments?: number; comments?: number };
+  _count?: { attachments: number; comments: number };
 }
 
 export interface TaskDetail extends TaskItem {

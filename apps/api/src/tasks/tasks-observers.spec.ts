@@ -178,4 +178,21 @@ describe('TasksService - Observers', () => {
       expect(result).toBeDefined();
     });
   });
+
+  describe('update observers', () => {
+    it('syncs the observer list, never passes observerIds to Prisma, and notifies only new observers', async () => {
+      const task = { id: 'task-1', title: 'ร่างคำฟ้อง', caseId: null, intakeId: null, assigneeId: null, status: TaskStatus.TODO };
+      jest.spyOn(service, 'findOne').mockResolvedValue(task as any);
+      mockPrisma.firmMember.findFirst.mockResolvedValue({ role: 'LAWYER' });
+      mockPrisma.taskObserver.findMany.mockResolvedValue([{ userId: 'lawyer-1' }, { userId: 'gone-1' }]);
+      mockPrisma.task.update.mockResolvedValue(task);
+
+      await service.update('task-1', { observerIds: ['lawyer-1', 'lawyer-2'] } as any, owner);
+
+      expect(mockPrisma.taskObserver.deleteMany).toHaveBeenCalledWith({ where: { taskId: 'task-1', userId: { notIn: ['lawyer-1', 'lawyer-2'] } } });
+      expect(mockPrisma.taskObserver.createMany.mock.calls[0][0].data).toEqual([{ taskId: 'task-1', userId: 'lawyer-2', addedById: 'owner-1' }]);
+      expect(mockPrisma.task.update.mock.calls[0][0].data).not.toHaveProperty('observerIds');
+      expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['lawyer-2'] }));
+    });
+  });
 });

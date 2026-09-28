@@ -532,10 +532,13 @@ export class TasksService {
       }
     }
 
+    const { observerIds, ...fields } = dto;
+    const addedObserverIds = observerIds ? await this.syncObservers(id, observerIds, user) : [];
+
     const updated = await this.prisma.task.update({
       where: { id },
       data: {
-        ...dto,
+        ...fields,
         completedAt:
           dto.status === TaskStatus.DONE
             ? task.status === TaskStatus.DONE ? undefined : new Date()
@@ -556,11 +559,38 @@ export class TasksService {
       });
     }
 
+    const newObservers = addedObserverIds.filter((uid) => uid !== user.id);
+    if (newObservers.length) {
+      await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
+        userIds: newObservers,
+        actorUserId: user.id,
+        summaryText: `👀 คุณถูกเพิ่มเป็นผู้ติดตามงาน "${task.title}"`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+      });
+    }
+
     if (dto.status === TaskStatus.DONE && task.status !== TaskStatus.DONE) {
       await this.onTaskCompleted(updated, user.id);
     }
 
     return updated;
+  }
+
+  /** Makes the task's observers exactly `observerIds`; returns the ones newly added. */
+  private async syncObservers(taskId: string, observerIds: string[], user: AuthUser): Promise<string[]> {
+    const wanted = [...new Set(observerIds)];
+    await this.validateObservers(wanted, true, user.firmId);
+    const current = (await this.prisma.taskObserver.findMany({ where: { taskId }, select: { userId: true } })).map((o) => o.userId);
+    const added = wanted.filter((uid) => !current.includes(uid));
+    await this.prisma.taskObserver.deleteMany({ where: { taskId, userId: { notIn: wanted } } });
+    if (added.length) {
+      await this.prisma.taskObserver.createMany({
+        data: added.map((userId) => ({ taskId, userId, addedById: user.id })),
+        skipDuplicates: true,
+      });
+    }
+    return added;
   }
 
   /**
