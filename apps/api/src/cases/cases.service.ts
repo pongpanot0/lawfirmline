@@ -271,28 +271,54 @@ export class CasesService {
   /**
    * Shared core of every case creation: allocates the Own Ref (or checks a requested one),
    * a folder id, and opens the case at PRE_LITIGATION.
+   * If a suggested ref is provided and it's taken, re-generates instead of failing.
    */
   private async insertCase(
     db: Prisma.TransactionClient,
     firmId: string,
-    requestedOwnRef: string | undefined,
+    suggestedOwnRef: string | undefined,
     data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId' | 'stage'>,
+    isAutoSuggestion: boolean = true,
   ) {
-    const manualRef = requestedOwnRef?.trim();
-    let ownRef = manualRef || (await this.generateOwnRef(firmId, db));
+    const suggested = suggestedOwnRef?.trim();
+    let ownRef: string;
 
-    for (let attempt = 0; attempt < 5; attempt++) {
+    // If a ref is explicitly provided (not auto-suggested), it must be unique or fail
+    if (suggested && !isAutoSuggestion) {
       const existing = await db.case.findUnique({
-        where: { firmId_ownRef: { firmId, ownRef } },
+        where: { firmId_ownRef: { firmId, ownRef: suggested } },
       });
-      if (!existing) break;
-      if (manualRef) {
-        throw new ConflictException('Own ref already exists');
+      if (existing) {
+        throw new ConflictException('หมายเลขคดีนี้ใช้แล้ว');
       }
-      if (attempt === 4) {
-        throw new ConflictException('Could not allocate a unique Own Ref — please retry');
+      ownRef = suggested;
+    } else {
+      // Use suggestion if available and unique; otherwise generate new
+      if (suggested) {
+        const existing = await db.case.findUnique({
+          where: { firmId_ownRef: { firmId, ownRef: suggested } },
+        });
+        if (!existing) {
+          ownRef = suggested;
+        } else {
+          // Suggestion taken; regenerate
+          ownRef = await this.generateOwnRef(firmId, db);
+        }
+      } else {
+        ownRef = await this.generateOwnRef(firmId, db);
       }
-      ownRef = await this.generateOwnRef(firmId, db);
+
+      // Ensure uniqueness even after auto-generation
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const existing = await db.case.findUnique({
+          where: { firmId_ownRef: { firmId, ownRef } },
+        });
+        if (!existing) break;
+        if (attempt === 4) {
+          throw new ConflictException('Could not allocate a unique case number — please retry');
+        }
+        ownRef = await this.generateOwnRef(firmId, db);
+      }
     }
 
     return db.case.create({
@@ -389,7 +415,7 @@ export class CasesService {
       additionalClients: dto.clients?.length
         ? { create: this.additionalClientRows(dto.clients) }
         : undefined,
-    });
+    }, !dto.ownRef);
 
     await this.caseFeed.log({
       caseId: created.id,
