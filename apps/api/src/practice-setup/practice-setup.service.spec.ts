@@ -224,6 +224,18 @@ describe('default playbooks', () => {
     expect(prisma.playbookRelease.createMany).toHaveBeenCalledTimes(1);
   });
 
+  it('listPlaybooks seeds the Cargo Claim playbook too', async () => {
+    const prisma = { playbookRelease: { findMany: jest.fn().mockResolvedValue([]) } };
+    const service = new PracticeSetupService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+    const defaults = jest.spyOn(service, 'ensureDefaultPlaybooks').mockResolvedValue();
+    const cargo = jest.spyOn(service, 'ensureCargoPlaybook').mockResolvedValue({} as never);
+
+    await service.listPlaybooks(user);
+
+    expect(defaults).toHaveBeenCalledWith(user);
+    expect(cargo).toHaveBeenCalledWith(user);
+  });
+
   it('every default step targets a real stage and a sane offset', () => {
     for (const p of DEFAULT_PLAYBOOKS) {
       expect(p.steps.length).toBeGreaterThan(0);

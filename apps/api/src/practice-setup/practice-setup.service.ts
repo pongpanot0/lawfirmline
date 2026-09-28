@@ -166,7 +166,8 @@ export class PracticeSetupService {
     });
     if (data.length) await this.prisma.playbookRelease.createMany({ data, skipDuplicates: true });
   }
-  async listPlaybooks(user: AuthUser) { await this.ensureDefaultPlaybooks(user); return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
+  /** Also seeds the Cargo Claim playbook, which otherwise only appears once cargo claim is first turned on for a case. */
+  async listPlaybooks(user: AuthUser) { await this.ensureDefaultPlaybooks(user); await this.ensureCargoPlaybook(user); return this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, orderBy: [{ name: 'asc' }, { version: 'desc' }], take: 200 }); }
   async publish(user: AuthUser, dto: { name: string; caseTypeId?: string; templateKey?: string; cargoTemplate?: CargoPlaybookTemplate; steps: PlaybookStep[] }) {
     this.owner(user);
     if (!dto.name.trim() || !dto.steps.length || dto.steps.some((s) => !s.title.trim())) throw new BadRequestException('ชื่อ Playbook และชื่อขั้นตอนห้ามว่าง / Name and step titles are required');
