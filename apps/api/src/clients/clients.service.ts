@@ -20,6 +20,13 @@ export class ClientsService {
     _count: { select: { cases: true } },
   };
 
+  private includeForUser(user: AuthUser) {
+    return {
+      ...this.include,
+      _count: { select: { cases: { where: this.caseAccess.getCaseFilterForUser(user) } } },
+    };
+  }
+
   async findAll(user: AuthUser, search?: string) {
     return this.prisma.client.findMany({
       where: {
@@ -28,7 +35,7 @@ export class ClientsService {
           ? { name: { contains: search, mode: 'insensitive' as const } }
           : {}),
       },
-      include: this.include,
+      include: this.includeForUser(user),
       orderBy: { name: 'asc' },
     });
   }
@@ -37,7 +44,7 @@ export class ClientsService {
     const client = await this.prisma.client.findFirst({
       where: { id, ...this.caseAccess.getClientFilterForUser(user) },
       include: {
-        ...this.include,
+        ...this.includeForUser(user),
         cases: {
           where: this.caseAccess.getCaseFilterForUser(user),
           select: {
@@ -130,7 +137,7 @@ export class ClientsService {
           billingEmail: dto.billingEmail,
           billingPhone: dto.billingPhone,
         },
-        include: this.include,
+        include: this.includeForUser(user),
       });
     });
   }

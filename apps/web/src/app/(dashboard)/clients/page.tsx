@@ -17,16 +17,18 @@ import { EmptyState, InlineEmptyState, PageLoading } from '@/components/ui/misc'
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { ClientAnnualReportsPanel } from '@/components/reports/ClientAnnualReportsPanel';
+import { Client360Panel } from '@/components/clients/Client360Panel';
 
 export default function ClientsPage() {
   const d = useDashboardT();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ClientItem | null>(null);
-  const [tab, setTab] = useState('information');
+  const [tab, setTab] = useState('overview');
   const [editingInfo, setEditingInfo] = useState(false);
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoForm, setInfoForm] = useState({ taxId: '', branch: '', address: '', billingEmail: '', billingPhone: '' });
@@ -235,17 +237,25 @@ export default function ClientsPage() {
           <div>
             <h1 className="text-2xl font-bold">{selected.name}</h1>
             <p className="text-sm text-muted-foreground">
-              {selected.type === 'COMPANY' ? d.clients.company : d.clients.individual} · {fmt(d.clients.casesCount, { count: selected._count?.cases ?? selected.cases?.length ?? 0 })}
+              {selected.type === 'COMPANY' ? d.clients.company : d.clients.individual} · คดีทุกบทบาทอยู่ในภาพรวม 360
             </p>
           </div>
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="information">{d.clients.information}</TabsTrigger>
-            <TabsTrigger value="contacts">{d.clients.contactsTab}</TabsTrigger>
-            <TabsTrigger value="cases">{d.clients.casesTab}</TabsTrigger>
-          </TabsList>
+          <div className="max-w-full overflow-x-auto pb-1">
+            <TabsList>
+              <TabsTrigger value="overview">ภาพรวม 360</TabsTrigger>
+              <TabsTrigger value="information">{d.clients.information}</TabsTrigger>
+              <TabsTrigger value="contacts">{d.clients.contactsTab}</TabsTrigger>
+              <TabsTrigger value="cases">สิทธิ์คดีพอร์ทัล</TabsTrigger>
+              {user?.firmRole === 'OWNER' && <TabsTrigger value="annual-reports">รายงานประจำปี</TabsTrigger>}
+            </TabsList>
+          </div>
+
+          <TabsContent value="overview">
+            {token && <Client360Panel key={selected.id} clientId={selected.id} token={token} onOpenReports={user?.firmRole === 'OWNER' ? () => setTab('annual-reports') : undefined} />}
+          </TabsContent>
 
           <TabsContent value="information">
             <Card>
@@ -525,6 +535,7 @@ export default function ClientsPage() {
 
           <TabsContent value="cases">
             <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">จัดการสิทธิ์พอร์ทัลของคดีที่ลูกค้ารายนี้เป็นลูกความหลัก คดีทุกบทบาทดูได้ในภาพรวม 360</p>
               {(selected.cases ?? []).map((c) => {
                 const eligibleContacts = selected.contacts.filter((ct) => ct.id && ct.portalEnabled);
                 const entries = caseAccess[c.id] ?? [];
@@ -617,11 +628,19 @@ export default function ClientsPage() {
               {(selected.cases ?? []).length === 0 && (
                 <InlineEmptyState
                   title={d.clients.noCasesLinked}
-                  description="เมื่อเปิดคดีให้ลูกค้ารายนี้ รายการจะแสดงที่นี่"
+                  description="ถ้าเป็นผู้ว่าจ้างหรือลูกความเพิ่มเติม ให้ดูรายการในภาพรวม 360"
                 />
               )}
             </div>
           </TabsContent>
+          {user?.firmRole === 'OWNER' && token && (
+            <TabsContent value="annual-reports">
+              <ClientAnnualReportsPanel
+                key={selected.id} client={selected} token={token}
+                onOpenContacts={() => setTab('contacts')}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     );
@@ -681,7 +700,7 @@ export default function ClientsPage() {
                   <div className="mt-4 space-y-1 text-xs text-muted-foreground">
                     {primary?.email && <p className="flex items-center gap-1"><Mail className="h-3 w-3" />{primary.email}</p>}
                     {primary?.phone && <p className="flex items-center gap-1"><Phone className="h-3 w-3" />{primary.phone}</p>}
-                    <p className="flex items-center gap-1"><Briefcase className="h-3 w-3" />{fmt(d.clients.casesCount, { count: client._count?.cases ?? 0 })}</p>
+                    <p className="flex items-center gap-1"><Briefcase className="h-3 w-3" />ดูคดีทุกบทบาทในภาพรวม 360</p>
                   </div>
                 </CardContent>
               </Card>

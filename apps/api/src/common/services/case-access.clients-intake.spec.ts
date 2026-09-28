@@ -28,7 +28,7 @@ describe('CaseAccessService client and intake filters', () => {
     expect(filter).toEqual({ firmId: 'firm-1' });
   });
 
-  it('LAWYER only sees clients with a visible case', () => {
+  it('LAWYER sees clients in any role only through visible cases', () => {
     const filter = service.getClientFilterForUser({
       id: 'u1',
       firmId: 'firm-1',
@@ -37,7 +37,11 @@ describe('CaseAccessService client and intake filters', () => {
     expect(filter).toEqual(
       expect.objectContaining({
         firmId: 'firm-1',
-        cases: { some: expect.objectContaining({ firmId: 'firm-1' }) },
+        OR: [
+          { cases: { some: expect.objectContaining({ firmId: 'firm-1', deletedAt: null }) } },
+          { additionalCaseRoles: { some: { case: expect.objectContaining({ firmId: 'firm-1', deletedAt: null }) } } },
+          { caseCustomerRoles: { some: { case: expect.objectContaining({ firmId: 'firm-1', deletedAt: null }) } } },
+        ],
       }),
     );
   });

@@ -19,6 +19,8 @@ import { ClientPortalInviteService } from './client-portal-invite.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { CasesModule } from '../cases/cases.module';
+import { ClientAnnualReportsService } from './client-annual-reports.service';
+import { StaffAnnualReportsController, PortalAnnualReportsController } from './client-annual-reports.controller';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { CasesModule } from '../cases/cases.module';
     ClientPortalIntegrationsController,
     ClientPortalMessagesController,
     ClientPortalInviteController,
+    StaffAnnualReportsController,
+    PortalAnnualReportsController,
   ],
   providers: [
     PortalWorkroomService,
@@ -46,6 +50,7 @@ import { CasesModule } from '../cases/cases.module';
     ClientPortalDocumentsService,
     ClientPortalJwtStrategy,
     ClientPortalInviteService,
+    ClientAnnualReportsService,
   ],
 })
 export class ClientPortalModule {}

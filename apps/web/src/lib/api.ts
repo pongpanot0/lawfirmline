@@ -1,4 +1,5 @@
 import { withFirmSlugHeaders } from './firm-slug';
+import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { taskUpdatePath } from './task-detail';
 import { actionSuccessMessage, isActionRequest, publishActionFeedback } from './action-feedback';
 
@@ -470,6 +471,45 @@ export interface ClientItem {
   contacts: ClientContactItem[];
   _count?: { cases: number };
   cases?: CaseItem[];
+}
+
+export interface Client360Overview {
+  client: Pick<ClientItem, 'id' | 'name' | 'type' | 'contacts'>;
+  cases: Array<{
+    id: string; ownRef: string; customerRef: string | null; title: string;
+    status: string; stage: string; outcome: string; openedAt: string;
+    closedAt: string | null; closingSummary: string | null;
+    blackCaseNumber: string | null; redCaseNumber: string | null;
+    policyRef: string | null; roles: Array<'REPRESENTED' | 'PAYER'>;
+    leadLawyer: { id: string; firstName: string; lastName: string };
+  }>;
+  tasks: Array<{
+    id: string; caseId: string; title: string; description: string | null;
+    status: string; dueDate: string | null;
+    assignee: { id: string; firstName: string; lastName: string } | null;
+  }>;
+  activities: Array<{
+    id: string; caseId: string; title: string; description: string | null;
+    activityAt: string; type: string; contactData: {
+      contactId: string; contactName: string; contactPhone: string | null;
+      channel: string; recipientUserId: string; recipientName: string;
+      reached: boolean; taskId: string | null;
+    } | null;
+    createdBy: { firstName: string; lastName: string };
+  }>;
+  lawyers: Array<{ id: string; firstName: string; lastName: string; role: string }>;
+  latestReport: { id: string; year: number; audience: string; publishedAt: string } | null;
+}
+
+export interface LogClientContactPayload {
+  caseId: string;
+  contactId: string;
+  recipientUserId: string;
+  channel: 'INBOUND_CALL' | 'OUTBOUND_CALL' | 'EMAIL' | 'LINE' | 'MEETING';
+  reached: boolean;
+  note: string;
+  followupTitle?: string;
+  followupDueDate?: string;
 }
 
 export interface CourtItem {
@@ -2044,6 +2084,42 @@ export const api = {
 
   getClient: (token: string, id: string) =>
     request<ClientItem>(`/clients/${id}`, { token }),
+
+  getClient360: (token: string, id: string) =>
+    request<Client360Overview>(`/clients/${id}/overview`, { token }),
+
+  logClientContact: (token: string, id: string, data: LogClientContactPayload) =>
+    request<{ activityId: string; taskId: string | null }>(`/clients/${id}/contact-logs`, {
+      method: 'POST', token, body: JSON.stringify(data),
+    }),
+
+  previewClientAnnualReport: (
+    token: string,
+    clientId: string,
+    data: { year: number; audience: 'REPRESENTED' | 'PAYER'; caseIds?: string[] },
+  ) => request<{ snapshot: AnnualReportSnapshot; fingerprint: string }>(
+    `/clients/${clientId}/annual-reports/preview`,
+    { method: 'POST', token, body: JSON.stringify(data), silent: true },
+  ),
+
+  publishClientAnnualReport: (
+    token: string,
+    clientId: string,
+    data: {
+      year: number; audience: 'REPRESENTED' | 'PAYER'; caseIds: string[];
+      contactIds: string[]; fingerprint: string;
+    },
+  ) => request<AnnualReportListItem>(`/clients/${clientId}/annual-reports`, {
+    method: 'POST', token, body: JSON.stringify(data),
+  }),
+
+  listClientAnnualReports: (token: string, clientId: string) =>
+    request<AnnualReportListItem[]>(`/clients/${clientId}/annual-reports`, { token }),
+
+  revokeClientAnnualReport: (token: string, clientId: string, reportId: string) =>
+    request<{ revoked: true }>(`/clients/${clientId}/annual-reports/${reportId}/revoke`, {
+      method: 'POST', token,
+    }),
 
   createClient: (token: string, data: Record<string, unknown>) =>
     request<ClientItem>('/clients', { method: 'POST', token, body: JSON.stringify(data) }),
