@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TaskWorkType } from '@lawfirm/shared';
-import { assignmentCandidates, needsOwner, updatedOn } from './daily-workboard.ts';
+import { assignmentCandidates, followUpReason, needsOwner, updatedOn } from './daily-workboard.ts';
 
 test('freshness follows Bangkok day and the current worker, never a previous assignee', () => {
   const task = { workerId: 'worker', status: 'TODO', scheduledFor: '2026-09-27', latestUpdate: { authorId: 'worker', createdAt: '2026-09-26T18:00:00Z' } } as any;
@@ -42,4 +42,14 @@ test('candidates rank by sized load, so one large job outweighs two small ones',
   ] as any;
   const result = assignmentCandidates(members, tasks, TaskWorkType.GENERAL, '2026-09-27');
   assert.deepEqual(result.map((c) => [c.member.userId, c.points]), [['small', 3], ['big', 4]]);
+});
+
+test('work due today or earlier and not yet handed in needs a follow-up; handed-in work does not', () => {
+  const base = { assigneeId: 'w', workerId: 'w', status: 'IN_PROGRESS', acknowledgedAt: '2026-09-20T00:00:00Z', assignedAt: '2026-09-20T00:00:00Z', latestUpdate: null } as any;
+  // 23:00 BKK on the 28th is still the 28th
+  assert.equal(followUpReason({ ...base, dueDate: '2026-09-28T16:00:00Z' }, '2026-09-28'), 'ครบกำหนดวันนี้ ยังไม่ส่ง');
+  assert.equal(followUpReason({ ...base, dueDate: '2026-09-25T03:00:00Z' }, '2026-09-28'), 'เลยกำหนด 3 วัน ยังไม่ส่ง');
+  assert.equal(followUpReason({ ...base, dueDate: '2026-09-29T03:00:00Z' }, '2026-09-28'), null);
+  assert.equal(followUpReason({ ...base, status: 'PENDING_REVIEW', dueDate: '2026-09-25T03:00:00Z' }, '2026-09-28'), 'รอตรวจ');
+  assert.equal(followUpReason({ ...base, blocker: 'รอลูกความส่งเอกสาร', dueDate: '2026-09-25T03:00:00Z' }, '2026-09-28'), 'ติด: รอลูกความส่งเอกสาร');
 });

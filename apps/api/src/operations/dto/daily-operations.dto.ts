@@ -7,6 +7,11 @@ export class DailyWorkQueryDto {
   date!: string;
 }
 
+export class PersonWorkloadQueryDto {
+  @IsOptional() @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  from?: string;
+}
+
 export class CreateDailyTaskDto extends CreateTaskDto {
   @IsOptional() @IsUUID() caseId?: string;
   @IsOptional() @IsBoolean() placeFirst?: boolean;

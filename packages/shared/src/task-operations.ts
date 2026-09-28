@@ -52,7 +52,7 @@ export interface DailyWorkTask {
   workType: TaskWorkType | null; size: TaskSize; dueDate: string | null; scheduledFor: string | null;
   queuePosition: number; requiresReview: boolean; assignedAt: string | null; acknowledgedAt: string | null;
   completedAt: string | null; holdReason: string | null; blockedBy: string | null;
-  blocker: string | null; planConfirmedAt: string | null;
+  blocker: string | null; planConfirmedAt: string | null; followedUpAt: string | null;
   latestUpdate: { body: string; createdAt: string; authorName: string; authorId: string } | null;
 }
 
@@ -80,10 +80,13 @@ export interface TeamRadarMember {
 export interface TeamRadar { start: string; days: string[]; members: TeamRadarMember[] }
 
 export interface PersonWorkload {
-  userId: string; firstName: string; lastName: string; role: string;
+  userId: string; firstName: string; lastName: string; role: string; workTypes: TaskWorkType[];
   tasks: { id: string; title: string; status: string; dueDate: string | null; scheduledFor: string | null; size: TaskSize; overdue: boolean; holdReason: string | null; case: { id: string; ownRef: string; title: string } | null }[];
   reviews: { id: string; title: string; dueDate: string | null }[];
   cases: { id: string; ownRef: string; title: string; status: string; role: 'LEAD' | 'BUDDY' }[];
+  /** Cases this person works on that the viewer cannot open. */
+  hiddenCaseCount: number;
   events: { id: string; title: string; startAt: string; endAt: string | null; courtName: string | null }[];
-  leaves: { id: string; type: string; startDate: string; endDate: string }[];
+  /** type is null when the viewer may not see why (only the owner and the person do). */
+  leaves: { id: string; type: string | null; startDate: string; endDate: string }[];
 }

@@ -14,3 +14,11 @@
 ## Not done (by choice)
 - Item 4 (accept/decline assignment) and item 5 (self-claim pool) — user excluded 5; 4 not requested.
 - Thresholds are office-wide constants (ponytail note in shared).
+
+## Round 3 — split responsibilities
+- Daily tab → "ต้องจัดการวันนี้": only unassigned + follow-ups (blocked, due today/overdue & not submitted, awaiting review, unacknowledged, planned-but-no-update).
+  "ถามความคืบหน้า" → `POST /operations/tasks/:id/follow-up` (FOLLOW_UP comment + LINE DM, once per task per Bangkok day).
+- Per-person queue management moved into the person drawer (reorder, move to someone else, size, work types) — owner only.
+- Radar + person view open to every firm member (`TeamWorkloadController`, no OwnerOnly). Non-owners: titles only for
+  cases they can access (CaseAccessService filter), other work shows as "งานที่คุณไม่มีสิทธิ์ดู", leave type hidden.
+- Radar day cells open the drawer focused on that day (`?from=` sets the appointment window).

@@ -1621,8 +1621,10 @@ export const api = {
     request<TaskItem>('/operations/tasks', { token, method: 'POST', body: JSON.stringify(data) }),
   getTeamRadar: (token: string, date: string) =>
     request<import('@lawfirm/shared').TeamRadar>(`/operations/radar?date=${encodeURIComponent(date)}`, { token }),
-  getPersonWorkload: (token: string, userId: string) =>
-    request<import('@lawfirm/shared').PersonWorkload>(`/operations/people/${userId}`, { token }),
+  getPersonWorkload: (token: string, userId: string, from?: string) =>
+    request<import('@lawfirm/shared').PersonWorkload>(`/operations/people/${userId}${from ? `?from=${from}` : ''}`, { token }),
+  followUpTask: (token: string, id: string) =>
+    request<{ followedUpAt: string; alreadySent: boolean }>(`/operations/tasks/${id}/follow-up`, { token, method: 'POST' }),
   assignDailyTask: (token: string, id: string, data: { assigneeId: string; placeFirst: boolean; size?: import('@lawfirm/shared').TaskSize }) =>
     request<TaskItem>(`/operations/tasks/${id}/assign`, { token, method: 'PATCH', body: JSON.stringify(data) }),
   setTaskSize: (token: string, id: string, size: import('@lawfirm/shared').TaskSize) =>

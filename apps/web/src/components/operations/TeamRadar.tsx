@@ -29,7 +29,7 @@ export function TeamRadar() {
   const [radar, setRadar] = useState<Radar | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [personId, setPersonId] = useState<string | null>(null);
+  const [person, setPerson] = useState<{ id: string; day: string | null } | null>(null);
   const requestVersion = useRef(0);
 
   const load = useCallback(async () => {
@@ -43,7 +43,7 @@ export function TeamRadar() {
     finally { if (version === requestVersion.current) setLoading(false); }
   }, [token, start]);
   useEffect(() => { void load(); }, [load]);
-  const closePerson = useCallback(() => setPersonId(null), []);
+  const closePerson = useCallback(() => setPerson(null), []);
 
   const today = bangkokDateInputValue(new Date());
   const members = radar ? [...radar.members].sort((a, b) => b.openPoints - a.openPoints) : [];
@@ -52,7 +52,7 @@ export function TeamRadar() {
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h2 className="text-xl font-semibold">สัปดาห์นี้ใครยุ่งแค่ไหน</h2>
-        <p className="mt-1 text-sm text-muted-foreground">แต้มงานตามวันที่วางแผนทำ (หรือวันส่ง) · กดชื่อเพื่อดูงานทั้งหมดของคนนั้น</p>
+        <p className="mt-1 text-sm text-muted-foreground">แต้มงานตามวันที่วางแผนทำ (หรือวันส่ง) · กดช่องวันเพื่อดูงานวันนั้น · กดชื่อเพื่อดูงานทั้งหมด</p>
       </div>
       <div className="flex items-center gap-1">
         <Button variant="outline" size="icon" aria-label="สัปดาห์ก่อน" disabled={loading} onClick={() => setStart((s) => shiftDay(s, -7))}><ChevronLeft className="h-4 w-4" /></Button>
@@ -84,7 +84,7 @@ export function TeamRadar() {
         <tbody>
           {members.map((m) => <tr key={m.userId} className="border-b last:border-0">
             <th scope="row" className="px-3 py-2 text-left font-normal">
-              <button type="button" onClick={() => setPersonId(m.userId)} className="block w-full text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <button type="button" onClick={() => setPerson({ id: m.userId, day: null })} className="block w-full text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="block font-medium">{m.firstName} {m.lastName}</span>
                 <span className="block text-xs text-muted-foreground">{ROLE_LABELS[m.role] ?? m.role}</span>
                 <span className="mt-1 flex flex-wrap gap-x-2 text-xs">
@@ -96,20 +96,21 @@ export function TeamRadar() {
               </button>
             </th>
             {m.days.map((day) => <td key={day.date} className="p-1">
-              <div className={`flex h-14 flex-col items-center justify-center rounded-md text-xs ${cellTone(day)} ${isWeekend(day.date) && !day.points && !day.eventCount && !day.onLeave ? 'opacity-50' : ''}`}
-                title={day.onLeave ? 'ลา' : `${day.taskCount} งาน · ${day.points} แต้ม · นัด ${day.eventCount}`}>
+              <button type="button" onClick={() => setPerson({ id: m.userId, day: day.date })}
+                aria-label={`${m.firstName} ${dayLabel(day.date)}: ${day.onLeave ? 'ลา' : `${day.taskCount} งาน ${day.points} แต้ม นัด ${day.eventCount}`}`}
+                className={`flex h-14 w-full flex-col items-center justify-center rounded-md text-xs ring-primary/40 transition hover:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${cellTone(day)} ${isWeekend(day.date) && !day.points && !day.eventCount && !day.onLeave ? 'opacity-50' : ''}`}>
                 {day.onLeave ? <span className="font-medium">ลา</span> : <>
                   {day.points > 0 && <span className="text-sm font-semibold">{day.points}</span>}
                   {day.eventCount > 0 && <span className="flex items-center gap-0.5"><Gavel className="h-3 w-3" />{day.eventCount}</span>}
                   {!day.points && !day.eventCount && <span className="text-muted-foreground/50">–</span>}
                 </>}
-              </div>
+              </button>
             </td>)}
           </tr>)}
         </tbody>
       </table>
     </div>}
 
-    <PersonWorkloadDrawer userId={personId} onClose={closePerson} onChanged={() => void load()} />
+    <PersonWorkloadDrawer userId={person?.id ?? null} focusDay={person?.day} from={radar?.start} onClose={closePerson} onChanged={() => void load()} />
   </section>;
 }

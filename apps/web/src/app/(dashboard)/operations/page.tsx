@@ -199,8 +199,12 @@ export default function OperationsPage() {
     })[0];
   }, [enriched]);
 
+  // Everyone sees the team's load so they can coordinate; the management tabs stay with the owner.
   if (!isOwner) {
-    return <p className="text-destructive">{d.operations.noAccess}</p>;
+    return <div>
+      <PageHeader title="ภาระงานทีม" description="ดูว่าใครถืองานอะไร และวันไหนว่าง ก่อนขอให้ช่วยหรือส่งต่องาน" />
+      <TeamRadar />
+    </div>;
   }
 
   return (
@@ -229,7 +233,7 @@ export default function OperationsPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="max-w-full overflow-x-auto">
           <TabsTrigger value="radar">ภาพรวมทีม</TabsTrigger>
-          <TabsTrigger value="daily">งานรายวัน</TabsTrigger>
+          <TabsTrigger value="daily">ต้องจัดการวันนี้</TabsTrigger>
           <TabsTrigger value="workload">{d.operations.tabWorkload}</TabsTrigger>
           <TabsTrigger value="pairing">{d.operations.tabPairing}</TabsTrigger>
           <TabsTrigger value="onhold">
