@@ -65,6 +65,7 @@ export default function NewCasePage() {
   const [form, setForm] = useState({
     caseTypeId: '',
     title: '',
+    ownRef: '',
     clientId: '',
     clientName: '',
     clientType: 'INDIVIDUAL',
@@ -136,6 +137,12 @@ export default function NewCasePage() {
     if (!token) return;
     setupRequest<PlaybookRelease[]>(token, '/playbooks').then(setPlaybooks).catch(() => setPlaybooks([]));
   }, [token]);
+
+  useEffect(() => {
+    if (nextOwnRef && !form.ownRef) {
+      setForm((f) => ({ ...f, ownRef: nextOwnRef }));
+    }
+  }, [nextOwnRef, form.ownRef]);
 
   const clientLabel = form.clientId
     ? (clients.find((c) => c.id === form.clientId)?.name ?? '')
@@ -217,6 +224,7 @@ export default function NewCasePage() {
       if (!createdCaseId.current) {
       const payload: Record<string, unknown> = {
         title: form.title.trim(),
+        ownRef: form.ownRef.trim() || undefined,
         description: form.description.trim() || undefined,
         courtName: form.courtName.trim() || undefined,
         claimedAmount: form.claimedAmount ? Number(form.claimedAmount) : undefined,
@@ -597,6 +605,20 @@ export default function NewCasePage() {
                   placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง"
                 />
                 {autoTitle && <p className="mt-1 text-xs text-muted-foreground">ตั้งชื่อจากประเภทคดีและลูกความให้อัตโนมัติ แก้ไขได้</p>}
+              </div>
+
+              <div className="border-t border-border pt-5">
+                <label htmlFor="case-number" className={fieldLabel}>เลขคดี</label>
+                <input
+                  id="case-number"
+                  value={form.ownRef}
+                  onChange={(event) => setForm({ ...form, ownRef: event.target.value })}
+                  className={inputClass}
+                  placeholder={nextOwnRef || "เช่น TSBREF20260001"}
+                />
+                {nextOwnRef && !form.ownRef && (
+                  <p className="mt-1 text-xs text-muted-foreground">ใช้เลขที่แนะนำ: {nextOwnRef}</p>
+                )}
               </div>
 
               <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">

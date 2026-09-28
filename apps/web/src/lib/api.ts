@@ -1397,6 +1397,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getNextOwnRef: (token: string) =>
+    request<{ ownRef: string }>('/cases/next-own-ref', { token }),
+
   getMe: (token: string, options?: { refreshAuth?: boolean }) =>
     request<import('@lawfirm/shared').AuthUser>('/auth/me', { token, ...options }),
 
@@ -1457,8 +1460,6 @@ export const api = {
   getCase: (token: string, id: string) =>
     request<CaseDetail>(`/cases/${id}`, { token }),
 
-  getNextOwnRef: (token: string) =>
-    request<{ ownRef: string }>('/cases/next-own-ref', { token }),
 
   createCase: (token: string, data: Record<string, unknown>) =>
     request('/cases', {
