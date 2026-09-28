@@ -16,6 +16,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser, Role } from '@lawfirm/shared';
 import { ContactLineLinkService } from '../notifications/contact-line-link.service';
+import { Client360Service } from './client-360.service';
+import { LogClientContactDto } from './dto/contact-log.dto';
 
 @Controller('clients')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -23,6 +25,7 @@ export class ClientsController {
   constructor(
     private clientsService: ClientsService,
     private contactLineLink: ContactLineLinkService,
+    private client360: Client360Service,
   ) {}
 
   @Get()
@@ -33,6 +36,16 @@ export class ClientsController {
   @Get('contacts/:contactId/line-status')
   getContactLineStatus(@CurrentUser() user: AuthUser, @Param('contactId') contactId: string) {
     return this.contactLineLink.getStatusForStaff(user.firmId, contactId);
+  }
+
+  @Get(':id/overview')
+  overview(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.client360.overview(user, id);
+  }
+
+  @Post(':id/contact-logs')
+  logContact(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: LogClientContactDto) {
+    return this.client360.logContact(user, id, dto);
   }
 
   @Get(':id')

@@ -1,4 +1,5 @@
 import { withFirmSlugHeaders } from './firm-slug';
+import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { actionSuccessMessage, isActionRequest, publishActionFeedback } from './action-feedback';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -251,6 +252,14 @@ export const portalApi = {
     request<PortalDashboardSummary>('/client-portal/dashboard', { token }),
 
   getCases: (token: string) => request<PortalCaseSummary[]>('/client-portal/cases', { token }),
+
+  getAnnualReports: (token: string) =>
+    request<AnnualReportListItem[]>('/client-portal/annual-reports', { token }),
+
+  getAnnualReport: (token: string, id: string) =>
+    request<AnnualReportListItem & { snapshot: AnnualReportSnapshot }>(
+      `/client-portal/annual-reports/${id}`, { token },
+    ),
 
   getInvite: (token: string) => request<PortalInvitePreview>(`/client-portal/invites/${token}`),
 

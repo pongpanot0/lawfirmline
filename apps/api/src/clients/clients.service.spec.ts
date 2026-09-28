@@ -11,7 +11,7 @@ import { CLIENT_CONTACT_SELECT } from './client-contact.select';
 describe('ClientsService.update contact upsert', () => {
   let service: ClientsService;
   const mockPrisma: any = {
-    client: { findFirst: jest.fn(), update: jest.fn() },
+    client: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     clientContact: {
       findMany: jest.fn(),
       update: jest.fn(),
@@ -62,6 +62,14 @@ describe('ClientsService.update contact upsert', () => {
         data: expect.objectContaining({ name: 'แก้ไขแล้ว', portalEnabled: true }),
       }),
     );
+  });
+
+  it('counts only cases visible to the caller in the client list', async () => {
+    mockPrisma.client.findMany.mockResolvedValue([]);
+    await service.findAll(user);
+    expect(mockPrisma.client.findMany.mock.calls[0][0].include._count).toEqual({
+      select: { cases: { where: { firmId: 'firm-1' } } },
+    });
   });
 
   it('creates a new contact when no id is supplied', async () => {
