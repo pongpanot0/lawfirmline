@@ -1,7 +1,7 @@
 'use client';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DocumentCategory } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
@@ -35,6 +35,8 @@ export default function PlaybooksPage() {
 function PlaybooksPageInner() {
   const { token, user } = useAuth(); const { locale } = useLocale(); const th = locale === 'th';
   const params = useSearchParams();
+  const router = useRouter();
+  const appliedDeepLink = useRef(false);
   const [items, setItems] = useState<PlaybookRelease[]>([]);
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
   const [editing, setEditing] = useState(false);
@@ -60,13 +62,18 @@ function PlaybooksPageInner() {
   };
   useEffect(() => {
     load()
-      .then(() => { if (params.get('new') === '1') resetForm(); })
+      .then(() => {
+        if (appliedDeepLink.current) return;
+        if (params.get('new') === '1') { appliedDeepLink.current = true; resetForm(); router.replace('/playbooks'); }
+      })
       .catch(e => setError(e.message));
   }, [token]);
   useEffect(() => {
+    if (appliedDeepLink.current) return;
     const id = params.get('id');
     const target = id && items.find((p) => p.id === id);
-    if (target) startDraft(target);
+    if (target) { appliedDeepLink.current = true; startDraft(target); router.replace('/playbooks'); }
+    // params intentionally omitted: deep-link is a one-time apply, gated by appliedDeepLink ref
   }, [items]);
 
   const resetForm = () => {
