@@ -22,7 +22,10 @@ describe('TasksService on-hold', () => {
       findFirst: jest.fn(),
     },
   };
-  const mockCaseAccess = { getTaskFilterForUser: jest.fn() };
+  const mockCaseAccess = {
+    getTaskFilterForUser: jest.fn(),
+    getTaskAccessFilterForUser: jest.fn().mockReturnValue({}),
+  };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -514,7 +517,10 @@ describe('TasksService.update — who may change a status', () => {
     taskAssignmentLog: { create: jest.fn() },
     firmMember: { count: jest.fn() },
   };
-  const mockCaseAccess = { getTaskFilterForUser: jest.fn() };
+  const mockCaseAccess = {
+    getTaskFilterForUser: jest.fn(),
+    getTaskAccessFilterForUser: jest.fn().mockReturnValue({}),
+  };
 
   const lawyer = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
   const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
