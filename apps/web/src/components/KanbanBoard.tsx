@@ -17,6 +17,8 @@ interface Task {
   priority?: TaskPriority;
   labels?: string[];
   dueDate?: string | null;
+  requiresReview?: boolean;
+  reviewerId?: string | null;
   assignee?: { id: string; firstName: string; lastName: string } | null;
   subtaskCount?: number;
   subtaskDoneCount?: number;
@@ -152,7 +154,7 @@ export function KanbanBoard({
 
   const renderTask = (task: Task) => {
         const isAssignee = task.assignee?.id === currentUserId;
-        const canSetPlainStatus = isAssignee || !task.assignee;
+        const canSetPlainStatus = (isAssignee || !task.assignee) && task.status !== TaskStatus.PENDING_REVIEW;
         const canHandoff =
           enableHandoff &&
           handoffAllowed &&
@@ -234,7 +236,7 @@ export function KanbanBoard({
             <div className="mt-3 flex flex-wrap gap-1">
               {canSetPlainStatus &&
                 plainStatusTargets
-                  .filter((c) => c.status !== task.status)
+                  .filter((c) => c.status !== task.status && !(task.requiresReview && c.status === TaskStatus.DONE))
                   .map((c) => (
                     <button
                       key={c.status}
@@ -249,7 +251,7 @@ export function KanbanBoard({
                   onClick={() => {
                     setHandoffTaskId(task.id);
                     setHandoffNote('');
-                    setHandoffReviewerId('');
+                    setHandoffReviewerId(task.reviewerId ?? '');
                   }}
                   className="rounded border border-sky-400 px-2 py-0.5 text-xs text-sky-600 hover:bg-sky-50"
                 >
@@ -301,6 +303,7 @@ export function KanbanBoard({
                 {requireReviewerOnHandoff && !reviewerLoadError && reviewerChoices.length > 0 && (
                   <select
                     value={handoffReviewerId}
+                    disabled={!!task.reviewerId}
                     onChange={(e) => setHandoffReviewerId(e.target.value)}
                     className="w-full rounded border px-2 py-1 text-xs"
                   >
@@ -464,7 +467,7 @@ export function KanbanBoard({
               setDragOverStatus(null);
               if (!id || !DROPPABLE_STATUSES.includes(col.status)) return;
               const task = tasks.find((t) => t.id === id);
-              if (task && task.status !== col.status) onStatusChange(id, col.status);
+              if (task && task.status !== col.status && task.status !== TaskStatus.PENDING_REVIEW && !(task.requiresReview && col.status === TaskStatus.DONE)) onStatusChange(id, col.status);
             }}
             className={`rounded-xl border bg-muted/40 ${col.color} border-t-4 transition ${dragOverStatus === col.status && dragTaskId ? 'ring-2 ring-primary/60 bg-primary/5' : ''}`}
           >

@@ -21,6 +21,7 @@ import { buildContentDispositionHeader } from '../common/utils/sanitize-filename
 import { safeMimeType } from '../common/utils/safe-mime-type';
 import { TaskDetailService, TASK_ATTACHMENT_MAX_BYTES } from './task-detail.service';
 import { CreateSubtaskDto, CreateTaskCommentDto } from './dto/task-detail.dto';
+import { ConfirmTaskPlanDto, DailyTaskUpdateDto } from './dto/task-daily-update.dto';
 
 /**
  * One address for a task whichever board it came from. Access is decided per
@@ -57,6 +58,21 @@ export class TaskDetailController {
     @Body() dto: CreateTaskCommentDto,
   ) {
     return this.detail.addComment(taskId, user, dto);
+  }
+
+  @Post('acknowledge')
+  acknowledge(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string) {
+    return this.detail.acknowledge(taskId, user);
+  }
+
+  @Post('daily-update')
+  dailyUpdate(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string, @Body() dto: DailyTaskUpdateDto) {
+    return this.detail.dailyUpdate(taskId, user, dto);
+  }
+
+  @Post('confirm-plan')
+  confirmPlan(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string, @Body() dto: ConfirmTaskPlanDto) {
+    return this.detail.confirmPlan(taskId, user, dto.date);
   }
 
   @Delete('comments/:commentId')

@@ -77,13 +77,13 @@ export class CaseAccessService {
   }
 
   getTaskFilterForUser(user: AuthUser): Prisma.TaskWhereInput {
-    // Task ไม่มี firmId ตรง ๆ — scope ผ่านคดีของ firm หรือ (task ลอย) ผู้สร้างที่เป็นสมาชิก firm
+    // New tasks carry explicit tenancy; legacy tasks retain their original scope.
     const firmScope: Prisma.TaskWhereInput = {
       OR: [
         { case: { firmId: user.firmId, ...CaseAccessService.NOT_DELETED } },
         {
           caseId: null,
-          createdBy: { firmMembers: { some: { firmId: user.firmId } } },
+          OR: [{ firmId: user.firmId }, { firmId: null, createdBy: { firmMembers: { some: { firmId: user.firmId } } } }],
         },
       ],
     };
@@ -112,7 +112,9 @@ export class CaseAccessService {
     }
 
     return {
-      AND: [firmScope, { OR: [{ assigneeId: user.id }, { assigneeId: null }] }],
+      AND: [firmScope, { OR: [{ assigneeId: user.id }, { assigneeId: null }, {
+        status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: user.id } },
+      }] }],
     };
   }
 

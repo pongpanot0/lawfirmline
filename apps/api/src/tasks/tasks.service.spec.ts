@@ -186,7 +186,7 @@ describe('TasksService on-hold', () => {
 
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'senior-1' },
+        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'senior-1', completedAt: null },
       });
       expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -337,7 +337,7 @@ describe('TasksService on-hold', () => {
 
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'reviewer-1' },
+        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'reviewer-1', completedAt: null },
       });
       expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -456,7 +456,7 @@ describe('TasksService on-hold', () => {
           {
             OR: [
               { case: { firmId: 'firm-1', deletedAt: null } },
-              { caseId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } },
+              { caseId: null, OR: [{ firmId: 'firm-1' }, { firmId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } }] },
             ],
           },
           {
