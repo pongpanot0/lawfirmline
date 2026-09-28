@@ -1,5 +1,6 @@
 import React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useRouter } from 'expo-router';
 import {
   BellRing,
@@ -12,7 +13,7 @@ import {
 import { useActions, type ActionItem } from '@/api/hooks';
 import { Card, EmptyNote, ErrorNote, Loading, Tag, TagTone } from '@/components/ui';
 import { thDate } from '@/format';
-import { colors, spacing } from '@/theme';
+import { colors, spacing, pageContent } from '@/theme';
 
 const KIND_META: Record<
   string,
@@ -48,7 +49,7 @@ export default function NotificationsScreen() {
         <FlatList
           data={actions.data?.items ?? []}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: spacing.lg }}
+          contentContainerStyle={pageContent}
           refreshing={actions.isRefetching}
           onRefresh={() => actions.refetch()}
           renderItem={({ item }) => {
@@ -64,7 +65,7 @@ export default function NotificationsScreen() {
                 onPress={() => route && router.push(route as never)}
                 style={({ pressed }) => pressed && { opacity: 0.7 }}
               >
-                <Card style={{ marginBottom: spacing.sm }}>
+                <Card style={{ marginBottom: spacing.md }}>
                   <View style={styles.row}>
                     <meta.Icon size={17} color={colors.muted} />
                     <View style={{ flex: 1, gap: 2 }}>

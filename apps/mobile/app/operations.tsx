@@ -1,12 +1,13 @@
 import React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useRouter } from 'expo-router';
 import { PauseCircle } from 'lucide-react-native';
 import { ApiError } from '@/api/client';
 import { useOnHoldTasks } from '@/api/hooks';
 import { Card, EmptyNote, ErrorNote, Loading, Tag } from '@/components/ui';
 import { thDate } from '@/format';
-import { colors, spacing } from '@/theme';
+import { colors, spacing, pageContent } from '@/theme';
 
 /**
  * Firm Owner's on-hold queue: work parked waiting on someone else, sorted by
@@ -44,7 +45,7 @@ export default function OperationsScreen() {
       <FlatList
         data={onhold.data ?? []}
         keyExtractor={(item) => item.taskId}
-        contentContainerStyle={{ padding: spacing.lg }}
+        contentContainerStyle={pageContent}
         refreshing={onhold.isRefetching}
         onRefresh={() => onhold.refetch()}
         ListHeaderComponent={
@@ -63,7 +64,7 @@ export default function OperationsScreen() {
               onPress={() => item.caseId && router.push(`/case/${item.caseId}`)}
               style={({ pressed }) => pressed && { opacity: 0.7 }}
             >
-              <Card style={{ marginBottom: spacing.sm }}>
+              <Card style={{ marginBottom: spacing.md }}>
                 <View style={styles.row}>
                   <PauseCircle size={16} color={colors.muted} />
                   <View style={{ flex: 1, gap: 2 }}>

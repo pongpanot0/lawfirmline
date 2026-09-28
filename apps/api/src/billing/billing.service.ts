@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -659,23 +659,22 @@ export class BillingService {
       paidById?: string;
     } = { status: dto.status };
 
-    if (dto.status === ExpenseStatus.APPROVED && expense.status === ExpenseStatus.PENDING) {
-      try {
-        await this.pettyCash.deduct(user.firmId, expense.amount);
-      } catch {
-        throw new BadRequestException('Insufficient petty cash fund');
-      }
-    }
-
     if (dto.status === ExpenseStatus.PAID) {
       data.paidAt = new Date();
       data.paidById = user.id;
     }
 
-    const updated = await this.prisma.expense.update({
-      where: { id: expenseId },
-      data,
-      include: this.expenseInclude,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.expense.updateMany({
+        where: { id: expenseId, status: expense.status, claimId: null },
+        data,
+      });
+      if (!changed.count) throw new ConflictException('สถานะค่าใช้จ่ายเปลี่ยนแล้ว กรุณาโหลดล่าสุด');
+      if (dto.status === ExpenseStatus.APPROVED && expense.status === ExpenseStatus.PENDING) {
+        try { await this.pettyCash.deduct(user.firmId, expense.amount, tx); }
+        catch { throw new BadRequestException('Insufficient petty cash fund'); }
+      }
+      return tx.expense.update({ where: { id: expenseId }, data: {}, include: this.expenseInclude });
     });
 
     const amountLabel = `฿${expense.amount.toLocaleString('th-TH')}`;
@@ -819,12 +818,6 @@ export class BillingService {
       if (claim.status !== ExpenseClaimStatus.PENDING) {
         throw new BadRequestException('อนุมัติได้เฉพาะใบเบิกที่รออนุมัติ');
       }
-      const total = claim.expenses.reduce((sum, e) => sum + e.amount, 0);
-      try {
-        await this.pettyCash.deduct(user.firmId, total);
-      } catch {
-        throw new BadRequestException('Insufficient petty cash fund');
-      }
     } else if (next === ExpenseClaimStatus.REJECTED) {
       if (claim.status !== ExpenseClaimStatus.PENDING) {
         throw new BadRequestException('ปฏิเสธได้เฉพาะใบเบิกที่รออนุมัติ');
@@ -846,6 +839,16 @@ export class BillingService {
           : ExpenseStatus.PAID;
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.expenseClaim.updateMany({
+        where: { id: claimId, firmId: user.firmId, status: claim.status },
+        data: { status: next },
+      });
+      if (!changed.count) throw new ConflictException('สถานะชุดเบิกเปลี่ยนแล้ว กรุณาโหลดล่าสุด');
+      if (next === ExpenseClaimStatus.APPROVED) {
+        try {
+          await this.pettyCash.deduct(user.firmId, claim.expenses.reduce((sum, item) => sum + item.amount, 0), tx);
+        } catch { throw new BadRequestException('Insufficient petty cash fund'); }
+      }
       await tx.expense.updateMany({
         where: { claimId },
         data: {

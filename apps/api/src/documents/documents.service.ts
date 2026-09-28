@@ -43,6 +43,38 @@ export class DocumentsService {
     });
   }
 
+  /** Filename-only search across accessible case documents and task attachments. */
+  async searchFiles(user: AuthUser, q: string, offset = 0) {
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new BadRequestException('Invalid offset');
+    if (!q) return { items: [], nextOffset: null };
+    const take = offset + 21;
+    const filename = { contains: q, mode: 'insensitive' as const };
+    // ponytail: merging fetches offset + 21 per source; use a SQL UNION cursor for deep paging at scale.
+    const [documents, attachments] = await Promise.all([
+      this.prisma.document.findMany({
+        where: { filename, case: this.caseAccess.getCaseFilterForUser(user) },
+        select: { id: true, filename: true, mimeType: true, updatedAt: true,
+          case: { select: { id: true, ownRef: true, title: true } } },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }], take,
+      }),
+      this.prisma.taskAttachment.findMany({
+        where: { filename, task: this.caseAccess.getTaskAccessFilterForUser(user) },
+        select: { id: true, filename: true, mimeType: true, size: true, createdAt: true,
+          task: { select: { id: true, title: true, case: { select: { id: true, ownRef: true, title: true } } } } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], take,
+      }),
+    ]);
+    const rows = [
+      ...documents.map(file => ({ id: file.id, filename: file.filename, mimeType: file.mimeType,
+        size: null, updatedAt: file.updatedAt, source: 'CASE' as const, case: file.case, task: null })),
+      ...attachments.map(file => ({ id: file.id, filename: file.filename, mimeType: file.mimeType,
+        size: file.size, updatedAt: file.createdAt, source: 'TASK' as const, case: file.task.case,
+        task: { id: file.task.id, title: file.task.title } })),
+    ].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+      || (a.source < b.source ? -1 : a.source > b.source ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return { items: rows.slice(offset, offset + 20), nextOffset: rows.length > offset + 20 ? offset + 20 : null };
+  }
+
   /** Audit trail for document actions — a law firm must answer "ใครดาวน์โหลด/แก้เอกสารนี้". */
   private async audit(
     user: AuthUser,

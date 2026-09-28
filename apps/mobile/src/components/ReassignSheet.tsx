@@ -1,27 +1,30 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useLawyers, useLeaves, useReassignTask } from '@/api/hooks';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text } from '@/components/AppText';
+import { canAssignFirmRole, FirmRole } from '@lawfirm/shared';
+import { useAuth } from '@/api/auth';
+import { useCase, useLawyers, useLeaves, useReassignTask } from '@/api/hooks';
 import type { TaskItem } from '@/api/types';
 import { bangkokDay, initials } from '@/format';
 import { leaveFlagsForDate, leaveWarning } from '@/lib/leave-flags';
 import { colors, fonts, radius, spacing } from '@/theme';
-import { Tag } from '@/components/ui';
+import { Button, ErrorNote, Loading, Tag } from '@/components/ui';
 
-/**
- * Bottom sheet for handing a case task to another lawyer — long-press a task
- * row to open. One tap on a name reassigns and closes; tapping a name flagged
- * for leave asks for confirmation first.
- */
+/** Assignment sheet shared by case tasks and standalone todos. */
 export function ReassignSheet({
   caseId,
   task,
   onClose,
 }: {
-  caseId: string;
+  caseId?: string | null;
   task: TaskItem | null;
   onClose: () => void;
 }) {
   const lawyers = useLawyers();
+  const { user } = useAuth();
+  const { bottom } = useSafeAreaInsets();
+  const legalCase = useCase(task && caseId ? caseId : '');
   const reassign = useReassignTask();
   const date = task?.dueDate ? bangkokDay(task.dueDate) : bangkokDay(new Date().toISOString());
   const leaves = useLeaves(date, date, !!task);
@@ -30,27 +33,44 @@ export function ReassignSheet({
 
   useEffect(() => {
     setPending(null);
+    reassign.reset();
   }, [task?.id]);
+
+  const editable = !!user && (caseId
+    ? user?.firmRole === FirmRole.OWNER || legalCase.data?.leadLawyer?.id === user?.id
+    : task?.assigneeId === user.id || task?.createdById === user.id);
+  const candidates = (lawyers.data ?? []).filter((person) => person.id !== task?.assigneeId && (
+    !!caseId || person.id === user?.id || (!!user?.firmRole && !!person.firmRole &&
+      canAssignFirmRole(user.firmRole as FirmRole, person.firmRole))
+  ));
 
   return (
     <Modal visible={!!task} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => undefined}>
+        <Pressable style={[styles.sheet, { paddingBottom: spacing.lg + bottom }]} onPress={() => undefined}>
           <View style={styles.handle} />
           <Text style={styles.title}>มอบหมายงานให้…</Text>
           <Text style={styles.subtitle} numberOfLines={2}>
             {task?.title}
           </Text>
-          {(lawyers.data ?? [])
-            .filter((lawyer) => lawyer.id !== task?.assigneeId)
-            .map((lawyer) => {
+          {lawyers.isLoading || (caseId && legalCase.isLoading) ? <Loading /> : null}
+          {lawyers.isError ? <ErrorNote message="โหลดรายชื่อไม่สำเร็จ" onRetry={() => lawyers.refetch()} /> : null}
+          {caseId && legalCase.isError ? <ErrorNote message="ตรวจสอบสิทธิ์คดีไม่สำเร็จ" onRetry={() => legalCase.refetch()} /> : null}
+          {!editable && !legalCase.isLoading ? <Text style={styles.error}>{caseId
+            ? 'งานคดีให้เจ้าของสำนักงานหรือทนายหลักเป็นผู้มอบหมาย'
+            : 'มอบหมายได้เฉพาะงานที่คุณสร้างหรือรับผิดชอบ'}</Text> : null}
+          {leaves.isError ? <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} /> : null}
+          <ScrollView style={{ maxHeight: 320, flexShrink: 1 }}>
+          {editable && candidates.map((lawyer) => {
               const name = `${lawyer.firstName} ${lawyer.lastName}`;
               const flag = flags.get(lawyer.id);
               return (
                 <Pressable
                   key={lawyer.id}
                   style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
-                  disabled={reassign.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel={`มอบหมายให้ ${name}`}
+                  disabled={reassign.isPending || lawyers.isError || legalCase.isError}
                   onPress={() => {
                     if (!task) return;
                     if (flag) {
@@ -59,7 +79,7 @@ export function ReassignSheet({
                     }
                     reassign.mutate(
                       { caseId, taskId: task.id, assigneeId: lawyer.id },
-                      { onSettled: onClose },
+                      { onSuccess: onClose },
                     );
                   }}
                 >
@@ -71,6 +91,8 @@ export function ReassignSheet({
                 </Pressable>
               );
             })}
+          </ScrollView>
+          {editable && !lawyers.isLoading && !lawyers.isError && !candidates.length ? <Text style={styles.subtitle}>ไม่มีผู้รับมอบหมายตามสิทธิ์ของคุณ</Text> : null}
           {pending ? (
             <View style={styles.confirmBox}>
               <Text style={styles.warning}>{leaveWarning(pending.name, date, flags.get(pending.id)?.kind)}</Text>
@@ -83,12 +105,12 @@ export function ReassignSheet({
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [styles.confirmBtn, pressed && { opacity: 0.7 }]}
-                  disabled={reassign.isPending}
+                  disabled={reassign.isPending || !editable}
                   onPress={() => {
                     if (!task) return;
                     reassign.mutate(
                       { caseId, taskId: task.id, assigneeId: pending.id },
-                      { onSettled: onClose },
+                      { onSuccess: onClose },
                     );
                   }}
                 >
@@ -98,8 +120,9 @@ export function ReassignSheet({
             </View>
           ) : null}
           {reassign.isError ? (
-            <Text style={styles.error}>มอบหมายไม่สำเร็จ ลองใหม่อีกครั้ง</Text>
+            <Text style={styles.error}>{reassign.error.message || 'มอบหมายไม่สำเร็จ ลองใหม่อีกครั้ง'}</Text>
           ) : null}
+          <Button title="ปิด" ghost disabled={reassign.isPending} onPress={onClose} />
         </Pressable>
       </Pressable>
     </Modal>
@@ -113,7 +136,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     padding: spacing.lg,
-    paddingBottom: 34,
+    maxHeight: '90%',
   },
   handle: {
     alignSelf: 'center',

@@ -1,38 +1,31 @@
 import React, { useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Camera, Check, FileText, ShieldCheck } from 'lucide-react-native';
 import { api } from '@/api/client';
+import { useAuth } from '@/api/auth';
 import { openCaseDocument } from '@/api/files';
 import {
   useCase,
   useCaseTasks,
-  useCreateCaseTask,
   useInsuranceClaim,
   useToggleTask,
 } from '@/api/hooks';
 import { ReassignSheet } from '@/components/ReassignSheet';
-import { QuickAdd } from '@/components/QuickAdd';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
   Card,
   EmptyNote,
   ErrorNote,
   Loading,
+  Button,
   Tag,
   TagTone,
 } from '@/components/ui';
-import { thDate, thTime } from '@/format';
-import { colors, radius, spacing } from '@/theme';
+import { formatMoney, thDate, thTime } from '@/format';
+import { colors, radius, spacing, pageContent } from '@/theme';
 
 const TABS = ['ภาพรวม', 'นัดหมาย', 'งาน', 'เอกสาร'] as const;
 type TabName = (typeof TABS)[number];
@@ -47,6 +40,10 @@ const INSURANCE_STAGE_LABEL: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, { label: string; tone: TagTone }> = {
   OPEN: { label: 'เปิด', tone: 'info' },
+  DRAFTING: { label: 'ร่างเอกสาร', tone: 'info' },
+  COURT_DATE: { label: 'รอนัดศาล', tone: 'court' },
+  PENDING: { label: 'รอดำเนินการ', tone: 'plain' },
+  ARCHIVED: { label: 'เก็บเข้าคลัง', tone: 'plain' },
   IN_PROGRESS: { label: 'ดำเนินการ', tone: 'court' },
   ON_HOLD: { label: 'พักไว้', tone: 'plain' },
   CLOSED: { label: 'ปิดแล้ว', tone: 'ok' },
@@ -54,6 +51,7 @@ const STATUS_LABEL: Record<string, { label: string; tone: TagTone }> = {
 
 interface DocumentItem {
   id: string;
+  filename?: string;
   name?: string;
   fileName?: string;
   version?: number;
@@ -64,7 +62,7 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue} numberOfLines={2}>
+      <Text style={styles.infoValue}>
         {value || '—'}
       </Text>
     </View>
@@ -72,16 +70,16 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 }
 
 export default function CaseDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, section } = useLocalSearchParams<{ id: string; section?: string }>();
   const router = useRouter();
-  const [tab, setTab] = useState<TabName>('ภาพรวม');
+  const { user } = useAuth();
+  const [tab, setTab] = useState<TabName>(section === 'documents' ? 'เอกสาร' : 'ภาพรวม');
   const [reassigning, setReassigning] = useState<TaskItem | null>(null);
   const [openingDoc, setOpeningDoc] = useState<string | null>(null);
 
   const caseQuery = useCase(id);
   const tasks = useCaseTasks(id);
   const toggle = useToggleTask();
-  const createTask = useCreateCaseTask(id);
   const insurance = useInsuranceClaim(id);
   const events = useQuery({
     queryKey: ['case-events', id],
@@ -113,7 +111,7 @@ export default function CaseDetailScreen() {
       <Stack.Screen options={{ title: detail.ownRef }} />
       <ScrollView
         style={styles.screen}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}
+        contentContainerStyle={pageContent}
         refreshControl={
           <RefreshControl
             refreshing={caseQuery.isRefetching}
@@ -122,6 +120,13 @@ export default function CaseDetailScreen() {
         }
       >
         <Text style={styles.caseTitle}>{detail.title}</Text>
+        <Button title="แก้ไขคดี / จัดคนหลักและคนรอง" ghost onPress={() => router.push(`/case/new?id=${id}`)} />
+        {(user?.firmRole === 'OWNER' || user?.role === 'ADMIN' || user?.role === 'LAWYER') && <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+          {detail.status === 'CLOSED' || detail.status === 'ARCHIVED'
+            ? <Button title="เปิดคดีอีกครั้ง" ghost onPress={() => router.push(`/case/${id}/close?action=reopen`)} />
+            : <Button title="ปิดคดี · ตรวจรายการค้าง" ghost onPress={() => router.push(`/case/${id}/close`)} />}
+          {detail.status === 'CLOSED' && <Button title="เก็บคดีเข้าคลัง" ghost onPress={() => router.push(`/case/${id}/close?action=archive`)} />}
+        </View>}
 
         <View style={styles.segment}>
           {TABS.map((name) => (
@@ -145,13 +150,14 @@ export default function CaseDetailScreen() {
             </View>
             <View style={styles.divider} />
             <InfoRow
-              label="Case Owner"
+              label="คนหลัก"
               value={
                 detail.leadLawyer
                   ? `${detail.leadLawyer.firstName} ${detail.leadLawyer.lastName}`
                   : null
               }
             />
+            <InfoRow label="คนรอง" value={(detail.assignments ?? []).filter(item => item.assignmentType === 'BUDDY').map(item => `${item.user.firstName} ${item.user.lastName}`).join(', ')} />
             <InfoRow label="ลูกความ" value={detail.clientName ?? detail.client?.name} />
             <InfoRow label="ศาล" value={detail.courtName} />
             <InfoRow
@@ -164,7 +170,7 @@ export default function CaseDetailScreen() {
               label="ทุนทรัพย์"
               value={
                 detail.claimedAmount != null
-                  ? `${detail.claimedAmount.toLocaleString('th-TH')} บาท`
+                  ? `${formatMoney(detail.claimedAmount)} บาท`
                   : null
               }
             />
@@ -204,6 +210,7 @@ export default function CaseDetailScreen() {
 
         {tab === 'นัดหมาย' ? (
           <Card>
+            <Button title="เพิ่มนัดหมาย · เลือกคนที่ไปด้วย" onPress={() => router.push(`/event/new?caseId=${id}`)} />
             {events.isLoading ? (
               <EmptyNote>กำลังโหลด…</EmptyNote>
             ) : (events.data?.length ?? 0) === 0 ? (
@@ -229,8 +236,13 @@ export default function CaseDetailScreen() {
                       {event.courtName ? (
                         <Text style={styles.rowFaint}>{event.courtName}</Text>
                       ) : null}
+                      <Text style={styles.rowFaint}>หลัก: {event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : 'ยังไม่ระบุ'}</Text>
+                      <Text style={styles.rowFaint}>ร่วม: {event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => `${person.user.firstName} ${person.user.lastName}`).join(', ') || 'ไม่มี'}</Text>
                     </View>
                     {event.type === 'COURT_DATE' ? <Tag tone="court">ศาล</Tag> : null}
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => router.push(`/event/${event.id}/team`)} style={{ minHeight: 44, justifyContent: 'center', paddingLeft: 86 }}>
+                    <Text style={{ color: colors.info }}>ดู / จัดทีมที่ไปด้วย</Text>
                   </Pressable>
                 </View>
               ))
@@ -241,11 +253,7 @@ export default function CaseDetailScreen() {
         {tab === 'งาน' ? (
           <Card>
             <View style={{ marginBottom: spacing.sm }}>
-              <QuickAdd
-                placeholder="เพิ่มงานในคดีนี้…"
-                onSubmit={(title) => createTask.mutate(title)}
-                busy={createTask.isPending}
-              />
+              <Button title="เพิ่มงาน · เลือกผู้รับผิดชอบและแนบไฟล์" onPress={() => router.push(`/task/new?caseId=${id}`)} />
             </View>
             {tasks.isLoading ? (
               <EmptyNote>กำลังโหลด…</EmptyNote>
@@ -259,6 +267,7 @@ export default function CaseDetailScreen() {
                     {index > 0 && <View style={styles.divider} />}
                     <Pressable
                       style={styles.listRow}
+                      onPress={() => router.push(`/task/new?id=${task.id}`)}
                       onLongPress={() => !done && setReassigning({ ...task, caseId: id })}
                       delayLongPress={350}
                     >
@@ -280,7 +289,7 @@ export default function CaseDetailScreen() {
                           {task.assignee
                             ? `${task.assignee.firstName} ${task.assignee.lastName}`
                             : 'ยังไม่มีผู้รับผิดชอบ'}
-                          {!done ? ' · กดค้างเพื่อมอบหมาย' : ''}
+                          {' · แตะดูรายละเอียด / แก้ไข'}
                         </Text>
                       </View>
                       {task.dueDate && !done ? (
@@ -303,7 +312,7 @@ export default function CaseDetailScreen() {
               style={({ pressed }) => [styles.scanButton, pressed && { opacity: 0.8 }]}
             >
               <Camera size={17} color={colors.ink} />
-              <Text style={styles.scanText}>สแกนเอกสารด้วยกล้อง</Text>
+              <Text style={styles.scanText}>ถ่ายรูป / แนบไฟล์เอกสาร</Text>
             </Pressable>
             <Card>
               {documents.isLoading ? (
@@ -312,7 +321,7 @@ export default function CaseDetailScreen() {
                 <EmptyNote>ไม่มีเอกสาร</EmptyNote>
               ) : (
                 documents.data!.map((doc, index) => {
-                  const filename = doc.name ?? doc.fileName ?? 'เอกสาร';
+                  const filename = doc.filename ?? doc.name ?? doc.fileName ?? 'เอกสาร';
                   return (
                     <View key={doc.id}>
                       {index > 0 && <View style={styles.divider} />}

@@ -1,19 +1,15 @@
-import React from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { FlatList, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
-import { useCreateTodo, useTodos, useToggleTask } from '@/api/hooks';
+import { useAuth } from '@/api/auth';
+import { useTodos, useToggleTask, useWorkload } from '@/api/hooks';
 import type { TaskItem } from '@/api/types';
-import { Card, EmptyNote, ErrorNote, Loading, Tag } from '@/components/ui';
-import { QuickAdd } from '@/components/QuickAdd';
+import { Button, Card, EmptyNote, ErrorNote, Loading, Tag } from '@/components/ui';
+import { ReassignSheet } from '@/components/ReassignSheet';
 import { thDate } from '@/format';
-import { colors, spacing, TOUCH } from '@/theme';
+import { colors, spacing, TOUCH, pageContent } from '@/theme';
 
 function dueTone(task: TaskItem): 'due' | 'plain' | null {
   if (!task.dueDate || task.status === 'DONE') return null;
@@ -34,13 +30,16 @@ function TaskRow({
   return (
     <View style={styles.row}>
       <Pressable
+        accessibilityRole="checkbox"
+        accessibilityLabel={`ทำงาน ${task.title} เสร็จแล้ว`}
+        accessibilityState={{ checked: done }}
         onPress={() => onToggle(!done)}
-        hitSlop={10}
+        hitSlop={11}
         style={[styles.checkbox, done && styles.checkboxDone]}
       >
         {done ? <Check size={13} color="#fff" strokeWidth={3} /> : null}
       </Pressable>
-      <Pressable style={{ flex: 1, gap: 2 }} onPress={onOpenCase} disabled={!task.case}>
+      <Pressable style={{ flex: 1, gap: 2 }} onPress={onOpenCase}>
         <Text
           style={[styles.title, done && styles.titleDone]}
           numberOfLines={2}
@@ -64,13 +63,16 @@ function TaskRow({
 
 export default function TasksScreen() {
   const router = useRouter();
+  const { memberId } = useLocalSearchParams<{ memberId?: string }>();
+  const { user } = useAuth();
   const todos = useTodos();
+  const workload = useWorkload(!!memberId);
   const toggle = useToggleTask();
-  const create = useCreateTodo();
+  const [reassigning, setReassigning] = useState<TaskItem | null>(null);
 
   if (todos.isLoading) return <Loading />;
 
-  const rows = [...(todos.data ?? [])].sort((a, b) => {
+  const rows = (todos.data ?? []).filter((task) => !memberId || task.assigneeId === memberId).sort((a, b) => {
     // Undone first, then nearest due date; done sinks to the bottom.
     if ((a.status === 'DONE') !== (b.status === 'DONE'))
       return a.status === 'DONE' ? 1 : -1;
@@ -87,30 +89,43 @@ export default function TasksScreen() {
         <FlatList
           data={rows}
           keyExtractor={(task) => task.id}
-          contentContainerStyle={{ padding: spacing.lg }}
+          contentContainerStyle={pageContent}
           refreshing={todos.isRefetching}
           onRefresh={() => todos.refetch()}
           ListHeaderComponent={
-            <View style={{ marginBottom: spacing.md }}>
-              <QuickAdd
-                placeholder="เพิ่มงานส่วนตัว…"
-                onSubmit={(title) => create.mutate(title)}
-                busy={create.isPending}
-              />
+            <View style={{ marginBottom: spacing.md, gap: spacing.sm }}>
+              {memberId && <Pressable accessibilityRole="button" style={styles.filter} onPress={() => router.replace('/(tabs)/tasks')}>
+                <Text style={styles.filterText}>งานของ {workload.data?.members.find((member) => member.id === memberId)?.name ?? 'สมาชิกทีม'} · ดูทั้งหมด ×</Text>
+              </Pressable>}
+              <Button title="เพิ่มงาน · เลือกผู้รับผิดชอบและแนบไฟล์" onPress={() => router.push('/task/new')} />
             </View>
           }
           renderItem={({ item }) => (
-            <Card style={{ marginBottom: spacing.sm }}>
+            <Card style={{ marginBottom: spacing.md }}>
               <TaskRow
                 task={item}
                 onToggle={(done) => toggle.mutate({ task: item, done })}
-                onOpenCase={() => item.case && router.push(`/case/${item.case.id}`)}
+                onOpenCase={() => router.push(`/task/new?id=${item.id}`)}
               />
+              <View style={styles.assignmentRow}>
+                <Text style={[styles.meta, { flex: 1 }]}>
+                  ผู้รับผิดชอบ: {item.assignee ? `${item.assignee.firstName} ${item.assignee.lastName}` : 'ยังไม่ระบุ'}
+                </Text>
+                {item.status !== 'DONE' && (item.caseId
+                  ? ['OWNER', 'SENIOR_LAWYER', 'LAWYER'].includes(user?.firmRole ?? '')
+                  : item.assigneeId === user?.id || item.createdById === user?.id) ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`มอบหมายงาน ${item.title}`}
+                    style={styles.assignButton} onPress={() => setReassigning(item)}>
+                    <Text style={{ color: colors.info, fontWeight: '600' }}>มอบหมาย</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </Card>
           )}
           ListEmptyComponent={<EmptyNote>ไม่มีงานค้าง 🎉</EmptyNote>}
         />
       )}
+      <ReassignSheet caseId={reassigning?.caseId} task={reassigning} onClose={() => setReassigning(null)} />
     </View>
   );
 }
@@ -118,6 +133,8 @@ export default function TasksScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  assignmentRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs, paddingLeft: 34 },
+  assignButton: { minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: spacing.sm },
   checkbox: {
     width: 22,
     height: 22,
@@ -133,4 +150,6 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontWeight: '600', fontSize: 14 },
   titleDone: { color: colors.faint, textDecorationLine: 'line-through' },
   meta: { color: colors.faint, fontSize: 12 },
+  filter: { minHeight: TOUCH, justifyContent: 'center' },
+  filterText: { color: colors.info, fontWeight: '600' },
 });

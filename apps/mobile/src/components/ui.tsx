@@ -1,12 +1,6 @@
 import React from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  ViewStyle,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, StyleProp, TextStyle, View, ViewStyle } from 'react-native';
+import { Text } from '@/components/AppText';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 export function Card({
@@ -19,8 +13,8 @@ export function Card({
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-export function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.sectionLabel}>{children}</Text>;
+export function SectionLabel({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+  return <Text style={[styles.sectionLabel, style]}>{children}</Text>;
 }
 
 export type TagTone = 'court' | 'due' | 'ok' | 'info' | 'plain';
@@ -81,6 +75,9 @@ export function Button({
 }) {
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!(disabled || busy), busy: !!busy }}
       onPress={onPress}
       disabled={disabled || busy}
       style={({ pressed }) => [

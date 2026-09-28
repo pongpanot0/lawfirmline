@@ -146,7 +146,7 @@ export class TasksService {
     // Anything the board shows must open; otherwise seniors get a 403 on a
     // card they can see.
     const visible = await this.prisma.task.findFirst({
-      where: { id: taskId, caseId: null, ...this.caseAccess.getTaskFilterForUser(user) },
+      where: { id: taskId, caseId: null, ...this.caseAccess.getTaskAccessFilterForUser(user) },
       select: { id: true },
     });
     if (!visible) throw new ForbiddenException('You do not have access to this task');

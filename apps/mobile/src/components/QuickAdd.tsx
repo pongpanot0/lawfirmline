@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { TextInput } from '@/components/AppText';
 import { Plus } from 'lucide-react-native';
 import { colors, radius, spacing, TOUCH } from '@/theme';
 
@@ -10,16 +11,20 @@ export function QuickAdd({
   busy,
 }: {
   placeholder: string;
-  onSubmit: (title: string) => void;
+  onSubmit: (title: string) => void | Promise<unknown>;
   busy?: boolean;
 }) {
   const [text, setText] = useState('');
 
-  const submit = () => {
+  const submit = async () => {
     const title = text.trim();
     if (!title || busy) return;
-    onSubmit(title);
-    setText('');
+    try {
+      await onSubmit(title);
+      setText('');
+    } catch {
+      // Keep the title for retry; the caller displays the request error.
+    }
   };
 
   return (
@@ -34,6 +39,9 @@ export function QuickAdd({
         returnKeyType="done"
       />
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="เพิ่มงาน"
+        disabled={!text.trim() || busy}
         style={[styles.button, (!text.trim() || busy) && { opacity: 0.4 }]}
         onPress={submit}
         hitSlop={6}
@@ -58,8 +66,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   button: {
-    width: TOUCH - 4,
-    height: TOUCH - 4,
+    width: TOUCH,
+    height: TOUCH,
     borderRadius: radius.button,
     backgroundColor: colors.ink,
     alignItems: 'center',

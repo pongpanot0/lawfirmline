@@ -4,6 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "eas-build-post-install": "pnpm --filter @lawfirm/shared build",
     "start": "expo start",
     "ios": "expo start --ios",
     "android": "expo start --android",
@@ -21,6 +22,7 @@
     "expo-constants": "~56.0.25",
     "expo-dev-client": "~56.0.26",
     "expo-device": "~56.0.4",
+    "expo-document-picker": "~56.0.4",
     "expo-file-system": "~56.0.11",
     "expo-font": "~56.0.7",
     "expo-image-picker": "~56.0.25",

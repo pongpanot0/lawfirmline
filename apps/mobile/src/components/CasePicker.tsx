@@ -1,17 +1,12 @@
 import React, { useState } from 'react';
-import {
-  FlatList,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { Text, TextInput } from '@/components/AppText';
 import { ChevronDown, X } from 'lucide-react-native';
 import { useCases } from '@/api/hooks';
 import type { CaseListItem } from '@/api/types';
 import { colors, radius, spacing, TOUCH } from '@/theme';
+import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 
 export interface CaseRef {
   id: string;
@@ -35,6 +30,7 @@ export function CasePicker({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const keyboardHeight = useKeyboardHeight();
   const cases = useCases(search);
 
   const pick = (item: CaseListItem | null) => {
@@ -56,10 +52,11 @@ export function CasePicker({
       </Pressable>
 
       <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={styles.sheet}>
+        <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.sheet, { paddingBottom: spacing.lg + keyboardHeight }]}>
           <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle}>เลือกคดี</Text>
-            <Pressable hitSlop={10} onPress={() => setOpen(false)} style={styles.closeButton}>
+            <Text style={[styles.sheetTitle, { flex: 1 }]}>เลือกคดี</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="ปิดตัวเลือกคดี" hitSlop={10} onPress={() => setOpen(false)} style={styles.closeButton}>
               <X size={22} color={colors.ink} />
             </Pressable>
           </View>
@@ -75,6 +72,7 @@ export function CasePicker({
             data={cases.data ?? []}
             keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             ListHeaderComponent={
               allowNone ? (
                 <Pressable style={styles.row} onPress={() => pick(null)}>
@@ -89,18 +87,19 @@ export function CasePicker({
             }
             renderItem={({ item }) => (
               <Pressable style={styles.row} onPress={() => pick(item)}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
+                <Text style={styles.rowTitle}>
                   {item.ownRef} · {item.title}
                 </Text>
                 {item.clientName ? (
-                  <Text style={styles.rowMeta} numberOfLines={1}>
+                  <Text style={styles.rowMeta}>
                     {item.clientName}
                   </Text>
                 ) : null}
               </Pressable>
             )}
           />
-        </View>
+        </KeyboardAvoidingView>
+        </SafeAreaView></SafeAreaProvider>
       </Modal>
     </>
   );

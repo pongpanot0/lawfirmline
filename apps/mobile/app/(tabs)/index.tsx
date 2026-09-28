@@ -1,12 +1,6 @@
-import React from 'react';
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useRouter } from 'expo-router';
 import {
   BarChart3,
@@ -17,9 +11,12 @@ import {
   LayoutGrid,
   MapPin,
   Receipt,
+  CalendarOff,
+  Search,
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
-import { useActions, useDashboardStats, useMyDay } from '@/api/hooks';
+import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange } from '@/api/hooks';
+import { AgendaItemKind, AgendaUrgency } from '@lawfirm/shared';
 import type { AgendaItem } from '@/api/types';
 import {
   Card,
@@ -30,12 +27,16 @@ import {
   Tag,
   TagTone,
 } from '@/components/ui';
-import { thDateLong, thTime } from '@/format';
-import { colors, fonts, spacing } from '@/theme';
+import { bangkokDay, formatMoney, thDateLong, thTime } from '@/format';
+import { agendaIncludesPerson } from '@/workflow';
+import { leaveFlagsForDate } from '@/lib/leave-flags';
+import { colors, fonts, spacing, pageContent } from '@/theme';
 
 // The most-used destinations from the "อื่นๆ" menu, surfaced one tap away.
 const SHORTCUTS = [
-  { route: '/intake/new', Icon: FilePlus2, label: 'รับเรื่อง' },
+  { route: '/search', Icon: Search, label: 'ค้นไฟล์' },
+  { route: '/leaves', Icon: CalendarOff, label: 'ขอลา' },
+  { route: '/case/new', Icon: FilePlus2, label: 'รับเคส' },
   { route: '/expenses', Icon: Receipt, label: 'ค่าใช้จ่าย' },
   { route: '/clients', Icon: Contact, label: 'ลูกความ' },
   { route: '/reports', Icon: BarChart3, label: 'รายงาน' },
@@ -50,8 +51,9 @@ const KIND_LABEL: Record<string, { label: string; tone: TagTone }> = {
   OTHER: { label: 'นัดหมาย', tone: 'plain' },
 };
 
-function AgendaRow({ item, onPress }: { item: AgendaItem; onPress?: () => void }) {
+function AgendaRow({ item, onPress, onPersonPress }: { item: AgendaItem; onPress?: () => void; onPersonPress: (id: string) => void }) {
   const kind = KIND_LABEL[item.kind] ?? KIND_LABEL.OTHER;
+  const companions = (Array.isArray(item.assignees) ? item.assignees : []).filter((person) => person.id !== item.assigneeId);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.7 }}>
       <View style={styles.agendaRow}>
@@ -74,6 +76,23 @@ function AgendaRow({ item, onPress }: { item: AgendaItem; onPress?: () => void }
               </Text>
             </View>
           ) : null}
+          <View style={styles.personLinks}>
+            <Text style={styles.agendaCase}>หลัก: </Text>
+            {item.assigneeId ? <Pressable accessibilityRole="link" accessibilityLabel={`ดูงานและนัดของ ${item.assigneeName ?? 'ผู้รับผิดชอบ'}`}
+              onPress={(event) => { event.stopPropagation(); onPersonPress(item.assigneeId!); }} hitSlop={6}>
+              <Text style={styles.personLink}>{item.assigneeName ?? 'ผู้รับผิดชอบ'}</Text>
+            </Pressable> : <Text style={styles.agendaCase}>ยังไม่ระบุ</Text>}
+          </View>
+          {item.kind !== 'TASK' && <View style={styles.personLinks}>
+            <Text style={styles.agendaCase}>ร่วม: </Text>
+            {companions.length ? companions.map((person, index) => <React.Fragment key={person.id}>
+              {index > 0 && <Text style={styles.agendaCase}>, </Text>}
+              <Pressable accessibilityRole="link" accessibilityLabel={`ดูงานและนัดของ ${person.name}`}
+                onPress={(event) => { event.stopPropagation(); onPersonPress(person.id); }} hitSlop={6}>
+                <Text style={styles.personLink}>{person.name}</Text>
+              </Pressable>
+            </React.Fragment>) : <Text style={styles.agendaCase}>ไม่มี</Text>}
+          </View>}
         </View>
         <Tag tone={kind.tone}>{kind.label}</Tag>
       </View>
@@ -87,28 +106,49 @@ export default function MyDayScreen() {
   const myDay = useMyDay();
   const stats = useDashboardStats();
   const actions = useActions();
+  const owner = user?.firmRole === 'OWNER';
+  const workload = useWorkload(owner);
+  const claims = useExpenseClaims(owner);
+  const today = bangkokDay(new Date().toISOString());
+  const appointments = useCalendarRange(today, today);
+  const leaves = useLeaves(today, today, owner);
+  const [showAllPeople, setShowAllPeople] = useState(false);
+  const leaveFlags = leaveFlagsForDate(leaves.data ?? [], today);
   const pendingActions = actions.data?.items.length ?? 0;
 
   const openItem = (item: AgendaItem) => {
     if (item.kind === 'COURT_DATE') router.push(`/court-day/${item.entityId}`);
+    else if (item.kind !== 'TASK') router.push(`/event/${item.entityId}/team`);
     else if (item.caseId) router.push(`/case/${item.caseId}`);
+    else router.push('/(tabs)/tasks');
   };
+  const openPerson = (id: string) => router.push({ pathname: '/(tabs)/team', params: { memberId: id } });
 
-  const courtToday =
-    myDay.data?.todayItems.filter((item) => item.kind === 'COURT_DATE') ?? [];
+  // The work queue omits finished appointments; today's calendar must keep them visible.
+  const courtToday: AgendaItem[] = appointments.data ? appointments.data.map((event) => ({
+    id: `event:${event.id}`, entityId: event.id, kind: event.type as AgendaItemKind,
+    title: event.title, at: event.startAt, endAt: event.endAt,
+    allDay: event.type === 'DEADLINE', urgency: AgendaUrgency.TODAY,
+    caseId: event.caseId, caseRef: event.case?.ownRef ?? null, caseTitle: event.case?.title ?? null,
+    location: event.courtName, departBy: null, url: `/calendar/events/${event.id}`,
+    assigneeId: event.assigneeId, assigneeName: event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : null,
+    assignees: (event.assignees ?? []).map((person) => ({ id: person.userId, name: `${person.user.firstName} ${person.user.lastName}` })),
+  })).sort((a, b) => a.at.localeCompare(b.at)) : myDay.data?.todayItems.filter((item) => item.kind !== 'TASK') ?? [];
   const otherToday =
-    myDay.data?.todayItems.filter((item) => item.kind !== 'COURT_DATE') ?? [];
+    myDay.data?.todayItems.filter((item) => item.kind === 'TASK') ?? [];
 
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}
+      contentContainerStyle={pageContent}
       refreshControl={
         <RefreshControl
           refreshing={myDay.isRefetching}
           onRefresh={() => {
             myDay.refetch();
             stats.refetch();
+            appointments.refetch();
+            if (owner) { workload.refetch(); claims.refetch(); leaves.refetch(); }
           }}
         />
       }
@@ -118,10 +158,12 @@ export default function MyDayScreen() {
           <Text style={styles.hello}>สวัสดี คุณ{user?.firstName ?? ''}</Text>
           <Text style={styles.date}>{thDateLong(new Date())}</Text>
         </View>
-        <Pressable style={styles.bell} hitSlop={8} onPress={() => router.push('/more')}>
+        <Pressable accessibilityRole="button" accessibilityLabel="เมนูเพิ่มเติม" style={styles.bell} hitSlop={8} onPress={() => router.push('/more')}>
           <LayoutGrid size={19} color={colors.ink} />
         </Pressable>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="การแจ้งเตือน"
           style={styles.bell}
           hitSlop={8}
           onPress={() => router.push('/notifications')}
@@ -137,33 +179,6 @@ export default function MyDayScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.statRow}>
-        <StatCard label="นัดวันนี้" value={courtToday.length} />
-        <StatCard
-          label="เกินกำหนด"
-          value={myDay.data?.overdue.length ?? '—'}
-          tone="warn"
-        />
-        <StatCard label="คดีเปิด" value={stats.data?.stats.openCases ?? '—'} />
-      </View>
-
-      <View style={styles.shortcutRow}>
-        {SHORTCUTS.map((shortcut) => (
-          <Pressable
-            key={shortcut.route}
-            style={({ pressed }) => [styles.shortcut, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push(shortcut.route as never)}
-          >
-            <View style={styles.shortcutIcon}>
-              <shortcut.Icon size={19} color={colors.accentInk} />
-            </View>
-            <Text style={styles.shortcutLabel} numberOfLines={1}>
-              {shortcut.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
       {myDay.isError ? (
         <View style={{ marginTop: spacing.lg }}>
           <ErrorNote
@@ -173,33 +188,133 @@ export default function MyDayScreen() {
         </View>
       ) : null}
 
-      <SectionLabel>นัดศาลวันนี้</SectionLabel>
+      {owner && <>
+        <SectionLabel>กำลังคนวันนี้ · ใครทำอะไร</SectionLabel>
+        {workload.isError && <ErrorNote message="โหลดกำลังคนไม่ได้" onRetry={() => workload.refetch()} />}
+        {leaves.isError && <ErrorNote message="โหลดข้อมูลวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
+        {appointments.isError && <ErrorNote message="นัดวันนี้อาจยังไม่ล่าสุด" onRetry={() => appointments.refetch()} />}
+        <View style={[styles.statRow, { marginTop: 0, marginBottom: spacing.md }]}>
+          <StatCard label="คนในทีม" value={workload.data?.members.length ?? '—'} />
+          <StatCard label="มีนัดศาลวันนี้" value={workload.data && (appointments.data || myDay.data)
+            ? workload.data.members.filter((member) => courtToday.some((item) => item.kind === 'COURT_DATE' && agendaIncludesPerson(item, member.id))).length
+            : '—'} />
+          <StatCard label="ลาวันนี้" value={leaves.data && workload.data
+            ? workload.data.members.filter((member) => leaveFlags.get(member.id)?.kind === 'ON_LEAVE').length
+            : '—'} tone="warn" />
+        </View>
+        <Card>
+          {workload.isLoading ? <EmptyNote>กำลังโหลดกำลังคน…</EmptyNote> : workload.data?.members.length === 0 ? <EmptyNote>ยังไม่มีสมาชิกทีม</EmptyNote> : null}
+          {workload.data?.members.slice(0, showAllPeople ? undefined : 4).map((member, index) => {
+            const events = courtToday.filter((item) => agendaIncludesPerson(item, member.id));
+            const tasks = otherToday.filter((item) => item.assigneeId === member.id);
+            const leave = leaveFlags.get(member.id);
+            return <View key={member.id}>
+              {index > 0 && <View style={styles.divider} />}
+              <View style={styles.personDay}>
+                <View style={styles.personHead}>
+                  <Pressable accessibilityRole="link" accessibilityLabel={`ดูงานและนัดของ ${member.name}`}
+                    style={{ flex: 1, minHeight: 44, justifyContent: 'center' }} onPress={() => openPerson(member.id)}>
+                    <Text style={styles.personName}>{member.name} ›</Text>
+                  </Pressable>
+                  {leave ? <Tag tone={leave.kind === 'ON_LEAVE' ? 'due' : 'plain'}>{leave.label}</Tag> : null}
+                </View>
+                <Text style={styles.personSummary}>
+                  นัดวันนี้ {appointments.data || myDay.data ? events.length : '—'} · งานครบกำหนด {myDay.data ? tasks.length : '—'}
+                </Text>
+                {events.slice(0, 2).map((item) => <Pressable key={item.id} accessibilityRole="button"
+                  style={styles.personEvent} onPress={() => openItem(item)}>
+                  <Text style={styles.personEventTime}>{item.allDay ? 'ทั้งวัน' : thTime(item.at)}</Text>
+                  <Text style={styles.personEventTitle} numberOfLines={2}>
+                    {item.title}{item.kind === 'COURT_DATE' ? ` · ${item.assigneeId === member.id ? 'หลัก' : 'ร่วม'}` : ''}
+                  </Text>
+                </Pressable>)}
+                {events.length > 2 && <Text style={styles.agendaCase}>อีก {events.length - 2} นัด · ดูรายการนัดด้านล่าง</Text>}
+                {tasks.length > 0 && <Text style={styles.personTask} numberOfLines={2}>
+                  งาน: {tasks.slice(0, 2).map((item) => item.title).join(' · ')}{tasks.length > 2 ? ` · อีก ${tasks.length - 2} งาน` : ''}
+                </Text>}
+                {leave?.kind === 'ON_LEAVE' && (events.length > 0 || tasks.length > 0)
+                  ? <Text style={{ color: colors.warn, fontSize: 12 }}>มีนัดหรืองานตรงวันลา · ตรวจผู้รับผิดชอบ</Text> : null}
+                <Text style={styles.agendaCase}>งานค้างทั้งหมด {member.openTasks} · เกินกำหนด {member.overdueTasks}</Text>
+              </View>
+            </View>;
+          })}
+          {(workload.data?.members.length ?? 0) > 4 && <Pressable accessibilityRole="button" style={styles.peopleButton}
+            onPress={() => setShowAllPeople(!showAllPeople)}>
+            <Text style={{ color: colors.info }}>{showAllPeople ? 'ย่อรายชื่อ' : `ดูครบ ${workload.data!.members.length} คน`}</Text>
+          </Pressable>}
+          <View style={styles.peopleActions}>
+            <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/(tabs)/tasks')}>
+              <Text style={{ color: colors.info, fontWeight: '600' }}>มอบหมายงาน</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/(tabs)/team')}>
+              <Text style={{ color: colors.info }}>ดูภาระงานทั้งทีม</Text>
+            </Pressable>
+          </View>
+        </Card>
+      </>}
+
+      <SectionLabel>{owner ? 'งานครบกำหนดวันนี้ของทีม' : 'งานครบกำหนดวันนี้'}</SectionLabel>
+      <Card>
+        {otherToday.length === 0 ? (
+          <EmptyNote>{myDay.isLoading ? 'กำลังโหลดงานวันนี้…' : myDay.data ? 'ไม่มีงานครบกำหนดวันนี้' : 'ยังโหลดงานวันนี้ไม่ได้'}</EmptyNote>
+        ) : (
+          otherToday.map((item, index) => (
+            <View key={item.id}>
+              {index > 0 && <View style={styles.divider} />}
+              <AgendaRow item={item} onPress={() => openItem(item)} onPersonPress={openPerson} />
+            </View>
+          ))
+        )}
+        <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/(tabs)/tasks')}>
+          <Text style={{ color: colors.info }}>ดูงานทั้งหมด / เพิ่มงาน</Text>
+        </Pressable>
+      </Card>
+
+      <SectionLabel>{owner ? 'นัดวันนี้ของสำนักงาน' : 'นัดวันนี้'}</SectionLabel>
+      {appointments.isError && <ErrorNote message="โหลดนัดวันนี้ไม่สำเร็จ" onRetry={() => appointments.refetch()} />}
       <Card>
         {courtToday.length === 0 ? (
-          <EmptyNote>วันนี้ไม่มีนัดศาล</EmptyNote>
+          <EmptyNote>{appointments.isLoading ? 'กำลังโหลดนัดวันนี้…' : appointments.data ? 'วันนี้ไม่มีนัดหมาย' : 'ยังโหลดนัดวันนี้ไม่ได้'}</EmptyNote>
         ) : (
           courtToday.map((item, index) => (
             <View key={item.id}>
               {index > 0 && <View style={styles.divider} />}
-              <AgendaRow item={item} onPress={() => openItem(item)} />
+              <AgendaRow item={item} onPress={() => openItem(item)} onPersonPress={openPerson} />
+              <Pressable accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center', paddingLeft: 60 }} onPress={() => router.push(`/event/${item.entityId}/team`)}>
+                <Text style={{ color: colors.info }}>ดู / จัดทีมที่ไปด้วย</Text>
+              </Pressable>
             </View>
           ))
         )}
       </Card>
 
-      <SectionLabel>งานและนัดอื่นวันนี้</SectionLabel>
-      <Card>
-        {otherToday.length === 0 ? (
-          <EmptyNote>ไม่มีรายการอื่นของวันนี้</EmptyNote>
-        ) : (
-          otherToday.map((item, index) => (
-            <View key={item.id}>
-              {index > 0 && <View style={styles.divider} />}
-              <AgendaRow item={item} onPress={() => openItem(item)} />
-            </View>
-          ))
-        )}
-      </Card>
+      {owner && <>
+        <SectionLabel>ชุดเบิกที่ต้องจัดการ</SectionLabel>
+        <Card>
+          {claims.isError ? <ErrorNote message="โหลดชุดเบิกไม่ได้" onRetry={() => claims.refetch()} /> : <View style={{ flexDirection: 'row', gap: spacing.md }}>
+            {(['PENDING', 'APPROVED'] as const).map((status) => {
+              const rows = claims.data?.filter((item) => item.status === status);
+              const label = status === 'PENDING' ? 'รออนุมัติ' : 'รอจ่าย';
+              return <Pressable key={status} accessibilityRole="button" accessibilityLabel={`ดูชุดเบิก${label}`}
+                onPress={() => router.push(`/expenses/claims?status=${status}`)} style={{ flex: 1, minHeight: 64, gap: 2 }}>
+                <Text style={{ color: colors.muted }}>{label}</Text>
+                <Text style={{ color: colors.ink, fontSize: 22, fontWeight: '700' }}>{rows?.length ?? '—'} ชุด</Text>
+                <Text style={{ color: colors.info }}>{rows ? `${formatMoney(rows.reduce((sum, item) => sum + item.totalAmount, 0))} ฿ · ดูรายการ` : 'กำลังโหลด…'}</Text>
+              </Pressable>;
+            })}
+          </View>}
+        </Card>
+      </>}
+
+      <View style={styles.statRow}>
+        <StatCard label="นัดวันนี้" value={appointments.data || myDay.data ? courtToday.length : '—'} />
+        <StatCard
+          label="เกินกำหนด"
+          value={myDay.data?.overdue.length ?? '—'}
+          tone="warn"
+        />
+        <StatCard label="คดีเปิด" value={stats.data?.stats.openCases ?? '—'} />
+      </View>
 
       {(myDay.data?.overdue.length ?? 0) > 0 ? (
         <>
@@ -208,7 +323,7 @@ export default function MyDayScreen() {
             {myDay.data!.overdue.map((item, index) => (
               <View key={item.id}>
                 {index > 0 && <View style={styles.divider} />}
-                <AgendaRow item={item} onPress={() => openItem(item)} />
+                <AgendaRow item={item} onPress={() => openItem(item)} onPersonPress={openPerson} />
               </View>
             ))}
           </Card>
@@ -227,6 +342,23 @@ export default function MyDayScreen() {
           </Card>
         </>
       ) : null}
+      <View style={styles.shortcutRow}>
+        {SHORTCUTS.map((shortcut) => (
+          <Pressable
+            key={shortcut.route}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.shortcut, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push(shortcut.route as never)}
+          >
+            <View style={styles.shortcutIcon}>
+              <shortcut.Icon size={19} color={colors.accentInk} />
+            </View>
+            <Text style={styles.shortcutLabel} numberOfLines={1}>
+              {shortcut.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
     </ScrollView>
   );
 }
@@ -259,6 +391,18 @@ const styles = StyleSheet.create({
   bellBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
   hello: { fontSize: 24, fontFamily: fonts.bold, color: colors.ink },
   date: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  personDay: { paddingVertical: spacing.md, gap: spacing.xs },
+  personHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  personName: { color: colors.info, fontFamily: fonts.semibold, fontSize: 15 },
+  personLinks: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  personLink: { color: colors.info, fontSize: 12, fontWeight: '600' },
+  personSummary: { color: colors.muted, fontSize: 13 },
+  personEvent: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
+  personEventTime: { color: colors.ink, fontSize: 13, fontWeight: '600', width: 44 },
+  personEventTitle: { color: colors.info, fontSize: 13, flex: 1 },
+  personTask: { color: colors.text, fontSize: 13 },
+  peopleButton: { minHeight: 44, justifyContent: 'center' },
+  peopleActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.md },
   statRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
   shortcutRow: {
     flexDirection: 'row',
