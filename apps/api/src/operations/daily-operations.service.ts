@@ -144,7 +144,7 @@ export class DailyOperationsService {
     return {
       userId, firstName: member.user.firstName, lastName: member.user.lastName, role: member.role,
       tasks: open.map((t) => ({
-        id: t.id, title: t.title, status: t.status, size: t.size as PersonWorkload['tasks'][number]['size'], case: t.case,
+        id: t.id, title: t.title, status: t.status, size: t.size as TaskSize, case: t.case,
         dueDate: t.dueDate?.toISOString() ?? null, scheduledFor: t.scheduledFor?.toISOString().slice(0, 10) ?? null,
         overdue: !!t.dueDate && t.dueDate < now,
         holdReason: t.onHold && !t.onHold.endedAt ? t.onHold.reason : null,

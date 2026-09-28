@@ -14,6 +14,7 @@ import { SideDrawer } from '@/components/ui/SideDrawer';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
 import { WorkAssignmentForm } from './WorkAssignmentForm';
 import { PersonWorkloadDrawer } from './PersonWorkloadDrawer';
+import { TaskSizePicker } from './TaskSizePicker';
 
 const statuses: Record<string, string> = { TODO: 'รอเริ่ม', IN_PROGRESS: 'กำลังทำ', PENDING_REVIEW: 'รอตรวจ', NEEDS_REVISION: 'แก้ไขงาน', DONE: 'เสร็จแล้ว' };
 const active = (t: DailyWorkTask) => ![TaskStatus.DONE, TaskStatus.PENDING_REVIEW].includes(t.status as TaskStatus);
@@ -64,9 +65,10 @@ export function DailyWorkboard() {
       {index !== undefined && <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-xs font-semibold">{index + 1}</span>}
       <button type="button" onClick={() => setTaskId(task.id)} className="min-w-0 flex-1 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="block break-words text-sm font-medium">{task.title}</span>
-        <span className="mt-1 block text-xs text-muted-foreground">{task.case ? `${task.case.ownRef} · ` : ''}{statuses[task.status]}{task.size ? ` · งาน${{ S: 'เล็ก', M: 'กลาง', L: 'ใหญ่' }[task.size]}` : ''}{task.scheduledFor?.slice(0, 10) === date ? ' · วางแผนทำวันนี้' : ''}</span>
+        <span className="mt-1 block text-xs text-muted-foreground">{task.case ? `${task.case.ownRef} · ` : ''}{statuses[task.status]}{task.scheduledFor?.slice(0, 10) === date ? ' · วางแผนทำวันนี้' : ''}</span>
         {task.dueDate && <span className={`mt-1 block text-xs ${new Date(task.dueDate) < new Date() && task.status !== TaskStatus.DONE ? 'text-destructive' : 'text-muted-foreground'}`}>ส่ง {formatDateTime(task.dueDate)}</span>}
       </button>
+      {task.status !== TaskStatus.DONE && <TaskSizePicker taskId={task.id} title={task.title} size={task.size} onSaved={() => void load()} />}
       {index !== undefined && <div className="flex shrink-0 gap-1">
         <Button variant="ghost" size="icon" disabled={busy || index === 0} onClick={() => void move(task, 'UP')} aria-label={`เลื่อน ${task.title} ขึ้น`}><ArrowUp className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" disabled={busy || index === (queueLength ?? 0) - 1} onClick={() => void move(task, 'DOWN')} aria-label={`เลื่อน ${task.title} ลง`}><ArrowDown className="h-4 w-4" /></Button>

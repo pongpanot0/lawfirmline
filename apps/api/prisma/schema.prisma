@@ -1175,8 +1175,8 @@ model Task {
   /// Explicit tenant for new tasks; older case/intake tasks retain their existing scope.
   firmId         String?
   workType       TaskWorkType?
-  /// ขนาดงานโดยประมาณ ใช้คิดแต้มภาระงาน (S=1 M=2 L=4) — null นับเป็น M
-  size           TaskSize?
+  /// ขนาดงานโดยประมาณ ใช้คิดแต้มภาระงาน (S=1 M=2 L=4)
+  size           TaskSize     @default(M)
   scheduledFor   DateTime? @db.Date
   queuePosition  Int @default(0)
   requiresReview Boolean @default(false)

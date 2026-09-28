@@ -18,7 +18,7 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
   const [description, setDescription] = useState('');
   const [workType, setWorkType] = useState(task?.workType ?? TaskWorkType.GENERAL);
   const [caseId, setCaseId] = useState(task?.caseId ?? '');
-  const [size, setSize] = useState<TaskSize | ''>(task ? task.size ?? '' : TaskSize.M);
+  const [size, setSize] = useState(task?.size ?? TaskSize.M);
   const [assigneeId, setAssigneeId] = useState('');
   const [scheduledFor, setScheduledFor] = useState(board.date);
   const [due, setDue] = useState('');
@@ -46,7 +46,7 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
   }, [assignmentDate, board, token]);
   const candidates = assignmentCandidates(availability.members.filter((m) => user && (m.userId === user.id || canAssignFirmRole(user.firmRole, m.role as FirmRole))), availability.tasks.filter((t) => t.id !== task?.id), workType, assignmentDate);
   const selected = candidates.find((c) => c.member.userId === assigneeId);
-  const risks = selected ? [selected.member.onLeave && 'มีวันลาที่อนุมัติแล้ว', !selected.configured && 'ยังไม่ได้กำหนดให้ทำงานประเภทนี้', selected.unknown && 'ความคืบหน้าของงานเดิมยังไม่ครบ', selected.member.appointments.length > 0 && 'มีนัดหมายในวันที่เลือก', placeFirst && selected.queue.length > 0 && 'งานเดิมถูกเลื่อนลำดับ', selected.points + taskPoints(size || null) > HEAVY_QUEUE_POINTS && `คิวรวมจะเป็น ${selected.points + taskPoints(size || null)} แต้ม (เกิน ${HEAVY_QUEUE_POINTS})`].filter(Boolean) : [];
+  const risks = selected ? [selected.member.onLeave && 'มีวันลาที่อนุมัติแล้ว', !selected.configured && 'ยังไม่ได้กำหนดให้ทำงานประเภทนี้', selected.unknown && 'ความคืบหน้าของงานเดิมยังไม่ครบ', selected.member.appointments.length > 0 && 'มีนัดหมายในวันที่เลือก', placeFirst && selected.queue.length > 0 && 'งานเดิมถูกเลื่อนลำดับ', selected.points + taskPoints(size) > HEAVY_QUEUE_POINTS && `คิวรวมจะเป็น ${selected.points + taskPoints(size)} แต้ม (เกิน ${HEAVY_QUEUE_POINTS})`].filter(Boolean) : [];
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -54,10 +54,10 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
     setBusy(true); onSaving(true); setError('');
     try {
       if (task) {
-        await api.assignDailyTask(token, task.id, { assigneeId, placeFirst, size: size || undefined });
+        await api.assignDailyTask(token, task.id, { assigneeId, placeFirst, size });
       } else {
         await api.createDailyTask(token, {
-          title: title.trim(), description: description.trim() || undefined, workType, size: size || undefined, caseId: caseId || undefined,
+          title: title.trim(), description: description.trim() || undefined, workType, size, caseId: caseId || undefined,
           assigneeId: assigneeId || undefined, scheduledFor, dueDate: due ? bangkokInputToIso(due) : undefined,
           priority, requiresReview: review === 'YES', reviewerId: review === 'YES' ? reviewerId : undefined, placeFirst,
         });
@@ -86,8 +86,7 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
           <DateTimeField label="กำหนดส่ง (ถ้ามี)" value={due} onChange={(e) => setDue(e.target.value)} hint="เวลาไทย · ไม่ใช้กำหนดส่งเพื่อคำนวณชั่วโมงว่าง" />
         </div>
       </>}
-      <SelectField label="ขนาดงาน" value={size} onChange={(e) => { setSize(e.target.value as TaskSize | ''); setConfirmed(false); }} hint="ใช้คิดแต้มภาระงาน: เล็ก 1 · กลาง 2 · ใหญ่ 4">
-        {task && !task.size && <option value="">ยังไม่ระบุ (นับเป็นกลาง)</option>}
+      <SelectField label="ขนาดงาน" value={size} onChange={(e) => { setSize(e.target.value as TaskSize); setConfirmed(false); }} hint="ใช้คิดแต้มภาระงาน: เล็ก 1 · กลาง 2 · ใหญ่ 4">
         {TASK_SIZES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
       </SelectField>
       <SelectField label="ผู้รับผิดชอบ" required={!!task} value={assigneeId} onChange={(e) => { setAssigneeId(e.target.value); setConfirmed(false); }} hint="เรียงจากประเภทงานที่กำหนดไว้ วันลา และข้อมูลความคืบหน้า">

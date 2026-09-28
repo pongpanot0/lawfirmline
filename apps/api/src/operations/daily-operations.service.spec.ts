@@ -49,7 +49,7 @@ describe('Owner daily operations', () => {
       task: { findMany: jest.fn().mockResolvedValue([
         { assigneeId: 'w', status: 'TODO', size: 'L', scheduledFor: new Date('2026-09-28T00:00:00Z'), dueDate: null },
         // no plan day: falls back to the deadline's Bangkok day (01:00 BKK on the 29th)
-        { assigneeId: 'w', status: 'TODO', size: null, scheduledFor: null, dueDate: new Date('2026-09-28T18:00:00Z') },
+        { assigneeId: 'w', status: 'TODO', size: 'M', scheduledFor: null, dueDate: new Date('2026-09-28T18:00:00Z') },
         { assigneeId: 'w', status: 'IN_PROGRESS', size: 'S', scheduledFor: null, dueDate: null },
         { assigneeId: 'w', status: 'PENDING_REVIEW', size: 'L', scheduledFor: null, dueDate: null },
       ]) },

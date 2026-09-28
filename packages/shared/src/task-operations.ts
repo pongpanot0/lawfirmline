@@ -30,9 +30,9 @@ export const TASK_SIZES = [
 
 const TASK_SIZE_POINTS: Record<TaskSize, number> = { S: 1, M: 2, L: 4 };
 
-/** Load points for one task; an unsized task counts as medium so old work is not invisible. */
-export function taskPoints(size: TaskSize | string | null | undefined) {
-  return TASK_SIZE_POINTS[size as TaskSize] ?? TASK_SIZE_POINTS.M;
+/** Load points for one task. */
+export function taskPoints(size: TaskSize | `${TaskSize}`) {
+  return TASK_SIZE_POINTS[size as TaskSize];
 }
 
 /** ponytail: fixed office-wide thresholds; per-member capacity when people clearly differ. */
@@ -49,7 +49,7 @@ export interface DailyWorkTask {
   id: string; title: string; status: string; priority: string;
   assigneeId: string | null; workerId: string | null; reviewerId: string | null;
   caseId: string | null; case: { id: string; ownRef: string; title: string } | null;
-  workType: TaskWorkType | null; size: TaskSize | null; dueDate: string | null; scheduledFor: string | null;
+  workType: TaskWorkType | null; size: TaskSize; dueDate: string | null; scheduledFor: string | null;
   queuePosition: number; requiresReview: boolean; assignedAt: string | null; acknowledgedAt: string | null;
   completedAt: string | null; holdReason: string | null; blockedBy: string | null;
   blocker: string | null; planConfirmedAt: string | null;
@@ -81,7 +81,7 @@ export interface TeamRadar { start: string; days: string[]; members: TeamRadarMe
 
 export interface PersonWorkload {
   userId: string; firstName: string; lastName: string; role: string;
-  tasks: { id: string; title: string; status: string; dueDate: string | null; scheduledFor: string | null; size: TaskSize | null; overdue: boolean; holdReason: string | null; case: { id: string; ownRef: string; title: string } | null }[];
+  tasks: { id: string; title: string; status: string; dueDate: string | null; scheduledFor: string | null; size: TaskSize; overdue: boolean; holdReason: string | null; case: { id: string; ownRef: string; title: string } | null }[];
   reviews: { id: string; title: string; dueDate: string | null }[];
   cases: { id: string; ownRef: string; title: string; status: string; role: 'LEAD' | 'BUDDY' }[];
   events: { id: string; title: string; startAt: string; endAt: string | null; courtName: string | null }[];

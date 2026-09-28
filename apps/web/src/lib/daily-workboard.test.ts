@@ -38,7 +38,7 @@ test('candidates rank by sized load, so one large job outweighs two small ones',
   const tasks = [
     { workerId: 'big', status: 'TODO', size: 'L', latestUpdate: { ...fresh, authorId: 'big' } },
     { workerId: 'small', status: 'TODO', size: 'S', latestUpdate: { ...fresh, authorId: 'small' } },
-    { workerId: 'small', status: 'TODO', size: null, latestUpdate: { ...fresh, authorId: 'small' } },
+    { workerId: 'small', status: 'TODO', size: 'M', latestUpdate: { ...fresh, authorId: 'small' } },
   ] as any;
   const result = assignmentCandidates(members, tasks, TaskWorkType.GENERAL, '2026-09-27');
   assert.deepEqual(result.map((c) => [c.member.userId, c.points]), [['small', 3], ['big', 4]]);

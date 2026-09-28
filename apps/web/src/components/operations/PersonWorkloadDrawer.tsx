@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { PersonWorkload, TASK_SIZES, TaskSize, taskPoints } from '@lawfirm/shared';
+import { PersonWorkload, taskPoints } from '@lawfirm/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { Badge } from '@/components/ui/badge';
 import { ROLE_LABELS } from '@/lib/daily-workboard';
+import { TaskSizePicker } from './TaskSizePicker';
 
 const LEAVE_LABELS: Record<string, string> = { SICK: 'ลาป่วย', PERSONAL: 'ลากิจ', VACATION: 'ลาพักร้อน' };
-const SIZE_LABELS: Record<string, string> = Object.fromEntries(TASK_SIZES.map((s) => [s.value, s.label.split(' ')[0]]));
 
 function Section({ title, empty, children }: { title: string; empty: boolean; children: React.ReactNode }) {
   return <section className="space-y-2">
@@ -25,26 +25,10 @@ export function PersonWorkloadDrawer({ userId, onClose, onChanged }: { userId: s
   const { token } = useAuth();
   const [data, setData] = useState<PersonWorkload | null>(null);
   const [error, setError] = useState('');
-  const [sizing, setSizing] = useState<string | null>(null);
-  const [savingSize, setSavingSize] = useState(false);
-  const [sizeError, setSizeError] = useState('');
-
-  const saveSize = async (taskId: string, size: TaskSize) => {
-    if (!token || savingSize) return;
-    setSavingSize(true); setSizeError('');
-    try {
-      await api.setTaskSize(token, taskId, size);
-      setData((d) => d && { ...d, tasks: d.tasks.map((t) => t.id === taskId ? { ...t, size } : t) });
-      setSizing(null);
-      onChanged?.();
-    } catch (err) { setSizeError(err instanceof Error ? err.message : 'บันทึกขนาดไม่ได้'); }
-    finally { setSavingSize(false); }
-  };
-
   useEffect(() => {
     if (!token || !userId) return;
     let cancelled = false;
-    setData(null); setError(''); setSizing(null); setSizeError('');
+    setData(null); setError('');
     api.getPersonWorkload(token, userId)
       .then((d) => { if (!cancelled) setData(d); })
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่ได้'); });
@@ -73,17 +57,11 @@ export function PersonWorkloadDrawer({ userId, onClose, onChanged }: { userId: s
           {data.tasks.map((t) => <li key={t.id} className="px-3 py-2 text-sm">
             <div className="flex items-start justify-between gap-2">
               <span className="min-w-0 break-words font-medium">{t.title}</span>
-              {sizing === t.id
-                ? <span role="group" aria-label={`ขนาดของ ${t.title}`} className="flex shrink-0 overflow-hidden rounded-full border">
-                  {TASK_SIZES.map((s) => <button key={s.value} type="button" disabled={savingSize} aria-pressed={t.size === s.value} onClick={() => void saveSize(t.id, s.value)}
-                    className={`px-2.5 py-0.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${t.size === s.value ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>{SIZE_LABELS[s.value]}</button>)}
-                </span>
-                : <button type="button" onClick={() => { setSizing(t.id); setSizeError(''); }} aria-label={`แก้ขนาดงาน ${t.title}`}
-                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${t.size ? 'bg-muted text-muted-foreground hover:bg-muted/70' : 'border border-dashed border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950'}`}>
-                  {t.size ? SIZE_LABELS[t.size] : 'ระบุขนาด'}
-                </button>}
+              <TaskSizePicker taskId={t.id} title={t.title} size={t.size} onSaved={(size) => {
+                setData((d) => d && { ...d, tasks: d.tasks.map((x) => x.id === t.id ? { ...x, size } : x) });
+                onChanged?.();
+              }} />
             </div>
-            {sizing === t.id && sizeError && <p role="alert" className="mt-1 text-xs text-destructive">{sizeError}</p>}
             <p className="mt-0.5 text-xs text-muted-foreground">
               {t.case ? `${t.case.ownRef} · ` : ''}
               {t.scheduledFor ? `วางแผน ${formatDate(`${t.scheduledFor}T00:00:00+07:00`, { day: 'numeric', month: 'short' })}` : 'ยังไม่วางแผนวัน'}
