@@ -506,6 +506,18 @@ export interface CaseMessageEntry {
   createdAt: string;
 }
 
+export interface CaseCommentEntry {
+  id: string;
+  caseId: string;
+  authorId: string;
+  authorFirstName: string;
+  authorLastName: string;
+  body: string;
+  mentionedUserIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CaseActivityItem {
   id: string;
   title: string;
@@ -684,11 +696,14 @@ export interface TaskItem {
   recurrenceDays?: number | null;
   blockedById?: string | null;
   createdById?: string;
+  createdBy?: TaskPerson | null;
   assignee?: TaskPerson | null;
+  observers?: Array<{ id: string; userId: string; user: TaskPerson; createdAt: string }> | null;
   subtaskCount?: number;
   subtaskDoneCount?: number;
   attachmentCount?: number;
   commentCount?: number;
+  observerCount?: number;
   assignmentLogs?: Array<{
     action: import('@lawfirm/shared').TaskLogAction;
     note?: string | null;
@@ -723,6 +738,7 @@ export interface TaskSubtaskItem {
   dueDate?: string | null;
   priority: import('@lawfirm/shared').TaskPriority;
   assignee?: TaskPerson | null;
+  _count?: { attachments: number; comments: number };
 }
 
 export interface TaskDetail extends TaskItem {
@@ -1395,6 +1411,19 @@ export const api = {
   getOmiseConfig: () =>
     request<{ publicKey: string | null; mockMode: boolean }>('/saas/omise/public-key'),
 
+  getFirmSettings: (token: string) =>
+    request<{ ownRefPrefix: string }>('/saas/firm/settings', { token }),
+
+  updateFirmSettings: (token: string, data: { ownRefPrefix?: string }) =>
+    request<{ ownRefPrefix: string }>('/saas/firm/settings', {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  getNextOwnRef: (token: string) =>
+    request<{ ownRef: string }>('/cases/next-own-ref', { token }),
+
   getMe: (token: string, options?: { refreshAuth?: boolean }) =>
     request<import('@lawfirm/shared').AuthUser>('/auth/me', { token, ...options }),
 
@@ -1455,8 +1484,6 @@ export const api = {
   getCase: (token: string, id: string) =>
     request<CaseDetail>(`/cases/${id}`, { token }),
 
-  getNextOwnRef: (token: string) =>
-    request<{ ownRef: string }>('/cases/next-own-ref', { token }),
 
   createCase: (token: string, data: Record<string, unknown>) =>
     request('/cases', {
@@ -2905,6 +2932,22 @@ export const api = {
 
   unpublishDocument: (token: string, caseId: string, documentId: string, publicationId: string) =>
     request(`/cases/${caseId}/documents/${documentId}/publications/${publicationId}`, {
+      method: 'DELETE',
+      token,
+    }),
+
+  getCaseComments: (token: string, caseId: string) =>
+    request<CaseCommentEntry[]>(`/cases/${caseId}/comments`, { token }),
+
+  createCaseComment: (token: string, caseId: string, body: string, mentionedUserIds?: string[]) =>
+    request<CaseCommentEntry>(`/cases/${caseId}/comments`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ body, mentionedUserIds }),
+    }),
+
+  deleteCaseComment: (token: string, caseId: string, commentId: string) =>
+    request(`/cases/${caseId}/comments/${commentId}`, {
       method: 'DELETE',
       token,
     }),

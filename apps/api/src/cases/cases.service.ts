@@ -28,6 +28,8 @@ import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
 import { Optional } from '@nestjs/common';
 import { formatCaseNotificationReference } from '../notifications/reference-label';
 
+const OWN_REF_TAKEN_MESSAGE = 'เลขคดีนี้ถูกใช้กับคดีอื่นในสำนักงานแล้ว กรุณาใช้เลขอื่น';
+
 function caseAssignmentSummary(prefix: string, legalCase: { title: string; ownRef?: string | null; blackCaseNumber?: string | null; redCaseNumber?: string | null }) {
   const reference = formatCaseNotificationReference(legalCase);
   return `${prefix}\nคดี: ${legalCase.title}${reference ? `\n${reference}` : ''}`;
@@ -271,26 +273,32 @@ export class CasesService {
   /**
    * Shared core of every case creation: allocates the Own Ref (or checks a requested one),
    * a folder id, and opens the case at PRE_LITIGATION.
+   *
+   * `suggestedOwnRef` is the number the form pre-filled. A request that sends it back
+   * unchanged is still "auto": if someone else took it meanwhile, a fresh number is
+   * generated instead of failing. Only a number the user actually typed is strict.
    */
   private async insertCase(
     db: Prisma.TransactionClient,
     firmId: string,
     requestedOwnRef: string | undefined,
     data: Omit<Prisma.CaseUncheckedCreateInput, 'firmId' | 'ownRef' | 'folderId' | 'stage'>,
+    suggestedOwnRef?: string,
   ) {
-    const manualRef = requestedOwnRef?.trim();
-    let ownRef = manualRef || (await this.generateOwnRef(firmId, db));
+    const requested = requestedOwnRef?.trim();
+    const isManual = !!requested && requested !== suggestedOwnRef?.trim();
+    let ownRef = requested || (await this.generateOwnRef(firmId, db));
 
     for (let attempt = 0; attempt < 5; attempt++) {
       const existing = await db.case.findUnique({
         where: { firmId_ownRef: { firmId, ownRef } },
       });
       if (!existing) break;
-      if (manualRef) {
-        throw new ConflictException('Own ref already exists');
+      if (isManual) {
+        throw new ConflictException(OWN_REF_TAKEN_MESSAGE);
       }
       if (attempt === 4) {
-        throw new ConflictException('Could not allocate a unique Own Ref — please retry');
+        throw new ConflictException('ออกเลขคดีไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
       }
       ownRef = await this.generateOwnRef(firmId, db);
     }
@@ -389,7 +397,7 @@ export class CasesService {
       additionalClients: dto.clients?.length
         ? { create: this.additionalClientRows(dto.clients) }
         : undefined,
-    });
+    }, dto.ownRefSuggested);
 
     await this.caseFeed.log({
       caseId: created.id,
@@ -441,7 +449,7 @@ export class CasesService {
       const existing = await this.prisma.case.findUnique({
         where: { firmId_ownRef: { firmId: user.firmId, ownRef: dto.ownRef.trim() } },
       });
-      if (existing) throw new ConflictException('เลขอ้างอิงสำนักงานนี้ถูกใช้กับคดีอื่นแล้ว');
+      if (existing) throw new ConflictException(OWN_REF_TAKEN_MESSAGE);
     }
 
     if (dto.leadLawyerId) {

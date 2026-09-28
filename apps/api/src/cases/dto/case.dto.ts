@@ -55,6 +55,11 @@ export class CreateCaseDto {
   @IsString()
   ownRef?: string;
 
+  /** The number the form pre-filled; sending it back unchanged means "auto" (regenerate on a race). */
+  @IsOptional()
+  @IsString()
+  ownRefSuggested?: string;
+
   @IsOptional()
   @IsString()
   customerRef?: string;

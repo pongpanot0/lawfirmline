@@ -70,6 +70,12 @@ export class CreateTaskDto {
   @IsOptional()
   @IsUUID()
   blockedById?: string;
+
+  /** ผู้ติดตาม — ได้รับแจ้งเตือน แต่ไม่เป็นผู้รับผิดชอบ */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  observerIds?: string[];
 }
 
 export class UpdateTaskDto {
@@ -128,4 +134,10 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsUUID()
   blockedById?: string;
+
+  /** ผู้ติดตาม — ได้รับแจ้งเตือน แต่ไม่เป็นผู้รับผิดชอบ */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  observerIds?: string[];
 }

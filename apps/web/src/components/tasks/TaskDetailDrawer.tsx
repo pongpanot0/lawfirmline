@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { DateField, DateTimeField, SelectField, TextField, TextareaField } from '@/components/ui/form-fields';
 import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
+import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
@@ -43,6 +44,8 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [subtaskDue, setSubtaskDue] = useState('');
   const [subtaskAssigneeId, setSubtaskAssigneeId] = useState('');
+  // Remounting the autofocused title field puts the cursor back after each add.
+  const [subtaskFieldKey, setSubtaskFieldKey] = useState(0);
   const [comment, setComment] = useState('');
   const [completed, setCompleted] = useState('');
   const [remaining, setRemaining] = useState('');
@@ -51,6 +54,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [reviewNote, setReviewNote] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [observerIds, setObserverIds] = useState<string[]>([]);
   const [siblingTasks, setSiblingTasks] = useState<Array<{ id: string; title: string; status: string }>>([]);
 
   // ตัวเลือก "รอ task อื่นเสร็จก่อน" — เฉพาะงานในคดีเดียวกัน
@@ -89,6 +93,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
       setTask(detail);
       setTitle(detail.title);
       setDescription(detail.description ?? '');
+      setObserverIds(detail.observers?.map((o) => o.userId) ?? []);
       setReviewerId(detail.reviewerId ?? '');
     } catch (err) {
       if (requestedId.current !== taskId) return;
@@ -109,6 +114,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     setComment('');
     setUploadError('');
     setDownloadingId(null);
+    setObserverIds([]);
     setCompleted(''); setRemaining(''); setBlocker(''); setReviewNote('');
     void load();
   }, [load]);
@@ -296,6 +302,47 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
 
         {task && (
           <div className="space-y-6 p-4">
+            <section>
+              <h3 className="text-sm font-semibold mb-3">{d.taskDetail.relatedPeople || 'ผู้เกี่ยวข้อง'}</h3>
+              <div className="space-y-3">
+                {task.createdBy && (
+                  <div className="text-sm">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{d.taskDetail.creator || 'ผู้สร้าง'}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                        {task.createdBy.firstName.charAt(0)}{task.createdBy.lastName.charAt(0)}
+                      </div>
+                      <span>{task.createdBy.firstName} {task.createdBy.lastName}</span>
+                    </div>
+                  </div>
+                )}
+                {task.assignee && (
+                  <div className="text-sm">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{d.taskDetail.assignee}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                        {task.assignee.firstName.charAt(0)}{task.assignee.lastName.charAt(0)}
+                      </div>
+                      <span>{task.assignee.firstName} {task.assignee.lastName}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="text-sm">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{d.taskDetail.observers || 'ผู้ติดตาม'}</p>
+                  <MultiUserSelect
+                    users={users.filter((u) => u.id === user?.id || (!!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)))}
+                    value={observerIds}
+                    onChange={(ids) => {
+                      setObserverIds(ids);
+                      void patch({ observerIds: ids });
+                    }}
+                    placeholder={d.taskDetail.observersPlaceholder || 'เลือกผู้ติดตาม'}
+                    disabled={busy}
+                  />
+                </div>
+              </div>
+            </section>
+
             <section aria-label={d.taskDetail.attachments}>
               <h3 className="mb-2 text-sm font-semibold">{d.taskDetail.attachments} ({task.attachments.length})</h3>
               <DocumentDropZone multiple disabled={busy} loading={busy} label="เลือกไฟล์เพิ่ม / ลากไฟล์มาวาง"
@@ -477,8 +524,21 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                       <button type="button" onClick={() => onNavigate(s.id)} className={`min-w-0 flex-1 break-words text-left hover:text-primary hover:underline ${s.status === TaskStatus.DONE ? 'text-muted-foreground line-through' : ''}`}>
                         {s.title}
                       </button>
-                      {s.assignee && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{s.assignee.firstName}</span>}
+                      {s.assignee && (
+                        <button type="button" onClick={() => onNavigate(s.id)} className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/80">
+                          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary/20 text-[9px] font-medium">
+                            {s.assignee.firstName.charAt(0)}
+                          </span>
+                          {s.assignee.firstName}
+                        </button>
+                      )}
                       {s.dueDate && <span className="text-xs text-muted-foreground">{formatDate(s.dueDate)}</span>}
+                      {s._count && (s._count.attachments > 0 || s._count.comments > 0) && (
+                        <div className="flex gap-1 text-xs text-muted-foreground">
+                          {s._count.attachments > 0 && <span>📎{s._count.attachments}</span>}
+                          {s._count.comments > 0 && <span>💬{s._count.comments}</span>}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul> : !addingSubtask && <p className="mt-2 text-xs text-muted-foreground">{d.taskDetail.noSubtasks}</p>}
@@ -495,14 +555,13 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                     };
                     void run(async () => {
                       await api.createSubtask(token!, task.id, payload);
+                      // Stay open, keep the assignee: add the next subtask straight away.
                       setSubtaskTitle('');
                       setSubtaskDue('');
-                      setSubtaskAssigneeId('');
-                      setAddingSubtask(false);
-                    }, 'เพิ่มงานย่อยแล้ว');
+                    }, 'เพิ่มงานย่อยแล้ว').then(() => setSubtaskFieldKey((k) => k + 1));
                   }}
                 >
-                  <TextField label="งานย่อยต้องทำอะไร" autoFocus required value={subtaskTitle} disabled={busy} onChange={(e) => setSubtaskTitle(e.target.value)} placeholder="เช่น ตรวจชื่อพยานในถอดเทป" />
+                  <TextField key={subtaskFieldKey} label="งานย่อยต้องทำอะไร" autoFocus required value={subtaskTitle} disabled={busy} onChange={(e) => setSubtaskTitle(e.target.value)} placeholder="เช่น ตรวจชื่อพยานในถอดเทป" />
                   <details>
                     <summary className="cursor-pointer text-xs text-muted-foreground">เลือกคนทำงาน / กำหนดส่ง (ไม่บังคับ)</summary>
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">

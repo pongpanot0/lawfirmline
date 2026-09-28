@@ -638,6 +638,8 @@ model User {
   taskLogsFrom               TaskAssignmentLog[]       @relation("TaskLogFrom")
   taskLogsTo                 TaskAssignmentLog[]       @relation("TaskLogTo")
   taskLogsPerformed          TaskAssignmentLog[]       @relation("TaskLogPerformer")
+  observedTasks              TaskObserver[]            @relation("TaskObserver")
+  addedObservations          TaskObserver[]            @relation("TaskObserverAddedBy")
   grantedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessGranted")
   revokedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessRevoked")
   publishedDocuments         DocumentPublication[]     @relation("DocumentPublicationPublished")
@@ -656,6 +658,7 @@ model User {
   confirmedCargoClaims       CargoClaim[]              @relation("CargoClaimConfirmer")
   recordedInvoicePayments    InvoicePayment[]          @relation("InvoicePaymentRecorder")
   createdPleadingDrafts      PleadingDraft[]           @relation("PleadingDraftCreator")
+  caseComments               CaseComment[]
 }
 
 /// A mobile device's Expo push token. One row per device; a token moves to
@@ -858,12 +861,29 @@ model Case {
   cargoClaim             CargoClaim?
   pleadingDrafts         PleadingDraft[]
   portalIntakeSubmission PortalIntakeSubmission?
+  comments               CaseComment[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
   @@index([firmId])
   @@index([clientId])
   @@index([firmId, stage])
+}
+
+model CaseComment {
+  id                String   @id @default(uuid())
+  caseId            String
+  authorId          String
+  body              String   @db.Text
+  mentionedUserIds  String[] @default([])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  case   Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@index([authorId])
 }
 
 model Intake {
@@ -1201,6 +1221,7 @@ model Task {
   subtasks       Task[]              @relation("TaskSubtasks")
   attachments    TaskAttachment[]
   comments       TaskComment[]
+  observers      TaskObserver[]
 
   @@index([dueDate])
   @@index([assigneeId, status, dueDate])
@@ -1240,6 +1261,21 @@ model TaskComment {
   author User @relation("TaskCommentAuthor", fields: [authorId], references: [id])
 
   @@index([taskId, createdAt])
+}
+
+model TaskObserver {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  addedById String
+  createdAt DateTime @default(now())
+
+  task    Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User @relation("TaskObserver", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy User @relation("TaskObserverAddedBy", fields: [addedById], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, userId])
+  @@index([userId])
 }
 
 model TaskAssignmentLog {

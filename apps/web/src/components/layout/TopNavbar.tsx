@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Plus, Menu, ChevronDown, Briefcase, ClipboardList, ListTodo, CalendarDays, Receipt, Users, HelpCircle } from 'lucide-react';
+import { Search, Plus, Menu, ChevronDown, Briefcase, ListTodo, CalendarDays, Receipt, Users, HelpCircle } from 'lucide-react';
 import { AuthUser } from '@lawfirm/shared';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,6 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
   }, [open]);
 
   const items = [
-    { label: d.topbar.newIntake, href: '/intake/new', icon: ClipboardList, show: true },
     { label: d.topbar.newCase, href: '/cases/new', icon: Briefcase, show: canCreateCase },
     { label: d.topbar.newTask, href: '/todos?new=1', icon: ListTodo, show: true },
     { label: d.topbar.newEvent, href: '/court-schedule', icon: CalendarDays, show: true },

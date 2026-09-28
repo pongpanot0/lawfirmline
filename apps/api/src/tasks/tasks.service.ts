@@ -54,6 +54,9 @@ export class TasksService {
     createdBy: {
       select: { id: true, firstName: true, lastName: true },
     },
+    observers: {
+      select: { id: true, userId: true, user: { select: { id: true, firstName: true, lastName: true } }, createdAt: true },
+    },
     onHold: true,
     assignmentLogs: {
       orderBy: { createdAt: 'asc' as const },
@@ -70,9 +73,10 @@ export class TasksService {
    * would otherwise ship 12 nested objects per card.
    */
   private boardInclude = {
-    ...this.taskInclude,
+    assignee: { select: { id: true, firstName: true, lastName: true, email: true } },
+    createdBy: { select: { id: true, firstName: true, lastName: true } },
     subtasks: { select: { status: true } },
-    _count: { select: { attachments: true, comments: true } },
+    _count: { select: { attachments: true, comments: true, observers: true } },
   };
 
   private toBoardItem<
@@ -149,6 +153,13 @@ export class TasksService {
       const delivered = await this.prisma.taskAssignmentLog.findFirst({ where: { taskId, action: TaskLogAction.HANDED_OFF, fromUserId: user.id } });
       if (delivered) return task;
     }
+
+    // Check if user is an observer
+    const isObserver = await this.prisma.taskObserver.findFirst({
+      where: { taskId, userId: user.id },
+      select: { id: true },
+    });
+    if (isObserver) return task;
 
     // Anything the board shows must open; otherwise seniors get a 403 on a
     // card they can see.
@@ -349,6 +360,67 @@ export class TasksService {
     }
   }
 
+  async validateAssigneeForSubtask(caseId: string | null, assigneeId: string, user: AuthUser) {
+    if (assigneeId === user.id) return;
+    const member = await this.prisma.firmMember.findFirst({
+      where: { firmId: user.firmId, userId: assigneeId },
+      select: { role: true },
+    });
+    if (!member) throw new NotFoundException('ผู้รับมอบหมายไม่ได้อยู่ในสำนักงานนี้');
+    if (!caseId && !canAssignFirmRole(user.firmRole, member.role as FirmRole)) {
+      throw new ForbiddenException('มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณเท่านั้น');
+    }
+  }
+
+  async notifyParentObserversOnSubtaskAction(
+    parentTaskId: string,
+    subtask: any,
+    action: 'create' | 'complete' | 'comment',
+    actorUserId: string,
+  ) {
+    const observers = await this.prisma.taskObserver.findMany({
+      where: { taskId: parentTaskId },
+      select: { userId: true },
+    });
+
+    const observerIds = [...new Set(observers.map((o) => o.userId))].filter(
+      (id) => id !== actorUserId,
+    );
+
+    if (!observerIds.length) return;
+
+    const parent = await this.prisma.task.findUnique({
+      where: { id: parentTaskId },
+      select: { caseId: true, intakeId: true },
+    });
+
+    const summaryMap = {
+      create: `งานย่อยใหม่: "${subtask.title}"`,
+      complete: `งานย่อยเสร็จแล้ว: "${subtask.title}"`,
+      comment: `มีความเห็นใหม่ในงานย่อย: "${subtask.title}"`,
+    };
+
+    await this.assignmentNotifier.notifyAssigned({
+      firmId: null,
+      userIds: observerIds,
+      actorUserId,
+      summaryText: `📌 ${summaryMap[action]}`,
+      entityPath: parent?.caseId ? `/cases/${parent.caseId}` : '/todos',
+    });
+  }
+
+  private async validateObservers(observerIds: string[] | undefined, isCaseTask: boolean, firmId: string) {
+    if (!observerIds?.length) return;
+    // Observers are only firm members
+    for (const observerId of observerIds) {
+      const member = await this.prisma.firmMember.findFirst({
+        where: { firmId, userId: observerId },
+        select: { role: true },
+      });
+      if (!member) throw new NotFoundException('ผู้ติดตาม ต้องเป็นสมาชิกของสำนักงาน');
+    }
+  }
+
   async create(
     user: AuthUser,
     caseId: string | null,
@@ -364,6 +436,8 @@ export class TasksService {
     if (dto.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
     await this.validateReview(user, dto.requiresReview ?? false, dto.reviewerId);
     if (dto.requiresReview && dto.assigneeId === dto.reviewerId) throw new BadRequestException('ผู้ทำงานและผู้ตรวจต้องเป็นคนละคน');
+    await this.validateObservers(dto.observerIds, !!caseId, user.firmId);
+
     const task = await this.prisma.task.create({
       data: {
         caseId,
@@ -393,6 +467,17 @@ export class TasksService {
       include: this.taskInclude,
     });
 
+    // Add observers
+    if (dto.observerIds?.length) {
+      await this.prisma.taskObserver.createMany({
+        data: dto.observerIds.map((userId) => ({
+          taskId: task.id,
+          userId,
+          addedById: user.id,
+        })),
+      });
+    }
+
     if (caseId && dto.assigneeId) {
       await this.ensureCaseMembership(caseId, dto.assigneeId);
       await this.logAssignment({
@@ -407,10 +492,16 @@ export class TasksService {
       }
     }
 
-    if (dto.assigneeId && dto.assigneeId !== user.id) {
+    // Notify assignee and observers, excluding creator
+    const notifyUserIds = [...new Set([
+      ...(dto.assigneeId ? [dto.assigneeId] : []),
+      ...(dto.observerIds ?? []),
+    ])].filter((id) => id !== user.id);
+
+    if (notifyUserIds.length) {
       await this.assignmentNotifier.notifyAssigned({
         firmId: user.firmId,
-        userIds: [dto.assigneeId],
+        userIds: notifyUserIds,
         actorUserId: user.id,
         summaryText: await this.taskAssignmentSummary(dto.title, caseId, intakeId),
         entityPath: caseId ? `/cases/${caseId}` : '/todos',
@@ -491,10 +582,13 @@ export class TasksService {
       }
     }
 
+    const { observerIds, ...fields } = dto;
+    const addedObserverIds = observerIds ? await this.syncObservers(id, observerIds, user) : [];
+
     const updated = await this.prisma.task.update({
       where: { id },
       data: {
-        ...dto,
+        ...fields,
         scheduledFor: dto.scheduledFor === null ? null : dto.scheduledFor ? new Date(`${dto.scheduledFor.slice(0, 10)}T00:00:00Z`) : undefined,
         assignedAt: dto.assigneeId && dto.assigneeId !== task.assigneeId ? new Date() : undefined,
         acknowledgedAt: dto.assigneeId && dto.assigneeId !== task.assigneeId ? (dto.assigneeId === user.id ? new Date() : null) : undefined,
@@ -519,11 +613,38 @@ export class TasksService {
       });
     }
 
+    const newObservers = addedObserverIds.filter((uid) => uid !== user.id);
+    if (newObservers.length) {
+      await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
+        userIds: newObservers,
+        actorUserId: user.id,
+        summaryText: `👀 คุณถูกเพิ่มเป็นผู้ติดตามงาน "${task.title}"`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+      });
+    }
+
     if (dto.status === TaskStatus.DONE && task.status !== TaskStatus.DONE) {
       await this.onTaskCompleted(updated, user.id);
     }
 
     return updated;
+  }
+
+  /** Makes the task's observers exactly `observerIds`; returns the ones newly added. */
+  private async syncObservers(taskId: string, observerIds: string[], user: AuthUser): Promise<string[]> {
+    const wanted = [...new Set(observerIds)];
+    await this.validateObservers(wanted, true, user.firmId);
+    const current = (await this.prisma.taskObserver.findMany({ where: { taskId }, select: { userId: true } })).map((o) => o.userId);
+    const added = wanted.filter((uid) => !current.includes(uid));
+    await this.prisma.taskObserver.deleteMany({ where: { taskId, userId: { notIn: wanted } } });
+    if (added.length) {
+      await this.prisma.taskObserver.createMany({
+        data: added.map((userId) => ({ taskId, userId, addedById: user.id })),
+        skipDuplicates: true,
+      });
+    }
+    return added;
   }
 
   private async validateReview(user: AuthUser, required: boolean, reviewerId?: string | null) {
@@ -550,12 +671,29 @@ export class TasksService {
 
   /**
    * Runs once when a task transitions to DONE: spawn the next occurrence of a
-   * recurring task, and tell owners of tasks blocked by this one they can start.
+   * recurring task, notify observers and parent observers, and tell owners of
+   * tasks blocked by this one they can start.
    */
   private async onTaskCompleted(
     task: import('../generated/prisma').Task,
     actorUserId: string,
   ) {
+    // Notify observers and parent observers (if subtask) that task is complete
+    const notifyIds = [...new Set([
+      ...(await this.getParentObserverIds(task.id)),
+      ...(task.parentId ? await this.getParentObserverIds(task.parentId) : []),
+    ])].filter((id) => id !== actorUserId);
+
+    if (notifyIds.length) {
+      await this.notifyViaAssignmentNotifier({
+        firmId: null,
+        userIds: notifyIds,
+        actorUserId,
+        summaryText: `✅ งานเสร็จแล้ว: "${task.title}"`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+      });
+    }
+
     if (task.recurrenceDays) {
       const base = task.dueDate && task.dueDate > new Date() ? task.dueDate : new Date();
       await this.prisma.task.create({
@@ -940,5 +1078,28 @@ export class TasksService {
       where: { id: hold.id },
       data: { endedAt: new Date() },
     });
+  }
+
+  async getParentObserverIds(parentTaskId: string): Promise<string[]> {
+    const observers = await this.prisma.taskObserver.findMany({
+      where: { taskId: parentTaskId },
+      select: { userId: true },
+    });
+    return observers.map((o) => o.userId);
+  }
+
+  async notifyViaAssignmentNotifier(params: {
+    firmId: string | null;
+    userIds: string[];
+    actorUserId: string;
+    summaryText: string;
+    entityPath: string;
+  }) {
+    if (!params.userIds.length) return;
+    try {
+      await this.assignmentNotifier.notifyAssigned(params);
+    } catch (err) {
+      this.logger.error('Notification failed (non-blocking)', err);
+    }
   }
 }

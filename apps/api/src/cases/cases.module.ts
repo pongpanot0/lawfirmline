@@ -10,6 +10,7 @@ import { ContactCaseAccessController } from './contact-case-access.controller';
 import { CaseMessageService } from './case-message.service';
 import { CaseMessageRateLimiterService } from './case-message-rate-limiter.service';
 import { CaseMessageController } from './case-message.controller';
+import { CaseCommentsService } from './case-comments.service';
 import { CalendarModule } from '../calendar/calendar.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntakeModule } from '../intake/intake.module';
@@ -32,6 +33,7 @@ import { CargoClaimsModule } from '../cargo-claims/cargo-claims.module';
     ContactCaseAccessService,
     CaseMessageService,
     CaseMessageRateLimiterService,
+    CaseCommentsService,
     FirmRoleGuard,
   ],
   exports: [CasesService, CaseMessageService],

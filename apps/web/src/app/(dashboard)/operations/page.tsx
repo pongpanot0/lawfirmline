@@ -597,7 +597,7 @@ export default function OperationsPage() {
                 change={locale === 'th' ? `เลยกำหนด ${workflowMetrics.overdueDocumentRequests} รายการ` : `${workflowMetrics.overdueDocumentRequests} overdue`}
                 trend={workflowMetrics.overdueDocumentRequests ? 'down' : 'neutral'}
                 icon={PauseCircle}
-                href="/intake"
+                href="/cases?stage=PRE_LITIGATION"
               />
             </div>
           )}
