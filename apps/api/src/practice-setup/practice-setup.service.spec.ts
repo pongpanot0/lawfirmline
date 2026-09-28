@@ -105,6 +105,7 @@ describe('stage-driven task proposals', () => {
         findMany: jest.fn().mockResolvedValue([
           { id: 'release-1', name: 'Release A', version: 1, steps: overrides.steps ?? [] },
         ]),
+        createMany: jest.fn(),
       },
       caseType: { findMany: jest.fn().mockResolvedValue([]) },
       caseAssignment: { findMany: jest.fn().mockResolvedValue([]) },
@@ -195,8 +196,8 @@ describe('stage-driven task proposals', () => {
 describe('default playbooks', () => {
   const user = { id: 'owner-1', firmId: 'firm-1' } as AuthUser;
 
-  it('seeds a default only for case types with no linked playbook, once', async () => {
-    const [first, second] = DEFAULT_PLAYBOOKS;
+  it('links by current or legacy name, seeds unlinked when no case type matches, and never re-seeds', async () => {
+    const [first, second, ...rest] = DEFAULT_PLAYBOOKS;
     const prisma = {
       playbookRelease: {
         findMany: jest.fn().mockResolvedValue([{ templateKey: null, caseTypeId: 'ct-first' }]),
@@ -204,8 +205,8 @@ describe('default playbooks', () => {
       },
       caseType: {
         findMany: jest.fn().mockResolvedValue([
-          { id: 'ct-first', name: first.caseTypeName },
-          { id: 'ct-second', name: second.caseTypeName },
+          { id: 'ct-first', name: first.caseTypeNames[0] },
+          { id: 'ct-legacy', name: second.caseTypeNames[1] },
         ]),
       },
     };
@@ -213,10 +214,12 @@ describe('default playbooks', () => {
 
     await service.ensureDefaultPlaybooks(user);
     const data = prisma.playbookRelease.createMany.mock.calls[0][0].data;
-    expect(data).toHaveLength(1);
-    expect(data[0]).toMatchObject({ templateKey: second.key, caseTypeId: 'ct-second', version: 1 });
+    // first: its case type already has the firm's own playbook, so skipped
+    expect(data.map((d: { templateKey: string }) => d.templateKey)).toEqual([second.key, ...rest.map((p) => p.key)]);
+    expect(data[0]).toMatchObject({ caseTypeId: 'ct-legacy', version: 1 });
+    for (const d of data.slice(1)) expect(d.caseTypeId).toBeNull();
 
-    prisma.playbookRelease.findMany.mockResolvedValue([{ templateKey: null, caseTypeId: 'ct-first' }, { templateKey: second.key, caseTypeId: 'ct-second' }]);
+    prisma.playbookRelease.findMany.mockResolvedValue([{ templateKey: null, caseTypeId: 'ct-first' }, ...data]);
     await service.ensureDefaultPlaybooks(user);
     expect(prisma.playbookRelease.createMany).toHaveBeenCalledTimes(1);
   });
