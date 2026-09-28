@@ -1387,6 +1387,16 @@ export const api = {
   getOmiseConfig: () =>
     request<{ publicKey: string | null; mockMode: boolean }>('/saas/omise/public-key'),
 
+  getFirmSettings: (token: string) =>
+    request<{ ownRefPrefix: string }>('/saas/firm/settings', { token }),
+
+  updateFirmSettings: (token: string, data: { ownRefPrefix?: string }) =>
+    request<{ ownRefPrefix: string }>('/saas/firm/settings', {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(data),
+    }),
+
   getMe: (token: string, options?: { refreshAuth?: boolean }) =>
     request<import('@lawfirm/shared').AuthUser>('/auth/me', { token, ...options }),
 

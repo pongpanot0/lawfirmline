@@ -158,13 +158,13 @@ describe('CasesService.create Own Ref allocation', () => {
   it('rejects a manual Own Ref that is already used', async () => {
     await expect(
       service.create(user, { title: 'ค', leadLawyerId: 'user-1', ownRef: 'ABC20260001' } as any),
-    ).rejects.toThrow('Own ref already exists');
+    ).rejects.toThrow('หมายเลขคดีนี้ใช้แล้ว');
     expect(mockPrisma.case.create).not.toHaveBeenCalled();
   });
 
   it('gives up after five generated Own Refs collide', async () => {
     await expect(service.create(user, { title: 'ค', leadLawyerId: 'user-1' } as any)).rejects.toThrow(
-      'Could not allocate a unique Own Ref — please retry',
+      'Could not allocate a unique case number — please retry',
     );
     expect(mockPrisma.case.findUnique).toHaveBeenCalledTimes(5);
     expect(mockPrisma.case.create).not.toHaveBeenCalled();

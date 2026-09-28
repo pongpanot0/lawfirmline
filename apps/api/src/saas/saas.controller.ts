@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
@@ -19,10 +20,11 @@ import { SubscriptionService } from './subscription.service';
 import { OmiseService } from './omise.service';
 import { TenantService } from './tenant.service';
 import { AuthService } from '../auth/auth.service';
-import { AcceptInviteDto, CheckoutDto, InviteUserDto, OpenJoinDto, PromptPayCheckoutDto, UpdateMemberRoleDto } from './dto/saas.dto';
+import { AcceptInviteDto, CheckoutDto, InviteUserDto, OpenJoinDto, PromptPayCheckoutDto, UpdateMemberRoleDto, UpdateFirmSettingsDto } from './dto/saas.dto';
 import { FirmRoleGuard } from './guards/firm-role.guard';
 import { OwnerOnly, SkipSubscription } from './decorators/saas.decorators';
 import { BillingPeriod, SubscriptionPlan } from '@lawfirm/shared';
+import { PrismaService } from '../prisma/prisma.module';
 
 @Controller('saas')
 export class SaasController {
@@ -32,6 +34,7 @@ export class SaasController {
     private omise: OmiseService,
     private tenant: TenantService,
     private auth: AuthService,
+    private prisma: PrismaService,
   ) {}
 
   @Get('subscription')
@@ -168,6 +171,55 @@ export class SaasController {
   @SkipSubscription()
   cancelInvitation(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.invitations.cancel(user, id);
+  }
+
+  @Get('firm/settings')
+  @UseGuards(JwtAuthGuard)
+  @SkipSubscription()
+  async getFirmSettings(@CurrentUser() user: AuthUser) {
+    const firm = await this.prisma.firm.findUnique({
+      where: { id: user.firmId },
+      select: { ownRefPrefix: true },
+    });
+    return { ownRefPrefix: firm?.ownRefPrefix || 'TSBREF' };
+  }
+
+  @Patch('firm/settings')
+  @UseGuards(JwtAuthGuard)
+  @SkipSubscription()
+  async updateFirmSettings(@CurrentUser() user: AuthUser, @Body() dto: UpdateFirmSettingsDto) {
+    if (user.firmRole !== FirmRole.OWNER) {
+      throw new ForbiddenException('Only firm owners can update settings');
+    }
+
+    const current = await this.prisma.firm.findUnique({
+      where: { id: user.firmId },
+      select: { ownRefPrefix: true },
+    });
+
+    if (dto.ownRefPrefix !== undefined) {
+      const oldPrefix = current?.ownRefPrefix || 'TSBREF';
+      const newPrefix = dto.ownRefPrefix;
+
+      const updated = await this.prisma.firm.update({
+        where: { id: user.firmId },
+        data: { ownRefPrefix: newPrefix },
+        select: { ownRefPrefix: true },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          firmId: user.firmId,
+          userId: user.id,
+          action: 'FIRM_REF_PREFIX_UPDATED',
+          metadata: { oldPrefix, newPrefix },
+        },
+      });
+
+      return updated;
+    }
+
+    return { ownRefPrefix: current?.ownRefPrefix || 'TSBREF' };
   }
 
   @Get('invitations/:token')
