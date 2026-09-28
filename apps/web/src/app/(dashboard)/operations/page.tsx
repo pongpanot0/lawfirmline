@@ -10,6 +10,7 @@ import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, Ca
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
 import { DailyWorkboard } from '@/components/operations/DailyWorkboard';
+import { TeamRadar } from '@/components/operations/TeamRadar';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -95,7 +96,8 @@ export default function OperationsPage() {
   const d = useDashboardT();
   const { locale } = useLocale();
   const isOwner = user?.firmRole === FirmRole.OWNER;
-  const [tab, setTab] = useState('daily');
+  const [tab, setTab] = useState('radar');
+  const teamTab = tab === 'radar' || tab === 'daily';
   const [summary, setSummary] = useState<WorkloadSummary[]>([]);
   /**
    * Distinct open cases. The per-lawyer figures count assignments, and one
@@ -120,14 +122,14 @@ export default function OperationsPage() {
   const [workflowMetrics, setWorkflowMetrics] = useState<WorkflowMetrics | null>(null);
 
   useEffect(() => {
-    if (!token || !isOwner || tab === 'daily') return;
+    if (!token || !isOwner || teamTab) return;
     api.getCaseHealth(token).then(setCaseHealth).catch(console.error);
     api.getTeamPerformance(token).then(setPerformance).catch(console.error);
     api.getWorkflowMetrics(token).then(setWorkflowMetrics).catch(console.error);
   }, [token, isOwner, tab]);
 
   useEffect(() => {
-    if (!token || !isOwner || tab === 'daily') return;
+    if (!token || !isOwner || teamTab) return;
     setLoading(true);
     api
       .getWorkloadSummary(token, nearDeadlineDays)
@@ -137,7 +139,7 @@ export default function OperationsPage() {
   }, [token, isOwner, nearDeadlineDays, tab]);
 
   useEffect(() => {
-    if (!token || !isOwner || tab === 'daily') return;
+    if (!token || !isOwner || teamTab) return;
     api
       .getCases(token)
       .then((cases) => setActiveCaseCount(cases.filter((c) => c.status !== CaseStatus.CLOSED).length))
@@ -158,13 +160,13 @@ export default function OperationsPage() {
   }, [token, isOwner, selectedUserId, nearDeadlineDays]);
 
   useEffect(() => {
-    if (!token || !isOwner || tab === 'daily') return;
+    if (!token || !isOwner || teamTab) return;
     setPairingLoading(true);
     api.getPairing(token).then(setPairing).catch(console.error).finally(() => setPairingLoading(false));
   }, [token, isOwner, tab]);
 
   const loadOnHold = () => {
-    if (!token || !isOwner || tab === 'daily') return;
+    if (!token || !isOwner || teamTab) return;
     setOnHoldLoading(true);
     api
       .getOnHoldTasks(token)
@@ -203,9 +205,9 @@ export default function OperationsPage() {
 
   return (
     <div>
-      <PageHeader title={tab === 'daily' ? 'งานของทีม' : d.operations.title} description={tab === 'daily' ? 'จัดคนทำงาน ติดตามความคืบหน้า และช่วยแก้คอขวด' : d.operations.description} />
+      <PageHeader title={teamTab ? 'งานของทีม' : d.operations.title} description={teamTab ? 'จัดคนทำงาน ติดตามความคืบหน้า และช่วยแก้คอขวด' : d.operations.description} />
 
-      {tab !== 'daily' && <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {!teamTab && <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label={d.operations.kpiLawyers} value={enriched.length} icon={Users} />
         <KpiCard label={d.operations.kpiActiveCases} value={activeCaseCount ?? '—'} icon={Scale} change={fmt(d.operations.kpiActiveCasesChange, { count: totalAssignments })} trend="neutral" />
         <KpiCard
@@ -226,6 +228,7 @@ export default function OperationsPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="max-w-full overflow-x-auto">
+          <TabsTrigger value="radar">ภาพรวมทีม</TabsTrigger>
           <TabsTrigger value="daily">งานรายวัน</TabsTrigger>
           <TabsTrigger value="workload">{d.operations.tabWorkload}</TabsTrigger>
           <TabsTrigger value="pairing">{d.operations.tabPairing}</TabsTrigger>
@@ -242,6 +245,7 @@ export default function OperationsPage() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="radar"><TeamRadar /></TabsContent>
         <TabsContent value="daily"><DailyWorkboard /></TabsContent>
         <TabsContent value="workload">
           <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabWorkloadHint}</p>

@@ -1,5 +1,7 @@
-import { TaskStatus, TaskWorkType } from '@lawfirm/shared';
+import { TaskStatus, TaskWorkType, taskPoints } from '@lawfirm/shared';
 import type { DailyWorkMember, DailyWorkTask } from '@lawfirm/shared';
+
+export const ROLE_LABELS: Record<string, string> = { OWNER: 'Owner', SENIOR_LAWYER: 'ทนายอาวุโส', LAWYER: 'ทนาย', ASSISTANT: 'ผู้ช่วย' };
 
 export function updatedOn(task: DailyWorkTask, date: string) {
   return !!task.latestUpdate && task.latestUpdate.authorId === task.workerId && new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date(task.latestUpdate.createdAt)) === date;
@@ -17,6 +19,7 @@ export function assignmentCandidates(members: DailyWorkMember[], tasks: DailyWor
     const configured = member.workTypes.includes(workType);
     const unknown = queue.some((t) => !updatedOn(t, date));
     const reviews = tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW && t.assigneeId === member.userId);
-    return { member, queue, reviews, configured, unknown };
-  }).sort((a, b) => Number(a.member.onLeave) - Number(b.member.onLeave) || Number(b.configured) - Number(a.configured) || Number(a.unknown) - Number(b.unknown) || a.queue.length - b.queue.length);
+    const points = queue.reduce((sum, t) => sum + taskPoints(t.size), 0);
+    return { member, queue, points, reviews, configured, unknown };
+  }).sort((a, b) => Number(a.member.onLeave) - Number(b.member.onLeave) || Number(b.configured) - Number(a.configured) || Number(a.unknown) - Number(b.unknown) || a.points - b.points);
 }

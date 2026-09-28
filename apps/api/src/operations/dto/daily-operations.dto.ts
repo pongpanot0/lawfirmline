@@ -1,5 +1,5 @@
 import { ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsOptional, IsUUID, Matches } from 'class-validator';
-import { TaskWorkType } from '@lawfirm/shared';
+import { TaskSize, TaskWorkType } from '@lawfirm/shared';
 import { CreateTaskDto } from '../../tasks/dto/task.dto';
 
 export class DailyWorkQueryDto {
@@ -15,6 +15,7 @@ export class CreateDailyTaskDto extends CreateTaskDto {
 export class AssignDailyTaskDto {
   @IsUUID() assigneeId!: string;
   @IsOptional() @IsBoolean() placeFirst?: boolean;
+  @IsOptional() @IsEnum(TaskSize) size?: TaskSize;
 }
 
 export class MoveDailyTaskDto {

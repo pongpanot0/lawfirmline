@@ -16,6 +16,29 @@ export const TASK_WORK_TYPES = [
   { value: TaskWorkType.GENERAL, label: 'งานทั่วไป' },
 ] as const;
 
+export enum TaskSize {
+  S = 'S',
+  M = 'M',
+  L = 'L',
+}
+
+export const TASK_SIZES = [
+  { value: TaskSize.S, label: 'เล็ก (ไม่เกินครึ่งวัน)' },
+  { value: TaskSize.M, label: 'กลาง (ราว 1 วัน)' },
+  { value: TaskSize.L, label: 'ใหญ่ (หลายวัน)' },
+] as const;
+
+const TASK_SIZE_POINTS: Record<TaskSize, number> = { S: 1, M: 2, L: 4 };
+
+/** Load points for one task; an unsized task counts as medium so old work is not invisible. */
+export function taskPoints(size: TaskSize | string | null | undefined) {
+  return TASK_SIZE_POINTS[size as TaskSize] ?? TASK_SIZE_POINTS.M;
+}
+
+/** ponytail: fixed office-wide thresholds; per-member capacity when people clearly differ. */
+export const HEAVY_QUEUE_POINTS = 10;
+export const HEAVY_DAY_POINTS = 4;
+
 export type DailyTaskUpdateInput = { completed: string; remaining: string; blocker?: string };
 
 export function dailyTaskUpdateText(input: DailyTaskUpdateInput) {
@@ -26,7 +49,7 @@ export interface DailyWorkTask {
   id: string; title: string; status: string; priority: string;
   assigneeId: string | null; workerId: string | null; reviewerId: string | null;
   caseId: string | null; case: { id: string; ownRef: string; title: string } | null;
-  workType: TaskWorkType | null; dueDate: string | null; scheduledFor: string | null;
+  workType: TaskWorkType | null; size: TaskSize | null; dueDate: string | null; scheduledFor: string | null;
   queuePosition: number; requiresReview: boolean; assignedAt: string | null; acknowledgedAt: string | null;
   completedAt: string | null; holdReason: string | null; blockedBy: string | null;
   blocker: string | null; planConfirmedAt: string | null;
@@ -42,4 +65,25 @@ export interface DailyWorkMember {
 export interface DailyWorkboard {
   date: string; fetchedAt: string; members: DailyWorkMember[]; tasks: DailyWorkTask[];
   cases: { id: string; ownRef: string; title: string }[];
+}
+
+export interface TeamRadarDay {
+  date: string; taskCount: number; points: number; eventCount: number; onLeave: boolean;
+}
+
+export interface TeamRadarMember {
+  userId: string; firstName: string; lastName: string; role: string;
+  openCount: number; openPoints: number; overdueCount: number; reviewCount: number; unscheduledCount: number;
+  days: TeamRadarDay[];
+}
+
+export interface TeamRadar { start: string; days: string[]; members: TeamRadarMember[] }
+
+export interface PersonWorkload {
+  userId: string; firstName: string; lastName: string; role: string;
+  tasks: { id: string; title: string; status: string; dueDate: string | null; scheduledFor: string | null; size: TaskSize | null; overdue: boolean; holdReason: string | null; case: { id: string; ownRef: string; title: string } | null }[];
+  reviews: { id: string; title: string; dueDate: string | null }[];
+  cases: { id: string; ownRef: string; title: string; status: string; role: 'LEAD' | 'BUDDY' }[];
+  events: { id: string; title: string; startAt: string; endAt: string | null; courtName: string | null }[];
+  leaves: { id: string; type: string; startDate: string; endDate: string }[];
 }

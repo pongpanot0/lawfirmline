@@ -12,7 +12,7 @@ import {
   Length,
   Matches,
 } from 'class-validator';
-import { TaskPriority, TaskStatus, TaskWorkType } from '@lawfirm/shared';
+import { TaskPriority, TaskSize, TaskStatus, TaskWorkType } from '@lawfirm/shared';
 
 export class CreateTaskDto {
   @IsString()
@@ -21,6 +21,9 @@ export class CreateTaskDto {
 
   @IsOptional() @IsEnum(TaskWorkType)
   workType?: TaskWorkType;
+
+  @IsOptional() @IsEnum(TaskSize)
+  size?: TaskSize;
 
   @IsOptional() @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/)
   scheduledFor?: string;
@@ -76,6 +79,9 @@ export class UpdateTaskDto {
 
   @IsOptional() @IsEnum(TaskWorkType)
   workType?: TaskWorkType;
+
+  @IsOptional() @IsEnum(TaskSize)
+  size?: TaskSize;
 
   @IsOptional() @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/)
   scheduledFor?: string | null;

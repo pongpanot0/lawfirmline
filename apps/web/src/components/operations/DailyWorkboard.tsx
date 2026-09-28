@@ -7,15 +7,15 @@ import { api, UserItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { bangkokDateInputValue } from '@/lib/bangkok';
 import { formatDateTime } from '@/lib/utils';
-import { needsOwner, updatedOn } from '@/lib/daily-workboard';
+import { needsOwner, ROLE_LABELS, updatedOn } from '@/lib/daily-workboard';
 import { DateField, SelectField } from '@/components/ui/form-fields';
 import { Button } from '@/components/ui/button';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
 import { WorkAssignmentForm } from './WorkAssignmentForm';
+import { PersonWorkloadDrawer } from './PersonWorkloadDrawer';
 
 const statuses: Record<string, string> = { TODO: 'รอเริ่ม', IN_PROGRESS: 'กำลังทำ', PENDING_REVIEW: 'รอตรวจ', NEEDS_REVISION: 'แก้ไขงาน', DONE: 'เสร็จแล้ว' };
-const roles: Record<string, string> = { OWNER: 'Owner', SENIOR_LAWYER: 'ทนายอาวุโส', LAWYER: 'ทนาย', ASSISTANT: 'ผู้ช่วย' };
 const active = (t: DailyWorkTask) => ![TaskStatus.DONE, TaskStatus.PENDING_REVIEW].includes(t.status as TaskStatus);
 
 export function DailyWorkboard() {
@@ -30,6 +30,8 @@ export function DailyWorkboard() {
   const [assignment, setAssignment] = useState<DailyWorkTask | 'NEW' | null>(null);
   const [assignmentBusy, setAssignmentBusy] = useState(false);
   const [member, setMember] = useState<DailyWorkMember | null>(null);
+  const [personId, setPersonId] = useState<string | null>(null);
+  const closePerson = useCallback(() => setPersonId(null), []);
   const [types, setTypes] = useState<TaskWorkType[]>([]);
   const [typeToAdd, setTypeToAdd] = useState('');
   const [memberError, setMemberError] = useState('');
@@ -62,7 +64,7 @@ export function DailyWorkboard() {
       {index !== undefined && <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-xs font-semibold">{index + 1}</span>}
       <button type="button" onClick={() => setTaskId(task.id)} className="min-w-0 flex-1 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="block break-words text-sm font-medium">{task.title}</span>
-        <span className="mt-1 block text-xs text-muted-foreground">{task.case ? `${task.case.ownRef} · ` : ''}{statuses[task.status]}{task.scheduledFor?.slice(0, 10) === date ? ' · วางแผนทำวันนี้' : ''}</span>
+        <span className="mt-1 block text-xs text-muted-foreground">{task.case ? `${task.case.ownRef} · ` : ''}{statuses[task.status]}{task.size ? ` · งาน${{ S: 'เล็ก', M: 'กลาง', L: 'ใหญ่' }[task.size]}` : ''}{task.scheduledFor?.slice(0, 10) === date ? ' · วางแผนทำวันนี้' : ''}</span>
         {task.dueDate && <span className={`mt-1 block text-xs ${new Date(task.dueDate) < new Date() && task.status !== TaskStatus.DONE ? 'text-destructive' : 'text-muted-foreground'}`}>ส่ง {formatDateTime(task.dueDate)}</span>}
       </button>
       {index !== undefined && <div className="flex shrink-0 gap-1">
@@ -108,7 +110,7 @@ export function DailyWorkboard() {
             const other = all.filter((t) => !active(t));
             const reviews = board.tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW && t.assigneeId === m.userId && t.workerId !== m.userId);
             return <article key={m.userId} className="overflow-hidden rounded-xl border bg-card">
-              <div className="flex items-center justify-between gap-2 px-4 py-3"><div className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{m.firstName.slice(0, 1)}</span><div><h4 className="text-sm font-semibold">{m.firstName} {m.lastName}</h4><p className="text-xs text-muted-foreground">{roles[m.role]} · {queue.length} งานในคิว{m.onLeave ? ' · ลางาน' : ''}</p></div></div><Button size="sm" variant="ghost" onClick={() => { setMember(m); setTypes(m.workTypes); setTypeToAdd(''); setMemberError(''); }}>ประเภทงาน</Button></div>
+              <div className="flex items-center justify-between gap-2 px-4 py-3"><div className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{m.firstName.slice(0, 1)}</span><div><h4 className="text-sm font-semibold"><button type="button" className="hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setPersonId(m.userId)}>{m.firstName} {m.lastName}</button></h4><p className="text-xs text-muted-foreground">{ROLE_LABELS[m.role]} · {queue.length} งานในคิว{m.onLeave ? ' · ลางาน' : ''}</p></div></div><Button size="sm" variant="ghost" onClick={() => { setMember(m); setTypes(m.workTypes); setTypeToAdd(''); setMemberError(''); }}>ประเภทงาน</Button></div>
               {m.appointments.length > 0 && <div className="border-t bg-muted/30 px-4 py-2 text-xs text-muted-foreground">{m.appointments.map((a) => <p key={a.id}>นัด {formatDateTime(a.startAt)} · {a.title}</p>)}</div>}
               {all.length === 0 && reviews.length === 0 && <p className="border-t px-4 py-4 text-sm text-muted-foreground">ไม่มีงานที่บันทึกในคิว · ยังสรุปความพร้อมไม่ได้</p>}
               {queue.map((t, i) => taskRow(t, i, queue.length))}{other.map((t) => taskRow(t))}
@@ -132,6 +134,7 @@ export function DailyWorkboard() {
     <SideDrawer open={assignment !== null} title={assignment === 'NEW' ? 'เพิ่มงานใหม่' : 'มอบหมายงาน'} onClose={closeAssignment}>
       {board && token && assignment && <WorkAssignmentForm key={assignment === 'NEW' ? 'new' : assignment.id} board={board} token={token} task={assignment === 'NEW' ? undefined : assignment} onSaving={setAssignmentBusy} onSaved={() => { setAssignment(null); void load(); }} onClose={closeAssignment} />}
     </SideDrawer>
+    <PersonWorkloadDrawer userId={personId} onClose={closePerson} />
     <SideDrawer open={member !== null} title={`ประเภทงานของ ${member?.firstName ?? ''}`} onClose={closeMember}>
       {member && <form className="space-y-4 p-5" onSubmit={async (e) => { e.preventDefault(); if (!token || busy) return; setBusy(true); setMemberError(''); try { await api.setMemberWorkTypes(token, member.userId, types); setMember(null); await load(); } catch (err) { setMemberError(err instanceof Error ? err.message : 'บันทึกไม่ได้'); } finally { setBusy(false); } }}>
         <p className="text-sm text-muted-foreground">ใช้ประกอบคำแนะนำเวลาจัดงาน Owner ยังเป็นผู้ตัดสินใจ</p>

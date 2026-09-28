@@ -28,3 +28,18 @@ test('recommendations disclose unknown progress and review work instead of imply
   assert.equal(result.at(-1)!.member.userId, 'absent');
   assert.equal(result[1].configured, false);
 });
+
+test('candidates rank by sized load, so one large job outweighs two small ones', () => {
+  const members = [
+    { userId: 'big', workTypes: [TaskWorkType.GENERAL], onLeave: false },
+    { userId: 'small', workTypes: [TaskWorkType.GENERAL], onLeave: false },
+  ] as any;
+  const fresh = { authorId: '', createdAt: '2026-09-27T03:00:00Z' };
+  const tasks = [
+    { workerId: 'big', status: 'TODO', size: 'L', latestUpdate: { ...fresh, authorId: 'big' } },
+    { workerId: 'small', status: 'TODO', size: 'S', latestUpdate: { ...fresh, authorId: 'small' } },
+    { workerId: 'small', status: 'TODO', size: null, latestUpdate: { ...fresh, authorId: 'small' } },
+  ] as any;
+  const result = assignmentCandidates(members, tasks, TaskWorkType.GENERAL, '2026-09-27');
+  assert.deepEqual(result.map((c) => [c.member.userId, c.points]), [['small', 3], ['big', 4]]);
+});

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { canAssignFirmRole, DailyWorkboard, DailyWorkTask, FirmRole, TASK_WORK_TYPES, TaskPriority, TaskWorkType } from '@lawfirm/shared';
+import { canAssignFirmRole, DailyWorkboard, DailyWorkTask, FirmRole, HEAVY_QUEUE_POINTS, TASK_SIZES, TASK_WORK_TYPES, TaskPriority, TaskSize, TaskWorkType, taskPoints } from '@lawfirm/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { bangkokInputToIso } from '@/lib/bangkok';
@@ -18,6 +18,7 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
   const [description, setDescription] = useState('');
   const [workType, setWorkType] = useState(task?.workType ?? TaskWorkType.GENERAL);
   const [caseId, setCaseId] = useState(task?.caseId ?? '');
+  const [size, setSize] = useState<TaskSize | ''>(task ? task.size ?? '' : TaskSize.M);
   const [assigneeId, setAssigneeId] = useState('');
   const [scheduledFor, setScheduledFor] = useState(board.date);
   const [due, setDue] = useState('');
@@ -45,7 +46,7 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
   }, [assignmentDate, board, token]);
   const candidates = assignmentCandidates(availability.members.filter((m) => user && (m.userId === user.id || canAssignFirmRole(user.firmRole, m.role as FirmRole))), availability.tasks.filter((t) => t.id !== task?.id), workType, assignmentDate);
   const selected = candidates.find((c) => c.member.userId === assigneeId);
-  const risks = selected ? [selected.member.onLeave && 'มีวันลาที่อนุมัติแล้ว', !selected.configured && 'ยังไม่ได้กำหนดให้ทำงานประเภทนี้', selected.unknown && 'ความคืบหน้าของงานเดิมยังไม่ครบ', selected.member.appointments.length > 0 && 'มีนัดหมายในวันที่เลือก', placeFirst && selected.queue.length > 0 && 'งานเดิมถูกเลื่อนลำดับ'].filter(Boolean) : [];
+  const risks = selected ? [selected.member.onLeave && 'มีวันลาที่อนุมัติแล้ว', !selected.configured && 'ยังไม่ได้กำหนดให้ทำงานประเภทนี้', selected.unknown && 'ความคืบหน้าของงานเดิมยังไม่ครบ', selected.member.appointments.length > 0 && 'มีนัดหมายในวันที่เลือก', placeFirst && selected.queue.length > 0 && 'งานเดิมถูกเลื่อนลำดับ', selected.points + taskPoints(size || null) > HEAVY_QUEUE_POINTS && `คิวรวมจะเป็น ${selected.points + taskPoints(size || null)} แต้ม (เกิน ${HEAVY_QUEUE_POINTS})`].filter(Boolean) : [];
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -53,10 +54,10 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
     setBusy(true); onSaving(true); setError('');
     try {
       if (task) {
-        await api.assignDailyTask(token, task.id, { assigneeId, placeFirst });
+        await api.assignDailyTask(token, task.id, { assigneeId, placeFirst, size: size || undefined });
       } else {
         await api.createDailyTask(token, {
-          title: title.trim(), description: description.trim() || undefined, workType, caseId: caseId || undefined,
+          title: title.trim(), description: description.trim() || undefined, workType, size: size || undefined, caseId: caseId || undefined,
           assigneeId: assigneeId || undefined, scheduledFor, dueDate: due ? bangkokInputToIso(due) : undefined,
           priority, requiresReview: review === 'YES', reviewerId: review === 'YES' ? reviewerId : undefined, placeFirst,
         });
@@ -85,14 +86,18 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
           <DateTimeField label="กำหนดส่ง (ถ้ามี)" value={due} onChange={(e) => setDue(e.target.value)} hint="เวลาไทย · ไม่ใช้กำหนดส่งเพื่อคำนวณชั่วโมงว่าง" />
         </div>
       </>}
+      <SelectField label="ขนาดงาน" value={size} onChange={(e) => { setSize(e.target.value as TaskSize | ''); setConfirmed(false); }} hint="ใช้คิดแต้มภาระงาน: เล็ก 1 · กลาง 2 · ใหญ่ 4">
+        {task && !task.size && <option value="">ยังไม่ระบุ (นับเป็นกลาง)</option>}
+        {TASK_SIZES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+      </SelectField>
       <SelectField label="ผู้รับผิดชอบ" required={!!task} value={assigneeId} onChange={(e) => { setAssigneeId(e.target.value); setConfirmed(false); }} hint="เรียงจากประเภทงานที่กำหนดไว้ วันลา และข้อมูลความคืบหน้า">
         <option value="">{task ? 'เลือกผู้รับผิดชอบ' : 'ยังไม่มอบหมาย'}</option>
-        {candidates.map(({ member, queue, configured, reviews }) => <option key={member.userId} value={member.userId}>
-          {member.firstName} {member.lastName} · {member.onLeave ? 'ลางาน' : configured ? 'ตรงประเภทงาน' : 'ยังไม่กำหนดประเภท'} · คิว {queue.length} งาน{reviews.length > 0 ? ` · รอตรวจ ${reviews.length}` : ''}
+        {candidates.map(({ member, queue, points, configured, reviews }) => <option key={member.userId} value={member.userId}>
+          {member.firstName} {member.lastName} · {member.onLeave ? 'ลางาน' : configured ? 'ตรงประเภทงาน' : 'ยังไม่กำหนดประเภท'} · คิว {queue.length} งาน ({points} แต้ม){reviews.length > 0 ? ` · รอตรวจ ${reviews.length}` : ''}
         </option>)}
       </SelectField>
       {selected && <div className="rounded-lg border bg-muted/40 p-3 text-sm">
-        <p className="font-medium">งานเดิมของ {selected.member.firstName}</p>
+        <p className="font-medium">งานเดิมของ {selected.member.firstName} · {selected.points} แต้ม</p>
         {selected.reviews.length > 0 && <p className="mt-1 text-amber-700">ยังมีงานรอตรวจ {selected.reviews.length} งาน: {selected.reviews.map((t) => t.title).join(', ')}</p>}
         {selected.queue.length === 0 ? <p className="mt-1 text-muted-foreground">ยังไม่มีงานในคิวที่บันทึกไว้ ต้องยืนยันความพร้อมกับผู้รับผิดชอบ</p> : <ol className="mt-2 space-y-1">
           {selected.queue.map((t, i) => <li key={t.id} className="flex gap-2"><span className="text-muted-foreground">{placeFirst ? i + 2 : i + 1}.</span><span>{t.title}{t.dueDate && <span className="block text-xs text-muted-foreground">ส่ง {formatDateTime(t.dueDate)}</span>}</span></li>)}

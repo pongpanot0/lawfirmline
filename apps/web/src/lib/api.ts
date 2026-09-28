@@ -1619,7 +1619,11 @@ export const api = {
     request<import('@lawfirm/shared').DailyWorkboard>(`/operations/daily?date=${encodeURIComponent(date)}`, { token }),
   createDailyTask: (token: string, data: Record<string, unknown>) =>
     request<TaskItem>('/operations/tasks', { token, method: 'POST', body: JSON.stringify(data) }),
-  assignDailyTask: (token: string, id: string, data: { assigneeId: string; placeFirst: boolean }) =>
+  getTeamRadar: (token: string, date: string) =>
+    request<import('@lawfirm/shared').TeamRadar>(`/operations/radar?date=${encodeURIComponent(date)}`, { token }),
+  getPersonWorkload: (token: string, userId: string) =>
+    request<import('@lawfirm/shared').PersonWorkload>(`/operations/people/${userId}`, { token }),
+  assignDailyTask: (token: string, id: string, data: { assigneeId: string; placeFirst: boolean; size?: import('@lawfirm/shared').TaskSize }) =>
     request<TaskItem>(`/operations/tasks/${id}/assign`, { token, method: 'PATCH', body: JSON.stringify(data) }),
   moveDailyTask: (token: string, id: string, direction: 'UP' | 'DOWN') =>
     request(`/operations/tasks/${id}/order`, { token, method: 'PATCH', body: JSON.stringify({ direction }) }),
