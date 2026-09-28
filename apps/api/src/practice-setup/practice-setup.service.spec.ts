@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CARGO_CLAIM_PLAYBOOK_KEY, CaseStage, DEFAULT_PLAYBOOKS, DeadlineDayBasis, FirmRole, Role, SubscriptionStatus, type AuthUser } from '@lawfirm/shared';
 import { PracticeSetupService, resolveAssignee } from './practice-setup.service';
 
@@ -99,7 +99,7 @@ describe('stage-driven task proposals', () => {
 
   function buildService(overrides: { steps?: unknown[]; today?: Date } = {}) {
     const prisma = {
-      case: { findFirst: jest.fn().mockResolvedValue(theCase) },
+      case: { findFirst: jest.fn().mockResolvedValue(theCase), update: jest.fn().mockResolvedValue(theCase) },
       appliedPlaybook: { findMany: jest.fn().mockResolvedValue([]) },
       playbookRelease: {
         findMany: jest.fn().mockResolvedValue([
@@ -109,7 +109,10 @@ describe('stage-driven task proposals', () => {
       caseType: { findMany: jest.fn().mockResolvedValue([]) },
       caseAssignment: { findMany: jest.fn().mockResolvedValue([]) },
       firmMember: { findMany: jest.fn().mockResolvedValue([]) },
-      task: { create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: `task-${data.title}`, ...data })) },
+      task: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: `task-${data.title}`, ...data })),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     };
     const access = { getCaseFilterForUser: jest.fn().mockReturnValue({}) };
     const deadlineRules = {
@@ -189,6 +192,42 @@ describe('stage-driven task proposals', () => {
       expect.objectContaining({ firmId: user.firmId, userIds: ['member-1'], actorUserId: user.id }),
     );
     expect(caseFeed.log).toHaveBeenCalledWith(expect.objectContaining({ caseId: theCase.id, userId: user.id }));
+  });
+
+  it('skips steps that already exist as tasks for that stage', async () => {
+    const { service, prisma } = buildService({
+      steps: [
+        { title: 'ตรวจเอกสาร', instructions: 'ทำ A', stage: CaseStage.FILING },
+        { title: 'ยื่นฟ้อง', instructions: 'ทำ B', stage: CaseStage.FILING },
+      ],
+    });
+    prisma.task.findMany.mockResolvedValue([{ title: 'ตรวจเอกสาร' }]);
+    const result = await service.proposeStageTasks(user, theCase.id, CaseStage.FILING);
+    expect(result.map((r) => r.title)).toEqual(['ยื่นฟ้อง']);
+    expect(prisma.task.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { caseId: theCase.id, labels: { has: `stage:${CaseStage.FILING}` } } }),
+    );
+  });
+
+  it('createStageTasks marks the stage as handled', async () => {
+    const { service, prisma } = buildService();
+    prisma.firmMember.findMany.mockResolvedValue([{ userId: 'member-1' }]);
+    await service.createStageTasks(user, theCase.id, CaseStage.FILING, [{ title: 'งานใหม่', assigneeId: 'member-1' }]);
+    expect(prisma.case.update).toHaveBeenCalledWith({ where: { id: theCase.id }, data: { stageTasksHandledFor: CaseStage.FILING } });
+  });
+
+  it('dismissStageTasks marks the stage as handled without creating tasks', async () => {
+    const { service, prisma } = buildService();
+    await expect(service.dismissStageTasks(user, theCase.id, CaseStage.CLOSING)).resolves.toEqual({ dismissed: true });
+    expect(prisma.case.update).toHaveBeenCalledWith({ where: { id: theCase.id }, data: { stageTasksHandledFor: CaseStage.CLOSING } });
+    expect(prisma.task.create).not.toHaveBeenCalled();
+  });
+
+  it('dismissStageTasks rejects a case the user cannot access', async () => {
+    const { service, prisma } = buildService();
+    prisma.case.findFirst.mockResolvedValue(null);
+    await expect(service.dismissStageTasks(user, 'other-case', CaseStage.CLOSING)).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.case.update).not.toHaveBeenCalled();
   });
 });
 
