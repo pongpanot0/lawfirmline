@@ -247,11 +247,8 @@ function CasesPageContent() {
               <Download className="h-4 w-4" />
               {d.common.export}
             </Button>
-            <Button size="sm" onClick={() => router.push('/intake/new')}>
-              <Plus className="h-4 w-4" />คดีใหม่ก่อนฟ้อง
-            </Button>
             {canCreate && (
-              <Button variant="outline" size="sm" onClick={() => router.push('/cases/new')}>
+              <Button size="sm" onClick={() => router.push('/cases/new')}>
                 <Plus className="h-4 w-4" />{d.cases.newCase}
               </Button>
             )}
@@ -419,7 +416,7 @@ function CasesPageContent() {
               icon={Briefcase}
               title={d.cases.empty}
               description={d.cases.emptyHint}
-              action={canCreate && <Button onClick={() => router.push('/intake/new')}>คดีใหม่ก่อนฟ้อง</Button>}
+              action={canCreate && <Button onClick={() => router.push('/cases/new')}>{d.cases.newCase}</Button>}
             />
           ) : (
             <>

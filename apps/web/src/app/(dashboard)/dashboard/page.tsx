@@ -116,7 +116,7 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t('ศูนย์ปฏิบัติงาน', 'Legal operations')}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t('คิวรับเรื่อง งานรอตรวจ และกำหนดที่ต้องติดตาม', 'Triage intake, review work, and follow up on deadlines.')}</p>
       </div>
-      <Link href="/intake/new" data-tour="new-intake" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"><Plus className="size-4" />{t('รับงานใหม่', 'New intake')}</Link>
+      <Link href="/cases/new" data-tour="new-intake" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"><Plus className="size-4" />{t('เปิดคดีใหม่', 'New case')}</Link>
     </header>
 
     {isOwner && <section className={`${panel} p-5`} aria-labelledby="team-workload-heading">
