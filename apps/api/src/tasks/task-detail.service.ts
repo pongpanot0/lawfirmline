@@ -44,12 +44,18 @@ export class TaskDetailService {
       include: {
         assignee: person,
         createdBy: person,
+        observers: {
+          select: { id: true, userId: true, user: { select: { id: true, firstName: true, lastName: true } }, createdAt: true },
+        },
         onHold: true,
         parent: { select: { id: true, title: true } },
         case: { select: { id: true, ownRef: true, title: true } },
         subtasks: {
           orderBy: { createdAt: 'asc' },
-          include: { assignee: person },
+          include: {
+            assignee: person,
+            _count: { select: { attachments: true, comments: true } },
+          },
         },
         attachments: {
           orderBy: { createdAt: 'asc' },
@@ -74,6 +80,16 @@ export class TaskDetailService {
     if (parent.parentId) {
       throw new BadRequestException('งานย่อยมีได้ชั้นเดียว สร้างงานย่อยจากงานหลักเท่านั้น');
     }
+
+    // Validate assignee if specified
+    if (dto.assigneeId && !parent.caseId) {
+      await this.tasks.validateAssigneeForSubtask(parent.caseId, dto.assigneeId, user);
+    } else if (dto.assigneeId && parent.caseId) {
+      // Case subtasks can have any case member as assignee
+      const legalCase = await this.prisma.case.findUnique({ where: { id: parent.caseId } });
+      if (!legalCase) throw new BadRequestException('Case not found');
+    }
+
     const created = await this.prisma.task.create({
       data: {
         parentId: parent.id,
@@ -85,6 +101,10 @@ export class TaskDetailService {
         createdById: user.id,
       },
     });
+
+    // Notify parent's observers on subtask creation
+    await this.tasks.notifyParentObserversOnSubtaskAction(parent.id, created, 'create', user.id);
+
     return this.tasks.findOne(created.id);
   }
 
