@@ -9,6 +9,8 @@ import { CaseStatus, FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth, TeamPerformanceRow, WorkflowMetrics } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
+import { DailyWorkboard } from '@/components/operations/DailyWorkboard';
+import { TeamRadar } from '@/components/operations/TeamRadar';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +33,7 @@ const CAPACITY_BADGE: Record<
   string,
   { label: string; variant: 'success' | 'secondary' | 'warning' | 'destructive' }
 > = {
-  LOW: { label: 'ว่าง', variant: 'success' },
+  LOW: { label: 'ภาระคดีต่ำ', variant: 'success' },
   NORMAL: { label: 'ปกติ', variant: 'secondary' },
   HIGH: { label: 'งานเยอะ', variant: 'warning' },
   OVERLOADED: { label: 'งานล้น', variant: 'destructive' },
@@ -94,7 +96,8 @@ export default function OperationsPage() {
   const d = useDashboardT();
   const { locale } = useLocale();
   const isOwner = user?.firmRole === FirmRole.OWNER;
-  const [tab, setTab] = useState('workload');
+  const [tab, setTab] = useState('radar');
+  const teamTab = tab === 'radar' || tab === 'daily';
   const [summary, setSummary] = useState<WorkloadSummary[]>([]);
   /**
    * Distinct open cases. The per-lawyer figures count assignments, and one
@@ -119,29 +122,29 @@ export default function OperationsPage() {
   const [workflowMetrics, setWorkflowMetrics] = useState<WorkflowMetrics | null>(null);
 
   useEffect(() => {
-    if (!token || !isOwner) return;
+    if (!token || !isOwner || teamTab) return;
     api.getCaseHealth(token).then(setCaseHealth).catch(console.error);
     api.getTeamPerformance(token).then(setPerformance).catch(console.error);
     api.getWorkflowMetrics(token).then(setWorkflowMetrics).catch(console.error);
-  }, [token, isOwner]);
+  }, [token, isOwner, tab]);
 
   useEffect(() => {
-    if (!token || !isOwner) return;
+    if (!token || !isOwner || teamTab) return;
     setLoading(true);
     api
       .getWorkloadSummary(token, nearDeadlineDays)
       .then(setSummary)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [token, isOwner, nearDeadlineDays]);
+  }, [token, isOwner, nearDeadlineDays, tab]);
 
   useEffect(() => {
-    if (!token || !isOwner) return;
+    if (!token || !isOwner || teamTab) return;
     api
       .getCases(token)
       .then((cases) => setActiveCaseCount(cases.filter((c) => c.status !== CaseStatus.CLOSED).length))
       .catch(() => setActiveCaseCount(null));
-  }, [token, isOwner]);
+  }, [token, isOwner, tab]);
 
   useEffect(() => {
     if (!token || !isOwner || !selectedUserId) {
@@ -157,13 +160,13 @@ export default function OperationsPage() {
   }, [token, isOwner, selectedUserId, nearDeadlineDays]);
 
   useEffect(() => {
-    if (!token || !isOwner) return;
+    if (!token || !isOwner || teamTab) return;
     setPairingLoading(true);
     api.getPairing(token).then(setPairing).catch(console.error).finally(() => setPairingLoading(false));
-  }, [token, isOwner]);
+  }, [token, isOwner, tab]);
 
   const loadOnHold = () => {
-    if (!token || !isOwner) return;
+    if (!token || !isOwner || teamTab) return;
     setOnHoldLoading(true);
     api
       .getOnHoldTasks(token)
@@ -172,7 +175,7 @@ export default function OperationsPage() {
       .finally(() => setOnHoldLoading(false));
   };
 
-  useEffect(loadOnHold, [token, isOwner]);
+  useEffect(loadOnHold, [token, isOwner, tab]);
 
   const enriched = useMemo(
     () => summary.map((s) => ({ ...s, total: s.leadCount + s.buddyCount, score: s.weightedScore ?? s.leadCount + s.buddyCount })),
@@ -196,15 +199,19 @@ export default function OperationsPage() {
     })[0];
   }, [enriched]);
 
+  // Everyone sees the team's load so they can coordinate; the management tabs stay with the owner.
   if (!isOwner) {
-    return <p className="text-destructive">{d.operations.noAccess}</p>;
+    return <div>
+      <PageHeader title="ภาระงานทีม" description="ดูว่าใครถืองานอะไร และวันไหนว่าง ก่อนขอให้ช่วยหรือส่งต่องาน" />
+      <TeamRadar />
+    </div>;
   }
 
   return (
     <div>
-      <PageHeader title={d.operations.title} description={d.operations.description} />
+      <PageHeader title={teamTab ? 'งานของทีม' : d.operations.title} description={teamTab ? 'จัดคนทำงาน ติดตามความคืบหน้า และช่วยแก้คอขวด' : d.operations.description} />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {!teamTab && <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label={d.operations.kpiLawyers} value={enriched.length} icon={Users} />
         <KpiCard label={d.operations.kpiActiveCases} value={activeCaseCount ?? '—'} icon={Scale} change={fmt(d.operations.kpiActiveCasesChange, { count: totalAssignments })} trend="neutral" />
         <KpiCard
@@ -221,10 +228,12 @@ export default function OperationsPage() {
           trend={overdueOnHoldCount > 0 ? 'down' : 'neutral'}
           change={overdueOnHoldCount > 0 ? fmt(d.operations.kpiOnHoldOverdue, { count: overdueOnHoldCount }) : undefined}
         />
-      </div>
+      </div>}
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="max-w-full overflow-x-auto">
+          <TabsTrigger value="radar">ภาพรวมทีม</TabsTrigger>
+          <TabsTrigger value="daily">ต้องจัดการวันนี้</TabsTrigger>
           <TabsTrigger value="workload">{d.operations.tabWorkload}</TabsTrigger>
           <TabsTrigger value="pairing">{d.operations.tabPairing}</TabsTrigger>
           <TabsTrigger value="onhold">
@@ -240,6 +249,8 @@ export default function OperationsPage() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="radar"><TeamRadar /></TabsContent>
+        <TabsContent value="daily"><DailyWorkboard /></TabsContent>
         <TabsContent value="workload">
           <p className="mb-3 text-sm text-muted-foreground">{d.operations.tabWorkloadHint}</p>
           {recommended && (

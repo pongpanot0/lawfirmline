@@ -53,7 +53,13 @@ describe('CasesService.findOne', () => {
         {
           OR: [
             { case: { firmId: 'firm-1', deletedAt: null } },
-            { caseId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } },
+            {
+              caseId: null,
+              OR: [
+                { firmId: 'firm-1' },
+                { firmId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } },
+              ],
+            },
           ],
         },
         {

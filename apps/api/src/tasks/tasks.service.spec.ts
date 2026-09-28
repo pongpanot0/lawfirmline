@@ -11,7 +11,7 @@ describe('TasksService on-hold', () => {
   let service: TasksService;
   const mockPrisma = {
     task: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn().mockResolvedValue([]), findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', recurrenceDays: null }) },
-    taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
+    taskObserver: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
     firmMember: { count: jest.fn() },
@@ -23,7 +23,10 @@ describe('TasksService on-hold', () => {
       findFirst: jest.fn(),
     },
   };
-  const mockCaseAccess = { getTaskFilterForUser: jest.fn() };
+  const mockCaseAccess = {
+    getTaskFilterForUser: jest.fn(),
+    getTaskAccessFilterForUser: jest.fn().mockReturnValue({}),
+  };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -187,7 +190,7 @@ describe('TasksService on-hold', () => {
 
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'senior-1' },
+        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'senior-1', completedAt: null },
       });
       expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -338,7 +341,7 @@ describe('TasksService on-hold', () => {
 
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'reviewer-1' },
+        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'reviewer-1', completedAt: null },
       });
       expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -457,7 +460,7 @@ describe('TasksService on-hold', () => {
           {
             OR: [
               { case: { firmId: 'firm-1', deletedAt: null } },
-              { caseId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } },
+              { caseId: null, OR: [{ firmId: 'firm-1' }, { firmId: null, createdBy: { firmMembers: { some: { firmId: 'firm-1' } } } }] },
             ],
           },
           {
@@ -510,13 +513,16 @@ describe('TasksService.update — who may change a status', () => {
   let service: TasksService;
   const mockPrisma = {
     task: { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn().mockResolvedValue([]), findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', recurrenceDays: null }) },
-    taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
+    taskObserver: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     case: { findUnique: jest.fn() },
     caseActivity: { create: jest.fn() },
     taskAssignmentLog: { create: jest.fn() },
     firmMember: { count: jest.fn() },
   };
-  const mockCaseAccess = { getTaskFilterForUser: jest.fn() };
+  const mockCaseAccess = {
+    getTaskFilterForUser: jest.fn(),
+    getTaskAccessFilterForUser: jest.fn().mockReturnValue({}),
+  };
 
   const lawyer = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
   const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;

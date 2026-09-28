@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Plus, Search, CalendarDays, FileText } from 'lucide-react';
 import { AgendaItemKind, FirmRole } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
@@ -17,6 +18,19 @@ const panel = 'overflow-hidden rounded-2xl border border-border bg-card';
 const link = 'inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline';
 
 export default function DashboardPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const isOwner = user?.firmRole === FirmRole.OWNER;
+
+  useEffect(() => {
+    if (isOwner) router.replace('/operations');
+  }, [isOwner, router]);
+
+  if (loading || !user || isOwner) return <PageLoading lines={5} />;
+  return <WorkDashboardPage />;
+}
+
+function WorkDashboardPage() {
   const { token, user } = useAuth();
   const actionToken = token ?? getStoredToken();
   const { locale, d } = useLocale();

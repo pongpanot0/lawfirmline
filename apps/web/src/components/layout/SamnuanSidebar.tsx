@@ -44,8 +44,8 @@ const NAV_GROUPS = [
 ] as const;
 
 const NAV_ITEMS = [
+  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false, group: 'work', children: [] as const },
-  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: true, group: 'firm', children: [] as const },
   { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work', children: [] as const },
   {
     href: '/cases',
@@ -96,7 +96,8 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
     ...item.children.map(child => ({ ...child, group: item.group, children: [] })),
   ]);
   const filtered = links.filter(
-    (item) => !item.ownerOnly || user.firmRole === FirmRole.OWNER,
+    (item) => (!item.ownerOnly || user.firmRole === FirmRole.OWNER)
+      && !(item.href === '/dashboard' && user.firmRole === FirmRole.OWNER),
   );
 
   return (

@@ -15,7 +15,7 @@ describe('TasksService detail support', () => {
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
     caseActivity: { create: jest.fn() },
-    taskAssignmentLog: { create: jest.fn() },
+    taskAssignmentLog: { create: jest.fn(), findFirst: jest.fn() },
   };
   const mockCaseAccess = { getTaskFilterForUser: jest.fn().mockReturnValue({}), getTaskAccessFilterForUser: jest.fn().mockReturnValue({}), canAccessCase: jest.fn() };
   const mockStorage = { delete: jest.fn() };
@@ -57,8 +57,9 @@ describe('TasksService detail support', () => {
         id: 't1',
         caseId: null,
         OR: [
-          { assignee: { firmMembers: { some: { firmId: 'f1' } } } },
-          { createdBy: { firmMembers: { some: { firmId: 'f1' } } } },
+          { firmId: 'f1' },
+          { firmId: null, assignee: { firmMembers: { some: { firmId: 'f1' } } } },
+          { firmId: null, createdBy: { firmMembers: { some: { firmId: 'f1' } } } },
         ],
       });
     });
@@ -71,6 +72,14 @@ describe('TasksService detail support', () => {
     it('hides another firm standalone task from an OWNER', async () => {
       mockPrisma.task.findUnique.mockResolvedValue({ id: 't1', caseId: null, assigneeId: 'u2', createdById: 'u8' });
       mockPrisma.task.findFirst.mockResolvedValue(null);
+      await expect(service.assertAccess('t1', ownerOfOtherFirm)).rejects.toThrow(NotFoundException);
+    });
+    it('lets the sender follow their delivered work, but checks tenancy before delivery history', async () => {
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 't1', caseId: null, firmId: 'f1', status: 'PENDING_REVIEW', assigneeId: 'reviewer', createdById: 'owner' });
+      mockPrisma.task.findFirst.mockResolvedValue({ id: 't1' });
+      mockPrisma.taskAssignmentLog.findFirst.mockResolvedValue({ fromUserId: 'u1' });
+      await expect(service.assertAccess('t1', lawyer)).resolves.toMatchObject({ id: 't1' });
+      expect(mockPrisma.taskAssignmentLog.findFirst).toHaveBeenCalledWith({ where: { taskId: 't1', action: 'HANDED_OFF', fromUserId: 'u1' } });
       await expect(service.assertAccess('t1', ownerOfOtherFirm)).rejects.toThrow(NotFoundException);
     });
     it('lets a SENIOR_LAWYER open a lawyer task their board already lists', async () => {

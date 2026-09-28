@@ -677,6 +677,13 @@ export interface StageTaskDraft {
 
 export interface TaskItem {
   id: string;
+  workType?: import('@lawfirm/shared').TaskWorkType | null;
+  scheduledFor?: string | null;
+  requiresReview?: boolean;
+  reviewerId?: string | null;
+  assignedAt?: string | null;
+  acknowledgedAt?: string | null;
+  planConfirmedAt?: string | null;
   caseId?: string | null;
   case?: { id: string; ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null } | null;
   parentId?: string | null;
@@ -718,6 +725,7 @@ export interface TaskAttachmentItem {
 
 export interface TaskCommentItem {
   id: string;
+  kind?: string;
   body: string;
   createdAt: string;
   author: TaskPerson;
@@ -1633,6 +1641,31 @@ export const api = {
     }),
 
   getLawyers: (token: string) => request<UserItem[]>('/users/lawyers', { token }),
+
+  getDailyWorkboard: (token: string, date: string) =>
+    request<import('@lawfirm/shared').DailyWorkboard>(`/operations/daily?date=${encodeURIComponent(date)}`, { token }),
+  createDailyTask: (token: string, data: Record<string, unknown>) =>
+    request<TaskItem>('/operations/tasks', { token, method: 'POST', body: JSON.stringify(data) }),
+  getTeamRadar: (token: string, date: string) =>
+    request<import('@lawfirm/shared').TeamRadar>(`/operations/radar?date=${encodeURIComponent(date)}`, { token }),
+  getPersonWorkload: (token: string, userId: string, from?: string) =>
+    request<import('@lawfirm/shared').PersonWorkload>(`/operations/people/${userId}${from ? `?from=${from}` : ''}`, { token }),
+  followUpTask: (token: string, id: string) =>
+    request<{ followedUpAt: string; alreadySent: boolean }>(`/operations/tasks/${id}/follow-up`, { token, method: 'POST' }),
+  assignDailyTask: (token: string, id: string, data: { assigneeId: string; placeFirst: boolean; size?: import('@lawfirm/shared').TaskSize }) =>
+    request<TaskItem>(`/operations/tasks/${id}/assign`, { token, method: 'PATCH', body: JSON.stringify(data) }),
+  setTaskSize: (token: string, id: string, size: import('@lawfirm/shared').TaskSize) =>
+    request<{ id: string; size: import('@lawfirm/shared').TaskSize }>(`/operations/tasks/${id}/size`, { token, method: 'PATCH', body: JSON.stringify({ size }) }),
+  moveDailyTask: (token: string, id: string, direction: 'UP' | 'DOWN') =>
+    request(`/operations/tasks/${id}/order`, { token, method: 'PATCH', body: JSON.stringify({ direction }) }),
+  setMemberWorkTypes: (token: string, id: string, workTypes: import('@lawfirm/shared').TaskWorkType[]) =>
+    request(`/operations/members/${id}/work-types`, { token, method: 'PATCH', body: JSON.stringify({ workTypes }) }),
+  acknowledgeTask: (token: string, id: string) =>
+    request<TaskItem>(`/tasks/${id}/acknowledge`, { token, method: 'POST' }),
+  confirmTaskPlan: (token: string, id: string, date: string) =>
+    request<TaskItem>(`/tasks/${id}/confirm-plan`, { token, method: 'POST', body: JSON.stringify({ date }) }),
+  dailyTaskUpdate: (token: string, id: string, data: import('@lawfirm/shared').DailyTaskUpdateInput) =>
+    request<TaskCommentItem>(`/tasks/${id}/daily-update`, { token, method: 'POST', body: JSON.stringify(data) }),
 
   getWorkloadSummary: (token: string, nearDeadlineDays = 7) =>
     request<WorkloadSummary[]>(`/operations/workload?nearDeadlineDays=${nearDeadlineDays}`, { token }),
