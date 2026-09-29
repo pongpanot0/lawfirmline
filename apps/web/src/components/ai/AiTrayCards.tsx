@@ -41,7 +41,7 @@ export function AiTrayCards({ caseId, compact = false, onChanged }: { caseId?: s
               <CalendarCheck className="h-4 w-4 text-primary" />
               {!caseId && <b>{card.caseRef ?? card.caseTitle}:</b>} มีวันนัด/ครบกำหนด {card.count} รายการที่ AI เสนอ รอยืนยัน
             </span>
-            <Link href={`/cases/${card.caseId}?tab=calendar`}>
+            <Link href={`/cases/${card.caseId}?tab=documents`}>
               <Button size="sm" variant="outline">ตรวจวันที่</Button>
             </Link>
           </div>
@@ -53,30 +53,33 @@ export function AiTrayCards({ caseId, compact = false, onChanged }: { caseId?: s
 
 function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; showCase: boolean; onDone: () => void }) {
   const { token } = useAuth();
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(card.documents.map((d) => d.id)));
+  const [deselected, setDeselected] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<Record<string, DocStatus>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [skipError, setSkipError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const chosen = card.documents.filter((d) => !deselected.has(d.id)).map((d) => d.id);
   const perDoc = card.documents.length ? card.creditCost / card.documents.length : 0;
-  const cost = selected.size * perDoc;
+  const cost = chosen.length * perDoc;
 
   const toggle = (id: string) =>
-    setSelected((prev) => {
+    setDeselected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
 
   const run = async () => {
-    if (!token || !selected.size) return;
-    if (!confirm(`ให้ AI อ่าน ${selected.size} ไฟล์ (จับวันสำคัญ + สรุป) ใช้ ${cost} เครดิต?`)) return;
+    if (!token || !chosen.length) return;
+    if (!confirm(`ให้ AI อ่าน ${chosen.length} ไฟล์ (สรุป + จับวันสำคัญ) ใช้ ${cost} เครดิต?`)) return;
     setBusy(true);
     // ทีละไฟล์: ไฟล์ไหนพังเห็นชัด ไฟล์ที่เหลือยังทำต่อ และไฟล์ที่พังยังอยู่ในถาดให้ลองใหม่
-    for (const id of selected) {
+    // สรุปก่อน (สร้าง CaseKnowledge ให้ไฟล์หลุดจากถาด) แล้วค่อยจับวัน กันจับวันซ้ำเมื่อ retry
+    for (const id of chosen) {
       setStatus((s) => ({ ...s, [id]: 'running' }));
       try {
-        await api.extractDatesFromDocument(token, card.caseId, id);
         await api.analyzeExistingDocument(token, card.caseId, id);
+        await api.extractDatesFromDocument(token, card.caseId, id);
         await api.markAiTrayHandled(token, [id]);
         setStatus((s) => ({ ...s, [id]: 'done' }));
       } catch (err) {
@@ -89,13 +92,14 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
   };
 
   const skip = async () => {
-    if (!token || !selected.size) return;
+    if (!token || !chosen.length) return;
     setBusy(true);
+    setSkipError(null);
     try {
-      await api.markAiTrayHandled(token, [...selected]);
+      await api.markAiTrayHandled(token, chosen);
       onDone();
     } catch (err) {
-      console.error(err);
+      setSkipError(err instanceof Error ? err.message : 'ข้ามไม่สำเร็จ');
     } finally {
       setBusy(false);
     }
@@ -116,7 +120,7 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
         {card.documents.map((d) => (
           <li key={d.id}>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={selected.has(d.id)} disabled={busy} onChange={() => toggle(d.id)} />
+              <input type="checkbox" checked={!deselected.has(d.id)} disabled={busy} onChange={() => toggle(d.id)} />
               <span className="truncate">{d.filename}</span>
               <span className="w-4">{mark(d.id)}</span>
             </label>
@@ -125,11 +129,12 @@ function UnreadDocumentsCard({ card, showCase, onDone }: { card: UnreadCard; sho
         ))}
       </ul>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" onClick={run} disabled={busy || !selected.size}>
+        <Button size="sm" onClick={run} disabled={busy || !chosen.length}>
           ✦ ให้ AI อ่าน ({cost} เครดิต)
         </Button>
-        <Button size="sm" variant="ghost" onClick={skip} disabled={busy || !selected.size}>ข้าม</Button>
+        <Button size="sm" variant="ghost" onClick={skip} disabled={busy || !chosen.length}>ข้าม</Button>
       </div>
+      {skipError && <p className="mt-1 text-xs text-red-600">ข้ามไม่สำเร็จ: {skipError}</p>}
     </div>
   );
 }
