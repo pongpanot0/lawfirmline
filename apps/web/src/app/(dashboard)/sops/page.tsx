@@ -5,14 +5,22 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { FirmRole } from '@lawfirm/shared';
 import { api, ApiError, SopItem } from '@/lib/api';
-import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
+import { FirmRoleStr, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
+import { caseStageLabel } from '@/lib/stage-labels';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
-import { BookOpen, Plus, Pencil, Trash2, Zap } from 'lucide-react';
+import { BookOpen, ChevronDown, Plus, Pencil, Trash2, Zap } from 'lucide-react';
+
+const ROLE_LABELS: Record<FirmRoleStr, string> = {
+  OWNER: 'เจ้าของสำนักงาน',
+  SENIOR_LAWYER: 'ทนายอาวุโส',
+  LAWYER: 'ทนาย',
+  ASSISTANT: 'ผู้ช่วย',
+};
 
 export default function SopsPage() {
   const { token, user } = useAuth();
@@ -93,9 +101,9 @@ export default function SopsPage() {
               <Button size="sm" variant="outline" onClick={() => setEditing({})}>
                 <Plus className="mr-1 h-4 w-4" /> SOP เอกสาร
               </Button>
-              <Link href="/playbooks?new=1">
+              <Link href="/playbooks/new">
                 <Button size="sm">
-                  <Zap className="mr-1 h-4 w-4" /> SOP อัตโนมัติ
+                  <Zap className="mr-1 h-4 w-4" /> สร้าง SOP อัตโนมัติ
                 </Button>
               </Link>
             </div>
@@ -151,16 +159,41 @@ export default function SopsPage() {
       {autoItems.length > 0 && (
         <div className="mb-3 space-y-3">
           {autoItems.map((p) => (
-            <Link key={p.id} href={`/playbooks?id=${p.id}`} className="block">
-              <Card className="transition-colors hover:border-primary/50">
-                <CardContent className="flex items-center gap-2 p-4">
-                  <Zap className="h-4 w-4 shrink-0 text-amber-500" />
-                  <span className="font-semibold">{p.name}</span>
-                  <Badge variant="muted">อัตโนมัติ · {p.steps.length} ขั้นตอน</Badge>
-                  <span className="ml-auto text-xs text-muted-foreground">v{p.version}</span>
-                </CardContent>
-              </Card>
-            </Link>
+            <Card key={p.id}>
+              <CardContent className="p-0">
+                <details className="group">
+                  <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-2 p-4 hover:text-primary [&::-webkit-details-marker]:hidden">
+                    <Zap className="h-4 w-4 shrink-0 text-amber-500" />
+                    <span className="font-semibold">{p.name}</span>
+                    <Badge variant="muted">อัตโนมัติ · {p.steps.length} ขั้นตอน</Badge>
+                    <span className="ml-auto text-xs text-muted-foreground">v{p.version}</span>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </summary>
+                  <div className="border-t px-4 py-3">
+                    <ol className="space-y-3">
+                      {p.steps.map((step, index) => (
+                        <li key={index} className="flex gap-3 text-sm">
+                          <span className="w-6 shrink-0 text-right text-xs text-muted-foreground">{index + 1}.</span>
+                          <div>
+                            <p className="font-medium">{step.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {[
+                                step.primaryRole && `ผู้ทำ: ${ROLE_LABELS[step.primaryRole]}`,
+                                step.secondaryRole && `ผู้สำรอง: ${ROLE_LABELS[step.secondaryRole]}`,
+                                step.stage && `ขั้นคดี: ${caseStageLabel(step.stage)}`,
+                                step.offsetDays != null && `กำหนด +${step.offsetDays} ${step.dayBasis === 'BUSINESS' ? 'วันทำการ' : 'วันปฏิทิน'}`,
+                              ].filter(Boolean).join(' · ')}
+                            </p>
+                            {step.instructions && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{step.instructions}</p>}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                    {isOwner && <Link href={`/playbooks/${p.id}`} className="mt-4 inline-block text-sm font-medium text-primary hover:underline">แก้ไข SOP อัตโนมัติ</Link>}
+                  </div>
+                </details>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

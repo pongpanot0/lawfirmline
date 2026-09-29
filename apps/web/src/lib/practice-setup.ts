@@ -21,10 +21,10 @@ export interface CargoPlaybookRequirement { code: string; label: string; require
 export interface CargoPlaybookTemplate { requirements: CargoPlaybookRequirement[] }
 export interface PlaybookRelease { id: string; name: string; caseTypeId: string | null; templateKey?: string | null; cargoTemplate?: CargoPlaybookTemplate | null; version: number; steps: PlaybookStep[] }
 export interface PlaybookPreview { release: PlaybookRelease; existing: { id: string } | null; ownerId: string; steps: PlaybookStep[] }
-export async function setupRequest<T>(token: string, path: string, body?: object): Promise<T> {
+export async function setupRequest<T>(token: string, path: string, body?: object, silent = false): Promise<T> {
   const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/practice-setup${path}`, { method: body ? 'POST' : 'GET', headers: withFirmSlugHeaders({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }), body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
-  if (!r.ok) { const error = await r.json().catch(() => ({})); const message = Array.isArray(error.message) ? error.message.join(', ') : error.message ?? `Request failed (${r.status})`; if (body) publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`); throw new Error(message); }
-  if (body) publishActionFeedback('success', actionSuccessMessage('POST'));
+  if (!r.ok) { const error = await r.json().catch(() => ({})); const message = Array.isArray(error.message) ? error.message.join(', ') : error.message ?? `Request failed (${r.status})`; if (body && !silent) publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`); throw new Error(message); }
+  if (body && !silent) publishActionFeedback('success', actionSuccessMessage('POST'));
   return r.json();
 }
 /** RFC4180-style quoted cells and CRLF; reject incomplete input rather than guessing columns. */

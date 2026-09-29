@@ -44,6 +44,7 @@ export default function NewCasePage() {
   const submittingRef = useRef(false);
   const createdCaseId = useRef('');
   const pendingUploads = useRef<File[]>([]);
+  const playbookManuallySelected = useRef(false);
   const [autoTitle, setAutoTitle] = useState(true);
   const [retry, setRetry] = useState(0);
   const [lookupWarning, setLookupWarning] = useState('');
@@ -137,6 +138,11 @@ export default function NewCasePage() {
     if (!token) return;
     setupRequest<PlaybookRelease[]>(token, '/playbooks').then(setPlaybooks).catch(() => setPlaybooks([]));
   }, [token]);
+
+  useEffect(() => {
+    if (!form.caseTypeId || !playbooks.length || playbookManuallySelected.current || cargoClaimEnabled) return;
+    setPlaybookId(playbooks.find((playbook) => playbook.caseTypeId === form.caseTypeId)?.id ?? '');
+  }, [form.caseTypeId, playbooks, cargoClaimEnabled]);
 
   useEffect(() => {
     if (nextOwnRef && !form.ownRef) {
@@ -461,7 +467,6 @@ export default function NewCasePage() {
                                   estimatedDamage: current.customFields.estimatedDamage ?? '',
                                 }, chargeSection: '' },
                           );
-                          setPlaybookId((current) => current || playbooks.find((playbook) => playbook.caseTypeId === type.id)?.id || current);
                         }}
                         className={"min-h-11 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " + (form.caseTypeId === type.id ? "border-primary/50 bg-primary/[0.055]" : "border-border bg-background hover:border-primary/25 hover:bg-muted/60")}
                       >
@@ -482,6 +487,7 @@ export default function NewCasePage() {
                   className={inputClass}
                   value={cargoClaimEnabled ? CARGO_CLAIM_PLAYBOOK_KEY : playbookId}
                   onChange={(event) => {
+                    playbookManuallySelected.current = true;
                     const selected = event.target.value;
                     const isCargoClaim = selected === CARGO_CLAIM_PLAYBOOK_KEY;
                     setCargoClaimEnabled(isCargoClaim);

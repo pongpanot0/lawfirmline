@@ -2227,11 +2227,11 @@ export const api = {
       body: JSON.stringify({ stage }),
     }),
 
-  createCaseType: (token: string, data: Record<string, unknown>) =>
-    request<CaseTypeItem>('/case-types', { method: 'POST', token, body: JSON.stringify(data) }),
+  createCaseType: (token: string, data: Record<string, unknown>, silent = false) =>
+    request<CaseTypeItem>('/case-types', { method: 'POST', token, body: JSON.stringify(data), silent }),
 
-  updateCaseType: (token: string, id: string, data: Record<string, unknown>) =>
-    request(`/case-types/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+  updateCaseType: (token: string, id: string, data: Record<string, unknown>, silent = false) =>
+    request(`/case-types/${id}`, { method: 'PATCH', token, body: JSON.stringify(data), silent }),
 
   deleteCaseType: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/case-types/${id}`, { method: 'DELETE', token }),
