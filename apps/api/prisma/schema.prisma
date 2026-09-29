@@ -1339,6 +1339,8 @@ model Document {
   uploadedById        String?
   uploadedByContactId String?
   visibleToClient     Boolean          @default(false)
+  /// ถาดงาน AI: ตั้งเมื่อผู้ใช้ "ข้าม" หรือ AI อ่านครบ (จับวัน + สรุป) — null = ยังรอในถาด
+  aiTrayHandledAt     DateTime?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 

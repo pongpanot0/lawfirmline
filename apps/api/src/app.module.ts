@@ -28,6 +28,7 @@ import { ClientPortalModule } from './client-portal/client-portal.module';
 import { CourtsModule } from './courts/courts.module';
 import { TravelModule } from './travel/travel.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
+import { AiTrayModule } from './ai-tray/ai-tray.module';
 import { RagModule } from './rag/rag.module';
 import { LegalModule } from './legal/legal.module';
 import { TemplatesModule } from './templates/templates.module';
@@ -73,6 +74,7 @@ import { CargoClaimsModule } from './cargo-claims/cargo-claims.module';
     CourtsModule,
     TravelModule,
     IntelligenceModule,
+    AiTrayModule,
     RagModule,
     LegalModule,
     TemplatesModule,

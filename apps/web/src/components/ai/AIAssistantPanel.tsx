@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { api, type CaseItem, type IntakeItem } from '@/lib/api';
 import { CaseAiChat } from './CaseAiChat';
+import { AiTrayCards } from './AiTrayCards';
 
 const AI_ACTIONS = [
   {
@@ -195,6 +196,10 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
       <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
         {!active ? (
           <>
+            <div className="space-y-2 border-b border-border pb-3">
+              <p className="text-sm font-medium">งานที่ AI เตรียมไว้</p>
+              <AiTrayCards compact />
+            </div>
             <p className="text-sm text-muted-foreground">เลือกฟีเจอร์ AI ที่ต้องการใช้งาน</p>
             {AI_ACTIONS.map((item) => {
               const Icon = item.icon;
