@@ -246,8 +246,6 @@ export default function CaseDetailPage() {
     type: ActivityType.OTHER as string,
   });
 
-  const [trayRev, setTrayRev] = useState(0);
-
   const loadCase = () => {
     if (!token || !id) return;
     // Non-blocking: a failure here must not break the rest of the case page.
@@ -882,7 +880,7 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      <AiTrayCards caseId={id} onChanged={() => { loadCase(); setTrayRev((r) => r + 1); }} />
+      <AiTrayCards caseId={id} onChanged={loadCase} />
 
       <section className={styles.signalStrip} aria-label="สัญญาณสำคัญของคดี" data-testid="case-priority-signals">
         <button type="button" onClick={() => selectTab('calendar')} className={styles.signalButton}>
@@ -1148,7 +1146,7 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-calendar"
           className="min-w-0"
         >
-          <CaseCalendarPanel key={trayRev} caseId={id} />
+          <CaseCalendarPanel caseId={id} />
         </div>
       )}
 
@@ -1159,7 +1157,7 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-documents"
           className="min-w-0"
         >
-          <CaseDocumentsPanel key={trayRev} caseId={id} />
+          <CaseDocumentsPanel caseId={id} />
         </div>
       )}
 
