@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { AI_CREDIT_COST, DOCUMENT_ANALYSIS_MIME_TYPES, DateSuggestionStatus, type AuthUser } from '@lawfirm/shared';
+import { AI_CREDIT_COST, DOCUMENT_ANALYSIS_MIME_TYPES, DateSuggestionSource, DateSuggestionStatus, type AuthUser } from '@lawfirm/shared';
 import { AiTrayService } from './ai-tray.service';
 
 describe('AiTrayService', () => {
@@ -29,7 +29,7 @@ describe('AiTrayService', () => {
       take: 200,
     }));
     expect(prisma.documentDateSuggestion.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { caseId: 'c1', status: DateSuggestionStatus.PENDING, case: caseFilter },
+      where: { caseId: 'c1', status: DateSuggestionStatus.PENDING, source: DateSuggestionSource.DOCUMENT, case: caseFilter },
       take: 500,
     }));
   });

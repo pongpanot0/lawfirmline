@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AI_CREDIT_COST, DOCUMENT_ANALYSIS_MIME_TYPES, DateSuggestionStatus, AuthUser } from '@lawfirm/shared';
+import { AI_CREDIT_COST, DOCUMENT_ANALYSIS_MIME_TYPES, DateSuggestionSource, DateSuggestionStatus, AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 
@@ -36,7 +36,7 @@ export class AiTrayService {
         take: 200,
       }),
       this.prisma.documentDateSuggestion.findMany({
-        where: { caseId: caseId ?? undefined, status: DateSuggestionStatus.PENDING, case: caseFilter },
+        where: { caseId: caseId ?? undefined, status: DateSuggestionStatus.PENDING, source: DateSuggestionSource.DOCUMENT, case: caseFilter },
         select: { caseId: true, case: caseSelect },
         take: 500,
       }),
