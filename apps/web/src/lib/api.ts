@@ -2483,6 +2483,16 @@ export const api = {
       token,
     }),
 
+  // ถาดงาน AI — งานที่ AI เตรียมไว้ให้ (ไม่รัน AI เอง)
+  getAiTray: (token: string, caseId?: string) =>
+    request<AiTrayCard[]>(`/ai-tray${caseId ? `?caseId=${caseId}` : ''}`, { token }),
+  markAiTrayHandled: (token: string, documentIds: string[]) =>
+    request<{ handled: number }>('/ai-tray/documents/handled', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ documentIds }),
+    }),
+
   getDateSuggestions: (token: string, caseId: string, status?: string) => {
     const qs = status ? `?status=${status}` : '';
     return request<DateSuggestionItem[]>(`/cases/${caseId}/date-suggestions${qs}`, { token });
@@ -3183,6 +3193,11 @@ export interface DateSuggestionItem {
   createdAt: string;
   updatedAt: string;
 }
+
+export type AiTrayCard =
+  | { type: 'UNREAD_DOCUMENTS'; caseId: string; caseTitle: string; caseRef: string | null;
+      documents: { id: string; filename: string; createdAt: string }[]; creditCost: number }
+  | { type: 'PENDING_DATES'; caseId: string; caseTitle: string; caseRef: string | null; count: number };
 
 export type DeadlineTriggerValue = import('@lawfirm/shared').DeadlineTrigger;
 

@@ -117,6 +117,7 @@ import { caseStageLabel, caseStageOptions, documentCategoryLabel } from '@/lib/s
 import { formatCustomers, customersSameAsClient } from '@/lib/customers';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { CaseParticipantsSection } from '@/components/cases/CaseParticipantsSection';
+import { AiTrayCards } from '@/components/ai/AiTrayCards';
 import { CargoClaimPanel } from '@/components/cargo/CargoClaimPanel';
 import { CaseNumberInline } from '@/components/cases/CaseNumberInline';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -878,6 +879,8 @@ export default function CaseDetailPage() {
           <Button size="sm" onClick={openBannerProposals}>ดูและสร้างงาน</Button>
         </div>
       )}
+
+      <AiTrayCards caseId={id} onChanged={loadCase} />
 
       <section className={styles.signalStrip} aria-label="สัญญาณสำคัญของคดี" data-testid="case-priority-signals">
         <button type="button" onClick={() => selectTab('calendar')} className={styles.signalButton}>
