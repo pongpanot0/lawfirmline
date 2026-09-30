@@ -16,6 +16,8 @@ export const AI_CREDIT_COST = {
   LEGAL_ASK: 3,
   /** ร่างคำคู่ความจากสำนวน (AI, ผู้ใช้กดเอง) */
   DRAFT_PLEADING: 10,
+  /** วิเคราะห์ข้อความอัปเดตของงานเพื่อเสนอสิ่งที่ติดขัดและงานติดตาม */
+  TASK_UPDATE_ANALYSIS: 1,
 } as const;
 
 /** MIME types document analysis can read. */

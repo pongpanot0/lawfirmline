@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 import { TaskPriority } from '@lawfirm/shared';
 
 export class CreateSubtaskDto {
@@ -23,4 +23,15 @@ export class CreateTaskCommentDto {
   @IsString()
   @Length(1, 4000)
   body!: string;
+}
+
+export class CreateAiFollowUpDto {
+  @IsUUID() sourceCommentId!: string;
+  @IsUUID() latestCommentId!: string;
+  @IsDateString() taskUpdatedAt!: string;
+  @IsString() @Length(1, 500) quote!: string;
+  @IsString() @Length(1, 200) title!: string;
+  @IsString() @Length(1, 2000) description!: string;
+  @IsOptional() @IsUUID() assigneeId?: string;
+  @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/) followUpDate!: string;
 }

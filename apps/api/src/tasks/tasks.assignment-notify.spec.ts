@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { mockTaskHistoryTransaction } from '../../test/task-history-prisma';
 import { TaskStatus } from '@lawfirm/shared';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -23,6 +24,7 @@ describe('TasksService assignment notifications', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockPrisma.firmMember.count.mockResolvedValue(1);
+    mockTaskHistoryTransaction(mockPrisma);
     mockPrisma.firmMember.findFirst.mockResolvedValue({ role: 'LAWYER' });
     const module: TestingModule = await Test.createTestingModule({
       providers: [

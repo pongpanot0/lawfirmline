@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { mockTaskHistoryTransaction } from '../../test/task-history-prisma';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FirmRole, TaskLogAction, TaskStatus } from '@lawfirm/shared';
 import { TasksService } from './tasks.service';
@@ -32,6 +33,7 @@ describe('TasksService on-hold', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     // Default: the chosen reviewer belongs to the caller's firm.
+    mockTaskHistoryTransaction(mockPrisma);
     mockPrisma.firmMember.count.mockResolvedValue(1);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -531,6 +533,7 @@ describe('TasksService.update — who may change a status', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockPrisma.task.update.mockResolvedValue({ id: 'task-1' });
+    mockTaskHistoryTransaction(mockPrisma);
     mockPrisma.case.findUnique.mockResolvedValue(legalCase);
     const module: TestingModule = await Test.createTestingModule({
       providers: [

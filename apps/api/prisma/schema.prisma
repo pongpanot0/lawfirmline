@@ -1209,6 +1209,10 @@ model Task {
   dueDate        DateTime?
   source         TaskSource   @default(WEB)
   parentId       String?
+  /// A confirmed AI follow-up keeps its source even if the comment is later removed.
+  followUpSourceTaskId    String?
+  followUpSourceCommentId String? @unique
+  followUpSourceQuote     String? @db.Text
   priority       TaskPriority @default(MEDIUM)
   labels         String[]     @default([])
   /// งานประจำ: เมื่อปิดงาน ระบบสร้างงานรอบถัดไปให้อัตโนมัติ ครบกำหนด +N วัน

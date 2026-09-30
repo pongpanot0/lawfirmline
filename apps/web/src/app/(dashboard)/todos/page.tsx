@@ -292,7 +292,7 @@ function TodosPageContent() {
   };
 
   return (
-    <div>
+    <div className={taskParam.taskId ? 'xl:pr-[480px]' : ''}>
       <PageHeader
         title={scope === 'created' ? text('งานที่ฉันสร้าง', 'Created by me') : scope === 'team' ? d.todos.titleTeam : d.todos.title}
         description={text('เลือกงานเพื่อดูรายละเอียด อัปเดตความคืบหน้า หรือส่งตรวจ', 'Open a task to see details, update progress or submit for review')}
@@ -646,6 +646,8 @@ function TodosPageContent() {
         onClose={taskParam.close}
         onChanged={loadTasks}
         onNavigate={taskParam.open}
+        aiPanel
+        splitDesktop
       />
     </div>
   );

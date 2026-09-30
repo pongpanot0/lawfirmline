@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
 import { TaskDetailService } from './task-detail.service';
@@ -10,7 +11,8 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 describe('TaskDetailService', () => {
   let service: TaskDetailService;
   const mockPrisma = {
-    task: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    auditLog: { findMany: jest.fn().mockResolvedValue([]) },
+    task: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     taskComment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn() },
     taskAttachment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn() },
     taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
@@ -32,6 +34,7 @@ describe('TaskDetailService', () => {
     const module = await Test.createTestingModule({
       providers: [
         TaskDetailService,
+        { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: TasksService, useValue: mockTasks },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: FileStorageService, useValue: mockStorage },
@@ -115,7 +118,7 @@ describe('TaskDetailService', () => {
     mockTasks.assertAccess.mockResolvedValue({ id: 't1', caseId: 'c1', parentId: null });
     const row = { id: 't1', title: 'Task' };
     mockPrisma.task.findUnique.mockResolvedValue(row);
-    await expect(service.getDetail('t1', lawyer)).resolves.toBe(row);
+    await expect(service.getDetail('t1', lawyer)).resolves.toMatchObject({ ...row, history: [], followUps: [], aiAnalysis: null });
     expect(mockTasks.assertAccess).toHaveBeenCalledWith('t1', lawyer);
     expect(mockPrisma.task.findUnique.mock.calls[0][0]).toEqual(
       expect.objectContaining({

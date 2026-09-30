@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { mockTaskHistoryTransaction } from '../../test/task-history-prisma';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FirmRole, TaskPriority } from '@lawfirm/shared';
 import { TasksService } from './tasks.service';
@@ -25,6 +26,7 @@ describe('TasksService detail support', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockTaskHistoryTransaction(mockPrisma);
     mockCaseAccess.getTaskFilterForUser.mockReturnValue({});
     mockStorage.delete.mockResolvedValue(undefined);
     const module = await Test.createTestingModule({

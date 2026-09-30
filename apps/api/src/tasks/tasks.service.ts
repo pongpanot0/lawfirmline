@@ -428,6 +428,7 @@ export class TasksService {
     source: TaskSource = TaskSource.WEB,
     intakeId?: string,
     queuePosition = 0,
+    followUp?: { parentId: string; sourceTaskId: string; sourceCommentId: string; sourceQuote: string },
   ) {
     if (!dto.title.trim()) throw new BadRequestException('ระบุชื่องาน');
     if (dto.status === TaskStatus.PENDING_REVIEW || dto.status === TaskStatus.NEEDS_REVISION || (dto.requiresReview && dto.status === TaskStatus.DONE)) {
@@ -442,6 +443,10 @@ export class TasksService {
       data: {
         caseId,
         intakeId,
+        parentId: followUp?.parentId,
+        followUpSourceTaskId: followUp?.sourceTaskId,
+        followUpSourceCommentId: followUp?.sourceCommentId,
+        followUpSourceQuote: followUp?.sourceQuote,
         title: dto.title.trim(),
         description: dto.description,
         assigneeId: dto.assigneeId,
@@ -585,9 +590,7 @@ export class TasksService {
     const { observerIds, ...fields } = dto;
     const addedObserverIds = observerIds ? await this.syncObservers(id, observerIds, user) : [];
 
-    const updated = await this.prisma.task.update({
-      where: { id },
-      data: {
+    const updated = await this.updateWithHistory({ where: { id }, data: {
         ...fields,
         scheduledFor: dto.scheduledFor === null ? null : dto.scheduledFor ? new Date(`${dto.scheduledFor.slice(0, 10)}T00:00:00Z`) : undefined,
         assignedAt: dto.assigneeId && dto.assigneeId !== task.assigneeId ? new Date() : undefined,
@@ -599,9 +602,7 @@ export class TasksService {
             : dto.status !== undefined ? null : undefined,
         labels: this.labelsFromDto(dto.labels),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-      },
-      include: this.taskInclude,
-    });
+    }, include: this.taskInclude }, user);
 
     if (dto.assigneeId && dto.assigneeId !== task.assigneeId && dto.assigneeId !== user.id) {
       await this.assignmentNotifier.notifyAssigned({
@@ -629,6 +630,20 @@ export class TasksService {
     }
 
     return updated;
+  }
+
+  private async updateWithHistory<T extends Prisma.TaskUpdateArgs>(args: Prisma.SelectSubset<T, Prisma.TaskUpdateArgs>, user: AuthUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.task.findUniqueOrThrow({ where: args.where });
+      const updated = await tx.task.update<T>(args);
+      const changes: Array<{ field: string; before: string | null; after: string | null }> = [];
+      if (before.status !== updated.status) changes.push({ field: 'status', before: before.status, after: updated.status });
+      if (before.dueDate?.getTime() !== updated.dueDate?.getTime()) changes.push({ field: 'dueDate', before: before.dueDate?.toISOString() ?? null, after: updated.dueDate?.toISOString() ?? null });
+      if (changes.length) await tx.auditLog.create({ data: {
+        firmId: user.firmId, userId: user.id, action: 'TASK_CHANGED', metadata: { taskId: before.id, changes },
+      } });
+      return updated;
+    });
   }
 
   /** Makes the task's observers exactly `observerIds`; returns the ones newly added. */
@@ -798,10 +813,7 @@ export class TasksService {
     }
 
     await this.ensureCaseMembership(caseId, task.reviewerId ?? legalCase.leadLawyerId);
-    await this.prisma.task.update({
-      where: { id: taskId },
-      data: { status: TaskStatus.PENDING_REVIEW, assigneeId: task.reviewerId ?? legalCase.leadLawyerId, completedAt: null },
-    });
+    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.PENDING_REVIEW, assigneeId: task.reviewerId ?? legalCase.leadLawyerId, completedAt: null } }, user);
 
     await this.logAssignment({
       taskId,
@@ -830,10 +842,7 @@ export class TasksService {
       throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
     }
 
-    await this.prisma.task.update({
-      where: { id: taskId },
-      data: { status: TaskStatus.DONE, completedAt: new Date() },
-    });
+    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.DONE, completedAt: new Date() } }, user);
     await this.logActivity(caseId, `ปิดงาน "${task.title}"`, user.id);
     await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
 
@@ -859,10 +868,7 @@ export class TasksService {
     });
     const returnToUserId = lastHandoff?.fromUserId ?? task.createdById;
 
-    await this.prisma.task.update({
-      where: { id: taskId },
-      data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId },
-    });
+    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId } }, user);
 
     await this.logAssignment({
       taskId,
@@ -948,10 +954,7 @@ export class TasksService {
       throw new BadRequestException('งานนี้ไม่อยู่ในสถานะที่ส่งต่อได้');
     }
 
-    await this.prisma.task.update({
-      where: { id: taskId },
-      data: { status: TaskStatus.PENDING_REVIEW, assigneeId: dto.reviewerId, completedAt: null },
-    });
+    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.PENDING_REVIEW, assigneeId: dto.reviewerId, completedAt: null } }, user);
 
     await this.logAssignment({
       taskId,
@@ -978,10 +981,7 @@ export class TasksService {
       throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
     }
 
-    await this.prisma.task.update({
-      where: { id: taskId },
-      data: { status: TaskStatus.DONE, completedAt: new Date() },
-    });
+    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.DONE, completedAt: new Date() } }, user);
     await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
 
     return this.findOne(taskId);
@@ -1005,10 +1005,7 @@ export class TasksService {
     });
     const returnToUserId = lastHandoff?.fromUserId ?? task.createdById;
 
-    await this.prisma.task.update({
-      where: { id: taskId },
-      data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId },
-    });
+    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId } }, user);
 
     await this.logAssignment({
       taskId,

@@ -10,13 +10,14 @@ import { useAuth } from '@/lib/auth';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { bangkokDateInputValue, bangkokInputValue, bangkokInputToIso, bangkokDateInputToIso } from '@/lib/bangkok';
 import { Button } from '@/components/ui/button';
-import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { DateField, DateTimeField, SelectField, TextField, TextareaField } from '@/components/ui/form-fields';
 import { AssigneeOptions } from '@/components/ui/AssigneeOptions';
 import { MultiUserSelect } from '@/components/ui/MultiUserSelect';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
+import { TaskAiPanel } from './TaskAiPanel';
 
 interface Props {
   taskId: string | null;
@@ -26,12 +27,16 @@ interface Props {
   onChanged: () => void;
   /** Open another task in the same drawer (a subtask, or back to the parent). */
   onNavigate: (taskId: string) => void;
+  aiPanel?: boolean;
+  splitDesktop?: boolean;
 }
 
 const STATUS_OPTIONS: TaskStatus[] = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE];
 
-export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate }: Props) {
+export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate, aiPanel = false, splitDesktop = false }: Props) {
   const d = useDashboardT();
+  const { locale } = useLocale();
+  const text = (th: string, en: string) => locale === 'th' ? th : en;
   const { token, user } = useAuth();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [error, setError] = useState('');
@@ -56,6 +61,17 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [observerIds, setObserverIds] = useState<string[]>([]);
   const [siblingTasks, setSiblingTasks] = useState<Array<{ id: string; title: string; status: string }>>([]);
+  const [activeTab, setActiveTab] = useState<'summary' | 'source' | 'history' | 'edit'>(aiPanel ? 'summary' : 'edit');
+  const [wide, setWide] = useState(false);
+
+  useEffect(() => {
+    if (!splitDesktop) return;
+    const media = window.matchMedia('(min-width: 1280px)');
+    const update = () => setWide(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, [splitDesktop]);
 
   // ตัวเลือก "รอ task อื่นเสร็จก่อน" — เฉพาะงานในคดีเดียวกัน
   useEffect(() => {
@@ -103,6 +119,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   }, [token, taskId, d]);
 
   useEffect(() => {
+    requestedId.current = taskId;
     setTask(null);
     setNotice('');
     setError('');
@@ -116,8 +133,11 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     setDownloadingId(null);
     setObserverIds([]);
     setCompleted(''); setRemaining(''); setBlocker(''); setReviewNote('');
-    void load();
-  }, [load]);
+    setActiveTab(aiPanel ? 'summary' : 'edit');
+  }, [taskId, aiPanel]);
+
+  // Refreshing an access token must not discard an open task's drafts/results.
+  useEffect(() => { void load(); }, [load]);
 
   // Escape closes, Tab stays inside the drawer, the body stops scrolling, and
   // focus returns to whatever opened it (usually the card title) on close.
@@ -129,10 +149,12 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
         'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       ) ?? [])].filter((el) => !el.hidden && el.offsetParent !== null);
     const onKey = (e: KeyboardEvent) => {
+      if (asideRef.current?.querySelector('dialog[open]')) return;
       if (e.key === 'Escape') {
         onClose();
         return;
       }
+      if (splitDesktop && wide) return;
       if (e.key !== 'Tab') return;
       const items = focusable();
       if (items.length === 0) return;
@@ -149,18 +171,18 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    if (!splitDesktop || !wide) document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
       opener?.focus?.();
     };
-  }, [taskId, onClose]);
+  }, [taskId, onClose, splitDesktop, wide]);
 
   // First focus lands on the title once the task has loaded.
   useEffect(() => {
-    if (task && !asideRef.current?.contains(document.activeElement)) titleInput.current?.focus();
-  }, [task?.id]);
+    if (task && !wide && !asideRef.current?.contains(document.activeElement)) (titleInput.current ?? asideRef.current)?.focus();
+  }, [task?.id, wide]);
 
   /** Every write goes through here: same error copy, same refresh, same board reload. */
   const run = async (action: () => Promise<unknown>, successNotice = '') => {
@@ -258,9 +280,9 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const statusOptions = task?.requiresReview ? STATUS_OPTIONS.filter((s) => s !== TaskStatus.DONE) : STATUS_OPTIONS;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={d.taskDetail.title}>
-      <button type="button" aria-label={d.taskDetail.close} onClick={onClose} className="flex-1 bg-black/30" />
-      <aside ref={asideRef} className="flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card shadow-xl">
+    <div className={`fixed inset-0 z-50 flex justify-end ${splitDesktop ? 'xl:pointer-events-none' : ''}`} role={splitDesktop && wide ? 'complementary' : 'dialog'} aria-modal={splitDesktop && wide ? undefined : true} aria-label={d.taskDetail.title}>
+      <button type="button" aria-label={d.taskDetail.close} onClick={onClose} className={`flex-1 bg-black/30 ${splitDesktop ? 'xl:hidden' : ''}`} />
+      <aside ref={asideRef} tabIndex={-1} className={`flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card shadow-xl ${splitDesktop ? 'xl:pointer-events-auto xl:w-[480px]' : ''}`}>
         <div className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div className="min-w-0 flex-1">
             {task?.parent && (
@@ -276,7 +298,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 </Link>
               </p>
             )}
-            <input
+            {aiPanel && activeTab !== 'edit' ? <h2 className="mt-1 break-words text-lg font-semibold">{task?.title ?? d.taskDetail.title}</h2> : <input
               ref={titleInput}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -290,17 +312,24 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               disabled={!task || busy}
               aria-label={d.taskDetail.titleField}
               className="mt-1 w-full rounded-md border border-transparent bg-transparent px-1 text-lg font-semibold hover:border-input focus:border-input focus:outline-none"
-            />
+            />}
+            {aiPanel && task && <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full bg-muted px-2 py-1">{statusLabel[task.status]}</span><span className="rounded-full bg-muted px-2 py-1">{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span></div>}
           </div>
           <button type="button" onClick={onClose} aria-label={d.taskDetail.close} className="rounded-lg p-1.5 hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
 
+        {aiPanel && task && <nav className="flex shrink-0 gap-4 overflow-x-auto border-b px-4 pt-3" aria-label={text('รายละเอียดงาน', 'Task details')}>
+          {([['summary', text('สรุปโดย AI', 'AI summary')], ['source', text('ข้อความต้นทาง', 'Source updates')], ['history', text('ประวัติงาน', 'History')], ['edit', text('แก้ไขงาน', 'Edit task')]] as const).map(([key, label]) => <button key={key} type="button" aria-current={activeTab === key ? 'page' : undefined} onClick={() => setActiveTab(key)} className={`whitespace-nowrap border-b-2 pb-3 text-xs font-semibold ${activeTab === key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
+        </nav>}
+
         {error && <p role="alert" className="mx-4 mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         {notice && <p role="status" className="mx-4 mt-3 text-xs text-muted-foreground">{notice}</p>}
 
-        {task && (
+        {task && aiPanel && <div className={activeTab === 'edit' ? 'hidden' : 'p-4'}><TaskAiPanel task={task} users={users} tab={activeTab === 'edit' ? 'summary' : activeTab} onTabChange={setActiveTab} onChanged={() => { void load(); onChanged(); }} onNavigate={onNavigate} /></div>}
+
+        {task && (!aiPanel || activeTab === 'edit') && (
           <div className="space-y-6 p-4">
             <section>
               <h3 className="text-sm font-semibold mb-3">{d.taskDetail.relatedPeople || 'ผู้เกี่ยวข้อง'}</h3>
@@ -628,8 +657,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   e.preventDefault();
                   const body = comment.trim();
                   if (!body) return;
-                  setComment('');
-                  void run(() => api.addTaskComment(token!, task.id, body));
+                  void run(async () => { await api.addTaskComment(token!, task.id, body); setComment(''); });
                 }}
               >
                 <textarea rows={2} value={comment} disabled={busy} onChange={(e) => setComment(e.target.value)} placeholder={d.taskDetail.commentPlaceholder} className={`${field} mt-0`} />

@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { mockTaskHistoryTransaction } from '../../test/task-history-prisma';
 import { TaskStatus } from '@lawfirm/shared';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -42,6 +43,7 @@ describe('TasksService — recurrence + dependency unlock on completion', () => 
   beforeEach(async () => {
     jest.clearAllMocks();
     mockPrisma.task.findUnique.mockResolvedValue(baseTask);
+    mockTaskHistoryTransaction(mockPrisma);
     const module = await Test.createTestingModule({
       providers: [
         TasksService,

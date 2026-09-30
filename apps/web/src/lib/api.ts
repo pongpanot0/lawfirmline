@@ -718,6 +718,7 @@ export interface StageTaskDraft {
 
 export interface TaskItem {
   id: string;
+  updatedAt?: string;
   workType?: import('@lawfirm/shared').TaskWorkType | null;
   scheduledFor?: string | null;
   requiresReview?: boolean;
@@ -752,6 +753,7 @@ export interface TaskItem {
     createdAt: string;
     fromUser?: { firstName: string; lastName: string } | null;
     toUser: { firstName: string; lastName: string };
+    performedBy?: TaskPerson;
   }>;
 }
 
@@ -783,11 +785,23 @@ export interface TaskSubtaskItem {
 }
 
 export interface TaskDetail extends TaskItem {
+  createdAt: string;
   parent?: { id: string; title: string } | null;
   subtasks: TaskSubtaskItem[];
   attachments: TaskAttachmentItem[];
   comments: TaskCommentItem[];
+  history?: Array<{ id: string; createdAt: string; user: TaskPerson | null; metadata: { changes: Array<{ field: 'status' | 'dueDate'; before: string | null; after: string | null }> } }>;
+  followUps?: Array<{ id: string; title: string; status: import('@lawfirm/shared').TaskStatus; createdAt: string; dueDate: string | null; createdBy: TaskPerson | null; followUpSourceCommentId: string; followUpSourceQuote: string }>;
+  aiAnalysis?: TaskAiInsight | null;
 }
+
+export type TaskAiInsight =
+  | { status: 'clear' | 'insufficient'; latestCommentId: string | null; taskUpdatedAt: string; analyzedAt: string }
+  | {
+      status: 'blocker'; latestCommentId: string; taskUpdatedAt: string; analyzedAt: string;
+      sourceCommentId: string; quote: string; blocker: string; title: string; description: string;
+      source: TaskCommentItem; existingFollowUpId: string | null;
+    };
 
 export function caseMessageAttachmentUrl(caseId: string, messageId: string) {
   return `${API_URL}/cases/${caseId}/messages/${messageId}/attachment`;
@@ -2906,6 +2920,14 @@ export const api = {
 
   getTaskDetail: (token: string, taskId: string) =>
     request<TaskDetail>(`/tasks/${taskId}`, { token }),
+
+  analyzeTask: (token: string, taskId: string) =>
+    request<TaskAiInsight>(`/tasks/${taskId}/ai-analysis`, { method: 'POST', token, silent: true }),
+
+  createAiFollowUp: (token: string, taskId: string, data: {
+    sourceCommentId: string; latestCommentId: string; taskUpdatedAt: string;
+    quote: string; title: string; description: string; assigneeId?: string; followUpDate: string;
+  }) => request<{ id: string; alreadyCreated: boolean }>(`/tasks/${taskId}/ai-follow-up`, { method: 'POST', token, silent: true, body: JSON.stringify(data) }),
 
   updateAnyTask: (token: string, task: { id: string; caseId?: string | null }, data: Record<string, unknown>) =>
     request<TaskItem>(taskUpdatePath(task), { method: 'PATCH', token, body: JSON.stringify(data) }),
