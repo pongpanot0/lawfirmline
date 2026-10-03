@@ -1,3 +1,4 @@
+import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
 import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AssignmentType, AuthUser, FirmRole, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
@@ -239,6 +240,7 @@ export class DailyOperationsService {
     await this.notifier.notifyAssigned({
       category: NotificationCategory.TASK,
       firmId: user.firmId, userIds: [task.assigneeId], actorUserId: user.id, entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos', appPath: taskAppRoute(taskId),
+      lineActions: () => (canCompleteFromLine(task) ? lineActions.taskDone(taskId) : undefined),
       summaryText: `🔔 Owner ถามความคืบหน้างาน "${task.title}"\nช่วยอัปเดตว่าทำถึงไหน ติดอะไร และจะส่งได้เมื่อไหร่`,
     });
     return { followedUpAt: note.createdAt, alreadySent: false };

@@ -39,7 +39,7 @@ describe('TasksService assignment notifications', () => {
   });
 
   it('notifies the assignee when a todo is created for someone else', async () => {
-    const created = { id: 't1', title: 'ทดสอบ', caseId: null };
+    const created = { id: 't1', title: 'ทดสอบ', caseId: null, assigneeId: 'u2', requiresReview: false, routine: null };
     mockPrisma.task.create.mockResolvedValue(created);
     mockPrisma.task.findUnique.mockResolvedValue(created);
     await service.create(user, null, { title: 'ทดสอบ', assigneeId: 'u2' } as any);
@@ -51,7 +51,12 @@ describe('TasksService assignment notifications', () => {
       summaryText: expect.stringContaining('ทดสอบ'),
       entityPath: '/todos',
       appPath: '/task/new?id=t1',
+      lineActions: expect.any(Function),
     });
+    // The assignee gets acknowledge + done; an observer gets no buttons.
+    const actions = mockNotifier.notifyAssigned.mock.calls[0][0].lineActions;
+    expect(actions('u2').map((a: any) => a.data)).toEqual(['task:ack:t1', 'task:done:t1']);
+    expect(actions('observer')).toBeUndefined();
   });
 
   it('does not notify on self-assign at create', async () => {
@@ -77,6 +82,7 @@ describe('TasksService assignment notifications', () => {
       summaryText: expect.stringContaining('งานเดิม'),
       entityPath: '/cases/c1',
       appPath: '/task/new?id=t1',
+      lineActions: expect.any(Function),
     });
   });
 

@@ -1,3 +1,4 @@
+import { lineActions } from '../notifications/line-actions';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { AuthUser, DeadlineDayBasis } from '@lawfirm/shared';
@@ -120,6 +121,8 @@ export class EventResponsibilityService {
       category: NotificationCategory.CALENDAR,
       summaryText: `📅 เลื่อนนัด: ${e.title}\n${formatCaseNotificationReference(e.case) ?? `คดี: ${e.case.title}`}\n${formatBangkokDateTime(oldAt)} → ${formatBangkokDateTime(e.startAt)}\nเหตุผล: ${reason}\nเปิดดูและกดรับทราบนัดใหม่`,
       entityPath: `/court-day/${id}`,
+      // Only the responsible person can acknowledge; others just hear about it.
+      lineActions: (userId) => userId === (e.assigneeId ?? e.case.leadLawyerId) ? lineActions.eventAck(id, e.updatedAt) : undefined,
     });
   }
 }

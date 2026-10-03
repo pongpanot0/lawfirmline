@@ -1,3 +1,4 @@
+import { lineActions } from '../notifications/line-actions';
 import {
   BadRequestException,
   ForbiddenException,
@@ -206,6 +207,8 @@ export class CalendarService {
           category: NotificationCategory.CALENDAR,
           summaryText: courtAlert,
           entityPath: `/court-day/${event.id}`,
+          lineActions: (userId) => userId === (event.assigneeId ?? legalCase.leadLawyerId)
+            ? lineActions.eventAck(event.id, event.updatedAt) : undefined,
         });
       } catch (err) {
         this.logger.error(`Court date notice for event ${event.id} failed: ${(err as Error).message}`);

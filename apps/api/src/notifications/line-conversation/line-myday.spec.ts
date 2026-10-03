@@ -34,7 +34,8 @@ describe('LineBotRouter my-day command', () => {
       line, auth, store, caseFlow, taskFlow, todoFlow, expenseFlow, advanceFlow, agenda, config,
       new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
       { start: jest.fn(), handle: jest.fn() } as any,
-      { decide: jest.fn() } as any,
+      { handle: jest.fn().mockResolvedValue(null) } as any,
+      { caseQuery: jest.fn().mockReturnValue(null), openTasks: jest.fn(), findCase: jest.fn() } as any,
     );
   });
 

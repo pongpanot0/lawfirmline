@@ -1,3 +1,4 @@
+import { lineActions } from '../notifications/line-actions';
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
@@ -906,6 +907,7 @@ export class BillingService {
       summaryText: `📋 ${submitterName} ส่งใบเบิก ${claim.itemCount} รายการ\nรวม ฿${claim.totalAmount.toLocaleString('th-TH')}`,
       entityPath: '/admin/reimbursements?status=PENDING',
       appPath: `/expenses/claim/${claim.id}`,
+      lineActions: () => lineActions.claim(claim.id),
     });
   }
 

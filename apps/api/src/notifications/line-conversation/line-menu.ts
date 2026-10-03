@@ -33,6 +33,8 @@ export const MENU_QUICK_REPLY: QuickReplyItem[] = [
   { label: '🏖️ ลางาน', text: 'ลางาน' },
   { label: '📅 การลาของฉัน', text: 'การลาของฉัน' },
   { label: '📊 งานวันนี้', text: MYDAY_COMMAND },
+  { label: '📌 งานค้างของฉัน', text: 'งานค้างของฉัน' },
+  { label: '🔎 ค้นคดี', text: 'ค้นคดี' },
 ];
 
 /** Shown alongside every in-flow prompt so there is always a way out. */

@@ -13,6 +13,6 @@ import { DeadlinesModule } from '../deadlines/deadlines.module';
   imports: [TravelModule, forwardRef(() => NotificationsModule), DeadlinesModule],
   controllers: [CalendarController, CourtDayController, EventResponsibilityController],
   providers: [CalendarService, CourtDayService, EventResponsibilityService],
-  exports: [CalendarService],
+  exports: [CalendarService, EventResponsibilityService],
 })
 export class CalendarModule {}

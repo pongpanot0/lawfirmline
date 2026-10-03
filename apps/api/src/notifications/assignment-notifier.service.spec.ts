@@ -65,7 +65,7 @@ describe('AssignmentNotifierService', () => {
       expect.objectContaining({ userId: 'u3', badge: 0, data: { url: `/case/${CASE_ID}`, notificationId: 'n-u3' } }),
     ]);
     expect(line.pushTo).toHaveBeenCalledTimes(1);
-    expect(line.pushTo).toHaveBeenCalledWith('L2', expect.stringContaining(`https://acme.example.com/cases/${CASE_ID}?tab=tasks`));
+    expect(line.pushTo).toHaveBeenCalledWith('L2', expect.stringContaining(`https://acme.example.com/cases/${CASE_ID}?tab=tasks`), undefined);
     expect(result).toEqual({ recipients: 2, push: true, line: true });
   });
 
@@ -136,7 +136,7 @@ describe('AssignmentNotifierService', () => {
       where: { firmId: 'f1', role: 'OWNER' },
       select: { userId: true },
     });
-    expect(line.pushTo).toHaveBeenCalledWith('LO', expect.stringContaining('เบิกใหม่'));
+    expect(line.pushTo).toHaveBeenCalledWith('LO', expect.stringContaining('เบิกใหม่'), undefined);
     expect(push.send.mock.calls[0][0][0].data.url).toBe('/expenses/claims');
   });
 
@@ -156,5 +156,19 @@ describe('AssignmentNotifierService', () => {
     await svc.notifyAssigned({ firmId: 'f1', userIds: ['u2'], actorUserId: '', category: 'CLIENT', summaryText: `หัวข้อ\n${long}`, entityPath: '/todos' });
     expect(push.send.mock.calls[0][0][0].body.length).toBe(400);
     expect(prisma.notification.createManyAndReturn.mock.calls[0][0].data[0].body).toBe(long);
+  });
+
+  it('attaches LINE buttons only to the recipients they are for', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'u2', lineUserId: 'L2', firmMembers: [] },
+      { id: 'u4', lineUserId: 'L4', firmMembers: [] },
+    ]);
+    const buttons = [{ label: 'ok', text: 'ok', data: 'task:ack:x' }];
+    await svc.notifyAssigned({
+      firmId: 'f1', userIds: ['u2', 'u4'], actorUserId: '', category: 'TASK', summaryText: 'x', entityPath: '/todos',
+      lineActions: (userId) => (userId === 'u2' ? buttons : undefined),
+    });
+    expect(line.pushTo).toHaveBeenCalledWith('L2', expect.any(String), buttons);
+    expect(line.pushTo).toHaveBeenCalledWith('L4', expect.any(String), undefined);
   });
 });

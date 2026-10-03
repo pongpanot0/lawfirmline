@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
 import { NotificationCategory } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
-import { LineMessagingService } from './line-messaging.service';
+import { LineMessagingService, QuickReplyItem } from './line-messaging.service';
 import { FirmLinkService } from './firm-link.service';
 import { PushService } from './push.service';
 import { NotificationCenterService } from './notification-center.service';
@@ -24,6 +24,8 @@ export interface NotifyParams {
   appPath?: string;
   /** false when the caller sends its own LINE message (quick replies, its own dedupe). */
   line?: boolean;
+  /** One-tap LINE buttons for a recipient (see line-actions.ts); none when it returns nothing. */
+  lineActions?: (userId: string) => QuickReplyItem[] | undefined;
 }
 
 export interface NotifyResult {
@@ -181,7 +183,7 @@ export class AssignmentNotifierService {
     let sent = false;
     for (const u of linked) {
       try {
-        if (await this.line.pushTo(u.lineUserId!, message)) sent = true;
+        if (await this.line.pushTo(u.lineUserId!, message, params.lineActions?.(u.id))) sent = true;
       } catch (err) {
         this.logger.error(`Failed to DM user ${u.id}`, err);
       }

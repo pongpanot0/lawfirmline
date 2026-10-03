@@ -12,7 +12,8 @@ import { LineTodoFlowService } from './flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './flows/line-expense-flow.service';
 import { LineAdvanceFlowService } from './flows/line-advance-flow.service';
 import { LineLeaveFlowService } from './flows/line-leave-flow.service';
-import { LeaveService } from '../../leave/leave.service';
+import { LineQuickActionsService } from './line-quick-actions.service';
+import { CASE_SEARCH_COMMAND, LineQueryService, OPEN_TASKS_COMMAND, QueryReply } from './line-query.service';
 import { ConversationSession, ConversationTarget, ConversationStep, FlowType } from './line-conversation.types';
 import {
   CANCEL_COMMAND,
@@ -47,7 +48,8 @@ export class LineBotRouterService {
     private config: ConfigService,
     private firmLink: FirmLinkService,
     private leaveFlow: LineLeaveFlowService,
-    private leaveService: LeaveService,
+    private quickActions: LineQuickActionsService,
+    private query: LineQueryService,
   ) {}
 
   async route(
@@ -71,17 +73,35 @@ export class LineBotRouterService {
       return;
     }
 
-    // A leave approve/reject postback works from any chat state and never starts a flow.
-    const leaveDecision = /^leave:(approve|reject):(.+)$/.exec(text);
-    if (leaveDecision) {
-      await this.replyLeaveDecision(authUser, lineUserId, target, leaveDecision[1] === 'approve' ? 'APPROVED' : 'REJECTED', leaveDecision[2]);
+    // A notification button (approve, acknowledge, done…) works from any chat
+    // state and never starts or disturbs a flow.
+    const actionReply = await this.quickActions.handle(authUser, text);
+    if (actionReply !== null) {
+      await this.reply(lineUserId, target, { text: actionReply });
       return;
     }
 
-    // My-day answers from anywhere and leaves an in-progress flow untouched.
+    // Read-only questions answer from anywhere and leave an in-progress flow untouched.
     if (text === MYDAY_COMMAND) {
       if (existing) this.store.update(lineUserId, { target });
       await this.replyMyDay(authUser, lineUserId, target);
+      return;
+    }
+    if (text === OPEN_TASKS_COMMAND) {
+      if (existing) this.store.update(lineUserId, { target });
+      await this.replyPrivately(lineUserId, target, await this.query.openTasks(authUser));
+      return;
+    }
+    if (text === CASE_SEARCH_COMMAND) {
+      if (existing) this.store.update(lineUserId, { target });
+      await this.reply(lineUserId, target, { text: 'พิมพ์ "คดี" ตามด้วยเลขอ้างอิง เลขคดีดำ/แดง หรือชื่อคดีได้เลยครับ\nเช่น คดี TSBREF20250001' });
+      return;
+    }
+    // "คดี X" is a question only outside a flow — inside one it may be the answer to a step.
+    const caseTerm = !existing?.flowType ? this.query.caseQuery(text) : null;
+    if (caseTerm) {
+      if (existing) this.store.update(lineUserId, { target });
+      await this.replyPrivately(lineUserId, target, await this.query.findCase(authUser, caseTerm));
       return;
     }
 
@@ -277,24 +297,23 @@ export class LineBotRouterService {
     }
   }
 
-  private async replyLeaveDecision(
-    authUser: AuthUser,
-    lineUserId: string,
-    target: ConversationTarget,
-    decision: 'APPROVED' | 'REJECTED',
-    leaveId: string,
-  ): Promise<void> {
-    let text: string;
-    try {
-      await this.leaveService.decide(authUser, leaveId, decision);
-      text = decision === 'APPROVED' ? 'อนุมัติการลาแล้วครับ' : 'ไม่อนุมัติการลาแล้วครับ';
-    } catch (error) {
-      text = error instanceof Error ? error.message : 'ดำเนินการไม่สำเร็จ กรุณาลองใหม่';
-    }
+  /**
+   * Case and task answers carry what only the asker may see. In a group the
+   * other members' access is unknown, so the answer goes to the asker's own
+   * chat and the group only hears that it was sent.
+   */
+  private async replyPrivately(lineUserId: string, target: ConversationTarget, message: QueryReply) {
+    if (chatKey(target) === 'user') return this.reply(lineUserId, target, message, MENU_QUICK_REPLY);
+    await this.line.pushTo(lineUserId, message.text, message.quickReply ?? MENU_QUICK_REPLY);
+    await this.reply(lineUserId, target, { text: 'ส่งคำตอบไปที่แชตส่วนตัวกับบอทแล้วครับ' });
+  }
+
+  private async reply(lineUserId: string, target: ConversationTarget, message: QueryReply, fallback?: QueryReply['quickReply']) {
+    const quickReply = message.quickReply ?? fallback;
     if (target.replyToken) {
-      await this.line.replyWithQuickReply(target.replyToken, text);
+      await this.line.replyWithQuickReply(target.replyToken, message.text, quickReply);
     } else {
-      await this.line.pushTo(lineUserId, text);
+      await this.line.pushTo(chatKey(target) === 'user' ? lineUserId : chatKey(target), message.text, quickReply);
     }
   }
 

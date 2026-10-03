@@ -1,3 +1,4 @@
+import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
 import {
   BadRequestException,
   ForbiddenException,
@@ -581,6 +582,8 @@ export class TasksService {
         summaryText: await this.taskAssignmentSummary(dto.title, caseId, intakeId),
         entityPath: caseId ? `/cases/${caseId}` : '/todos',
         appPath: taskAppRoute(task.id),
+        lineActions: (userId) => userId === task.assigneeId
+          ? lineActions.task(task.id, { canComplete: canCompleteFromLine(task) }) : undefined,
       });
     }
 
@@ -691,6 +694,7 @@ export class TasksService {
         summaryText: await this.taskAssignmentSummary(task.title, task.caseId, task.intakeId),
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
         appPath: taskAppRoute(task.id),
+        lineActions: () => lineActions.task(task.id, { canComplete: canCompleteFromLine(updated) }),
       });
     }
 

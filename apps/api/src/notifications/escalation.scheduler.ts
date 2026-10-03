@@ -1,3 +1,4 @@
+import { canCompleteFromLine, lineActions } from './line-actions';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { NotificationCategory, TaskStatus } from '../generated/prisma';
@@ -72,6 +73,7 @@ export class EscalationScheduler {
           summaryText: summary,
           entityPath: path,
           appPath: taskAppRoute(task.id),
+          lineActions: (userId) => userId === task.assigneeId && canCompleteFromLine(task) ? lineActions.taskDone(task.id) : undefined,
         });
       }
 
