@@ -1,5 +1,24 @@
 import { EXPENSE_CATEGORIES, MONEY_MAX } from '@lawfirm/shared';
 import type { AgendaItem } from '@lawfirm/shared';
+import type { TaskItem } from './api/types';
+
+export function canReviewTask(task: TaskItem, user: { id: string; firmRole?: string | null }, leadLawyerId = task.case?.leadLawyerId) {
+  if (task.status !== 'PENDING_REVIEW') return false;
+  if (!task.caseId) return task.assigneeId === user.id;
+  return task.reviewerId ? task.reviewerId === user.id : user.firmRole === 'OWNER' || leadLawyerId === user.id;
+}
+
+export function canToggleTask(task: TaskItem, user: { id: string; firmRole?: string | null }) {
+  if (task.status === 'PENDING_REVIEW' || task.requiresReview) return false;
+  return task.assigneeId === user.id || (!!task.caseId && (user.firmRole === 'OWNER' || task.case?.leadLawyerId === user.id));
+}
+
+export function actionAppRoute(item: { id: string; kind: string; url: string }): string | null {
+  const task = item.id.match(/^task:([0-9a-f-]{36})$/i);
+  if (task && ['WAITING', 'UNASSIGNED', 'TASK_REVIEW'].includes(item.kind)) return `/task/new?id=${task[1]}`;
+  const match = item.url.match(/^\/cases\/([0-9a-f-]{36})(?:[/?#]|$)/i);
+  return match ? `/case/${match[1]}` : null;
+}
 
 export function agendaCompanionNames(item: Pick<AgendaItem, 'assignees' | 'assigneeId'>) {
   return (Array.isArray(item.assignees) ? item.assignees : [])

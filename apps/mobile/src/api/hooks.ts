@@ -5,6 +5,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import { calendarRangeQuery } from '../format';
+import type { DailyWorkboard } from '@lawfirm/shared';
 import type {
   CalendarEventItem,
   CaseDetail,
@@ -67,10 +68,19 @@ export function useCalendarRange(from: string, to: string) {
   });
 }
 
-export function useTodos() {
+export function useTodos(view: 'all' | 'mine' | 'created' | 'review' = 'all', enabled = true) {
   return useQuery({
-    queryKey: ['todos'],
-    queryFn: () => api<TaskItem[]>('/todos'),
+    queryKey: ['todos', view],
+    queryFn: () => api<TaskItem[]>(`/todos?view=${view}`),
+    enabled,
+  });
+}
+
+export function useDailyWorkboard(date: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['daily-workboard', date],
+    queryFn: () => api<DailyWorkboard>(`/operations/daily?date=${date}`),
+    enabled,
   });
 }
 
@@ -93,8 +103,8 @@ export function useToggleTask() {
     },
     onMutate: async ({ task, done }) => {
       await queryClient.cancelQueries({ queryKey: ['todos'] });
-      const previous = queryClient.getQueryData<TaskItem[]>(['todos']);
-      queryClient.setQueryData<TaskItem[]>(['todos'], (rows) =>
+      const previous = queryClient.getQueriesData<TaskItem[]>({ queryKey: ['todos'] });
+      queryClient.setQueriesData<TaskItem[]>({ queryKey: ['todos'] }, (rows) =>
         rows?.map((row) =>
           row.id === task.id ? { ...row, status: done ? 'DONE' : 'TODO' } : row,
         ),
@@ -102,10 +112,11 @@ export function useToggleTask() {
       return { previous };
     },
     onError: (_error, _vars, context) => {
-      if (context?.previous) queryClient.setQueryData(['todos'], context.previous);
+      for (const [key, rows] of context?.previous ?? []) queryClient.setQueryData(key, rows);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-workboard'] });
       queryClient.invalidateQueries({ queryKey: ['my-day'] });
     },
   });
@@ -212,8 +223,11 @@ export function useReassignTask() {
         method: 'PATCH',
         body: { assigneeId },
       }),
-    onSettled: (_data, _error, { caseId }) => {
+    onSettled: (_data, _error, { caseId, taskId }) => {
       if (caseId) queryClient.invalidateQueries({ queryKey: ['case-tasks', caseId] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['daily-workboard'] });
+      queryClient.invalidateQueries({ queryKey: ['actions'] });
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       queryClient.invalidateQueries({ queryKey: ['my-day'] });
       queryClient.invalidateQueries({ queryKey: ['workload'] });

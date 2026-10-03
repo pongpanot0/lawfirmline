@@ -17,6 +17,7 @@ import { ReassignSheet } from '@/components/ReassignSheet';
 import { Button, ErrorNote, Loading, SectionLabel } from '@/components/ui';
 import { bangkokDay } from '@/format';
 import { leaveFlagsForDate } from '@/lib/leave-flags';
+import { canReviewTask } from '@/workflow';
 import { colors, formLabelSpacing, spacing } from '@/theme';
 
 export default function TaskFormScreen() {
@@ -32,7 +33,8 @@ export default function TaskFormScreen() {
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState(user?.id ?? '');
   const [dueDate, setDueDate] = useState(bangkokDay(new Date().toISOString()));
-  const [hasDue, setHasDue] = useState(true);
+  const [hasDue, setHasDue] = useState(false);
+  const [showDetails, setShowDetails] = useState(!!id);
   const [status, setStatus] = useState('TODO');
   const [files, setFiles] = useState<AttachmentFile[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -46,10 +48,10 @@ export default function TaskFormScreen() {
   const leaves = useLeaves(dueDate, dueDate);
   const flags = leaveFlagsForDate(leaves.data ?? [], dueDate);
   const canAssign = !id || (caseId ? user?.firmRole === 'OWNER' || legalCase.data?.leadLawyer?.id === user?.id
-    : task.data?.assigneeId === user?.id || task.data?.createdById === user?.id);
-  const canStatus = !id || task.data?.assigneeId === user?.id || (!!caseId &&
-    (user?.firmRole === 'OWNER' || legalCase.data?.leadLawyer?.id === user?.id));
-  const canReview = !!id && (caseId ? user?.firmRole === 'OWNER' || legalCase.data?.leadLawyer?.id === user?.id : task.data?.assigneeId === user?.id);
+    : user?.firmRole === 'OWNER' || task.data?.assigneeId === user?.id || task.data?.createdById === user?.id);
+  const canStatus = task.data?.status !== 'PENDING_REVIEW' && (!id || task.data?.assigneeId === user?.id || (!!caseId &&
+    (user?.firmRole === 'OWNER' || legalCase.data?.leadLawyer?.id === user?.id)));
+  const canReview = !!task.data && !!user && canReviewTask(task.data, user, legalCase.data?.leadLawyer?.id);
   const reviewers = (members.data ?? []).filter(person => person.id !== user?.id);
   const candidates = (members.data ?? []).filter(person => !!caseId || person.id === user?.id ||
     (!!user?.firmRole && !!person.firmRole && canAssignFirmRole(user.firmRole as FirmRole, person.firmRole)));
@@ -61,6 +63,7 @@ export default function TaskFormScreen() {
   useEffect(() => {
     if (!task.data || seeded.current === task.data.id) return;
     seeded.current = task.data.id;
+    setShowDetails(true);
     setTitle(task.data.title); setDescription(task.data.description ?? '');
     setAssigneeId(task.data.assigneeId ?? ''); setStatus(task.data.status);
     setHasDue(!!task.data.dueDate); if (task.data.dueDate) setDueDate(bangkokDay(task.data.dueDate));
@@ -84,11 +87,11 @@ export default function TaskFormScreen() {
         await uploadTaskAttachment(target, file);
         setFiles(previous => previous.filter(item => item.uri !== file.uri));
       }
-      for (const key of [['todos'], ['my-day'], ['workload'], ['case-tasks', caseId], ['task', target]])
+      for (const key of [['todos'], ['my-day'], ['workload'], ['case-tasks', caseId], ['task', target], ['daily-workboard'], ['actions']])
         await client.invalidateQueries({ queryKey: key });
       router.replace(`/task/new?id=${target}`);
       setSavedId(null);
-      if (!id) Alert.alert('เพิ่มงานแล้ว', 'บันทึกผู้รับผิดชอบและไฟล์เรียบร้อย');
+      if (!id) Alert.alert('เพิ่มงานแล้ว', 'บันทึกงานและผู้รับผิดชอบเรียบร้อย');
     } catch (e) { setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ'); }
     finally { setBusy(false); }
   };
@@ -99,9 +102,9 @@ export default function TaskFormScreen() {
       const updated = await api<TaskItem>(caseId ? `/cases/${caseId}/tasks/${id}/${action}` : `/todos/${id}/${action}`,
         { method: action === 'handoff' ? 'PATCH' : 'POST', body });
       setStatus(updated.status); setAssigneeId(updated.assigneeId ?? '');
-      for (const key of [['task', id], ['todos'], ['my-day'], ['case-tasks', caseId]]) await client.invalidateQueries({ queryKey: key });
-      if (!caseId) {
-        router.replace('/(tabs)/tasks');
+      for (const key of [['task', id], ['todos'], ['my-day'], ['case-tasks', caseId], ['daily-workboard'], ['actions']]) await client.invalidateQueries({ queryKey: key });
+      if (!caseId || action !== 'handoff') {
+        router.replace({ pathname: '/(tabs)/tasks', params: { view: action === 'handoff' ? 'mine' : 'review' } });
         Alert.alert(action === 'handoff' ? 'ส่งตรวจงานแล้ว' : action === 'reject' ? 'ส่งกลับแก้ไขแล้ว' : 'ปิดงานแล้ว');
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ'); } finally { setBusy(false); }
@@ -109,7 +112,8 @@ export default function TaskFormScreen() {
   if (id && task.isLoading) return <Loading />;
   if (id && (task.isError || !task.data)) return <ErrorNote message="โหลดงานไม่สำเร็จ" onRetry={() => task.refetch()} />;
   return <FormPage>
-    <Stack.Screen options={{ title: id ? 'แก้ไขงาน' : 'เพิ่มงาน' }} />
+    <Stack.Screen options={{ title: canReview ? 'ตรวจงาน' : id ? 'แก้ไขงาน' : 'เพิ่มงาน' }} />
+    {!canReview && <>
     <FormField label="ชื่องาน" value={title} onChange={setTitle} disabled={busy || !!savedId} />
     <SectionLabel style={formLabelSpacing}>ผู้รับผิดชอบ</SectionLabel>
     <Dropdown label="เลือกผู้รับผิดชอบงาน" value={assigneeId} options={options} onChange={setAssigneeId}
@@ -117,19 +121,23 @@ export default function TaskFormScreen() {
     {members.isError && <ErrorNote message="โหลดรายชื่อไม่ได้" onRetry={() => members.refetch()} />}
     {leaves.isError && <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
     {id && canAssign && <Button title="มอบหมาย / เปลี่ยนผู้รับผิดชอบ" ghost disabled={busy} onPress={() => setReassigning(true)} />}
+    {!id && <Button title={showDetails ? 'ซ่อนรายละเอียดเพิ่มเติม' : 'เพิ่มกำหนดส่ง / รายละเอียด / ไฟล์'} ghost onPress={() => setShowDetails(!showDetails)} />}
+    {showDetails && <>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
       <Text style={{ flex: 1, color: colors.text }}>กำหนดวันที่ครบกำหนด</Text>
       <Switch value={hasDue} onValueChange={setHasDue} disabled={busy || !!savedId || (!!id && !!task.data?.dueDate)} />
     </View>
     {hasDue && <DatePicker value={dueDate} onChange={setDueDate} />}
     <Dropdown label="สถานะงาน" value={status} onChange={setStatus} disabled={busy || !!savedId || !canStatus}
-      options={[{ value: 'TODO', label: 'ต้องทำ' }, { value: 'IN_PROGRESS', label: 'กำลังทำ' }, { value: 'DONE', label: 'เสร็จแล้ว' },
+      options={[{ value: 'TODO', label: 'ต้องทำ' }, { value: 'IN_PROGRESS', label: 'กำลังทำ' },
+        ...(!task.data?.requiresReview ? [{ value: 'DONE', label: 'เสร็จแล้ว' }] : []),
         ...(status === 'PENDING_REVIEW' || status === 'NEEDS_REVISION' ? [{ value: status, label: status === 'PENDING_REVIEW' ? 'รอตรวจ' : 'ส่งกลับแก้ไข' }] : [])]} />
     <FormField label="รายละเอียด · เติมทีหลังได้" value={description} onChange={setDescription} multiline disabled={busy || !!savedId} />
     <SectionLabel style={formLabelSpacing}>ไฟล์แนบงาน</SectionLabel>
     {task.data?.attachments?.map(file => <Button key={file.id} title={`เปิด ${file.filename}`} ghost onPress={() =>
       openTaskAttachment(id!, file.id, file.filename).catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message))} />)}
     <Attachments files={files} onChange={setFiles} disabled={busy} />
+    </>}
     {!!savedId && <Text style={{ color: colors.info }}>งานบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อโดยไม่สร้างงานซ้ำ</Text>}
     {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
     <Button title={savedId ? 'ส่งไฟล์ที่เหลือ' : id ? 'บันทึกงาน' : 'เพิ่มงาน'} busy={busy} onPress={save} />
@@ -142,21 +150,36 @@ export default function TaskFormScreen() {
       <Button title="ส่งตรวจงาน" ghost disabled={busy || (!caseId && !reviewerId)}
         onPress={() => handoff('handoff', caseId ? {} : { reviewerId })} />
     </>}
+    </>}
     {task.data?.status === 'PENDING_REVIEW' && canReview && <>
-      <Button title="ผ่านการตรวจ / ปิดงาน" disabled={busy} onPress={() => handoff('accept')} />
+      <Text style={{ color: colors.text, fontWeight: '700', fontSize: 18 }}>{task.data.title}</Text>
+      {task.data.case && <Text style={{ color: colors.faint }}>{task.data.case.ownRef} · {task.data.case.title}</Text>}
+      {task.data.description && <Text style={{ color: colors.text }}>{task.data.description}</Text>}
+      <SectionLabel>ผลงานและไฟล์ที่ส่งตรวจ</SectionLabel>
+      {task.data.attachments?.map(file => <Button key={file.id} title={`เปิด ${file.filename}`} ghost onPress={() =>
+        openTaskAttachment(id!, file.id, file.filename).catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message))} />)}
+      {task.data.comments?.map(item => <Text key={item.id} style={{ color: colors.text }}>
+        {item.author ? `${item.author.firstName} ${item.author.lastName}: ` : ''}{item.body}
+      </Text>)}
+      {!task.data.attachments?.length && !task.data.comments?.length && <Text style={{ color: colors.faint }}>ยังไม่มีไฟล์หรือข้อความส่งงานให้ตรวจ</Text>}
+      {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
+      <Button title="ผ่านการตรวจ / ปิดงาน" disabled={busy} onPress={() => Alert.alert('ยืนยันผลตรวจ', `ผ่านการตรวจและปิดงาน “${task.data!.title}”?`, [
+        { text: 'ยกเลิก', style: 'cancel' }, { text: 'ผ่านการตรวจ', onPress: () => handoff('accept') },
+      ])} />
       <FormField label="เหตุผลส่งกลับแก้ไข" value={reason} onChange={setReason} disabled={busy} />
       <Button title="ส่งกลับแก้ไข" ghost disabled={busy || !reason.trim()} onPress={() => handoff('reject', { reason: reason.trim() })} />
     </>}
     {id && <>
       <SectionLabel>ความคิดเห็นในงาน</SectionLabel>
-      {task.data?.comments?.map(item => <Text key={item.id} style={{ color: colors.text }}>
+      {!canReview && task.data?.comments?.map(item => <Text key={item.id} style={{ color: colors.text }}>
         {item.author ? `${item.author.firstName} ${item.author.lastName}: ` : ''}{item.body}
       </Text>)}
       <FormField label="เพิ่มความคิดเห็น" value={comment} onChange={setComment} multiline disabled={busy} />
       <Button title="ส่งความคิดเห็น" ghost disabled={busy || !comment.trim()} onPress={async () => {
         setBusy(true); setError('');
         try { await api(`/tasks/${id}/comments`, { method: 'POST', body: { body: comment.trim() } });
-          setComment(''); await client.invalidateQueries({ queryKey: ['task', id] });
+          setComment('');
+          await Promise.all([['task', id], ['todos'], ['daily-workboard']].map(queryKey => client.invalidateQueries({ queryKey })));
         } catch (e) { setError(e instanceof Error ? e.message : 'ส่งความคิดเห็นไม่ได้'); }
         finally { setBusy(false); }
       }} />

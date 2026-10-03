@@ -57,6 +57,22 @@ optional end date. Sick leave and Owner requests are recorded approved by the
 existing API; other requests wait for approval. No unsupported reason field is sent.
 There is no time-entry screen or time-entry shortcut.
 
+## Quick task work
+
+Tasks has My work, Created by me and Awaiting my review views. Created tasks
+remain visible after delegation. The API filters by the authenticated user and
+firm; case reviews respect a named reviewer before the Owner/lead-lawyer fallback.
+The default `/todos` view remains compatible with existing web callers.
+
+Home links straight to these views and previews up to three pending reviews.
+Owner also gets Follow up and Unassigned queues from the existing daily workboard,
+with the same Bangkok-day follow-up reasons as web. Rows open the actual task,
+including standalone tasks from notifications and the on-hold queue.
+Following up asks for confirmation and calls the existing Owner endpoint; no
+notification is sent merely by opening a queue. Tasks awaiting review cannot be
+checked done from the list. New-task creation starts with title and assignee;
+deadline, details and attachments are behind the optional-details button.
+
 Query caches and drafts are separated by user and firm. Local drafts are retained
 when requests fail. Approval/payment and final hearing confirmation are never
 queued to execute automatically. Restoring an auth session still needs connectivity;

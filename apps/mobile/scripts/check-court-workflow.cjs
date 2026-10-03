@@ -19,7 +19,23 @@ function load(file, mocks = {}) {
 }
 
 async function main() {
-  const { expenseError, claimActions, agendaCompanionNames, agendaIncludesPerson } = load('workflow.ts');
+  const { expenseError, claimActions, agendaCompanionNames, agendaIncludesPerson, canReviewTask, canToggleTask, actionAppRoute } = load('workflow.ts');
+  const taskId = '11111111-1111-4111-8111-111111111111';
+  for (const kind of ['WAITING', 'UNASSIGNED', 'TASK_REVIEW']) {
+    assert.equal(actionAppRoute({ id: `task:${taskId}`, kind, url: '/todos' }), `/task/new?id=${taskId}`);
+  }
+  assert.equal(actionAppRoute({ id: 'task:invalid', kind: 'WAITING', url: '/todos' }), null);
+  assert.equal(actionAppRoute({ id: 'x', kind: 'UNKNOWN', url: 'https://external.example/cases/' + taskId }), null);
+  const review = { status: 'PENDING_REVIEW', assigneeId: 'reviewer', reviewerId: 'reviewer', caseId: 'case' };
+  assert.equal(canReviewTask(review, { id: 'reviewer', firmRole: 'LAWYER' }), true);
+  assert.equal(canReviewTask(review, { id: 'owner', firmRole: 'OWNER' }), false);
+  assert.equal(canReviewTask({ ...review, reviewerId: null }, { id: 'owner', firmRole: 'OWNER' }), true);
+  assert.equal(canReviewTask({ ...review, caseId: null }, { id: 'reviewer' }), true);
+  assert.equal(canReviewTask({ ...review, caseId: null }, { id: 'creator' }), false);
+  assert.equal(canToggleTask(review, { id: 'reviewer' }), false);
+  assert.equal(canToggleTask({ ...review, status: 'TODO', requiresReview: true }, { id: 'reviewer' }), false);
+  assert.equal(canToggleTask({ ...review, status: 'TODO' }, { id: 'reviewer' }), true);
+  assert.equal(canToggleTask({ ...review, status: 'TODO' }, { id: 'creator' }), false);
   const { formatMoney, formatMoneyInput } = load('format.ts');
   assert.equal(formatMoney(50000), '50,000');
   assert.equal(formatMoney('50000.50'), '50,000.50');
@@ -141,6 +157,6 @@ async function main() {
   global.fetch = async () => { attempts += 1; throw new TypeError('Network request failed'); };
   await assert.rejects(files.createExpense({ category: 'ค่าเดินทาง', amount: 100, description: 'ค่าเดินทาง', date: '2026-09-26' }), /เชื่อมต่อไม่ได้/);
   assert.equal(attempts, 1);
-  console.log('PASS: agenda companions with missing/invalid arrays, expense validation, batch actions, Bangkok dates, draft isolation/write order, receipt paths/MIME, upload contract and network failure without retry');
+  console.log('PASS: direct task routes, named reviewer permissions and protected review completion; agenda companions, expense validation, batch actions, Bangkok dates, draft isolation/write order, receipt paths/MIME, upload contract and network failure without retry');
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

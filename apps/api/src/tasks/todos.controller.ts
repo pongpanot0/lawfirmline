@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { HandoffStandaloneTaskDto, RejectTaskDto } from './dto/task-handoff.dto';
@@ -12,8 +12,8 @@ export class TodosController {
   constructor(private tasksService: TasksService) {}
 
   @Get()
-  findMine(@CurrentUser() user: AuthUser) {
-    return this.tasksService.findMine(user);
+  findMine(@CurrentUser() user: AuthUser, @Query('view') view?: string) {
+    return this.tasksService.findMine(user, view);
   }
 
   @Post()

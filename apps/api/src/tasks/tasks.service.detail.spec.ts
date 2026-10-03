@@ -28,6 +28,7 @@ describe('TasksService detail support', () => {
     jest.clearAllMocks();
     mockTaskHistoryTransaction(mockPrisma);
     mockCaseAccess.getTaskFilterForUser.mockReturnValue({});
+    mockCaseAccess.getTaskAccessFilterForUser.mockReturnValue({});
     mockStorage.delete.mockResolvedValue(undefined);
     const module = await Test.createTestingModule({
       providers: [
@@ -102,6 +103,47 @@ describe('TasksService detail support', () => {
   });
 
   describe('board lists', () => {
+    it.each(['mine', 'created', 'review'])('scopes the %s view to the firm and task access before filtering', async (view) => {
+      mockPrisma.task.findMany.mockResolvedValue([]);
+      mockCaseAccess.getTaskAccessFilterForUser.mockReturnValue({ accessible: true });
+      await service.findMine(lawyer, view);
+      const query = mockPrisma.task.findMany.mock.calls[0][0];
+      expect(query.where).toMatchObject({ parentId: null, AND: [
+        { OR: [
+          { case: { firmId: 'f1', deletedAt: null } },
+          { caseId: null, OR: [
+            { firmId: 'f1' },
+            { firmId: null, assignee: { firmMembers: { some: { firmId: 'f1' } } } },
+            { firmId: null, createdBy: { firmMembers: { some: { firmId: 'f1' } } } },
+          ] },
+        ] },
+        { accessible: true },
+        view === 'created' ? { createdById: 'u1' } : view === 'mine' ? { assigneeId: 'u1' }
+          : { status: 'PENDING_REVIEW', OR: [
+            { caseId: null, assigneeId: 'u1' },
+            { caseId: { not: null }, reviewerId: 'u1' },
+            { reviewerId: null, case: { leadLawyerId: 'u1' } },
+          ] },
+      ] });
+      // Delegated/unassigned created tasks must not be narrowed to the current assignee.
+      expect(query.where.assignee).toBeUndefined();
+      expect(query.include.comments).toMatchObject({ orderBy: { createdAt: 'desc' }, take: 1 });
+    });
+    it('allows the owner fallback only when a case has no named reviewer', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([]);
+      await service.findMine(ownerOfOtherFirm, 'review');
+      const where = mockPrisma.task.findMany.mock.calls[0][0].where;
+      expect(where.AND[2]).toEqual({ status: 'PENDING_REVIEW', OR: [
+        { caseId: null, assigneeId: 'u9' },
+        { caseId: { not: null }, reviewerId: 'u9' },
+        { reviewerId: null, case: { firmId: 'f2' } },
+      ] });
+      expect(where.AND[0].OR[0]).toEqual({ case: { firmId: 'f2', deletedAt: null } });
+    });
+    it('rejects unknown views before querying', async () => {
+      await expect(service.findMine(lawyer, 'someone-else')).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.task.findMany).not.toHaveBeenCalled();
+    });
     it('findMine returns top-level tasks (standalone and case tasks alike), with counts', async () => {
       mockPrisma.task.findMany.mockResolvedValue([
         {

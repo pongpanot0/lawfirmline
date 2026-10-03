@@ -72,11 +72,13 @@ export interface TaskItem {
   caseId: string | null;
   createdById?: string;
   description?: string | null;
+  requiresReview?: boolean;
+  reviewerId?: string | null;
   attachments?: Array<{ id: string; filename: string; size: number }>;
   comments?: Array<{ id: string; body: string; author: { firstName: string; lastName: string } }>;
   assigneeId?: string | null;
   assignee?: { id: string; firstName: string; lastName: string } | null;
-  case?: { id: string; ownRef: string; title: string } | null;
+  case?: { id: string; ownRef: string; title: string; leadLawyerId?: string } | null;
 }
 
 export interface CalendarEventItem {

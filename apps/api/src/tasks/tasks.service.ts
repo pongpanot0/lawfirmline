@@ -302,16 +302,41 @@ export class TasksService {
     return this.remove(taskId);
   }
 
-  async findMine(user: AuthUser) {
+  async findMine(user: AuthUser, view = 'all') {
+    if (!['all', 'mine', 'created', 'review'].includes(view)) {
+      throw new BadRequestException('Unknown task view');
+    }
+    const viewFilter: Prisma.TaskWhereInput = view === 'created'
+      ? { createdById: user.id }
+      : view === 'review'
+        ? { status: TaskStatus.PENDING_REVIEW, OR: [
+          { caseId: null, assigneeId: user.id },
+          { caseId: { not: null }, reviewerId: user.id },
+          { reviewerId: null, case: user.firmRole === FirmRole.OWNER
+            ? { firmId: user.firmId } : { leadLawyerId: user.id } },
+        ] }
+        : { assigneeId: user.id };
     const tasks = await this.prisma.task.findMany({
-      where: {
+      where: view === 'all' ? {
         parentId: null,
         assignee: { firmMembers: { some: { firmId: user.firmId } } },
         ...this.caseAccess.getTaskFilterForUser(user),
+      } : {
+        parentId: null,
+        AND: [
+          { OR: [
+            { case: { firmId: user.firmId, deletedAt: null } },
+            { caseId: null, ...this.standaloneFirmScope(user) },
+          ] },
+          this.caseAccess.getTaskAccessFilterForUser(user),
+          viewFilter,
+        ],
       },
       include: {
         ...this.boardInclude,
-        case: { select: { id: true, ownRef: true, title: true, blackCaseNumber: true, redCaseNumber: true } },
+        comments: { orderBy: { createdAt: 'desc' }, take: 1,
+          select: { id: true, body: true, createdAt: true, author: { select: { firstName: true, lastName: true } } } },
+        case: { select: { id: true, ownRef: true, title: true, blackCaseNumber: true, redCaseNumber: true, leadLawyerId: true } },
       },
       orderBy: { createdAt: 'desc' },
     });

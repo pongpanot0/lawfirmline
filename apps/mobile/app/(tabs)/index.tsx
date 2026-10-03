@@ -15,8 +15,8 @@ import {
   Search,
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
-import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange } from '@/api/hooks';
-import { AgendaItemKind, AgendaUrgency } from '@lawfirm/shared';
+import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange, useTodos, useDailyWorkboard } from '@/api/hooks';
+import { AgendaItemKind, AgendaUrgency, followUpReason } from '@lawfirm/shared';
 import type { AgendaItem } from '@/api/types';
 import {
   Card,
@@ -110,17 +110,20 @@ export default function MyDayScreen() {
   const workload = useWorkload(owner);
   const claims = useExpenseClaims(owner);
   const today = bangkokDay(new Date().toISOString());
+  const reviews = useTodos('review');
+  const daily = useDailyWorkboard(today, owner);
+  const tasksToFollow = daily.data?.tasks.filter(task => task.assigneeId && followUpReason(task, today) !== null);
+  const unassignedTasks = daily.data?.tasks.filter(task => !task.assigneeId && task.status !== 'DONE');
   const appointments = useCalendarRange(today, today);
   const leaves = useLeaves(today, today, owner);
   const [showAllPeople, setShowAllPeople] = useState(false);
   const leaveFlags = leaveFlagsForDate(leaves.data ?? [], today);
-  const pendingActions = actions.data?.items.length ?? 0;
+  const pendingActions = new Set([...(actions.data?.items ?? []).map(item => item.id), ...(reviews.data ?? []).map(task => `task:${task.id}`)]).size;
 
   const openItem = (item: AgendaItem) => {
     if (item.kind === 'COURT_DATE') router.push(`/court-day/${item.entityId}`);
     else if (item.kind !== 'TASK') router.push(`/event/${item.entityId}/team`);
-    else if (item.caseId) router.push(`/case/${item.caseId}`);
-    else router.push('/(tabs)/tasks');
+    else router.push(`/task/new?id=${item.entityId}`);
   };
   const openPerson = (id: string) => router.push({ pathname: '/(tabs)/team', params: { memberId: id } });
 
@@ -148,7 +151,8 @@ export default function MyDayScreen() {
             myDay.refetch();
             stats.refetch();
             appointments.refetch();
-            if (owner) { workload.refetch(); claims.refetch(); leaves.refetch(); }
+            actions.refetch(); reviews.refetch();
+            if (owner) { workload.refetch(); claims.refetch(); leaves.refetch(); daily.refetch(); }
           }}
         />
       }
@@ -178,6 +182,28 @@ export default function MyDayScreen() {
           ) : null}
         </Pressable>
       </View>
+
+      <SectionLabel>งานที่ต้องจัดการ</SectionLabel>
+      <Card style={{ marginBottom: spacing.md, gap: spacing.sm }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          {[
+            { view: 'created', label: 'งานที่ฉันสร้าง', count: undefined },
+            { view: 'review', label: 'รอฉันตรวจ', count: reviews.data?.length },
+            ...(owner ? [{ view: 'follow-up', label: 'ต้องตาม', count: tasksToFollow?.length },
+              { view: 'unassigned', label: 'ยังไม่มีคนรับ', count: unassignedTasks?.length }] : []),
+          ].map(item => <Pressable key={item.view} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center', padding: spacing.sm, backgroundColor: colors.soft, borderRadius: 8 }}
+            onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { view: item.view } })}>
+            <Text style={{ color: colors.info, fontWeight: '600' }}>{item.label}{item.view !== 'created' ? ` · ${item.count ?? '—'}` : ''}</Text>
+          </Pressable>)}
+        </View>
+        {reviews.isError && <ErrorNote message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}
+        {owner && daily.isError && <ErrorNote message="โหลดงานทีมไม่ได้" onRetry={() => daily.refetch()} />}
+        {(reviews.data ?? []).slice(0, 3).map(task => <Pressable key={task.id} accessibilityRole="button" accessibilityLabel={`ตรวจงาน ${task.title}`}
+          style={{ minHeight: 44, justifyContent: 'center' }} onPress={() => router.push(`/task/new?id=${task.id}`)}>
+          <Text style={{ color: colors.text }}>{task.title}</Text>
+          <Text style={{ color: colors.info, fontSize: 12 }}>รอคุณตรวจ · เปิดงาน</Text>
+        </Pressable>)}
+      </Card>
 
       {myDay.isError ? (
         <View style={{ marginTop: spacing.lg }}>

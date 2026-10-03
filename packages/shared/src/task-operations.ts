@@ -67,6 +67,32 @@ export interface DailyWorkboard {
   cases: { id: string; ownRef: string; title: string }[];
 }
 
+export function updatedOn(task: DailyWorkTask, date: string) {
+  return !!task.latestUpdate && task.latestUpdate.authorId === task.workerId &&
+    new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date(task.latestUpdate.createdAt)) === date;
+}
+
+export function daysLate(task: DailyWorkTask, date: string) {
+  if (!task.dueDate || !task.assigneeId || ['DONE', 'PENDING_REVIEW'].includes(task.status)) return null;
+  const dueDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date(task.dueDate));
+  const diff = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${dueDay}T00:00:00Z`)) / 86400000);
+  return diff >= 0 ? diff : null;
+}
+
+/** Shared by the web and mobile work queues, using the office's Bangkok day. */
+export function followUpReason(task: DailyWorkTask, date: string): string | null {
+  if (task.status === 'DONE') return null;
+  const late = daysLate(task, date);
+  if (task.holdReason) return `พักไว้: ${task.holdReason}`;
+  if (task.blocker) return `ติด: ${task.blocker}`;
+  if (task.blockedBy) return `รอ "${task.blockedBy}" เสร็จก่อน`;
+  if (late !== null) return late === 0 ? 'ครบกำหนดวันนี้ ยังไม่ส่ง' : `เลยกำหนด ${late} วัน ยังไม่ส่ง`;
+  if (task.status === 'PENDING_REVIEW') return 'รอตรวจ';
+  if (task.assignedAt && !task.acknowledgedAt) return 'ยังไม่รับทราบงาน';
+  if (task.workerId && task.scheduledFor?.slice(0, 10) === date && !updatedOn(task, date)) return 'วางแผนทำวันนี้ ยังไม่อัปเดต';
+  return null;
+}
+
 export interface TeamRadarDay {
   date: string; taskCount: number; points: number; eventCount: number; onLeave: boolean;
 }
