@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthUser, ExpenseClaimStatus, ExpenseStatus, FirmRole } from '@lawfirm/shared';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CashAdvanceService } from './cash-advance.service';
@@ -686,6 +686,7 @@ export class BillingService {
     const copy = requesterCopy[dto.status];
     if (copy) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.BILLING,
         firmId: user.firmId,
         userIds: [expense.userId],
         actorUserId: user.id,
@@ -884,11 +885,13 @@ export class BillingService {
     const copy = submitterCopy[next];
     if (copy) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.BILLING,
         firmId: user.firmId,
         userIds: [claim.submittedById],
         actorUserId: user.id,
         summaryText: copy,
         entityPath: '/expenses/claim',
+        appPath: `/expenses/claim/${claim.id}`,
       });
     }
 

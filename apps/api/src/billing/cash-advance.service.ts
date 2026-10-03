@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { IssueCashAdvanceDto } from './dto/billing.dto';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 
@@ -34,6 +34,7 @@ export class CashAdvanceService {
     });
 
     await this.assignmentNotifier.notifyAssigned({
+      category: NotificationCategory.BILLING,
       firmId: owner.firmId,
       userIds: [dto.userId],
       actorUserId: owner.id,

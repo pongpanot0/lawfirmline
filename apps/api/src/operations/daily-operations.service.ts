@@ -1,6 +1,7 @@
+import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AssignmentType, AuthUser, FirmRole, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { bangkokDateOnly, bangkokDayKey, bangkokDayStart } from '../common/utils/bangkok-time';
@@ -236,7 +237,8 @@ export class DailyOperationsService {
     if (sent) return { followedUpAt: sent.createdAt, alreadySent: true };
     const note = await this.prisma.taskComment.create({ data: { taskId, authorId: user.id, kind: 'FOLLOW_UP', body: 'Owner ขอให้อัปเดต: ทำถึงไหน ติดอะไร และจะส่งได้เมื่อไหร่' } });
     await this.notifier.notifyAssigned({
-      firmId: user.firmId, userIds: [task.assigneeId], actorUserId: user.id, entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+      category: NotificationCategory.TASK,
+      firmId: user.firmId, userIds: [task.assigneeId], actorUserId: user.id, entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos', appPath: taskAppRoute(taskId),
       summaryText: `🔔 Owner ถามความคืบหน้างาน "${task.title}"\nช่วยอัปเดตว่าทำถึงไหน ติดอะไร และจะส่งได้เมื่อไหร่`,
     });
     return { followedUpAt: note.createdAt, alreadySent: false };

@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TaskSource } from '../generated/prisma';
+import { NotificationCategory, Prisma, TaskSource } from '../generated/prisma';
 import {
   ActivityType,
   AssignmentType,
@@ -25,7 +25,8 @@ import {
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
-import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { AssignmentNotifierService, NotifyParams } from '../notifications/assignment-notifier.service';
+import { taskAppRoute } from '../notifications/app-route';
 import {
   formatCaseNotificationReference,
   formatIntakeNotificationReference,
@@ -438,8 +439,10 @@ export class TasksService {
       firmId: null,
       userIds: observerIds,
       actorUserId,
+      category: NotificationCategory.TASK,
       summaryText: `📌 ${summaryMap[action]}`,
       entityPath: parent?.caseId ? `/cases/${parent.caseId}` : '/todos',
+      appPath: taskAppRoute(subtask.id),
     });
   }
 
@@ -574,8 +577,10 @@ export class TasksService {
         firmId: user.firmId,
         userIds: notifyUserIds,
         actorUserId: user.id,
+        category: NotificationCategory.TASK,
         summaryText: await this.taskAssignmentSummary(dto.title, caseId, intakeId),
         entityPath: caseId ? `/cases/${caseId}` : '/todos',
+        appPath: taskAppRoute(task.id),
       });
     }
 
@@ -682,8 +687,10 @@ export class TasksService {
         firmId: user.firmId,
         userIds: [dto.assigneeId],
         actorUserId: user.id,
+        category: NotificationCategory.TASK,
         summaryText: await this.taskAssignmentSummary(task.title, task.caseId, task.intakeId),
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+        appPath: taskAppRoute(task.id),
       });
     }
 
@@ -693,8 +700,10 @@ export class TasksService {
         firmId: user.firmId,
         userIds: newObservers,
         actorUserId: user.id,
+        category: NotificationCategory.TASK,
         summaryText: `👀 คุณถูกเพิ่มเป็นผู้ติดตามงาน "${task.title}"`,
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+        appPath: taskAppRoute(task.id),
       });
     }
 
@@ -796,8 +805,10 @@ export class TasksService {
         firmId: null,
         userIds: notifyIds,
         actorUserId,
+        category: NotificationCategory.TASK,
         summaryText: `✅ งานเสร็จแล้ว: "${task.title}"`,
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+        appPath: taskAppRoute(task.id),
       });
     }
 
@@ -842,7 +853,9 @@ export class TasksService {
         userIds: [t.assigneeId],
         actorUserId,
         summaryText: `🟢 งานที่รออยู่เริ่มได้แล้ว: "${t.title}"\n(งานก่อนหน้า "${task.title}" เสร็จแล้ว)`,
+        category: NotificationCategory.TASK,
         entityPath: t.caseId ? `/cases/${t.caseId}` : '/todos',
+        appPath: taskAppRoute(t.id),
       });
     }
   }
@@ -985,8 +998,10 @@ export class TasksService {
         firmId: user.firmId,
         userIds: [returnToUserId],
         actorUserId: user.id,
+        category: NotificationCategory.TASK,
         summaryText: `🔁 งานถูกตีกลับให้แก้ไข\nงาน: ${task.title}\nเหตุผล: ${dto.reason}`,
         entityPath: `/cases/${caseId}`,
+        appPath: taskAppRoute(taskId),
       });
     }
 
@@ -1188,13 +1203,7 @@ export class TasksService {
     return observers.map((o) => o.userId);
   }
 
-  async notifyViaAssignmentNotifier(params: {
-    firmId: string | null;
-    userIds: string[];
-    actorUserId: string;
-    summaryText: string;
-    entityPath: string;
-  }) {
+  async notifyViaAssignmentNotifier(params: NotifyParams) {
     if (!params.userIds.length) return;
     try {
       await this.assignmentNotifier.notifyAssigned(params);

@@ -14,6 +14,8 @@ import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { TasksService } from './tasks.service';
+import { NotificationCategory } from '../generated/prisma';
+import { taskAppRoute } from '../notifications/app-route';
 import { CreateSubtaskDto, CreateTaskCommentDto, CreateAiFollowUpDto } from './dto/task-detail.dto';
 import { DailyTaskUpdateDto } from './dto/task-daily-update.dto';
 import { TaskRoutineProgressDto } from './dto/task-routine.dto';
@@ -247,8 +249,10 @@ export class TaskDetailService {
         firmId: user.firmId,
         userIds: parentIds,
         actorUserId: user.id,
+        category: NotificationCategory.TASK,
         summaryText: `📌 งานย่อยใหม่: "${created.title}"`,
         entityPath: parent.caseId ? `/cases/${parent.caseId}` : '/todos',
+        appPath: taskAppRoute(created.id),
       });
     }
     return this.tasks.findOne(created.id);
@@ -319,8 +323,10 @@ export class TaskDetailService {
         firmId: null,
         userIds: notifyIds,
         actorUserId: user.id,
+        category: NotificationCategory.COMMENT,
         summaryText: `💬 ความเห็นใหม่ในงาน: "${task.title}"`,
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+        appPath: taskAppRoute(taskId),
       });
     }
 

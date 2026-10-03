@@ -16,7 +16,7 @@ import {
   taskRoutineSnapshot,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { AutomationLogService } from '../common/services/automation-log.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
@@ -477,6 +477,7 @@ export class PracticeSetupService {
     if (notifySet.size) {
       try {
         await this.assignmentNotifier.notifyAssigned({
+          category: NotificationCategory.TASK,
           firmId: user.firmId,
           userIds: [...notifySet],
           actorUserId: user.id,

@@ -14,7 +14,7 @@ import {
   FirmRole,
 } from '@lawfirm/shared';
 import * as path from 'path';
-import { AssignmentType, ReferralChannel } from '../generated/prisma';
+import { NotificationCategory, AssignmentType, ReferralChannel } from '../generated/prisma';
 import { INTAKE_STAGE_ORDER, preLitigationDocuments } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
@@ -618,6 +618,7 @@ export class IntakeService {
     if (dto.assignedUserIds?.length) {
       const reference = formatIntakeNotificationReference(intake.case?.ownRef);
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: dto.assignedUserIds,
         actorUserId: user.id,
@@ -784,6 +785,7 @@ export class IntakeService {
     if (newlyAssigned.length) {
       const reference = formatIntakeNotificationReference(updated.case?.ownRef);
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: newlyAssigned,
         actorUserId: user.id,

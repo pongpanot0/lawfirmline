@@ -1,10 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { AuthUser } from '@lawfirm/shared';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { LineLinkService } from '../notifications/line-link.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { PortalIdentity } from '../client-portal/client-portal-jwt.strategy';
 import { CaseMessageRateLimiterService } from './case-message-rate-limiter.service';
 import { FileStorageService } from '../common/services/file-storage.service';
@@ -21,6 +22,7 @@ export class CaseMessageService {
     private readonly lineLink: LineLinkService,
     private readonly rateLimiter: CaseMessageRateLimiterService,
     private readonly files: FileStorageService,
+    private readonly notifier: AssignmentNotifierService,
   ) {}
 
   /** ข้อความเปล่าและไม่มีไฟล์คือการกดส่งพลาด ไม่ใช่ข้อความ */
@@ -175,7 +177,7 @@ export class CaseMessageService {
       },
     });
 
-    await this.notifyStaff(caseId, body || `ส่งไฟล์: ${message.filename}`);
+    await this.notifyStaff(portalUser.firmId, caseId, body || `ส่งไฟล์: ${message.filename}`);
 
     return message;
   }
@@ -228,16 +230,17 @@ export class CaseMessageService {
     }
   }
 
-  private async notifyStaff(caseId: string, body: string) {
+  private async notifyStaff(firmId: string, caseId: string, body: string) {
     try {
-      const lineUserIds = await this.lineLink.getLineUserIdsForCase(caseId);
-      for (const lineUserId of lineUserIds) {
-        try {
-          await this.lineMessaging.pushTo(lineUserId, `💬 ข้อความใหม่จากลูกความ:\n${body}`);
-        } catch (err) {
-          this.logger.error(`Failed to notify staff ${lineUserId} of new message`, err as Error);
-        }
-      }
+      const legalCase = await this.prisma.case.findUnique({ where: { id: caseId }, select: { ownRef: true } });
+      await this.notifier.notifyAssigned({
+        firmId,
+        userIds: await this.lineLink.getCaseTeamUserIds(caseId),
+        actorUserId: '',
+        category: NotificationCategory.CLIENT,
+        summaryText: `💬 ข้อความใหม่จากลูกความ${legalCase ? ` · ${legalCase.ownRef}` : ''}\n${body}`,
+        entityPath: `/cases/${caseId}?tab=messages`,
+      });
     } catch (err) {
       this.logger.error('Failed to dispatch message notifications to staff', err as Error);
     }

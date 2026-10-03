@@ -1,3 +1,4 @@
+import { NotificationCategory } from '../generated/prisma';
 import { randomUUID } from 'crypto';
 import { portalRequestScope } from './portal-workroom.service';
 import { Injectable, NotFoundException } from '@nestjs/common';
@@ -141,6 +142,7 @@ export class ClientPortalIntakeService {
 
     try {
       await this.notifier.notifyFirmOwners({
+        category: NotificationCategory.CLIENT,
         firmId: portalUser.firmId,
         actorUserId: '',
         summaryText: `คำขอใหม่จากลูกความ ${clientName}: ${dto.title}`,

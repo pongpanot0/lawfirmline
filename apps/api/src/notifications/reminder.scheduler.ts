@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.module';
-import { LineMessagingService } from './line-messaging.service';
-import { LineLinkService } from './line-link.service';
-import { PushService } from './push.service';
+import { NotificationCategory } from '../generated/prisma';
+import { AssignmentNotifierService } from './assignment-notifier.service';
 import { formatCaseNotificationReference } from './reference-label';
 import { eventAssigneesInclude, eventPeopleIds } from '../calendar/event-people';
 
@@ -32,9 +31,7 @@ export class ReminderScheduler {
 
   constructor(
     private prisma: PrismaService,
-    private lineMessaging: LineMessagingService,
-    private lineLink: LineLinkService,
-    private push: PushService,
+    private notifier: AssignmentNotifierService,
   ) {}
 
   @Cron(CronExpression.EVERY_10_MINUTES)
@@ -65,34 +62,26 @@ export class ReminderScheduler {
         if (now >= reminderTime && !alreadySent) {
           const leadTime = formatReminderLeadTime(minutesBefore);
           const reference = formatCaseNotificationReference(event.case);
-          const message = `⏰ แจ้งเตือนนัดหมาย (${leadTime}ก่อน)\n${reference ?? `คดี: ${event.case.title}`}\nเรื่อง: ${event.title}\nเวลา: ${event.startAt.toLocaleString('th-TH')}`;
 
           this.logger.log(
             `[REMINDER] ${minutesBefore}min before: "${event.title}" for case ${reference ?? event.case.title}`,
           );
 
-          const lineUserIds = await this.lineLink.getLineUserIdsForEvent(event);
-          // Skip LINE when no specific event recipient has linked an account.
-          const lineSent =
-            lineUserIds.length > 0
-              ? await this.lineMessaging.sendText(message, lineUserIds)
-              : false;
-
-          // Mobile push goes to whoever attends: every assignee on the
-          // event, or the case's lead lawyer when none is set.
-          const pushSent = await this.push.sendToUsers(
-            eventPeopleIds(event),
-            {
-              title: `⏰ ${event.title} (${leadTime}ก่อน)`,
-              body: `${reference ?? event.case.title} · ${event.startAt.toLocaleString('th-TH')}`,
-              data: { url: `/court-day/${event.id}` },
-            },
-          );
+          // Whoever attends: every assignee on the event, or the case's lead
+          // lawyer when none is set — not everyone staffed on the case.
+          const sent = await this.notifier.notifyAssigned({
+            firmId: event.case.firmId,
+            userIds: eventPeopleIds(event),
+            actorUserId: '',
+            category: NotificationCategory.CALENDAR,
+            summaryText: `⏰ ${event.title} (${leadTime}ก่อน)\n${reference ?? `คดี: ${event.case.title}`}\nเวลา: ${event.startAt.toLocaleString('th-TH')}`,
+            entityPath: `/court-day/${event.id}`,
+          });
 
           await this.prisma.reminderLog.create({
             data: {
               eventId: event.id,
-              channel: lineSent ? 'line' : pushSent ? 'push' : 'console',
+              channel: sent.line ? 'line' : sent.push ? 'push' : 'console',
               minutesBefore,
             },
           });

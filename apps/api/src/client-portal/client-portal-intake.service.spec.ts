@@ -179,6 +179,7 @@ describe('ClientPortalIntakeService', () => {
 
       expect(mockNotifier.notifyFirmOwners).toHaveBeenCalledTimes(1);
       expect(mockNotifier.notifyFirmOwners).toHaveBeenCalledWith({
+        category: 'CLIENT',
         firmId: 'firm-1',
         actorUserId: '',
         summaryText: `คำขอใหม่จากลูกความ บริษัท ก: ${dto.title}`,

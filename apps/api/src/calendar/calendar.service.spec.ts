@@ -4,7 +4,7 @@ import { AuthUser, EventType } from '@lawfirm/shared';
 import { CalendarService } from './calendar.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
-import { LineMessagingService } from '../notifications/line-messaging.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { LineLinkService } from '../notifications/line-link.service';
 import { TravelService } from '../travel/travel.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
@@ -32,8 +32,8 @@ describe('CalendarService case authorization', () => {
     $transaction: jest.fn(),
   };
   const mockCaseAccess = { canAccessCase: jest.fn(), getCaseFilterForUser: jest.fn() };
-  const mockLineMessaging = { sendCourtDateAlert: jest.fn() };
-  const mockLineLink = { getLineUserIdsForCase: jest.fn().mockResolvedValue([]) };
+  const mockNotifier = { notifyAssigned: jest.fn() };
+  const mockLineLink = { getCaseTeamUserIds: jest.fn().mockResolvedValue([]) };
   const mockTravel = { getOfficeAddress: jest.fn(), calculateTravel: jest.fn() };
   const mockDeadlineRules = { applyTrigger: jest.fn() };
 
@@ -48,7 +48,7 @@ describe('CalendarService case authorization', () => {
         CalendarService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
-        { provide: LineMessagingService, useValue: mockLineMessaging },
+        { provide: AssignmentNotifierService, useValue: mockNotifier },
         { provide: LineLinkService, useValue: mockLineLink },
         { provide: TravelService, useValue: mockTravel },
         { provide: DeadlineRulesService, useValue: mockDeadlineRules },
@@ -169,8 +169,8 @@ describe('CalendarService multiple assignees', () => {
     $transaction: jest.fn(),
   };
   const mockCaseAccess = { canAccessCase: jest.fn(), getCaseFilterForUser: jest.fn() };
-  const mockLineMessaging = { sendCourtDateAlert: jest.fn() };
-  const mockLineLink = { getLineUserIdsForCase: jest.fn().mockResolvedValue([]) };
+  const mockNotifier = { notifyAssigned: jest.fn() };
+  const mockLineLink = { getCaseTeamUserIds: jest.fn().mockResolvedValue([]) };
   const mockTravel = { getOfficeAddress: jest.fn(), calculateTravel: jest.fn() };
   const mockDeadlineRules = { applyTrigger: jest.fn() };
 
@@ -196,7 +196,7 @@ describe('CalendarService multiple assignees', () => {
         CalendarService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
-        { provide: LineMessagingService, useValue: mockLineMessaging },
+        { provide: AssignmentNotifierService, useValue: mockNotifier },
         { provide: LineLinkService, useValue: mockLineLink },
         { provide: TravelService, useValue: mockTravel },
         { provide: DeadlineRulesService, useValue: mockDeadlineRules },
@@ -243,6 +243,32 @@ describe('CalendarService multiple assignees', () => {
         }),
       }),
     );
+  });
+
+  it('a new court date notifies the case team and the named attendees, not the person entering it', async () => {
+    mockPrisma.calendarEvent.create.mockResolvedValue({ id: 'event-1', startAt: new Date() });
+    mockTravel.getOfficeAddress.mockResolvedValue('office');
+    mockTravel.calculateTravel.mockResolvedValue({});
+    mockPrisma.travelLog.findFirst.mockResolvedValue(null);
+    mockLineLink.getCaseTeamUserIds.mockResolvedValue(['lead-1', 'buddy-1']);
+
+    await service.createInternal({
+      caseId: 'case-1',
+      title: 'Hearing',
+      type: 'COURT_DATE' as any,
+      courtName: 'ศาลแพ่ง',
+      startAt: '2026-09-07T02:00:00.000Z',
+      assigneeIds: ['user-2'],
+    }, 'user-1');
+
+    expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({
+      firmId: 'firm-1',
+      userIds: ['lead-1', 'buddy-1', 'user-2'],
+      actorUserId: 'user-1',
+      category: 'CALENDAR',
+      entityPath: '/court-day/event-1',
+    }));
+    expect(mockNotifier.notifyAssigned.mock.calls[0][0].summaryText).toMatch(/^📅 นัดศาล C-1/);
   });
 
   it('a non-member id throws BadRequest', async () => {

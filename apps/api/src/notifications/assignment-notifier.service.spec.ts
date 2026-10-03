@@ -1,11 +1,16 @@
 import { AssignmentNotifierService } from './assignment-notifier.service';
 import { FirmLinkService } from './firm-link.service';
 
+const CASE_ID = '11111111-2222-3333-4444-555555555555';
+
 const prisma = {
   user: { findMany: jest.fn() },
   firmMember: { findMany: jest.fn() },
+  notification: { createManyAndReturn: jest.fn() },
 } as any;
-const line = { pushTo: jest.fn().mockResolvedValue(true) } as any;
+const line = { pushTo: jest.fn() } as any;
+const push = { send: jest.fn() } as any;
+const center = { channelsFor: jest.fn(), unreadCounts: jest.fn() } as any;
 const config = {
   get: jest.fn((key: string) =>
     key === 'ROOT_DOMAIN' ? 'example.com' : 'https://app.example.com',
@@ -17,86 +22,121 @@ const firmPrisma = {
   firm: { findUnique: jest.fn().mockResolvedValue({ slug: 'acme' }) },
 } as any;
 
+const allOn = (ids: string[]) => new Map(ids.map((id) => [id, { push: true, line: true }]));
+
 describe('AssignmentNotifierService', () => {
   let svc: AssignmentNotifierService;
   beforeEach(() => {
     jest.clearAllMocks();
     line.pushTo.mockResolvedValue(true);
+    push.send.mockResolvedValue(true);
     firmPrisma.firm.findUnique.mockResolvedValue({ slug: 'acme' });
-    svc = new AssignmentNotifierService(
-      prisma,
-      line,
-      config,
-      new FirmLinkService(firmPrisma, config),
+    center.channelsFor.mockImplementation(async (ids: string[]) => allOn(ids));
+    center.unreadCounts.mockResolvedValue(new Map([['u2', 3]]));
+    prisma.notification.createManyAndReturn.mockImplementation(async ({ data }: any) =>
+      data.map((row: any) => ({ id: `n-${row.userId}`, userId: row.userId })),
     );
+    svc = new AssignmentNotifierService(prisma, line, new FirmLinkService(firmPrisma, config), push, center);
   });
 
-  it('DMs linked users, skipping the actor and unlinked users', async () => {
-    prisma.user.findMany.mockResolvedValue([
-      { id: 'u2', lineUserId: 'L2' },
-      { id: 'u3', lineUserId: null },
-    ]);
-    await svc.notifyAssigned({
+  const users = [
+    { id: 'u2', lineUserId: 'L2', firmMembers: [] },
+    { id: 'u3', lineUserId: null, firmMembers: [] },
+  ];
+
+  it('records an inbox row, pushes and DMs every recipient except the actor', async () => {
+    prisma.user.findMany.mockResolvedValue(users);
+    const result = await svc.notifyAssigned({
       firmId: 'f1',
       userIds: ['u1', 'u2', 'u3'],
       actorUserId: 'u1',
-      summaryText: '📌 คุณได้รับมอบหมายงานใหม่\nงาน: ทดสอบ',
-      entityPath: '/todos',
+      category: 'CASE',
+      summaryText: '⚖️ คุณได้รับมอบหมายคดี\nคดี: ทดสอบ',
+      entityPath: `/cases/${CASE_ID}?tab=tasks`,
     });
-    expect(prisma.user.findMany).toHaveBeenCalledWith({
-      where: { id: { in: ['u2', 'u3'] } },
-      select: {
-        id: true,
-        lineUserId: true,
-        firmMembers: { select: { firmId: true }, orderBy: { createdAt: 'asc' }, take: 1 },
-      },
-    });
+
+    expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['u2', 'u3'] } });
+    expect(prisma.notification.createManyAndReturn.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({ userId: 'u2', firmId: 'f1', category: 'CASE', title: '⚖️ คุณได้รับมอบหมายคดี', body: 'คดี: ทดสอบ', appPath: `/case/${CASE_ID}` }),
+      expect.objectContaining({ userId: 'u3' }),
+    ]);
+    expect(push.send).toHaveBeenCalledWith([
+      expect.objectContaining({ userId: 'u2', badge: 3, data: { url: `/case/${CASE_ID}`, notificationId: 'n-u2' } }),
+      expect.objectContaining({ userId: 'u3', badge: 0, data: { url: `/case/${CASE_ID}`, notificationId: 'n-u3' } }),
+    ]);
     expect(line.pushTo).toHaveBeenCalledTimes(1);
-    expect(line.pushTo).toHaveBeenCalledWith(
-      'L2',
-      expect.stringContaining('https://acme.example.com/todos'),
-    );
+    expect(line.pushTo).toHaveBeenCalledWith('L2', expect.stringContaining(`https://acme.example.com/cases/${CASE_ID}?tab=tasks`));
+    expect(result).toEqual({ recipients: 2, push: true, line: true });
+  });
+
+  it('an explicit appPath wins over the mapped web path', async () => {
+    prisma.user.findMany.mockResolvedValue([users[0]]);
+    await svc.notifyAssigned({
+      firmId: 'f1', userIds: ['u2'], actorUserId: '', category: 'TASK',
+      summaryText: 'งานใหม่', entityPath: '/todos', appPath: '/task/new?id=t1',
+    });
+    expect(push.send.mock.calls[0][0][0].data.url).toBe('/task/new?id=t1');
+  });
+
+  it('honours per-category opt-outs but always keeps the inbox row', async () => {
+    prisma.user.findMany.mockResolvedValue([users[0]]);
+    center.channelsFor.mockResolvedValue(new Map([['u2', { push: false, line: false }]]));
+    const result = await svc.notifyAssigned({
+      firmId: 'f1', userIds: ['u2'], actorUserId: 'u1', category: 'COMMENT', summaryText: 'x', entityPath: '/todos',
+    });
+    expect(prisma.notification.createManyAndReturn).toHaveBeenCalled();
+    expect(push.send).not.toHaveBeenCalled();
+    expect(line.pushTo).not.toHaveBeenCalled();
+    expect(result).toEqual({ recipients: 1, push: false, line: false });
+  });
+
+  it('line:false leaves LINE to the caller', async () => {
+    prisma.user.findMany.mockResolvedValue([users[0]]);
+    await svc.notifyAssigned({
+      firmId: 'f1', userIds: ['u2'], actorUserId: '', category: 'LEAVE', summaryText: 'x', entityPath: '/leaves', line: false,
+    });
+    expect(push.send).toHaveBeenCalled();
+    expect(line.pushTo).not.toHaveBeenCalled();
   });
 
   it('does nothing when the only target is the actor', async () => {
     await svc.notifyAssigned({
-      firmId: 'f1',
-      userIds: ['u1'],
-      actorUserId: 'u1',
-      summaryText: 'x',
-      entityPath: '/x',
+      firmId: 'f1', userIds: ['u1'], actorUserId: 'u1', category: 'TASK', summaryText: 'x', entityPath: '/x',
     });
     expect(prisma.user.findMany).not.toHaveBeenCalled();
     expect(line.pushTo).not.toHaveBeenCalled();
   });
 
-  it('never throws when push fails', async () => {
-    prisma.user.findMany.mockResolvedValue([{ id: 'u2', lineUserId: 'L2' }]);
-    line.pushTo.mockRejectedValue(new Error('LINE down'));
-    await expect(
-      svc.notifyAssigned({
-        firmId: 'f1',
-        userIds: ['u2'],
-        actorUserId: 'u1',
-        summaryText: 'x',
-        entityPath: '/x',
-      }),
-    ).resolves.toBeUndefined();
+  it('still pushes and DMs when the inbox write fails', async () => {
+    prisma.user.findMany.mockResolvedValue([users[0]]);
+    prisma.notification.createManyAndReturn.mockRejectedValue(new Error('db down'));
+    await svc.notifyAssigned({
+      firmId: 'f1', userIds: ['u2'], actorUserId: 'u1', category: 'TASK', summaryText: 'x', entityPath: '/todos',
+    });
+    expect(push.send.mock.calls[0][0][0].data).toEqual({ url: '/(tabs)/tasks' });
+    expect(line.pushTo).toHaveBeenCalled();
   });
 
-  it('notifyFirmOwners resolves owners then DMs them', async () => {
+  it('never throws when every channel fails', async () => {
+    prisma.user.findMany.mockResolvedValue([users[0]]);
+    line.pushTo.mockRejectedValue(new Error('LINE down'));
+    push.send.mockRejectedValue(new Error('Expo down'));
+    await expect(
+      svc.notifyAssigned({ firmId: 'f1', userIds: ['u2'], actorUserId: 'u1', category: 'TASK', summaryText: 'x', entityPath: '/x' }),
+    ).resolves.toEqual({ recipients: 1, push: false, line: false });
+  });
+
+  it('notifyFirmOwners resolves owners then notifies them', async () => {
     prisma.firmMember.findMany.mockResolvedValue([{ userId: 'o1' }]);
-    prisma.user.findMany.mockResolvedValue([{ id: 'o1', lineUserId: 'LO' }]);
+    prisma.user.findMany.mockResolvedValue([{ id: 'o1', lineUserId: 'LO', firmMembers: [] }]);
     await svc.notifyFirmOwners({
-      firmId: 'f1',
-      actorUserId: 'u1',
-      summaryText: 'เบิกใหม่',
-      entityPath: '/admin/reimbursements',
+      firmId: 'f1', actorUserId: 'u1', category: 'BILLING', summaryText: 'เบิกใหม่', entityPath: '/admin/reimbursements',
     });
     expect(prisma.firmMember.findMany).toHaveBeenCalledWith({
       where: { firmId: 'f1', role: 'OWNER' },
       select: { userId: true },
     });
     expect(line.pushTo).toHaveBeenCalledWith('LO', expect.stringContaining('เบิกใหม่'));
+    expect(push.send.mock.calls[0][0][0].data.url).toBe('/expenses/claims');
   });
 });

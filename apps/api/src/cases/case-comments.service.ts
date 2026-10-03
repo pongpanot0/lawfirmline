@@ -1,3 +1,4 @@
+import { NotificationCategory } from '../generated/prisma';
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -172,6 +173,7 @@ export class CaseCommentsService {
     // Notify mentioned users
     if (mentionedRecipients.length > 0) {
       await this.notifier.notifyAssigned({
+        category: NotificationCategory.COMMENT,
         firmId: user.firmId,
         userIds: mentionedRecipients,
         actorUserId: user.id,
@@ -183,6 +185,7 @@ export class CaseCommentsService {
     // Notify other case team members
     if (otherRecipients.length > 0) {
       await this.notifier.notifyAssigned({
+        category: NotificationCategory.COMMENT,
         firmId: user.firmId,
         userIds: otherRecipients,
         actorUserId: user.id,

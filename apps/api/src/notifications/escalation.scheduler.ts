@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { TaskStatus } from '../generated/prisma';
+import { NotificationCategory, TaskStatus } from '../generated/prisma';
+import { taskAppRoute } from './app-route';
 import { PrismaService } from '../prisma/prisma.module';
 import { AssignmentNotifierService } from './assignment-notifier.service';
 import { AutomationLogService } from '../common/services/automation-log.service';
@@ -64,20 +65,24 @@ export class EscalationScheduler {
 
       if (targets.size) {
         await this.notifier.notifyAssigned({
+          category: NotificationCategory.TASK,
           firmId: task.case?.firmId ?? null,
           userIds: [...targets],
           actorUserId: '',
           summaryText: summary,
           entityPath: path,
+          appPath: taskAppRoute(task.id),
         });
       }
 
       if (overdueDays >= 3 && task.case) {
         await this.notifier.notifyFirmOwners({
+          category: NotificationCategory.TASK,
           firmId: task.case.firmId,
           actorUserId: task.assigneeId ?? '',
           summaryText: summary,
           entityPath: path,
+          appPath: taskAppRoute(task.id),
         });
       }
     }
@@ -104,6 +109,7 @@ export class EscalationScheduler {
     for (const hold of holds) {
       const targets = [hold.followerUserId ?? hold.createdById];
       await this.notifier.notifyAssigned({
+        category: NotificationCategory.TASK,
         firmId: hold.task.case?.firmId ?? null,
         userIds: targets,
         actorUserId: '',
@@ -111,6 +117,7 @@ export class EscalationScheduler {
           `⏰ ถึงกำหนดตามงานที่พักไว้: "${hold.task.title}"` +
           `${hold.task.case ? `\n${formatCaseNotificationReference(hold.task.case) ?? `คดี: ${hold.task.case.title}`}` : ''}\nเหตุผลที่พัก: ${hold.reason}`,
         entityPath: hold.task.caseId ? `/cases/${hold.task.caseId}` : '/todos',
+        appPath: taskAppRoute(hold.task.id),
       });
       await this.prisma.taskOnHold.update({
         where: { id: hold.id },

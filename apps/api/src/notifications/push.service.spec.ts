@@ -69,4 +69,25 @@ describe('PushService', () => {
     expect(delivered).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('send gives each recipient their own payload on every device', async () => {
+    mockPrisma.deviceToken.findMany.mockResolvedValue([
+      { token: 'a1', userId: 'a' },
+      { token: 'a2', userId: 'a' },
+      { token: 'b1', userId: 'b' },
+    ]);
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ data: [{ status: 'ok' }] }) });
+
+    await service.send([
+      { userId: 'a', title: 't', body: 'b', data: { notificationId: 'na' }, badge: 2 },
+      { userId: 'b', title: 't', body: 'b', data: { notificationId: 'nb' } },
+    ]);
+
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(sent.map((m: any) => [m.to, m.data.notificationId, m.badge])).toEqual([
+      ['a1', 'na', 2],
+      ['a2', 'na', 2],
+      ['b1', 'nb', undefined],
+    ]);
+  });
 });

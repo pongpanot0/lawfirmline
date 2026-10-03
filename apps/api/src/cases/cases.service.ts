@@ -20,7 +20,7 @@ import { CaseFeedService } from '../common/services/case-feed.service';
 import { CreateCaseDto, UpdateCaseDto, CaseQueryDto, UpdateCaseAssignmentsDto } from './dto/case.dto';
 import { CustomerShareDto, AdditionalClientDto } from '../intake/dto/intake.dto';
 import { CloseCaseDto } from './dto/close-case.dto';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CLIENT_CONTACT_SELECT } from '../clients/client-contact.select';
@@ -422,6 +422,7 @@ export class CasesService {
 
     if (dto.leadLawyerId && dto.leadLawyerId !== user.id) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: [dto.leadLawyerId],
         actorUserId: user.id,
@@ -431,6 +432,7 @@ export class CasesService {
     }
     if (buddyIds.length) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: buddyIds,
         actorUserId: user.id,
@@ -526,6 +528,7 @@ export class CasesService {
       dto.leadLawyerId !== user.id
     ) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: [dto.leadLawyerId],
         actorUserId: user.id,
@@ -601,6 +604,7 @@ export class CasesService {
     }
     if (newBuddyIds.length) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: newBuddyIds,
         actorUserId: user.id,

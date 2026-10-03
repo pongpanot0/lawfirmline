@@ -9,7 +9,6 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.module';
 import { LinkCodeAttemptLimiterService } from './link-code-attempt-limiter.service';
-import { eventPeopleIds } from '../calendar/event-people';
 
 const LINK_CODE_TTL_MS = 15 * 60 * 1000;
 const LINK_CODE_PATTERN = /^LF-[A-Z0-9]{6}$/i;
@@ -155,34 +154,8 @@ export class LineLinkService {
     return `✅ เชื่อมต่อสำเร็จ!\nสวัสดีคุณ ${user.firstName} คุณจะได้รับแจ้งเตือนนัดหมายล่วงหน้า 3 วันก่อนถึงวันนัด`;
   }
 
-  /**
-   * Who to remind about one event.
-   *
-   * A per-event reminder is a countdown for whoever has to be there, so it goes
-   * to every assignee on the event, and to the case's lead lawyer only when
-   * nobody was named. Sending it to everyone staffed on the case — which is
-   * what `getLineUserIdsForCase` does — buries a senior lawyer on many cases
-   * under reminders for hearings they are not attending, and a muted channel
-   * then loses the ones that mattered.
-   */
-  async getLineUserIdsForEvent(event: {
-    assignees?: { userId: string }[] | null;
-    case?: { leadLawyerId: string | null } | null;
-  }): Promise<string[]> {
-    const ids = eventPeopleIds(event);
-    return ids.length ? this.toLineUserIds(ids) : [];
-  }
-
-  private async toLineUserIds(userIds: string[]): Promise<string[]> {
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: userIds }, lineUserId: { not: null } },
-      select: { lineUserId: true },
-    });
-    return users.map((u) => u.lineUserId).filter((id): id is string => Boolean(id));
-  }
-
   /** Everyone staffed on a case — for case-wide news, not per-event reminders. */
-  async getLineUserIdsForCase(caseId: string): Promise<string[]> {
+  async getCaseTeamUserIds(caseId: string): Promise<string[]> {
     const legalCase = await this.prisma.case.findUnique({
       where: { id: caseId },
       select: {
@@ -191,13 +164,7 @@ export class LineLinkService {
       },
     });
     if (!legalCase) return [];
-
-    const userIds = new Set<string>([legalCase.leadLawyerId]);
-    for (const assignment of legalCase.assignments) {
-      userIds.add(assignment.userId);
-    }
-
-    return this.toLineUserIds([...userIds]);
+    return [...new Set([legalCase.leadLawyerId, ...legalCase.assignments.map((a) => a.userId)])];
   }
 
   private async generateLinkCode(): Promise<string> {

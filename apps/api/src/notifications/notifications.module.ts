@@ -1,6 +1,8 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { LineController } from './line.controller';
 import { DevicesController } from './devices.controller';
+import { NotificationCenterController } from './notification-center.controller';
+import { NotificationCenterService } from './notification-center.service';
 import { PushService } from './push.service';
 import { ReminderScheduler } from './reminder.scheduler';
 import { DailyDigestScheduler } from './daily-digest.scheduler';
@@ -45,9 +47,10 @@ import { AgendaModule } from '../agenda/agenda.module';
     forwardRef(() => BillingModule),
     forwardRef(() => IntelligenceModule),
   ],
-  controllers: [LineController, DevicesController, LeaveController],
+  controllers: [LineController, DevicesController, NotificationCenterController, LeaveController],
   providers: [
     PushService,
+    NotificationCenterService,
     ReminderScheduler,
     DailyDigestScheduler,
     EscalationScheduler,

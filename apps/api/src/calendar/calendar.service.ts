@@ -9,13 +9,13 @@ import {
 import { AuthUser, DeadlineTrigger, EventType } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
-import { LineMessagingService } from '../notifications/line-messaging.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { LineLinkService } from '../notifications/line-link.service';
 import { TravelService } from '../travel/travel.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { CreateEventDto, UpdateEventDto } from './dto/calendar.dto';
 import { eventAssigneesInclude } from './event-people';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 
 @Injectable()
 export class CalendarService {
@@ -24,7 +24,7 @@ export class CalendarService {
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
-    private lineMessaging: LineMessagingService,
+    private notifier: AssignmentNotifierService,
     private lineLink: LineLinkService,
     private travelService: TravelService,
     private deadlineRules: DeadlineRulesService,
@@ -154,6 +154,7 @@ export class CalendarService {
     const courtName = dto.courtName ?? legalCase.courtName ?? dto.title;
     const ids = (await this.resolveAssigneeIds(legalCase.firmId, dto)) ?? [];
     let travelLogId: string | undefined;
+    let courtAlert: string | undefined;
 
     if (dto.type === EventType.COURT_DATE && courtName) {
       const office = await this.travelService.getOfficeAddress();
@@ -168,11 +169,7 @@ export class CalendarService {
       travelLogId = log?.id;
 
       const dateStr = new Date(dto.startAt).toLocaleString('th-TH');
-      const lineUserIds = await this.lineLink.getLineUserIdsForCase(dto.caseId);
-      await this.lineMessaging.sendCourtDateAlert(
-        `📅 นัดศาล\nคดี: ${legalCase.ownRef} — ${legalCase.title}\nศาล: ${courtName}\nวันที่: ${dateStr}\nทนาย: ${legalCase.leadLawyer.firstName} ${legalCase.leadLawyer.lastName}${travel.warning ? `\n⚠️ ${travel.warning}` : ''}`,
-        lineUserIds,
-      );
+      courtAlert = `📅 นัดศาล ${legalCase.ownRef} · ${dateStr}\nคดี: ${legalCase.title}\nศาล: ${courtName}\nทนาย: ${legalCase.leadLawyer.firstName} ${legalCase.leadLawyer.lastName}${travel.warning ? `\n⚠️ ${travel.warning}` : ''}`;
 
       await this.prisma.case.update({
         where: { id: dto.caseId },
@@ -196,6 +193,18 @@ export class CalendarService {
       },
       include: this.eventInclude,
     });
+
+    if (courtAlert) {
+      // A new court date is case-wide news: the whole case team plus whoever was named on it.
+      await this.notifier.notifyAssigned({
+        firmId: legalCase.firmId,
+        userIds: [...(await this.lineLink.getCaseTeamUserIds(dto.caseId)), ...ids],
+        actorUserId: actorId ?? '',
+        category: NotificationCategory.CALENDAR,
+        summaryText: courtAlert,
+        entityPath: `/court-day/${event.id}`,
+      });
+    }
 
     if (dto.type === EventType.COURT_DATE && actorId) {
       // Suggestions are a convenience: a rule engine failure must not lose the
