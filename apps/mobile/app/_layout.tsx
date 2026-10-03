@@ -82,12 +82,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // fires before any listener could be attached.
   const response = Notifications.useLastNotificationResponse();
   useEffect(() => {
-    if (!ready || !user || !response) return;
-    if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    if (!ready || !response) return;
     const key = response.notification.request.identifier;
     if (handledResponse === key) return;
     handledResponse = key;
     Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+    // A tap while signed out was meant for whoever was signed in then; never replay it into the next login.
+    if (!user || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
     const { url, notificationId } = response.notification.request.content.data ?? {};
     if (typeof notificationId === 'string') {
       api(`/notifications/${notificationId}/read`, { method: 'POST' })

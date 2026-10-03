@@ -34,6 +34,11 @@ export interface NotifyResult {
 
 const NOTHING_SENT: NotifyResult = { recipients: 0, push: false, line: false };
 
+/** Expo rejects a message over ~4 KB; Thai is 3 bytes a character, so stay well under. */
+const PUSH_TITLE_MAX = 120;
+const PUSH_BODY_MAX = 400;
+const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
 /**
  * The one place staff notifications go out: an inbox row for every recipient,
  * then mobile push and a LINE DM, each subject to the recipient's per-category
@@ -66,17 +71,28 @@ export class AssignmentNotifierService {
           firmMembers: { select: { firmId: true }, orderBy: { createdAt: 'asc' }, take: 1 },
         },
       });
-      const firmId = params.firmId ?? users[0]?.firmMembers[0]?.firmId;
-      if (!firmId || !users.length) return NOTHING_SENT;
+      // Without a firm in hand each recipient's own firm is used, so a
+      // multi-firm group never files a row under someone else's firm.
+      const byFirm = new Map<string, typeof users>();
+      for (const u of users) {
+        const firmId = params.firmId ?? u.firmMembers[0]?.firmId;
+        if (firmId) byFirm.set(firmId, [...(byFirm.get(firmId) ?? []), u]);
+      }
 
-      const userIds = users.map((u) => u.id);
-      const channels = await this.center.channelsFor(userIds, params.category);
-      const notificationIds = await this.recordInbox(firmId, userIds, params);
-      const push = await this.sendPush(firmId, userIds, channels, notificationIds, params);
-      const line = params.line === false
-        ? false
-        : await this.sendLine(firmId, users.filter((u) => channels.get(u.id)?.line), params);
-      return { recipients: users.length, push, line };
+      const result = { ...NOTHING_SENT };
+      for (const [firmId, group] of byFirm) {
+        const userIds = group.map((u) => u.id);
+        const channels = await this.center.channelsFor(userIds, params.category);
+        const notificationIds = await this.recordInbox(firmId, userIds, params);
+        const push = await this.sendPush(firmId, userIds, channels, notificationIds, params);
+        const line = params.line === false
+          ? false
+          : await this.sendLine(firmId, group.filter((u) => channels.get(u.id)?.line), params);
+        result.recipients += group.length;
+        result.push ||= push;
+        result.line ||= line;
+      }
+      return result;
     } catch (err) {
       this.logger.error('Failed to send notification', err);
       return NOTHING_SENT;
@@ -138,8 +154,8 @@ export class AssignmentNotifierService {
         const notificationId = notificationIds.get(userId);
         return {
           userId,
-          title: title.trim(),
-          body: rest.join('\n').trim(),
+          title: clip(title.trim(), PUSH_TITLE_MAX),
+          body: clip(rest.join('\n').trim(), PUSH_BODY_MAX),
           data: {
             url: this.appPath(params) ?? '/notifications',
             ...(notificationId && { notificationId }),

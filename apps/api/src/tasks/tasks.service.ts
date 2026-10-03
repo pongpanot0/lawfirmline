@@ -426,7 +426,7 @@ export class TasksService {
 
     const parent = await this.prisma.task.findUnique({
       where: { id: parentTaskId },
-      select: { caseId: true, intakeId: true },
+      select: { caseId: true, intakeId: true, firmId: true },
     });
 
     const summaryMap = {
@@ -436,7 +436,7 @@ export class TasksService {
     };
 
     await this.assignmentNotifier.notifyAssigned({
-      firmId: null,
+      firmId: parent?.firmId ?? null,
       userIds: observerIds,
       actorUserId,
       category: NotificationCategory.TASK,
@@ -802,7 +802,7 @@ export class TasksService {
 
     if (notifyIds.length) {
       await this.notifyViaAssignmentNotifier({
-        firmId: null,
+        firmId: task.firmId ?? null,
         userIds: notifyIds,
         actorUserId,
         category: NotificationCategory.TASK,
@@ -843,13 +843,13 @@ export class TasksService {
 
     const unblocked = await this.prisma.task.findMany({
       where: { blockedById: task.id, status: { not: TaskStatus.DONE } },
-      select: { id: true, title: true, assigneeId: true, caseId: true },
+      select: { id: true, title: true, assigneeId: true, caseId: true, firmId: true },
     });
     for (const t of unblocked) {
       if (!t.assigneeId) continue;
       await this.assignmentNotifier.notifyAssigned({
-        // Unblock runs without an AuthUser; the recipient's own firm is right.
-        firmId: null,
+        // Unblock runs without an AuthUser; a personal todo falls back to the recipient's own firm.
+        firmId: t.firmId ?? null,
         userIds: [t.assigneeId],
         actorUserId,
         summaryText: `🟢 งานที่รออยู่เริ่มได้แล้ว: "${t.title}"\n(งานก่อนหน้า "${task.title}" เสร็จแล้ว)`,

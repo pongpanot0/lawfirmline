@@ -9,8 +9,6 @@ import { PettyCashService } from './petty-cash.service';
 import { CashAdvanceService } from './cash-advance.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
-import { LineMessagingService } from '../notifications/line-messaging.service';
-import { FirmLinkService } from '../notifications/firm-link.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import {
   CreateTimeEntryDto,
@@ -40,9 +38,7 @@ export class BillingService {
     private caseAccess: CaseAccessService,
     private config: ConfigService,
     private fileStorage: FileStorageService,
-    private line: LineMessagingService,
     private assignmentNotifier: AssignmentNotifierService,
-    private firmLink: FirmLinkService,
   ) {}
 
   private decodeOriginalFilename(originalname: string): string {
@@ -902,36 +898,15 @@ export class BillingService {
     submitter: AuthUser,
     claim: { id: string; totalAmount: number; itemCount: number },
   ) {
-    const owners = await this.prisma.firmMember.findMany({
-      where: { firmId: submitter.firmId, role: FirmRole.OWNER },
-      include: {
-        user: { select: { lineUserId: true, firstName: true, lastName: true } },
-      },
-    });
-
-    const ownerLineIds = owners
-      .map((member) => member.user.lineUserId)
-      .filter((id): id is string => Boolean(id));
-
-    if (!ownerLineIds.length || !this.line.isConfigured()) return;
-
-    const link = await this.firmLink.linkFor(
-      submitter.firmId,
-      '/admin/reimbursements?status=PENDING',
-    );
     const submitterName = `${submitter.firstName ?? ''} ${submitter.lastName ?? ''}`.trim() || 'ทนายความ';
-    const message =
-      `📋 ${submitterName} ส่งใบเบิก ${claim.itemCount} รายการ\n` +
-      `รวม ฿${claim.totalAmount.toLocaleString('th-TH')}\n\n` +
-      `🔗 ${link}`;
-
-    for (const lineUserId of ownerLineIds) {
-      try {
-        await this.line.pushTo(lineUserId, message);
-      } catch (error) {
-        this.logger.warn(`Failed to notify owner ${lineUserId} about expense claim: ${error}`);
-      }
-    }
+    await this.assignmentNotifier.notifyFirmOwners({
+      firmId: submitter.firmId,
+      actorUserId: submitter.id,
+      category: NotificationCategory.BILLING,
+      summaryText: `📋 ${submitterName} ส่งใบเบิก ${claim.itemCount} รายการ\nรวม ฿${claim.totalAmount.toLocaleString('th-TH')}`,
+      entityPath: '/admin/reimbursements?status=PENDING',
+      appPath: `/expenses/claim/${claim.id}`,
+    });
   }
 
   async getInvoices(caseId: string) {

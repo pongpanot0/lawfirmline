@@ -621,18 +621,30 @@ export function useNotificationPreferences() {
 export function useUpdateNotificationPreference() {
   const queryClient = useQueryClient();
   const key = ['notification-preferences'];
+  const mutationKey = ['update-notification-preference'];
+  type Change = Pick<NotificationPreference, 'category'> & Partial<Omit<NotificationPreference, 'category'>>;
   return useMutation({
-    mutationFn: ({ category, ...change }: Pick<NotificationPreference, 'category'> & Partial<Omit<NotificationPreference, 'category'>>) =>
+    mutationKey,
+    mutationFn: ({ category, ...change }: Change) =>
       api<NotificationPreference>(`/notifications/preferences/${category}`, { method: 'PATCH', body: change }),
     // A switch must move when tapped, not a round trip later.
     onMutate: async ({ category, ...change }) => {
       await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<NotificationPreference[]>(key);
+      const before = queryClient.getQueryData<NotificationPreference[]>(key)?.find((row) => row.category === category);
       queryClient.setQueryData<NotificationPreference[]>(key, (rows) =>
         rows?.map((row) => (row.category === category ? { ...row, ...change } : row)));
-      return { previous };
+      return { before };
     },
-    onError: (_error, _vars, context) => queryClient.setQueryData(key, context?.previous),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    // Undo only the switch that failed, so a quick second tap elsewhere survives.
+    onError: (_error, { category, ...change }, context) => {
+      if (!context?.before) return;
+      const undo = Object.fromEntries(Object.keys(change).map((field) => [field, context.before![field as 'push' | 'line']]));
+      queryClient.setQueryData<NotificationPreference[]>(key, (rows) =>
+        rows?.map((row) => (row.category === category ? { ...row, ...undo } : row)));
+    },
+    // Refetch once the last pending toggle settles, not between taps.
+    onSettled: () => {
+      if (queryClient.isMutating({ mutationKey }) <= 1) queryClient.invalidateQueries({ queryKey: key });
+    },
   });
 }

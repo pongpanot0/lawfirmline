@@ -197,14 +197,19 @@ export class CalendarService {
 
     if (courtAlert) {
       // A new court date is case-wide news: the whole case team plus whoever was named on it.
-      await this.notifier.notifyAssigned({
-        firmId: legalCase.firmId,
-        userIds: [...(await this.lineLink.getCaseTeamUserIds(dto.caseId)), ...ids],
-        actorUserId: actorId ?? '',
-        category: NotificationCategory.CALENDAR,
-        summaryText: courtAlert,
-        entityPath: `/court-day/${event.id}`,
-      });
+      // The event is saved; failing to announce it must not fail the request.
+      try {
+        await this.notifier.notifyAssigned({
+          firmId: legalCase.firmId,
+          userIds: [...(await this.lineLink.getCaseTeamUserIds(dto.caseId)), ...ids],
+          actorUserId: actorId ?? '',
+          category: NotificationCategory.CALENDAR,
+          summaryText: courtAlert,
+          entityPath: `/court-day/${event.id}`,
+        });
+      } catch (err) {
+        this.logger.error(`Court date notice for event ${event.id} failed: ${(err as Error).message}`);
+      }
     }
 
     if (dto.type === EventType.COURT_DATE && actorId) {

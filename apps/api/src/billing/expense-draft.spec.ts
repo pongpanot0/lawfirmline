@@ -49,6 +49,7 @@ describe('BillingService — drafted expenses', () => {
   const mockPettyCash = { deduct: jest.fn() };
   const mockCashAdvance = { consume: jest.fn() };
   const mockLine = { isConfigured: jest.fn().mockReturnValue(false), pushTo: jest.fn() };
+  const mockNotifier = { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() };
   const mockCaseAccess = {
     getCaseFilterForUser: jest.fn().mockReturnValue({}),
     getCaseFilterForFinancials: jest.fn().mockReturnValue({}),
@@ -62,7 +63,7 @@ describe('BillingService — drafted expenses', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BillingService,
-        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
+        { provide: AssignmentNotifierService, useValue: mockNotifier },
         { provide: FirmLinkService, useValue: { linkFor: jest.fn().mockResolvedValue('https://acme.example.com/x'), originForFirm: jest.fn(), rootOrigin: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PettyCashService, useValue: mockPettyCash },
@@ -230,7 +231,11 @@ describe('BillingService — drafted expenses', () => {
     expect(result.itemCount).toBe(2);
     expect(result.totalAmount).toBe(500);
     expect(result.receiptCount).toBe(1);
-    expect(mockLine.pushTo).toHaveBeenCalledWith('U-owner', expect.stringContaining('2 รายการ'));
+    expect(mockNotifier.notifyFirmOwners).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'BILLING',
+      summaryText: expect.stringContaining('2 รายการ'),
+      appPath: '/expenses/claim/claim-1',
+    }));
   });
 
   it('approves a whole claim round and deducts petty cash once', async () => {

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { AuthUser, DeadlineDayBasis } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
@@ -12,6 +12,8 @@ import { eventAssigneesInclude, eventPeopleIds } from './event-people';
 
 @Injectable()
 export class EventResponsibilityService {
+  private readonly logger = new Logger(EventResponsibilityService.name);
+
   constructor(
     private prisma: PrismaService,
     private access: CaseAccessService,
@@ -98,7 +100,9 @@ export class EventResponsibilityService {
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'EVENT_RESCHEDULED', metadata: { ...preview, reason: dto.reason.trim(), previousReminders: e.reminderLogs.map(r => ({ sentAt: r.sentAt.toISOString(), channel: r.channel })) } } });
       return { updated: true, impacted: preview.impacts.length, oldAt: e.startAt };
     }, { timeout: 15000 });
-    await this.notifyRescheduled(user, id, result.oldAt, dto.reason.trim());
+    // Already committed: a failed notice must not turn a saved reschedule into a 500 the client retries into a 409.
+    await this.notifyRescheduled(user, id, result.oldAt, dto.reason.trim())
+      .catch((err) => this.logger.error(`Reschedule notice for event ${id} failed: ${(err as Error).message}`));
     return { updated: result.updated, impacted: result.impacted };
   }
 

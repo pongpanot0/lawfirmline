@@ -139,4 +139,22 @@ describe('AssignmentNotifierService', () => {
     expect(line.pushTo).toHaveBeenCalledWith('LO', expect.stringContaining('เบิกใหม่'));
     expect(push.send.mock.calls[0][0][0].data.url).toBe('/expenses/claims');
   });
+
+  it('without a firm, files each recipient under their own firm', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'a', lineUserId: null, firmMembers: [{ firmId: 'f-a' }] },
+      { id: 'b', lineUserId: null, firmMembers: [{ firmId: 'f-b' }] },
+    ]);
+    await svc.notifyAssigned({ firmId: null, userIds: ['a', 'b'], actorUserId: '', category: 'TASK', summaryText: 'x', entityPath: '/todos' });
+    const rows = prisma.notification.createManyAndReturn.mock.calls.flatMap((call: any) => call[0].data);
+    expect(rows.map((r: any) => [r.userId, r.firmId])).toEqual([['a', 'f-a'], ['b', 'f-b']]);
+  });
+
+  it('clips push text to fit Expo while the inbox keeps it whole', async () => {
+    prisma.user.findMany.mockResolvedValue([users[0]]);
+    const long = 'ก'.repeat(4000);
+    await svc.notifyAssigned({ firmId: 'f1', userIds: ['u2'], actorUserId: '', category: 'CLIENT', summaryText: `หัวข้อ\n${long}`, entityPath: '/todos' });
+    expect(push.send.mock.calls[0][0][0].body.length).toBe(400);
+    expect(prisma.notification.createManyAndReturn.mock.calls[0][0].data[0].body).toBe(long);
+  });
 });

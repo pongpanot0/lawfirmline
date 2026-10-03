@@ -1,3 +1,4 @@
+import { NotificationCategory } from '../../../generated/prisma';
 import { Injectable } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
 import { CashAdvanceService } from '../../../billing/cash-advance.service';
@@ -196,6 +197,7 @@ export class LineAdvanceFlowService {
       }`,
       assigneeUserId: data.userId,
       dmHeadline: '💰 คุณได้รับเงินสำรองจ่าย',
+      category: NotificationCategory.BILLING,
       entityPath: '/expenses',
     });
   }

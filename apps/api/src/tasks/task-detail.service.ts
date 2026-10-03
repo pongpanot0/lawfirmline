@@ -320,7 +320,7 @@ export class TaskDetailService {
 
     if (notifyIds.length) {
       await this.tasks.notifyViaAssignmentNotifier({
-        firmId: null,
+        firmId: user.firmId,
         userIds: notifyIds,
         actorUserId: user.id,
         category: NotificationCategory.COMMENT,
