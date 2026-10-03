@@ -48,7 +48,7 @@ export class DailyOperationsService {
     const end = new Date(start.getTime() + 86400000);
     const dateOnly = new Date(`${date}T00:00:00Z`);
     const [members, rows, leaves, events, cases] = await Promise.all([
-      this.prisma.firmMember.findMany({ where: { firmId: user.firmId }, include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } }, orderBy: { user: { firstName: 'asc' } } }),
+      this.prisma.firmMember.findMany({ where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId }, include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } }, orderBy: { user: { firstName: 'asc' } } }),
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { OR: [
         { status: { not: TaskStatus.DONE } }, { completedAt: { gte: start, lt: end } },
       ] }] }, include: {
@@ -92,7 +92,7 @@ export class DailyOperationsService {
     const dateOnly = (day: string) => new Date(`${day}T00:00:00Z`);
     const now = new Date();
     const [members, tasks, leaves, events] = await Promise.all([
-      this.prisma.firmMember.findMany({ where: { firmId: user.firmId }, include: { user: { select: { firstName: true, lastName: true } } }, orderBy: { user: { firstName: 'asc' } } }),
+      this.prisma.firmMember.findMany({ where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId }, include: { user: { select: { firstName: true, lastName: true } } }, orderBy: { user: { firstName: 'asc' } } }),
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { assigneeId: { not: null }, status: { not: TaskStatus.DONE } }] }, select: { assigneeId: true, status: true, size: true, dueDate: true, scheduledFor: true } }),
       this.prisma.leaveRequest.findMany({ where: { firmId: user.firmId, status: 'APPROVED', startDate: { lte: dateOnly(days[6]) }, endDate: { gte: dateOnly(days[0]) } }, select: { userId: true, startDate: true, endDate: true } }),
       this.prisma.calendarEvent.findMany({ where: { case: { firmId: user.firmId, deletedAt: null }, startAt: { gte: start, lt: end } }, select: { type: true, startAt: true, assigneeId: true, assignees: { select: { userId: true } }, case: { select: { leadLawyerId: true } } } }),

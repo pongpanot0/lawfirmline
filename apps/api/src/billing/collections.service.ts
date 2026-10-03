@@ -119,7 +119,7 @@ export class CollectionsService {
 
   async setFollowUp(user: AuthUser, invoiceId: string, dto: CollectionFollowUpDto) {
     this.owner(user);
-    if (dto.ownerId && !await this.prisma.firmMember.findUnique({ where: { firmId_userId: { firmId: user.firmId, userId: dto.ownerId } } })) {
+    if (dto.ownerId && !await this.prisma.firmMember.findFirst({ where: { firmId: user.firmId, userId: dto.ownerId, role: { not: FirmRole.EXTERNAL } } })) {
       throw new BadRequestException('ผู้ติดตามต้องเป็นสมาชิกสำนักงานนี้');
     }
     const changed = await this.prisma.invoice.updateMany({

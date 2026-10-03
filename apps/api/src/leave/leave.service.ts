@@ -199,7 +199,7 @@ export class LeaveService {
   /** Members LINE can reach for leave news — linked, and not muted for it. */
   private async members(firmId: string) {
     const linked = await this.prisma.firmMember.findMany({
-      where: { firmId, user: { lineUserId: { not: null } } },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId, user: { lineUserId: { not: null } } },
       select: { userId: true, user: { select: { lineUserId: true } } },
     });
     const allowed = await this.lineAllowed(linked.map((member) => member.userId));
@@ -215,7 +215,7 @@ export class LeaveService {
   /** App inbox + push to everyone else in the firm; LINE goes out via sendOnce. */
   private async notifyTeam(leave: Leave, summaryText: string, actorUserId = leave.userId) {
     try {
-      const members = await this.prisma.firmMember.findMany({ where: { firmId: leave.firmId }, select: { userId: true } });
+      const members = await this.prisma.firmMember.findMany({ where: { role: { not: FirmRole.EXTERNAL }, firmId: leave.firmId }, select: { userId: true } });
       await this.notifier.notifyAssigned({
         firmId: leave.firmId,
         userIds: members.map((member) => member.userId).filter((id) => id !== leave.userId),

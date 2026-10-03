@@ -17,7 +17,7 @@ export class CashAdvanceService {
       throw new ForbiddenException('Only the owner can issue a cash advance');
     }
     const member = await this.prisma.firmMember.findFirst({
-      where: { userId: dto.userId, firmId: owner.firmId },
+      where: { role: { not: FirmRole.EXTERNAL }, userId: dto.userId, firmId: owner.firmId },
     });
     if (!member) throw new NotFoundException('User is not a member of this firm');
 

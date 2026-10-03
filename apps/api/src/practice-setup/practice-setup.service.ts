@@ -1,3 +1,4 @@
+import { FirmRole } from '@lawfirm/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   ActivityType,
@@ -405,7 +406,7 @@ export class PracticeSetupService {
 
     const assigneeIds = [...new Set(tasks.map((t) => t.assigneeId).filter((id): id is string => !!id))];
     if (assigneeIds.length) {
-      const members = await this.prisma.firmMember.findMany({ where: { firmId: user.firmId, userId: { in: assigneeIds } }, select: { userId: true } });
+      const members = await this.prisma.firmMember.findMany({ where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: { in: assigneeIds } }, select: { userId: true } });
       const memberIds = new Set(members.map((m) => m.userId));
       if (assigneeIds.some((id) => !memberIds.has(id))) throw new BadRequestException('ผู้รับผิดชอบต้องเป็นสมาชิกสำนักงาน / Assignee must be a firm member of this case');
     }

@@ -9,7 +9,7 @@ it('uses the authenticated firm and returns only names, including assistants', a
   const controller = new UsersController(service);
   const result = await controller.findMembers({ firmId: 'active-firm' } as AuthUser);
   expect(findMany).toHaveBeenCalledWith({
-    where: { firmMembers: { some: { firmId: 'active-firm' } } },
+    where: { firmMembers: { some: { firmId: 'active-firm', role: { not: 'EXTERNAL' } } } },
     select: { id: true, firstName: true, lastName: true },
     orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
   });
@@ -24,7 +24,7 @@ describe('admin /users is bound to the caller\'s firm', () => {
     const controller = new UsersController(new UsersService({ user: { findMany } } as unknown as PrismaService));
     await controller.findAll(owner);
     const query = findMany.mock.calls[0][0];
-    expect(query.where).toEqual({ firmMembers: { some: { firmId: 'firm-a' } } });
+    expect(query.where).toEqual({ firmMembers: { some: { firmId: 'firm-a', role: { not: 'EXTERNAL' } } } });
     expect(query.select).not.toHaveProperty('passwordHash');
     expect(query.select).not.toHaveProperty('lineLinkCode');
   });
@@ -34,7 +34,7 @@ describe('admin /users is bound to the caller\'s firm', () => {
     const update = jest.fn();
     const controller = new UsersController(new UsersService({ user: { findFirst, update } } as unknown as PrismaService));
     await expect(controller.update(owner, 'user-of-firm-b', { firstName: 'x' })).rejects.toThrow('User not found');
-    expect(findFirst.mock.calls[0][0].where).toEqual({ id: 'user-of-firm-b', firmMembers: { some: { firmId: 'firm-a' } } });
+    expect(findFirst.mock.calls[0][0].where).toEqual({ id: 'user-of-firm-b', firmMembers: { some: { firmId: 'firm-a', role: { not: 'EXTERNAL' } } } });
     expect(update).not.toHaveBeenCalled();
   });
 

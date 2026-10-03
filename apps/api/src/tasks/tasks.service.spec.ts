@@ -309,6 +309,7 @@ describe('TasksService on-hold', () => {
     });
 
     it('throws BadRequestException when the chosen reviewer is not in the caller\'s firm', async () => {
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1', caseId: null, firmId: 'firm-1', assigneeId: 'user-1' });
       mockPrisma.task.findFirst.mockResolvedValue({
         id: 'task-1',
         caseId: null,
@@ -321,7 +322,7 @@ describe('TasksService on-hold', () => {
         service.handoffStandalone('task-1', user, { reviewerId: 'outsider-1' }),
       ).rejects.toThrow(BadRequestException);
       expect(mockPrisma.firmMember.count).toHaveBeenCalledWith({
-        where: { firmId: 'firm-1', userId: 'outsider-1' },
+        where: { role: { not: 'EXTERNAL' }, firmId: 'firm-1', userId: 'outsider-1' },
       });
       expect(mockPrisma.task.update).not.toHaveBeenCalled();
     });

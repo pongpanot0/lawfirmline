@@ -1,3 +1,4 @@
+import { AllowExternal } from '../common/decorators/allow-external.decorator';
 import { Body, Controller, Get, Param, ParseEnumPipe, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { NotificationCategory } from '../generated/prisma';
@@ -7,6 +8,7 @@ import { SkipSubscription } from '../saas/decorators/saas.decorators';
 import { NotificationCenterService } from './notification-center.service';
 import { ListNotificationsQueryDto, UpdateChannelSwitchesDto } from './dto/notification-center.dto';
 
+@AllowExternal()
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 @SkipSubscription()

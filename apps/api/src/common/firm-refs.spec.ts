@@ -67,4 +67,12 @@ describe('assertFirmRefs', () => {
       assertFirmRefs(dbRejectExternal, 'f1', { userIds: ['u1'] }, { excludeRoles: [FirmRole.EXTERNAL] }),
     ).rejects.toThrow('ผู้ใช้ที่เลือกไม่ได้อยู่ในสำนักงานนี้หรือมีบทบาทที่ไม่อนุญาต');
   });
+
+  it('names only staff by default — a freelancer is excluded unless the caller opts in', async () => {
+    await assertFirmRefs(db, 'f1', { userIds: ['u1'] });
+    expect(count.mock.calls[0][0].where.role).toEqual({ notIn: ['EXTERNAL'] });
+    count.mockClear();
+    await assertFirmRefs(db, 'f1', { userIds: ['u1'] }, { excludeRoles: [] });
+    expect(count.mock.calls[0][0].where.role).toBeUndefined();
+  });
 });

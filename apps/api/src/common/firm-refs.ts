@@ -14,7 +14,7 @@ export interface FirmRefs {
 }
 
 export interface AssertFirmRefsOptions {
-  /** Exclude users with these roles from validation (e.g., [FirmRole.EXTERNAL] for staff-only lookups). */
+  /** Roles that may not be named; defaults to [EXTERNAL]. Pass [] where a freelancer is allowed (workflow steps). */
   excludeRoles?: FirmRole[];
 }
 
@@ -45,7 +45,8 @@ export async function assertFirmRefs(
           where: {
             userId: { in: userIds },
             firmId,
-            ...(opts?.excludeRoles ? { role: { notIn: opts.excludeRoles } } : {}),
+            // Staff fields by default: a freelancer is only ever placed on a workflow step, which opts in.
+            ...((opts?.excludeRoles ?? [FirmRole.EXTERNAL]).length ? { role: { notIn: opts?.excludeRoles ?? [FirmRole.EXTERNAL] } } : {}),
           },
         })
       : 0,
@@ -54,7 +55,7 @@ export async function assertFirmRefs(
   if (contacts !== contactIds.length) throw new BadRequestException('ผู้ติดต่อที่เลือกไม่อยู่ในสำนักงานนี้');
   if (caseTypes !== caseTypeIds.length) throw new BadRequestException('ประเภทคดีที่เลือกไม่อยู่ในสำนักงานนี้');
   if (members !== userIds.length) {
-    if (opts?.excludeRoles?.length) {
+    if ((opts?.excludeRoles ?? [FirmRole.EXTERNAL]).length) {
       throw new BadRequestException(`ผู้ใช้ที่เลือกไม่ได้อยู่ในสำนักงานนี้หรือมีบทบาทที่ไม่อนุญาต`);
     }
     throw new BadRequestException('ผู้ใช้ที่เลือกไม่ได้อยู่ในสำนักงานนี้');

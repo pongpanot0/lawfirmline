@@ -1,3 +1,4 @@
+import { FirmRole } from '@lawfirm/shared';
 import {
   Injectable,
   NotFoundException,
@@ -21,7 +22,7 @@ export class UsersService {
 
   async findAll(firmId: string) {
     return this.prisma.user.findMany({
-      where: { firmMembers: { some: { firmId } } },
+      where: { firmMembers: { some: { firmId, role: { not: FirmRole.EXTERNAL } } } },
       select: UsersService.ADMIN_VIEW,
       orderBy: { createdAt: 'desc' },
     });
@@ -29,7 +30,7 @@ export class UsersService {
 
   async findOne(firmId: string, id: string) {
     const user = await this.prisma.user.findFirst({
-      where: { id, firmMembers: { some: { firmId } } },
+      where: { id, firmMembers: { some: { firmId, role: { not: FirmRole.EXTERNAL } } } },
       select: UsersService.ADMIN_VIEW,
     });
     if (!user) throw new NotFoundException('User not found');
@@ -57,7 +58,7 @@ export class UsersService {
     const users = await this.prisma.user.findMany({
       where: {
         role: { in: ['ADMIN', 'LAWYER'] },
-        firmMembers: { some: { firmId } },
+        firmMembers: { some: { firmId, role: { not: FirmRole.EXTERNAL } } },
       },
       // Explicit fields: a whole user row carries the LINE link code, which
       // would let any colleague bind their own LINE to this account.
@@ -74,7 +75,7 @@ export class UsersService {
   ): Promise<{ items: Array<{ id: string; label: string }>; hasMore: boolean }> {
     const users = await this.prisma.user.findMany({
       where: {
-        firmMembers: { some: { firmId } },
+        firmMembers: { some: { firmId, role: { not: FirmRole.EXTERNAL } } },
       },
       select: { id: true, firstName: true, lastName: true },
       orderBy: { lastName: 'asc' },
@@ -95,7 +96,7 @@ export class UsersService {
   /** Names only, including assistants; court companions belong to the active firm. */
   async findMembers(firmId: string) {
     return this.prisma.user.findMany({
-      where: { firmMembers: { some: { firmId } } },
+      where: { firmMembers: { some: { firmId, role: { not: FirmRole.EXTERNAL } } } },
       select: { id: true, firstName: true, lastName: true },
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
     });

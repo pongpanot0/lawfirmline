@@ -1,3 +1,4 @@
+import { AllowExternal } from '../common/decorators/allow-external.decorator';
 import { AuthThrottle, MailThrottle } from '../common/throttle';
 import { Body, Controller, Delete, Get, Param, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
@@ -93,6 +94,7 @@ export class AuthController {
     return this.authService.disableMfa(user.id, dto.password);
   }
 
+  @AllowExternal()
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()
@@ -100,6 +102,7 @@ export class AuthController {
     return this.authService.getMe(user.id, user.firmId);
   }
 
+  @AllowExternal()
   @Post('logout')
   @SkipSubscription()
   logout(@Body() dto: RefreshTokenDto, @Res({ passthrough: true }) res: Response) {
@@ -107,6 +110,7 @@ export class AuthController {
     return this.authService.logout(dto.refreshToken);
   }
 
+  @AllowExternal()
   @Get('sessions')
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()
@@ -114,6 +118,7 @@ export class AuthController {
     return this.authService.listSessions(user.id);
   }
 
+  @AllowExternal()
   @Delete('sessions/:id')
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()
@@ -121,6 +126,7 @@ export class AuthController {
     return this.authService.revokeSession(user.id, id);
   }
 
+  @AllowExternal()
   @Post('sessions/revoke-others')
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()

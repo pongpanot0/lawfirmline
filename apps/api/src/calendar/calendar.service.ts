@@ -1,3 +1,4 @@
+import { FirmRole } from '@lawfirm/shared';
 import { lineActions } from '../notifications/line-actions';
 import {
   BadRequestException,
@@ -63,7 +64,7 @@ export class CalendarService {
     if (ids === undefined) return undefined;
     if (ids.length === 0) return [];
     const members = await this.prisma.firmMember.findMany({
-      where: { firmId, userId: { in: ids } },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId, userId: { in: ids } },
       select: { userId: true },
     });
     const memberIds = new Set(members.map(m => m.userId));

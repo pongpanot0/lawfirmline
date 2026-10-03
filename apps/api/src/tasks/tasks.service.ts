@@ -388,7 +388,7 @@ export class TasksService {
       throw new ForbiddenException('เฉพาะ Owner หรือทนายอาวุโสที่มอบหมายงานให้ผู้อื่นได้');
     }
     const member = await this.prisma.firmMember.findFirst({
-      where: { firmId: user.firmId, userId: assigneeId },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: assigneeId },
       select: { role: true },
     });
     if (!member) throw new NotFoundException('ผู้รับมอบหมายไม่ได้อยู่ในสำนักงานนี้');
@@ -400,7 +400,7 @@ export class TasksService {
   async validateAssigneeForSubtask(caseId: string | null, assigneeId: string, user: AuthUser) {
     if (assigneeId === user.id) return;
     const member = await this.prisma.firmMember.findFirst({
-      where: { firmId: user.firmId, userId: assigneeId },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: assigneeId },
       select: { role: true },
     });
     if (!member) throw new NotFoundException('ผู้รับมอบหมายไม่ได้อยู่ในสำนักงานนี้');
@@ -453,7 +453,7 @@ export class TasksService {
     // Observers are only firm members
     for (const observerId of observerIds) {
       const member = await this.prisma.firmMember.findFirst({
-        where: { firmId, userId: observerId },
+        where: { role: { not: FirmRole.EXTERNAL }, firmId, userId: observerId },
         select: { role: true },
       });
       if (!member) throw new NotFoundException('ผู้ติดตาม ต้องเป็นสมาชิกของสำนักงาน');
@@ -1063,7 +1063,7 @@ export class TasksService {
     // A reviewer id comes straight from the client; only someone in the
     // caller's own firm may be handed one of its tasks.
     const reviewerInFirm = await this.prisma.firmMember.count({
-      where: { firmId: user.firmId, userId: dto.reviewerId },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: dto.reviewerId },
     });
     if (reviewerInFirm === 0) {
       throw new BadRequestException('ผู้ตรวจที่เลือกไม่ได้อยู่ในสำนักงานของคุณ');

@@ -559,7 +559,7 @@ export class IntakeService {
     );
     if (dto.leadLawyerId && dto.leadLawyerId !== user.id) {
       const lead = await this.prisma.firmMember.findFirst({
-        where: { firmId: user.firmId, userId: dto.leadLawyerId },
+        where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: dto.leadLawyerId },
       });
       if (!lead) throw new BadRequestException('ไม่พบทนายหลักที่เลือกในสำนักงานนี้');
     }
@@ -699,7 +699,7 @@ export class IntakeService {
   private async assertCanAssign(user: AuthUser, newIds: string[]) {
     if (newIds.length === 0) return;
     const members = await this.prisma.firmMember.findMany({
-      where: { firmId: user.firmId, userId: { in: newIds } },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: { in: newIds } },
       select: { userId: true, role: true },
     });
     const byId = new Map(members.map((m) => [m.userId, m.role]));

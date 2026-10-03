@@ -364,7 +364,7 @@ export class CasesService {
     ];
     const uniqueTeamUserIds = [...new Set(teamUserIds)];
     const firmMembers = await this.prisma.firmMember.count({
-      where: { firmId: user.firmId, userId: { in: uniqueTeamUserIds } },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: { in: uniqueTeamUserIds } },
     });
     if (firmMembers !== uniqueTeamUserIds.length) {
       throw new BadRequestException('All assigned team members must belong to your firm');
@@ -464,7 +464,7 @@ export class CasesService {
         throw new ForbiddenException('Only owners can reassign the case lead lawyer');
       }
       const isMember = await this.prisma.firmMember.count({
-        where: { firmId: user.firmId, userId: dto.leadLawyerId },
+        where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: dto.leadLawyerId },
       });
       if (!isMember) {
         throw new BadRequestException('Lead lawyer must belong to your firm');
@@ -572,7 +572,7 @@ export class CasesService {
 
     if (buddyIds.length) {
       const firmMembers = await this.prisma.firmMember.count({
-        where: { firmId: user.firmId, userId: { in: buddyIds } },
+        where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: { in: buddyIds } },
       });
       if (firmMembers !== buddyIds.length) {
         throw new BadRequestException('All assigned team members must belong to your firm');

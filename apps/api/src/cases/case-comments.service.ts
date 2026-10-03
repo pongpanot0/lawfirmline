@@ -1,3 +1,4 @@
+import { FirmRole } from '@lawfirm/shared';
 import { NotificationCategory } from '../generated/prisma';
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module';
@@ -87,7 +88,7 @@ export class CaseCommentsService {
     let validMentioned: string[] = [];
     if (mentionedUserIds && mentionedUserIds.length > 0) {
       const firmMembers = await this.prisma.firmMember.findMany({
-        where: {
+        where: { role: { not: FirmRole.EXTERNAL },
           firmId: user.firmId,
           userId: { in: mentionedUserIds.slice(0, 20) }, // Max 20 mentions
         },
@@ -213,7 +214,7 @@ export class CaseCommentsService {
 
     // Only author or firm owner can delete
     const firmMember = await this.prisma.firmMember.findFirst({
-      where: { firmId: user.firmId, userId: user.id },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: user.id },
       select: { role: true },
     });
 
