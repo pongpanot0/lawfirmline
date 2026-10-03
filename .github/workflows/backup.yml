@@ -37,5 +37,5 @@ jobs:
             cd "${{ secrets.EC2_APP_DIR }}"
             # Fail loudly if this is not the app dir (an empty secret would land in $HOME).
             test -f docker-compose.prod.yml -a -f .env
-            bash scripts/backup.sh
+            BACKUP_S3_BUCKET="${{ vars.BACKUP_S3_BUCKET }}" bash scripts/backup.sh
             df -h /
