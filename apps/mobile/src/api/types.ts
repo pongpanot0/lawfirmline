@@ -93,6 +93,7 @@ export interface TaskItem {
   assigneeId?: string | null;
   assignee?: { id: string; firstName: string; lastName: string } | null;
   case?: { id: string; ownRef: string; title: string; leadLawyerId?: string } | null;
+  workflow?: { workflowRun: { id: string; name: string } | null; workflowStep?: number | null; stepsTotal?: number; previousStepHolder?: string | null; previousStepAttachments?: Array<{ id: string; taskId: string; filename: string; size: number }> } | null;
 }
 
 export interface CalendarEventItem {

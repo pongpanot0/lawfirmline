@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,8 +14,9 @@ import { registerForPush } from '@/api/push';
 import { api } from '@/api/client';
 import { invalidateNotifications, useUnreadNotifications } from '@/api/hooks';
 import { LockGate } from '@/components/LockGate';
-import { Loading } from '@/components/ui';
-import { colors, fonts } from '@/theme';
+import { Loading, Button } from '@/components/ui';
+import { Text } from '@/components/AppText';
+import { colors, fonts, spacing } from '@/theme';
 import { DisplayPreferences, useDisplayPreferences } from '@/components/AppText';
 
 // Cache-first everywhere: render what we have instantly, refetch behind it.
@@ -54,7 +55,7 @@ Notifications.setNotificationHandler({
 });
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { ready, user } = useAuth();
+  const { ready, user, logout } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -62,12 +63,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (!ready) return;
     const inAuthGroup = segments[0] === '(auth)';
     if (!user && !inAuthGroup) router.replace('/(auth)/login');
-    else if (user && inAuthGroup) router.replace('/(tabs)');
+    else if (user && !user.firmRole?.includes('EXTERNAL') && inAuthGroup) router.replace('/(tabs)');
   }, [ready, user, segments, router]);
 
   // Register the device for push once a session exists.
   useEffect(() => {
-    if (user) registerForPush();
+    if (user && user.firmRole !== 'EXTERNAL') registerForPush();
   }, [user?.id]);
 
   // A push that lands while the app is open changes the inbox and the bell.
@@ -99,6 +100,24 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }, [ready, user, response, router, queryClient]);
 
   if (!ready) return <Loading />;
+
+  if (user?.firmRole === 'EXTERNAL') {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.md }}>
+        <Text style={{ fontSize: 18, textAlign: 'center', marginBottom: spacing.lg }}>
+          บัญชีผู้รับงานภายนอกใช้งานผ่านเว็บ
+        </Text>
+        <Button
+          title="ออกจากระบบ"
+          onPress={() => {
+            logout().catch(() => undefined);
+            router.replace('/(auth)/login');
+          }}
+        />
+      </View>
+    );
+  }
+
   return <>{children}{user ? <BadgeSync /> : null}</>;
 }
 

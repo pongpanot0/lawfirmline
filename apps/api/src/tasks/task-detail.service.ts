@@ -86,7 +86,7 @@ export class TaskDetailService {
       },
     });
     if (!task) throw new NotFoundException('Task not found');
-    const [history, candidates] = await Promise.all([
+    const [history, candidates, workflowData] = await Promise.all([
       this.prisma.auditLog.findMany({
         where: { firmId: user.firmId, action: { in: ['TASK_CHANGED', 'TASK_AI_ANALYZED'] }, metadata: { path: ['taskId'], equals: taskId } },
         orderBy: { createdAt: 'asc' }, include: { user: person },
@@ -95,6 +95,36 @@ export class TaskDetailService {
         where: { followUpSourceTaskId: taskId, firmId: user.firmId }, orderBy: { createdAt: 'asc' },
         select: { id: true, title: true, status: true, createdAt: true, dueDate: true, createdBy: person, assignee: person, assigneeId: true, followUpSourceCommentId: true, followUpSourceQuote: true },
       }),
+      task.workflowRunId ? (async () => {
+        const [run, stepsTotal, prevStep, prevAttachments] = await Promise.all([
+          this.prisma.workflowRun.findUnique({
+            where: { id: task.workflowRunId! },
+            select: { id: true, name: true },
+          }),
+          this.prisma.task.count({
+            where: { workflowRunId: task.workflowRunId! },
+          }),
+          task.workflowStep != null && task.workflowStep > 0
+            ? this.prisma.task.findFirst({
+                where: { workflowRunId: task.workflowRunId!, workflowStep: task.workflowStep - 1 },
+                select: { assignee: person },
+              })
+            : null,
+          task.workflowStep != null && task.workflowStep > 0
+            ? this.prisma.taskAttachment.findMany({
+                where: {
+                  task: {
+                    workflowRunId: task.workflowRunId!,
+                    workflowStep: { lt: task.workflowStep },
+                  },
+                },
+                select: { id: true, taskId: true, filename: true, size: true },
+                orderBy: { createdAt: 'asc' },
+              })
+            : [],
+        ]);
+        return { run, stepsTotal, prevStep, prevAttachments };
+      })() : null,
     ]);
     const followUps = [] as typeof candidates;
     for (const candidate of candidates) {
@@ -112,7 +142,14 @@ export class TaskDetailService {
       ...result, latestCommentId: saved.latestCommentId, taskUpdatedAt: saved.taskUpdatedAt, analyzedAt: analysisLog.createdAt.toISOString(),
       ...(result.status === 'blocker' ? { source: task.comments.find((c) => c.id === result.sourceCommentId), existingFollowUpId: followUps.find((f) => f.followUpSourceCommentId === result.sourceCommentId)?.id ?? null } : {}),
     } : null;
-    return { ...task, history: history.filter((log) => log.action === 'TASK_CHANGED'), followUps, aiAnalysis };
+    const workflow = workflowData ? {
+      workflowRun: workflowData.run,
+      workflowStep: task.workflowStep,
+      stepsTotal: workflowData.stepsTotal,
+      previousStepHolder: workflowData.prevStep?.assignee?.firstName ?? null,
+      previousStepAttachments: workflowData.prevAttachments,
+    } : null;
+    return { ...task, history: history.filter((log) => log.action === 'TASK_CHANGED'), followUps, aiAnalysis, ...(workflow && { workflow }) };
   }
 
   async analyze(taskId: string, user: AuthUser) {
