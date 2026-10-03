@@ -45,6 +45,7 @@ import { ConflictCheckModule } from './conflict-check/conflict-check.module';
 import { DocumentReviewModule } from './document-review/document-review.module';
 import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
 import { CargoClaimsModule } from './cargo-claims/cargo-claims.module';
+import { WorkflowsModule } from './workflows/workflows.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { CargoClaimsModule } from './cargo-claims/cargo-claims.module';
     OutlookIntegrationModule,
     ConflictCheckModule,
     CargoClaimsModule,
+    WorkflowsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

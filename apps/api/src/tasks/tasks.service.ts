@@ -851,10 +851,14 @@ export class TasksService {
 
     const unblocked = await this.prisma.task.findMany({
       where: { blockedById: task.id, status: { not: TaskStatus.DONE } },
-      select: { id: true, title: true, assigneeId: true, caseId: true, firmId: true },
+      select: { id: true, title: true, assigneeId: true, caseId: true, firmId: true, workflowRunId: true },
     });
     for (const t of unblocked) {
       if (!t.assigneeId) continue;
+      const isExternalAssignee = await this.prisma.firmMember.findFirst({
+        where: { userId: t.assigneeId, firmId: t.firmId ?? '' },
+        select: { role: true },
+      });
       await this.assignmentNotifier.notifyAssigned({
         // Unblock runs without an AuthUser; a personal todo falls back to the recipient's own firm.
         firmId: t.firmId ?? null,
@@ -862,10 +866,93 @@ export class TasksService {
         actorUserId,
         summaryText: `🟢 งานที่รออยู่เริ่มได้แล้ว: "${t.title}"\n(งานก่อนหน้า "${task.title}" เสร็จแล้ว)`,
         category: NotificationCategory.TASK,
-        entityPath: t.caseId ? `/cases/${t.caseId}` : '/todos',
+        entityPath: isExternalAssignee?.role === FirmRole.EXTERNAL ? '/work' : (t.caseId ? `/cases/${t.caseId}` : '/todos'),
         appPath: taskAppRoute(t.id),
       });
     }
+
+    // Handle workflow run completion
+    if (task.workflowRunId) {
+      const run = await this.prisma.workflowRun.findUnique({
+        where: { id: task.workflowRunId },
+        select: { id: true, caseId: true, createdById: true, tasks: { select: { id: true, status: true } } },
+      });
+      if (run) {
+        const undone = run.tasks.filter((t) => t.status !== TaskStatus.DONE);
+        if (undone.length === 0) {
+          // All tasks done - mark run as complete
+          const legalCase = await this.prisma.case.findUnique({
+            where: { id: run.caseId },
+            select: { leadLawyerId: true, firmId: true },
+          });
+          await this.prisma.workflowRun.update({
+            where: { id: run.id },
+            data: { status: 'DONE', completedAt: new Date() },
+          });
+          // Notify run creator and case lead
+          const notifyIds = [run.createdById];
+          if (legalCase?.leadLawyerId && legalCase.leadLawyerId !== run.createdById) {
+            notifyIds.push(legalCase.leadLawyerId);
+          }
+          await this.assignmentNotifier.notifyAssigned({
+            firmId: legalCase?.firmId ?? null,
+            userIds: notifyIds.filter((id) => id !== actorUserId),
+            actorUserId,
+            category: NotificationCategory.TASK,
+            summaryText: `✅ สายงาน "${run.id.substring(0, 8)}" เสร็จครบทุกขั้น`,
+            entityPath: run.caseId ? `/cases/${run.caseId}` : '/todos',
+          });
+        }
+      }
+    }
+  }
+
+  async completeWorkflowStep(taskId: string, user: AuthUser) {
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: {
+        id: true,
+        assigneeId: true,
+        firmId: true,
+        caseId: true,
+        requiresReview: true,
+        reviewerId: true,
+        status: true,
+        title: true,
+        workflowRunId: true,
+      },
+    });
+    if (!task) throw new NotFoundException('Task not found');
+    if (task.assigneeId !== user.id) throw new ForbiddenException('Not assigned to you');
+    if (task.status === TaskStatus.DONE) throw new BadRequestException('Already complete');
+
+    const newStatus = task.requiresReview ? TaskStatus.PENDING_REVIEW : TaskStatus.DONE;
+    const updated = await this.prisma.task.update({
+      where: { id: taskId },
+      data: {
+        status: newStatus,
+        completedAt: newStatus === TaskStatus.DONE ? new Date() : null,
+      },
+      include: this.taskInclude,
+    });
+
+    if (task.requiresReview && task.reviewerId) {
+      // Notify reviewer
+      await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
+        userIds: [task.reviewerId],
+        actorUserId: user.id,
+        category: NotificationCategory.TASK,
+        summaryText: `📋 งาน "${task.title}" รอการตรวจและอนุมัติ`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+        appPath: taskAppRoute(task.id),
+      });
+    } else if (newStatus === TaskStatus.DONE) {
+      // Trigger completion hooks (unblock, recurrence, notifications)
+      await this.onTaskCompleted(updated, user.id);
+    }
+
+    return updated;
   }
 
   async remove(id: string, caseId?: string) {
