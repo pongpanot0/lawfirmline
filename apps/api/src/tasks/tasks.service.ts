@@ -885,48 +885,37 @@ export class TasksService {
   async completeWorkflowStep(taskId: string, user: AuthUser) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
-      select: {
-        id: true,
-        assigneeId: true,
-        firmId: true,
-        caseId: true,
-        requiresReview: true,
-        reviewerId: true,
-        status: true,
-        title: true,
-        workflowRunId: true,
-      },
+      select: { id: true, assigneeId: true, caseId: true, requiresReview: true, reviewerId: true, title: true },
     });
     if (!task) throw new NotFoundException('Task not found');
     if (task.assigneeId !== user.id) throw new ForbiddenException('Not assigned to you');
-    if (task.status === TaskStatus.DONE) throw new BadRequestException('Already complete');
 
-    const newStatus = task.requiresReview ? TaskStatus.PENDING_REVIEW : TaskStatus.DONE;
-    const updated = await this.prisma.task.update({
-      where: { id: taskId },
-      data: {
-        status: newStatus,
-        completedAt: newStatus === TaskStatus.DONE ? new Date() : null,
-      },
-      include: this.taskInclude,
+    const toReview = Boolean(task.requiresReview && task.reviewerId);
+    const newStatus = toReview ? TaskStatus.PENDING_REVIEW : TaskStatus.DONE;
+    // Check-and-set: a double click must not hand in (and re-plan the run) twice.
+    const claimed = await this.prisma.task.updateMany({
+      where: { id: taskId, assigneeId: user.id, status: { notIn: [TaskStatus.DONE, TaskStatus.PENDING_REVIEW] } },
+      data: { status: newStatus, completedAt: newStatus === TaskStatus.DONE ? new Date() : null },
     });
+    if (!claimed.count) throw new BadRequestException('ส่งงานนี้ไปแล้ว');
 
-    if (task.requiresReview && task.reviewerId) {
-      // Notify reviewer
+    if (toReview) {
+      // Recorded as a hand-off so a rejection returns the work to whoever did it.
+      await this.logAssignment({
+        taskId, action: TaskLogAction.HANDED_OFF, fromUserId: user.id, toUserId: task.reviewerId!, performedById: user.id,
+      });
       await this.assignmentNotifier.notifyAssigned({
         firmId: user.firmId,
-        userIds: [task.reviewerId],
+        userIds: [task.reviewerId!],
         actorUserId: user.id,
         category: NotificationCategory.TASK,
         summaryText: `📋 งาน "${task.title}" รอการตรวจและอนุมัติ`,
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
         appPath: taskAppRoute(task.id),
       });
-    } else if (newStatus === TaskStatus.DONE) {
-      // Trigger completion hooks (unblock, recurrence, notifications)
-      await this.onTaskCompleted(updated, user.id);
     }
-
+    const updated = await this.prisma.task.findUniqueOrThrow({ where: { id: taskId }, include: this.taskInclude });
+    if (newStatus === TaskStatus.DONE) await this.onTaskCompleted(updated, user.id);
     return updated;
   }
 

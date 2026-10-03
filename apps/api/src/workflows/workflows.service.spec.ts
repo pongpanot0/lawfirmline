@@ -38,6 +38,7 @@ function build() {
       update: jest.fn((args: any) => args),
     },
     workflowRun: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
+    taskAssignmentLog: { findMany: jest.fn().mockResolvedValue([]) },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn(async (arg: any) => (typeof arg === 'function' ? arg(tx) : arg)),
   };
@@ -165,6 +166,19 @@ describe('WorkflowsService', () => {
       expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['freelancer'], entityPath: '/work' }));
     });
 
+    it('gives a reviewed step back to the person who did it, not the reviewer', async () => {
+      const { svc, prisma, tx, notifier } = build();
+      prisma.workflowRun.findFirst.mockResolvedValue({
+        ...activeRun,
+        tasks: [{ ...activeRun.tasks[0], assigneeId: 'senior' }, ...activeRun.tasks.slice(1)],
+      });
+      prisma.case.findFirst.mockResolvedValue({ leadLawyerId: 'senior' });
+      prisma.taskAssignmentLog.findMany.mockResolvedValue([{ taskId: 't0', fromUserId: 'freelancer' }]);
+      await svc.sendBack(owner, 'run-1', { toStep: 0, reason: 'แก้คำแปล' });
+      expect(tx.task.update).toHaveBeenCalledWith({ where: { id: 't0' }, data: { status: 'TODO', completedAt: null, assigneeId: 'freelancer' } });
+      expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['freelancer'] }));
+    });
+
     it('only goes backwards', async () => {
       const { svc, prisma } = build();
       prisma.workflowRun.findFirst.mockResolvedValue(activeRun);
@@ -179,6 +193,25 @@ describe('WorkflowsService', () => {
       await expect(svc.sendBack({ id: 'lawyer-b', firmId: 'f1', firmRole: 'LAWYER' } as any, 'run-1', { toStep: 0, reason: 'x' }))
         .rejects.toThrow(ForbiddenException);
     });
+  });
+
+  it('cancelling keeps every step that holds work and removes only untouched ones', async () => {
+    const { svc, prisma } = build();
+    prisma.task.deleteMany = jest.fn((args: any) => args);
+    prisma.workflowRun.update.mockImplementation((args: any) => args);
+    prisma.workflowRun.findFirst.mockResolvedValue({
+      id: 'run-1', status: 'ACTIVE', createdById: 'owner', caseId: 'case-1',
+      tasks: [
+        { id: 'done', status: 'DONE', _count: { attachments: 1, comments: 0 } },
+        { id: 'review', status: 'PENDING_REVIEW', _count: { attachments: 1, comments: 0 } },
+        { id: 'withFile', status: 'TODO', _count: { attachments: 1, comments: 0 } },
+        { id: 'empty', status: 'TODO', _count: { attachments: 0, comments: 0 } },
+      ],
+    });
+    prisma.case.findFirst.mockResolvedValue({ leadLawyerId: 'senior' });
+    await expect(svc.cancelRun(owner, 'run-1')).resolves.toEqual({ cancelled: true, removedSteps: 1, keptSteps: 2 });
+    expect(prisma.task.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['empty'] } } });
+    expect(prisma.auditLog.create.mock.calls[0][0].data.metadata).toMatchObject({ runId: 'run-1', caseId: 'case-1' });
   });
 
   it('cannot cancel a finished run', async () => {

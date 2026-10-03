@@ -36,6 +36,22 @@ export interface NotifyResult {
 
 const NOTHING_SENT: NotifyResult = { recipients: 0, push: false, line: false };
 
+/**
+ * What a freelancer may read of a notification. They see one page (/work) and
+ * a case only by its Own Ref, so only the first line (what happened to which
+ * step) goes out — never the reference lines, party names or case links the
+ * staff version carries — and no LINE buttons that act on staff routes.
+ */
+function forExternal(params: NotifyParams): NotifyParams {
+  return {
+    ...params,
+    summaryText: params.summaryText.split('\n')[0],
+    entityPath: '/work',
+    appPath: undefined,
+    lineActions: undefined,
+  };
+}
+
 /** Expo rejects a message over ~4 KB; Thai is 3 bytes a character, so stay well under. */
 const PUSH_TITLE_MAX = 120;
 const PUSH_BODY_MAX = 400;
@@ -72,19 +88,24 @@ export class AssignmentNotifierService {
         select: {
           id: true,
           lineUserId: true,
-          firmMembers: { select: { firmId: true }, orderBy: { createdAt: 'asc' }, take: 1 },
+          firmMembers: { select: { firmId: true, role: true }, orderBy: { createdAt: 'asc' } },
         },
       });
       // Without a firm in hand each recipient's own firm is used, so a
       // multi-firm group never files a row under someone else's firm.
-      const byFirm = new Map<string, typeof users>();
+      // Freelancers (EXTERNAL) in the same firm get their own variant (see forExternal).
+      const groups = new Map<string, { firmId: string; params: NotifyParams; users: typeof users }>();
       for (const u of users) {
         const firmId = params.firmId ?? u.firmMembers[0]?.firmId;
-        if (firmId) byFirm.set(firmId, [...(byFirm.get(firmId) ?? []), u]);
+        if (!firmId) continue;
+        const external = u.firmMembers.find((m) => m.firmId === firmId)?.role === FirmRole.EXTERNAL;
+        const key = `${firmId}:${external}`;
+        if (!groups.has(key)) groups.set(key, { firmId, params: external ? forExternal(params) : params, users: [] });
+        groups.get(key)!.users.push(u);
       }
 
       const result = { ...NOTHING_SENT };
-      for (const [firmId, group] of byFirm) {
+      for (const { firmId, params, users: group } of groups.values()) {
         const userIds = group.map((u) => u.id);
         const channels = await this.center.channelsFor(userIds, params.category);
         const notificationIds = await this.recordInbox(firmId, userIds, params);

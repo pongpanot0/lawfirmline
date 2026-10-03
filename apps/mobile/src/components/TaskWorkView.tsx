@@ -111,11 +111,11 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
       {task.dueDate && <Text style={{ color: colors.muted }}>กำหนดส่ง {thDate(task.dueDate)}</Text>}
       {!!task.recurrenceDays && <Text style={{ color: colors.faint }}>ทำซ้ำอีก {task.recurrenceDays} วันหลังปิดรอบนี้</Text>}
       {task.workflow?.workflowRun && <Card style={{ gap: spacing.sm }}>
-        <Text style={{ color: colors.ink, fontWeight: '700' }}>สายงาน: {task.workflow.workflowRun.name} · ขั้น {task.workflow.workflowStep && task.workflow.stepsTotal ? `${task.workflow.workflowStep + 1}/${task.workflow.stepsTotal}` : '?'}</Text>
+        <Text style={{ color: colors.ink, fontWeight: '700' }}>สายงาน: {task.workflow.workflowRun.name} · ขั้น {task.workflow.workflowStep != null && task.workflow.stepsTotal ? `${task.workflow.workflowStep + 1}/${task.workflow.stepsTotal}` : '?'}</Text>
         {task.workflow.previousStepHolder && <Text style={{ color: colors.muted }}>ต่อจาก: {task.workflow.previousStepHolder}</Text>}
         {task.workflow.previousStepAttachments && task.workflow.previousStepAttachments.length > 0 && <>
           <Text style={{ color: colors.text, fontWeight: '700' }}>ไฟล์จากขั้นก่อน</Text>
-          {task.workflow.previousStepAttachments.map(file => <Button key={file.id} title={file.filename} ghost onPress={() => openFile(() => openTaskAttachment(task.id, file.id, file.filename))} />)}
+          {task.workflow.previousStepAttachments.map(file => <Button key={file.id} title={file.filename} ghost onPress={() => openFile(() => openTaskAttachment(file.taskId, file.id, file.filename))} />)}
         </>}
       </Card>}
       {(worker || user?.firmRole === 'OWNER') && task.status !== 'DONE' && !!previous.blocker && <Button title="ส่งจุดติดขัดให้คนแก้" ghost disabled={busy} onPress={() => {

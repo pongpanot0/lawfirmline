@@ -1,3 +1,5 @@
+import { ParseEnumPipe, ParseUUIDPipe } from '@nestjs/common';
+import { WorkflowRunStatus } from '../generated/prisma';
 import {
   Controller,
   Get,
@@ -69,7 +71,7 @@ export class WorkflowsController {
   // ===== Assignee Picker =====
 
   @Get('assignees')
-  async getAssignees(@CurrentUser() user: AuthUser, @Query('role') role: FirmRole) {
+  async getAssignees(@CurrentUser() user: AuthUser, @Query('role', new ParseEnumPipe(FirmRole)) role: FirmRole) {
     return this.workflowsService.getAssigneesByRole(user, role);
   }
 
@@ -78,27 +80,27 @@ export class WorkflowsController {
   @Get('runs')
   async getWorkflowRuns(
     @CurrentUser() user: AuthUser,
-    @Query('status') status?: string,
+    @Query('status', new ParseEnumPipe(WorkflowRunStatus, { optional: true })) status?: WorkflowRunStatus,
   ) {
     return this.workflowsService.getWorkflowRuns(user, status);
   }
 
   @Get('runs/:id/files')
-  async getRunFiles(@CurrentUser() user: AuthUser, @Param('id') runId: string) {
+  async getRunFiles(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) runId: string) {
     return this.workflowsService.getRunFiles(user, runId);
   }
 
   @Post('runs/:id/send-back')
   async sendBack(
     @CurrentUser() user: AuthUser,
-    @Param('id') runId: string,
+    @Param('id', ParseUUIDPipe) runId: string,
     @Body() dto: SendBackWorkflowDto,
   ) {
     return this.workflowsService.sendBack(user, runId, dto);
   }
 
   @Post('runs/:id/cancel')
-  async cancelRun(@CurrentUser() user: AuthUser, @Param('id') runId: string) {
+  async cancelRun(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) runId: string) {
     return this.workflowsService.cancelRun(user, runId);
   }
 }

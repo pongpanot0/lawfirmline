@@ -162,7 +162,8 @@ export class WorkflowsService {
           where: {
             assigneeId: m.userId,
             status: { not: TaskStatus.DONE },
-            caseId: { not: null },
+            // Load in this firm only — another firm's work is neither shown nor counted.
+            OR: [{ firmId: user.firmId }, { case: { firmId: user.firmId } }],
           },
         });
         const name = `${m.user.firstName} ${m.user.lastName}`.trim();
@@ -205,7 +206,7 @@ export class WorkflowsService {
         }
         assignees.push(chosen);
       } else {
-        assignees.push(await this.lightestMember(members.filter((m) => m.role === step.role).map((m) => m.userId), step.role));
+        assignees.push(await this.lightestMember(user.firmId, members.filter((m) => m.role === step.role).map((m) => m.userId), step.role));
       }
     }
     const reviewerFor = (assigneeId: string) =>
@@ -256,11 +257,11 @@ export class WorkflowsService {
   }
 
   /** The member with the fewest open case tasks; a role nobody holds cannot be staffed. */
-  private async lightestMember(userIds: string[], role: string): Promise<string> {
+  private async lightestMember(firmId: string, userIds: string[], role: string): Promise<string> {
     if (!userIds.length) throw new BadRequestException(`ไม่มีสมาชิกบทบาท ${role} ในสำนักงาน`);
     const counts = await this.prisma.task.groupBy({
       by: ['assigneeId'],
-      where: { assigneeId: { in: userIds }, status: { not: TaskStatus.DONE } },
+      where: { assigneeId: { in: userIds }, status: { not: TaskStatus.DONE }, OR: [{ firmId }, { case: { firmId } }] },
       _count: { _all: true },
     });
     const load = new Map(counts.map((c) => [c.assigneeId, c._count._all]));
@@ -446,6 +447,20 @@ export class WorkflowsService {
       new Date(),
     );
 
+    // A step that went through review is held by its reviewer; reopening it
+    // must give it back to whoever did the work (the last hand-off's sender).
+    const reopenedIds = run.tasks
+      .filter((t) => (t.workflowStep ?? 0) >= dto.toStep && (t.workflowStep ?? 0) <= (currentTask.workflowStep ?? 0))
+      .map((t) => t.id);
+    const handoffs = await this.prisma.taskAssignmentLog.findMany({
+      where: { taskId: { in: reopenedIds }, action: 'HANDED_OFF' },
+      orderBy: { createdAt: 'desc' },
+      select: { taskId: true, fromUserId: true },
+    });
+    const worker = new Map<string, string>();
+    for (const h of handoffs) if (h.fromUserId && !worker.has(h.taskId)) worker.set(h.taskId, h.fromUserId);
+    const targetAssigneeId = worker.get(targetTask.id) ?? targetTask.assigneeId;
+
     await this.prisma.$transaction(async (tx) => {
       const updates: Promise<unknown>[] = [];
       await tx.task.update({
@@ -453,6 +468,7 @@ export class WorkflowsService {
         data: {
           status: TaskStatus.TODO,
           completedAt: null,
+          ...(worker.has(targetTask.id) && { assigneeId: worker.get(targetTask.id) }),
         },
       });
 
@@ -473,6 +489,7 @@ export class WorkflowsService {
           data: {
             status: TaskStatus.TODO,
             completedAt: null,
+            ...(worker.has(t.id) && { assigneeId: worker.get(t.id) }),
           },
         });
       }
@@ -483,13 +500,13 @@ export class WorkflowsService {
     });
 
     const targetMember = await this.prisma.firmMember.findFirst({
-      where: { userId: targetTask.assigneeId!, firmId: user.firmId },
+      where: { userId: targetAssigneeId!, firmId: user.firmId },
       select: { role: true },
     });
 
     await this.notifier.notifyAssigned({
       firmId: user.firmId,
-      userIds: [targetTask.assigneeId!],
+      userIds: [targetAssigneeId!],
       actorUserId: user.id,
       category: NotificationCategory.TASK,
       summaryText: `🔁 สายงานถูกส่งกลับมาที่ขั้นของคุณ\nเหตุผล: ${dto.reason}`,
@@ -501,7 +518,7 @@ export class WorkflowsService {
         firmId: user.firmId,
         userId: user.id,
         action: 'WORKFLOW_SENT_BACK',
-        metadata: { toStep: dto.toStep, reason: dto.reason },
+        metadata: { runId, caseId: run.caseId, toStep: dto.toStep, reason: dto.reason },
       },
     });
 
@@ -513,7 +530,10 @@ export class WorkflowsService {
   async cancelRun(user: AuthUser, runId: string) {
     const run = await this.prisma.workflowRun.findFirst({
       where: { id: runId, firmId: user.firmId },
-      select: { id: true, status: true, createdById: true, caseId: true, tasks: { select: { id: true, status: true } } },
+      select: {
+        id: true, status: true, createdById: true, caseId: true,
+        tasks: { select: { id: true, status: true, _count: { select: { attachments: true, comments: true } } } },
+      },
     });
     if (!run) throw new NotFoundException('Workflow run not found');
     if (run.status !== 'ACTIVE') throw new BadRequestException('สายงานนี้ไม่ได้เดินอยู่');
@@ -531,28 +551,24 @@ export class WorkflowsService {
 
     if (!canCancel) throw new ForbiddenException();
 
-    await this.prisma.$transaction(async (tx) => {
-      const undone = run.tasks.filter((t) => t.status !== TaskStatus.DONE);
-      for (const t of undone) {
-        await tx.task.delete({ where: { id: t.id } });
-      }
-
-      await tx.workflowRun.update({
-        where: { id: run.id },
-        data: { status: 'CANCELLED' },
-      });
-    });
+    // Only steps nobody has touched are removed. A step that holds work — files,
+    // comments, or already handed in for review — stays as an ordinary task of
+    // the case, so cancelling never destroys a deliverable.
+    const untouched = run.tasks.filter((t) =>
+      t.status === TaskStatus.TODO && t._count.attachments === 0 && t._count.comments === 0);
+    await this.prisma.$transaction([
+      this.prisma.task.deleteMany({ where: { id: { in: untouched.map((t) => t.id) } } }),
+      this.prisma.workflowRun.update({ where: { id: run.id }, data: { status: 'CANCELLED' } }),
+    ]);
 
     await this.prisma.auditLog.create({
       data: {
-        firmId: user.firmId,
-        userId: user.id,
-        action: 'WORKFLOW_CANCELLED',
-        metadata: {},
+        firmId: user.firmId, userId: user.id, action: 'WORKFLOW_CANCELLED',
+        metadata: { runId: run.id, caseId: run.caseId, removedTaskIds: untouched.map((t) => t.id) },
       },
     });
 
-    return { cancelled: true };
+    return { cancelled: true, removedSteps: untouched.length, keptSteps: run.tasks.filter((t) => t.status !== TaskStatus.DONE).length - untouched.length };
   }
 
   // ===== Get Run Files =====

@@ -171,4 +171,21 @@ describe('AssignmentNotifierService', () => {
     expect(line.pushTo).toHaveBeenCalledWith('L2', expect.any(String), buttons);
     expect(line.pushTo).toHaveBeenCalledWith('L4', expect.any(String), undefined);
   });
+
+  it('a freelancer gets only the first line, a /work link and no buttons', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'staff', lineUserId: 'LS', firmMembers: [{ firmId: 'f1', role: 'LAWYER' }] },
+      { id: 'free', lineUserId: 'LF', firmMembers: [{ firmId: 'f1', role: 'EXTERNAL' }] },
+    ]);
+    await svc.notifyAssigned({
+      firmId: 'f1', userIds: ['staff', 'free'], actorUserId: '', category: 'TASK',
+      summaryText: '⚠️ งาน "แปลเอกสาร"\nหมายเลขคดีดำ พ.123/2569\nเลยกำหนด 2 วัน',
+      entityPath: `/cases/${CASE_ID}`, lineActions: () => [{ label: 'x', text: 'x', data: 'task:done:1' }],
+    });
+    const rows = prisma.notification.createManyAndReturn.mock.calls.flatMap((c: any) => c[0].data);
+    expect(rows.find((r: any) => r.userId === 'free')).toMatchObject({ title: '⚠️ งาน "แปลเอกสาร"', body: null, path: '/work', appPath: null });
+    expect(rows.find((r: any) => r.userId === 'staff')).toMatchObject({ body: expect.stringContaining('พ.123/2569') });
+    expect(line.pushTo).toHaveBeenCalledWith('LF', expect.not.stringContaining('พ.123'), undefined);
+    expect(line.pushTo).toHaveBeenCalledWith('LF', expect.stringContaining('/work'), undefined);
+  });
 });
