@@ -78,7 +78,9 @@ export class ClientPortalAuthService {
       );
     }
 
-    const exposeDevToken = this.config.get<string>('CLIENT_PORTAL_EXPOSE_DEV_TOKEN') === 'true';
+    // Returning the login token in the response skips the inbox entirely, so it never applies in production.
+    const exposeDevToken = process.env.NODE_ENV !== 'production'
+      && this.config.get<string>('CLIENT_PORTAL_EXPOSE_DEV_TOKEN') === 'true';
     return { message, linkToken: exposeDevToken ? token : undefined };
   }
 

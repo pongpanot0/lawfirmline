@@ -286,7 +286,9 @@ export class DocumentIntelligenceService {
     return summary;
   }
 
-  async extractDatesWithAI(text: string): Promise<ExtractedDateCandidate[]> {
+  async extractDatesWithAI(rawText: string): Promise<ExtractedDateCandidate[]> {
+    // Same rule as every other AI call here (ADR 0002): identifiers never leave unredacted.
+    const text = redactForAi(rawText).text;
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) return [];
 

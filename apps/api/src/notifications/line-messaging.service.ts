@@ -215,7 +215,7 @@ export class LineMessagingService {
     }
 
     if (!this.isConfigured()) {
-      this.logger.warn(`LINE not configured. Message: ${message}`);
+      this.logger.warn(`LINE not configured; skipped a ${message.length}-character message`);
       return false;
     }
 

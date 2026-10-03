@@ -146,7 +146,7 @@ export class EmailService {
   async sendInvitationEmail(params: InvitationEmailParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped email to ${params.to}`,
+        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped email to ${maskEmail(params.to)}`,
       );
       return;
     }
@@ -197,7 +197,7 @@ export class EmailService {
   async sendClientPortalMagicLinkEmail(params: ClientPortalMagicLinkParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped portal login email to ${params.to}`,
+        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped portal login email to ${maskEmail(params.to)}`,
       );
       return;
     }
@@ -248,7 +248,7 @@ export class EmailService {
   async sendClientPortalInviteEmail(params: ClientPortalInviteEmailParams): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped portal invite email to ${params.to}`,
+        `Email provider not configured (RESEND_API_KEY / SENDGRID_FROM_EMAIL); skipped portal invite email to ${maskEmail(params.to)}`,
       );
       return;
     }

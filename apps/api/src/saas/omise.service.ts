@@ -37,7 +37,9 @@ export class OmiseService {
   constructor(private config: ConfigService) {
     this.secretKey = this.config.get<string>('OMISE_SECRET_KEY');
     this.mockMode = !this.secretKey || this.config.get<string>('OMISE_MOCK') === 'true';
-    this.skipTlsVerify = this.config.get<string>('OMISE_SKIP_TLS_VERIFY') === 'true';
+    // Payment traffic is never sent unverified in production, whatever the env says.
+    this.skipTlsVerify = process.env.NODE_ENV !== 'production'
+      && this.config.get<string>('OMISE_SKIP_TLS_VERIFY') === 'true';
     if (this.mockMode) {
       this.logger.warn('Omise running in MOCK mode — set OMISE_SECRET_KEY for production');
     }

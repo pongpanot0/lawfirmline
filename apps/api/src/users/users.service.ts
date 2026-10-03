@@ -3,7 +3,6 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.module';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 
@@ -11,54 +10,47 @@ import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  private sanitize(user: {
-    id: string;
-    email: string;
-    passwordHash: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-    createdAt: Date;
-    updatedAt: Date;
-  }) {
-    const { passwordHash, ...rest } = user;
-    return rest;
-  }
+  /**
+   * Admin routes see only the caller's own firm. A user row is global (one
+   * login across firms), so every lookup is bound to a membership in firmId —
+   * an id from another firm must look like it does not exist.
+   */
+  private static readonly ADMIN_VIEW = {
+    id: true, email: true, firstName: true, lastName: true, role: true, createdAt: true, updatedAt: true,
+  } as const;
 
-  async findAll() {
-    const users = await this.prisma.user.findMany({
+  async findAll(firmId: string) {
+    return this.prisma.user.findMany({
+      where: { firmMembers: { some: { firmId } } },
+      select: UsersService.ADMIN_VIEW,
       orderBy: { createdAt: 'desc' },
     });
-    return users.map((u) => this.sanitize(u));
   }
 
-  async findOne(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+  async findOne(firmId: string, id: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, firmMembers: { some: { firmId } } },
+      select: UsersService.ADMIN_VIEW,
+    });
     if (!user) throw new NotFoundException('User not found');
-    return this.sanitize(user);
+    return user;
   }
 
-  async create(dto: CreateUserDto) {
+  async create(_dto: CreateUserDto) {
     throw new BadRequestException(
       'Direct user creation is disabled. Invite members by email via POST /saas/invitations.',
     );
   }
 
-  async update(id: string, dto: UpdateUserDto) {
-    await this.findOne(id);
-    const data: Record<string, unknown> = { ...dto };
-    if (dto.password) {
-      data.passwordHash = await bcrypt.hash(dto.password, 10);
-      delete data.password;
-    }
-    const user = await this.prisma.user.update({ where: { id }, data });
-    return this.sanitize(user);
+  /** Names only: email, password and system role belong to the person (or the reset flow), not to one firm's owner. */
+  async update(firmId: string, id: string, dto: UpdateUserDto) {
+    await this.findOne(firmId, id);
+    return this.prisma.user.update({ where: { id }, data: dto, select: UsersService.ADMIN_VIEW });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
-    await this.prisma.user.delete({ where: { id } });
-    return { deleted: true };
+  async remove() {
+    // Deleting the global user would erase them from every firm they belong to.
+    throw new BadRequestException('Remove members from your firm via DELETE /saas/members/:userId.');
   }
 
   async findLawyers(firmId: string) {
@@ -67,13 +59,12 @@ export class UsersService {
         role: { in: ['ADMIN', 'LAWYER'] },
         firmMembers: { some: { firmId } },
       },
-      include: { firmMembers: { where: { firmId }, select: { role: true } } },
+      // Explicit fields: a whole user row carries the LINE link code, which
+      // would let any colleague bind their own LINE to this account.
+      select: { ...UsersService.ADMIN_VIEW, firmMembers: { where: { firmId }, select: { role: true } } },
       orderBy: { lastName: 'asc' },
     });
-    return users.map((u) => {
-      const { firmMembers, ...rest } = u;
-      return { ...this.sanitize(rest), firmRole: firmMembers[0]?.role ?? null };
-    });
+    return users.map(({ firmMembers, ...rest }) => ({ ...rest, firmRole: firmMembers[0]?.role ?? null }));
   }
 
   async findAllByFirm(
@@ -85,6 +76,7 @@ export class UsersService {
       where: {
         firmMembers: { some: { firmId } },
       },
+      select: { id: true, firstName: true, lastName: true },
       orderBy: { lastName: 'asc' },
       skip: offset,
       take: limit + 1,

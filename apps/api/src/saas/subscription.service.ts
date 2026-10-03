@@ -406,36 +406,26 @@ export class SubscriptionService {
     });
   }
 
+  /**
+   * The webhook body is unauthenticated, so it is only a hint about which
+   * charge changed. Whether it is paid comes from Omise itself, and which
+   * firm/plan/amount it pays for comes from our own invoice — never from the
+   * posted metadata, or anyone could POST a "paid" charge for free.
+   */
   async handleWebhook(payload: Record<string, unknown>) {
-    const eventKey = payload.key as string | undefined;
-    this.logger.log(`Omise webhook [${eventKey ?? 'unknown'}]: ${JSON.stringify(payload)}`);
+    const eventKey = typeof payload.key === 'string' ? payload.key : 'unknown';
+    const posted = payload.data as Record<string, unknown> | undefined;
+    const chargeId = typeof posted?.id === 'string' && /^chrg_[A-Za-z0-9_]+$/.test(posted.id) ? posted.id : null;
+    this.logger.log(`Omise webhook [${eventKey}] charge=${chargeId ?? 'none'}`);
+    if (!chargeId) return { received: true };
 
-    const charge = payload.data as Record<string, unknown> | undefined;
-    if (!charge?.id) return { received: true };
+    const invoice = await this.prisma.billingInvoice.findFirst({ where: { omiseChargeId: chargeId } });
+    if (!invoice || invoice.status === 'PAID') return { received: true };
 
-    const isPaid = charge.paid === true || charge.status === 'successful';
+    const charge = await this.omise.getCharge(chargeId);
+    if (!(charge.paid === true || charge.status === 'successful')) return { received: true };
 
-    if (!isPaid) return { received: true };
-
-    const metadata = charge.metadata as Record<string, string> | undefined;
-    if (!metadata?.invoiceId || !metadata.firmId || !metadata.plan) {
-      return { received: true };
-    }
-
-    const invoice = await this.prisma.billingInvoice.findUnique({
-      where: { id: metadata.invoiceId },
-    });
-
-    if (invoice && invoice.status !== 'PAID') {
-      await this.activateSubscription(
-        metadata.firmId,
-        metadata.plan as SubscriptionPlan,
-        invoice.id,
-        charge.id as string,
-        invoice.amount,
-      );
-    }
-
+    await this.activateSubscription(invoice.firmId, invoice.plan as SubscriptionPlan, invoice.id, charge.id, invoice.amount);
     return { received: true };
   }
 }
