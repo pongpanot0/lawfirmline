@@ -11,6 +11,7 @@ const ROLE_LABELS: Record<string, { th: string; en: string }> = {
   SENIOR_LAWYER: { th: 'ทนายอาวุโส', en: 'Senior lawyer' },
   LAWYER: { th: 'ทนาย', en: 'Lawyer' },
   ASSISTANT: { th: 'ผู้ช่วย', en: 'Assistant' },
+  EXTERNAL: { th: 'ผู้รับงานภายนอก (ฟรีแลนซ์)', en: 'External (freelancer)' },
 };
 
 export function CasePlaybook({ caseId, caseTypeId, initialReleaseId = '', onApplied }: { caseId: string; caseTypeId?: string; initialReleaseId?: string; onApplied: () => void }) {

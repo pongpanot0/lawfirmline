@@ -13,6 +13,7 @@ const ROLE_LABELS: Record<FirmRoleStr, { th: string; en: string }> = {
   SENIOR_LAWYER: { th: 'ทนายอาวุโส', en: 'Senior lawyer' },
   LAWYER: { th: 'ทนาย', en: 'Lawyer' },
   ASSISTANT: { th: 'ผู้ช่วย', en: 'Assistant' },
+  EXTERNAL: { th: 'ผู้รับงานภายนอก (ฟรีแลนซ์)', en: 'External (freelancer)' },
 };
 const ROLE_OPTIONS = Object.keys(ROLE_LABELS) as FirmRoleStr[];
 const DAY_BASIS_LABELS: Record<PlaybookDayBasis, { th: string; en: string }> = {

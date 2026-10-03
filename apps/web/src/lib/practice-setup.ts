@@ -3,7 +3,7 @@ import type { CaseStage, TaskRoutineDefinition } from '@lawfirm/shared';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface ImportPreview { id: string; rows: (ImportRow & { row: number; existingClientId: string | null; errors: string[] })[]; canCommit: boolean }
 export interface SetupProgress { members: number; clients: number; cases: number; invites: number; batches: { id: string; status: string; createdAt: string }[] }
-export type FirmRoleStr = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
+export type FirmRoleStr = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT' | 'EXTERNAL';
 export type PlaybookDayBasis = 'CALENDAR' | 'BUSINESS';
 export interface PlaybookStep {
   routine?: TaskRoutineDefinition;

@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 
 type Db = Pick<PrismaService, 'client' | 'clientContact' | 'caseType' | 'firmMember'>;
@@ -12,6 +13,11 @@ export interface FirmRefs {
   userIds?: Array<string | null | undefined>;
 }
 
+export interface AssertFirmRefsOptions {
+  /** Exclude users with these roles from validation (e.g., [FirmRole.EXTERNAL] for staff-only lookups). */
+  excludeRoles?: FirmRole[];
+}
+
 const present = (ids?: Array<string | null | undefined>) => [...new Set((ids ?? []).filter((id): id is string => !!id))];
 
 /**
@@ -20,7 +26,12 @@ const present = (ids?: Array<string | null | undefined>) => [...new Set((ids ?? 
  * then hand that tenant's names, phones and emails back to the caller — so
  * services check here before they write, not after.
  */
-export async function assertFirmRefs(db: Db, firmId: string, refs: FirmRefs): Promise<void> {
+export async function assertFirmRefs(
+  db: Db,
+  firmId: string,
+  refs: FirmRefs,
+  opts?: AssertFirmRefsOptions,
+): Promise<void> {
   const clientIds = present(refs.clientIds);
   const contactIds = present(refs.contactIds);
   const caseTypeIds = present(refs.caseTypeIds);
@@ -29,10 +40,23 @@ export async function assertFirmRefs(db: Db, firmId: string, refs: FirmRefs): Pr
     clientIds.length ? db.client.count({ where: { id: { in: clientIds }, firmId } }) : 0,
     contactIds.length ? db.clientContact.count({ where: { id: { in: contactIds }, client: { firmId } } }) : 0,
     caseTypeIds.length ? db.caseType.count({ where: { id: { in: caseTypeIds }, firmId } }) : 0,
-    userIds.length ? db.firmMember.count({ where: { userId: { in: userIds }, firmId } }) : 0,
+    userIds.length
+      ? db.firmMember.count({
+          where: {
+            userId: { in: userIds },
+            firmId,
+            ...(opts?.excludeRoles ? { role: { notIn: opts.excludeRoles } } : {}),
+          },
+        })
+      : 0,
   ]);
   if (clients !== clientIds.length) throw new BadRequestException('ลูกความที่เลือกไม่อยู่ในสำนักงานนี้');
   if (contacts !== contactIds.length) throw new BadRequestException('ผู้ติดต่อที่เลือกไม่อยู่ในสำนักงานนี้');
   if (caseTypes !== caseTypeIds.length) throw new BadRequestException('ประเภทคดีที่เลือกไม่อยู่ในสำนักงานนี้');
-  if (members !== userIds.length) throw new BadRequestException('ผู้ใช้ที่เลือกไม่ได้อยู่ในสำนักงานนี้');
+  if (members !== userIds.length) {
+    if (opts?.excludeRoles?.length) {
+      throw new BadRequestException(`ผู้ใช้ที่เลือกไม่ได้อยู่ในสำนักงานนี้หรือมีบทบาทที่ไม่อนุญาต`);
+    }
+    throw new BadRequestException('ผู้ใช้ที่เลือกไม่ได้อยู่ในสำนักงานนี้');
+  }
 }

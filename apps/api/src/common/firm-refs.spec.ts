@@ -1,3 +1,4 @@
+import { FirmRole } from '@lawfirm/shared';
 import { assertFirmRefs } from './firm-refs';
 
 describe('assertFirmRefs', () => {
@@ -27,5 +28,43 @@ describe('assertFirmRefs', () => {
   it('asks nothing when nothing is named', async () => {
     await assertFirmRefs(db, 'f1', {});
     expect(count).not.toHaveBeenCalled();
+  });
+
+  it('rejects users with excluded roles when excludeRoles is set', async () => {
+    const dbWithRole = {
+      ...db,
+      firmMember: {
+        count: jest.fn(async ({ where }: any) => {
+          // Check if the excludeRoles clause is present
+          if (where.role?.notIn) {
+            // Simulate: u1 is ASSISTANT (allowed), but exclude EXTERNAL, so if u1 exists but EXTERNAL is excluded, count is 0
+            return (where.userId?.in ?? []).includes('u1') && !where.role.notIn.includes('ASSISTANT') ? 1 : 0;
+          }
+          return (where.userId?.in ?? []).includes('u1') ? 1 : 0;
+        }),
+      },
+    } as any;
+
+    await expect(
+      assertFirmRefs(dbWithRole, 'f1', { userIds: ['u1'] }, { excludeRoles: [FirmRole.EXTERNAL] }),
+    ).resolves.toBeUndefined();
+
+    // When trying with a user that would be filtered out, it should fail
+    const dbRejectExternal = {
+      ...db,
+      firmMember: {
+        count: jest.fn(async ({ where }: any) => {
+          // If excluding EXTERNAL, and u1 is EXTERNAL, return 0 (not found)
+          if (where.role?.notIn?.includes(FirmRole.EXTERNAL)) {
+            return 0;
+          }
+          return (where.userId?.in ?? []).includes('u1') ? 1 : 0;
+        }),
+      },
+    } as any;
+
+    await expect(
+      assertFirmRefs(dbRejectExternal, 'f1', { userIds: ['u1'] }, { excludeRoles: [FirmRole.EXTERNAL] }),
+    ).rejects.toThrow('ผู้ใช้ที่เลือกไม่ได้อยู่ในสำนักงานนี้หรือมีบทบาทที่ไม่อนุญาต');
   });
 });

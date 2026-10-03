@@ -73,6 +73,11 @@ describe('CaseAccessService', () => {
         ],
       });
     });
+
+    it('returns a filter that matches nothing for EXTERNAL', () => {
+      const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.EXTERNAL } as any;
+      expect(service.getCaseFilterForUser(user)).toEqual({ id: '__external_has_no_case_access__' });
+    });
   });
 
   describe('canAccessCase', () => {

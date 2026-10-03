@@ -18,6 +18,13 @@ enum FirmRole {
   SENIOR_LAWYER
   LAWYER
   ASSISTANT
+  EXTERNAL
+}
+
+enum WorkflowRunStatus {
+  ACTIVE
+  DONE
+  CANCELLED
 }
 
 enum LeaveType {
@@ -423,6 +430,8 @@ model Firm {
   invoicePayments    InvoicePayment[]
   pleadingDrafts     PleadingDraft[]
   notifications      Notification[]
+  workflowTemplates  WorkflowTemplate[]
+  workflowRuns       WorkflowRun[]
 }
 
 model FirmMember {
@@ -939,6 +948,7 @@ model Case {
   pleadingDrafts         PleadingDraft[]
   portalIntakeSubmission PortalIntakeSubmission?
   comments               CaseComment[]
+  workflowRuns           WorkflowRun[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -961,6 +971,45 @@ model CaseComment {
 
   @@index([caseId, createdAt])
   @@index([authorId])
+}
+
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  firmId      String
+  name        String
+  description String?
+  /// WorkflowStepDefinition[] (packages/shared): { title, instructions?, role: FirmRole, durationDays: number (1-60), requiresReview?: boolean }
+  steps       Json
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  runs WorkflowRun[]
+
+  @@index([firmId, isActive])
+}
+
+model WorkflowRun {
+  id          String            @id @default(uuid())
+  firmId      String
+  caseId      String
+  templateId  String?
+  name        String            /// e.g. "แปลคำให้การพยาน — นาย ก."
+  status      WorkflowRunStatus @default(ACTIVE)
+  promisedAt  DateTime?         /// date promised to the client, for "late by N days"
+  createdById String
+  createdAt   DateTime          @default(now())
+  completedAt DateTime?
+
+  firm     Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  case     Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  template WorkflowTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  tasks    Task[]
+
+  @@index([firmId, status])
+  @@index([caseId])
 }
 
 model Intake {
@@ -1296,6 +1345,9 @@ model Task {
   assignedAt              DateTime?
   acknowledgedAt          DateTime?
   planConfirmedAt         DateTime?
+  workflowRunId           String?
+  workflowStep            Int?
+  workflowDurationDays    Int?
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
 
@@ -1307,6 +1359,7 @@ model Task {
   blocks         Task[]              @relation("TaskBlocks")
   assignee       User?               @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy      User                @relation("TaskCreator", fields: [createdById], references: [id])
+  workflowRun    WorkflowRun?        @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
   onHold         TaskOnHold?
   assignmentLogs TaskAssignmentLog[]
   parent         Task?               @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
@@ -1323,6 +1376,7 @@ model Task {
   @@index([blockedById])
   @@index([firmId, assigneeId, queuePosition])
   @@index([scheduledFor])
+  @@index([workflowRunId, workflowStep])
 }
 
 model TaskAttachment {

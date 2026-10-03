@@ -24,6 +24,10 @@ export class CaseAccessService {
   getCaseFilterForUser(user: AuthUser): Prisma.CaseWhereInput {
     const tenantFilter = { firmId: user.firmId, ...CaseAccessService.NOT_DELETED };
 
+    if (user.firmRole === FirmRole.EXTERNAL) {
+      return { id: '__external_has_no_case_access__' };
+    }
+
     if (user.firmRole === FirmRole.OWNER) {
       return tenantFilter;
     }
@@ -77,6 +81,10 @@ export class CaseAccessService {
   }
 
   getTaskFilterForUser(user: AuthUser): Prisma.TaskWhereInput {
+    if (user.firmRole === FirmRole.EXTERNAL) {
+      return { id: '__external_has_no_task_access__' };
+    }
+
     // New tasks carry explicit tenancy; legacy tasks retain their original scope.
     const firmScope: Prisma.TaskWhereInput = {
       OR: [
@@ -161,6 +169,10 @@ export class CaseAccessService {
 
   async getIntakeFilterForUser(user: AuthUser): Promise<Prisma.IntakeWhereInput> {
     const tenantFilter = { firmId: user.firmId };
+    if (user.firmRole === FirmRole.EXTERNAL) {
+      return { id: '__external_has_no_intake_access__' };
+    }
+
     if (user.firmRole === FirmRole.OWNER) {
       return tenantFilter;
     }
@@ -196,6 +208,10 @@ export class CaseAccessService {
 
   async getEmailThreadFilterForUser(user: AuthUser): Promise<Prisma.EmailThreadWhereInput> {
     const tenantFilter = { firmId: user.firmId };
+    if (user.firmRole === FirmRole.EXTERNAL) {
+      return { id: '__external_has_no_thread_access__' };
+    }
+
     if (user.firmRole === FirmRole.OWNER || user.firmRole === FirmRole.SENIOR_LAWYER) {
       return tenantFilter;
     }

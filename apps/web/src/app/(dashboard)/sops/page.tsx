@@ -20,6 +20,7 @@ const ROLE_LABELS: Record<FirmRoleStr, string> = {
   SENIOR_LAWYER: 'ทนายอาวุโส',
   LAWYER: 'ทนาย',
   ASSISTANT: 'ผู้ช่วย',
+  EXTERNAL: 'ผู้รับงานภายนอก (ฟรีแลนซ์)',
 };
 
 export default function SopsPage() {

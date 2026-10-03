@@ -11,6 +11,7 @@ export enum FirmRole {
   SENIOR_LAWYER = 'SENIOR_LAWYER',
   LAWYER = 'LAWYER',
   ASSISTANT = 'ASSISTANT',
+  EXTERNAL = 'EXTERNAL',
 }
 
 /** Higher number = higher authority. Used for "assign only to roles below yours". */
@@ -19,11 +20,20 @@ export const FIRM_ROLE_RANK: Record<FirmRole, number> = {
   [FirmRole.SENIOR_LAWYER]: 2,
   [FirmRole.LAWYER]: 1,
   [FirmRole.ASSISTANT]: 0,
+  [FirmRole.EXTERNAL]: -1,
 };
 
 /** May `assigner` hand work to `assignee`? Self always allowed; otherwise only strictly lower roles. */
 export function canAssignFirmRole(assigner: FirmRole, assignee: FirmRole): boolean {
   return FIRM_ROLE_RANK[assigner] > FIRM_ROLE_RANK[assignee];
+}
+
+export interface WorkflowStepDefinition {
+  title: string;
+  instructions?: string;
+  role: FirmRole;
+  durationDays: number;
+  requiresReview?: boolean;
 }
 
 /** Subdomains that cannot be claimed as a firm slug. */
