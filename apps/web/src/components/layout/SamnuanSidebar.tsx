@@ -58,7 +58,8 @@ const NAV_ITEMS = [
       { href: '/email-intake', labelKey: 'emailIntake' as const, icon: Mail, ownerOnly: false },
     ],
   },
-  { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work', children: [] as const },  { href: '/workflows', labelKey: 'workflows' as const, icon: GitFork, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/workflows', labelKey: 'workflows' as const, icon: GitFork, ownerOnly: false, group: 'work', children: [] as const },
 
   { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false, group: 'work', children: [] as const },
   { href: '/leaves', labelKey: 'leaves' as const, icon: CalendarOff, ownerOnly: false, group: 'work', children: [] as const },

@@ -21,12 +21,13 @@ type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
 
 const ROLE_OPTIONS: Array<{
   value: FirmRole;
-  labelKey: 'roleAssistant' | 'roleLawyer' | 'roleSeniorLawyer' | 'roleOwner';
+  labelKey: 'roleAssistant' | 'roleLawyer' | 'roleSeniorLawyer' | 'roleOwner' | 'roleExternal';
 }> = [
   { value: FirmRole.ASSISTANT, labelKey: 'roleAssistant' },
   { value: FirmRole.LAWYER, labelKey: 'roleLawyer' },
   { value: FirmRole.SENIOR_LAWYER, labelKey: 'roleSeniorLawyer' },
   { value: FirmRole.OWNER, labelKey: 'roleOwner' },
+  { value: FirmRole.EXTERNAL, labelKey: 'roleExternal' },
 ];
 
 export default function TeamPage() {
@@ -87,6 +88,8 @@ export default function TeamPage() {
         return d.team.roleSeniorLawyer;
       case FirmRole.LAWYER:
         return d.team.roleLawyer;
+      case FirmRole.EXTERNAL:
+        return d.team.roleExternal;
       default:
         return d.team.roleAssistant;
     }
@@ -236,6 +239,7 @@ export default function TeamPage() {
               </Button>
             </div>
           </form>
+          {inviteRole === FirmRole.EXTERNAL && <p className="mt-2 text-xs text-muted-foreground">{d.team.roleExternalHint}</p>}
           {inviteError && <p role="alert" className="mt-2 text-sm text-destructive">{inviteError}</p>}
           {inviteUrl && (
             <div className="mt-4 rounded-lg bg-muted p-3">

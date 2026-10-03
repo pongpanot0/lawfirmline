@@ -53,6 +53,10 @@ import { buildCasePrioritySummary } from '@/lib/case-workbench';
 import './tokens.css';
 import styles from './case-detail.module.css';
 
+const CaseWorkflows = dynamic(
+  () => import('@/components/workflows/CaseWorkflows').then((m) => m.CaseWorkflows),
+  { ssr: false },
+);
 const CaseTasksPanel = dynamic(
   () => import('@/components/cases/CaseTasksPanel').then((m) => m.CaseTasksPanel),
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
@@ -1110,6 +1114,7 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-tasks"
           className="min-w-0"
         >
+          <CaseWorkflows caseId={id} />
           <CaseTasksPanel caseId={id} onTasksChanged={setTasks} />
         </div>
       )}

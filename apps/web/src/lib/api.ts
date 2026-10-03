@@ -1281,11 +1281,21 @@ function announceDocumentUpload(scope: 'case' | 'intake', scopeId: string, docum
   }
 }
 
+export type WorkflowRole = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT' | 'EXTERNAL';
+
+export interface WorkflowStepDef {
+  title: string;
+  instructions?: string;
+  role: WorkflowRole;
+  durationDays: number;
+  requiresReview?: boolean;
+}
+
 export interface WorkflowTemplate {
   id: string;
   name: string;
-  description?: string;
-  steps: any[];
+  description?: string | null;
+  steps: WorkflowStepDef[];
   isActive: boolean;
 }
 
@@ -1295,20 +1305,41 @@ export interface WorkflowAssignee {
   openTaskCount: number;
 }
 
-export interface WorkflowRun {
+/** A run in the owner's pipeline (GET /workflows/runs). */
+export interface WorkflowPipelineRun {
   id: string;
   name: string;
-  status: string;
-  caseId?: string;
-  case?: { id: string; ownRef: string; title: string };
-  currentStep?: { index: number; title: string; assignee?: { id: string; name: string }; dueDate?: string };
+  status: 'ACTIVE' | 'DONE' | 'CANCELLED';
+  case: { id: string; ownRef: string; title: string };
+  currentStep: { index: number; title: string; assignee: { id: string; name: string } | null; dueDate?: string; overdueDays: number } | null;
   stepsDone: number;
   stepsTotal: number;
-  projectedFinish?: string;
-  lateByDays?: number;
+  projectedFinish: string;
+  lateByDays: number;
   promisedAt?: string;
-  steps?: any[];
-  [key: string]: any;
+}
+
+/** A run on a case page (GET /cases/:id/workflows). */
+export interface CaseWorkflowRun {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'DONE' | 'CANCELLED';
+  createdAt: string;
+  steps: Array<{
+    taskId: string;
+    title: string;
+    assignee: { id: string; name: string } | null;
+    status: string;
+    dueDate: string | null;
+    completedAt: string | null;
+    attachmentCount: number;
+  }>;
+}
+
+export interface WorkflowRunFiles {
+  step: number;
+  taskId: string;
+  files: Array<{ id: string; filename: string; size: number }>;
 }
 
 export interface ExternalStep {
@@ -3113,58 +3144,55 @@ export const api = {
       token,
     }),
 
-  // ===== Workflows =====
+  // ===== Workflows (สายงาน) =====
   getWorkflowTemplates: (token: string) =>
     request<WorkflowTemplate[]>('/workflows/templates', { token }),
 
-  createWorkflowTemplate: (token: string, data: { name: string; description?: string; steps: any[] }) =>
-    request<WorkflowTemplate>('/workflows/templates', {
-      method: 'POST',
-      token,
-      body: JSON.stringify(data),
-    }),
+  createWorkflowTemplate: (token: string, data: { name: string; description?: string; steps: WorkflowStepDef[] }) =>
+    request<WorkflowTemplate>('/workflows/templates', { method: 'POST', token, body: JSON.stringify(data) }),
 
-  updateWorkflowTemplate: (token: string, id: string, data: { name?: string; description?: string; steps?: any[] }) =>
-    request<WorkflowTemplate>(`/workflows/templates/${id}`, {
-      method: 'PATCH',
-      token,
-      body: JSON.stringify(data),
-    }),
+  updateWorkflowTemplate: (token: string, id: string, data: { name?: string; description?: string; steps?: WorkflowStepDef[] }) =>
+    request<WorkflowTemplate>(`/workflows/templates/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
   deleteWorkflowTemplate: (token: string, id: string) =>
     request(`/workflows/templates/${id}`, { method: 'DELETE', token }),
 
-  getWorkflowAssignees: (token: string, role: string) =>
-    request<WorkflowAssignee[]>(`/workflows/assignees?role=${role}`, { token }),
+  getWorkflowAssignees: (token: string, role: WorkflowRole) =>
+    request<WorkflowAssignee[]>(`/workflows/assignees?role=${encodeURIComponent(role)}`, { token }),
 
-  getWorkflowRuns: (token: string, status?: string) =>
-    request<WorkflowRun[]>(`/workflows/runs${status ? `?status=${status}` : ''}`, { token }),
+  getWorkflowRuns: (token: string, status?: 'ACTIVE' | 'DONE' | 'CANCELLED') =>
+    request<WorkflowPipelineRun[]>(`/workflows/runs${status ? `?status=${status}` : ''}`, { token }),
 
   getCaseWorkflows: (token: string, caseId: string) =>
-    request<WorkflowRun[]>(`/cases/${caseId}/workflows`, { token }),
+    request<CaseWorkflowRun[]>(`/cases/${caseId}/workflows`, { token }),
 
-  createWorkflowRun: (token: string, caseId: string, data: { templateId?: string; steps?: any[]; name: string; promisedAt?: string; assignees?: (string | null)[] }) =>
-    request<WorkflowRun>(`/cases/${caseId}/workflows`, {
-      method: 'POST',
-      token,
-      body: JSON.stringify(data),
-    }),
+  createWorkflowRun: (token: string, caseId: string, data: { templateId?: string; steps?: WorkflowStepDef[]; name: string; promisedAt?: string; assignees?: (string | null)[] }) =>
+    request<{ id: string }>(`/cases/${caseId}/workflows`, { method: 'POST', token, body: JSON.stringify(data) }),
 
   getWorkflowRunFiles: (token: string, runId: string) =>
-    request<any>(`/workflows/runs/${runId}/files`, { token }),
+    request<WorkflowRunFiles[]>(`/workflows/runs/${runId}/files`, { token }),
 
   sendBackWorkflow: (token: string, runId: string, data: { toStep: number; reason: string }) =>
-    request(`/workflows/runs/${runId}/send-back`, {
-      method: 'POST',
-      token,
-      body: JSON.stringify(data),
-    }),
+    request(`/workflows/runs/${runId}/send-back`, { method: 'POST', token, body: JSON.stringify(data) }),
 
   cancelWorkflow: (token: string, runId: string) =>
     request(`/workflows/runs/${runId}/cancel`, { method: 'POST', token }),
 
+  // Freelancer (EXTERNAL) surface
   getExternalSteps: (token: string) =>
     request<ExternalStep[]>('/external/steps', { token }),
+
+  downloadExternalFile: (token: string, attachmentId: string) =>
+    fetchBlob(`/external/files/${attachmentId}`, { token }),
+
+  uploadExternalFile: (token: string, taskId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{ id: string; filename: string; size: number }>(`/external/steps/${taskId}/files`, { method: 'POST', token, body: form });
+  },
+
+  deleteExternalFile: (token: string, attachmentId: string) =>
+    request(`/external/files/${attachmentId}`, { method: 'DELETE', token }),
 
   completeExternalStep: (token: string, taskId: string) =>
     request(`/external/steps/${taskId}/done`, { method: 'POST', token }),
