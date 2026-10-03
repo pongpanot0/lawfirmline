@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { NotificationCategory } from '../generated/prisma';
 import { AssignmentNotifierService } from './assignment-notifier.service';
 import { formatCaseNotificationReference } from './reference-label';
+import { formatBangkokDateTime } from '../common/utils/bangkok-time';
 import { eventAssigneesInclude, eventPeopleIds } from '../calendar/event-people';
 
 /**
@@ -74,7 +75,7 @@ export class ReminderScheduler {
             userIds: eventPeopleIds(event),
             actorUserId: '',
             category: NotificationCategory.CALENDAR,
-            summaryText: `⏰ ${event.title} (${leadTime}ก่อน)\n${reference ?? `คดี: ${event.case.title}`}\nเวลา: ${event.startAt.toLocaleString('th-TH')}`,
+            summaryText: `⏰ ${event.title} (${leadTime}ก่อน)\n${reference ?? `คดี: ${event.case.title}`}\nเวลา: ${formatBangkokDateTime(event.startAt)}`,
             entityPath: `/court-day/${event.id}`,
           });
 

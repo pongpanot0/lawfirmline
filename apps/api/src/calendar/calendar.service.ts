@@ -15,6 +15,7 @@ import { TravelService } from '../travel/travel.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { CreateEventDto, UpdateEventDto } from './dto/calendar.dto';
 import { eventAssigneesInclude } from './event-people';
+import { formatBangkokDateTime } from '../common/utils/bangkok-time';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 
 @Injectable()
@@ -168,7 +169,7 @@ export class CalendarService {
       });
       travelLogId = log?.id;
 
-      const dateStr = new Date(dto.startAt).toLocaleString('th-TH');
+      const dateStr = formatBangkokDateTime(new Date(dto.startAt));
       courtAlert = `📅 นัดศาล ${legalCase.ownRef} · ${dateStr}\nคดี: ${legalCase.title}\nศาล: ${courtName}\nทนาย: ${legalCase.leadLawyer.firstName} ${legalCase.leadLawyer.lastName}${travel.warning ? `\n⚠️ ${travel.warning}` : ''}`;
 
       await this.prisma.case.update({
