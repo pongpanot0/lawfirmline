@@ -9,6 +9,23 @@ jobs:
   backup:
     runs-on: ubuntu-24.04-arm
     steps:
+      # The prod host only holds docker-compose.prod.yml and .env, not the repo,
+      # so the script ships from this commit on every run instead of relying on
+      # a copy that was never there (every run failed: "No such file").
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/backup.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Copy backup script to prod host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: scripts/backup.sh
+          target: ${{ secrets.EC2_APP_DIR }}
+
       - name: Run backup on prod host
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -18,4 +35,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ secrets.EC2_APP_DIR }}"
+            # Fail loudly if this is not the app dir (an empty secret would land in $HOME).
+            test -f docker-compose.prod.yml -a -f .env
             bash scripts/backup.sh
+            df -h /
