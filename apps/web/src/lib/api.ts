@@ -8,7 +8,8 @@ const TOKEN_KEY = 'lawfirm_access_token';
 const REFRESH_KEY = 'lawfirm_refresh_token';
 
 function parseApiErrorMessage(body: unknown, fallback: string): string {
-  const payload = body as { message?: string | { message?: string } };
+  const payload = body as { message?: string | string[] | { message?: string } };
+  if (Array.isArray(payload.message)) return payload.message.join(', ');
   if (typeof payload.message === 'string') return payload.message;
   if (payload.message?.message) return payload.message.message;
   return fallback;
@@ -54,7 +55,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: RequestInit & { token?: string; refreshAuth?: boolean; silent?: boolean } = {},
 ): Promise<T> {
@@ -702,6 +703,7 @@ export interface TaskPerson {
 
 // งานที่ Playbook แนะนำเมื่อเรื่องย้ายเข้าขั้นตอนหนึ่ง
 export interface StageTaskProposal {
+  routineSource?: { releaseId: string; stepIndex: number };
   title: string;
   description: string;
   dueDate: string | null;
@@ -710,6 +712,7 @@ export interface StageTaskProposal {
 }
 
 export interface StageTaskDraft {
+  routineSource?: { releaseId: string; stepIndex: number };
   title: string;
   description?: string;
   dueDate?: string | null;
@@ -738,6 +741,7 @@ export interface TaskItem {
   recurrenceDays?: number | null;
   blockedById?: string | null;
   createdById?: string;
+  handedOffById?: string | null;
   createdBy?: TaskPerson | null;
   assignee?: TaskPerson | null;
   observers?: Array<{ id: string; userId: string; user: TaskPerson; createdAt: string }> | null;
@@ -1989,7 +1993,7 @@ export const api = {
     }),
 
   createTask: (token: string, caseId: string, data: Record<string, unknown>) =>
-    request(`/cases/${caseId}/tasks`, {
+    request<TaskItem>(`/cases/${caseId}/tasks`, {
       method: 'POST',
       token,
       body: JSON.stringify(data),

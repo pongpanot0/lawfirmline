@@ -1,0 +1,2 @@
+ALTER TABLE "Task" ADD COLUMN "routine" JSONB,
+ADD COLUMN "routineCompletedChecks" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[];

@@ -96,7 +96,7 @@ export default function OperationsPage() {
   const d = useDashboardT();
   const { locale } = useLocale();
   const isOwner = user?.firmRole === FirmRole.OWNER;
-  const [tab, setTab] = useState('radar');
+  const [tab, setTab] = useState('daily');
   const teamTab = tab === 'radar' || tab === 'daily';
   const [summary, setSummary] = useState<WorkloadSummary[]>([]);
   /**
@@ -232,8 +232,8 @@ export default function OperationsPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="max-w-full overflow-x-auto">
-          <TabsTrigger value="radar">ภาพรวมทีม</TabsTrigger>
           <TabsTrigger value="daily">ต้องจัดการวันนี้</TabsTrigger>
+          <TabsTrigger value="radar">ภาพรวมทีม</TabsTrigger>
           <TabsTrigger value="workload">{d.operations.tabWorkload}</TabsTrigger>
           <TabsTrigger value="pairing">{d.operations.tabPairing}</TabsTrigger>
           <TabsTrigger value="onhold">

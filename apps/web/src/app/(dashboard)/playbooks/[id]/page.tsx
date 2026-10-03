@@ -24,6 +24,7 @@ export default function SopFlowEditor() {
   const isNew = id === 'new';
   const router = useRouter();
   const { token, user } = useAuth();
+  const isAuthenticated = Boolean(token);
   const { locale } = useLocale();
   const th = locale === 'th';
   const settingsRef = useRef<HTMLDetailsElement>(null);
@@ -78,7 +79,9 @@ export default function SopFlowEditor() {
       .catch(e => { if (active) setLoadError(e instanceof Error ? e.message : 'Failed'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [token, id, isNew, reload]);
+    // Refreshing an access token must not reload the editor and discard its draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.id, id, isNew, reload]);
 
   useEffect(() => {
     setPublishErrors({});
@@ -134,6 +137,8 @@ export default function SopFlowEditor() {
 
   const publish = async () => {
     if (!token || busy) return;
+    const invalidRoutine = steps.find(step => step.routine && (!step.instructions.trim() || !step.routine.expectedOutput.trim() || !step.routine.checks.some(check => check.trim())));
+    if (invalidRoutine) { setPublishError(th ? `${invalidRoutine.title}: กรอกวิธีทำ ผลที่ต้องส่ง และรายการตรวจก่อนเผยแพร่` : `${invalidRoutine.title}: Add instructions, expected result and checks.`); return; }
     const stepTitles = Object.fromEntries(steps.map((step, index) => [index, !step.title.trim() ? (th ? 'กรอกชื่องานก่อน' : 'Enter a task name.') : '']).filter(([, message]) => message)) as Record<number, string>;
     const cargo = templateKey === CARGO_PLAYBOOK_KEY ? Object.fromEntries(cargoRequirements.map((item, index) => [index, !item.label.trim() ? (th ? 'กรอกชื่อเอกสารก่อน' : 'Enter a document name.') : '']).filter(([, message]) => message)) as Record<number, string> : {};
     const errors: PublishErrors = {
@@ -145,14 +150,14 @@ export default function SopFlowEditor() {
     };
     setPublishErrors(errors);
     if (errors.name || errors.steps || Object.keys(stepTitles).length || Object.keys(cargo).length || errors.cargoSummary) {
-      if (errors.name || Object.keys(cargo).length || errors.cargoSummary) settingsRef.current?.setAttribute('open', '');
+      if (Object.keys(cargo).length || errors.cargoSummary) settingsRef.current?.setAttribute('open', '');
       requestAnimationFrame(() => document.getElementById(errors.name ? 'sop-name' : Object.keys(stepTitles).length ? `sop-step-title-${Object.keys(stepTitles)[0]}` : errors.cargoSummary ? 'cargo-requirements' : `cargo-label-${Object.keys(cargo)[0]}`)?.focus());
       return;
     }
     setBusy(true); setPublishError('');
     try {
       const published = await setupRequest<PlaybookRelease>(token, '/playbooks', {
-        name: name.trim(), caseTypeId: caseTypeId || undefined, steps,
+        name: name.trim(), caseTypeId: caseTypeId || undefined, steps: steps.map(step => ({ ...step, ...(step.routine ? { routine: { ...step.routine, checks: step.routine.checks.map(check => check.trim()).filter(Boolean) } } : {}) })),
         ...(templateKey === CARGO_PLAYBOOK_KEY ? { templateKey, cargoTemplate: { requirements: cargoRequirements } } : {}),
       }, true);
       setSuccess({ title: th ? 'บันทึกและเผยแพร่ SOP แล้ว' : 'SOP saved and published', description: `${published.name} · v${published.version}`, publishedId: published.id });
@@ -172,7 +177,7 @@ export default function SopFlowEditor() {
   return <div className="mx-auto max-w-[1440px] space-y-5 pb-12">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <Link href="/playbooks" className="text-sm text-primary">← {th ? 'รายการ SOP อัตโนมัติ' : 'Automated SOPs'}</Link>
+        <Link href="/sops" className="text-sm text-primary">← {th ? 'คู่มือการทำงาน' : 'SOP library'}</Link>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <h1 className="max-w-[780px] truncate text-2xl font-semibold">{name || (th ? 'SOP ใหม่' : 'New SOP')}</h1>
           {source && <span className="rounded-full border bg-card px-2.5 py-1 text-xs text-muted-foreground">v{source.version}</span>}
@@ -183,14 +188,16 @@ export default function SopFlowEditor() {
       <div className="text-right"><Button disabled={!canPublish} onClick={publish} className="shrink-0"><Zap className="mr-2 h-4 w-4" />{busy ? (th ? 'กำลังบันทึก…' : 'Saving…') : (th ? 'บันทึกและเผยแพร่' : 'Save and publish')}</Button><p className="mt-1 text-xs text-muted-foreground">{th ? 'บันทึกเป็นรุ่นใหม่ ไม่เปลี่ยนงานในคดีเดิม' : 'Creates a new version; existing case tasks stay unchanged.'}</p>{publishError && <p role="alert" className="mt-2 max-w-xs text-left text-xs text-destructive">{publishError}</p>}</div>
     </header>
 
-    <details ref={settingsRef} key={`settings-${id}`} open={isNew || undefined} className="group rounded-xl border bg-card">
+    <div className="mx-auto max-w-3xl">
+      <TextField id="sop-name" label={th ? 'ชื่อ SOP' : 'SOP name'} error={publishErrors.name} className={publishErrors.name ? 'border-destructive' : undefined} required maxLength={150} value={name} onChange={e => setName(e.target.value)} placeholder={th ? 'เช่น คดีอาญามาตรฐาน' : 'e.g. Criminal litigation'} />
+    </div>
+    <details ref={settingsRef} key={`settings-${id}`} className="group mx-auto max-w-3xl rounded-xl border bg-card">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-medium [&::-webkit-details-marker]:hidden">
-        <span>{th ? 'ชื่อ SOP ประเภทคดี และเอกสาร' : 'SOP name, case type, and documents'}</span>
+        <span>{th ? 'ประเภทคดีและเอกสาร (ไม่บังคับ)' : 'Case type and documents (optional)'}</span>
         <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
       <div className="space-y-4 border-t p-4">
         <div className="grid gap-4 md:grid-cols-2">
-          <TextField id="sop-name" label={th ? 'ชื่อ SOP' : 'SOP name'} error={publishErrors.name} className={publishErrors.name ? 'border-destructive' : undefined} required maxLength={150} value={name} onChange={e => setName(e.target.value)} placeholder={th ? 'เช่น คดีอาญามาตรฐาน' : 'e.g. Criminal litigation'} />
           <label className="block text-sm">{th ? 'ผูกกับประเภทคดี (ถ้ามี)' : 'Linked case type (optional)'}
             <select className="mt-1 h-9 w-full rounded-lg border bg-background px-2" value={caseTypeId} onChange={e => handleCaseTypeLink(e.target.value)}>
               <option value="">{th ? 'ไม่ผูก' : 'Not linked'}</option>

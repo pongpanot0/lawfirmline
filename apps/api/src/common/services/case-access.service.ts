@@ -92,6 +92,7 @@ export class CaseAccessService {
       return firmScope;
     }
 
+    const handedOff = this.deliveredTaskFilter(user);
     if (user.firmRole === FirmRole.SENIOR_LAWYER) {
       return {
         AND: [
@@ -105,6 +106,7 @@ export class CaseAccessService {
                 },
               },
               { assigneeId: null },
+              handedOff,
             ],
           },
         ],
@@ -112,9 +114,7 @@ export class CaseAccessService {
     }
 
     return {
-      AND: [firmScope, { OR: [{ assigneeId: user.id }, { assigneeId: null }, {
-        status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: user.id } },
-      }] }],
+      AND: [firmScope, { OR: [{ assigneeId: user.id }, { assigneeId: null }, handedOff] }],
     };
   }
 
@@ -132,7 +132,15 @@ export class CaseAccessService {
         ] }]),
       ],
     };
-    return { OR: [{ case: this.getCaseFilterForUser(user) }, standalone] };
+    return { OR: [
+      { case: this.getCaseFilterForUser(user) },
+      { case: { firmId: user.firmId, ...CaseAccessService.NOT_DELETED }, ...this.deliveredTaskFilter(user) },
+      standalone,
+    ] };
+  }
+
+  private deliveredTaskFilter(user: AuthUser): Prisma.TaskWhereInput {
+    return { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: user.id } } };
   }
 
   /** Clients visible when the user owns the firm or has a visible case in any client role. */

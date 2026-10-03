@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
@@ -44,6 +44,7 @@ export default function LoginScreen() {
       style={[styles.screen, keyboardHeight > 0 && { paddingBottom: keyboardHeight }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <View style={styles.form}>
         <Text style={styles.brand}>Samnuan</Text>
         <Text style={styles.subtitle}>ระบบบริหารสำนักงานกฎหมาย</Text>
@@ -85,6 +86,7 @@ export default function LoginScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button title="เข้าสู่ระบบ" onPress={submit} busy={busy} disabled={!email || !password} />
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -93,10 +95,13 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.ink,
+  },
+  content: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: spacing.xl,
   },
-  form: { gap: spacing.md },
+  form: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: spacing.md },
   brand: {
     color: colors.accentSoft,
     fontSize: 36,

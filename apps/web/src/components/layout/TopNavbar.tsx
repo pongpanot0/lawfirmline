@@ -22,6 +22,8 @@ interface TopNavbarProps {
 export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: TopNavbarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const casePath = pathname.match(/^\/cases\/[^/]+$/);
+  const taskHref = casePath && pathname !== '/cases/new' ? `${pathname}?tab=tasks&newTask=1` : '/todos?new=1';
   const d = useDashboardT();
   const canCreateCase = user.firmRole === 'OWNER' || user.role === 'LAWYER' || user.role === 'ADMIN';
   const [open, setOpen] = useState(false);
@@ -46,7 +48,7 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
 
   const items = [
     { label: d.topbar.newCase, href: '/cases/new', icon: Briefcase, show: canCreateCase },
-    { label: d.topbar.newTask, href: '/todos?new=1', icon: ListTodo, show: true },
+    { label: d.topbar.newTask, href: taskHref, icon: ListTodo, show: true },
     { label: d.topbar.newEvent, href: '/court-schedule', icon: CalendarDays, show: true },
     { label: d.topbar.newExpense, href: '/expenses/new', icon: Receipt, show: true },
     { label: d.topbar.newClient, href: '/clients/new', icon: Users, show: true },
@@ -80,7 +82,7 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
       </div>
 
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-        <Link href="/todos?new=1" onClick={() => setOpen(false)} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90">
+        <Link href={taskHref} onClick={() => setOpen(false)} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90">
           <Plus className="h-4 w-4" aria-hidden />
           <span>{d.topbar.newTask}</span>
         </Link>

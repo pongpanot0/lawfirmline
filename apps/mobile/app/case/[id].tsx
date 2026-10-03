@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Camera, Check, FileText, ShieldCheck } from 'lucide-react-native';
 import { api } from '@/api/client';
 import { useAuth } from '@/api/auth';
+import { canToggleTask } from '@/workflow';
 import { openCaseDocument } from '@/api/files';
 import {
   useCase,
@@ -132,6 +133,8 @@ export default function CaseDetailScreen() {
           {TABS.map((name) => (
             <Pressable
               key={name}
+              accessibilityRole="button"
+              accessibilityState={{ selected: tab === name }}
               style={[styles.segmentItem, tab === name && styles.segmentItemOn]}
               onPress={() => setTab(name)}
             >
@@ -272,6 +275,10 @@ export default function CaseDetailScreen() {
                       delayLongPress={350}
                     >
                       <Pressable
+                        accessibilityRole="checkbox"
+                        accessibilityLabel={`ทำงาน ${task.title} เสร็จแล้ว`}
+                        accessibilityState={{ checked: done, disabled: !user || !canToggleTask({ ...task, caseId: id, case: { id, ownRef: detail.ownRef, title: detail.title, leadLawyerId: detail.leadLawyer?.id } }, user) }}
+                        disabled={!user || !canToggleTask({ ...task, caseId: id, case: { id, ownRef: detail.ownRef, title: detail.title, leadLawyerId: detail.leadLawyer?.id } }, user) || toggle.isPending}
                         hitSlop={10}
                         onPress={() => toggle.mutate({ task: { ...task, caseId: id }, done: !done })}
                         style={[styles.checkbox, done && styles.checkboxDone]}
@@ -307,17 +314,21 @@ export default function CaseDetailScreen() {
 
         {tab === 'เอกสาร' ? (
           <>
+            <Button title="สร้างเอกสารจากแบบสำเร็จ" ghost onPress={() => router.push({ pathname: '/document-template', params: { caseId: id } })} />
+            <Button title="รายการรอเอกสารจากภายนอก" ghost onPress={() => router.push({ pathname: '/document-waiting', params: { caseId: id } })} />
             <Pressable
+              accessibilityRole="button"
               onPress={() => router.push(`/scan/${id}`)}
               style={({ pressed }) => [styles.scanButton, pressed && { opacity: 0.8 }]}
             >
               <Camera size={17} color={colors.ink} />
               <Text style={styles.scanText}>ถ่ายรูป / แนบไฟล์เอกสาร</Text>
             </Pressable>
+            {documents.isError && <ErrorNote message="โหลดรายการเอกสารล่าสุดไม่ได้ ลองโหลดอีกครั้ง" onRetry={() => documents.refetch()} />}
             <Card>
               {documents.isLoading ? (
                 <EmptyNote>กำลังโหลด…</EmptyNote>
-              ) : (documents.data?.length ?? 0) === 0 ? (
+              ) : documents.isError && !documents.data ? null : (documents.data?.length ?? 0) === 0 ? (
                 <EmptyNote>ไม่มีเอกสาร</EmptyNote>
               ) : (
                 documents.data!.map((doc, index) => {
@@ -327,6 +338,8 @@ export default function CaseDetailScreen() {
                       {index > 0 && <View style={styles.divider} />}
                       <Pressable
                         style={({ pressed }) => [styles.listRow, pressed && { opacity: 0.7 }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`เปิด ${filename}`}
                         disabled={openingDoc === doc.id}
                         onPress={async () => {
                           setOpeningDoc(doc.id);

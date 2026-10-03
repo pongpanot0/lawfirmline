@@ -6,9 +6,11 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PracticeSetupService } from './practice-setup.service';
+import { TaskRoutineDefinitionDto, TaskRoutineSourceDto } from '../tasks/dto/task-routine.dto';
 class ImportRowDto { @IsString() @MaxLength(200) clientName!: string; @IsString() @MaxLength(100) caseRef!: string; @IsString() @MaxLength(300) caseTitle!: string; }
 class ImportDto { @IsArray() @ArrayMinSize(1) @ArrayMaxSize(200) @ValidateNested({ each: true }) @Type(() => ImportRowDto) rows!: ImportRowDto[]; }
 class StepDto {
+  @IsOptional() @ValidateNested() @Type(() => TaskRoutineDefinitionDto) routine?: TaskRoutineDefinitionDto;
   @IsString() @MaxLength(200) title!: string;
   @IsOptional() @IsString() @MaxLength(5000) instructions?: string;
   @IsOptional() @IsIn(['OWNER', 'SENIOR_LAWYER', 'LAWYER', 'ASSISTANT']) primaryRole?: 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
@@ -35,6 +37,7 @@ class ReleaseDto {
 }
 class ApplyDto { @IsUUID() releaseId!: string; }
 class StageTaskItemDto {
+  @IsOptional() @ValidateNested() @Type(() => TaskRoutineSourceDto) routineSource?: TaskRoutineSourceDto;
   @IsString() @MaxLength(200) title!: string;
   @IsOptional() @IsString() @MaxLength(5000) description?: string;
   @IsOptional() @IsDateString() dueDate?: string | null;

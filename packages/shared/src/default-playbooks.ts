@@ -3,8 +3,10 @@
 // kept inside the legal deadline cited in `instructions`.
 // Sources and unverified points: docs/research/2026-09-28-default-courts-and-playbooks.md
 import type { CaseStage, FirmRole } from './index';
+import type { TaskRoutineDefinition } from './task-routine';
 
 export interface DefaultPlaybookStep {
+  routine?: TaskRoutineDefinition;
   title: string;
   instructions: string;
   primaryRole?: `${FirmRole}`;

@@ -1087,7 +1087,7 @@ export class BillingService {
     const [billedTime, billedExpenses] = await Promise.all([
       caseId && dto.timeEntryIds?.length
         ? this.prisma.timeEntry.findMany({
-            where: { id: { in: dto.timeEntryIds }, caseId, invoiceId: null },
+            where: { id: { in: dto.timeEntryIds }, caseId, invoiceId: null, billable: true },
             orderBy: { date: 'asc' },
           })
         : [],
@@ -1224,16 +1224,18 @@ export class BillingService {
       // งานถูกเก็บเงินครั้งเดียวแม้จะแบ่งเป็นหลายใบ จึงผูกไว้กับใบของผู้จ่ายหลัก
       const primaryInvoiceId = invoices[0].id;
       if (billedTime.length) {
-        await tx.timeEntry.updateMany({
-          where: { id: { in: billedTime.map((entry) => entry.id) } },
+        const claimed = await tx.timeEntry.updateMany({
+          where: { id: { in: billedTime.map((entry) => entry.id) }, invoiceId: null, caseId, billable: true },
           data: { invoiceId: primaryInvoiceId },
         });
+        if (claimed.count !== billedTime.length) throw new ConflictException('รายการเวลาถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
       }
       if (billedExpenses.length) {
-        await tx.expense.updateMany({
-          where: { id: { in: billedExpenses.map((expense) => expense.id) } },
+        const claimed = await tx.expense.updateMany({
+          where: { id: { in: billedExpenses.map((expense) => expense.id) }, invoiceId: null, caseId, billable: true, status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] } },
           data: { invoiceId: primaryInvoiceId },
         });
+        if (claimed.count !== billedExpenses.length) throw new ConflictException('ค่าใช้จ่ายถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
       }
 
       return invoices;

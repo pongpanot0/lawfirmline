@@ -72,11 +72,27 @@ export interface TaskItem {
   caseId: string | null;
   createdById?: string;
   description?: string | null;
-  attachments?: Array<{ id: string; filename: string; size: number }>;
-  comments?: Array<{ id: string; body: string; author: { firstName: string; lastName: string } }>;
+  requiresReview?: boolean;
+  recurrenceDays?: number | null;
+  blockedById?: string | null;
+  followUps?: Array<{ id: string; title: string; status: string; dueDate: string | null; followUpSourceCommentId: string; assignee?: { id: string; firstName: string; lastName: string } | null }>;
+  workType?: import('@lawfirm/shared').TaskWorkType | null;
+  routine?: import('@lawfirm/shared').TaskRoutineSnapshot | null;
+  routineCompletedChecks?: number[];
+  updatedAt?: string;
+  acknowledgedAt?: string | null;
+  assignedAt?: string | null;
+  scheduledFor?: string | null;
+  planConfirmedAt?: string | null;
+  handedOffById?: string | null;
+  onHold?: { reason: string; endedAt: string | null } | null;
+  assignmentLogs?: Array<{ action: string; note?: string | null; fromUserId?: string | null }>;
+  reviewerId?: string | null;
+  attachments?: Array<{ id: string; filename: string; size: number; mimeType?: string }>;
+  comments?: Array<{ id: string; body: string; kind?: string; createdAt?: string; authorId?: string; author: { firstName: string; lastName: string } }>;
   assigneeId?: string | null;
   assignee?: { id: string; firstName: string; lastName: string } | null;
-  case?: { id: string; ownRef: string; title: string } | null;
+  case?: { id: string; ownRef: string; title: string; leadLawyerId?: string } | null;
 }
 
 export interface CalendarEventItem {
@@ -175,4 +191,43 @@ export interface LeaveItem {
   startDate: string;
   endDate: string;
   user?: { firstName: string; lastName: string };
+  courtConflicts?: Array<{ eventId: string; caseId: string; caseRef: string; title: string; courtName: string | null; startAt: string }>;
+}
+
+export interface CollectionInvoice {
+  id: string; invoiceNumber: string; status: 'DRAFT' | 'SENT' | 'PAID';
+  customerName: string | null; subject: string; caseId: string | null; caseRef: string | null;
+  totalAmount: number; paidAmount: number; outstanding: number; issuedAt: string | null; dueAt: string | null;
+  daysOverdue: number; lastReminderAt: string | null; updatedAt: string;
+  collectionOwner: { id: string; firstName: string; lastName: string } | null;
+  collectionNextAt: string | null; collectionNote: string | null;
+}
+
+export interface InvoicePaymentItem {
+  id: string; invoiceId: string; amount: number; receivedAt: string;
+  method: 'TRANSFER' | 'CHEQUE' | 'CASH' | 'OTHER'; note: string | null;
+  invoice?: { invoiceNumber: string };
+  createRequestId?: string | null;
+}
+
+export const PAYMENT_METHOD_LABEL = { TRANSFER: 'โอนเงิน', CHEQUE: 'เช็ค', CASH: 'เงินสด', OTHER: 'อื่น ๆ' } as const;
+
+export interface CollectionDetail extends CollectionInvoice {
+  lineItems: Array<{ id: string; description: string; quantity: number; unitPrice: number; amount: number }>;
+  payments: InvoicePaymentItem[];
+}
+
+export interface UnbilledCase {
+  case: { id: string; ownRef: string; title: string; clientName: string | null; leadLawyer: { id: string; firstName: string; lastName: string } };
+  amount: number; hours: number; timeEntryIds: string[]; expenseIds: string[];
+  lines: Array<{ id: string; kind: string; description: string; amount: number; date: string }>;
+}
+
+export interface OwnerFinance {
+  month: string;
+  totals: { received: number; billed: number; unbilled: number; payable: number; receivable: number };
+  receivables: CollectionInvoice[]; billed: CollectionInvoice[]; drafts: CollectionInvoice[];
+  receipts: InvoicePaymentItem[]; unbilled: UnbilledCase[];
+  payable: Array<{ id: string; claimId: string | null; amount: number; description: string; date: string;
+    case: { id: string; ownRef: string } | null; user: { firstName: string; lastName: string } }>;
 }

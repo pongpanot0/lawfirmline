@@ -61,7 +61,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [observerIds, setObserverIds] = useState<string[]>([]);
   const [siblingTasks, setSiblingTasks] = useState<Array<{ id: string; title: string; status: string }>>([]);
-  const [activeTab, setActiveTab] = useState<'summary' | 'source' | 'history' | 'edit'>(aiPanel ? 'summary' : 'edit');
+  const [activeTab, setActiveTab] = useState<'summary' | 'source' | 'history' | 'edit'>('edit');
   const [wide, setWide] = useState(false);
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     setDownloadingId(null);
     setObserverIds([]);
     setCompleted(''); setRemaining(''); setBlocker(''); setReviewNote('');
-    setActiveTab(aiPanel ? 'summary' : 'edit');
+    setActiveTab('edit');
   }, [taskId, aiPanel]);
 
   // Refreshing an access token must not discard an open task's drafts/results.
@@ -313,7 +313,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               aria-label={d.taskDetail.titleField}
               className="mt-1 w-full rounded-md border border-transparent bg-transparent px-1 text-lg font-semibold hover:border-input focus:border-input focus:outline-none"
             />}
-            {aiPanel && task && <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full bg-muted px-2 py-1">{statusLabel[task.status]}</span><span className="rounded-full bg-muted px-2 py-1">{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span></div>}
+            {task && <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full bg-muted px-2 py-1">{statusLabel[task.status]}</span><span className="rounded-full bg-muted px-2 py-1">{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>{task.assignee && <span>{task.assignee.firstName} {task.assignee.lastName}</span>}</div>}
           </div>
           <button type="button" onClick={onClose} aria-label={d.taskDetail.close} className="rounded-lg p-1.5 hover:bg-muted">
             <X className="h-4 w-4" />
@@ -321,7 +321,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
         </div>
 
         {aiPanel && task && <nav className="flex shrink-0 gap-4 overflow-x-auto border-b px-4 pt-3" aria-label={text('รายละเอียดงาน', 'Task details')}>
-          {([['summary', text('สรุปโดย AI', 'AI summary')], ['source', text('ข้อความต้นทาง', 'Source updates')], ['history', text('ประวัติงาน', 'History')], ['edit', text('แก้ไขงาน', 'Edit task')]] as const).map(([key, label]) => <button key={key} type="button" aria-current={activeTab === key ? 'page' : undefined} onClick={() => setActiveTab(key)} className={`whitespace-nowrap border-b-2 pb-3 text-xs font-semibold ${activeTab === key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
+          {([['edit', text('ทำงาน / ส่งตรวจ', 'Work / Review')], ['summary', text('สรุปโดย AI', 'AI summary')], ['source', text('ข้อความต้นทาง', 'Source updates')], ['history', text('ประวัติงาน', 'History')]] as const).map(([key, label]) => <button key={key} type="button" aria-current={activeTab === key ? 'page' : undefined} onClick={() => setActiveTab(key)} className={`whitespace-nowrap border-b-2 pb-3 text-xs font-semibold ${activeTab === key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
         </nav>}
 
         {error && <p role="alert" className="mx-4 mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
@@ -331,9 +331,9 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
 
         {task && (!aiPanel || activeTab === 'edit') && (
           <div className="space-y-6 p-4">
-            <section>
-              <h3 className="text-sm font-semibold mb-3">{d.taskDetail.relatedPeople || 'ผู้เกี่ยวข้อง'}</h3>
-              <div className="space-y-3">
+            <details>
+              <summary className="cursor-pointer text-sm font-semibold">{d.taskDetail.relatedPeople || 'ผู้เกี่ยวข้อง'}</summary>
+              <div className="mt-3 space-y-3">
                 {task.createdBy && (
                   <div className="text-sm">
                     <p className="text-xs font-medium text-muted-foreground mb-1">{d.taskDetail.creator || 'ผู้สร้าง'}</p>
@@ -370,7 +370,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   />
                 </div>
               </div>
-            </section>
+            </details>
 
             <section aria-label={d.taskDetail.attachments}>
               <h3 className="mb-2 text-sm font-semibold">{d.taskDetail.attachments} ({task.attachments.length})</h3>
@@ -394,12 +394,15 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 {!task.acknowledgedAt && <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => api.acknowledgeTask(token!, task.id), 'รับทราบงานแล้ว')}>ยืนยันรับทราบงาน</Button>}
                 <DateField label="แผนทำงานวันที่" value={task.scheduledFor?.slice(0, 10) ?? ''} disabled={busy} onChange={(e) => { if (e.target.value) void run(() => api.confirmTaskPlan(token!, task.id, e.target.value), 'ยืนยันแผนแล้ว'); }} />
                 <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => api.confirmTaskPlan(token!, task.id, today), 'ยืนยันแผนวันนี้แล้ว')}>{task.planConfirmedAt && task.scheduledFor?.slice(0, 10) === today ? 'ยืนยันแผนวันนี้แล้ว · ยืนยันอีกครั้ง' : 'ยืนยันว่าจะทำงานนี้วันนี้'}</Button>
-                <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.dailyTaskUpdate(token!, task.id, { completed, remaining, blocker }); setCompleted(''); setRemaining(''); setBlocker(''); }, 'บันทึกความคืบหน้าแล้ว'); }}>
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium">บันทึกความคืบหน้า / ขอความช่วยเหลือ</summary>
+                <form className="mt-3 space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.dailyTaskUpdate(token!, task.id, { completed, remaining, blocker }); setCompleted(''); setRemaining(''); setBlocker(''); }, 'บันทึกความคืบหน้าแล้ว'); }}>
                   <TextareaField label="ทำถึงไหนแล้ว" value={completed} required maxLength={1500} rows={2} disabled={busy} onChange={(e) => setCompleted(e.target.value)} />
                   <TextareaField label="เหลืออะไร" value={remaining} required maxLength={1500} rows={2} disabled={busy} onChange={(e) => setRemaining(e.target.value)} />
                   <TextareaField label="ติดอะไร / ต้องการให้ใครช่วย" value={blocker} maxLength={1500} rows={2} disabled={busy} onChange={(e) => setBlocker(e.target.value)} placeholder="เว้นว่างได้ถ้าไม่มี" />
                   <Button type="submit" size="sm" disabled={busy}>บันทึกความคืบหน้าวันนี้</Button>
                 </form>
+                </details>
                 {task.requiresReview && <div className="space-y-2 border-t pt-3">
                   <p className="text-xs text-muted-foreground">แนบผลงานด้านล่าง แล้วส่งให้ผู้ตรวจ</p>
                   {!task.reviewerId && !task.caseId && <SelectField label="ผู้ตรวจ" value={reviewerId} required onChange={(e) => setReviewerId(e.target.value)}><option value="">เลือกผู้ตรวจ</option>{users.filter((u) => u.id !== user?.id && u.firmRole && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(u.firmRole)).map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}</SelectField>}
@@ -466,6 +469,9 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               <div>
                 <DateTimeField id="td-due" label={d.taskDetail.dueDate} disabled={busy} value={task.dueDate ? bangkokInputValue(task.dueDate) : ''} onChange={(e) => e.target.value && patch({ dueDate: bangkokInputToIso(e.target.value) })} hint="เวลาไทย" />
               </div>
+              <details className="sm:col-span-2">
+                <summary className="cursor-pointer text-sm font-medium">{text('การทำซ้ำ / ลำดับงาน / ป้ายกำกับ', 'Recurrence / Dependencies / Labels')}</summary>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <div>
                 <label htmlFor="td-recur" className={label}>ทำซ้ำทุก (วัน)</label>
                 <input
@@ -486,7 +492,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               </div>
               {task.caseId && (
                 <div className="sm:col-span-2">
-                  <label htmlFor="td-blocked" className={label}>รอ task อื่นเสร็จก่อน (blocked by)</label>
+                  <label htmlFor="td-blocked" className={label}>{text('รอให้งานอื่นเสร็จก่อน', 'Wait for another task to finish')}</label>
                   <select
                     id="td-blocked"
                     disabled={busy}
@@ -523,6 +529,8 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   />
                 </div>
               </div>
+                </div>
+              </details>
             </section>
 
             <section>

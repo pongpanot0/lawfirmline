@@ -54,23 +54,27 @@ test('import previews, owner/tenant scope, concurrent replay, safe undo and roll
 test('immutable playbook versions, concurrent apply and knowledge access', async ({ request }) => {
   const f = await fixture(request); const other = await fixture(request);
   try {
-    const definition = { name: `Medical ${f.tag}`, workType: 'MEDICAL', steps: [{ title: 'Collect records', instructions: 'Ask for records', kind: 'DOCUMENT', days: 0 }, { title: 'Lawyer review', instructions: 'Review records', kind: 'APPROVAL', days: 2, parentIndex: 0 }] };
+    const definition = { name: `Medical ${f.tag}`, steps: [{ title: 'Collect records', instructions: 'Ask for records', stage: 'INTAKE_REVIEW' }, { title: 'Lawyer review', instructions: 'Review records', stage: 'INTAKE_REVIEW', offsetDays: 2, dayBasis: 'CALENDAR' }] };
     const release = await ok(await request.post(`${base}/playbooks`, { headers: f.headers, data: definition }));
     const revised = await ok(await request.post(`${base}/playbooks`, { headers: f.headers, data: { ...definition, steps: [{ ...definition.steps[0], title: 'Updated procedure' }] } }));
     expect(release.version).toBe(1); expect(revised.version).toBe(2);
     expect((await f.db.playbookRelease.findUniqueOrThrow({ where: { id: release.id } })).steps).toEqual(definition.steps);
     expect((await request.post(`${base}/playbooks`, { headers: f.memberHeaders, data: definition })).status()).toBe(403);
-    const payload = { releaseId: release.id, startDate: '2026-10-01T02:00:00.000Z' };
+    const payload = { releaseId: release.id };
     const endpoint = `${base}/cases/${f.legalCase.id}`;
     const preview = await ok(await request.post(`${endpoint}/preview`, { headers: f.headers, data: payload }));
-    expect(preview.steps[1].dueAt).toBe('2026-10-03T02:00:00.000Z');
+    expect(preview.steps).toEqual(definition.steps);
+    expect(preview.ownerId).toBe(f.auth.user.id);
     expect((await request.post(`${base}/cases/${other.legalCase.id}/apply`, { headers: f.headers, data: payload })).status()).toBe(404);
     expect((await request.post(`${base}/cases/${other.legalCase.id}/apply`, { headers: other.headers, data: payload })).status()).toBe(404);
     const applied = await Promise.all((await Promise.all([1, 2].map(() => request.post(`${endpoint}/apply`, { headers: f.headers, data: payload })))).map(ok));
     expect(applied[0].id).toBe(applied[1].id);
     expect((await ok(await request.post(`${endpoint}/apply`, { headers: f.headers, data: payload }))).id).toBe(applied[0].id);
-    const tasks = await f.db.task.findMany({ where: { caseId: f.legalCase.id } }); expect(tasks).toHaveLength(2);
-    expect(tasks.find(t => t.title === 'Lawyer review')?.parentId).toBe(tasks.find(t => t.title === 'Collect records')?.id);
+    const tasks = await f.db.task.findMany({ where: { caseId: f.legalCase.id } }); expect(tasks).toHaveLength(3);
+    const parent = tasks.find(t => t.parentId === null)!;
+    expect(parent.labels).toContain('stage:INTAKE_REVIEW');
+    expect(tasks.find(t => t.title === 'Lawyer review')?.parentId).toBe(parent.id);
+    expect(tasks.find(t => t.title === 'Collect records')?.parentId).toBe(parent.id);
     expect(tasks.every(t => t.assigneeId === f.auth.user.id)).toBe(true);
     await f.db.case.update({ where: { id: f.legalCase.id }, data: { status: 'CLOSED' } });
     expect((await request.post(`${endpoint}/apply`, { headers: f.headers, data: { ...payload, releaseId: revised.id } })).status()).toBe(400);

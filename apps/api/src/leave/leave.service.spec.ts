@@ -233,6 +233,7 @@ describe('LeaveService approval workflow', () => {
     expect(prisma.calendarEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         case: { firmId: 'firm-a' },
+        startAt: { gte: new Date('2026-10-04T17:00:00Z'), lt: new Date('2026-10-06T17:00:00Z') },
         ...eventForUserWhere('alice'),
       }),
     }));

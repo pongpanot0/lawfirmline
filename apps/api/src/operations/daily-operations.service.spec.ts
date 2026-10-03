@@ -55,13 +55,13 @@ describe('Owner daily operations', () => {
         { assigneeId: 'w', status: 'PENDING_REVIEW', size: 'L', scheduledFor: null, dueDate: null },
       ]) },
       leaveRequest: { findMany: jest.fn().mockResolvedValue([{ userId: 'w', startDate: new Date('2026-09-30T00:00:00Z'), endDate: new Date('2026-09-30T00:00:00Z') }]) },
-      calendarEvent: { findMany: jest.fn().mockResolvedValue([{ startAt: new Date('2026-09-28T02:00:00Z'), assigneeId: null, assignees: [], case: { leadLawyerId: 'w' } }]) },
+      calendarEvent: { findMany: jest.fn().mockResolvedValue([{ type: 'COURT_DATE', startAt: new Date('2026-09-28T02:00:00Z'), assigneeId: null, assignees: [], case: { leadLawyerId: 'w' } }]) },
     };
     const radar = await new DailyOperationsService(radarPrisma as any, {} as any, {} as any, {} as any).radar(owner, '2026-09-28');
     const w = radar.members[0];
     expect(radar.days).toEqual(['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']);
     expect(w).toMatchObject({ openCount: 3, openPoints: 7, reviewCount: 1, unscheduledCount: 1 });
-    expect(w.days[0]).toEqual({ date: '2026-09-28', taskCount: 1, points: 4, eventCount: 1, onLeave: false });
+    expect(w.days[0]).toEqual({ date: '2026-09-28', taskCount: 1, points: 4, eventCount: 1, courtCount: 1, onLeave: false });
     expect(w.days[1]).toMatchObject({ taskCount: 1, points: 2 });
     expect(w.days[2].onLeave).toBe(true);
   });

@@ -269,7 +269,7 @@ describe('TasksService on-hold', () => {
 
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.NEEDS_REVISION, assigneeId: 'user-1' },
+        data: { status: TaskStatus.NEEDS_REVISION, assigneeId: 'user-1', routineCompletedChecks: [] },
       });
       expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -421,7 +421,7 @@ describe('TasksService on-hold', () => {
 
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.NEEDS_REVISION, assigneeId: 'user-1' },
+        data: { status: TaskStatus.NEEDS_REVISION, assigneeId: 'user-1', routineCompletedChecks: [] },
       });
       expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -474,6 +474,7 @@ describe('TasksService on-hold', () => {
                 },
               },
               { assigneeId: null },
+              { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'user-2' } } },
             ],
           },
         ],

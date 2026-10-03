@@ -10,7 +10,8 @@ import {
   PauseCircle,
   UserX,
 } from 'lucide-react-native';
-import { useActions, type ActionItem } from '@/api/hooks';
+import { useActions, useTodos, type ActionItem } from '@/api/hooks';
+import { actionAppRoute } from '@/workflow';
 import { Card, EmptyNote, ErrorNote, Loading, Tag, TagTone } from '@/components/ui';
 import { thDate } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
@@ -25,17 +26,20 @@ const KIND_META: Record<
   DATE_REVIEW: { label: 'วันที่รอยืนยัน', tone: 'court', Icon: CalendarClock },
   DOCUMENT_REVIEW: { label: 'เอกสารรอรีวิว', tone: 'info', Icon: FileSearch },
   CLIENT_DRAFT: { label: 'ร่างอีเมลรอส่ง', tone: 'info', Icon: Inbox },
+  TASK_REVIEW: { label: 'งานรอคุณตรวจ', tone: 'info', Icon: FileSearch },
 };
-
-/** The web url in an action item maps onto the app's own case route. */
-function appRoute(item: ActionItem): string | null {
-  const match = item.url.match(/^\/cases\/([0-9a-f-]{36})/i);
-  return match ? `/case/${match[1]}` : null;
-}
 
 export default function NotificationsScreen() {
   const router = useRouter();
   const actions = useActions();
+  const reviews = useTodos('review');
+  const reviewIds = new Set((reviews.data ?? []).map(task => `task:${task.id}`));
+  const items: ActionItem[] = [
+    ...(reviews.data ?? []).map(task => ({ id: `task:${task.id}`, kind: 'TASK_REVIEW', title: task.title,
+      detail: task.comments?.[0]?.body ?? null, caseRef: task.case?.ownRef ?? null,
+      owner: null, dueAt: task.dueDate, url: '' })),
+    ...(actions.data?.items ?? []).filter(item => !reviewIds.has(item.id)),
+  ];
 
   if (actions.isLoading) return <Loading />;
 
@@ -47,20 +51,25 @@ export default function NotificationsScreen() {
         </View>
       ) : (
         <FlatList
-          data={actions.data?.items ?? []}
+          data={items}
           keyExtractor={(item) => item.id}
           contentContainerStyle={pageContent}
-          refreshing={actions.isRefetching}
-          onRefresh={() => actions.refetch()}
+          refreshing={actions.isRefetching || reviews.isRefetching}
+          onRefresh={() => { actions.refetch(); reviews.refetch(); }}
+          ListHeaderComponent={reviews.isError
+            ? <ErrorNote message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />
+            : actions.data?.limited ? <Text style={styles.detail}>แสดงรายการบางส่วน · เปิดคดีเพื่อดูรายการทั้งหมด</Text> : null}
           renderItem={({ item }) => {
             const meta = KIND_META[item.kind] ?? {
               label: item.kind,
               tone: 'plain' as TagTone,
               Icon: Inbox,
             };
-            const route = appRoute(item);
+            const route = actionAppRoute(item);
             return (
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`เปิด ${item.title}`}
                 disabled={!route}
                 onPress={() => route && router.push(route as never)}
                 style={({ pressed }) => pressed && { opacity: 0.7 }}
@@ -89,7 +98,7 @@ export default function NotificationsScreen() {
               </Pressable>
             );
           }}
-          ListEmptyComponent={<EmptyNote>ไม่มีเรื่องรอจัดการ 🎉</EmptyNote>}
+          ListEmptyComponent={reviews.isLoading ? <Loading /> : !reviews.isError ? <EmptyNote>ไม่มีเรื่องรอจัดการ</EmptyNote> : null}
         />
       )}
     </View>

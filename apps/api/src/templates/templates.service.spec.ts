@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TemplatesService } from './templates.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { DocumentsService } from '../documents/documents.service';
+import * as JSZip from 'jszip';
 
 const legalCase = {
   id: 'case-1',
@@ -44,6 +45,13 @@ describe('TemplatesService', () => {
   });
 
   describe('render', () => {
+    it('uses the linked client name when the case has no copied client name', async () => {
+      mockPrisma.documentTemplate.findFirst.mockResolvedValue({ name: 'หนังสือ', templateBody: '{{clientName}}' });
+      mockPrisma.case.findUnique.mockResolvedValue({ ...legalCase, clientName: null, client: { name: 'บริษัทลูกความที่ผูกไว้' } });
+      const rendered = await service.render('firm', 'tpl', 'case');
+      expect(rendered?.content).toBe('บริษัทลูกความที่ผูกไว้');
+      expect(rendered?.missingFields).toEqual([]);
+    });
     it('fills plaintiffNames and defendantNames from CaseParticipant roles', async () => {
       mockPrisma.documentTemplate.findFirst.mockResolvedValue({
         id: 'tpl-1',
@@ -87,6 +95,18 @@ describe('TemplatesService', () => {
   });
 
   describe('generate', () => {
+    it('rejects unresolved placeholders and saves exactly the reviewed content', async () => {
+      mockPrisma.documentTemplate.findFirst.mockResolvedValue({ name: 'หนังสือ', templateBody: '{{clientName}}' });
+      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
+      mockDocumentsService.createFromBuffer.mockResolvedValue({ id: 'draft' });
+      const user = { id: 'user', firmId: 'firm' } as any;
+      await expect(service.generate(user, 'case-1', 'tpl-1', 'เรียน {{courtName}}')).rejects.toThrow('เติมช่อง');
+      await expect(service.generate(user, 'case-1', 'tpl-1', 'เรียน {{ชื่อศาล}}')).rejects.toThrow('เติมช่อง');
+      expect(mockDocumentsService.createFromBuffer).not.toHaveBeenCalled();
+      await expect(service.generate(user, 'case-1', 'tpl-1', 'ฉบับที่ผู้ใช้ตรวจแล้ว')).resolves.toMatchObject({ documentId: 'draft' });
+      const zip = await JSZip.loadAsync(mockDocumentsService.createFromBuffer.mock.calls[0][2].buffer);
+      expect(await zip.file('word/document.xml')!.async('string')).toContain('ฉบับที่ผู้ใช้ตรวจแล้ว');
+    });
     it('renders the template, builds a .docx, and saves it via createFromBuffer', async () => {
       mockPrisma.documentTemplate.findFirst.mockResolvedValue({
         id: 'tpl-1',

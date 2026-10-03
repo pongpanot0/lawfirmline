@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { CARGO_CLAIM_PLAYBOOK_KEY, CaseStage, DEFAULT_PLAYBOOKS, DeadlineDayBasis, FirmRole, Role, SubscriptionStatus, type AuthUser } from '@lawfirm/shared';
+import { CARGO_CLAIM_PLAYBOOK_KEY, CaseStage, DEFAULT_PLAYBOOKS, DEFAULT_OFFICE_ROUTINES, taskRoutineSnapshot, DeadlineDayBasis, FirmRole, Role, SubscriptionStatus, type AuthUser } from '@lawfirm/shared';
 import { PracticeSetupService, resolveAssignee } from './practice-setup.service';
 
 describe('resolveAssignee', () => {
@@ -480,7 +480,7 @@ describe('default playbooks', () => {
     await service.ensureDefaultPlaybooks(user);
     const data = prisma.playbookRelease.createMany.mock.calls[0][0].data;
     // first: its case type already has the firm's own playbook, so skipped
-    expect(data.map((d: { templateKey: string }) => d.templateKey)).toEqual([second.key, ...rest.map((p) => p.key)]);
+    expect(data.map((d: { templateKey: string }) => d.templateKey)).toEqual([second.key, ...rest.map((p) => p.key), ...DEFAULT_OFFICE_ROUTINES.map(p => p.key)]);
     expect(data[0]).toMatchObject({ caseTypeId: 'ct-legacy', version: 1 });
     for (const d of data.slice(1)) expect(d.caseTypeId).toBeNull();
 
@@ -512,5 +512,20 @@ describe('default playbooks', () => {
       }
     }
     expect(new Set(DEFAULT_PLAYBOOKS.map((p) => p.key)).size).toBe(DEFAULT_PLAYBOOKS.length);
+  });
+  it('provides five office routines with sources, worked examples and missing-document instructions', () => {
+    expect(DEFAULT_OFFICE_ROUTINES).toHaveLength(5);
+    for (const playbook of DEFAULT_OFFICE_ROUTINES) {
+      const step = playbook.steps[0];
+      const routine = taskRoutineSnapshot({ id: playbook.key, name: playbook.name, version: 1 }, 0, step.routine!);
+      expect(routine.sourceHint).toBeTruthy();
+      expect(routine.sourceTemplate).toContain('[');
+      expect(routine.exampleOutput).toContain('สมมติ');
+      expect(routine.missingDocuments).toContain('ติดอะไร');
+      expect(step.instructions).toContain('1.');
+    }
+    expect(() => taskRoutineSnapshot({ id: 'test', name: 'test', version: 1 }, 0, {
+      ...DEFAULT_OFFICE_ROUTINES[0].steps[0].routine!, exampleOutput: 'x'.repeat(6001),
+    })).toThrow();
   });
 });

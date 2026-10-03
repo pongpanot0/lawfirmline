@@ -23,6 +23,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
+    { name: 'mobile-owner-office', testMatch: /mobile-owner-office\.spec\.ts/ },
+    { name: 'mobile-office-features', testMatch: /mobile-office-features\.spec\.ts/ },
+    { name: 'mobile-routine', testMatch: /mobile-routine\.spec\.ts/ },
+    { name: 'workflow-usability', testMatch: /workflow-usability\.spec\.ts/ },
+    { name: 'sop-ui', testMatch: /sop-ui\.spec\.ts/ },
+    { name: 'simple-forms', testMatch: /simple-forms\.spec\.ts/ },
     { name: 'practice-setup', testMatch: /practice-setup\.spec\.ts/ },
     { name: 'court-offline', testMatch: /court-offline\.spec\.ts/ },
     { name: 'portal-workroom', testMatch: /portal-workroom\.spec\.ts/ },

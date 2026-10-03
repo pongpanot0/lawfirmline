@@ -10,6 +10,7 @@ import { CaseFeedService } from '../common/services/case-feed.service';
 import { DocumentMetadataDto, DocumentQueryDto } from './dto/document-metadata.dto';
 import { Prisma } from '../generated/prisma';
 import { DocumentPublicationService } from './document-publication.service';
+import type { DocumentRequestDto } from './document-requests.controller';
 
 @Injectable()
 export class DocumentsService {
@@ -20,6 +21,45 @@ export class DocumentsService {
     private caseAccess: CaseAccessService,
     private publications: DocumentPublicationService,
   ) {}
+
+  private async requestCase(user: AuthUser, caseId: string) {
+    const legalCase = await this.prisma.case.findFirst({
+      where: { AND: [{ id: caseId }, this.caseAccess.getCaseFilterForUser(user)] },
+      select: { id: true, intakeId: true },
+    });
+    if (!legalCase) throw new NotFoundException('ไม่พบคดีที่คุณเข้าถึงได้');
+    return legalCase;
+  }
+
+  async listRequests(user: AuthUser, caseId?: string) {
+    if (caseId) await this.requestCase(user, caseId);
+    const access = this.caseAccess.getCaseFilterForUser(user);
+    const cases = caseId ? { AND: [{ id: caseId }, access] } : access;
+    const rows = await this.prisma.intakeDocumentRequest.findMany({
+      where: { OR: [{ case: cases }, { intake: { case: cases } }] },
+      include: { case: { select: { id: true, ownRef: true, title: true } },
+        intake: { select: { case: { select: { id: true, ownRef: true, title: true } } } } },
+      orderBy: [{ dueDate: 'asc' }, { requestedAt: 'desc' }],
+    });
+    return rows.map(({ intake, ...row }) => ({ ...row, case: row.case ?? intake?.case ?? null }));
+  }
+
+  async saveRequest(user: AuthUser, caseId: string, dto: DocumentRequestDto, id?: string) {
+    const legalCase = await this.requestCase(user, caseId);
+    const existing = id ? await this.prisma.intakeDocumentRequest.findFirst({ where: {
+      id, OR: [{ caseId }, ...(legalCase.intakeId ? [{ intakeId: legalCase.intakeId }] : [])],
+    } }) : null;
+    if (id && !existing) throw new NotFoundException('ไม่พบรายการรอเอกสารในคดีนี้');
+    if (!id && !dto.name?.trim()) throw new BadRequestException('ระบุเอกสารที่ต้องการ');
+    if ((!id || dto.requestedFrom !== undefined) && !dto.requestedFrom?.trim()) throw new BadRequestException('ระบุคนหรือหน่วยงานที่รอเอกสาร');
+    if (dto.documentId) await this.verifyDocument(caseId, dto.documentId);
+    const status = dto.status ?? existing?.status ?? 'REQUESTED';
+    const data = { ...dto, ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+      dueDate: dto.dueDate === null ? null : dto.dueDate ? new Date(dto.dueDate) : undefined,
+      receivedAt: status === 'RECEIVED' ? existing?.receivedAt ?? new Date() : null };
+    return id ? this.prisma.intakeDocumentRequest.update({ where: { id }, data })
+      : this.prisma.intakeDocumentRequest.create({ data: { ...data, name: dto.name!.trim(), caseId, createdById: user.id } });
+  }
 
   /** ค้นเอกสารข้ามทุกคดีที่ user เข้าถึงได้ — ชื่อไฟล์ / หมวด / tag */
   async search(user: AuthUser, q?: string, category?: string) {

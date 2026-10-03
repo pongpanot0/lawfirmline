@@ -67,10 +67,26 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
     finally { setBusy(false); onSaving(false); }
   };
 
-  return <form onSubmit={save} className="space-y-5 p-5">
+  return <form onSubmit={save} onInvalidCapture={(event) => {
+    const details = (event.target as HTMLElement).closest('details');
+    if (details) details.open = true;
+  }} className="space-y-5 p-5">
     <fieldset disabled={busy} className="space-y-4">
       {task ? <p className="font-semibold">{task.title}</p> : <>
-        <TextField label="ชื่องาน" value={title} required maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder="เช่น ถอดเทปคำให้การพยาน" />
+        <p className="text-sm text-muted-foreground">กรอกชื่องานก็สร้างได้ · เลือกคนทำตอนนี้หรือมอบหมายภายหลัง</p>
+        <TextField label="ชื่องาน" value={title} required autoFocus maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder="เช่น ถอดเทปคำให้การพยาน" />
+      </>}
+      <SelectField label="ผู้รับผิดชอบ" required={!!task} value={assigneeId} onChange={(e) => { setAssigneeId(e.target.value); setConfirmed(false); }}>
+        <option value="">{task ? 'เลือกผู้รับผิดชอบ' : 'ยังไม่มอบหมาย'}</option>
+        {candidates.map(({ member, queue, points, configured, reviews }) => <option key={member.userId} value={member.userId}>
+          {member.firstName} {member.lastName} · {member.onLeave ? 'ลางาน' : configured ? 'ตรงประเภทงาน' : 'ยังไม่กำหนดประเภท'} · คิว {queue.length} งาน ({points} แต้ม){reviews.length > 0 ? ` · รอตรวจ ${reviews.length}` : ''}
+        </option>)}
+      </SelectField>
+      {!task && <DateField label="วางแผนทำวันที่" required value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />}
+      <details open={!!task} className="rounded-lg border border-border p-3">
+        <summary className="min-h-6 cursor-pointer text-sm font-medium">รายละเอียด / กำหนดส่ง / การจัดคิว{(description || caseId || due || review === 'YES' || placeFirst || size !== TaskSize.M || workType !== TaskWorkType.GENERAL || priority !== TaskPriority.MEDIUM) && ' · ปรับแล้ว'}</summary>
+        <div className="mt-4 space-y-4">
+      {!task && <>
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField label="ประเภทงาน" value={workType} onChange={(e) => { setWorkType(e.target.value as TaskWorkType); setConfirmed(false); }}>
             {TASK_WORK_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -81,19 +97,10 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
           </SelectField>
         </div>
         <TextareaField label="รายละเอียด / ผลงานที่ต้องส่ง" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <DateField label="วางแผนทำวันที่" required value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
-          <DateTimeField label="กำหนดส่ง (ถ้ามี)" value={due} onChange={(e) => setDue(e.target.value)} hint="เวลาไทย · ไม่ใช้กำหนดส่งเพื่อคำนวณชั่วโมงว่าง" />
-        </div>
+        <DateTimeField label="กำหนดส่ง (ถ้ามี)" value={due} onChange={(e) => setDue(e.target.value)} hint="เวลาไทย · ไม่ใช้กำหนดส่งเพื่อคำนวณชั่วโมงว่าง" />
       </>}
       <SelectField label="ขนาดงาน" value={size} onChange={(e) => { setSize(e.target.value as TaskSize); setConfirmed(false); }} hint="ใช้คิดแต้มภาระงาน: เล็ก 1 · กลาง 2 · ใหญ่ 4">
         {TASK_SIZES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-      </SelectField>
-      <SelectField label="ผู้รับผิดชอบ" required={!!task} value={assigneeId} onChange={(e) => { setAssigneeId(e.target.value); setConfirmed(false); }} hint="เรียงจากประเภทงานที่กำหนดไว้ วันลา และข้อมูลความคืบหน้า">
-        <option value="">{task ? 'เลือกผู้รับผิดชอบ' : 'ยังไม่มอบหมาย'}</option>
-        {candidates.map(({ member, queue, points, configured, reviews }) => <option key={member.userId} value={member.userId}>
-          {member.firstName} {member.lastName} · {member.onLeave ? 'ลางาน' : configured ? 'ตรงประเภทงาน' : 'ยังไม่กำหนดประเภท'} · คิว {queue.length} งาน ({points} แต้ม){reviews.length > 0 ? ` · รอตรวจ ${reviews.length}` : ''}
-        </option>)}
       </SelectField>
       {selected && <div className="rounded-lg border bg-muted/40 p-3 text-sm">
         <p className="font-medium">งานเดิมของ {selected.member.firstName} · {selected.points} แต้ม</p>
@@ -118,6 +125,8 @@ export function WorkAssignmentForm({ board, task, token, onSaved, onClose, onSav
         <option value="">เลือก Owner / ทนายอาวุโส</option>
         {board.members.filter((m) => ['OWNER', 'SENIOR_LAWYER'].includes(m.role) && m.userId !== assigneeId).map((m) => <option key={m.userId} value={m.userId}>{m.firstName} {m.lastName}</option>)}
       </SelectField>}
+        </div>
+      </details>
       {risks.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
         <p className="font-medium">ตรวจสอบก่อนมอบหมาย</p><ul className="mt-1 list-inside list-disc">{risks.map((r) => <li key={String(r)}>{r}</li>)}</ul>
         <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-1" />รับทราบข้อมูลและยืนยันการจัดงานนี้</label>

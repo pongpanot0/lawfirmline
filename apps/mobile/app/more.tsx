@@ -20,6 +20,7 @@ import { Card } from '@/components/ui';
 import { colors, spacing, pageContent } from '@/theme';
 
 const ITEMS = [
+  { route: '/document-waiting', Icon: FilePlus2, title: 'รอเอกสารจากภายนอก', detail: 'ขาดอะไร รอจากใคร ติดตามวันไหน และได้รับแล้วหรือยัง' },
   { route: '/settings', Icon: Settings, title: 'ตั้งค่า', detail: 'ปรับขนาดตัวอักษรให้มองเห็นง่าย' },
   { route: '/search', Icon: Search, title: 'ค้นหาไฟล์', detail: 'ค้นชื่อไฟล์ในทุกคดีที่เข้าถึงได้' },
   { route: '/leaves', Icon: CalendarOff, title: 'ขอลา', detail: 'เลือกประเภทและวันที่ ดูสถานะคำขอ' },

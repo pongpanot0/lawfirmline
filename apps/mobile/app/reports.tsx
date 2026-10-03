@@ -1,8 +1,10 @@
 import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useAuth } from '@/api/auth';
-import { useOwnerKpis, useReportsSummary } from '@/api/hooks';
+import { useOwnerKpis, useReportsSummary, useOwnerFinance } from '@/api/hooks';
+import { useRouter } from 'expo-router';
+import { OwnerFinanceSummary } from '@/components/OwnerFinanceSummary';
 import { Card, ErrorNote, Loading, SectionLabel, StatCard, Tag } from '@/components/ui';
 import { formatMoney } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
@@ -12,6 +14,8 @@ export default function ReportsScreen() {
   const reports = useReportsSummary();
   const { user } = useAuth();
   const ownerKpis = useOwnerKpis(user?.firmRole === 'OWNER');
+  const finance = useOwnerFinance(user?.firmRole === 'OWNER');
+  const router = useRouter();
 
   if (reports.isLoading) return <Loading />;
   if (reports.isError || !reports.data)
@@ -29,7 +33,7 @@ export default function ReportsScreen() {
       style={styles.screen}
       contentContainerStyle={pageContent}
       refreshControl={
-        <RefreshControl refreshing={reports.isRefetching} onRefresh={() => reports.refetch()} />
+        <RefreshControl refreshing={reports.isRefetching} onRefresh={() => { void reports.refetch(); if (user?.firmRole === 'OWNER') { void ownerKpis.refetch(); void finance.refetch(); } }} />
       }
     >
       <Tag tone="info">{scope === 'firm' ? 'ภาพรวมทั้งสำนักงาน' : 'เฉพาะคดีของฉัน'}</Tag>
@@ -37,13 +41,11 @@ export default function ReportsScreen() {
       {ownerKpis.isSuccess && ownerKpis.data && (
         <>
           <SectionLabel>ภาพรวมเจ้าของสำนักงาน</SectionLabel>
+          {finance.isError && <ErrorNote message="โหลดรายการการเงินไม่ได้" onRetry={() => finance.refetch()} />}
+          <OwnerFinanceSummary data={finance.data} onOpen={view => router.push(`/owner-finance?view=${view}`)} />
           <View style={styles.statRow}>
-            <StatCard
-              label="ยังไม่วางบิล"
-              value={`${formatMoney(ownerKpis.data.unbilled.amount)} ฿`}
-              hint={`${ownerKpis.data.unbilled.hours.toLocaleString('th-TH')} ชม. ยังไม่วางบิล`}
-            />
-            <StatCard
+            <Pressable accessibilityRole="button" accessibilityLabel="เปิดงานที่ยังไม่วางบิล" style={{ flex: 1 }} onPress={() => router.push('/owner-finance?view=unbilled')}><StatCard label="ชั่วโมงยังไม่สร้างบิล" value={`${ownerKpis.data.unbilled.hours.toLocaleString('th-TH')} ชม.`} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="เปิดรายการลูกหนี้" style={{ flex: 1 }} onPress={() => router.push('/owner-finance')}><StatCard
               label="อัตราเก็บเงินได้"
               value={
                 ownerKpis.data.collectionRate.value != null
@@ -56,21 +58,17 @@ export default function ReportsScreen() {
                   ? 'warn'
                   : undefined
               }
-            />
+            /></Pressable>
           </View>
           <View style={[styles.statRow, { marginTop: spacing.sm }]}>
-            <StatCard
+            <Pressable accessibilityRole="button" accessibilityLabel="เปิดหนี้ค้างเพื่อจัดการ" style={{ flex: 1 }} onPress={() => router.push('/owner-finance')}><StatCard
               label="หนี้ค้างเฉลี่ย"
               value={
                 ownerKpis.data.avgDaysOutstanding != null
                   ? `${ownerKpis.data.avgDaysOutstanding} วัน`
                   : '—'
               }
-            />
-            <StatCard
-              label="เงินรับเดือนนี้"
-              value={`${formatMoney(ownerKpis.data.revenue.month)} ฿`}
-            />
+            /></Pressable>
           </View>
         </>
       )}
@@ -122,9 +120,9 @@ export default function ReportsScreen() {
                     {row.lawyerName}
                   </Text>
                   <Text style={styles.meta}>{row.hours.toLocaleString('th-TH')} ชม.</Text>
-                  <Text style={styles.count}>
+                  {user?.firmRole === 'OWNER' && <Text style={styles.count}>
                     {formatMoney(row.revenue)} ฿
-                  </Text>
+                  </Text>}
                 </View>
               </View>
             ))}

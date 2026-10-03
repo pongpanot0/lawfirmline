@@ -11,6 +11,9 @@ import {
   CASE_STAGE_LABELS_TH,
   DeadlineDayBasis,
   DEFAULT_PLAYBOOKS,
+  DEFAULT_OFFICE_ROUTINES,
+  TaskRoutineDefinition,
+  taskRoutineSnapshot,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
@@ -24,6 +27,7 @@ export interface CheckedRow extends ImportRow { row: number; existingClientId: s
 export interface Ledger { cases: { id: string; updatedAt: string }[]; clients: { id: string; updatedAt: string }[] }
 export type FirmRoleStr = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT';
 export interface PlaybookStep {
+  routine?: TaskRoutineDefinition;
   title: string;
   instructions: string;
   primaryRole?: FirmRoleStr;
@@ -32,8 +36,8 @@ export interface PlaybookStep {
   offsetDays?: number;
   dayBasis?: 'CALENDAR' | 'BUSINESS';
 }
-export interface StageTaskProposal { title: string; description: string; dueDate: string | null; assigneeId: string | null; releaseName: string }
-export interface StageTaskInput { title: string; description?: string; dueDate?: string | null; assigneeId?: string | null }
+export interface StageTaskProposal { title: string; description: string; dueDate: string | null; assigneeId: string | null; releaseName: string; routineSource?: { releaseId: string; stepIndex: number } }
+export interface StageTaskInput { title: string; description?: string; dueDate?: string | null; assigneeId?: string | null; routineSource?: { releaseId: string; stepIndex: number } }
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 
 /**
@@ -159,7 +163,7 @@ export class PracticeSetupService {
       this.prisma.playbookRelease.findMany({ where: { firmId: user.firmId }, select: { templateKey: true, caseTypeId: true } }),
       this.prisma.caseType.findMany({ where: { firmId: user.firmId, name: { in: DEFAULT_PLAYBOOKS.flatMap((p) => p.caseTypeNames) } }, select: { id: true, name: true } }),
     ]);
-    const data = DEFAULT_PLAYBOOKS.flatMap((p) => {
+    const data = [...DEFAULT_PLAYBOOKS, ...DEFAULT_OFFICE_ROUTINES].flatMap((p) => {
       if (releases.some((r) => r.templateKey === p.key)) return [];
       const caseType = p.caseTypeNames.map((name) => caseTypes.find((c) => c.name === name)).find(Boolean);
       if (caseType && releases.some((r) => r.caseTypeId === caseType.id)) return [];
@@ -172,6 +176,12 @@ export class PracticeSetupService {
   async publish(user: AuthUser, dto: { name: string; caseTypeId?: string; templateKey?: string; cargoTemplate?: CargoPlaybookTemplate; steps: PlaybookStep[] }) {
     this.owner(user);
     if (!dto.name.trim() || !dto.steps.length || dto.steps.some((s) => !s.title.trim())) throw new BadRequestException('ชื่อ Playbook และชื่อขั้นตอนห้ามว่าง / Name and step titles are required');
+    for (const [index, step] of dto.steps.entries()) {
+      if (!step.routine) continue;
+      if (!step.instructions?.trim()) throw new BadRequestException('งานประจำต้องมีวิธีทำให้คนใหม่ทำตามได้');
+      try { taskRoutineSnapshot({ id: '', name: dto.name, version: 1 }, index, step.routine); }
+      catch (e) { throw new BadRequestException((e as Error).message); }
+    }
     if (dto.templateKey === CARGO_CLAIM_PLAYBOOK_KEY) {
       const requirements = dto.cargoTemplate?.requirements ?? [];
       if (!requirements.length || requirements.some((item) => !item.code.trim() || !item.label.trim()) || new Set(requirements.map((item) => item.code)).size !== requirements.length) {
@@ -244,6 +254,13 @@ export class PracticeSetupService {
         db.case.findFirst({ where: { id: caseId } }),
       ]);
       const teamIds = new Set([preview.ownerId, ...team.map(t => t.userId)]);
+      const routineFields = (step: PlaybookStep, assigneeId: string) => {
+        if (!step.routine) return {};
+        const reviewerId = firmMembers.find(m => m.userId === preview.ownerId && m.userId !== assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId
+          ?? firmMembers.find(m => m.userId !== assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId;
+        if (!reviewerId) throw new BadRequestException('งานประจำต้องมี Owner หรือทนายอาวุโสอีกคนเป็นผู้ตรวจ');
+        return { routine: json(taskRoutineSnapshot(preview.release, preview.steps.indexOf(step), step.routine)), requiresReview: true, reviewerId };
+      };
       const taskIds: string[] = [];
 
       // Group steps by stage
@@ -282,6 +299,8 @@ export class PracticeSetupService {
                 caseId,
                 title: step.title.trim(),
                 description: step.instructions,
+                ...routineFields(step, assigneeId),
+                assignedAt: new Date(),
                 assigneeId,
                 createdById: user.id,
                 parentId: parent.id,
@@ -299,6 +318,8 @@ export class PracticeSetupService {
                 caseId,
                 title: step.title.trim(),
                 description: step.instructions,
+                ...routineFields(step, assigneeId),
+                assignedAt: new Date(),
                 assigneeId,
                 createdById: user.id,
                 labels: [`playbook:${releaseId}`],
@@ -339,11 +360,11 @@ export class PracticeSetupService {
     }
     const releases = [...applied.map((a) => a.release), ...latestByName.values()];
 
-    const stepsByTitle = new Map<string, { step: PlaybookStep; releaseName: string }>();
+    const stepsByTitle = new Map<string, { step: PlaybookStep; releaseName: string; routineSource?: { releaseId: string; stepIndex: number } }>();
     for (const release of releases) {
       for (const step of release.steps as unknown as PlaybookStep[]) {
         if (step.stage !== stage || stepsByTitle.has(step.title)) continue;
-        stepsByTitle.set(step.title, { step, releaseName: release.name });
+        stepsByTitle.set(step.title, { step, releaseName: release.name, ...(step.routine ? { routineSource: { releaseId: release.id, stepIndex: (release.steps as unknown as PlaybookStep[]).indexOf(step) } } : {}) });
       }
     }
     // อย่าเสนองานที่มีอยู่แล้วในคดี ไม่ว่าจะสร้างจากขั้นนี้ (stage:<STAGE>) หรือจากการใช้ playbook (playbook:<releaseId>)
@@ -358,7 +379,7 @@ export class PracticeSetupService {
     const teamIds = new Set([c.leadLawyerId, ...team.map((t) => t.userId)]);
 
     return Promise.all(
-      [...stepsByTitle.values()].map(async ({ step, releaseName }) => ({
+      [...stepsByTitle.values()].map(async ({ step, releaseName, routineSource }) => ({
         title: step.title,
         description: step.instructions,
         dueDate:
@@ -372,6 +393,7 @@ export class PracticeSetupService {
               ),
         assigneeId: resolveAssignee({ primaryRole: step.primaryRole, secondaryRole: step.secondaryRole, firmMembers, teamIds, ownerId: c.leadLawyerId }),
         releaseName,
+        ...(routineSource ? { routineSource } : {}),
       })),
     );
   }
@@ -387,6 +409,19 @@ export class PracticeSetupService {
       const memberIds = new Set(members.map((m) => m.userId));
       if (assigneeIds.some((id) => !memberIds.has(id))) throw new BadRequestException('ผู้รับผิดชอบต้องเป็นสมาชิกสำนักงาน / Assignee must be a firm member of this case');
     }
+
+    // Resolve only explicit SOP references; a similar task title never turns ordinary work into a routine.
+    const routineMembers = tasks.some(t => t.routineSource) ? await this.prisma.firmMember.findMany({ where: { firmId: user.firmId }, select: { userId: true, role: true } }) : [];
+    const requirements = await Promise.all(tasks.map(async task => {
+      if (!task.routineSource) return {};
+      const release = await this.prisma.playbookRelease.findFirst({ where: { id: task.routineSource.releaseId, firmId: user.firmId } });
+      const step = (release?.steps as unknown as PlaybookStep[])?.[task.routineSource.stepIndex];
+      if (!release || !step?.routine || step.stage !== stage || !task.assigneeId) throw new BadRequestException('เลือกงานประจำจาก SOP ของขั้นนี้และระบุผู้ทำงาน');
+      const reviewerId = routineMembers.find(m => m.userId === c.leadLawyerId && m.userId !== task.assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId
+        ?? routineMembers.find(m => m.userId !== task.assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId;
+      if (!reviewerId) throw new BadRequestException('งานประจำต้องมีผู้ตรวจอีกคน');
+      return { routine: json(taskRoutineSnapshot(release, task.routineSource.stepIndex, step.routine)), description: step.instructions, requiresReview: true, reviewerId, assignedAt: new Date() };
+    }));
 
     // Find or create open parent task for this stage
     let parent = await this.prisma.task.findFirst({
@@ -412,12 +447,13 @@ export class PracticeSetupService {
 
     // Create subtasks
     const created = await Promise.all(
-      tasks.map((t) =>
+      tasks.map((t, index) =>
         this.prisma.task.create({
           data: {
             caseId,
             title: t.title.trim(),
             description: t.description ?? null,
+            ...requirements[index],
             dueDate: t.dueDate ? new Date(t.dueDate) : null,
             assigneeId: t.assigneeId ?? null,
             createdById: user.id,

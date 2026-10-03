@@ -52,6 +52,9 @@ function CasesPageContent() {
   const canManageLegacyIntakes = user?.role === Role.ADMIN || user?.firmRole === FirmRole.OWNER;
   const router = useRouter();
   const searchParams = useSearchParams();
+  const sopId = searchParams.get('sop');
+  const newCaseHref = sopId ? `/cases/new?sop=${encodeURIComponent(sopId)}` : '/cases/new';
+  const caseHref = (id: string) => `/cases/${id}${sopId ? `?tab=tasks&sop=${encodeURIComponent(sopId)}` : ''}`;
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -239,8 +242,8 @@ function CasesPageContent() {
   return (
     <div>
       <PageHeader
-        title={d.cases.title}
-        description={d.cases.description}
+        title={sopId ? 'เลือกคดีที่จะใช้ SOP' : d.cases.title}
+        description={sopId ? 'เลือกคดีเพื่อดูรายการงานก่อนยืนยันเพิ่ม ระบบจะเก็บคดีและ SOP ที่เลือกไว้ให้' : d.cases.description}
         actions={
           <>
             <Button variant="outline" size="sm" disabled={sorted.length === 0} onClick={exportCsv}>
@@ -248,7 +251,7 @@ function CasesPageContent() {
               {d.common.export}
             </Button>
             {canCreate && (
-              <Button size="sm" onClick={() => router.push('/cases/new')}>
+              <Button size="sm" onClick={() => router.push(newCaseHref)}>
                 <Plus className="h-4 w-4" />{d.cases.newCase}
               </Button>
             )}
@@ -416,7 +419,7 @@ function CasesPageContent() {
               icon={Briefcase}
               title={d.cases.empty}
               description={d.cases.emptyHint}
-              action={canCreate && <Button onClick={() => router.push('/cases/new')}>{d.cases.newCase}</Button>}
+              action={canCreate && <Button onClick={() => router.push(newCaseHref)}>{d.cases.newCase}</Button>}
             />
           ) : (
             <>
@@ -424,7 +427,7 @@ function CasesPageContent() {
               <ul className="divide-y md:hidden">
                 {paginated.map((c) => (
                   <li key={c.id}>
-                    <Link href={`/cases/${c.id}`} className="block space-y-1.5 p-4 hover:bg-muted/50">
+                    <Link href={caseHref(c.id)} className="block space-y-1.5 p-4 hover:bg-muted/50">
                       <div className="flex items-start justify-between gap-3">
                         <span className="text-sm font-medium text-primary">{c.ownRef}</span>
                         <span className="flex shrink-0 flex-col items-end gap-1">
@@ -498,7 +501,7 @@ function CasesPageContent() {
                     <TableRow
                       key={c.id}
                       className="cursor-pointer"
-                      onClick={() => router.push(`/cases/${c.id}`)}
+                      onClick={() => router.push(caseHref(c.id))}
                     >
                       {canCreate && (
                         <TableCell onClick={(e) => e.stopPropagation()}>

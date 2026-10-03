@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { isoDay, thDate } from '@/format';
 import { colors, radius, spacing, TOUCH } from '@/theme';
+import { Button } from './ui';
 
 const TH_MONTHS = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -45,6 +46,9 @@ export function DatePicker({
   return (
     <>
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="เลือกวันที่"
+        accessibilityValue={{ text: valid ? thDate(parsed) : 'ยังไม่ได้เลือก' }}
         style={styles.field}
         onPress={() => {
           if (valid) setCursor({ y: parsed.getFullYear(), m: parsed.getMonth() });
@@ -55,11 +59,13 @@ export function DatePicker({
         <Text style={styles.fieldText}>{valid ? thDate(parsed) : 'เลือกวันที่'}</Text>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+      <Modal visible={open} transparent animationType="fade" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={() => setOpen(false)}>
+        <Pressable accessible={false} style={styles.backdrop} onPress={() => setOpen(false)}>
+          <Pressable accessible={false} style={styles.sheet} onPress={() => {}}>
             <View style={styles.head}>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="เดือนก่อนหน้า"
                 hitSlop={8}
                 style={styles.nav}
                 onPress={() =>
@@ -72,6 +78,8 @@ export function DatePicker({
                 {TH_MONTHS[cursor.m]} {cursor.y + 543}
               </Text>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="เดือนถัดไป"
                 hitSlop={8}
                 style={styles.nav}
                 onPress={() =>
@@ -81,6 +89,7 @@ export function DatePicker({
                 <ChevronRight size={20} color={colors.ink} />
               </Pressable>
             </View>
+            <ScrollView style={{ flexShrink: 1 }}>
             <View style={styles.grid}>
               {TH_DOW.map((d) => (
                 <Text key={d} style={styles.dow}>
@@ -94,6 +103,8 @@ export function DatePicker({
                 const isToday = key === todayKey;
                 return (
                   <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={thDate(date)}
                     key={key}
                     style={[styles.cell, isToday && styles.cellToday, isSelected && styles.cellOn]}
                     onPress={() => {
@@ -114,6 +125,8 @@ export function DatePicker({
                 );
               })}
             </View>
+            </ScrollView>
+            <Button title="ปิดปฏิทิน" ghost onPress={() => setOpen(false)} />
           </Pressable>
         </Pressable>
       </Modal>
@@ -142,6 +155,10 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   sheet: {
+    width: '100%',
+    maxWidth: 380,
+    maxHeight: '90%',
+    alignSelf: 'center',
     backgroundColor: colors.bg,
     borderRadius: 16,
     padding: spacing.lg,
@@ -153,10 +170,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   nav: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  // Stay just below 100% across seven columns so Yoga rounding cannot wrap Sunday.
   dow: {
-    width: `${100 / 7}%`,
+    width: '14.28%',
     textAlign: 'center',
     fontSize: 11,
     fontWeight: '600',
@@ -164,7 +182,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   cell: {
-    width: `${100 / 7}%`,
+    width: '14.28%',
     minHeight: TOUCH,
     alignItems: 'center',
     justifyContent: 'center',

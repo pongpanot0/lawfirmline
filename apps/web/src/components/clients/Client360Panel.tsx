@@ -141,7 +141,7 @@ export function Client360Panel({
             <Button onClick={() => openLog()} disabled={!overview.cases.length || !overview.client.contacts.length || !overview.lawyers.length}>
               <Plus className="mr-1.5 h-4 w-4" />บันทึกการติดต่อ
             </Button>
-            <Link href="/cases/new" className={buttonVariants({ variant: 'outline' })}>เปิด Case ใหม่</Link>
+            <Link href={`/cases/new?clientId=${encodeURIComponent(clientId)}`} className={buttonVariants({ variant: 'outline' })}>เปิด Case ใหม่</Link>
           </div>
         </div>
         <div className="grid grid-cols-2 border-t bg-muted/20 md:grid-cols-4">
@@ -177,7 +177,7 @@ export function Client360Panel({
                 <div className="min-w-0"><Link href={`/cases/${item.id}`} className="font-semibold hover:text-primary hover:underline">{item.title}</Link><p className="mt-1 text-xs text-muted-foreground">{item.ownRef}{item.customerRef ? ` · Customer Ref: ${item.customerRef}` : ''}{item.policyRef ? ` · Policy Ref: ${item.policyRef}` : ''}</p><div className="mt-2 flex flex-wrap gap-1.5">{item.roles.includes('REPRESENTED') && <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">ลูกความ</span>}{item.roles.includes('PAYER') && <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">ผู้ว่าจ้าง</span>}<span className="rounded bg-muted px-2 py-0.5 text-xs">{['CLOSED', 'ARCHIVED'].includes(item.status) ? 'ปิดแล้ว' : CASE_STAGE_LABELS_TH[item.stage as CaseStage] ?? item.stage}</span></div></div>
                 <Button size="sm" variant="outline" className="shrink-0 self-start" onClick={() => openLog(item.id)}>บันทึกการติดต่อ</Button>
               </div>)}
-            </div> : <InlineEmptyState icon={BriefcaseBusiness} title={overview.cases.length ? 'ไม่พบคดีที่ตรงกับตัวกรอง' : 'ยังไม่มี Case ของลูกค้ารายนี้'} description={overview.cases.length ? 'ลองเปลี่ยนคำค้นหาหรือตัวกรอง' : 'เริ่มด้วยการเปิด Case ขั้นก่อนฟ้อง'} action={!overview.cases.length && <Link href="/cases/new" className={buttonVariants({ size: 'sm' })}>เปิด Case ใหม่</Link>} />}
+            </div> : <InlineEmptyState icon={BriefcaseBusiness} title={overview.cases.length ? 'ไม่พบคดีที่ตรงกับตัวกรอง' : 'ยังไม่มี Case ของลูกค้ารายนี้'} description={overview.cases.length ? 'ลองเปลี่ยนคำค้นหาหรือตัวกรอง' : 'เริ่มด้วยการเปิด Case ขั้นก่อนฟ้อง'} action={!overview.cases.length && <Link href={`/cases/new?clientId=${encodeURIComponent(clientId)}`} className={buttonVariants({ size: 'sm' })}>เปิด Case ใหม่</Link>} />}
           </Card>
 
           <Card className="p-5 sm:p-6">

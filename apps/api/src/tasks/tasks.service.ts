@@ -16,6 +16,11 @@ import {
   TaskPriority,
   TaskStatus,
   normalizeTaskLabels,
+  TaskRoutineDefinition,
+  TaskRoutineSnapshot,
+  taskRoutineSnapshot,
+  routineMissing,
+  dailyUpdateParts,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -77,16 +82,18 @@ export class TasksService {
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     subtasks: { select: { status: true } },
     _count: { select: { attachments: true, comments: true, observers: true } },
+    assignmentLogs: { where: { action: TaskLogAction.HANDED_OFF }, orderBy: { createdAt: 'desc' as const }, take: 1, select: { fromUserId: true } },
   };
 
   private toBoardItem<
-    T extends { subtasks?: { status: string }[]; _count?: { attachments: number; comments: number } },
+    T extends { subtasks?: { status: string }[]; _count?: { attachments: number; comments: number }; assignmentLogs?: { fromUserId: string | null }[] },
   >(task: T) {
-    const { subtasks, _count, ...rest } = task;
+    const { subtasks, _count, assignmentLogs, ...rest } = task;
     const subtaskRows = subtasks ?? [];
     const counts = _count ?? { attachments: 0, comments: 0 };
     return {
       ...rest,
+      handedOffById: assignmentLogs?.[0]?.fromUserId ?? null,
       subtaskCount: subtaskRows.length,
       subtaskDoneCount: subtaskRows.filter((s) => s.status === TaskStatus.DONE).length,
       attachmentCount: counts.attachments,
@@ -133,7 +140,10 @@ export class TasksService {
     if (task.firmId && task.firmId !== user.firmId) throw new NotFoundException('Task not found');
     if (task.caseId) {
       if (!(await this.caseAccess.canAccessCase(user, task.caseId))) {
-        throw new ForbiddenException('You do not have access to this task');
+        const delivered = await this.prisma.task.findFirst({
+          where: { id: taskId, ...this.caseAccess.getTaskAccessFilterForUser(user) }, select: { id: true },
+        });
+        if (!delivered) throw new ForbiddenException('You do not have access to this task');
       }
       return task;
     }
@@ -302,16 +312,40 @@ export class TasksService {
     return this.remove(taskId);
   }
 
-  async findMine(user: AuthUser) {
+  async findMine(user: AuthUser, view = 'all') {
+    if (!['all', 'mine', 'created', 'review'].includes(view)) {
+      throw new BadRequestException('Unknown task view');
+    }
+    const viewFilter: Prisma.TaskWhereInput = view === 'created'
+      ? { createdById: user.id }
+      : view === 'review'
+        ? { status: TaskStatus.PENDING_REVIEW, OR: [
+          { caseId: null, assigneeId: user.id },
+          { caseId: { not: null }, reviewerId: user.id },
+          { reviewerId: null, case: user.firmRole === FirmRole.OWNER
+            ? { firmId: user.firmId } : { leadLawyerId: user.id } },
+        ] }
+        : { OR: [{ assigneeId: user.id }, { status: { in: [TaskStatus.PENDING_REVIEW, TaskStatus.DONE] }, assignmentLogs: { some: { action: TaskLogAction.HANDED_OFF, fromUserId: user.id } } }] };
     const tasks = await this.prisma.task.findMany({
-      where: {
+      where: view === 'all' ? {
         parentId: null,
         assignee: { firmMembers: { some: { firmId: user.firmId } } },
         ...this.caseAccess.getTaskFilterForUser(user),
+      } : {
+        AND: [
+          { OR: [
+            { case: { firmId: user.firmId, deletedAt: null } },
+            { caseId: null, ...this.standaloneFirmScope(user) },
+          ] },
+          this.caseAccess.getTaskAccessFilterForUser(user),
+          viewFilter,
+        ],
       },
       include: {
         ...this.boardInclude,
-        case: { select: { id: true, ownRef: true, title: true, blackCaseNumber: true, redCaseNumber: true } },
+        comments: { orderBy: { createdAt: 'desc' }, take: 1,
+          select: { id: true, body: true, createdAt: true, author: { select: { firstName: true, lastName: true } } } },
+        case: { select: { id: true, ownRef: true, title: true, blackCaseNumber: true, redCaseNumber: true, leadLawyerId: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -428,13 +462,36 @@ export class TasksService {
     source: TaskSource = TaskSource.WEB,
     intakeId?: string,
     queuePosition = 0,
-    followUp?: { parentId: string; sourceTaskId: string; sourceCommentId: string; sourceQuote: string },
+    followUp?: { parentId: string; sourceTaskId: string; sourceCommentId: string; sourceQuote: string; ownerEscalation?: boolean },
   ) {
+    const previousRequest = async () => {
+      const previous = dto.createRequestId ? await this.prisma.task.findUnique({ where: { createRequestId: dto.createRequestId } }) : null;
+      if (previous && (previous.firmId !== user.firmId || previous.createdById !== user.id || previous.caseId !== caseId)) throw new NotFoundException('ไม่พบคำขอบันทึกงานนี้');
+      return previous;
+    };
+    const previous = await previousRequest();
+    if (previous) return this.findOne(previous.id);
     if (!dto.title.trim()) throw new BadRequestException('ระบุชื่องาน');
+    let routine: TaskRoutineSnapshot | null = null;
+    if (dto.routineSource) {
+      if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole)) throw new ForbiddenException('ผู้ดูแลงานเท่านั้นที่เลือกวิธีทำงานประจำได้');
+      const release = await this.prisma.playbookRelease.findFirst({ where: { id: dto.routineSource.releaseId, firmId: user.firmId } });
+      const step = (release?.steps as unknown as { instructions?: string; routine?: TaskRoutineDefinition }[])?.[dto.routineSource.stepIndex];
+      if (!release || !step?.routine) throw new BadRequestException('ไม่พบวิธีทำงานประจำนี้ในสำนักงาน');
+      try { routine = taskRoutineSnapshot(release, dto.routineSource.stepIndex, step.routine); }
+      catch (e) { throw new BadRequestException((e as Error).message); }
+      if (!dto.requiresReview) throw new BadRequestException('งานประจำนี้ต้องเลือกผู้ตรวจและส่งตรวจ');
+      dto.description = step.instructions ?? '';
+    }
     if (dto.status === TaskStatus.PENDING_REVIEW || dto.status === TaskStatus.NEEDS_REVISION || (dto.requiresReview && dto.status === TaskStatus.DONE)) {
       throw new BadRequestException('ใช้ขั้นตอนส่งตรวจสำหรับงานที่ต้องตรวจ');
     }
-    if (dto.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
+    if (dto.assigneeId) {
+      if (followUp?.ownerEscalation) {
+        const owner = await this.prisma.firmMember.findFirst({ where: { firmId: user.firmId, userId: dto.assigneeId, role: FirmRole.OWNER } });
+        if (!owner) throw new ForbiddenException('ส่งจุดติดขัดให้ Owner ในสำนักงานนี้เท่านั้น');
+      } else await this.assertCanAssignTodo(user, dto.assigneeId);
+    }
     await this.validateReview(user, dto.requiresReview ?? false, dto.reviewerId);
     if (dto.requiresReview && dto.assigneeId === dto.reviewerId) throw new BadRequestException('ผู้ทำงานและผู้ตรวจต้องเป็นคนละคน');
     await this.validateObservers(dto.observerIds, !!caseId, user.firmId);
@@ -442,6 +499,7 @@ export class TasksService {
     const task = await this.prisma.task.create({
       data: {
         caseId,
+        createRequestId: dto.createRequestId,
         intakeId,
         parentId: followUp?.parentId,
         followUpSourceTaskId: followUp?.sourceTaskId,
@@ -449,6 +507,7 @@ export class TasksService {
         followUpSourceQuote: followUp?.sourceQuote,
         title: dto.title.trim(),
         description: dto.description,
+        routine: routine ? JSON.parse(JSON.stringify(routine)) : undefined,
         assigneeId: dto.assigneeId,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
         status: dto.status,
@@ -470,7 +529,14 @@ export class TasksService {
         completedAt: dto.status === TaskStatus.DONE ? new Date() : undefined,
       },
       include: this.taskInclude,
+    }).catch(async error => {
+      if (dto.createRequestId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await previousRequest();
+        if (existing) return { ...await this.findOne(existing.id), requestAlreadyCreated: true };
+      }
+      throw error;
     });
+    if ('requestAlreadyCreated' in task) return this.findOne(task.id);
 
     // Add observers
     if (dto.observerIds?.length) {
@@ -529,6 +595,11 @@ export class TasksService {
     const task = await this.findOne(id);
 
     if (task.firmId && task.firmId !== user.firmId) throw new NotFoundException('Task not found');
+    if (dto.recurrenceDays !== undefined && user.firmRole !== FirmRole.OWNER && task.assigneeId !== user.id) {
+      throw new ForbiddenException('Owner หรือผู้รับงานเท่านั้นที่ตั้งรอบงานซ้ำได้');
+    }
+    if (task.routine && dto.requiresReview === false) throw new BadRequestException('งานประจำนี้ต้องผ่านผู้ตรวจตาม SOP');
+    if (task.routine && dto.description !== undefined && dto.description !== task.description) throw new BadRequestException('งานนี้คงวิธีทำตามรุ่น SOP ที่ได้รับ');
     if (dto.assigneeId && dto.assigneeId !== task.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
     if (dto.requiresReview !== undefined || dto.reviewerId !== undefined) {
       if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole)) {
@@ -566,6 +637,7 @@ export class TasksService {
       }
       if (legalCase) this.assertLeadOrOwner(user, legalCase);
     }
+    if (dto.status === TaskStatus.DONE && task.blockedById) await this.assertRoutineReady(task);
 
     if (dto.assigneeId && !task.caseId && dto.assigneeId !== task.assigneeId) {
       await this.assertCanAssignTodo(user, dto.assigneeId);
@@ -595,6 +667,7 @@ export class TasksService {
         scheduledFor: dto.scheduledFor === null ? null : dto.scheduledFor ? new Date(`${dto.scheduledFor.slice(0, 10)}T00:00:00Z`) : undefined,
         assignedAt: dto.assigneeId && dto.assigneeId !== task.assigneeId ? new Date() : undefined,
         acknowledgedAt: dto.assigneeId && dto.assigneeId !== task.assigneeId ? (dto.assigneeId === user.id ? new Date() : null) : undefined,
+        routineCompletedChecks: dto.assigneeId && dto.assigneeId !== task.assigneeId ? [] : undefined,
         planConfirmedAt: dto.scheduledFor !== undefined || (dto.assigneeId && dto.assigneeId !== task.assigneeId) ? null : undefined,
         completedAt:
           dto.status === TaskStatus.DONE
@@ -684,6 +757,25 @@ export class TasksService {
     return this.findOne(taskId);
   }
 
+  /** Both case and standalone transitions enforce the same persisted routine requirements. */
+  async assertRoutineReady(task: { id: string; assigneeId: string | null; routine?: Prisma.JsonValue; routineCompletedChecks?: number[]; blockedById?: string | null }) {
+    if (task.blockedById) {
+      const dependency = await this.prisma.task.findUnique({ where: { id: task.blockedById }, select: { status: true } });
+      if (dependency && dependency.status !== TaskStatus.DONE) throw new BadRequestException('ยังรอคนแก้จุดติดขัด เปิดติดตามเรื่องนั้นก่อนส่งตรวจหรือปิดงาน');
+    }
+    if (!task.routine) return;
+    const [attachments, update, hold, dependency] = await Promise.all([
+      this.prisma.taskAttachment.findMany({ where: { taskId: task.id }, select: { mimeType: true } }),
+      this.prisma.taskComment.findFirst({ where: { taskId: task.id, kind: 'DAILY_UPDATE' }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.taskOnHold.findUnique({ where: { taskId: task.id } }),
+      this.prisma.task.findUnique({ where: { id: task.id }, select: { blockedBy: { select: { title: true, status: true } } } }),
+    ]);
+    const blocker = hold && !hold.endedAt ? hold.reason : dependency?.blockedBy && dependency.blockedBy.status !== TaskStatus.DONE
+      ? `รอ ${dependency.blockedBy.title}` : update ? dailyUpdateParts(update.body).blocker : '';
+    const missing = routineMissing(task.routine as unknown as TaskRoutineSnapshot, task.routineCompletedChecks ?? [], attachments, blocker);
+    if (missing.length) throw new BadRequestException(`ก่อนส่งงานยังขาด: ${missing.join(' · ')}`);
+  }
+
   /**
    * Runs once when a task transitions to DONE: spawn the next occurrence of a
    * recurring task, notify observers and parent observers, and tell owners of
@@ -711,8 +803,12 @@ export class TasksService {
 
     if (task.recurrenceDays) {
       const base = task.dueDate && task.dueDate > new Date() ? task.dueDate : new Date();
-      await this.prisma.task.create({
-        data: {
+      const handoff = await this.prisma.taskAssignmentLog.findFirst({ where: { taskId: task.id, action: TaskLogAction.HANDED_OFF }, orderBy: { createdAt: 'desc' }, select: { fromUserId: true } });
+      const workerId = handoff?.fromUserId ?? task.assigneeId;
+      await this.prisma.task.upsert({
+        where: { createRequestId: `recurrence:${task.id}` }, update: {},
+        create: {
+          createRequestId: `recurrence:${task.id}`,
           caseId: task.caseId,
           firmId: task.firmId,
           intakeId: task.intakeId,
@@ -720,10 +816,11 @@ export class TasksService {
           size: task.size,
           requiresReview: task.requiresReview,
           reviewerId: task.reviewerId,
-          assignedAt: task.assigneeId ? new Date() : null,
+          assignedAt: workerId ? new Date() : null,
           title: task.title,
           description: task.description,
-          assigneeId: task.assigneeId,
+          routine: task.routine ?? undefined,
+          assigneeId: workerId,
           createdById: task.createdById,
           priority: task.priority,
           labels: task.labels,
@@ -812,6 +909,8 @@ export class TasksService {
       throw new BadRequestException('งานนี้ไม่อยู่ในสถานะที่ส่งต่อได้');
     }
 
+    await this.assertRoutineReady(task);
+
     await this.ensureCaseMembership(caseId, task.reviewerId ?? legalCase.leadLawyerId);
     await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.PENDING_REVIEW, assigneeId: task.reviewerId ?? legalCase.leadLawyerId, completedAt: null } }, user);
 
@@ -842,6 +941,7 @@ export class TasksService {
       throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
     }
 
+    await this.assertRoutineReady(task);
     await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.DONE, completedAt: new Date() } }, user);
     await this.logActivity(caseId, `ปิดงาน "${task.title}"`, user.id);
     await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
@@ -868,7 +968,7 @@ export class TasksService {
     });
     const returnToUserId = lastHandoff?.fromUserId ?? task.createdById;
 
-    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId } }, user);
+    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId, routineCompletedChecks: [] } }, user);
 
     await this.logAssignment({
       taskId,
@@ -907,7 +1007,7 @@ export class TasksService {
 
     await this.prisma.task.update({
       where: { id: taskId },
-      data: { assigneeId: dto.assigneeId, assignedAt: new Date(), acknowledgedAt: null },
+      data: { assigneeId: dto.assigneeId, assignedAt: new Date(), acknowledgedAt: null, routineCompletedChecks: [] },
     });
 
     await this.logAssignment({
@@ -954,6 +1054,8 @@ export class TasksService {
       throw new BadRequestException('งานนี้ไม่อยู่ในสถานะที่ส่งต่อได้');
     }
 
+    await this.assertRoutineReady(task);
+
     await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.PENDING_REVIEW, assigneeId: dto.reviewerId, completedAt: null } }, user);
 
     await this.logAssignment({
@@ -981,6 +1083,7 @@ export class TasksService {
       throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
     }
 
+    await this.assertRoutineReady(task);
     await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.DONE, completedAt: new Date() } }, user);
     await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
 
@@ -1005,7 +1108,7 @@ export class TasksService {
     });
     const returnToUserId = lastHandoff?.fromUserId ?? task.createdById;
 
-    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId } }, user);
+    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.NEEDS_REVISION, assigneeId: returnToUserId, routineCompletedChecks: [] } }, user);
 
     await this.logAssignment({
       taskId,

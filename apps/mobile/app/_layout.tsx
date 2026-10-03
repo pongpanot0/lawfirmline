@@ -112,6 +112,13 @@ function AppStack() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
               <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
               <Stack.Screen name="case/[id]" options={{ title: 'คดี' }} />
+              <Stack.Screen name="team-week" options={{ title: 'ภาระงานทีม 7 วัน' }} />
+              <Stack.Screen name="owner-decisions" options={{ title: 'คิวตัดสินใจวันนี้' }} />
+              <Stack.Screen name="owner-finance" options={{ title: 'เงินสำนักงาน / ลูกหนี้' }} />
+              <Stack.Screen name="invoice/[id]" options={{ title: 'ใบแจ้งหนี้ / รับเงิน' }} />
+              <Stack.Screen name="document-template" options={{ title: 'สร้างเอกสารจากแบบ' }} />
+              <Stack.Screen name="document-waiting" options={{ title: 'รอเอกสารจากภายนอก' }} />
+              <Stack.Screen name="task/blocker" options={{ title: 'ส่งจุดติดขัดให้คนแก้' }} />
               <Stack.Screen name="case/[id]/close" options={{ title: 'ปิด / เปิดคดี' }} />
               <Stack.Screen name="notifications" options={{ title: 'การแจ้งเตือน' }} />
               <Stack.Screen name="more" options={{ title: 'อื่น ๆ' }} />

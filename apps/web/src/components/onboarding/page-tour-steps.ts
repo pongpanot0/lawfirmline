@@ -33,7 +33,7 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'main h1', title: 'บอร์ดสถานะคดี', body: 'แยกคดีตามสถานะปัจจุบัน ลากการ์ดคดีข้ามคอลัมน์เพื่อเปลี่ยนสถานะ หรือกดเพื่อเปิดคดี', placement: 'right' },
   ],
   '/cases/new': [
-    { selector: 'text:Litigation', title: 'สร้างคดีใหม่', body: 'เลือกประเภทคดีก่อน ระบบจะปรับฟิลด์ขั้นถัดไปให้ตรงกับประเภทที่เลือก', placement: 'right' },
+    { selector: '#case-type', title: 'สร้างคดีใหม่', body: 'เลือกประเภทคดี ตั้งชื่อ และเลือกทนายผู้รับผิดชอบ ข้อมูลอื่นกางเพิ่มได้ด้านล่าง', placement: 'right' },
   ],
   '/cases/:id': [
     { selector: 'main h1', title: 'รายละเอียดคดี', body: 'ชื่อคดี เลขอ้างอิง สถานะ และผู้รับผิดชอบของคดีนี้', placement: 'right' },
@@ -47,7 +47,7 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
     { selector: 'text:เพิ่มลูกค้า', title: 'เพิ่มลูกค้าใหม่', body: 'สร้างลูกค้าใหม่พร้อมผู้ติดต่อได้จากปุ่มนี้', placement: 'left' },
   ],
   '/clients/new': [
-    { selector: 'main h1', title: 'เพิ่มลูกค้า', body: 'บุคคลกรอกชื่อครั้งเดียว นิติบุคคลเพิ่มผู้ติดต่อได้หลายคน', placement: 'right' },
+    { selector: 'main h1', title: 'เพิ่มลูกค้า', body: 'เริ่มจากชื่อลูกค้าหรือชื่อบริษัท ผู้ติดต่อและข้อมูลอื่นเติมภายหลังได้', placement: 'right' },
     { selector: 'placeholder:นายสมชาย', title: 'ชื่อลูกค้า', body: 'กรอกชื่อลูกค้า แล้วเลือกประเภทบุคคลธรรมดา/นิติบุคคลด้านบน', placement: 'right' },
   ],
 

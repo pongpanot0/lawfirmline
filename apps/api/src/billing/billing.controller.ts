@@ -10,6 +10,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -27,6 +28,7 @@ import {
   SubmitExpensesDto,
   IssueCashAdvanceDto,
   RecordPaymentDto,
+  CollectionFollowUpDto,
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -37,6 +39,8 @@ import { AuthUser, Role, ExpenseStatus, ExpenseClaimStatus } from '@lawfirm/shar
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
 import { safeMimeType } from '../common/utils/safe-mime-type';
 import { FileStorageService } from '../common/services/file-storage.service';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { OwnerOnly } from '../saas/decorators/saas.decorators';
 
 const RECEIPT_UPLOAD = FileInterceptor('receipt', { limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -73,11 +77,15 @@ export class BillingController {
   }
 
   @Get('finance/summary')
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
   getFinanceSummary(@CurrentUser() user: AuthUser) {
     return this.billingService.getFinanceSummary(user);
   }
 
   @Get('invoices')
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
   getFirmInvoices(@CurrentUser() user: AuthUser) {
     return this.billingService.getFirmInvoices(user);
   }
@@ -251,6 +259,8 @@ export class BillingController {
 
   /** ใบที่ออกเปล่า ให้ลูกค้าดูก่อนจะมีคดีหรือเรื่อง */
   @Get('invoices/standalone')
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
   getStandaloneInvoices(@CurrentUser() user: AuthUser) {
     return this.billingService.getStandaloneInvoices(user);
   }
@@ -261,27 +271,29 @@ export class BillingController {
   }
 
   @Get('invoices/receivables')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
   getReceivables(@CurrentUser() user: AuthUser) {
     return this.collectionsService.getReceivables(user);
   }
 
   @Get('invoices/:invoiceId/print-data')
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
   getInvoicePrintData(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     return this.billingService.getInvoicePrintData(user, invoiceId);
   }
 
   @Patch('invoices/:invoiceId/send')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
   markInvoiceSent(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     return this.collectionsService.markSent(user, invoiceId);
   }
 
   @Post('invoices/:invoiceId/payments')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
   recordInvoicePayment(
     @CurrentUser() user: AuthUser,
     @Param('invoiceId') invoiceId: string,
@@ -291,16 +303,37 @@ export class BillingController {
   }
 
   @Get('invoices/:invoiceId/payments')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
   listInvoicePayments(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     return this.collectionsService.listPayments(user, invoiceId);
   }
 
   @Post('invoices/:invoiceId/remind')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
   sendInvoiceReminder(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     return this.collectionsService.sendReminder(user, invoiceId);
+  }
+
+  @Get('invoices/owner-worklist')
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
+  ownerWorklist(@CurrentUser() user: AuthUser, @Query('month') month?: string) {
+    return this.collectionsService.ownerWorklist(user, month);
+  }
+
+  @Get('invoices/:invoiceId/collection')
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
+  collectionInvoice(@CurrentUser() user: AuthUser, @Param('invoiceId', ParseUUIDPipe) invoiceId: string) {
+    return this.collectionsService.getInvoice(user, invoiceId);
+  }
+
+  @Patch('invoices/:invoiceId/follow-up')
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
+  collectionFollowUp(@CurrentUser() user: AuthUser, @Param('invoiceId', ParseUUIDPipe) invoiceId: string, @Body() dto: CollectionFollowUpDto) {
+    return this.collectionsService.setFollowUp(user, invoiceId, dto);
   }
 }

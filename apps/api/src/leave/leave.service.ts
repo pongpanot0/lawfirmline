@@ -4,7 +4,7 @@ import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { EventType, LeaveStatus, LeaveType, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService, QuickReplyItem } from '../notifications/line-messaging.service';
-import { addBangkokDays, bangkokDayKey, formatBangkokDateThai, formatBangkokDateTime } from '../common/utils/bangkok-time';
+import { addBangkokDays, bangkokDayKey, bangkokDayStart, bangkokDayEnd, formatBangkokDateThai, formatBangkokDateTime } from '../common/utils/bangkok-time';
 import { eventForUserWhere } from '../calendar/event-people';
 
 const LABEL: Record<LeaveType, string> = {
@@ -31,6 +31,18 @@ export class LeaveService {
   private readonly logger = new Logger(LeaveService.name);
   constructor(private prisma: PrismaService, private line: LineMessagingService) {}
 
+  async pending(user: AuthUser) {
+    if (user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('Owner access required');
+    const leaves = await this.prisma.leaveRequest.findMany({
+      where: { firmId: user.firmId, status: LeaveStatus.PENDING },
+      include: { user: { select: { firstName: true, lastName: true } } },
+      orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
+    });
+    return Promise.all(leaves.map(async leave => ({ ...leave,
+      courtConflicts: await this.findCourtConflicts(leave.firmId, leave.userId, leave.startDate, leave.endDate),
+    })));
+  }
+
   async list(user: AuthUser, from: string, to: string) {
     const start = this.parseDate(from);
     const end = this.parseDate(to);
@@ -53,7 +65,7 @@ export class LeaveService {
     const events = await this.prisma.calendarEvent.findMany({
       where: {
         type: EventType.COURT_DATE,
-        startAt: { gte: start, lt: new Date(end.getTime() + 86400000) },
+        startAt: { gte: bangkokDayStart(start), lt: bangkokDayEnd(end) },
         case: { firmId },
         ...eventForUserWhere(userId),
       },

@@ -96,6 +96,7 @@ describe('TasksService detail support', () => {
     it('uses case access for a case task', async () => {
       mockPrisma.task.findUnique.mockResolvedValue({ id: 't1', caseId: 'c1', assigneeId: null, createdById: 'u9' });
       mockCaseAccess.canAccessCase.mockResolvedValue(false);
+      mockPrisma.task.findFirst.mockResolvedValue(null);
       await expect(service.assertAccess('t1', lawyer)).rejects.toThrow(ForbiddenException);
       expect(mockCaseAccess.canAccessCase).toHaveBeenCalledWith(lawyer, 'c1');
     });
@@ -108,13 +109,16 @@ describe('TasksService detail support', () => {
           id: 't1', priority: TaskPriority.HIGH, labels: ['ศาล'],
           subtasks: [{ status: 'DONE' }, { status: 'TODO' }],
           _count: { attachments: 2, comments: 1 },
+          assignmentLogs: [{ fromUserId: 'u1' }],
         },
       ]);
       const [item] = await service.findMine(lawyer);
       const where = mockPrisma.task.findMany.mock.calls[0][0].where;
       expect(where).toMatchObject({ parentId: null });
       expect(where.caseId).toBeUndefined();
-      expect(item).toMatchObject({ subtaskCount: 2, subtaskDoneCount: 1, attachmentCount: 2, commentCount: 1 });
+      expect(item).toMatchObject({ subtaskCount: 2, subtaskDoneCount: 1, attachmentCount: 2, commentCount: 1, handedOffById: 'u1' });
+      expect(mockPrisma.task.findMany.mock.calls[0][0].include.assignmentLogs).toMatchObject({ where: { action: 'HANDED_OFF' }, orderBy: { createdAt: 'desc' }, take: 1 });
+      expect((item as any).assignmentLogs).toBeUndefined();
       expect((item as any).subtasks).toBeUndefined();
       expect((item as any)._count).toBeUndefined();
     });

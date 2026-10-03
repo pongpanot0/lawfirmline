@@ -39,6 +39,9 @@ export const radius = { card: 12, pill: 999, button: 10 } as const;
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
 export const pageContent = {
+  width: '100%',
+  maxWidth: 1080,
+  alignSelf: 'center',
   paddingHorizontal: spacing.lg,
   paddingTop: spacing.md,
   paddingBottom: spacing.xl,

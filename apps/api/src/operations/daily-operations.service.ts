@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AssignmentType, AuthUser, FirmRole, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints } from '@lawfirm/shared';
+import { AssignmentType, AuthUser, FirmRole, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
@@ -93,7 +93,7 @@ export class DailyOperationsService {
       this.prisma.firmMember.findMany({ where: { firmId: user.firmId }, include: { user: { select: { firstName: true, lastName: true } } }, orderBy: { user: { firstName: 'asc' } } }),
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { assigneeId: { not: null }, status: { not: TaskStatus.DONE } }] }, select: { assigneeId: true, status: true, size: true, dueDate: true, scheduledFor: true } }),
       this.prisma.leaveRequest.findMany({ where: { firmId: user.firmId, status: 'APPROVED', startDate: { lte: dateOnly(days[6]) }, endDate: { gte: dateOnly(days[0]) } }, select: { userId: true, startDate: true, endDate: true } }),
-      this.prisma.calendarEvent.findMany({ where: { case: { firmId: user.firmId, deletedAt: null }, startAt: { gte: start, lt: end } }, select: { startAt: true, assigneeId: true, assignees: { select: { userId: true } }, case: { select: { leadLawyerId: true } } } }),
+      this.prisma.calendarEvent.findMany({ where: { case: { firmId: user.firmId, deletedAt: null }, startAt: { gte: start, lt: end } }, select: { type: true, startAt: true, assigneeId: true, assignees: { select: { userId: true } }, case: { select: { leadLawyerId: true } } } }),
     ]);
     return {
       start: date, days,
@@ -116,6 +116,7 @@ export class DailyOperationsService {
               taskCount: onDay.length,
               points: onDay.reduce((sum, t) => sum + taskPoints(t.size), 0),
               eventCount: myEvents.filter((e) => bangkokDayKey(e.startAt) === day).length,
+              courtCount: myEvents.filter((e) => e.type === 'COURT_DATE' && bangkokDayKey(e.startAt) === day).length,
               onLeave: leaves.some((l) => l.userId === m.userId && l.startDate <= dateOnly(day) && l.endDate >= dateOnly(day)),
             };
           }),
@@ -138,6 +139,8 @@ export class DailyOperationsService {
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { assigneeId: userId, status: { not: TaskStatus.DONE } }] }, select: {
         id: true, title: true, status: true, dueDate: true, scheduledFor: true, size: true, caseId: true,
         case: { select: { id: true, ownRef: true, title: true } }, onHold: { select: { reason: true, endedAt: true } },
+        comments: { where: { kind: 'DAILY_UPDATE' }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 1, select: { body: true } },
+        blockedBy: { select: { title: true, status: true } },
       }, orderBy: [{ queuePosition: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] }),
       this.prisma.case.findMany({ where: { firmId: user.firmId, deletedAt: null, status: { not: 'CLOSED' }, OR: [
         { leadLawyerId: userId }, { assignments: { some: { userId, assignmentType: AssignmentType.BUDDY } } },
@@ -162,7 +165,9 @@ export class DailyOperationsService {
         id: t.id, title: canSee(t.caseId) ? t.title : 'งานที่คุณไม่มีสิทธิ์ดู', status: t.status, size: t.size as TaskSize, case: canSee(t.caseId) ? t.case : null,
         dueDate: t.dueDate?.toISOString() ?? null, scheduledFor: t.scheduledFor?.toISOString().slice(0, 10) ?? null,
         overdue: !!t.dueDate && t.dueDate < now,
-        holdReason: canSee(t.caseId) && t.onHold && !t.onHold.endedAt ? t.onHold.reason : null,
+        holdReason: !canSee(t.caseId) ? null : t.onHold && !t.onHold.endedAt ? t.onHold.reason
+          : t.blockedBy && t.blockedBy.status !== TaskStatus.DONE ? `รอ ${t.blockedBy.title}`
+          : t.comments?.[0] ? dailyUpdateParts(t.comments[0].body).blocker || null : null,
       })),
       reviews: tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW).map((t) => ({ id: t.id, title: canSee(t.caseId) ? t.title : 'งานที่คุณไม่มีสิทธิ์ดู', dueDate: t.dueDate?.toISOString() ?? null })),
       cases: shownCases.map((c) => ({ id: c.id, ownRef: c.ownRef, title: c.title, status: c.status, role: c.leadLawyerId === userId ? 'LEAD' : 'BUDDY' })),

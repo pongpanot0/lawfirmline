@@ -51,7 +51,7 @@ export function CasePicker({
         <ChevronDown size={18} color={colors.faint} />
       </Pressable>
 
-      <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} animationType="slide" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={() => setOpen(false)}>
         <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.sheet, { paddingBottom: spacing.lg + keyboardHeight }]}>
           <View style={styles.sheetHead}>

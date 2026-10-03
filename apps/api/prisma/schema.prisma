@@ -611,6 +611,7 @@ model User {
   documents                  Document[]
   timeEntries                TimeEntry[]
   createdInvoices            Invoice[]                 @relation("InvoiceCreator")
+  collectionInvoices         Invoice[]                 @relation("InvoiceCollector")
   expenses                   Expense[]
   paidExpenses               Expense[]                 @relation("ExpensePaidBy")
   submittedExpenseClaims     ExpenseClaim[]            @relation("ExpenseClaimSubmitter")
@@ -862,6 +863,7 @@ model Case {
   participants           CaseParticipant[]
   tasks                  Task[]
   documents              Document[]
+  documentRequests       IntakeDocumentRequest[]
   calendarEvents         CalendarEvent[]
   activities             CaseActivity[]
   timeEntries            TimeEntry[]
@@ -1032,7 +1034,9 @@ model IntakeFollowUp {
 /// — ไม่ใช่ไปพบว่าขาดเอกสารตอนที่ต้องยื่นแล้ว
 model IntakeDocumentRequest {
   id          String           @id @default(uuid())
-  intakeId    String
+  intakeId    String?
+  caseId      String?
+  requestedFrom String?
   name        String
   /// เอกสารที่ไม่ required ขาดได้โดยไม่กั้นการออกหนังสือ
   required    Boolean          @default(true)
@@ -1046,11 +1050,13 @@ model IntakeDocumentRequest {
   createdById String
   updatedAt   DateTime         @updatedAt
 
-  intake    Intake    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  intake    Intake?   @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  case      Case?     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
   createdBy User      @relation("DocRequestAuthor", fields: [createdById], references: [id])
 
   @@index([intakeId, status])
+  @@index([caseId, status])
 }
 
 /// ผลการตรวจผลประโยชน์ขัดกันหนึ่งครั้ง (conflict check) — เก็บทั้งคำค้น ผลที่
@@ -1204,6 +1210,11 @@ model Task {
   title          String
   description    String?
   status         TaskStatus   @default(TODO)
+  /// Immutable office SOP snapshot; old/general tasks have no routine requirements.
+  routine        Json?
+  routineCompletedChecks Int[] @default([])
+  /// A retry after a lost response returns the same created task.
+  createRequestId String? @unique
   assigneeId     String?
   createdById    String
   dueDate        DateTime?
@@ -1868,6 +1879,9 @@ model Invoice {
   dueAt            DateTime?
   /// เวลาที่ส่งการแจ้งเตือนทวงเงินครั้งล่าสุด — กันแจ้งซ้ำถี่เกินไป
   lastReminderAt   DateTime?
+  collectionOwnerId String?
+  collectionNextAt DateTime? @db.Date
+  collectionNote   String? @db.Text
   createdById      String
   billToCustomerId String?
   createdAt        DateTime      @default(now())
@@ -1877,6 +1891,7 @@ model Invoice {
   case           Case?             @relation(fields: [caseId], references: [id], onDelete: Cascade)
   intake         Intake?           @relation(fields: [intakeId], references: [id], onDelete: Cascade)
   createdBy      User              @relation("InvoiceCreator", fields: [createdById], references: [id])
+  collectionOwner User?            @relation("InvoiceCollector", fields: [collectionOwnerId], references: [id], onDelete: SetNull)
   timeEntries    TimeEntry[]
   expenses       Expense[]
   billToCustomer Client?           @relation("InvoiceBillTo", fields: [billToCustomerId], references: [id], onDelete: SetNull)
@@ -1887,6 +1902,7 @@ model Invoice {
   @@index([caseId])
   @@index([intakeId])
   @@index([billToCustomerId])
+  @@index([firmId, collectionNextAt])
 }
 
 model InvoicePayment {
@@ -1899,6 +1915,7 @@ model InvoicePayment {
   note         String?
   recordedById String
   createdAt    DateTime      @default(now())
+  createRequestId String?
 
   firm       Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
   invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -1906,6 +1923,7 @@ model InvoicePayment {
 
   @@index([invoiceId])
   @@index([firmId, receivedAt])
+  @@unique([firmId, createRequestId])
 }
 
 /// ลูกค้า (ผู้ว่าจ้าง/ผู้จ่ายเงิน) ของคดี — ต่างจาก Case.clientId ซึ่งคือลูกความที่เราว่าความให้

@@ -17,6 +17,8 @@ import {
 import { bangkokDay, initials } from '@/format';
 import { leaveFlagsForDate, LeaveFlag } from '@/lib/leave-flags';
 import { colors, spacing, pageContent } from '@/theme';
+import { useAuth } from '@/api/auth';
+import { Button } from '@/components/ui';
 
 /**
  * Compare counts without treating fewer tasks as confirmed availability.
@@ -71,6 +73,7 @@ function MemberCard({ member, max, leave, todayEvents, onTasks, onCalendar, onCa
 
 export default function TeamScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { memberId } = useLocalSearchParams<{ memberId?: string }>();
   const workload = useWorkload();
   const today = bangkokDay(new Date().toISOString());
@@ -96,6 +99,7 @@ export default function TeamScreen() {
         />
       }
     >
+      {(user?.firmRole === 'OWNER' || user?.firmRole === 'SENIOR_LAWYER') && <Button title="ดูวันลา นัดหมาย และภาระงาน 7 วัน" ghost onPress={() => router.push('/team-week')} />}
       {workload.isError ? (
         <ErrorNote message="โหลดภาระงานทีมไม่สำเร็จ" onRetry={() => workload.refetch()} />
       ) : null}

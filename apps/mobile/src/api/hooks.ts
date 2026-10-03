@@ -5,6 +5,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import { calendarRangeQuery } from '../format';
+import type { DailyWorkboard } from '@lawfirm/shared';
 import type {
   CalendarEventItem,
   CaseDetail,
@@ -15,6 +16,7 @@ import type {
   LeaveItem,
   MyDayResponse,
   OwnerKpis,
+  OwnerFinance,
   TaskItem,
   WorkloadResponse,
 } from './types';
@@ -67,10 +69,19 @@ export function useCalendarRange(from: string, to: string) {
   });
 }
 
-export function useTodos() {
+export function useTodos(view: 'all' | 'mine' | 'created' | 'review' = 'all', enabled = true) {
   return useQuery({
-    queryKey: ['todos'],
-    queryFn: () => api<TaskItem[]>('/todos'),
+    queryKey: ['todos', view],
+    queryFn: () => api<TaskItem[]>(`/todos?view=${view}`),
+    enabled,
+  });
+}
+
+export function useDailyWorkboard(date: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['daily-workboard', date],
+    queryFn: () => api<DailyWorkboard>(`/operations/daily?date=${date}`),
+    enabled,
   });
 }
 
@@ -93,8 +104,8 @@ export function useToggleTask() {
     },
     onMutate: async ({ task, done }) => {
       await queryClient.cancelQueries({ queryKey: ['todos'] });
-      const previous = queryClient.getQueryData<TaskItem[]>(['todos']);
-      queryClient.setQueryData<TaskItem[]>(['todos'], (rows) =>
+      const previous = queryClient.getQueriesData<TaskItem[]>({ queryKey: ['todos'] });
+      queryClient.setQueriesData<TaskItem[]>({ queryKey: ['todos'] }, (rows) =>
         rows?.map((row) =>
           row.id === task.id ? { ...row, status: done ? 'DONE' : 'TODO' } : row,
         ),
@@ -102,10 +113,11 @@ export function useToggleTask() {
       return { previous };
     },
     onError: (_error, _vars, context) => {
-      if (context?.previous) queryClient.setQueryData(['todos'], context.previous);
+      for (const [key, rows] of context?.previous ?? []) queryClient.setQueryData(key, rows);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-workboard'] });
       queryClient.invalidateQueries({ queryKey: ['my-day'] });
     },
   });
@@ -120,6 +132,8 @@ export function useCreateTodo() {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       queryClient.invalidateQueries({ queryKey: ['my-day'] });
       queryClient.invalidateQueries({ queryKey: ['workload'] });
+      queryClient.invalidateQueries({ queryKey: ['team-radar'] });
+      queryClient.invalidateQueries({ queryKey: ['person-workload'] });
     },
   });
 }
@@ -212,8 +226,13 @@ export function useReassignTask() {
         method: 'PATCH',
         body: { assigneeId },
       }),
-    onSettled: (_data, _error, { caseId }) => {
+    onSettled: (_data, _error, { caseId, taskId }) => {
       if (caseId) queryClient.invalidateQueries({ queryKey: ['case-tasks', caseId] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['team-radar'] });
+      queryClient.invalidateQueries({ queryKey: ['person-workload'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-workboard'] });
+      queryClient.invalidateQueries({ queryKey: ['actions'] });
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       queryClient.invalidateQueries({ queryKey: ['my-day'] });
       queryClient.invalidateQueries({ queryKey: ['workload'] });
@@ -227,6 +246,23 @@ export function useLeaves(from: string, to: string, enabled = true) {
     queryFn: () => api<LeaveItem[]>(`/leaves?from=${from}&to=${to}`),
     enabled,
   });
+}
+
+export function usePendingLeaves(enabled: boolean) {
+  return useQuery({ queryKey: ['leaves', 'pending'], enabled, queryFn: () => api<LeaveItem[]>('/leaves/pending') });
+}
+
+export function useDecideLeave() {
+  const client = useQueryClient();
+  return useMutation({ retry: false,
+    mutationFn: ({ id, decision }: { id: string; decision: 'APPROVED' | 'REJECTED' }) => api<LeaveItem>(`/leaves/${id}/decision`, { method: 'PATCH', body: { decision } }),
+    onSettled: () => { for (const key of ['leaves', 'team-radar', 'person-workload', 'daily-workboard', 'actions']) void client.invalidateQueries({ queryKey: [key] }); },
+  });
+}
+
+export function useOwnerFinance(enabled: boolean, month?: string) {
+  return useQuery({ queryKey: ['owner-finance', month ?? 'current'], enabled,
+    queryFn: () => api<OwnerFinance>(`/invoices/owner-worklist${month ? `?month=${month}` : ''}`) });
 }
 
 export function useWorkload(enabled = true) {
@@ -470,6 +506,7 @@ export function useReviewClaim(id: string) {
     onSettled: () => {
       client.invalidateQueries({ queryKey: ['expense-claims'] });
       client.invalidateQueries({ queryKey: ['expenses'] });
+      client.invalidateQueries({ queryKey: ['owner-finance'] });
     },
   });
 }

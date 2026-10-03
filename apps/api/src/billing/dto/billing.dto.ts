@@ -14,6 +14,8 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  ValidateIf,
+  Matches,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -240,17 +242,24 @@ export class CreateInvoiceDto {
 }
 
 export class RecordPaymentDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  createRequestId?: string;
+
   @Type(() => Number)
   @IsNumber(money)
   @Min(0.01)
   @Max(MONEY_MAX)
   amount!: number;
 
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   @IsEnum(PaymentMethod)
   method?: PaymentMethod;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   receivedAt!: string;
 
   @IsOptional()
@@ -258,4 +267,24 @@ export class RecordPaymentDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+}
+
+export class CollectionFollowUpDto {
+  @IsDateString()
+  updatedAt!: string;
+
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsUUID()
+  ownerId?: string | null;
+
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  nextAt?: string | null;
+
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @Trim()
+  @IsString()
+  @MaxLength(2000)
+  note?: string | null;
 }

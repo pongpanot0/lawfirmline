@@ -13,6 +13,11 @@ import { DecideLeaveDto } from './dto/decide-leave.dto';
 export class LeaveController {
   constructor(private leaves: LeaveService) {}
 
+  @Get('pending')
+  @UseGuards(FirmRoleGuard)
+  @OwnerOnly()
+  pending(@CurrentUser() user: AuthUser) { return this.leaves.pending(user); }
+
   @Get()
   list(@CurrentUser() user: AuthUser, @Query('from') from: string, @Query('to') to: string) {
     return this.leaves.list(user, from, to);

@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, ValidateIf } from 'class-validator';
 import { AuthUser } from '@lawfirm/shared';
 import { TemplatesService } from './templates.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -20,6 +20,10 @@ class UpdateTemplateDto {
   @IsOptional() @IsString() @MaxLength(500) description?: string;
   @IsOptional() @IsString() @MaxLength(100000) templateBody?: string;
   @IsOptional() @IsUUID() caseTypeId?: string;
+}
+
+class GenerateTemplateDto {
+  @ValidateIf((_object, value) => value !== undefined) @IsString() @IsNotEmpty() @MaxLength(100000) content?: string;
 }
 
 @Controller()
@@ -69,7 +73,8 @@ export class TemplatesController {
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @Param('templateId') templateId: string,
+    @Body() dto: GenerateTemplateDto,
   ) {
-    return this.templatesService.generate(user, caseId, templateId);
+    return this.templatesService.generate(user, caseId, templateId, dto.content);
   }
 }
