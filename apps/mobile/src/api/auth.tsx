@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { api, ApiError, clearTokens, getTokens, setTokens, USER_PROFILE_KEY } from './client';
+import { unregisterPush } from './push';
 import type { AuthUserInfo, LoginResponse } from './types';
 
 interface AuthContextValue {
@@ -92,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await unregisterPush();
     await clearTokens();
     setUser(null);
     setRestored(false);

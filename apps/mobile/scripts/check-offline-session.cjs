@@ -11,7 +11,7 @@ function load(file, mocks) {
 }
 async function main() {
   const client = load('api/client.ts', { 'expo-secure-store': secure });
-  const auth = load('api/auth.tsx', { 'expo-secure-store': secure, './client': client, react: { createContext: () => ({}) } });
+  const auth = load('api/auth.tsx', { 'expo-secure-store': secure, './client': client, './push': { unregisterPush: async () => {} }, react: { createContext: () => ({}) } });
   const user = { id: 'user-a', email: 'a@example.test', firmId: 'firm-a', firmRole: 'OWNER' };
   await client.setTokens('token-a', 'refresh-a');
   global.fetch = async () => ({ ok: true, status: 200, json: async () => user });

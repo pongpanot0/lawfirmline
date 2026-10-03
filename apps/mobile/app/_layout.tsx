@@ -6,11 +6,13 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useFonts, Anuphan_600SemiBold, Anuphan_700Bold } from '@expo-google-fonts/anuphan';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, useQueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { AuthProvider, useAuth } from '@/api/auth';
 import { registerForPush } from '@/api/push';
+import { api } from '@/api/client';
+import { invalidateNotifications, useUnreadNotifications } from '@/api/hooks';
 import { LockGate } from '@/components/LockGate';
 import { Loading } from '@/components/ui';
 import { colors, fonts } from '@/theme';
@@ -47,7 +49,7 @@ Notifications.setNotificationHandler({
     shouldShowBanner: true,
     shouldShowList: true,
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
   }),
 });
 
@@ -68,17 +70,47 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (user) registerForPush();
   }, [user?.id]);
 
-  // A tapped push carries the in-app route it is about, e.g. /court-day/<id>.
+  // A push that lands while the app is open changes the inbox and the bell.
+  const queryClient = useQueryClient();
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const url = response.notification.request.content.data?.url;
-      if (typeof url === 'string' && url.startsWith('/')) router.push(url as never);
-    });
+    const sub = Notifications.addNotificationReceivedListener(() => invalidateNotifications(queryClient));
     return () => sub.remove();
-  }, [router]);
+  }, [queryClient]);
+
+  // A tapped push carries the in-app route it is about, e.g. /court-day/<id>.
+  // The last-response hook also covers a tap that cold-started the app, which
+  // fires before any listener could be attached.
+  const response = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (!ready || !user || !response) return;
+    if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    const key = response.notification.request.identifier;
+    if (handledResponse === key) return;
+    handledResponse = key;
+    Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+    const { url, notificationId } = response.notification.request.content.data ?? {};
+    if (typeof notificationId === 'string') {
+      api(`/notifications/${notificationId}/read`, { method: 'POST' })
+        .catch(() => undefined)
+        .finally(() => invalidateNotifications(queryClient));
+    }
+    if (typeof url === 'string' && url.startsWith('/')) router.push(url as never);
+  }, [ready, user, response, router, queryClient]);
 
   if (!ready) return <Loading />;
-  return <>{children}</>;
+  return <>{children}{user ? <BadgeSync /> : null}</>;
+}
+
+/** Module-level so a re-login (which remounts the session tree) does not replay an old tap. */
+let handledResponse: string | null = null;
+
+/** Keeps the app-icon badge equal to the unread inbox count. */
+function BadgeSync() {
+  const unread = useUnreadNotifications();
+  useEffect(() => {
+    if (unread.data !== undefined) Notifications.setBadgeCountAsync(unread.data).catch(() => undefined);
+  }, [unread.data]);
+  return null;
 }
 
 export default function RootLayout() {

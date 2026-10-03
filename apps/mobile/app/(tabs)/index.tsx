@@ -17,7 +17,7 @@ import {
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { listTaskDrafts, taskDraftScope } from '@/api/drafts';
-import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange, useTodos, useDailyWorkboard, usePendingLeaves, useOwnerFinance } from '@/api/hooks';
+import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange, useTodos, useDailyWorkboard, usePendingLeaves, useOwnerFinance, useUnreadNotifications } from '@/api/hooks';
 import { AgendaItemKind, AgendaUrgency, followUpReason, ownerDecisionTasks, assignmentCandidates, assignmentWarnings, canAssignFirmRole, FirmRole, TaskWorkType } from '@lawfirm/shared';
 import { WorkloadSummary } from '@/components/WorkloadSummary';
 import { OwnerFinanceSummary } from '@/components/OwnerFinanceSummary';
@@ -110,6 +110,7 @@ export default function MyDayScreen() {
   const myDay = useMyDay();
   const stats = useDashboardStats();
   const actions = useActions();
+  const unread = useUnreadNotifications().data ?? 0;
   const owner = user?.firmRole === 'OWNER';
   const workload = useWorkload(owner);
   const claims = useExpenseClaims(owner);
@@ -186,19 +187,20 @@ export default function MyDayScreen() {
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="การแจ้งเตือน"
+          accessibilityLabel={unread ? `การแจ้งเตือน ยังไม่อ่าน ${unread} รายการ` : pendingActions ? `การแจ้งเตือน รอจัดการ ${pendingActions} เรื่อง` : 'การแจ้งเตือน'}
           style={styles.bell}
           hitSlop={8}
           onPress={() => router.push('/notifications')}
         >
           <Bell size={20} color={colors.ink} />
-          {pendingActions > 0 ? (
+          {/* The number is unread news; a bare dot means only the waiting queue has items. */}
+          {unread > 0 ? (
             <View style={styles.bellBadge}>
               <Text style={styles.bellBadgeText}>
-                {pendingActions > 99 ? '99+' : pendingActions}
+                {unread > 99 ? '99+' : unread}
               </Text>
             </View>
-          ) : null}
+          ) : pendingActions > 0 ? <View style={styles.bellDot} /> : null}
         </Pressable>
       </View>
 
@@ -503,6 +505,7 @@ const styles = StyleSheet.create({
     borderColor: colors.bg,
   },
   bellBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  bellDot: { position: 'absolute', top: 8, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.warn, borderWidth: 1.5, borderColor: colors.bg },
   hello: { fontSize: 24, fontFamily: fonts.bold, color: colors.ink },
   date: { fontSize: 13, color: colors.muted, marginTop: 2 },
   personDay: { paddingVertical: spacing.md, gap: spacing.xs },

@@ -231,3 +231,22 @@ export interface OwnerFinance {
   payable: Array<{ id: string; claimId: string | null; amount: number; description: string; date: string;
     case: { id: string; ownRef: string } | null; user: { firstName: string; lastName: string } }>;
 }
+
+export type NotificationCategory = 'TASK' | 'CASE' | 'COMMENT' | 'CALENDAR' | 'CLIENT' | 'BILLING' | 'LEAVE';
+
+export interface AppNotification {
+  id: string;
+  category: NotificationCategory;
+  title: string;
+  body: string | null;
+  path: string;
+  appPath: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationPreference {
+  category: NotificationCategory;
+  push: boolean;
+  line: boolean;
+}

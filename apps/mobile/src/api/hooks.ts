@@ -1,4 +1,5 @@
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -7,6 +8,7 @@ import { api } from './client';
 import { calendarRangeQuery } from '../format';
 import type { DailyWorkboard } from '@lawfirm/shared';
 import type {
+  AppNotification,
   CalendarEventItem,
   CaseDetail,
   CaseListItem,
@@ -15,6 +17,7 @@ import type {
   DashboardStats,
   LeaveItem,
   MyDayResponse,
+  NotificationPreference,
   OwnerKpis,
   OwnerFinance,
   TaskItem,
@@ -561,5 +564,75 @@ export function useCompleteCourtDay(id: string) {
         client.invalidateQueries({ queryKey: [key] });
       }
     },
+  });
+}
+
+/** The staff inbox, newest first; pages follow the server's cursor. */
+export function useNotificationInbox() {
+  return useInfiniteQuery({
+    queryKey: ['notifications'],
+    queryFn: ({ pageParam }) =>
+      api<{ items: AppNotification[]; nextCursor: string | null }>(
+        pageParam ? `/notifications?cursor=${pageParam}` : '/notifications',
+      ),
+    initialPageParam: '',
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+export function useUnreadNotifications() {
+  return useQuery({
+    queryKey: ['notifications-unread'],
+    queryFn: () => api<{ count: number }>('/notifications/unread-count').then((res) => res.count),
+    refetchInterval: 60 * 1000,
+  });
+}
+
+/** Refresh everything a new notification can change. */
+export function invalidateNotifications(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
+  queryClient.invalidateQueries({ queryKey: ['actions'] });
+}
+
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/notifications/${id}/read`, { method: 'POST' }),
+    onSettled: () => invalidateNotifications(queryClient),
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api('/notifications/read-all', { method: 'POST' }),
+    onSettled: () => invalidateNotifications(queryClient),
+  });
+}
+
+export function useNotificationPreferences() {
+  return useQuery({
+    queryKey: ['notification-preferences'],
+    queryFn: () => api<NotificationPreference[]>('/notifications/preferences'),
+  });
+}
+
+export function useUpdateNotificationPreference() {
+  const queryClient = useQueryClient();
+  const key = ['notification-preferences'];
+  return useMutation({
+    mutationFn: ({ category, ...change }: Pick<NotificationPreference, 'category'> & Partial<Omit<NotificationPreference, 'category'>>) =>
+      api<NotificationPreference>(`/notifications/preferences/${category}`, { method: 'PATCH', body: change }),
+    // A switch must move when tapped, not a round trip later.
+    onMutate: async ({ category, ...change }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<NotificationPreference[]>(key);
+      queryClient.setQueryData<NotificationPreference[]>(key, (rows) =>
+        rows?.map((row) => (row.category === category ? { ...row, ...change } : row)));
+      return { previous };
+    },
+    onError: (_error, _vars, context) => queryClient.setQueryData(key, context?.previous),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   });
 }
