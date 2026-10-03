@@ -1,3 +1,6 @@
+import { FirmRole } from '@lawfirm/shared';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { FirmRoles } from '../saas/decorators/saas.decorators';
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ClientPortalInviteService } from './client-portal-invite.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -11,8 +14,13 @@ import { CreatePortalInviteDto } from './dto/client-portal-invite.dto';
 export class ClientPortalInviteController {
   constructor(private readonly invites: ClientPortalInviteService) {}
 
+  /**
+   * The invite link signs its holder in as the client, so only people who
+   * run the firm or its cases may mint one — not every staff role.
+   */
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, FirmRoleGuard)
+  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER)
   create(@CurrentUser() user: AuthUser, @Body() dto: CreatePortalInviteDto) {
     return this.invites.createInvite(user, dto.clientContactId);
   }

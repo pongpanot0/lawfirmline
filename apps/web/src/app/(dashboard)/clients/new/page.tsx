@@ -141,7 +141,10 @@ export default function NewClientPage() {
 
       <Card>
         <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} onInvalidCapture={(event) => {
+            const details = (event.target as HTMLElement).closest('details');
+            if (details) details.open = true;
+          }} className="space-y-5">
             <label className="block">
               <span className="text-sm font-medium">{d.clients.type}</span>
               <select
@@ -217,9 +220,11 @@ export default function NewClientPage() {
                 </label>
               </div>
             ) : (
-              <div>
+              <details open={!isCompany} className="rounded-lg border border-border p-4">
+                <summary className="cursor-pointer text-sm font-medium">{d.clients.contactsTab} · {d.clients.moreDetailsEmpty}</summary>
+                <div className="mt-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-medium">{d.clients.contactsTab} *</span>
+                  <span className="text-sm font-medium">{d.clients.contactsTab}</span>
                   <Button type="button" variant="outline" size="sm" onClick={addContact}>
                     <Plus className="h-3 w-3" />
                     {d.clients.addContact}
@@ -244,13 +249,17 @@ export default function NewClientPage() {
                         )}
                       </div>
                       <Input
-                        required={index === 0}
-                        placeholder={`${d.clients.contactName} *`}
+                        required={Boolean(contact.email.trim() || contact.phone.trim() || contact.position.trim())}
+                        pattern=".*\S.*"
+                        title="ระบุชื่อผู้ติดต่ออย่างน้อย 1 ตัวอักษร"
+                        aria-label={`${d.clients.contactName} ${index + 1}`}
+                        placeholder={d.clients.contactName}
                         value={contact.name}
                         onChange={(e) => updateContact(index, 'name', e.target.value)}
                       />
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Input
+                          aria-label={`${d.clients.email} ${index + 1}`}
                           placeholder={d.clients.email}
                           type="email"
                           value={contact.email}
@@ -258,6 +267,7 @@ export default function NewClientPage() {
                         />
                         <div>
                           <Input
+                            aria-label={`${d.clients.phone} ${index + 1}`}
                             placeholder={d.clients.phone}
                             type="tel"
                             inputMode="tel"
@@ -281,7 +291,8 @@ export default function NewClientPage() {
                     </div>
                   ))}
                 </div>
-              </div>
+                </div>
+              </details>
             )}
 
             <div className="rounded-lg border border-border">

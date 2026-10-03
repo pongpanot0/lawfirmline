@@ -97,6 +97,7 @@ describe('TasksService detail support', () => {
     it('uses case access for a case task', async () => {
       mockPrisma.task.findUnique.mockResolvedValue({ id: 't1', caseId: 'c1', assigneeId: null, createdById: 'u9' });
       mockCaseAccess.canAccessCase.mockResolvedValue(false);
+      mockPrisma.task.findFirst.mockResolvedValue(null);
       await expect(service.assertAccess('t1', lawyer)).rejects.toThrow(ForbiddenException);
       expect(mockCaseAccess.canAccessCase).toHaveBeenCalledWith(lawyer, 'c1');
     });
@@ -108,7 +109,7 @@ describe('TasksService detail support', () => {
       mockCaseAccess.getTaskAccessFilterForUser.mockReturnValue({ accessible: true });
       await service.findMine(lawyer, view);
       const query = mockPrisma.task.findMany.mock.calls[0][0];
-      expect(query.where).toMatchObject({ parentId: null, AND: [
+      expect(query.where).toMatchObject({ AND: [
         { OR: [
           { case: { firmId: 'f1', deletedAt: null } },
           { caseId: null, OR: [
@@ -118,7 +119,10 @@ describe('TasksService detail support', () => {
           ] },
         ] },
         { accessible: true },
-        view === 'created' ? { createdById: 'u1' } : view === 'mine' ? { assigneeId: 'u1' }
+        view === 'created' ? { createdById: 'u1' } : view === 'mine' ? { OR: [
+          { assigneeId: 'u1' },
+          { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'u1' } } },
+        ] }
           : { status: 'PENDING_REVIEW', OR: [
             { caseId: null, assigneeId: 'u1' },
             { caseId: { not: null }, reviewerId: 'u1' },
@@ -127,6 +131,8 @@ describe('TasksService detail support', () => {
       ] });
       // Delegated/unassigned created tasks must not be narrowed to the current assignee.
       expect(query.where.assignee).toBeUndefined();
+      // Stage routine tasks remain actionable in the personal and review queues.
+      expect(query.where.parentId).toBeUndefined();
       expect(query.include.comments).toMatchObject({ orderBy: { createdAt: 'desc' }, take: 1 });
     });
     it('allows the owner fallback only when a case has no named reviewer', async () => {
@@ -150,13 +156,16 @@ describe('TasksService detail support', () => {
           id: 't1', priority: TaskPriority.HIGH, labels: ['ศาล'],
           subtasks: [{ status: 'DONE' }, { status: 'TODO' }],
           _count: { attachments: 2, comments: 1 },
+          assignmentLogs: [{ fromUserId: 'u1' }],
         },
       ]);
       const [item] = await service.findMine(lawyer);
       const where = mockPrisma.task.findMany.mock.calls[0][0].where;
       expect(where).toMatchObject({ parentId: null });
       expect(where.caseId).toBeUndefined();
-      expect(item).toMatchObject({ subtaskCount: 2, subtaskDoneCount: 1, attachmentCount: 2, commentCount: 1 });
+      expect(item).toMatchObject({ subtaskCount: 2, subtaskDoneCount: 1, attachmentCount: 2, commentCount: 1, handedOffById: 'u1' });
+      expect(mockPrisma.task.findMany.mock.calls[0][0].include.assignmentLogs).toMatchObject({ where: { action: 'HANDED_OFF' }, orderBy: { createdAt: 'desc' }, take: 1 });
+      expect((item as any).assignmentLogs).toBeUndefined();
       expect((item as any).subtasks).toBeUndefined();
       expect((item as any)._count).toBeUndefined();
     });

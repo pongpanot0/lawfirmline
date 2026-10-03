@@ -1,3 +1,4 @@
+import { redactForAi } from '@lawfirm/shared';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { IappLegalClient } from '../intelligence/iapp-legal.client';
@@ -23,7 +24,8 @@ export class LegalService {
     }
 
     const factsText = citations.map((c) => c.statement);
-    const query = [question, ...factsText].join(' ').slice(0, 1000);
+    // Leaves the firm in a URL (and that provider's logs): identifiers out first, as for every AI call.
+    const query = redactForAi([question, ...factsText].join(' ')).text.slice(0, 1000);
     const results = await this.iapp.searchPrecedents(query, { topK: 5 });
 
     const caseRow = await this.prisma.case.findUnique({ where: { id: caseId }, select: { firmId: true } });

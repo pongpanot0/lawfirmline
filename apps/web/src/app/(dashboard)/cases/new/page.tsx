@@ -4,14 +4,14 @@
 // Hallmark · contrast: pass (40–41) · responsive: pass (34, 49–57) · pre-emit: P5 H5 E4 S5 R5 V5
 
 import { ClientCombobox } from './ClientCombobox';
-import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
+import { latestPlaybookReleases, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { CreateClientContactDialog } from '@/components/intake/CreateClientContactDialog';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import {
   api,
@@ -24,6 +24,7 @@ import {
   SuggestibleField,
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { PageLoading } from '@/components/ui/misc';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, X } from 'lucide-react';
@@ -37,14 +38,20 @@ import {
 } from '@lawfirm/shared';
 
 export default function NewCasePage() {
+  return <Suspense fallback={<PageLoading title="กำลังโหลดข้อมูลเปิดคดี" lines={3} />}><NewCaseForm /></Suspense>;
+}
+
+function NewCaseForm() {
   const { token, user } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState(0);
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  const searchParams = useSearchParams();
+  const requestedClientId = searchParams.get('clientId') ?? '';
+  const requestedSopId = searchParams.get('sop') ?? '';
+  const clientContextApplied = useRef(false);
   const submittingRef = useRef(false);
   const createdCaseId = useRef('');
   const pendingUploads = useRef<File[]>([]);
-  const playbookManuallySelected = useRef(false);
+  const playbookManuallySelected = useRef(Boolean(requestedSopId));
   const [autoTitle, setAutoTitle] = useState(true);
   const [retry, setRetry] = useState(0);
   const [lookupWarning, setLookupWarning] = useState('');
@@ -56,7 +63,7 @@ export default function NewCasePage() {
   const [error, setError] = useState('');
   const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
-  const [playbookId, setPlaybookId] = useState('');
+  const [playbookId, setPlaybookId] = useState(requestedSopId);
   const [cargoClaimEnabled, setCargoClaimEnabled] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [suggestions, setSuggestions] = useState<FieldSuggestion[]>([]);
@@ -126,17 +133,26 @@ export default function NewCasePage() {
           }));
           setCaseTypes(types);
           setClients(clientList);
+          if (requestedClientId && !clientContextApplied.current) {
+            const client = clientList.find((c) => c.id === requestedClientId);
+            if (client) {
+              setForm((f) => ({ ...f, clientId: client.id, clientName: client.name, clientType: client.type ?? 'INDIVIDUAL', useTmpClient: false }));
+              clientContextApplied.current = true;
+            } else {
+              setLookupWarning('ไม่พบลูกค้าที่เลือก กรุณาโหลดใหม่หรือเลือกลูกความก่อนเปิดคดี');
+            }
+          }
           setNextOwnRef(nextRef.ownRef);
           setWorkload(workloadList);
         },
       )
       .catch(() => setError('โหลดข้อมูลฟอร์มไม่สำเร็จ กรุณาลองใหม่'))
       .finally(() => setLoadingTypes(false));
-  }, [token, user?.id, retry]);
+  }, [token, user?.id, retry, requestedClientId]);
 
   useEffect(() => {
     if (!token) return;
-    setupRequest<PlaybookRelease[]>(token, '/playbooks').then(setPlaybooks).catch(() => setPlaybooks([]));
+    setupRequest<PlaybookRelease[]>(token, '/playbooks').then(items => setPlaybooks(latestPlaybookReleases(items))).catch(() => setPlaybooks([]));
   }, [token]);
 
   useEffect(() => {
@@ -161,9 +177,6 @@ export default function NewCasePage() {
   useEffect(() => {
     if (autoTitle) setForm((f) => ({ ...f, title: suggestedTitle }));
   }, [autoTitle, suggestedTitle]);
-  useEffect(() => {
-    if (step > 0) headingRef.current?.focus();
-  }, [step]);
   // ลูกค้าคนเดียวกับลูกความ — ตราบใดที่ติ้กไว้ ผู้มอบหมายรายที่ 1 เป็นตัวกำหนด ลูกความตามไปด้วย
   useEffect(() => {
     if (!sameCustomer) return;
@@ -178,47 +191,26 @@ export default function NewCasePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sameCustomer, customers[0]?.customerId, clients]);
 
-  const validationMessage = (targetStep: number) => {
-    if (targetStep === 0) {
-      if (!form.caseTypeId) return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
-      if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
-      const missing = fieldSchema.find(
-        (f) => f.required && !(f.key === 'chargeSection' ? form.chargeSection : form.customFields[f.key])?.trim(),
-      );
-      if (missing) return `กรุณากรอก${missing.label}`;
-    }
-    if (targetStep === 1 && !lawyers.some((l) => l.id === form.leadLawyerId))
+  const validationMessage = () => {
+    if (!form.caseTypeId) return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
+    if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
+    const missing = fieldSchema.find(
+      (f) => f.required && !(f.key === 'chargeSection' ? form.chargeSection : form.customFields[f.key])?.trim(),
+    );
+    if (missing) return `กรุณากรอก${missing.label}`;
+    if (!lawyers.some((l) => l.id === form.leadLawyerId))
       return 'กรุณาเลือกทนายผู้รับผิดชอบ';
     return '';
   };
-  // Keep the creation flow to case identity, required type-specific fields, and owner.
-  const visibleSteps = [
-    { value: 0, label: 'ข้อมูลคดี' },
-    { value: 1, label: 'ผู้รับผิดชอบ' },
-  ];
-
-  const goNext = () => {
-    const message = validationMessage(step);
-    if (message) {
-      setError(message);
-      return;
-    }
-    setError('');
-    setStep(step + 1);
-  };
-
-  const goBack = () => {
-    setError('');
-    if (step > 0) setStep(step - 1);
-    else router.push('/cases');
-  };
-
   const handleSubmit = async () => {
     if (!token || submittingRef.current) return;
-    for (const target of createdCaseId.current ? [] : visibleSteps) {
-      const message = validationMessage(target.value);
+    if (!createdCaseId.current) {
+      if (requestedClientId && !clientContextApplied.current && !form.clientId && !form.clientName.trim() && !form.useTmpClient) {
+        setError('ไม่พบลูกค้าที่เลือก กรุณาเลือกลูกความหรือพิมพ์ชื่อใหม่ก่อนเปิดคดี');
+        return;
+      }
+      const message = validationMessage();
       if (message) {
-        setStep(target.value);
         setError(message);
         return;
       }
@@ -277,9 +269,6 @@ export default function NewCasePage() {
       const created = (await api.createCase(token, payload)) as { id: string };
       createdCaseId.current = created.id;
       pendingUploads.current = files;
-      if (playbookId) {
-        await setupRequest(token, `/cases/${created.id}/apply`, { releaseId: playbookId }).catch(console.error);
-      }
       }
       const failed: File[] = [];
       for (const file of pendingUploads.current) {
@@ -297,7 +286,7 @@ export default function NewCasePage() {
         submittingRef.current = false;
         return;
       }
-      router.push(`/cases/${createdCaseId.current}${cargoClaimEnabled ? '?tab=cargo-claim' : ''}`);
+      router.push(`/cases/${createdCaseId.current}${cargoClaimEnabled ? '?tab=cargo-claim' : `?tab=tasks${playbookId ? `&sop=${encodeURIComponent(playbookId)}` : ''}`}`);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -323,18 +312,6 @@ export default function NewCasePage() {
   const inputClass =
     'mt-1 min-h-11 min-w-0 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm transition-colors hover:border-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60';
   const fieldLabel = 'block text-sm font-medium';
-  const selectedLawyer = lawyers.find((l) => l.id === form.leadLawyerId);
-  const currentIndex = visibleSteps.findIndex((item) => item.value === step);
-  const primaryCustomerName = customers[0]?.customerId
-    ? (clients.find((client) => client.id === customers[0].customerId)?.name ??
-      'กำลังโหลด…')
-    : 'ยังไม่ระบุ';
-  const overviewClientName = form.clientId
-    ? (clients.find((client) => client.id === form.clientId)?.name ??
-      'กำลังโหลด…')
-    : form.useTmpClient
-      ? TMP_CLIENT_PLACEHOLDER
-      : form.clientName.trim() || 'ยังไม่ระบุ';
 
   return (
     <div
@@ -354,7 +331,7 @@ export default function NewCasePage() {
               สร้างคดีใหม่
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              เลือกประเภทคดี ระบุคู่กรณี และมอบหมายทนายผู้รับผิดชอบ
+              เลือกประเภทคดี ตั้งชื่อ และระบุทนาย ก็เริ่มคดีได้ · ข้อมูลอื่นเติมภายหลังได้
             </p>
           </div>
           <p className="w-fit whitespace-nowrap rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary">
@@ -368,8 +345,11 @@ export default function NewCasePage() {
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              if (step === 1) void handleSubmit();
-              else goNext();
+              void handleSubmit();
+            }}
+            onInvalidCapture={(event) => {
+              const details = (event.target as HTMLElement).closest('details');
+              if (details) details.open = true;
             }}
             className="min-w-0 space-y-4 text-card-foreground"
           >
@@ -377,24 +357,6 @@ export default function NewCasePage() {
               disabled={submitting || !!createdCaseId.current}
               className="min-w-0 space-y-4"
             >
-          <div className="rounded-2xl border border-primary/10 bg-primary/[0.035] p-4 sm:p-5">
-            <p className="text-xs font-medium text-primary">
-              ขั้นตอน {currentIndex + 1} จาก {visibleSteps.length}
-            </p>
-            <h2
-              ref={headingRef}
-              tabIndex={-1}
-              className="mt-1 text-xl font-semibold tracking-tight focus:outline-none"
-            >
-              {visibleSteps[currentIndex]?.label}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {step === 0
-                ? 'ระบุเฉพาะข้อมูลที่ใช้เริ่มคดี'
-                : 'เลือกทนายหลักและตรวจสอบข้อมูล'}
-            </p>
-          </div>
-
           {(error || lookupWarning) && (
             <div
               role="alert"
@@ -406,7 +368,7 @@ export default function NewCasePage() {
                   ไปยังคดีที่สร้างแล้ว
                 </Link>
               )}
-              {((step === 0 && caseTypes.length === 0) || lookupWarning) && (
+              {(caseTypes.length === 0 || lookupWarning) && (
                 <Button
                   type="button"
                   variant="outline"
@@ -420,8 +382,49 @@ export default function NewCasePage() {
             </div>
           )}
 
-          {step === 0 && (
             <div className="space-y-5 rounded-2xl border border-border/80 bg-card p-4 shadow-soft sm:p-6">
+              <label htmlFor="case-type" className={fieldLabel}>ประเภทคดี <span className="text-destructive">*</span>
+                <select id="case-type" required disabled={loadingTypes} value={form.caseTypeId} className={inputClass}
+                  onChange={(event) => setForm((current) => current.caseTypeId === event.target.value ? current : {
+                    ...current, caseTypeId: event.target.value, chargeSection: '',
+                    customFields: {
+                      opposingParty: current.customFields.opposingParty ?? '',
+                      incidentDate: current.customFields.incidentDate ?? '',
+                      estimatedDamage: current.customFields.estimatedDamage ?? '',
+                    },
+                  })}>
+                  <option value="">{loadingTypes ? 'กำลังโหลดประเภทคดี…' : 'เลือกประเภทคดี'}</option>
+                  {caseTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
+                </select>
+              </label>
+              <div>
+                <label htmlFor="client-combobox" className={fieldLabel}>ลูกความ <span className="font-normal text-muted-foreground">(เติมภายหลังได้)</span></label>
+                <ClientCombobox id="client-combobox" clients={clients} clientId={form.clientId} clientName={form.clientName}
+                  disabled={form.useTmpClient || sameCustomer}
+                  onSelectClient={(client) => setForm({ ...form, clientId: client.id, clientName: client.name, useTmpClient: false })}
+                  onFreeText={(clientName) => setForm({ ...form, clientId: '', clientName })} />
+                {form.clientName.trim() && !form.clientId && !form.useTmpClient && <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>ชื่อนี้จะเพิ่มเป็นลูกความใหม่เมื่อสร้างคดี · ประเภท</span>
+                  <select aria-label="ประเภทลูกความใหม่" value={form.clientType} onChange={(event) => setForm({ ...form, clientType: event.target.value })} className="min-h-9 rounded-lg border border-input bg-background px-2 text-sm text-foreground">
+                    <option value="INDIVIDUAL">บุคคลธรรมดา</option><option value="COMPANY">นิติบุคคล</option>
+                  </select>
+                </div>}
+                {sameCustomer && <p className="mt-1 text-xs text-muted-foreground">ใช้ชื่อเดียวกับผู้ว่าจ้างรายแรก</p>}
+              </div>
+              <div>
+                <label htmlFor="case-title" className={fieldLabel}>ชื่อคดี <span className="text-destructive">*</span></label>
+                <input id="case-title" required value={form.title} onChange={(event) => { setAutoTitle(false); setForm({ ...form, title: event.target.value }); }} className={inputClass} placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง" />
+                {autoTitle && <p className="mt-1 text-xs text-muted-foreground">ตั้งชื่อจากประเภทคดีและลูกความให้อัตโนมัติ แก้ไขได้</p>}
+              </div>
+              <label htmlFor="lead-lawyer" className={fieldLabel}>ทนายผู้รับผิดชอบ <span className="text-destructive">*</span>
+                <select id="lead-lawyer" required value={form.leadLawyerId} onChange={(event) => setForm({ ...form, leadLawyerId: event.target.value })} className={inputClass}>
+                  <option value="">เลือกทนายผู้รับผิดชอบ</option>
+                  {lawyers.map((lawyer) => <option key={lawyer.id} value={lawyer.id}>{lawyer.firstName} {lawyer.lastName}{workloadLabel(lawyer.id)}</option>)}
+                </select>
+              </label>
+              <details className="rounded-lg border border-border p-3">
+                <summary className="min-h-6 cursor-pointer text-sm font-medium">แนบเอกสาร / ช่วยกรอกด้วย AI (ไม่บังคับ){files.length > 0 && ` · ${files.length} ไฟล์`}</summary>
+                <div className="mt-4 space-y-4">
               <BatchAnalysisPanel
                 files={files}
                 onFilesChange={(next) => { setFiles(next); setSuggestions([]); }}
@@ -443,44 +446,13 @@ export default function NewCasePage() {
                 }}
                 onApply={applySuggestion}
               />
-              <section className="space-y-3" aria-label="ประเภทคดี">
-                <div>
-                  <h3 className="text-sm font-semibold">ประเภทคดี <span className="text-destructive">*</span></h3>
-                  <p className="mt-1 text-xs text-muted-foreground">เลือกประเภทให้ระบบเตรียมแบบฟอร์มและขั้นตอนที่ตรงกับคดี</p>
                 </div>
-                {loadingTypes ? (
-                  <p className="text-sm text-muted-foreground">กำลังโหลดประเภทคดี…</p>
-                ) : (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {caseTypes.map((type) => (
-                      <button
-                        key={type.id}
-                        type="button"
-                        aria-pressed={form.caseTypeId === type.id}
-                        onClick={() => {
-                          setForm((current) =>
-                            current.caseTypeId === type.id
-                              ? current
-                              : { ...current, caseTypeId: type.id, customFields: {
-                                  opposingParty: current.customFields.opposingParty ?? '',
-                                  incidentDate: current.customFields.incidentDate ?? '',
-                                  estimatedDamage: current.customFields.estimatedDamage ?? '',
-                                }, chargeSection: '' },
-                          );
-                        }}
-                        className={"min-h-11 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " + (form.caseTypeId === type.id ? "border-primary/50 bg-primary/[0.055]" : "border-border bg-background hover:border-primary/25 hover:bg-muted/60")}
-                      >
-                        <span className="flex items-center justify-between gap-2 font-medium">
-                          {type.name}
-                          <span aria-hidden="true" className={"flex h-4 w-4 items-center justify-center rounded-full border text-[10px] " + (form.caseTypeId === type.id ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40 text-transparent")}>✓</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </section>
+              </details>
 
-              <label className="block text-sm font-medium" htmlFor="new-case-playbook">
+              <details className="rounded-lg border border-border p-3">
+                <summary className="min-h-6 cursor-pointer text-sm font-medium">ขั้นตอนงานอัตโนมัติ / Cargo Claim{(cargoClaimEnabled || playbookId) && ' · เลือกแล้ว'}</summary>
+                <p className="mt-2 text-xs text-muted-foreground">เปิดคดีก่อน แล้วดูรายการงานจาก SOP เพื่อยืนยันเพิ่มงานในหน้าคดี</p>
+              <label className="mt-4 block text-sm font-medium" htmlFor="new-case-playbook">
                 มาตรฐานงานอัตโนมัติ <span className="font-normal text-muted-foreground">(เลือกได้)</span>
                 <select
                   id="new-case-playbook"
@@ -503,10 +475,12 @@ export default function NewCasePage() {
                   ))}
                 </select>
               </label>
+              </details>
 
               <section className="space-y-3 border-t border-border pt-5" aria-label="ลูกความและผู้ว่าจ้าง">
-                <h3 className="text-base font-bold tracking-tight">ลูกความและผู้ว่าจ้าง</h3>
-                <div className="space-y-2">
+                <details className="rounded-lg border border-border p-3">
+                  <summary className="min-h-6 cursor-pointer text-sm font-medium">ผู้ว่าจ้าง / ผู้จ่ายเงิน (ถ้าต่างจากลูกความ){customers.some((row) => row.customerId) && ' · ระบุแล้ว'}</summary>
+                <div className="mt-4 space-y-2">
                   {customers.map((row, index) => {
                     const contacts = clients.find((client) => client.id === row.customerId)?.contacts ?? [];
                     return (
@@ -569,53 +543,18 @@ export default function NewCasePage() {
                     </label>
                   </div>
                 </div>
+                </details>
 
-                <div>
-                  <label htmlFor="client-combobox" className={fieldLabel}>ลูกความ</label>
-                  <ClientCombobox
-                    id="client-combobox"
-                    clients={clients}
-                    clientId={form.clientId}
-                    clientName={form.clientName}
-                    disabled={form.useTmpClient || sameCustomer}
-                    onSelectClient={(client) => setForm({ ...form, clientId: client.id, clientName: client.name, useTmpClient: false })}
-                    onFreeText={(clientName) => setForm({ ...form, clientId: '', clientName })}
-                  />
-                  {form.clientName.trim() && !form.clientId && !form.useTmpClient && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span>ชื่อนี้จะเพิ่มเป็นลูกความใหม่เมื่อสร้างคดี · ประเภท</span>
-                      <select aria-label="ประเภทลูกความใหม่" value={form.clientType} onChange={(event) => setForm({ ...form, clientType: event.target.value })} className="min-h-9 rounded-lg border border-input bg-background px-2 text-sm text-foreground">
-                        <option value="INDIVIDUAL">บุคคลธรรมดา</option>
-                        <option value="COMPANY">นิติบุคคล</option>
-                      </select>
-                    </div>
-                  )}
-                  <label className="mt-2 flex items-center gap-2 text-sm">
-                    <Checkbox checked={form.useTmpClient} onChange={(event) => setForm({ ...form, useTmpClient: event.target.checked, clientId: event.target.checked ? '' : form.clientId })} />
-                    ยังไม่ทราบชื่อลูกความ
-                  </label>
-                  {sameCustomer && <p className="mt-1 text-xs text-muted-foreground">ใช้ชื่อเดียวกับผู้ว่าจ้างรายแรก</p>}
-                </div>
               </section>
 
-              <div className="border-t border-border pt-5">
-                <label htmlFor="case-title" className={fieldLabel}>ชื่อคดี <span className="text-destructive">*</span></label>
-                <input
-                  id="case-title"
-                  required
-                  value={form.title}
-                  onChange={(event) => {
-                    setAutoTitle(false);
-                    setForm({ ...form, title: event.target.value });
-                  }}
-                  className={inputClass}
-                  placeholder="เช่น เรียกชำระหนี้ — บริษัท ตัวอย่าง"
-                />
-                {autoTitle && <p className="mt-1 text-xs text-muted-foreground">ตั้งชื่อจากประเภทคดีและลูกความให้อัตโนมัติ แก้ไขได้</p>}
-              </div>
-
-              <div className="border-t border-border pt-5">
-                <label htmlFor="case-number" className={fieldLabel}>เลขคดี</label>
+              <details className="rounded-lg border border-border p-3">
+                <summary className="min-h-6 cursor-pointer text-sm font-medium">รายละเอียดคดีเพิ่มเติม (ไม่บังคับ)</summary>
+              <div className="mt-4">
+                <label className="mb-4 flex items-center gap-2 text-sm">
+                  <Checkbox checked={form.useTmpClient} onChange={(event) => setForm({ ...form, useTmpClient: event.target.checked, clientId: event.target.checked ? '' : form.clientId })} />
+                  ยังไม่ทราบชื่อลูกความ
+                </label>
+                <label htmlFor="case-number" className={fieldLabel}>เลขอ้างอิงสำนักงาน</label>
                 <input
                   id="case-number"
                   value={form.ownRef}
@@ -627,7 +566,6 @@ export default function NewCasePage() {
                   <p className="mt-1 text-xs text-muted-foreground">ใช้เลขที่แนะนำ: {nextOwnRef}</p>
                 )}
               </div>
-
               <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
                 <label className={fieldLabel}>คู่กรณี
                   <input value={form.customFields.opposingParty ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, opposingParty: event.target.value } }))} className={inputClass} />
@@ -648,6 +586,7 @@ export default function NewCasePage() {
                   <textarea rows={4} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className={inputClass} />
                 </label>
               </div>
+              </details>
 
               {fieldSchema.some((field) => field.key === 'chargeSection' && field.required) && (
                 <label className="block text-sm font-medium">
@@ -676,48 +615,6 @@ export default function NewCasePage() {
                 </section>
               )}
             </div>
-          )}
-
-          {step === 1 && (
-            <div className="space-y-5 rounded-2xl border border-border/80 bg-card p-4 shadow-soft sm:p-6">
-              <label htmlFor="lead-lawyer" className="block text-sm font-medium">
-                ทนายผู้รับผิดชอบ <span className="text-destructive">*</span>
-                <select
-                  id="lead-lawyer"
-                  required
-                  value={form.leadLawyerId}
-                  onChange={(event) => setForm({ ...form, leadLawyerId: event.target.value })}
-                  className={inputClass}
-                >
-                  <option value="">เลือกทนายผู้รับผิดชอบ</option>
-                  {lawyers.map((lawyer) => <option key={lawyer.id} value={lawyer.id}>{lawyer.firstName} {lawyer.lastName}{workloadLabel(lawyer.id)}</option>)}
-                </select>
-              </label>
-              <section className="border-t border-border pt-5" aria-labelledby="review-heading">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 id="review-heading" className="font-semibold">ตรวจสอบก่อนสร้าง</h3>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => { setStep(0); setError(''); }}>แก้ไขข้อมูล</Button>
-                </div>
-                <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-                  {[
-                    ['ประเภทคดี', selectedType?.name || 'ยังไม่เลือก'],
-                    ['ลูกความ', overviewClientName],
-                    ['ผู้ว่าจ้าง', primaryCustomerName],
-                    ['ชื่อคดี', form.title],
-                    ['เอกสาร', files.length ? `${files.length} ไฟล์` : 'ไม่มี'],
-                    ['ทุนทรัพย์ที่เรียกร้อง', form.claimedAmount ? `${Number(form.claimedAmount).toLocaleString('th-TH')} บาท` : 'ยังไม่ระบุ'],
-                    ['มาตรฐานงาน', cargoClaimEnabled ? CARGO_CLAIM_PLAYBOOK_NAME : (playbooks.find((playbook) => playbook.id === playbookId)?.name || 'ไม่ใช้')],
-                    ['ทนายผู้รับผิดชอบ', selectedLawyer ? selectedLawyer.firstName + ' ' + selectedLawyer.lastName : 'ยังไม่ได้เลือก'],
-                  ].map(([label, value]) => (
-                    <div key={label}>
-                      <dt className="text-xs text-muted-foreground">{label}</dt>
-                      <dd className="mt-1 font-medium">{value || '—'}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            </div>
-          )}
             </fieldset>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card py-3 pl-4 pr-20 sm:px-5">
           <Button
@@ -725,9 +622,9 @@ export default function NewCasePage() {
             variant="outline"
             className="min-h-11 whitespace-nowrap active:bg-accent/80"
             disabled={submitting}
-            onClick={() => createdCaseId.current ? router.push(`/cases/${createdCaseId.current}?tab=documents`) : goBack()}
+            onClick={() => router.push(createdCaseId.current ? `/cases/${createdCaseId.current}?tab=documents` : '/cases')}
           >
-            {createdCaseId.current ? 'ไปยังคดี' : step === 0 ? 'ยกเลิก' : 'ย้อนกลับ'}
+            {createdCaseId.current ? 'ไปยังคดี' : 'ยกเลิก'}
           </Button>
           <Button
             type="submit"
@@ -736,16 +633,14 @@ export default function NewCasePage() {
               submitting ||
               analysisBusy ||
               loadingTypes ||
-              (step === 0 && !caseTypes.length)
+              !caseTypes.length
             }
           >
             {submitting
               ? 'กำลังบันทึก…'
               : uploadFailures.length
                 ? `ลองอัปโหลดอีกครั้ง (${uploadFailures.length} ไฟล์)`
-              : step === 1
-                ? 'สร้างคดี'
-                : 'ถัดไป'}
+              : 'สร้างคดี'}
           </Button>
             </div>
           </form>

@@ -251,13 +251,15 @@ function TodosPageContent() {
 
   /** Switch scope labels on only when this list includes another assignee. */
   const seesOthers = tasks.some((t) => t.assignee && t.assignee.id !== user?.id);
+  const isMyWork = (task: TaskItem) => task.assignee?.id === user?.id ||
+    ((task.status === TaskStatus.PENDING_REVIEW || task.status === TaskStatus.DONE) && task.handedOffById === user?.id);
   const ownershipTasks = scope === 'team'
       ? tasks
       : scope === 'created'
         ? tasks.filter(t => t.createdById === user?.id)
       : scope === 'review'
         ? tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW && t.assignee?.id === user?.id)
-        : tasks.filter((t) => t.assignee?.id === user?.id);
+        : tasks.filter(isMyWork);
   const scopedTasks = ownershipTasks.filter((task) =>
     taskType === 'all' || (taskType === 'case' ? Boolean(task.caseId) : !task.caseId),
   );
@@ -316,7 +318,7 @@ function TodosPageContent() {
               onClick={() => { setScope(s.key); setFilters(EMPTY_TASK_FILTERS); setTaskType('all'); setIncludeCompleted(false); }}
               className={`min-h-10 rounded-lg px-3 text-sm font-medium transition-colors ${scope === s.key ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'}`}
             >
-              {s.label} <span className="ml-1 opacity-70">{tasks.filter(task => s.key === 'team' || (s.key === 'created' ? task.createdById === user?.id : task.assignee?.id === user?.id && (s.key !== 'review' || task.status === TaskStatus.PENDING_REVIEW))).length}</span>
+              {s.label} <span className="ml-1 opacity-70">{tasks.filter(task => s.key === 'team' || (s.key === 'created' ? task.createdById === user?.id : s.key === 'review' ? task.assignee?.id === user?.id && task.status === TaskStatus.PENDING_REVIEW : isMyWork(task))).length}</span>
             </button>
           ))}
         </div>

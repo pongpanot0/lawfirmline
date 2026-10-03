@@ -1,3 +1,4 @@
+import { NotificationCategory } from '../generated/prisma';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -85,6 +86,7 @@ export class ClientPortalDocumentsService {
         select: { userId: true },
       });
       await this.notifier.notifyAssigned({
+        category: NotificationCategory.CLIENT,
         firmId: portalUser.firmId,
         userIds: [legalCase.leadLawyerId, ...owners.map((o) => o.userId)],
         actorUserId: '',

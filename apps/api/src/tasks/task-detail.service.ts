@@ -9,13 +9,16 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as path from 'path';
-import { AuthUser, FirmRole, TaskPriority, TaskStatus, dailyTaskUpdateText, redactForAi } from '@lawfirm/shared';
+import { AuthUser, FirmRole, TaskPriority, TaskStatus, TaskRoutineSnapshot, dailyTaskUpdateText, dailyUpdateParts, redactForAi } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { TasksService } from './tasks.service';
+import { NotificationCategory } from '../generated/prisma';
+import { taskAppRoute } from '../notifications/app-route';
 import { CreateSubtaskDto, CreateTaskCommentDto, CreateAiFollowUpDto } from './dto/task-detail.dto';
 import { DailyTaskUpdateDto } from './dto/task-daily-update.dto';
+import { TaskRoutineProgressDto } from './dto/task-routine.dto';
 import { parseTaskAiResult, TASK_AI_RESPONSE_FORMAT } from './task-ai';
 
 export const TASK_ATTACHMENT_MAX_BYTES = 30 * 1024 * 1024;
@@ -60,7 +63,7 @@ export class TaskDetailService {
         },
         onHold: true,
         parent: { select: { id: true, title: true } },
-        case: { select: { id: true, ownRef: true, title: true } },
+        case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true } },
         subtasks: {
           orderBy: { createdAt: 'asc' },
           include: {
@@ -83,15 +86,45 @@ export class TaskDetailService {
       },
     });
     if (!task) throw new NotFoundException('Task not found');
-    const [history, candidates] = await Promise.all([
+    const [history, candidates, workflowData] = await Promise.all([
       this.prisma.auditLog.findMany({
         where: { firmId: user.firmId, action: { in: ['TASK_CHANGED', 'TASK_AI_ANALYZED'] }, metadata: { path: ['taskId'], equals: taskId } },
         orderBy: { createdAt: 'asc' }, include: { user: person },
       }),
       this.prisma.task.findMany({
         where: { followUpSourceTaskId: taskId, firmId: user.firmId }, orderBy: { createdAt: 'asc' },
-        select: { id: true, title: true, status: true, createdAt: true, dueDate: true, createdBy: person, followUpSourceCommentId: true, followUpSourceQuote: true },
+        select: { id: true, title: true, status: true, createdAt: true, dueDate: true, createdBy: person, assignee: person, assigneeId: true, followUpSourceCommentId: true, followUpSourceQuote: true },
       }),
+      task.workflowRunId ? (async () => {
+        const [run, stepsTotal, prevStep, prevAttachments] = await Promise.all([
+          this.prisma.workflowRun.findUnique({
+            where: { id: task.workflowRunId! },
+            select: { id: true, name: true },
+          }),
+          this.prisma.task.count({
+            where: { workflowRunId: task.workflowRunId! },
+          }),
+          task.workflowStep != null && task.workflowStep > 0
+            ? this.prisma.task.findFirst({
+                where: { workflowRunId: task.workflowRunId!, workflowStep: task.workflowStep - 1 },
+                select: { assignee: person },
+              })
+            : null,
+          task.workflowStep != null && task.workflowStep > 0
+            ? this.prisma.taskAttachment.findMany({
+                where: {
+                  task: {
+                    workflowRunId: task.workflowRunId!,
+                    workflowStep: { lt: task.workflowStep },
+                  },
+                },
+                select: { id: true, taskId: true, filename: true, size: true },
+                orderBy: { createdAt: 'asc' },
+              })
+            : [],
+        ]);
+        return { run, stepsTotal, prevStep, prevAttachments };
+      })() : null,
     ]);
     const followUps = [] as typeof candidates;
     for (const candidate of candidates) {
@@ -109,7 +142,14 @@ export class TaskDetailService {
       ...result, latestCommentId: saved.latestCommentId, taskUpdatedAt: saved.taskUpdatedAt, analyzedAt: analysisLog.createdAt.toISOString(),
       ...(result.status === 'blocker' ? { source: task.comments.find((c) => c.id === result.sourceCommentId), existingFollowUpId: followUps.find((f) => f.followUpSourceCommentId === result.sourceCommentId)?.id ?? null } : {}),
     } : null;
-    return { ...task, history: history.filter((log) => log.action === 'TASK_CHANGED'), followUps, aiAnalysis };
+    const workflow = workflowData ? {
+      workflowRun: workflowData.run,
+      workflowStep: task.workflowStep,
+      stepsTotal: workflowData.stepsTotal,
+      previousStepHolder: workflowData.prevStep?.assignee?.firstName ?? null,
+      previousStepAttachments: workflowData.prevAttachments,
+    } : null;
+    return { ...task, history: history.filter((log) => log.action === 'TASK_CHANGED'), followUps, aiAnalysis, ...(workflow && { workflow }) };
   }
 
   async analyze(taskId: string, user: AuthUser) {
@@ -163,38 +203,63 @@ export class TaskDetailService {
     return { ...result, ...revision, analyzedAt, source, existingFollowUpId };
   }
 
-  async createAiFollowUp(taskId: string, user: AuthUser, dto: CreateAiFollowUpDto) {
+  async createAiFollowUp(taskId: string, user: AuthUser, dto: CreateAiFollowUpDto, blockerRequest = false) {
     const task = await this.tasks.assertAccess(taskId, user);
+    if (blockerRequest && (task.status === TaskStatus.DONE || (task.assigneeId !== user.id && user.firmRole !== FirmRole.OWNER))) {
+      throw new ForbiddenException('ผู้รับงานหรือ Owner เท่านั้นที่ส่งจุดติดขัดของงานที่ยังเปิดอยู่ได้');
+    }
     if (!dto.quote.trim() || !dto.title.trim() || !dto.description.trim()) throw new BadRequestException('ระบุข้อความต้นทาง ชื่องาน และรายละเอียดให้ครบ');
     const latest = await this.prisma.taskComment.findFirst({ where: { taskId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true } });
-    const source = await this.prisma.taskComment.findFirst({ where: { id: dto.sourceCommentId, taskId }, select: { body: true } });
-    if (!source || !redactForAi(source.body.slice(0, 2000)).text.includes(dto.quote.trim())) throw new BadRequestException('ข้อความต้นทางไม่ตรงกับงานนี้');
+    const source = await this.prisma.taskComment.findFirst({ where: { id: dto.sourceCommentId, taskId }, select: { body: true, kind: true } });
+    const grounded = source && (blockerRequest
+      ? source.kind === 'DAILY_UPDATE' && dailyUpdateParts(source.body).blocker === dto.quote.trim()
+      : redactForAi(source.body.slice(0, 2000)).text.includes(dto.quote.trim()));
+    if (!grounded) throw new BadRequestException('ข้อความต้นทางไม่ตรงกับจุดติดขัดที่บันทึกไว้');
+    const linkBlocker = async (id: string) => {
+      if (!blockerRequest) return;
+      const linked = await this.prisma.task.updateMany({
+        where: { id: taskId, OR: [{ blockedById: null }, { blockedById: id }, { blockedBy: { status: TaskStatus.DONE } }] },
+        data: { blockedById: id },
+      });
+      if (!linked.count) throw new ConflictException('งานนี้มีเรื่องที่รอคนแก้อยู่แล้ว เปิดติดตามเรื่องเดิมก่อน');
+    };
     const existing = await this.prisma.task.findUnique({ where: { followUpSourceCommentId: dto.sourceCommentId }, select: { id: true, followUpSourceTaskId: true } });
     if (existing?.followUpSourceTaskId === taskId) {
       await this.tasks.assertAccess(existing.id, user);
+      await linkBlocker(existing.id);
       return { id: existing.id, alreadyCreated: true };
     }
     if (latest?.id !== dto.latestCommentId || task.updatedAt.toISOString() !== dto.taskUpdatedAt) {
-      throw new ConflictException('มีข้อมูลงานใหม่หลังการวิเคราะห์ กรุณาวิเคราะห์อีกครั้ง');
+      throw new ConflictException(blockerRequest ? 'งานมีข้อมูลใหม่ กรุณาโหลดงานแล้วส่งจุดติดขัดอีกครั้ง' : 'มีข้อมูลงานใหม่หลังการวิเคราะห์ กรุณาวิเคราะห์อีกครั้ง');
     }
     const todayBangkok = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
     if (Number.isNaN(Date.parse(dto.followUpDate)) || dto.followUpDate < todayBangkok) {
       throw new BadRequestException('วันติดตามต้องไม่เป็นวันที่ผ่านมาแล้ว');
     }
     try {
+      if (blockerRequest && !dto.assigneeId) throw new BadRequestException('เลือกคนรับแก้หรือ Owner');
+      if (blockerRequest && task.blockedById) {
+        const dependency = await this.prisma.task.findUnique({ where: { id: task.blockedById }, select: { status: true } });
+        if (dependency?.status !== TaskStatus.DONE) throw new ConflictException('งานนี้มีเรื่องที่รอคนแก้อยู่แล้ว เปิดติดตามเรื่องเดิมก่อน');
+      }
+      const receiver = blockerRequest ? await this.prisma.firmMember.findFirst({ where: { firmId: user.firmId, userId: dto.assigneeId }, select: { role: true } }) : null;
       const created = await this.tasks.create(user, task.caseId, {
         title: dto.title.trim(), description: dto.description.trim(), assigneeId: dto.assigneeId,
-        dueDate: dto.followUpDate, priority: TaskPriority.MEDIUM,
+        dueDate: blockerRequest ? `${dto.followUpDate}T23:59:59+07:00` : dto.followUpDate, priority: TaskPriority.MEDIUM,
+        ...(blockerRequest ? { observerIds: [...new Set([user.id, task.assigneeId].filter(Boolean) as string[])] } : {}),
       }, undefined, task.intakeId ?? undefined, 0, {
         parentId: task.parentId ?? task.id, sourceTaskId: task.id,
         sourceCommentId: dto.sourceCommentId, sourceQuote: dto.quote.trim(),
+        ...(blockerRequest ? { ownerEscalation: receiver?.role === FirmRole.OWNER } : {}),
       });
+      await linkBlocker(created.id);
       return { id: created.id, alreadyCreated: false };
     } catch (error) {
       // A concurrent click or a notification failure may happen after the row is saved.
       const saved = await this.prisma.task.findUnique({ where: { followUpSourceCommentId: dto.sourceCommentId }, select: { id: true, followUpSourceTaskId: true } });
       if (saved?.followUpSourceTaskId === taskId) {
         await this.tasks.assertAccess(saved.id, user);
+        await linkBlocker(saved.id);
         return { id: saved.id, alreadyCreated: true };
       }
       throw error;
@@ -221,8 +286,10 @@ export class TaskDetailService {
         firmId: user.firmId,
         userIds: parentIds,
         actorUserId: user.id,
+        category: NotificationCategory.TASK,
         summaryText: `📌 งานย่อยใหม่: "${created.title}"`,
         entityPath: parent.caseId ? `/cases/${parent.caseId}` : '/todos',
+        appPath: taskAppRoute(created.id),
       });
     }
     return this.tasks.findOne(created.id);
@@ -238,6 +305,22 @@ export class TaskDetailService {
     const result = await this.prisma.task.updateMany({ where: { id: taskId, assigneeId: user.id, status: task.status }, data: { scheduledFor: new Date(`${date}T00:00:00Z`), planConfirmedAt: new Date() } });
     if (!result.count) throw new BadRequestException('งานเปลี่ยนแล้ว กรุณาโหลดใหม่');
     return this.tasks.findOne(taskId);
+  }
+
+  async routineProgress(taskId: string, user: AuthUser, dto: TaskRoutineProgressDto) {
+    const task = await this.tasks.assertAccess(taskId, user);
+    if (!task.routine) throw new BadRequestException('งานนี้ไม่มีรายการตรวจของ SOP');
+    if (task.assigneeId !== user.id || !task.acknowledgedAt || ['DONE', 'PENDING_REVIEW'].includes(task.status)) {
+      throw new ForbiddenException('ผู้รับงานที่รับทราบแล้วเท่านั้นที่บันทึกรายการตรวจได้');
+    }
+    const routine = task.routine as unknown as TaskRoutineSnapshot;
+    if (dto.completedChecks.some(index => !Number.isInteger(index) || index < 0 || index >= routine.checks.length)) throw new BadRequestException('รายการตรวจไม่ตรงกับรุ่น SOP ของงานนี้');
+    const result = await this.prisma.task.updateMany({
+      where: { id: taskId, assigneeId: user.id, status: task.status, updatedAt: new Date(dto.expectedUpdatedAt) },
+      data: { routineCompletedChecks: [...new Set(dto.completedChecks)] },
+    });
+    if (!result.count) throw new ConflictException('งานเปลี่ยนแล้ว กรุณาโหลดงานล่าสุดก่อนบันทึกรายการตรวจ');
+    return this.getDetail(taskId, user);
   }
 
   async dailyUpdate(taskId: string, user: AuthUser, dto: DailyTaskUpdateDto) {
@@ -274,11 +357,13 @@ export class TaskDetailService {
 
     if (notifyIds.length) {
       await this.tasks.notifyViaAssignmentNotifier({
-        firmId: null,
+        firmId: user.firmId,
         userIds: notifyIds,
         actorUserId: user.id,
+        category: NotificationCategory.COMMENT,
         summaryText: `💬 ความเห็นใหม่ในงาน: "${task.title}"`,
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+        appPath: taskAppRoute(taskId),
       });
     }
 

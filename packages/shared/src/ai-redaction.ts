@@ -20,6 +20,8 @@ export const REDACTION_PLACEHOLDERS = {
   email: '[อีเมล]',
   hospitalNumber: '[เลขเวชระเบียน]',
   passport: '[เลขหนังสือเดินทาง]',
+  bankAccount: '[เลขบัญชีธนาคาร]',
+  lineId: '[LINE ID]',
 } as const;
 
 export type RedactionKind = keyof typeof REDACTION_PLACEHOLDERS;
@@ -51,6 +53,17 @@ const RULES: Array<{ kind: RedactionKind; pattern: RegExp }> = [
       /(?:\b(?:HN|AN)\b|เลขที่ผู้ป่วย|เลขเวชระเบียน|เลขที่เวชระเบียน)[\s:.]*[A-Za-z]?[\d-]{4,15}/gi,
   },
   {
+    // Anchored to its label for the same reason: an unlabelled 10-12 digit run
+    // is as likely a case or document number.
+    kind: 'bankAccount',
+    pattern: /(?:เลขที่บัญชี|บัญชี(?:เลขที่)?|บช\.?|\ba\/c\b|\bacc(?:ount)?(?:\s*no\.?)?)[\s:.#]*(?:[A-Za-z]{2,10}[\s:]*)?\d[\d\s-]{7,16}\d/gi,
+  },
+  {
+    // LINE platform user ids — they identify a person across every chat.
+    kind: 'lineId',
+    pattern: /(?<![A-Za-z0-9])U[0-9a-f]{32}(?![A-Za-z0-9])/g,
+  },
+  {
     kind: 'nationalId',
     // 13 digits, optionally separated, not glued to a longer number.
     pattern: /(?<![\d-])\d[\s-]?\d{4}[\s-]?\d{5}[\s-]?\d{2}[\s-]?\d(?![\d-])/g,
@@ -59,11 +72,14 @@ const RULES: Array<{ kind: RedactionKind; pattern: RegExp }> = [
     kind: 'phone',
     // Thai numbers only: 0X..., +66..., 66.... A date or an amount never starts
     // this way, which is what keeps 2026-09-07 intact.
-    pattern: /(?<![\d-])(?:\+?66[\s-]?|0)\d(?:[\s-]?\d){7,8}(?![\d-])/g,
+    // Separators people actually type: spaces, dashes, dots, (0X) brackets.
+    pattern: /(?<![\d-])(?:\+?66[\s.-]?|\(?0)\d(?:\)?[\s.-]?\d){7,8}(?![\d-])/g,
   },
   {
     kind: 'passport',
-    pattern: /(?<![A-Za-z0-9])[A-Z]{1,2}\d{6,7}(?![A-Za-z0-9])/g,
+    // Upper-case letters may be spaced from the digits (P 1234567); lower-case
+    // only glued (aa1234567), so ordinary words before a number stay intact.
+    pattern: /(?<![A-Za-z0-9])(?:[A-Z]{1,2}\s?|[a-z]{1,2})\d{6,8}(?![A-Za-z0-9])/g,
   },
 ];
 
@@ -74,7 +90,8 @@ const RULES: Array<{ kind: RedactionKind; pattern: RegExp }> = [
  */
 const PRESERVED = [
   /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?Z?)?\b/g, // 2026-09-07, with time
-  /\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b/g, // 12/03/2568
+  // 12/03/2568 — only real day/month values, so 66-81-234-5678 is not "a date".
+  /\b(?:0?[1-9]|[12]\d|3[01])[/.-](?:0?[1-9]|1[0-2])[/.-]\d{2,4}\b/g,
   /\b\d{1,2}:\d{2}(?::\d{2})?\b/g, // 09:30
   /\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b/g, // 1,500,000
 ];
@@ -90,7 +107,8 @@ export function redactForAi(input: string | null | undefined): RedactionResult {
   if (!input) return { text: input ?? '', counts: {}, redacted: false };
 
   const kept: string[] = [];
-  let text = input;
+  // Thai digits (๐-๙) carry the same identifiers; read them as Arabic digits.
+  let text = input.replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50));
   for (const pattern of PRESERVED) {
     text = text.replace(pattern, (match) => {
       kept.push(match);

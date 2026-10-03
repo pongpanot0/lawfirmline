@@ -286,7 +286,9 @@ export class DocumentIntelligenceService {
     return summary;
   }
 
-  async extractDatesWithAI(text: string): Promise<ExtractedDateCandidate[]> {
+  async extractDatesWithAI(rawText: string): Promise<ExtractedDateCandidate[]> {
+    // Same rule as every other AI call here (ADR 0002): identifiers never leave unredacted.
+    const text = redactForAi(rawText).text;
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) return [];
 
@@ -633,6 +635,13 @@ export class DocumentIntelligenceService {
     return value.trim().slice(0, 300);
   }
 
+  /** A documentId from the query string must be one of this case's documents. */
+  private async assertDocumentInCase(caseId: string, documentId?: string) {
+    if (!documentId) return;
+    const found = await this.prisma.document.count({ where: { id: documentId, caseId } });
+    if (!found) throw new NotFoundException('ไม่พบเอกสารนี้ในคดี');
+  }
+
   async extractDates(
     fileBuffer: Buffer,
     mimeType: string,
@@ -642,6 +651,7 @@ export class DocumentIntelligenceService {
   ) {
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!legalCase) throw new NotFoundException('Case not found');
+    await this.assertDocumentInCase(caseId, documentId);
 
     const text = await this.extractText(fileBuffer, mimeType);
     const candidates = await this.extractDatesWithAI(text);
@@ -721,6 +731,7 @@ export class DocumentIntelligenceService {
   ) {
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!legalCase) throw new NotFoundException('Case not found');
+    await this.assertDocumentInCase(caseId, documentId);
 
     const text = await this.extractTextWithOcr(fileBuffer, mimeType, { caseId, documentId, firmId: legalCase.firmId });
     if (!text.replace(/\[หน้า \d+\]/g, '').trim()) throw new BadRequestException('ไม่พบข้อความในเอกสาร กรุณาตรวจไฟล์ก่อนวิเคราะห์');

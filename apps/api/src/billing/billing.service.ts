@@ -1,16 +1,16 @@
+import { assertFirmRefs } from '../common/firm-refs';
+import { lineActions } from '../notifications/line-actions';
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthUser, ExpenseClaimStatus, ExpenseStatus, FirmRole } from '@lawfirm/shared';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
 import { CashAdvanceService } from './cash-advance.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
-import { LineMessagingService } from '../notifications/line-messaging.service';
-import { FirmLinkService } from '../notifications/firm-link.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import {
   CreateTimeEntryDto,
@@ -40,9 +40,7 @@ export class BillingService {
     private caseAccess: CaseAccessService,
     private config: ConfigService,
     private fileStorage: FileStorageService,
-    private line: LineMessagingService,
     private assignmentNotifier: AssignmentNotifierService,
-    private firmLink: FirmLinkService,
   ) {}
 
   private decodeOriginalFilename(originalname: string): string {
@@ -686,6 +684,7 @@ export class BillingService {
     const copy = requesterCopy[dto.status];
     if (copy) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.BILLING,
         firmId: user.firmId,
         userIds: [expense.userId],
         actorUserId: user.id,
@@ -884,11 +883,13 @@ export class BillingService {
     const copy = submitterCopy[next];
     if (copy) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.BILLING,
         firmId: user.firmId,
         userIds: [claim.submittedById],
         actorUserId: user.id,
         summaryText: copy,
         entityPath: '/expenses/claim',
+        appPath: `/expenses/claim/${claim.id}`,
       });
     }
 
@@ -899,36 +900,16 @@ export class BillingService {
     submitter: AuthUser,
     claim: { id: string; totalAmount: number; itemCount: number },
   ) {
-    const owners = await this.prisma.firmMember.findMany({
-      where: { firmId: submitter.firmId, role: FirmRole.OWNER },
-      include: {
-        user: { select: { lineUserId: true, firstName: true, lastName: true } },
-      },
-    });
-
-    const ownerLineIds = owners
-      .map((member) => member.user.lineUserId)
-      .filter((id): id is string => Boolean(id));
-
-    if (!ownerLineIds.length || !this.line.isConfigured()) return;
-
-    const link = await this.firmLink.linkFor(
-      submitter.firmId,
-      '/admin/reimbursements?status=PENDING',
-    );
     const submitterName = `${submitter.firstName ?? ''} ${submitter.lastName ?? ''}`.trim() || 'ทนายความ';
-    const message =
-      `📋 ${submitterName} ส่งใบเบิก ${claim.itemCount} รายการ\n` +
-      `รวม ฿${claim.totalAmount.toLocaleString('th-TH')}\n\n` +
-      `🔗 ${link}`;
-
-    for (const lineUserId of ownerLineIds) {
-      try {
-        await this.line.pushTo(lineUserId, message);
-      } catch (error) {
-        this.logger.warn(`Failed to notify owner ${lineUserId} about expense claim: ${error}`);
-      }
-    }
+    await this.assignmentNotifier.notifyFirmOwners({
+      firmId: submitter.firmId,
+      actorUserId: submitter.id,
+      category: NotificationCategory.BILLING,
+      summaryText: `📋 ${submitterName} ส่งใบเบิก ${claim.itemCount} รายการ\nรวม ฿${claim.totalAmount.toLocaleString('th-TH')}`,
+      entityPath: '/admin/reimbursements?status=PENDING',
+      appPath: `/expenses/claim/${claim.id}`,
+      lineActions: () => lineActions.claim(claim.id),
+    });
   }
 
   async getInvoices(caseId: string) {
@@ -1077,6 +1058,11 @@ export class BillingService {
     if (dto.splits && dto.billToCustomerId) {
       throw new BadRequestException('ระบุ splits กับ billToCustomerId พร้อมกันไม่ได้');
     }
+    // Who gets billed must be this firm's client: the invoice then prints their
+    // tax id and address, and reminders go to their contacts.
+    await assertFirmRefs(this.prisma, user.firmId, {
+      clientIds: [dto.billToCustomerId, ...(dto.splits ?? []).map((split) => split.customerId)],
+    });
 
     // งานที่บันทึกเวลา/เบิกไว้มีได้เฉพาะในคดี — เงียบ ๆ ทิ้งไปจะกลายเป็นออกบิลขาด
     if (!caseId && (dto.timeEntryIds?.length || dto.expenseIds?.length)) {
@@ -1087,7 +1073,7 @@ export class BillingService {
     const [billedTime, billedExpenses] = await Promise.all([
       caseId && dto.timeEntryIds?.length
         ? this.prisma.timeEntry.findMany({
-            where: { id: { in: dto.timeEntryIds }, caseId, invoiceId: null },
+            where: { id: { in: dto.timeEntryIds }, caseId, invoiceId: null, billable: true },
             orderBy: { date: 'asc' },
           })
         : [],
@@ -1224,16 +1210,18 @@ export class BillingService {
       // งานถูกเก็บเงินครั้งเดียวแม้จะแบ่งเป็นหลายใบ จึงผูกไว้กับใบของผู้จ่ายหลัก
       const primaryInvoiceId = invoices[0].id;
       if (billedTime.length) {
-        await tx.timeEntry.updateMany({
-          where: { id: { in: billedTime.map((entry) => entry.id) } },
+        const claimed = await tx.timeEntry.updateMany({
+          where: { id: { in: billedTime.map((entry) => entry.id) }, invoiceId: null, caseId, billable: true },
           data: { invoiceId: primaryInvoiceId },
         });
+        if (claimed.count !== billedTime.length) throw new ConflictException('รายการเวลาถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
       }
       if (billedExpenses.length) {
-        await tx.expense.updateMany({
-          where: { id: { in: billedExpenses.map((expense) => expense.id) } },
+        const claimed = await tx.expense.updateMany({
+          where: { id: { in: billedExpenses.map((expense) => expense.id) }, invoiceId: null, caseId, billable: true, status: { in: [ExpenseStatus.APPROVED, ExpenseStatus.PAID] } },
           data: { invoiceId: primaryInvoiceId },
         });
+        if (claimed.count !== billedExpenses.length) throw new ConflictException('ค่าใช้จ่ายถูกออกบิลแล้ว กรุณาโหลดล่าสุด');
       }
 
       return invoices;

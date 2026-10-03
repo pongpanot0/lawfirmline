@@ -29,13 +29,14 @@ describe('TasksService — recurrence + dependency unlock on completion', () => 
       findUnique: jest.fn().mockResolvedValue(baseTask),
       update: jest.fn(),
       create: jest.fn(),
+      upsert: jest.fn(),
       findMany: jest.fn(),
     },
     taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
     case: { findUnique: jest.fn() },
-    firmMember: { count: jest.fn().mockResolvedValue(1) },
+    firmMember: { count: jest.fn().mockResolvedValue(1), findFirst: jest.fn().mockResolvedValue({ role: 'LAWYER' }) },
     caseActivity: { create: jest.fn() },
-    taskAssignmentLog: { create: jest.fn() },
+    taskAssignmentLog: { create: jest.fn(), findFirst: jest.fn() },
   };
   const notifier = { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
@@ -43,6 +44,7 @@ describe('TasksService — recurrence + dependency unlock on completion', () => 
   beforeEach(async () => {
     jest.clearAllMocks();
     mockPrisma.task.findUnique.mockResolvedValue(baseTask);
+    mockPrisma.taskAssignmentLog.findFirst.mockResolvedValue(null);
     mockTaskHistoryTransaction(mockPrisma);
     const module = await Test.createTestingModule({
       providers: [
@@ -63,9 +65,10 @@ describe('TasksService — recurrence + dependency unlock on completion', () => 
 
     await service.update('task-1', { status: TaskStatus.DONE }, user);
 
-    expect(mockPrisma.task.create).toHaveBeenCalledWith(
+    expect(mockPrisma.task.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
+        where: { createRequestId: 'recurrence:task-1' }, update: {},
+        create: expect.objectContaining({
           title: baseTask.title,
           recurrenceDays: 7,
           dueDate: expect.any(Date),
@@ -86,6 +89,18 @@ describe('TasksService — recurrence + dependency unlock on completion', () => 
 
     await service.update('task-1', { status: TaskStatus.DONE }, user);
 
-    expect(mockPrisma.task.create).not.toHaveBeenCalled();
+    expect(mockPrisma.task.upsert).not.toHaveBeenCalled();
+  });
+
+  it('returns the next reviewed occurrence to its sender and uses the same retry key', async () => {
+    mockPrisma.taskAssignmentLog.findFirst.mockResolvedValue({ fromUserId: 'worker' });
+    mockPrisma.task.findMany.mockResolvedValue([]);
+    const reviewed = { ...baseTask, assigneeId: 'reviewer', requiresReview: true, reviewerId: 'reviewer' };
+    await (service as any).onTaskCompleted(reviewed, 'reviewer');
+    await (service as any).onTaskCompleted(reviewed, 'reviewer');
+    for (const [call] of mockPrisma.task.upsert.mock.calls) expect(call).toMatchObject({
+      where: { createRequestId: 'recurrence:task-1' }, update: {},
+      create: { assigneeId: 'worker', requiresReview: true, reviewerId: 'reviewer', recurrenceDays: 7 },
+    });
   });
 });

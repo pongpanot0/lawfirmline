@@ -1,19 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useFonts, Anuphan_600SemiBold, Anuphan_700Bold } from '@expo-google-fonts/anuphan';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, useQueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { AuthProvider, useAuth } from '@/api/auth';
 import { registerForPush } from '@/api/push';
+import { api } from '@/api/client';
+import { invalidateNotifications, useUnreadNotifications } from '@/api/hooks';
 import { LockGate } from '@/components/LockGate';
-import { Loading } from '@/components/ui';
-import { colors, fonts } from '@/theme';
+import { Loading, Button } from '@/components/ui';
+import { Text } from '@/components/AppText';
+import { colors, fonts, spacing } from '@/theme';
 import { DisplayPreferences, useDisplayPreferences } from '@/components/AppText';
 
 // Cache-first everywhere: render what we have instantly, refetch behind it.
@@ -47,12 +50,12 @@ Notifications.setNotificationHandler({
     shouldShowBanner: true,
     shouldShowList: true,
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
   }),
 });
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { ready, user } = useAuth();
+  const { ready, user, logout } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -60,25 +63,74 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (!ready) return;
     const inAuthGroup = segments[0] === '(auth)';
     if (!user && !inAuthGroup) router.replace('/(auth)/login');
-    else if (user && inAuthGroup) router.replace('/(tabs)');
+    else if (user && !user.firmRole?.includes('EXTERNAL') && inAuthGroup) router.replace('/(tabs)');
   }, [ready, user, segments, router]);
 
   // Register the device for push once a session exists.
   useEffect(() => {
-    if (user) registerForPush();
+    if (user && user.firmRole !== 'EXTERNAL') registerForPush();
   }, [user?.id]);
 
-  // A tapped push carries the in-app route it is about, e.g. /court-day/<id>.
+  // A push that lands while the app is open changes the inbox and the bell.
+  const queryClient = useQueryClient();
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const url = response.notification.request.content.data?.url;
-      if (typeof url === 'string' && url.startsWith('/')) router.push(url as never);
-    });
+    const sub = Notifications.addNotificationReceivedListener(() => invalidateNotifications(queryClient));
     return () => sub.remove();
-  }, [router]);
+  }, [queryClient]);
+
+  // A tapped push carries the in-app route it is about, e.g. /court-day/<id>.
+  // The last-response hook also covers a tap that cold-started the app, which
+  // fires before any listener could be attached.
+  const response = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (!ready || !response) return;
+    const key = response.notification.request.identifier;
+    if (handledResponse === key) return;
+    handledResponse = key;
+    Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+    // A tap while signed out was meant for whoever was signed in then; never replay it into the next login.
+    if (!user || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    const { url, notificationId } = response.notification.request.content.data ?? {};
+    if (typeof notificationId === 'string') {
+      api(`/notifications/${notificationId}/read`, { method: 'POST' })
+        .catch(() => undefined)
+        .finally(() => invalidateNotifications(queryClient));
+    }
+    if (typeof url === 'string' && url.startsWith('/')) router.push(url as never);
+  }, [ready, user, response, router, queryClient]);
 
   if (!ready) return <Loading />;
-  return <>{children}</>;
+
+  if (user?.firmRole === 'EXTERNAL') {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.md }}>
+        <Text style={{ fontSize: 18, textAlign: 'center', marginBottom: spacing.lg }}>
+          บัญชีผู้รับงานภายนอกใช้งานผ่านเว็บ
+        </Text>
+        <Button
+          title="ออกจากระบบ"
+          onPress={() => {
+            logout().catch(() => undefined);
+            router.replace('/(auth)/login');
+          }}
+        />
+      </View>
+    );
+  }
+
+  return <>{children}{user ? <BadgeSync /> : null}</>;
+}
+
+/** Module-level so a re-login (which remounts the session tree) does not replay an old tap. */
+let handledResponse: string | null = null;
+
+/** Keeps the app-icon badge equal to the unread inbox count. */
+function BadgeSync() {
+  const unread = useUnreadNotifications();
+  useEffect(() => {
+    if (unread.data !== undefined) Notifications.setBadgeCountAsync(unread.data).catch(() => undefined);
+  }, [unread.data]);
+  return null;
 }
 
 export default function RootLayout() {
@@ -112,6 +164,13 @@ function AppStack() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
               <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
               <Stack.Screen name="case/[id]" options={{ title: 'คดี' }} />
+              <Stack.Screen name="team-week" options={{ title: 'ภาระงานทีม 7 วัน' }} />
+              <Stack.Screen name="owner-decisions" options={{ title: 'คิวตัดสินใจวันนี้' }} />
+              <Stack.Screen name="owner-finance" options={{ title: 'เงินสำนักงาน / ลูกหนี้' }} />
+              <Stack.Screen name="invoice/[id]" options={{ title: 'ใบแจ้งหนี้ / รับเงิน' }} />
+              <Stack.Screen name="document-template" options={{ title: 'สร้างเอกสารจากแบบ' }} />
+              <Stack.Screen name="document-waiting" options={{ title: 'รอเอกสารจากภายนอก' }} />
+              <Stack.Screen name="task/blocker" options={{ title: 'ส่งจุดติดขัดให้คนแก้' }} />
               <Stack.Screen name="case/[id]/close" options={{ title: 'ปิด / เปิดคดี' }} />
               <Stack.Screen name="notifications" options={{ title: 'การแจ้งเตือน' }} />
               <Stack.Screen name="more" options={{ title: 'อื่น ๆ' }} />

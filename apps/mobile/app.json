@@ -4,10 +4,10 @@
     "slug": "lexflow-mobile",
     "version": "0.1.1",
     "scheme": "lexflow",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "co.lexflow.mobile"
     },
     "android": {

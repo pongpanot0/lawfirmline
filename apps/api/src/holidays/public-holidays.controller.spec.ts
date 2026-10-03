@@ -1,3 +1,5 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { Role } from '@lawfirm/shared';
@@ -32,10 +34,11 @@ describe('PublicHolidaysController', () => {
     reflector = module.get(Reflector);
   });
 
-  it('is readable by any member, writable only by an admin', () => {
+  it('is readable by any member, writable only by a platform admin', () => {
     expect(reflector.get(ROLES_KEY, controller.list)).toBeUndefined();
+    // Shared by every firm: a firm OWNER (who passes Role.ADMIN) must not write it.
     for (const handler of [controller.add, controller.replaceYear, controller.remove]) {
-      expect(reflector.get(ROLES_KEY, handler)).toEqual([Role.ADMIN]);
+      expect(reflector.get(GUARDS_METADATA, handler)).toContain(PlatformAdminGuard);
     }
   });
 

@@ -24,6 +24,7 @@ import { AiCreditsInterceptor } from '../common/interceptors/ai-credits.intercep
 import { RequireCredits } from '../common/decorators/require-credits.decorator';
 import { CreateSubtaskDto, CreateTaskCommentDto, CreateAiFollowUpDto } from './dto/task-detail.dto';
 import { ConfirmTaskPlanDto, DailyTaskUpdateDto } from './dto/task-daily-update.dto';
+import { TaskRoutineProgressDto } from './dto/task-routine.dto';
 
 /**
  * One address for a task whichever board it came from. Access is decided per
@@ -56,6 +57,11 @@ export class TaskDetailController {
     return this.detail.createAiFollowUp(taskId, user, dto);
   }
 
+  @Post('blocker-follow-up')
+  createBlockerFollowUp(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string, @Body() dto: CreateAiFollowUpDto) {
+    return this.detail.createAiFollowUp(taskId, user, dto, true);
+  }
+
   @Post('subtasks')
   createSubtask(
     @CurrentUser() user: AuthUser,
@@ -77,6 +83,11 @@ export class TaskDetailController {
   @Post('acknowledge')
   acknowledge(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string) {
     return this.detail.acknowledge(taskId, user);
+  }
+
+  @Post('routine-progress')
+  routineProgress(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string, @Body() dto: TaskRoutineProgressDto) {
+    return this.detail.routineProgress(taskId, user, dto);
   }
 
   @Post('daily-update')

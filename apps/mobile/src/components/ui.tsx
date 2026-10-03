@@ -109,7 +109,7 @@ export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () 
     <Card style={{ borderColor: colors.warnSoft }}>
       <Text style={{ color: colors.warn, fontSize: 14 }}>{message}</Text>
       {onRetry ? (
-        <Pressable onPress={onRetry} style={{ marginTop: spacing.sm }}>
+        <Pressable accessibilityRole="button" onPress={onRetry} style={{ marginTop: spacing.sm, minHeight: 44, justifyContent: 'center' }}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>ลองใหม่</Text>
         </Pressable>
       ) : null}

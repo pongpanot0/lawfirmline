@@ -1,3 +1,4 @@
+import { assertFirmRefs } from '../common/firm-refs';
 import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { decodeUploadFilename } from '../common/utils/decode-upload-filename';
 import { ConfigService } from '@nestjs/config';
@@ -14,7 +15,7 @@ import {
   FirmRole,
 } from '@lawfirm/shared';
 import * as path from 'path';
-import { AssignmentType, ReferralChannel } from '../generated/prisma';
+import { NotificationCategory, AssignmentType, ReferralChannel } from '../generated/prisma';
 import { INTAKE_STAGE_ORDER, preLitigationDocuments } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
@@ -260,6 +261,7 @@ export class IntakeService {
    * ทุกครั้งที่ติดตามจึงต้องตอบให้ได้ว่า "ครั้งถัดไปเมื่อไร ใครถือ"
    */
   async addFollowUp(user: AuthUser, id: string, dto: CreateFollowUpDto) {
+    await assertFirmRefs(this.prisma, user.firmId, { userIds: [dto.nextOwnerId] });
     await this.findOne(user, id);
     const now = new Date();
     const nextDueAt = dto.nextDueAt ? new Date(dto.nextDueAt) : null;
@@ -531,7 +533,18 @@ export class IntakeService {
     });
   }
 
+  /** Every id an intake links must be this firm's; they all carry into the case it becomes. */
+  private assertIntakeRefs(user: AuthUser, dto: Pick<CreateIntakeDto, 'clientId' | 'caseTypeId' | 'followUpOwnerId' | 'customers' | 'clients'>) {
+    return assertFirmRefs(this.prisma, user.firmId, {
+      clientIds: [dto.clientId, ...(dto.customers ?? []).map((c) => c.customerId), ...(dto.clients ?? []).map((c) => c.clientId)],
+      contactIds: (dto.customers ?? []).map((c) => c.contactId),
+      caseTypeIds: [dto.caseTypeId],
+      userIds: [dto.followUpOwnerId],
+    });
+  }
+
   async create(user: AuthUser, dto: CreateIntakeDto) {
+    await this.assertIntakeRefs(user, dto);
     if (dto.relatedCaseId) {
       const relatedCase = await this.prisma.case.findFirst({
         where: { id: dto.relatedCaseId, firmId: user.firmId },
@@ -546,7 +559,7 @@ export class IntakeService {
     );
     if (dto.leadLawyerId && dto.leadLawyerId !== user.id) {
       const lead = await this.prisma.firmMember.findFirst({
-        where: { firmId: user.firmId, userId: dto.leadLawyerId },
+        where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: dto.leadLawyerId },
       });
       if (!lead) throw new BadRequestException('ไม่พบทนายหลักที่เลือกในสำนักงานนี้');
     }
@@ -618,6 +631,7 @@ export class IntakeService {
     if (dto.assignedUserIds?.length) {
       const reference = formatIntakeNotificationReference(intake.case?.ownRef);
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: dto.assignedUserIds,
         actorUserId: user.id,
@@ -685,7 +699,7 @@ export class IntakeService {
   private async assertCanAssign(user: AuthUser, newIds: string[]) {
     if (newIds.length === 0) return;
     const members = await this.prisma.firmMember.findMany({
-      where: { firmId: user.firmId, userId: { in: newIds } },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: { in: newIds } },
       select: { userId: true, role: true },
     });
     const byId = new Map(members.map((m) => [m.userId, m.role]));
@@ -699,6 +713,7 @@ export class IntakeService {
   }
 
   async update(user: AuthUser, id: string, dto: UpdateIntakeDto) {
+    await this.assertIntakeRefs(user, dto);
     const existing = await this.findOne(user, id);
     let newlyAssigned: string[] = [];
     if (dto.assignedUserIds) {
@@ -784,6 +799,7 @@ export class IntakeService {
     if (newlyAssigned.length) {
       const reference = formatIntakeNotificationReference(updated.case?.ownRef);
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: newlyAssigned,
         actorUserId: user.id,
@@ -829,6 +845,7 @@ export class IntakeService {
    * the lawyer from proceeding.
    */
   async assess(user: AuthUser, id: string, dto: AssessIntakeDto) {
+    await assertFirmRefs(this.prisma, user.firmId, { userIds: [dto.assessorId] });
     await this.findOne(user, id);
     return this.prisma.intake.update({
       where: { id },
@@ -847,6 +864,7 @@ export class IntakeService {
   }
 
   async decide(user: AuthUser, id: string, dto: DecideIntakeDto) {
+    await assertFirmRefs(this.prisma, user.firmId, { userIds: [dto.leadLawyerId], caseTypeIds: [dto.caseTypeId] });
     const intake = await this.findOne(user, id);
 
     const acceptedDecisions: IntakeDecision[] = [
@@ -1036,6 +1054,7 @@ export class IntakeService {
 
 
   async convertToCase(user: AuthUser, id: string, dto: ConvertToCaseDto) {
+    await assertFirmRefs(this.prisma, user.firmId, { userIds: [dto.leadLawyerId], caseTypeIds: [dto.caseTypeId] });
     const intake = await this.findOne(user, id);
 
     // A second press — or a retry after a response was lost — must not open a

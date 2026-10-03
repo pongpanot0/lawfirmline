@@ -1,3 +1,5 @@
+import { AllowExternal } from '../common/decorators/allow-external.decorator';
+import { AuthThrottle, MailThrottle } from '../common/throttle';
 import { Body, Controller, Delete, Get, Param, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService, RequestMeta } from './auth.service';
@@ -15,6 +17,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('login')
+  @AuthThrottle()
   @SkipSubscription()
   async login(@Body() dto: LoginDto, @Req() req: TenantRequest, @Res({ passthrough: true }) res: Response) {
     const result: LoginResult = await this.authService.login(dto, req.resolvedFirmId ?? undefined, requestMeta(req));
@@ -23,6 +26,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @MailThrottle()
   @SkipSubscription()
   async register(@Body() dto: RegisterDto, @Req() req: TenantRequest, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.register(dto, req.resolvedFirmId, requestMeta(req));
@@ -40,12 +44,14 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @MailThrottle()
   @SkipSubscription()
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
 
   @Post('reset-password')
+  @AuthThrottle()
   @SkipSubscription()
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.password);
@@ -58,6 +64,7 @@ export class AuthController {
   }
 
   @Post('mfa/verify')
+  @AuthThrottle()
   @SkipSubscription()
   async verifyMfa(@Body() dto: VerifyMfaLoginDto, @Req() req: TenantRequest, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.verifyMfaLogin(dto.mfaToken, dto.code, req.resolvedFirmId ?? undefined, requestMeta(req));
@@ -73,6 +80,7 @@ export class AuthController {
   }
 
   @Post('mfa/enable/confirm')
+  @AuthThrottle()
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()
   confirmEnableMfa(@CurrentUser() user: AuthUser, @Body() dto: MfaCodeDto) {
@@ -86,6 +94,7 @@ export class AuthController {
     return this.authService.disableMfa(user.id, dto.password);
   }
 
+  @AllowExternal()
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()
@@ -93,6 +102,7 @@ export class AuthController {
     return this.authService.getMe(user.id, user.firmId);
   }
 
+  @AllowExternal()
   @Post('logout')
   @SkipSubscription()
   logout(@Body() dto: RefreshTokenDto, @Res({ passthrough: true }) res: Response) {
@@ -100,6 +110,7 @@ export class AuthController {
     return this.authService.logout(dto.refreshToken);
   }
 
+  @AllowExternal()
   @Get('sessions')
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()
@@ -107,6 +118,7 @@ export class AuthController {
     return this.authService.listSessions(user.id);
   }
 
+  @AllowExternal()
   @Delete('sessions/:id')
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()
@@ -114,6 +126,7 @@ export class AuthController {
     return this.authService.revokeSession(user.id, id);
   }
 
+  @AllowExternal()
   @Post('sessions/revoke-others')
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()

@@ -29,7 +29,7 @@ export class CreateAiFollowUpDto {
   @IsUUID() sourceCommentId!: string;
   @IsUUID() latestCommentId!: string;
   @IsDateString() taskUpdatedAt!: string;
-  @IsString() @Length(1, 500) quote!: string;
+  @IsString() @Length(1, 2000) quote!: string;
   @IsString() @Length(1, 200) title!: string;
   @IsString() @Length(1, 2000) description!: string;
   @IsOptional() @IsUUID() assigneeId?: string;

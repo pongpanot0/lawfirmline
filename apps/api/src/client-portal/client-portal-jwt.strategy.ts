@@ -36,14 +36,17 @@ export class ClientPortalJwtStrategy extends PassportStrategy(Strategy, 'client-
   async validate(req: Request, payload: PortalJwtPayload): Promise<PortalIdentity> {
     const contact = await this.prisma.clientContact.findUnique({
       where: { id: payload.sub },
+      include: { client: { select: { firmId: true } } },
     });
-    if (!contact || !contact.portalEnabled || contact.clientId !== payload.clientId) {
+    // The firm comes from the database, never from the token: writes made as
+    // this contact (uploads, messages, audit rows) must land in its own firm.
+    if (!contact || !contact.portalEnabled || contact.clientId !== payload.clientId || contact.client.firmId !== payload.firmId) {
       throw new UnauthorizedException();
     }
 
     await this.prisma.auditLog.create({
       data: {
-        firmId: payload.firmId,
+        firmId: contact.client.firmId,
         action: 'CLIENT_PORTAL_ACCESS',
         metadata: { clientContactId: contact.id, path: req.originalUrl },
       },
@@ -52,7 +55,7 @@ export class ClientPortalJwtStrategy extends PassportStrategy(Strategy, 'client-
     return {
       clientContactId: contact.id,
       clientId: contact.clientId,
-      firmId: payload.firmId,
+      firmId: contact.client.firmId,
       name: contact.name,
       email: contact.email,
     };

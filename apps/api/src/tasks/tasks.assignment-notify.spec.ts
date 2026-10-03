@@ -39,17 +39,24 @@ describe('TasksService assignment notifications', () => {
   });
 
   it('notifies the assignee when a todo is created for someone else', async () => {
-    const created = { id: 't1', title: 'ทดสอบ', caseId: null };
+    const created = { id: 't1', title: 'ทดสอบ', caseId: null, assigneeId: 'u2', requiresReview: false, routine: null };
     mockPrisma.task.create.mockResolvedValue(created);
     mockPrisma.task.findUnique.mockResolvedValue(created);
     await service.create(user, null, { title: 'ทดสอบ', assigneeId: 'u2' } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      category: 'TASK',
       firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('ทดสอบ'),
       entityPath: '/todos',
+      appPath: '/task/new?id=t1',
+      lineActions: expect.any(Function),
     });
+    // The assignee gets acknowledge + done; an observer gets no buttons.
+    const actions = mockNotifier.notifyAssigned.mock.calls[0][0].lineActions;
+    expect(actions('u2').map((a: any) => a.data)).toEqual(['task:ack:t1', 'task:done:t1']);
+    expect(actions('observer')).toBeUndefined();
   });
 
   it('does not notify on self-assign at create', async () => {
@@ -68,11 +75,14 @@ describe('TasksService assignment notifications', () => {
     mockPrisma.task.update.mockResolvedValue({ ...existing, assigneeId: 'u3' });
     await service.update('t1', { assigneeId: 'u3' } as any, user, 'c1');
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      category: 'TASK',
       firmId: 'firm-1',
       userIds: ['u3'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('งานเดิม'),
       entityPath: '/cases/c1',
+      appPath: '/task/new?id=t1',
+      lineActions: expect.any(Function),
     });
   });
 
@@ -101,11 +111,13 @@ describe('TasksService assignment notifications', () => {
     mockPrisma.task.findUnique.mockResolvedValue(task);
     await service.reject('c1', 't1', user, { reason: 'แก้ตัวเลข' } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      category: 'TASK',
       firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'user-1',
       summaryText: expect.stringContaining('ตีกลับ'),
       entityPath: '/cases/c1',
+      appPath: '/task/new?id=t1',
     });
   });
 });

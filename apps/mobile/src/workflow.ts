@@ -9,7 +9,7 @@ export function canReviewTask(task: TaskItem, user: { id: string; firmRole?: str
 }
 
 export function canToggleTask(task: TaskItem, user: { id: string; firmRole?: string | null }) {
-  if (task.status === 'PENDING_REVIEW' || task.requiresReview) return false;
+  if (task.status === 'PENDING_REVIEW' || task.requiresReview || task.routine) return false;
   return task.assigneeId === user.id || (!!task.caseId && (user.firmRole === 'OWNER' || task.case?.leadLawyerId === user.id));
 }
 

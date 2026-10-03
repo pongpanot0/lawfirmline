@@ -65,12 +65,11 @@ test('new firm → first client and task → invitation → member permissions �
     await expect(page.locator('main')).toContainText(`ลูกค้าทดสอบ ${data.tag}`);
 
     await page.goto(`${origin}/cases/new`);
-    await page.getByRole('button', { name: /^Litigation/ }).click();
+    await page.locator('#case-type').selectOption({ label: 'คดีความ' });
     await page.getByRole('textbox', { name: 'ชื่อคดี *', exact: true }).fill(`คดีทดสอบ ${data.tag}`);
-    await page.getByRole('button', { name: 'ถัดไป', exact: true }).click();
     await page.locator('#lead-lawyer').selectOption(session.user.id);
     await page.getByRole('button', { name: 'สร้างคดี', exact: true }).click();
-    await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+$/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/cases\/[0-9a-f-]+\?tab=tasks/, { timeout: 45_000 });
     await expect(page.locator('main')).toContainText(`คดีทดสอบ ${data.tag}`);
 
     await page.goto(`${origin}/expenses/new`);

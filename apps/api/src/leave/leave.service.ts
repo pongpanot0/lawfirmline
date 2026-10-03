@@ -1,10 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
-import { EventType, LeaveStatus, LeaveType, Prisma } from '../generated/prisma';
+import { EventType, LeaveStatus, LeaveType, NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService, QuickReplyItem } from '../notifications/line-messaging.service';
-import { addBangkokDays, bangkokDayKey, formatBangkokDateThai, formatBangkokDateTime } from '../common/utils/bangkok-time';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { NotificationCenterService } from '../notifications/notification-center.service';
+import { addBangkokDays, bangkokDayKey, bangkokDayStart, bangkokDayEnd, formatBangkokDateThai, formatBangkokDateTime } from '../common/utils/bangkok-time';
 import { eventForUserWhere } from '../calendar/event-people';
 
 const LABEL: Record<LeaveType, string> = {
@@ -29,7 +31,24 @@ type Leave = {
 @Injectable()
 export class LeaveService {
   private readonly logger = new Logger(LeaveService.name);
-  constructor(private prisma: PrismaService, private line: LineMessagingService) {}
+  constructor(
+    private prisma: PrismaService,
+    private line: LineMessagingService,
+    private notifier: AssignmentNotifierService,
+    private center: NotificationCenterService,
+  ) {}
+
+  async pending(user: AuthUser) {
+    if (user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('Owner access required');
+    const leaves = await this.prisma.leaveRequest.findMany({
+      where: { firmId: user.firmId, status: LeaveStatus.PENDING },
+      include: { user: { select: { firstName: true, lastName: true } } },
+      orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
+    });
+    return Promise.all(leaves.map(async leave => ({ ...leave,
+      courtConflicts: await this.findCourtConflicts(leave.firmId, leave.userId, leave.startDate, leave.endDate),
+    })));
+  }
 
   async list(user: AuthUser, from: string, to: string) {
     const start = this.parseDate(from);
@@ -53,7 +72,7 @@ export class LeaveService {
     const events = await this.prisma.calendarEvent.findMany({
       where: {
         type: EventType.COURT_DATE,
-        startAt: { gte: start, lt: new Date(end.getTime() + 86400000) },
+        startAt: { gte: bangkokDayStart(start), lt: bangkokDayEnd(end) },
         case: { firmId },
         ...eventForUserWhere(userId),
       },
@@ -106,9 +125,14 @@ export class LeaveService {
     if (leave.status === LeaveStatus.PENDING) {
       try { await this.sendApprovalRequest(leave); }
       catch (error) { this.logger.error(`Leave approval request ${leave.id} failed: ${(error as Error).message}`); }
+      await this.notifier.notifyFirmOwners({
+        firmId: leave.firmId, actorUserId: user.id, category: NotificationCategory.LEAVE, line: false,
+        summaryText: `🗓 คำขอลา · รออนุมัติ\n${this.label(leave)}`, entityPath: '/leaves',
+      });
     } else if (leave.type === LeaveType.SICK) {
       try { await this.sendSick(leave); }
       catch (error) { this.logger.error(`Sick leave ${leave.id} notice failed: ${(error as Error).message}`); }
+      await this.notifyTeam(leave, `🤒 แจ้งลาป่วย\n${this.label(leave)}`);
     }
     return leave;
   }
@@ -127,9 +151,15 @@ export class LeaveService {
     const claimed = await this.prisma.leaveRequest.updateMany({ where: { id: leaveId, firmId: user.firmId, status: LeaveStatus.PENDING }, data });
     if (!claimed.count) throw new BadRequestException('คำขอนี้ตัดสินไปแล้ว');
     const decided = { ...leave, ...data };
+    const verdict = decision === LeaveStatus.APPROVED ? 'อนุมัติ' : 'ปฏิเสธ';
+    await this.notifier.notifyAssigned({
+      firmId: leave.firmId, userIds: [leave.userId], actorUserId: user.id, category: NotificationCategory.LEAVE, line: false,
+      summaryText: `${decision === LeaveStatus.APPROVED ? '✅' : '❌'} คำขอลาได้รับการ${verdict}\n${LABEL[leave.type]} · ${this.rangeText(decided)}`,
+      entityPath: '/leaves',
+    });
     if (decided.user.lineUserId) {
       try {
-        await this.sendOnce(`decision:${leaveId}`, decided.user.lineUserId,
+        if ((await this.lineAllowed([leave.userId])).has(leave.userId)) await this.sendOnce(`decision:${leaveId}`, decided.user.lineUserId,
           `คำขอลา ${this.rangeText(decided)} ได้รับการ${decision === LeaveStatus.APPROVED ? 'อนุมัติ' : 'ปฏิเสธ'}แล้ว`);
       } catch (error) { this.logger.error(`Leave decision notice ${leaveId} failed: ${(error as Error).message}`); }
     }
@@ -146,6 +176,7 @@ export class LeaveService {
     await this.prisma.leaveRequest.delete({ where: { id } });
     // Members were only ever told about approved leave — nothing to retract otherwise.
     if (leave.status !== LeaveStatus.APPROVED) return { deleted: true };
+    await this.notifyTeam(leave, `❌ ยกเลิกการลา\n${this.label(leave)}`, user.id);
     try {
       for (const member of await this.members(leave.firmId)) {
         if (member.userId === leave.userId || !member.user.lineUserId) continue;
@@ -165,11 +196,33 @@ export class LeaveService {
     return parsed;
   }
 
+  /** Members LINE can reach for leave news — linked, and not muted for it. */
   private async members(firmId: string) {
-    return this.prisma.firmMember.findMany({
-      where: { firmId, user: { lineUserId: { not: null } } },
+    const linked = await this.prisma.firmMember.findMany({
+      where: { role: { not: FirmRole.EXTERNAL }, firmId, user: { lineUserId: { not: null } } },
       select: { userId: true, user: { select: { lineUserId: true } } },
     });
+    const allowed = await this.lineAllowed(linked.map((member) => member.userId));
+    return linked.filter((member) => allowed.has(member.userId));
+  }
+
+  private async lineAllowed(userIds: string[]): Promise<Set<string>> {
+    if (!userIds.length) return new Set();
+    const channels = await this.center.channelsFor(userIds, NotificationCategory.LEAVE);
+    return new Set(userIds.filter((id) => channels.get(id)?.line));
+  }
+
+  /** App inbox + push to everyone else in the firm; LINE goes out via sendOnce. */
+  private async notifyTeam(leave: Leave, summaryText: string, actorUserId = leave.userId) {
+    try {
+      const members = await this.prisma.firmMember.findMany({ where: { role: { not: FirmRole.EXTERNAL }, firmId: leave.firmId }, select: { userId: true } });
+      await this.notifier.notifyAssigned({
+        firmId: leave.firmId,
+        userIds: members.map((member) => member.userId).filter((id) => id !== leave.userId),
+        actorUserId, category: NotificationCategory.LEAVE, line: false,
+        summaryText, entityPath: '/leaves',
+      });
+    } catch (error) { this.logger.error(`Leave ${leave.id} app notice failed: ${(error as Error).message}`); }
   }
 
   private rangeText(leave: Pick<Leave, 'startDate' | 'endDate'>) {
@@ -236,8 +289,9 @@ export class LeaveService {
       where: { firmId: leave.firmId, role: FirmRole.OWNER, user: { lineUserId: { not: null } } },
       select: { userId: true, user: { select: { lineUserId: true } } },
     });
+    const allowed = await this.lineAllowed(owners.map((owner) => owner.userId));
     for (const owner of owners) {
-      if (!owner.user.lineUserId) continue;
+      if (!owner.user.lineUserId || !allowed.has(owner.userId)) continue;
       try {
         await this.sendOnce(`approve-req:${leave.id}:${owner.userId}`, owner.user.lineUserId, text, quickReply);
       } catch (error) { this.logger.error(`Leave approval request failed for ${owner.userId}: ${(error as Error).message}`); }

@@ -53,6 +53,10 @@ import { buildCasePrioritySummary } from '@/lib/case-workbench';
 import './tokens.css';
 import styles from './case-detail.module.css';
 
+const CaseWorkflows = dynamic(
+  () => import('@/components/workflows/CaseWorkflows').then((m) => m.CaseWorkflows),
+  { ssr: false },
+);
 const CaseTasksPanel = dynamic(
   () => import('@/components/cases/CaseTasksPanel').then((m) => m.CaseTasksPanel),
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
@@ -93,7 +97,7 @@ const CaseCommentsPanel = dynamic(
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
 );
 import { useAuth } from '@/lib/auth';
-import { PlaybookRelease, setupRequest } from '@/lib/practice-setup';
+import { latestPlaybookReleases, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import {
   api,
@@ -170,7 +174,6 @@ export default function CaseDetailPage() {
   const [checklistOwnerFilter, setChecklistOwnerFilter] = useState('ALL');
   const [requiredDocs, setRequiredDocs] = useState<RequiredDocumentsResult>({ required: [], missing: [] });
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
-  const [applyingPlaybook, setApplyingPlaybook] = useState(false);
   const [pendingPlaybookId, setPendingPlaybookId] = useState('');
   const [totalSpent, setTotalSpent] = useState(0);
   const [precedentAnalyses, setPrecedentAnalyses] = useState<IntakePrecedentAnalysisItem[]>([]);
@@ -254,7 +257,7 @@ export default function CaseDetailPage() {
       .then(setPrecedentAnalyses)
       .catch(() => setPrecedentAnalyses([]));
     api.getRequiredDocuments(token, id).then(setRequiredDocs).catch(() => setRequiredDocs({ required: [], missing: [] }));
-    setupRequest<PlaybookRelease[]>(token, '/playbooks').then(setPlaybooks).catch(() => setPlaybooks([]));
+    setupRequest<PlaybookRelease[]>(token, '/playbooks').then(items => setPlaybooks(latestPlaybookReleases(items))).catch(() => setPlaybooks([]));
     Promise.all([
       api.getCase(token, id),
       api.getCaseActivities(token, id).catch(() => []),
@@ -786,19 +789,6 @@ export default function CaseDetailPage() {
     limitationDeadline: legalCase.limitationDeadline,
   });
 
-  const applySuggestedPlaybook = async () => {
-    if (!token || !suggestedPlaybook) return;
-    setApplyingPlaybook(true);
-    try {
-      await setupRequest(token, `/cases/${id}/apply`, { releaseId: suggestedPlaybook.id });
-      loadCase();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setApplyingPlaybook(false);
-    }
-  };
-
   const toggleChecklistTask = (task: TaskItem) => {
     if (!token) return;
     api
@@ -811,18 +801,8 @@ export default function CaseDetailPage() {
     if (!token) return;
     api.setDocumentConfirmed(token, id, category, !present).then(setRequiredDocs).catch(console.error);
   };
-  const applyPlaybook = async (releaseId: string) => {
-    if (!token || !releaseId) return;
-    setApplyingPlaybook(true);
-    try {
-      await setupRequest(token, `/cases/${id}/apply`, { releaseId });
-      setPendingPlaybookId('');
-      loadCase();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setApplyingPlaybook(false);
-    }
+  const previewPlaybook = (releaseId: string) => {
+    if (releaseId) router.push(`${caseTabHref(id, 'tasks')}&sop=${encodeURIComponent(releaseId)}`);
   };
 
   return (
@@ -982,18 +962,17 @@ export default function CaseDetailPage() {
       </div>
 
       <div className="mb-5">
-        {suggestedPlaybook && !hasAppliedPlaybook && (
+        {activeTab !== 'tasks' && suggestedPlaybook && !hasAppliedPlaybook && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
             <p className="text-sm">
-              แนะนำ Playbook <span className="font-medium">{suggestedPlaybook.name}</span> — {suggestedPlaybook.steps.length} ขั้นตอนที่คดีประเภทนี้ต้องทำ
+              แนะนำ SOP <span className="font-medium">{suggestedPlaybook.name}</span> · {suggestedPlaybook.steps.length} ขั้นตอน
             </p>
             <button
               type="button"
-              onClick={applySuggestedPlaybook}
-              disabled={applyingPlaybook}
+              onClick={() => previewPlaybook(suggestedPlaybook.id)}
               className="inline-flex h-9 shrink-0 items-center rounded-lg border border-primary bg-primary px-3 text-sm text-primary-foreground disabled:opacity-60"
             >
-              {applyingPlaybook ? 'กำลังใช้…' : 'ใช้เลย'}
+              ดูรายการงานจาก SOP
             </button>
           </div>
         )}
@@ -1135,7 +1114,8 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-tasks"
           className="min-w-0"
         >
-          <CaseTasksPanel caseId={id} />
+          <CaseWorkflows caseId={id} />
+          <CaseTasksPanel caseId={id} onTasksChanged={setTasks} />
         </div>
       )}
 
@@ -1808,25 +1788,24 @@ export default function CaseDetailPage() {
               )}
               {!hasAppliedPlaybook && playbooks.length > 0 && (
                 <div className="space-y-1.5 border-t border-border pt-2">
-                  <p className="text-xs font-medium text-muted-foreground">เลือก Playbook (ใช้ได้ครั้งเดียวต่อคดี)</p>
+                  <p className="text-xs font-medium text-muted-foreground">เลือก SOP เพื่อดูรายการงานก่อนเพิ่ม</p>
                   <div className="flex gap-2">
                     <select
                       className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm"
                       value={pendingPlaybookId}
-                      disabled={applyingPlaybook}
                       onChange={(e) => setPendingPlaybookId(e.target.value)}
                     >
-                      <option value="">— เลือก Playbook —</option>
+                      <option value="">— เลือก SOP —</option>
                       {playbooks.map((p) => (
                         <option key={p.id} value={p.id}>{p.name} · v{p.version}</option>
                       ))}
                     </select>
                     <Button
                       type="button"
-                      disabled={!pendingPlaybookId || applyingPlaybook}
-                      onClick={() => applyPlaybook(pendingPlaybookId)}
+                      disabled={!pendingPlaybookId}
+                      onClick={() => previewPlaybook(pendingPlaybookId)}
                     >
-                      {applyingPlaybook ? 'กำลังใช้…' : 'ยืนยันใช้'}
+                      ดูรายการงาน
                     </Button>
                   </div>
                 </div>

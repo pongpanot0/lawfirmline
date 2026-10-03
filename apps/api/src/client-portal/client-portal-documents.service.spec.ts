@@ -115,6 +115,7 @@ describe('ClientPortalDocumentsService.uploadToCase', () => {
     await service.uploadToCase(portalUser, 'case-1', {}, file);
 
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      category: 'CLIENT',
       firmId: 'firm-1',
       userIds: ['lawyer-1', 'owner-1', 'owner-2'],
       actorUserId: '',

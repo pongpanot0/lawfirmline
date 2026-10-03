@@ -1,7 +1,7 @@
 import { FirmLinkService } from '../notifications/firm-link.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { BillingService } from './billing.service';
 import { PettyCashService } from './petty-cash.service';
@@ -29,6 +29,8 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
     timeEntry: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
     expense: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
     case: { findUnique: jest.fn() },
+    // Every named customer belongs to the firm unless a test says otherwise.
+    client: { count: jest.fn(async ({ where }: any) => where.id.in.filter((id: string) => !id.startsWith('other-firm')).length) },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(async (arg: any) =>
       typeof arg === 'function' ? arg(mockPrisma) : Promise.all(arg),
@@ -48,6 +50,8 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
     }));
     mockPrisma.timeEntry.findMany.mockResolvedValue([]);
     mockPrisma.expense.findMany.mockResolvedValue([]);
+    mockPrisma.timeEntry.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.expense.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.intakeCustomer.findMany.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -203,9 +207,15 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
       await billing.createInvoice(user, { caseId: 'case-1' }, { timeEntryIds: ['t1'] } as any);
 
       expect(mockPrisma.timeEntry.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: ['t1'] } },
+        where: { id: { in: ['t1'] }, invoiceId: null, caseId: 'case-1', billable: true },
         data: { invoiceId: 'invoice-INV-00001' },
       });
+    });
+
+    it('rejects when another request claims the same work during invoice creation', async () => {
+      mockPrisma.timeEntry.findMany.mockResolvedValue([{ id: 't1', hours: 1, rate: 1000 }]);
+      mockPrisma.timeEntry.updateMany.mockResolvedValue({ count: 0 });
+      await expect(billing.createInvoice(user, { caseId: 'case-1' }, { timeEntryIds: ['t1'] } as any)).rejects.toThrow(ConflictException);
     });
 
     it('links the split work to the primary payer invoice only, never twice', async () => {
@@ -331,5 +341,14 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
         billing.createInvoice(user, { caseId: 'case-1' }, { lineItems: [] } as any),
       ).rejects.toThrow(BadRequestException);
     });
+  });
+
+  it('refuses to bill another firm\'s client', async () => {
+    await expect(
+      billing.createInvoice(user, {}, {
+        billToCustomerId: 'other-firm-client', lineItems: [{ description: 'x', amount: 100 }],
+      } as any),
+    ).rejects.toThrow('ลูกความที่เลือกไม่อยู่ในสำนักงานนี้');
+    expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
   });
 });

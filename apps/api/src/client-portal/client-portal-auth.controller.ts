@@ -1,3 +1,4 @@
+import { AuthThrottle, MailThrottle } from '../common/throttle';
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { ClientPortalAuthService } from './client-portal-auth.service';
 import {
@@ -16,24 +17,28 @@ export class ClientPortalAuthController {
   constructor(private authService: ClientPortalAuthService) {}
 
   @Post('request-link')
+  @MailThrottle()
   @SkipSubscription()
   requestLink(@Body() dto: RequestPortalLinkDto) {
     return this.authService.requestLink(dto.email);
   }
 
   @Post('verify')
+  @AuthThrottle()
   @SkipSubscription()
   verify(@Body() dto: VerifyPortalTokenDto) {
     return this.authService.verify(dto.token);
   }
 
   @Post('login')
+  @AuthThrottle()
   @SkipSubscription()
   login(@Body() dto: PortalPasswordLoginDto) {
     return this.authService.loginWithPassword(dto.email, dto.password);
   }
 
   @Post('set-password')
+  @AuthThrottle()
   @SkipSubscription()
   @UseGuards(ClientPortalGuard)
   setPassword(@CurrentPortalUser() portalUser: PortalIdentity, @Body() dto: SetPortalPasswordDto) {

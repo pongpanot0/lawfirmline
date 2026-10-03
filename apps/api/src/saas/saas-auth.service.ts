@@ -120,21 +120,18 @@ export class SaasAuthService {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const record = await this.prisma.passwordResetToken.findUnique({ where: { token } });
-    if (!record || record.usedAt || record.expiresAt < new Date()) {
-      throw new BadRequestException('Invalid or expired reset token');
-    }
-
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: record.userId },
-        data: { passwordHash },
-      }),
-      this.prisma.passwordResetToken.update({
-        where: { id: record.id },
+    await this.prisma.$transaction(async (tx) => {
+      // Claim the token in one statement so two concurrent requests cannot both use it.
+      const record = await tx.passwordResetToken.findUnique({ where: { token } });
+      const claimed = record && await tx.passwordResetToken.updateMany({
+        where: { id: record.id, usedAt: null, expiresAt: { gt: new Date() } },
         data: { usedAt: new Date() },
-      }),
-    ]);
+      });
+      if (!record || !claimed?.count) throw new BadRequestException('Invalid or expired reset token');
+      await tx.user.update({ where: { id: record.userId }, data: { passwordHash } });
+      // A reset is how someone takes their account back: every existing login ends here.
+      await tx.session.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    });
   }
 }

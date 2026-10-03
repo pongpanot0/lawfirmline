@@ -1,3 +1,5 @@
+import { FirmRole } from '@lawfirm/shared';
+import { ForbiddenException } from '@nestjs/common';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { AuthUser } from '@lawfirm/shared';
@@ -46,6 +48,14 @@ export class OutlookConnectionsService {
   /** Throws 404 unless `id` belongs to `firmId` — call before any action keyed only by connection id. */
   async assertOwnership(firmId: string, id: string): Promise<void> {
     await this.getRaw(firmId, id);
+  }
+
+  /** A mailbox is managed by whoever connected it, or the firm owner — not by every colleague. */
+  async assertCanManage(user: AuthUser, id: string): Promise<void> {
+    const connection = await this.getRaw(user.firmId, id);
+    if (connection.connectedByUserId !== user.id && user.firmRole !== FirmRole.OWNER) {
+      throw new ForbiddenException('จัดการกล่องอีเมลนี้ได้เฉพาะผู้เชื่อมต่อหรือเจ้าของสำนักงาน');
+    }
   }
 
   /**

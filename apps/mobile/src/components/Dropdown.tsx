@@ -28,7 +28,7 @@ export function Dropdown({ label, value, options, onChange, disabled = false }: 
       </Text>
       <ChevronDown size={18} color={colors.muted} />
     </Pressable>
-    <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
+    <Modal visible={open} animationType="slide" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={() => setOpen(false)}>
       <SafeAreaProvider>
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, paddingBottom: keyboardHeight }}>

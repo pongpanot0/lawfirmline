@@ -1,3 +1,5 @@
+import { SkipThrottle } from '@nestjs/throttler';
+import { AuthThrottle } from '../common/throttle';
 import {
   Body,
   Controller,
@@ -229,13 +231,18 @@ export class SaasController {
   }
 
   @Post('invitations/accept')
+  @AuthThrottle()
   @SkipSubscription()
   async acceptInvitation(@Body() dto: AcceptInviteDto) {
-    const authUser = await this.invitations.accept(dto);
-    return this.auth.loginFromAuthUser(authUser);
+    const joined = await this.invitations.accept(dto);
+    if (joined.existingAccount) {
+      return this.auth.login({ email: joined.existingAccount.email, password: dto.password }, joined.existingAccount.firmId);
+    }
+    return this.auth.loginFromAuthUser(joined.authUser!);
   }
 
   @Post('webhooks/omise')
+  @SkipThrottle()
   @SkipSubscription()
   omiseWebhook(@Body() body: Record<string, unknown>) {
     return this.subscriptions.handleWebhook(body);

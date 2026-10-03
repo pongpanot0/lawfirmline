@@ -70,7 +70,7 @@ export function StageTasksDialog({
   const confirm = () => {
     const tasks: StageTaskDraft[] = rows
       .filter((r) => r.checked)
-      .map(({ title, description, dueDate, assigneeId }) => ({ title, description, dueDate, assigneeId }));
+      .map(({ title, description, dueDate, assigneeId, routineSource }) => ({ title, description, dueDate, assigneeId, ...(routineSource ? { routineSource } : {}) }));
     onConfirm(tasks);
   };
 

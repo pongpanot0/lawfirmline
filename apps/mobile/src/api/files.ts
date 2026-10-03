@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { API_URL, ApiError, getTokens } from './client';
+import { API_URL, api, ApiError, authenticatedFetch, getTokens } from './client';
 
 /**
  * Multipart + binary helpers. These bypass the JSON api() wrapper: uploads
@@ -20,14 +20,13 @@ function filePart(uri: string, name: string, type: string) {
 }
 
 async function postMultipart(path: string, form: FormData) {
-  const headers = await authHeader();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60_000);
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, {
+    res = await authenticatedFetch(path, {
       method: 'POST',
-      headers, // no Content-Type: fetch sets the multipart boundary itself
+      // No Content-Type: fetch sets the multipart boundary itself.
       body: form,
       signal: controller.signal,
     });
@@ -46,6 +45,16 @@ async function postMultipart(path: string, form: FormData) {
     throw new ApiError(res.status, message);
   }
   return res.json();
+}
+
+async function downloadFile(path: string, target: string) {
+  let result = await FileSystem.downloadAsync(`${API_URL}${path}`, target, { headers: await authHeader() });
+  if (result.status === 401) {
+    await api('/auth/me');
+    result = await FileSystem.downloadAsync(`${API_URL}${path}`, target, { headers: await authHeader() });
+  }
+  if (result.status !== 200) throw new ApiError(result.status, 'ดาวน์โหลดไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง');
+  return result;
 }
 
 export function uploadCaseDocument(
@@ -67,9 +76,7 @@ export function uploadTaskAttachment(taskId: string, file: { uri: string; name: 
 
 export async function openTaskAttachment(taskId: string, attachmentId: string, filename: string) {
   const safeName = filename.replace(/[^\w.\-ก-๙ ]+/g, '_') || 'attachment';
-  const result = await FileSystem.downloadAsync(`${API_URL}/tasks/${taskId}/attachments/${attachmentId}/download`,
-    `${FileSystem.cacheDirectory}${attachmentId}-${safeName}`, { headers: await authHeader() });
-  if (result.status !== 200) throw new ApiError(result.status, 'ดาวน์โหลดไฟล์ไม่สำเร็จ');
+  const result = await downloadFile(`/tasks/${taskId}/attachments/${attachmentId}/download`, `${FileSystem.cacheDirectory}${attachmentId}-${safeName}`);
   if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
 }
 
@@ -111,22 +118,15 @@ export async function openCaseDocument(
   documentId: string,
   filename: string,
 ): Promise<void> {
-  const headers = await authHeader();
   const safeName = filename.replace(/[^\w.\-ก-๙ ]+/g, '_') || 'document';
   const target = `${FileSystem.cacheDirectory}${documentId}-${safeName}`;
-  const result = await FileSystem.downloadAsync(
-    `${API_URL}/cases/${caseId}/documents/${documentId}/download`,
-    target,
-    { headers },
-  );
-  if (result.status !== 200) throw new ApiError(result.status, 'ดาวน์โหลดเอกสารไม่สำเร็จ');
+  const result = await downloadFile(`/cases/${caseId}/documents/${documentId}/download`, target);
   if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
 }
 
 export async function openExpenseReceipt(id: string, filename: string) {
   const target = `${FileSystem.cacheDirectory}receipt-${id}-${filename.replace(/[^\w.\-ก-๙ ]+/g, '_')}`;
-  const result = await FileSystem.downloadAsync(`${API_URL}/expenses/${id}/receipt`, target, { headers: await authHeader() });
-  if (result.status !== 200) throw new ApiError(result.status, 'ดาวน์โหลดใบเสร็จไม่สำเร็จ');
+  const result = await downloadFile(`/expenses/${id}/receipt`, target);
   if (!(await Sharing.isAvailableAsync())) throw new Error('อุปกรณ์นี้ยังเปิดใบเสร็จไม่ได้');
   await Sharing.shareAsync(result.uri);
 }

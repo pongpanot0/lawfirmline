@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -24,8 +25,8 @@ export class UsersController {
 
   @Get()
   @Roles(Role.ADMIN)
-  findAll() {
-    return this.usersService.findAll();
+  findAll(@CurrentUser() user: AuthUser) {
+    return this.usersService.findAll(user.firmId);
   }
 
   @Get('lawyers')
@@ -51,8 +52,8 @@ export class UsersController {
 
   @Get(':id')
   @Roles(Role.ADMIN)
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  findOne(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.findOne(user.firmId, id);
   }
 
   @Post()
@@ -63,13 +64,13 @@ export class UsersController {
 
   @Patch(':id')
   @Roles(Role.ADMIN)
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(id, dto);
+  update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateUserDto) {
+    return this.usersService.update(user.firmId, id, dto);
   }
 
   @Delete(':id')
   @Roles(Role.ADMIN)
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  remove() {
+    return this.usersService.remove();
   }
 }

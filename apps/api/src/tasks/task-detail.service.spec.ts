@@ -12,10 +12,11 @@ describe('TaskDetailService', () => {
   let service: TaskDetailService;
   const mockPrisma = {
     auditLog: { findMany: jest.fn().mockResolvedValue([]) },
-    task: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    task: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), count: jest.fn(), findFirst: jest.fn() },
     taskComment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn() },
-    taskAttachment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn() },
+    taskAttachment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
+    workflowRun: { findUnique: jest.fn() },
   };
   const mockTasks = {
     assertAccess: jest.fn(),
@@ -133,6 +134,24 @@ describe('TaskDetailService', () => {
         }),
       }),
     );
+  });
+
+  it('getDetail includes workflow data when task has workflowRunId', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1', caseId: 'c1', parentId: null });
+    const row = { id: 't1', title: 'Task', workflowRunId: 'wr1', workflowStep: 1 };
+    mockPrisma.task.findUnique.mockResolvedValue(row);
+    mockPrisma.workflowRun.findUnique.mockResolvedValue({ id: 'wr1', name: 'Test Workflow' });
+    mockPrisma.task.count.mockResolvedValue(3);
+    mockPrisma.task.findFirst.mockResolvedValue({ assignee: { id: 'u2', firstName: 'John', lastName: 'Doe' } });
+    mockPrisma.taskAttachment.findMany.mockResolvedValue([{ id: 'a1', taskId: 't0', filename: 'test.pdf', size: 1024 }]);
+    const result = await service.getDetail('t1', lawyer);
+    expect(result.workflow).toMatchObject({
+      workflowRun: { id: 'wr1', name: 'Test Workflow' },
+      workflowStep: 1,
+      stepsTotal: 3,
+      previousStepHolder: 'John',
+      previousStepAttachments: [{ id: 'a1', taskId: 't0', filename: 'test.pdf', size: 1024 }],
+    });
   });
 
   it('deleteComment allows author and owner, forbids others', async () => {

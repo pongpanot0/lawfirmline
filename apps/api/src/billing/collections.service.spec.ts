@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { CollectionsService } from './collections.service';
 import { PrismaService } from '../prisma/prisma.module';
-import { InvoiceStatus, PaymentMethod } from '../generated/prisma';
+import { InvoiceStatus, PaymentMethod, Prisma } from '../generated/prisma';
 import { LineMessagingService } from '../notifications/line-messaging.service';
 import { ContactNotificationPreferenceService } from '../notifications/contact-notification-preference.service';
 
@@ -12,7 +12,7 @@ const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as A
 describe('CollectionsService', () => {
   const mockPrisma = {
     invoice: { findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
-    invoicePayment: { create: jest.fn(), findMany: jest.fn() },
+    invoicePayment: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
     clientContact: { findMany: jest.fn() },
     $queryRaw: jest.fn().mockResolvedValue(undefined),
     $transaction: jest.fn(async (arg: any) => (typeof arg === 'function' ? arg(mockPrisma) : Promise.all(arg))),
@@ -40,13 +40,19 @@ describe('CollectionsService', () => {
       mockPrisma.invoice.update.mockImplementation(({ data }: any) => Promise.resolve({ id: 'i1', ...data }));
       const result = await service.markSent(owner, 'i1');
       expect(mockPrisma.invoice.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: 'i1' },
+        where: { id: 'i1', firmId: owner.firmId, status: InvoiceStatus.DRAFT },
         data: expect.objectContaining({ status: InvoiceStatus.SENT, issuedAt: expect.any(Date), dueAt: expect.any(Date) }),
       }));
       const call = mockPrisma.invoice.update.mock.calls[0][0];
       const expectedDue = new Date(call.data.issuedAt.getTime() + 30 * 86400000);
       expect(call.data.dueAt.toDateString()).toBe(expectedDue.toDateString());
       expect(result.status).toBe(InvoiceStatus.SENT);
+    });
+
+    it('does not overwrite a status changed by a concurrent issue or receipt', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue({ id: 'i1', status: InvoiceStatus.DRAFT, dueAt: null });
+      mockPrisma.invoice.update.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('Status changed', { code: 'P2025', clientVersion: 'test' }));
+      await expect(service.markSent(owner, 'i1')).rejects.toThrow(ConflictException);
     });
 
     it('throws BadRequest when the invoice is already SENT', async () => {
@@ -68,6 +74,21 @@ describe('CollectionsService', () => {
       totalAmount: 1000,
       payments: [],
       ...overrides,
+    });
+
+    it('returns the same payment after a lost response, including when the invoice is already paid', async () => {
+      const payment = { id: 'p1', invoiceId: 'i1', amount: 1000, method: PaymentMethod.TRANSFER, receivedAt: new Date('2026-09-26'), note: null };
+      mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice({ status: InvoiceStatus.PAID, payments: [payment] }));
+      mockPrisma.invoicePayment.findUnique.mockResolvedValue(payment);
+      const result = await service.recordPayment(owner, 'i1', { amount: 1000, receivedAt: '2026-09-26', createRequestId: 'same-request' });
+      expect(result.payment.id).toBe('p1'); expect(result.outstanding).toBe(0);
+      expect(mockPrisma.invoicePayment.create).not.toHaveBeenCalled();
+      await expect(service.recordPayment(owner, 'i1', { amount: 999, receivedAt: '2026-09-26', createRequestId: 'same-request' })).rejects.toThrow(ConflictException);
+    });
+
+    it('rejects a Senior even with a legacy ADMIN role before accessing money records', async () => {
+      await expect(service.recordPayment({ ...owner, firmRole: FirmRole.SENIOR_LAWYER, role: 'ADMIN' } as AuthUser, 'i1', { amount: 1, receivedAt: '2026-09-26' })).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.invoice.findFirst).not.toHaveBeenCalled();
     });
 
     it('keeps SENT and returns outstanding on a partial payment', async () => {

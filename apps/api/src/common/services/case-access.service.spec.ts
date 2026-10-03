@@ -73,6 +73,11 @@ describe('CaseAccessService', () => {
         ],
       });
     });
+
+    it('returns a filter that matches nothing for EXTERNAL', () => {
+      const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.EXTERNAL } as any;
+      expect(service.getCaseFilterForUser(user)).toEqual({ id: '__external_has_no_case_access__' });
+    });
   });
 
   describe('canAccessCase', () => {
@@ -112,7 +117,7 @@ describe('CaseAccessService', () => {
       expect(service.getTaskFilterForUser(user)).toEqual(firmScope);
     });
 
-    it('returns firm-scoped own-or-LAWYER-assigned-or-unassigned for SENIOR_LAWYER', () => {
+    it('keeps senior handed-off work visible inside the firm scope', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
       expect(service.getTaskFilterForUser(user)).toEqual({
         AND: [
@@ -126,6 +131,7 @@ describe('CaseAccessService', () => {
                 },
               },
               { assigneeId: null },
+              { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'u1' } } },
             ],
           },
         ],

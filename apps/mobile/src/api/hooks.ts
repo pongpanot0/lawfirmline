@@ -1,4 +1,5 @@
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -7,6 +8,7 @@ import { api } from './client';
 import { calendarRangeQuery } from '../format';
 import type { DailyWorkboard } from '@lawfirm/shared';
 import type {
+  AppNotification,
   CalendarEventItem,
   CaseDetail,
   CaseListItem,
@@ -15,7 +17,9 @@ import type {
   DashboardStats,
   LeaveItem,
   MyDayResponse,
+  NotificationPreference,
   OwnerKpis,
+  OwnerFinance,
   TaskItem,
   WorkloadResponse,
 } from './types';
@@ -131,6 +135,8 @@ export function useCreateTodo() {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       queryClient.invalidateQueries({ queryKey: ['my-day'] });
       queryClient.invalidateQueries({ queryKey: ['workload'] });
+      queryClient.invalidateQueries({ queryKey: ['team-radar'] });
+      queryClient.invalidateQueries({ queryKey: ['person-workload'] });
     },
   });
 }
@@ -226,6 +232,8 @@ export function useReassignTask() {
     onSettled: (_data, _error, { caseId, taskId }) => {
       if (caseId) queryClient.invalidateQueries({ queryKey: ['case-tasks', caseId] });
       queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['team-radar'] });
+      queryClient.invalidateQueries({ queryKey: ['person-workload'] });
       queryClient.invalidateQueries({ queryKey: ['daily-workboard'] });
       queryClient.invalidateQueries({ queryKey: ['actions'] });
       queryClient.invalidateQueries({ queryKey: ['todos'] });
@@ -241,6 +249,23 @@ export function useLeaves(from: string, to: string, enabled = true) {
     queryFn: () => api<LeaveItem[]>(`/leaves?from=${from}&to=${to}`),
     enabled,
   });
+}
+
+export function usePendingLeaves(enabled: boolean) {
+  return useQuery({ queryKey: ['leaves', 'pending'], enabled, queryFn: () => api<LeaveItem[]>('/leaves/pending') });
+}
+
+export function useDecideLeave() {
+  const client = useQueryClient();
+  return useMutation({ retry: false,
+    mutationFn: ({ id, decision }: { id: string; decision: 'APPROVED' | 'REJECTED' }) => api<LeaveItem>(`/leaves/${id}/decision`, { method: 'PATCH', body: { decision } }),
+    onSettled: () => { for (const key of ['leaves', 'team-radar', 'person-workload', 'daily-workboard', 'actions']) void client.invalidateQueries({ queryKey: [key] }); },
+  });
+}
+
+export function useOwnerFinance(enabled: boolean, month?: string) {
+  return useQuery({ queryKey: ['owner-finance', month ?? 'current'], enabled,
+    queryFn: () => api<OwnerFinance>(`/invoices/owner-worklist${month ? `?month=${month}` : ''}`) });
 }
 
 export function useWorkload(enabled = true) {
@@ -484,6 +509,7 @@ export function useReviewClaim(id: string) {
     onSettled: () => {
       client.invalidateQueries({ queryKey: ['expense-claims'] });
       client.invalidateQueries({ queryKey: ['expenses'] });
+      client.invalidateQueries({ queryKey: ['owner-finance'] });
     },
   });
 }
@@ -537,6 +563,88 @@ export function useCompleteCourtDay(id: string) {
       for (const key of ['court-day', 'my-day', 'calendar', 'case-events', 'case-tasks', 'expenses']) {
         client.invalidateQueries({ queryKey: [key] });
       }
+    },
+  });
+}
+
+/** The staff inbox, newest first; pages follow the server's cursor. */
+export function useNotificationInbox() {
+  return useInfiniteQuery({
+    queryKey: ['notifications'],
+    queryFn: ({ pageParam }) =>
+      api<{ items: AppNotification[]; nextCursor: string | null }>(
+        pageParam ? `/notifications?cursor=${pageParam}` : '/notifications',
+      ),
+    initialPageParam: '',
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+export function useUnreadNotifications() {
+  return useQuery({
+    queryKey: ['notifications-unread'],
+    queryFn: () => api<{ count: number }>('/notifications/unread-count').then((res) => res.count),
+    refetchInterval: 60 * 1000,
+  });
+}
+
+/** Refresh everything a new notification can change. */
+export function invalidateNotifications(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
+  queryClient.invalidateQueries({ queryKey: ['actions'] });
+}
+
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/notifications/${id}/read`, { method: 'POST' }),
+    onSettled: () => invalidateNotifications(queryClient),
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api('/notifications/read-all', { method: 'POST' }),
+    onSettled: () => invalidateNotifications(queryClient),
+  });
+}
+
+export function useNotificationPreferences() {
+  return useQuery({
+    queryKey: ['notification-preferences'],
+    queryFn: () => api<NotificationPreference[]>('/notifications/preferences'),
+  });
+}
+
+export function useUpdateNotificationPreference() {
+  const queryClient = useQueryClient();
+  const key = ['notification-preferences'];
+  const mutationKey = ['update-notification-preference'];
+  type Change = Pick<NotificationPreference, 'category'> & Partial<Omit<NotificationPreference, 'category'>>;
+  return useMutation({
+    mutationKey,
+    mutationFn: ({ category, ...change }: Change) =>
+      api<NotificationPreference>(`/notifications/preferences/${category}`, { method: 'PATCH', body: change }),
+    // A switch must move when tapped, not a round trip later.
+    onMutate: async ({ category, ...change }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const before = queryClient.getQueryData<NotificationPreference[]>(key)?.find((row) => row.category === category);
+      queryClient.setQueryData<NotificationPreference[]>(key, (rows) =>
+        rows?.map((row) => (row.category === category ? { ...row, ...change } : row)));
+      return { before };
+    },
+    // Undo only the switch that failed, so a quick second tap elsewhere survives.
+    onError: (_error, { category, ...change }, context) => {
+      if (!context?.before) return;
+      const undo = Object.fromEntries(Object.keys(change).map((field) => [field, context.before![field as 'push' | 'line']]));
+      queryClient.setQueryData<NotificationPreference[]>(key, (rows) =>
+        rows?.map((row) => (row.category === category ? { ...row, ...undo } : row)));
+    },
+    // Refetch once the last pending toggle settles, not between taps.
+    onSettled: () => {
+      if (queryClient.isMutating({ mutationKey }) <= 1) queryClient.invalidateQueries({ queryKey: key });
     },
   });
 }

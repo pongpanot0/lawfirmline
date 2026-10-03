@@ -1,9 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReminderScheduler } from './reminder.scheduler';
 import { PrismaService } from '../prisma/prisma.service';
-import { LineMessagingService } from './line-messaging.service';
-import { LineLinkService } from './line-link.service';
-import { PushService } from './push.service';
+import { AssignmentNotifierService } from './assignment-notifier.service';
 
 const NOW = new Date('2026-09-07T03:00:00Z');
 
@@ -13,26 +11,20 @@ describe('ReminderScheduler', () => {
     calendarEvent: { findMany: jest.fn().mockResolvedValue([]) },
     reminderLog: { create: jest.fn().mockResolvedValue({}) },
   };
-  const mockLine = { sendText: jest.fn().mockResolvedValue(true) };
-  const mockLink = { getLineUserIdsForEvent: jest.fn().mockResolvedValue(['L1']) };
-  const mockPush = { sendToUsers: jest.fn().mockResolvedValue(false) };
+  const mockNotifier = { notifyAssigned: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     jest.useFakeTimers().setSystemTime(NOW);
     mockPrisma.calendarEvent.findMany.mockResolvedValue([]);
     mockPrisma.reminderLog.create.mockResolvedValue({});
-    mockLine.sendText.mockResolvedValue(true);
-    mockLink.getLineUserIdsForEvent.mockResolvedValue(['L1']);
-    mockPush.sendToUsers.mockResolvedValue(false);
+    mockNotifier.notifyAssigned.mockResolvedValue({ recipients: 1, push: false, line: true });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReminderScheduler,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: LineMessagingService, useValue: mockLine },
-        { provide: LineLinkService, useValue: mockLink },
-        { provide: PushService, useValue: mockPush },
+        { provide: AssignmentNotifierService, useValue: mockNotifier },
       ],
     }).compile();
     scheduler = module.get(ReminderScheduler);
@@ -64,7 +56,7 @@ describe('ReminderScheduler', () => {
 
     await scheduler.processReminders();
 
-    expect(mockLine.sendText).not.toHaveBeenCalled();
+    expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
     expect(mockPrisma.reminderLog.create).not.toHaveBeenCalled();
   });
 
@@ -75,17 +67,23 @@ describe('ReminderScheduler', () => {
       startAt: new Date('2026-09-07T03:30:00Z'),
       caseId: 'case-1',
       assigneeId: 'user-attending',
+      assignees: [{ userId: 'user-attending' }],
       reminderMinutes: [60],
       reminderLogs: [],
-      case: { ownRef: 'C-001' },
+      case: { ownRef: 'C-001', firmId: 'firm-1' },
     };
     mockPrisma.calendarEvent.findMany.mockResolvedValue([event]);
 
     await scheduler.processReminders();
 
     // Resolved per event, so a buddy on the case is not pulled in.
-    expect(mockLink.getLineUserIdsForEvent).toHaveBeenCalledWith(event);
-    expect(mockLine.sendText).toHaveBeenCalledTimes(1);
+    expect(mockNotifier.notifyAssigned).toHaveBeenCalledTimes(1);
+    expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({
+      firmId: 'firm-1',
+      userIds: ['user-attending'],
+      category: 'CALENDAR',
+      entityPath: '/court-day/evt-1',
+    }));
     expect(mockPrisma.reminderLog.create).toHaveBeenCalledWith({
       data: { eventId: 'evt-1', channel: 'line', minutesBefore: 60 },
     });
@@ -107,10 +105,21 @@ describe('ReminderScheduler', () => {
 
     await scheduler.processReminders();
 
-    expect(mockPush.sendToUsers).toHaveBeenCalledWith(
-      ['user-a', 'user-b'],
-      expect.anything(),
-    );
+    expect(mockNotifier.notifyAssigned.mock.calls[0][0].userIds).toEqual(['user-a', 'user-b']);
+  });
+
+  it('logs push as the channel when only push got through', async () => {
+    mockNotifier.notifyAssigned.mockResolvedValue({ recipients: 1, push: true, line: false });
+    mockPrisma.calendarEvent.findMany.mockResolvedValue([{
+      id: 'evt-3', title: 'นัด', startAt: new Date('2026-09-07T03:30:00Z'), caseId: 'case-1',
+      assigneeId: 'u', reminderMinutes: [60], reminderLogs: [], case: { ownRef: 'C-1', firmId: 'f' },
+    }]);
+
+    await scheduler.processReminders();
+
+    expect(mockPrisma.reminderLog.create).toHaveBeenCalledWith({
+      data: { eventId: 'evt-3', channel: 'push', minutesBefore: 60 },
+    });
   });
 
   it('includes every assignee in the reminder window query', async () => {

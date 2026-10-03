@@ -1,15 +1,26 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { lineActions } from '../notifications/line-actions';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { AuthUser, DeadlineDayBasis } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
-import { bangkokDayKey } from '../common/utils/bangkok-time';
+import { bangkokDayKey, formatBangkokDateTime } from '../common/utils/bangkok-time';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { formatCaseNotificationReference } from '../notifications/reference-label';
+import { eventAssigneesInclude, eventPeopleIds } from './event-people';
 
 @Injectable()
 export class EventResponsibilityService {
-  constructor(private prisma: PrismaService, private access: CaseAccessService, private deadlines: DeadlineRulesService) {}
+  private readonly logger = new Logger(EventResponsibilityService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private access: CaseAccessService,
+    private deadlines: DeadlineRulesService,
+    private notifier: AssignmentNotifierService,
+  ) {}
 
   private async event(user: AuthUser, id: string, db: Prisma.TransactionClient = this.prisma) {
     const event = await db.calendarEvent.findFirst({ where: { id, case: this.access.getCaseFilterForUser(user) }, include: {
@@ -70,7 +81,7 @@ export class EventResponsibilityService {
   async reschedule(user: AuthUser, id: string, dto: { startAt: string; fingerprint: string; reason: string }) {
     if (user.firmRole === 'ASSISTANT') throw new ForbiddenException('ให้ทนายยืนยันกำหนด / A lawyer must confirm dates');
     if (!dto.reason.trim()) throw new BadRequestException('ระบุเหตุผล / Enter a reason');
-    return this.prisma.$transaction(async db => {
+    const result = await this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "CalendarEvent" WHERE "id" = ${id} FOR UPDATE`;
       const preview = await this.preview(user, id, dto.startAt, db);
       if (preview.fingerprint !== dto.fingerprint) throw new ConflictException('ข้อมูลเปลี่ยนแล้ว กรุณาตรวจผลกระทบอีกครั้ง / Preview is stale');
@@ -88,7 +99,30 @@ export class EventResponsibilityService {
       }
       await db.reminderLog.deleteMany({ where: { eventId: id } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'EVENT_RESCHEDULED', metadata: { ...preview, reason: dto.reason.trim(), previousReminders: e.reminderLogs.map(r => ({ sentAt: r.sentAt.toISOString(), channel: r.channel })) } } });
-      return { updated: true, impacted: preview.impacts.length };
+      return { updated: true, impacted: preview.impacts.length, oldAt: e.startAt };
     }, { timeout: 15000 });
+    // Already committed: a failed notice must not turn a saved reschedule into a 500 the client retries into a 409.
+    await this.notifyRescheduled(user, id, result.oldAt, dto.reason.trim())
+      .catch((err) => this.logger.error(`Reschedule notice for event ${id} failed: ${(err as Error).message}`));
+    return { updated: result.updated, impacted: result.impacted };
+  }
+
+  /** The moved date resets acknowledgement, so whoever attends has to hear about it. */
+  private async notifyRescheduled(user: AuthUser, id: string, oldAt: Date, reason: string) {
+    const e = await this.prisma.calendarEvent.findUnique({
+      where: { id },
+      include: { ...eventAssigneesInclude, case: { select: { firmId: true, leadLawyerId: true, title: true, ownRef: true, blackCaseNumber: true, redCaseNumber: true } } },
+    });
+    if (!e) return;
+    await this.notifier.notifyAssigned({
+      firmId: e.case.firmId,
+      userIds: [...eventPeopleIds(e), e.case.leadLawyerId],
+      actorUserId: user.id,
+      category: NotificationCategory.CALENDAR,
+      summaryText: `📅 เลื่อนนัด: ${e.title}\n${formatCaseNotificationReference(e.case) ?? `คดี: ${e.case.title}`}\n${formatBangkokDateTime(oldAt)} → ${formatBangkokDateTime(e.startAt)}\nเหตุผล: ${reason}\nเปิดดูและกดรับทราบนัดใหม่`,
+      entityPath: `/court-day/${id}`,
+      // Only the responsible person can acknowledge; others just hear about it.
+      lineActions: (userId) => userId === (e.assigneeId ?? e.case.leadLawyerId) ? lineActions.eventAck(id, e.updatedAt) : undefined,
+    });
   }
 }

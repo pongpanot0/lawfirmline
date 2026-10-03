@@ -32,7 +32,7 @@ describe('CasesService.findOne', () => {
     service = module.get(CasesService);
   });
 
-  it('includes the real role-based task filter (with unassigned-task branch) for a SENIOR_LAWYER', async () => {
+  it('includes unassigned and delivered work in the real role-based task filter for a SENIOR_LAWYER', async () => {
     const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
     mockCaseAccess.canAccessCase.mockResolvedValue(true);
     mockPrisma.case.findUnique.mockResolvedValue({ id: 'case-1' });
@@ -71,6 +71,10 @@ describe('CasesService.findOne', () => {
               },
             },
             { assigneeId: null },
+            {
+              status: { in: ['PENDING_REVIEW', 'DONE'] },
+              assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'user-1' } },
+            },
           ],
         },
       ],

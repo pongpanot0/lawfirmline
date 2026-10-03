@@ -63,14 +63,6 @@ export function useProductTour(steps: TourStep[], storageKey: string): UseProduc
   }, [steps]);
 
   useEffect(() => {
-    let dismissed = false;
-    try {
-      dismissed = localStorage.getItem(storageKey) === '1';
-    } catch {
-      dismissed = false;
-    }
-    if (!dismissed) begin();
-
     const onRestart = () => begin();
     window.addEventListener(TOUR_RESTART_EVENT, onRestart);
     return () => window.removeEventListener(TOUR_RESTART_EVENT, onRestart);

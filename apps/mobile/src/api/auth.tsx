@@ -6,7 +6,10 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { api, clearTokens, getTokens, setTokens } from './client';
+import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api, ApiError, clearTokens, getTokens, setTokens, USER_PROFILE_KEY } from './client';
+import { unregisterPush } from './push';
 import type { AuthUserInfo, LoginResponse } from './types';
 
 interface AuthContextValue {
@@ -25,6 +28,39 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function cacheUser(user: AuthUserInfo, refreshToken: string | null) {
+  await SecureStore.setItemAsync(USER_PROFILE_KEY, JSON.stringify({ refreshToken, user }));
+}
+
+/** The cache opens local drafts behind the biometric gate; the API still authorizes every request. */
+export async function restoreSession(onCached: (user: AuthUserInfo) => void): Promise<AuthUserInfo | null> {
+  const { accessToken, refreshToken } = await getTokens();
+  if (!accessToken) return null;
+  let cached: AuthUserInfo | null = null;
+  try {
+    const text = await SecureStore.getItemAsync(USER_PROFILE_KEY);
+    const record = text ? JSON.parse(text) : null;
+    if (refreshToken && record?.refreshToken === refreshToken && typeof record.user?.id === 'string' && typeof record.user?.email === 'string') cached = record.user;
+  } catch { /* A missing cache cannot authenticate a different account. */ }
+  const requireSameSession = async () => {
+    if ((await getTokens()).refreshToken !== refreshToken) throw new Error('Session changed while restoring');
+  };
+  await requireSameSession();
+  if (cached) onCached(cached);
+  try {
+    const me = await api<AuthUserInfo>('/auth/me');
+    await requireSameSession();
+    await cacheUser(me, refreshToken);
+    await requireSameSession();
+    return me;
+  } catch (error) {
+    await requireSameSession();
+    if (error instanceof ApiError && [401, 403].includes(error.status)) { await clearTokens(); return null; }
+    if (cached) return cached;
+    throw error;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AuthUserInfo | null>(null);
@@ -35,14 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const { accessToken } = await getTokens();
-        if (accessToken) {
-          const me = await api<AuthUserInfo>('/auth/me');
-          setUser(me);
-          setRestored(true);
-        }
+        const me = await restoreSession(cached => { setUser(cached); setRestored(true); setReady(true); });
+        setUser(me); setRestored(!!me);
       } catch {
-        await clearTokens();
+        // Connectivity failures preserve the session and scoped drafts; invalid credentials are cleared above.
       } finally {
         setReady(true);
       }
@@ -56,11 +88,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     await setTokens(res.accessToken, res.refreshToken);
     setRestored(false);
-    setUser(res.user ?? (await api<AuthUserInfo>('/auth/me')));
+    const me = res.user ?? (await api<AuthUserInfo>('/auth/me'));
+    await cacheUser(me, res.refreshToken);
+    setUser(me);
   }, []);
 
   const logout = useCallback(async () => {
+    await unregisterPush();
     await clearTokens();
+    // The offline cache holds case, client and contact details for a week;
+    // signing out must not leave them readable on the phone. Unsaved drafts
+    // stay, scoped to their owner, so no half-written work is lost.
+    try {
+      const cached = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith('mobile-cache:'));
+      if (cached.length) await AsyncStorage.multiRemove(cached);
+    } catch {
+      // Best-effort: a failure here must not keep someone signed in.
+    }
     setUser(null);
     setRestored(false);
   }, []);

@@ -2,6 +2,7 @@
 
 import { CasePlaybook } from './CasePlaybook';
 import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
 import { FirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
@@ -14,7 +15,6 @@ import { TaskFilterBar } from '@/components/tasks/TaskFilterBar';
 import { applyTaskFilters, collectTaskLabels, EMPTY_TASK_FILTERS, hasActiveTaskFilters, TaskFilters } from '@/lib/task-filters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
@@ -25,9 +25,12 @@ import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
 import { bangkokDateInputValue } from '@/lib/bangkok';
 
-export function CaseTasksPanel({ caseId }: { caseId: string }) {
+export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onTasksChanged?: (tasks: TaskItem[]) => void }) {
   const d = useDashboardT();
   const { token, user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const createRequested = searchParams.get('newTask') === '1';
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [caseDetail, setCaseDetail] = useState<CaseDetail | null>(null);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -38,6 +41,8 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
   const [showForm, setShowForm] = useState(false);
   const [newDueDate, setNewDueDate] = useState('');
   const [newPriority, setNewPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
+  const [newRequiresReview, setNewRequiresReview] = useState(false);
+  const [newReviewerId, setNewReviewerId] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
@@ -49,12 +54,21 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
   const newTaskDate = newDueDate || bangkokDateInputValue(new Date());
   const newTaskLeaveFlags = useLeaveFlags(token, newTaskDate);
 
+  useEffect(() => {
+    if (!createRequested) return;
+    setShowForm(true);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('newTask');
+    next.delete('task');
+    router.replace(`/cases/${caseId}?${next.toString()}`, { scroll: false });
+  }, [createRequested, searchParams, router, caseId]);
+
   const loadTasks = () => {
     if (!token || !caseId) return;
     setLoadError('');
     api
       .getTasks(token, caseId)
-      .then(setTasks)
+      .then(loaded => { setTasks(loaded); onTasksChanged?.(loaded); })
       // A failed load must not read as "nothing to do".
       .catch(() => setLoadError(d.todos.loadFailed))
       .finally(() => setLoading(false));
@@ -110,23 +124,27 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
     setCreating(true);
     setError('');
     try {
-      await api.createTask(token, caseId, {
+      const created = await api.createTask(token, caseId, {
         title: newTitle.trim(),
-        assigneeId: newAssigneeId || undefined,
+        assigneeId: newAssigneeId || user?.id,
         dueDate: newDueDate || undefined,
         priority: newPriority,
         observerIds: newObserverIds.length > 0 ? newObserverIds : undefined,
+        ...(newRequiresReview ? { requiresReview: true, reviewerId: newReviewerId } : {}),
       });
       setNewTitle('');
       setNewAssigneeId('');
       setNewObserverIds([]);
       setNewDueDate('');
       setNewPriority(TaskPriority.MEDIUM);
+      setNewRequiresReview(false);
+      setNewReviewerId('');
       setShowForm(false);
       loadTasks();
-    } catch {
+      taskParam.open(created.id);
+    } catch (err) {
       // What was typed stays, so the retry is one click.
-      setError(d.caseTasks.createFailed);
+      setError(err instanceof Error ? err.message : d.caseTasks.createFailed);
     } finally {
       setCreating(false);
     }
@@ -153,6 +171,7 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
   const caseTeam = users.filter((member) => caseTeamIds.has(member.id));
   const others = users.filter((member) => !caseTeamIds.has(member.id));
   const newAssigneeUser = users.find((u) => u.id === newAssigneeId);
+  const reviewers = users.filter(member => member.id !== (newAssigneeId || user?.id) && (member.firmRole === FirmRole.OWNER || member.firmRole === FirmRole.SENIOR_LAWYER));
 
   return (
     <div>
@@ -170,10 +189,7 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
         </div>
       </div>
 
-      <details className="mb-4 rounded-xl border bg-card px-4 py-3">
-        <summary className="cursor-pointer text-sm font-medium text-foreground">Playbook เป็นแนวทาง · เลือกเพื่อเพิ่มงานเอง</summary>
-        <div className="pt-3"><CasePlaybook caseId={caseId} onApplied={loadTasks} /></div>
-      </details>
+      <div className="mb-4"><CasePlaybook caseId={caseId} caseTypeId={caseDetail?.caseType?.id} initialReleaseId={searchParams.get('sop') ?? ''} onApplied={loadTasks} /></div>
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
@@ -203,11 +219,13 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <form id="create-case-task" onSubmit={handleCreate} className="min-h-0 flex-1 overflow-y-auto p-5">
+            <form id="create-case-task" onSubmit={handleCreate} onInvalidCapture={event => { const details = (event.target as HTMLElement).closest('details'); if (details) details.open = true; }} className="min-h-0 flex-1 overflow-y-auto p-5">
               <fieldset disabled={creating} className="flex min-w-0 flex-col gap-4">
+                {caseDetail && <p className="break-words text-sm text-muted-foreground">งานในคดี: {caseDetail.title}</p>}
+                <p className="text-xs text-muted-foreground">เริ่มจากชื่องานได้ ผู้รับผิดชอบเริ่มที่คุณ และกำหนดส่งเติมภายหลังได้</p>
                 {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
                 <div>
-                  <label htmlFor="case-task-title" className="text-sm font-medium">{d.caseTasks.titlePlaceholder}</label>
+                  <label htmlFor="case-task-title" className="text-sm font-medium">{d.taskDetail.titleField} *</label>
                   <Input
                     id="case-task-title"
                     value={newTitle}
@@ -218,11 +236,11 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                   />
                 </div>
                 <div>
-                  <label htmlFor="case-task-assignee" className="text-sm font-medium">{d.todos.filterAssignee}</label>
+                  <label htmlFor="case-task-assignee" className="text-sm font-medium">{d.taskDetail.assignee}</label>
                   <select
                     id="case-task-assignee"
                     value={newAssigneeId}
-                    onChange={(e) => setNewAssigneeId(e.target.value)}
+                    onChange={(e) => { setNewAssigneeId(e.target.value); if ((e.target.value || user?.id) === newReviewerId) setNewReviewerId(''); }}
                     className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
                   >
                     <option value="">{d.caseTasks.assignToMe}</option>
@@ -247,17 +265,31 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                     </p>
                   )}
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="case-task-due" className="text-sm font-medium">{d.caseTasks.dueDate}</label>
-                    <ThaiDateInput
-                      id="case-task-due"
-                      value={newDueDate}
-                      onChange={setNewDueDate}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
+                <div>
+                  <label htmlFor="case-task-due" className="text-sm font-medium">{d.caseTasks.dueDate}</label>
+                  <Input
+                    id="case-task-due"
+                    type="date"
+                    value={newDueDate}
+                    onChange={event => setNewDueDate(event.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <details className="rounded-lg border border-border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">การตรวจงาน / ความสำคัญ / ผู้ติดตาม (ถ้ามี)</summary>
+                  <label className="mt-3 flex min-h-10 items-center gap-2 text-sm">
+                    <input type="checkbox" checked={newRequiresReview} onChange={event => { setNewRequiresReview(event.target.checked); setNewReviewerId(reviewers.find(member => member.id === caseDetail?.leadLawyer?.id)?.id ?? ''); }} />
+                    ต้องให้ผู้ตรวจยืนยันก่อนปิดงาน
+                  </label>
+                  {newRequiresReview && <div className="mt-3">
+                    <label htmlFor="case-task-reviewer" className="text-sm font-medium">ผู้ตรวจ *</label>
+                    <select id="case-task-reviewer" required value={newReviewerId} onChange={event => setNewReviewerId(event.target.value)} className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm">
+                      <option value="">เลือกผู้ตรวจ</option>
+                      {reviewers.map(member => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}
+                    </select>
+                    {!reviewers.length && <p className="mt-1 text-xs text-muted-foreground">ต้องมีเจ้าของสำนักงานหรือทนายอาวุโสอีกคนเป็นผู้ตรวจ</p>}
+                  </div>}
+                  <div className="mt-3">
                     <label htmlFor="case-task-priority" className="text-sm font-medium">{d.todos.priority}</label>
                     <select
                       id="case-task-priority"
@@ -270,8 +302,7 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                       ))}
                     </select>
                   </div>
-                </div>
-                <div>
+                <div className="mt-3">
                   <label className="text-sm font-medium">{d.taskDetail.observers || 'ผู้ติดตาม'}</label>
                   <div className="mt-1">
                     <MultiUserSelect
@@ -282,6 +313,7 @@ export function CaseTasksPanel({ caseId }: { caseId: string }) {
                     />
                   </div>
                 </div>
+                </details>
               </fieldset>
             </form>
             <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-4">

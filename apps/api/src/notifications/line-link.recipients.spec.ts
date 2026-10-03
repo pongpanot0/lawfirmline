@@ -28,82 +28,16 @@ describe('LineLinkService recipients', () => {
     service = module.get(LineLinkService);
   });
 
-  describe('getLineUserIdsForEvent', () => {
-    it('reminds the person attending, not everyone on the case', async () => {
-      mockPrisma.user.findMany.mockResolvedValue([{ lineUserId: 'L-assignee' }]);
-
-      const ids = await service.getLineUserIdsForEvent({
-        assignees: [{ userId: 'user-attending' }],
-        case: { leadLawyerId: 'lead-1' },
-      });
-
-      expect(ids).toEqual(['L-assignee']);
-      expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
-        where: { id: { in: ['user-attending'] }, lineUserId: { not: null } },
-        select: { lineUserId: true },
-      });
-      // The case is never read: no buddy can be pulled in by accident.
-      expect(mockPrisma.case.findUnique).not.toHaveBeenCalled();
-    });
-
-    it('reminds every assignee on a multi-assignee event', async () => {
-      mockPrisma.user.findMany.mockResolvedValue([
-        { lineUserId: 'L-a' },
-        { lineUserId: 'L-b' },
-      ]);
-
-      const ids = await service.getLineUserIdsForEvent({
-        assignees: [{ userId: 'user-a' }, { userId: 'user-b' }],
-        case: { leadLawyerId: 'lead-1' },
-      });
-
-      expect(ids).toEqual(['L-a', 'L-b']);
-      expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
-        where: { id: { in: ['user-a', 'user-b'] }, lineUserId: { not: null } },
-        select: { lineUserId: true },
-      });
-    });
-
-    it('falls back to the lead lawyer when nobody was named', async () => {
-      mockPrisma.user.findMany.mockResolvedValue([{ lineUserId: 'L-lead' }]);
-
-      const ids = await service.getLineUserIdsForEvent({ assignees: [], case: { leadLawyerId: 'lead-1' } });
-
-      expect(ids).toEqual(['L-lead']);
-      expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
-        where: { id: { in: ['lead-1'] }, lineUserId: { not: null } },
-        select: { lineUserId: true },
-      });
-    });
-
-    it('returns nobody when there is no assignee and no case', async () => {
-      expect(await service.getLineUserIdsForEvent({ assignees: [], case: null })).toEqual([]);
-    });
-
-    it('drops recipients who have not linked LINE', async () => {
-      mockPrisma.user.findMany.mockResolvedValue([{ lineUserId: null }, { lineUserId: 'L-ok' }]);
-
-      expect(
-        await service.getLineUserIdsForEvent({ assignees: [{ userId: 'u1' }], case: null }),
-      ).toEqual(['L-ok']);
-    });
-  });
-
-  describe('getLineUserIdsForCase', () => {
+  describe('getCaseTeamUserIds', () => {
     it('still reaches everyone staffed, for case-wide news', async () => {
       mockPrisma.case.findUnique.mockResolvedValue({
         leadLawyerId: 'lead-1',
-        assignments: [{ userId: 'buddy-1' }],
+        assignments: [{ userId: 'buddy-1' }, { userId: 'lead-1' }],
       });
-      mockPrisma.user.findMany.mockResolvedValue([{ lineUserId: 'L1' }, { lineUserId: 'L2' }]);
 
-      const ids = await service.getLineUserIdsForCase('case-1');
+      const ids = await service.getCaseTeamUserIds('case-1');
 
-      expect(ids).toEqual(['L1', 'L2']);
-      expect(mockPrisma.user.findMany.mock.calls[0][0].where.id.in.sort()).toEqual([
-        'buddy-1',
-        'lead-1',
-      ]);
+      expect(ids.sort()).toEqual(['buddy-1', 'lead-1']);
     });
   });
 });

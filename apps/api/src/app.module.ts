@@ -1,3 +1,4 @@
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PracticeSetupModule } from './practice-setup/practice-setup.module';
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
@@ -44,9 +45,12 @@ import { ConflictCheckModule } from './conflict-check/conflict-check.module';
 import { DocumentReviewModule } from './document-review/document-review.module';
 import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
 import { CargoClaimsModule } from './cargo-claims/cargo-claims.module';
+import { WorkflowsModule } from './workflows/workflows.module';
 
 @Module({
   imports: [
+    // Default ceiling per client IP; auth endpoints set much tighter limits (see AUTH_THROTTLE).
+    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 600 }]),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: join(__dirname, '..', '.env'),
@@ -90,8 +94,10 @@ import { CargoClaimsModule } from './cargo-claims/cargo-claims.module';
     OutlookIntegrationModule,
     ConflictCheckModule,
     CargoClaimsModule,
+    WorkflowsModule,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     {
       provide: APP_GUARD,
       useClass: SubscriptionGuard,

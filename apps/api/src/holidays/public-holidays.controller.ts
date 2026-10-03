@@ -1,3 +1,4 @@
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { Role } from '@lawfirm/shared';
 import { PublicHolidaysService } from './public-holidays.service';
@@ -18,19 +19,19 @@ export class PublicHolidaysController {
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @UseGuards(PlatformAdminGuard)
   add(@Body() dto: HolidayItemDto) {
     return this.holidays.importMany([dto]);
   }
 
   @Put()
-  @Roles(Role.ADMIN)
+  @UseGuards(PlatformAdminGuard)
   replaceYear(@Body() dto: ReplaceYearDto) {
     return this.holidays.replaceYear(dto.year, dto.holidays);
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @UseGuards(PlatformAdminGuard)
   remove(@Param('id') id: string) {
     return this.holidays.remove(id);
   }

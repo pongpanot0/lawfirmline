@@ -65,3 +65,12 @@ export function calendarRangeQuery(from: string, to: string): string {
   const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999+07:00` : to;
   return `from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}`;
 }
+
+/** "เมื่อสักครู่" / "5 นาทีที่แล้ว" / "3 ชม.ที่แล้ว", then a date — for inbox rows. */
+export function timeAgo(iso: string | Date, now = new Date()): string {
+  const minutes = Math.floor((now.getTime() - new Date(iso).getTime()) / 60000);
+  if (minutes < 1) return 'เมื่อสักครู่';
+  if (minutes < 60) return `${minutes} นาทีที่แล้ว`;
+  if (minutes < 24 * 60) return `${Math.floor(minutes / 60)} ชม.ที่แล้ว`;
+  return `${thDate(iso)} ${thTime(iso)}`;
+}

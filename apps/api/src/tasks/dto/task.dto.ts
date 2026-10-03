@@ -11,10 +11,17 @@ import {
   IsBoolean,
   Length,
   Matches,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { TaskRoutineSourceDto } from './task-routine.dto';
 import { TaskPriority, TaskSize, TaskStatus, TaskWorkType } from '@lawfirm/shared';
 
 export class CreateTaskDto {
+  @IsOptional() @IsString() @Length(8, 100)
+  createRequestId?: string;
+  @IsOptional() @ValidateNested() @Type(() => TaskRoutineSourceDto)
+  routineSource?: TaskRoutineSourceDto;
   @IsString()
   @Length(1, 200)
   title!: string;
@@ -128,7 +135,7 @@ export class UpdateTaskDto {
   @IsInt()
   @Min(1)
   @Max(365)
-  recurrenceDays?: number;
+  recurrenceDays?: number | null;
 
   /** งานนี้รอ task อื่นเสร็จก่อน */
   @IsOptional()

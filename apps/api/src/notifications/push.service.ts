@@ -10,6 +10,8 @@ export interface PushMessage {
   body: string;
   /** Deep-link payload the app reads on tap, e.g. { url: '/court-day/<id>' }. */
   data?: Record<string, string>;
+  /** iOS app-icon badge; omitted leaves the current badge alone. */
+  badge?: number;
 }
 
 /**
@@ -39,28 +41,39 @@ export class PushService {
   }
 
   async sendToUsers(userIds: string[], message: PushMessage): Promise<boolean> {
-    if (userIds.length === 0) return false;
+    return this.send(userIds.map((userId) => ({ ...message, userId })));
+  }
+
+  /** One message per recipient, fanned out to every device they are signed in on. */
+  async send(messages: Array<PushMessage & { userId: string }>): Promise<boolean> {
+    if (messages.length === 0) return false;
     const devices = await this.prisma.deviceToken.findMany({
-      where: { userId: { in: userIds } },
+      where: { userId: { in: [...new Set(messages.map((m) => m.userId))] } },
     });
     if (devices.length === 0) return false;
 
+    const byUser = new Map(messages.map((m) => [m.userId, m]));
+    const outbound = devices.map((device) => {
+      const message = byUser.get(device.userId)!;
+      return {
+        to: device.token,
+        title: message.title,
+        body: message.body,
+        data: message.data ?? {},
+        sound: 'default',
+        channelId: 'default',
+        ...(message.badge !== undefined && { badge: message.badge }),
+      };
+    });
+
     let delivered = false;
-    for (let i = 0; i < devices.length; i += EXPO_PUSH_CHUNK) {
-      const chunk = devices.slice(i, i + EXPO_PUSH_CHUNK);
+    for (let i = 0; i < outbound.length; i += EXPO_PUSH_CHUNK) {
+      const chunk = outbound.slice(i, i + EXPO_PUSH_CHUNK);
       try {
         const res = await fetch(EXPO_PUSH_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            chunk.map((device) => ({
-              to: device.token,
-              title: message.title,
-              body: message.body,
-              data: message.data ?? {},
-              sound: 'default',
-            })),
-          ),
+          body: JSON.stringify(chunk),
         });
         if (!res.ok) {
           this.logger.warn(`Expo push returned HTTP ${res.status}`);
@@ -72,7 +85,7 @@ export class PushService {
         const tickets = body.data ?? [];
         const deadTokens = chunk
           .filter((_, idx) => tickets[idx]?.details?.error === 'DeviceNotRegistered')
-          .map((device) => device.token);
+          .map((message) => message.to);
         if (deadTokens.length > 0) {
           await this.prisma.deviceToken.deleteMany({
             where: { token: { in: deadTokens } },

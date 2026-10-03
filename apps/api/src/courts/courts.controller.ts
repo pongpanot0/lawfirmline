@@ -1,3 +1,4 @@
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import {
   Controller,
   Get,
@@ -33,13 +34,13 @@ export class CourtsController {
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @UseGuards(PlatformAdminGuard)
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateCourtDto) {
     return this.courtsService.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @UseGuards(PlatformAdminGuard)
   update(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -49,7 +50,7 @@ export class CourtsController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @UseGuards(PlatformAdminGuard)
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.courtsService.remove(user, id);
   }

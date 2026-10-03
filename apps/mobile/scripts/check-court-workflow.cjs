@@ -131,7 +131,8 @@ async function main() {
   const files = load('api/files.ts', {
     'expo-file-system/legacy': {}, 'expo-sharing': {},
     'expo-file-system': { File: class { constructor(uri) { this.uri = uri; } async bytes() { return new TextEncoder().encode(this.uri); } } },
-    './client': { API_URL: 'https://example.invalid', getTokens: async () => ({ accessToken: 'test' }) },
+    './client': { API_URL: 'https://example.invalid', getTokens: async () => ({ accessToken: 'test' }),
+      authenticatedFetch: (path, init) => fetch(`https://example.invalid${path}`, { ...init, headers: { Authorization: 'Bearer test' } }) },
   });
   await files.createExpense({ category: 'ค่าเดินทาง', amount: 100, description: 'ค่าเดินทาง', date: '2026-09-26' });
   assert.equal(sent.get('status'), 'DRAFT');

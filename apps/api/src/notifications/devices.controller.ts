@@ -1,3 +1,4 @@
+import { AllowExternal } from '../common/decorators/allow-external.decorator';
 import { Body, Controller, Delete, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -6,6 +7,7 @@ import { SkipSubscription } from '../saas/decorators/saas.decorators';
 import { PushService } from './push.service';
 import { RegisterDeviceDto } from './dto/device.dto';
 
+@AllowExternal()
 @Controller('notifications/devices')
 @UseGuards(JwtAuthGuard)
 export class DevicesController {

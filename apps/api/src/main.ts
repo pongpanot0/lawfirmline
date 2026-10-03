@@ -3,7 +3,9 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { config } from 'dotenv';
 import { join, resolve } from 'path';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { assertProductionSecrets } from './common/production-secrets';
 import { PayloadTooLargeFilter } from './common/filters/payload-too-large.filter';
 import { DEFAULT_ROOT_DOMAIN } from '@lawfirm/shared';
 
@@ -25,6 +27,7 @@ function isAllowedOrigin(origin: string | undefined, allowed: string[], rootDoma
 }
 
 async function bootstrap() {
+  assertProductionSecrets();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   app.useStaticAssets(join(__dirname, '..', 'public'), {
     setHeaders: (res, filePath) => {
@@ -33,6 +36,13 @@ async function bootstrap() {
       }
     },
   });
+
+  // Caddy is the single hop in front (docker-compose.prod.yml), so the client IP
+  // the throttler keys on is the first forwarded address.
+  app.set('trust proxy', 1);
+  // Security headers; resources stay loadable cross-origin because the web app
+  // and LINE fetch API-served images and files from another origin.
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
   const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:3005')
     .split(',')

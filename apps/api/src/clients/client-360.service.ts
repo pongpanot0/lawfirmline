@@ -1,6 +1,7 @@
+import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
@@ -216,9 +217,10 @@ export class Client360Service {
 
     if (result.taskId && recipient.userId !== user.id) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.TASK,
         firmId: user.firmId, userIds: [recipient.userId], actorUserId: user.id,
         summaryText: `${taskTitle} · ${legalCase.ownRef}`,
-        entityPath: `/cases/${legalCase.id}`,
+        entityPath: `/cases/${legalCase.id}`, appPath: taskAppRoute(result.taskId),
       });
     }
     return result;

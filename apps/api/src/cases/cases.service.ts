@@ -1,3 +1,4 @@
+import { assertFirmRefs } from '../common/firm-refs';
 import {
   Injectable,
   NotFoundException,
@@ -20,7 +21,7 @@ import { CaseFeedService } from '../common/services/case-feed.service';
 import { CreateCaseDto, UpdateCaseDto, CaseQueryDto, UpdateCaseAssignmentsDto } from './dto/case.dto';
 import { CustomerShareDto, AdditionalClientDto } from '../intake/dto/intake.dto';
 import { CloseCaseDto } from './dto/close-case.dto';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CLIENT_CONTACT_SELECT } from '../clients/client-contact.select';
@@ -332,6 +333,10 @@ export class CasesService {
   }
 
   async create(user: AuthUser, dto: CreateCaseDto) {
+    await assertFirmRefs(this.prisma, user.firmId, {
+      clientIds: [...(dto.customers ?? []).map((c) => c.customerId), ...(dto.clients ?? []).map((c) => c.clientId)],
+      contactIds: (dto.customers ?? []).map((c) => c.contactId),
+    });
     if (dto.caseTypeId) {
       const caseType = await this.prisma.caseType.findFirst({
         where: { id: dto.caseTypeId, firmId: user.firmId, isActive: true },
@@ -359,7 +364,7 @@ export class CasesService {
     ];
     const uniqueTeamUserIds = [...new Set(teamUserIds)];
     const firmMembers = await this.prisma.firmMember.count({
-      where: { firmId: user.firmId, userId: { in: uniqueTeamUserIds } },
+      where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: { in: uniqueTeamUserIds } },
     });
     if (firmMembers !== uniqueTeamUserIds.length) {
       throw new BadRequestException('All assigned team members must belong to your firm');
@@ -422,6 +427,7 @@ export class CasesService {
 
     if (dto.leadLawyerId && dto.leadLawyerId !== user.id) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: [dto.leadLawyerId],
         actorUserId: user.id,
@@ -431,6 +437,7 @@ export class CasesService {
     }
     if (buddyIds.length) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: buddyIds,
         actorUserId: user.id,
@@ -457,12 +464,19 @@ export class CasesService {
         throw new ForbiddenException('Only owners can reassign the case lead lawyer');
       }
       const isMember = await this.prisma.firmMember.count({
-        where: { firmId: user.firmId, userId: dto.leadLawyerId },
+        where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: dto.leadLawyerId },
       });
       if (!isMember) {
         throw new BadRequestException('Lead lawyer must belong to your firm');
       }
     }
+
+    // Every linked row must be this firm's — the case include returns their names and contacts.
+    await assertFirmRefs(this.prisma, user.firmId, {
+      clientIds: [dto.clientId, ...((dto.customers ?? [])).map((c) => c.customerId)],
+      contactIds: (dto.customers ?? []).map((c) => c.contactId),
+      caseTypeIds: [dto.caseTypeId],
+    });
 
     const { customFields, customers, ...rest } = dto;
     const stageChanged = !!dto.stage && dto.stage !== before.stage;
@@ -526,6 +540,7 @@ export class CasesService {
       dto.leadLawyerId !== user.id
     ) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: [dto.leadLawyerId],
         actorUserId: user.id,
@@ -557,7 +572,7 @@ export class CasesService {
 
     if (buddyIds.length) {
       const firmMembers = await this.prisma.firmMember.count({
-        where: { firmId: user.firmId, userId: { in: buddyIds } },
+        where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: { in: buddyIds } },
       });
       if (firmMembers !== buddyIds.length) {
         throw new BadRequestException('All assigned team members must belong to your firm');
@@ -601,6 +616,7 @@ export class CasesService {
     }
     if (newBuddyIds.length) {
       await this.assignmentNotifier.notifyAssigned({
+        category: NotificationCategory.CASE,
         firmId: user.firmId,
         userIds: newBuddyIds,
         actorUserId: user.id,

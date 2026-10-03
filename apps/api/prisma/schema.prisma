@@ -18,6 +18,13 @@ enum FirmRole {
   SENIOR_LAWYER
   LAWYER
   ASSISTANT
+  EXTERNAL
+}
+
+enum WorkflowRunStatus {
+  ACTIVE
+  DONE
+  CANCELLED
 }
 
 enum LeaveType {
@@ -422,14 +429,17 @@ model Firm {
   leaves             LeaveRequest[]
   invoicePayments    InvoicePayment[]
   pleadingDrafts     PleadingDraft[]
+  notifications      Notification[]
+  workflowTemplates  WorkflowTemplate[]
+  workflowRuns       WorkflowRun[]
 }
 
 model FirmMember {
-  id        String   @id @default(uuid())
-  firmId    String
-  userId    String
-  role      FirmRole
-  createdAt DateTime @default(now())
+  id            String   @id @default(uuid())
+  firmId        String
+  userId        String
+  role          FirmRole
+  createdAt     DateTime @default(now())
   taskWorkTypes String[] @default([])
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
@@ -598,67 +608,119 @@ model User {
   mfaCodes                   MfaCode[]
   sessions                   Session[]
   firmMembers                FirmMember[]
-  sentInvitations            Invitation[]              @relation("SentInvitations")
-  sentPortalInvitations      ClientPortalInvite[]      @relation("SentPortalInvitations")
+  sentInvitations            Invitation[]                 @relation("SentInvitations")
+  sentPortalInvitations      ClientPortalInvite[]         @relation("SentPortalInvitations")
   passwordResetTokens        PasswordResetToken[]
   auditLogs                  AuditLog[]
-  leadCases                  Case[]                    @relation("LeadLawyer")
+  leadCases                  Case[]                       @relation("LeadLawyer")
   assignments                CaseAssignment[]
-  assignedTasks              Task[]                    @relation("TaskAssignee")
-  createdTasks               Task[]                    @relation("TaskCreator")
-  taskAttachments            TaskAttachment[]          @relation("TaskAttachmentUploader")
-  taskComments               TaskComment[]             @relation("TaskCommentAuthor")
+  assignedTasks              Task[]                       @relation("TaskAssignee")
+  createdTasks               Task[]                       @relation("TaskCreator")
+  taskAttachments            TaskAttachment[]             @relation("TaskAttachmentUploader")
+  taskComments               TaskComment[]                @relation("TaskCommentAuthor")
   documents                  Document[]
   timeEntries                TimeEntry[]
-  createdInvoices            Invoice[]                 @relation("InvoiceCreator")
+  createdInvoices            Invoice[]                    @relation("InvoiceCreator")
+  collectionInvoices         Invoice[]                    @relation("InvoiceCollector")
   expenses                   Expense[]
-  paidExpenses               Expense[]                 @relation("ExpensePaidBy")
-  submittedExpenseClaims     ExpenseClaim[]            @relation("ExpenseClaimSubmitter")
-  reviewedExpenseClaims      ExpenseClaim[]            @relation("ExpenseClaimReviewer")
-  paidExpenseClaims          ExpenseClaim[]            @relation("ExpenseClaimPayer")
-  cashAdvancesReceived       CashAdvance[]             @relation("CashAdvanceRecipient")
-  cashAdvancesIssued         CashAdvance[]             @relation("CashAdvanceIssuer")
-  knowledge                  CaseKnowledge[]           @relation("CaseKnowledgeCreator")
-  legalQueries               LegalQuery[]              @relation("LegalQueryCreator")
-  reviewedKnowledge          CaseKnowledge[]           @relation("CaseKnowledgeReviewer")
+  paidExpenses               Expense[]                    @relation("ExpensePaidBy")
+  submittedExpenseClaims     ExpenseClaim[]               @relation("ExpenseClaimSubmitter")
+  reviewedExpenseClaims      ExpenseClaim[]               @relation("ExpenseClaimReviewer")
+  paidExpenseClaims          ExpenseClaim[]               @relation("ExpenseClaimPayer")
+  cashAdvancesReceived       CashAdvance[]                @relation("CashAdvanceRecipient")
+  cashAdvancesIssued         CashAdvance[]                @relation("CashAdvanceIssuer")
+  knowledge                  CaseKnowledge[]              @relation("CaseKnowledgeCreator")
+  legalQueries               LegalQuery[]                 @relation("LegalQueryCreator")
+  reviewedKnowledge          CaseKnowledge[]              @relation("CaseKnowledgeReviewer")
   intakeAttachments          IntakeAttachment[]
   intakePrecedentAnalyses    IntakePrecedentAnalysis[]
   caseActivities             CaseActivity[]
-  receivedIntakes            Intake[]                  @relation("IntakeReceiver")
-  followUpIntakes            Intake[]                  @relation("IntakeFollowUpOwner")
-  intakeFollowUps            IntakeFollowUp[]          @relation("IntakeFollowUpAuthor")
-  intakeDocRequests          IntakeDocumentRequest[]   @relation("DocRequestAuthor")
-  conflictChecks             ConflictCheck[]           @relation("ConflictChecker")
-  assessedIntakes            Intake[]                  @relation("IntakeAssessor")
-  createdClosingEmailDrafts  ClosingEmailDraft[]       @relation("ClosingEmailDraftCreator")
-  approvedClosingEmailDrafts ClosingEmailDraft[]       @relation("ClosingEmailDraftApprover")
+  receivedIntakes            Intake[]                     @relation("IntakeReceiver")
+  followUpIntakes            Intake[]                     @relation("IntakeFollowUpOwner")
+  intakeFollowUps            IntakeFollowUp[]             @relation("IntakeFollowUpAuthor")
+  intakeDocRequests          IntakeDocumentRequest[]      @relation("DocRequestAuthor")
+  conflictChecks             ConflictCheck[]              @relation("ConflictChecker")
+  assessedIntakes            Intake[]                     @relation("IntakeAssessor")
+  createdClosingEmailDrafts  ClosingEmailDraft[]          @relation("ClosingEmailDraftCreator")
+  approvedClosingEmailDrafts ClosingEmailDraft[]          @relation("ClosingEmailDraftApprover")
   insuranceClaims            InsuranceClaim[]
-  followedTaskOnHolds        TaskOnHold[]              @relation("TaskOnHoldFollower")
-  createdTaskOnHolds         TaskOnHold[]              @relation("TaskOnHoldCreator")
-  taskLogsFrom               TaskAssignmentLog[]       @relation("TaskLogFrom")
-  taskLogsTo                 TaskAssignmentLog[]       @relation("TaskLogTo")
-  taskLogsPerformed          TaskAssignmentLog[]       @relation("TaskLogPerformer")
-  observedTasks              TaskObserver[]            @relation("TaskObserver")
-  addedObservations          TaskObserver[]            @relation("TaskObserverAddedBy")
-  grantedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessGranted")
-  revokedContactCaseAccess   ContactCaseAccess[]       @relation("ContactCaseAccessRevoked")
-  publishedDocuments         DocumentPublication[]     @relation("DocumentPublicationPublished")
-  unpublishedDocuments       DocumentPublication[]     @relation("DocumentPublicationUnpublished")
+  followedTaskOnHolds        TaskOnHold[]                 @relation("TaskOnHoldFollower")
+  createdTaskOnHolds         TaskOnHold[]                 @relation("TaskOnHoldCreator")
+  taskLogsFrom               TaskAssignmentLog[]          @relation("TaskLogFrom")
+  taskLogsTo                 TaskAssignmentLog[]          @relation("TaskLogTo")
+  taskLogsPerformed          TaskAssignmentLog[]          @relation("TaskLogPerformer")
+  observedTasks              TaskObserver[]               @relation("TaskObserver")
+  addedObservations          TaskObserver[]               @relation("TaskObserverAddedBy")
+  grantedContactCaseAccess   ContactCaseAccess[]          @relation("ContactCaseAccessGranted")
+  revokedContactCaseAccess   ContactCaseAccess[]          @relation("ContactCaseAccessRevoked")
+  publishedDocuments         DocumentPublication[]        @relation("DocumentPublicationPublished")
+  unpublishedDocuments       DocumentPublication[]        @relation("DocumentPublicationUnpublished")
   caseMessages               CaseMessage[]
-  createdDateSuggestions     DocumentDateSuggestion[]  @relation("DateSuggestionCreator")
-  reviewedDateSuggestions    DocumentDateSuggestion[]  @relation("DateSuggestionReviewer")
+  createdDateSuggestions     DocumentDateSuggestion[]     @relation("DateSuggestionCreator")
+  reviewedDateSuggestions    DocumentDateSuggestion[]     @relation("DateSuggestionReviewer")
   dailyDigestLogs            DailyDigestLog[]
-  leaveRequests              LeaveRequest[]            @relation("LeaveRequestUser")
-  decidedLeaveRequests       LeaveRequest[]            @relation("LeaveDecider")
-  assignedEvents             CalendarEvent[]           @relation("EventAssignee")
-  eventAssignments           CalendarEventAssignee[]   @relation("EventCoAssignee")
+  leaveRequests              LeaveRequest[]               @relation("LeaveRequestUser")
+  decidedLeaveRequests       LeaveRequest[]               @relation("LeaveDecider")
+  assignedEvents             CalendarEvent[]              @relation("EventAssignee")
+  eventAssignments           CalendarEventAssignee[]      @relation("EventCoAssignee")
   deviceTokens               DeviceToken[]
   caseStatusLogs             CaseStatusLog[]
   sops                       Sop[]
-  confirmedCargoClaims       CargoClaim[]              @relation("CargoClaimConfirmer")
-  recordedInvoicePayments    InvoicePayment[]          @relation("InvoicePaymentRecorder")
-  createdPleadingDrafts      PleadingDraft[]           @relation("PleadingDraftCreator")
+  confirmedCargoClaims       CargoClaim[]                 @relation("CargoClaimConfirmer")
+  recordedInvoicePayments    InvoicePayment[]             @relation("InvoicePaymentRecorder")
+  createdPleadingDrafts      PleadingDraft[]              @relation("PleadingDraftCreator")
   caseComments               CaseComment[]
+  notifications              Notification[]
+  notificationPreferences    UserNotificationPreference[]
+}
+
+/// What a staff notification is about — the unit a user mutes per channel.
+enum NotificationCategory {
+  TASK
+  CASE
+  COMMENT
+  CALENDAR
+  CLIENT
+  BILLING
+  LEAVE
+}
+
+/// One staff notification, kept as the in-app inbox. Written for every
+/// recipient regardless of channel preferences: muting push or LINE stops the
+/// interruption, never the record.
+model Notification {
+  id        String               @id @default(uuid())
+  firmId    String
+  userId    String
+  category  NotificationCategory
+  title     String
+  body      String?
+  /// Web path, also what the LINE link points at.
+  path      String
+  /// Mobile route the app opens on tap; null when the app has no screen for it.
+  appPath   String?
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, firmId, createdAt])
+  @@index([userId, firmId, readAt])
+  @@index([createdAt])
+}
+
+/// A user's opt-out for one category. No row means every channel is on.
+model UserNotificationPreference {
+  id       String               @id @default(uuid())
+  userId   String
+  category NotificationCategory
+  push     Boolean              @default(true)
+  line     Boolean              @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
 }
 
 /// A mobile device's Expo push token. One row per device; a token moves to
@@ -810,48 +872,48 @@ model Court {
 }
 
 model Case {
-  id                 String      @id @default(uuid())
-  firmId             String
-  ownRef             String
-  customerRef        String?
-  folderId           String
-  title              String
-  description        String?
-  status             CaseStatus  @default(OPEN)
-  stage              CaseStage   @default(PRE_LITIGATION)
-  stageChangedAt     DateTime    @default(now())
+  id                   String      @id @default(uuid())
+  firmId               String
+  ownRef               String
+  customerRef          String?
+  folderId             String
+  title                String
+  description          String?
+  status               CaseStatus  @default(OPEN)
+  stage                CaseStage   @default(PRE_LITIGATION)
+  stageChangedAt       DateTime    @default(now())
   /// ขั้นล่าสุดที่ผู้ใช้จัดการงานแนะนำจาก playbook แล้ว (สร้างหรือข้าม) — ≠ stage → หน้าคดีเสนองานของขั้นนั้น
   stageTasksHandledFor CaseStage?
-  outcome            CaseOutcome @default(IN_PROGRESS)
-  clientId           String?
-  clientName         String?
+  outcome              CaseOutcome @default(IN_PROGRESS)
+  clientId             String?
+  clientName           String?
   /// ฝ่ายเรา — โจทก์หรือจำเลย ให้ AI และทีมรู้มุมที่ต้องทำงาน
-  partyRole          PartyRole?
-  courtName          String?
-  courtLevel         CourtLevel?
-  blackCaseNumber    String?
-  redCaseNumber      String?
-  customFields       Json?
-  caseTypeId         String?
+  partyRole            PartyRole?
+  courtName            String?
+  courtLevel           CourtLevel?
+  blackCaseNumber      String?
+  redCaseNumber        String?
+  customFields         Json?
+  caseTypeId           String?
   /// เอกสารที่ทีมติ๊กเองว่า "มีแล้ว" (ค่าหมวดหรือข้อความอิสระจาก CaseType.requiredDocuments)
   /// แยกจากการตรวจจับอัตโนมัติจาก Document.category เพราะเอกสารข้อความอิสระเทียบอัตโนมัติไม่ได้
-  confirmedDocuments String[]    @default([])
-  subType            String?
-  claimedAmount      Float?
-  estimatedFee       Float?
-  actualFee          Float?
-  limitationDeadline DateTime?
-  referralSource     String?
-  intakeId           String?     @unique
-  closingSummary     String?     @db.Text
+  confirmedDocuments   String[]    @default([])
+  subType              String?
+  claimedAmount        Float?
+  estimatedFee         Float?
+  actualFee            Float?
+  limitationDeadline   DateTime?
+  referralSource       String?
+  intakeId             String?     @unique
+  closingSummary       String?     @db.Text
   /// ลบแบบ soft — คดีที่ถูกลบจะถูกกรองออกจากทุก query ผ่าน CaseAccessService
   /// ไม่ลบจริงเพราะ relation ทั้ง 20 ตารางเป็น onDelete: Cascade กู้คืนไม่ได้
-  deletedAt          DateTime?
-  leadLawyerId       String
-  openedAt           DateTime    @default(now())
-  closedAt           DateTime?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
+  deletedAt            DateTime?
+  leadLawyerId         String
+  openedAt             DateTime    @default(now())
+  closedAt             DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
 
   firm                   Firm                      @relation(fields: [firmId], references: [id], onDelete: Cascade)
   client                 Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
@@ -862,6 +924,7 @@ model Case {
   participants           CaseParticipant[]
   tasks                  Task[]
   documents              Document[]
+  documentRequests       IntakeDocumentRequest[]
   calendarEvents         CalendarEvent[]
   activities             CaseActivity[]
   timeEntries            TimeEntry[]
@@ -885,6 +948,7 @@ model Case {
   pleadingDrafts         PleadingDraft[]
   portalIntakeSubmission PortalIntakeSubmission?
   comments               CaseComment[]
+  workflowRuns           WorkflowRun[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -894,19 +958,58 @@ model Case {
 }
 
 model CaseComment {
-  id                String   @id @default(uuid())
-  caseId            String
-  authorId          String
-  body              String   @db.Text
-  mentionedUserIds  String[] @default([])
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String   @id @default(uuid())
+  caseId           String
+  authorId         String
+  body             String   @db.Text
+  mentionedUserIds String[] @default([])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   case   Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
   author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([caseId, createdAt])
   @@index([authorId])
+}
+
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  firmId      String
+  name        String
+  description String?
+  /// WorkflowStepDefinition[] (packages/shared): { title, instructions?, role: FirmRole, durationDays: number (1-60), requiresReview?: boolean }
+  steps       Json
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  runs WorkflowRun[]
+
+  @@index([firmId, isActive])
+}
+
+model WorkflowRun {
+  id          String            @id @default(uuid())
+  firmId      String
+  caseId      String
+  templateId  String?
+  name        String            /// e.g. "แปลคำให้การพยาน — นาย ก."
+  status      WorkflowRunStatus @default(ACTIVE)
+  promisedAt  DateTime?         /// date promised to the client, for "late by N days"
+  createdById String
+  createdAt   DateTime          @default(now())
+  completedAt DateTime?
+
+  firm     Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  case     Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  template WorkflowTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  tasks    Task[]
+
+  @@index([firmId, status])
+  @@index([caseId])
 }
 
 model Intake {
@@ -1031,26 +1134,30 @@ model IntakeFollowUp {
 /// ต้องรู้ว่า "ขออะไรไปแล้ว ได้อะไรมาแล้ว ยังขาดอะไร" ก่อนออกหนังสือหรือเปิดคดี
 /// — ไม่ใช่ไปพบว่าขาดเอกสารตอนที่ต้องยื่นแล้ว
 model IntakeDocumentRequest {
-  id          String           @id @default(uuid())
-  intakeId    String
-  name        String
+  id            String           @id @default(uuid())
+  intakeId      String?
+  caseId        String?
+  requestedFrom String?
+  name          String
   /// เอกสารที่ไม่ required ขาดได้โดยไม่กั้นการออกหนังสือ
-  required    Boolean          @default(true)
-  status      DocRequestStatus @default(REQUESTED)
-  note        String?
-  dueDate     DateTime?
+  required      Boolean          @default(true)
+  status        DocRequestStatus @default(REQUESTED)
+  note          String?
+  dueDate       DateTime?
   /// ไฟล์ที่รับมาแล้ว ถ้าผูกไว้
-  documentId  String?
-  requestedAt DateTime         @default(now())
-  receivedAt  DateTime?
-  createdById String
-  updatedAt   DateTime         @updatedAt
+  documentId    String?
+  requestedAt   DateTime         @default(now())
+  receivedAt    DateTime?
+  createdById   String
+  updatedAt     DateTime         @updatedAt
 
-  intake    Intake    @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  intake    Intake?   @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  case      Case?     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
   createdBy User      @relation("DocRequestAuthor", fields: [createdById], references: [id])
 
   @@index([intakeId, status])
+  @@index([caseId, status])
 }
 
 /// ผลการตรวจผลประโยชน์ขัดกันหนึ่งครั้ง (conflict check) — เก็บทั้งคำค้น ผลที่
@@ -1199,42 +1306,50 @@ enum TaskWorkType {
 }
 
 model Task {
-  id             String       @id @default(uuid())
-  caseId         String?
-  title          String
-  description    String?
-  status         TaskStatus   @default(TODO)
-  assigneeId     String?
-  createdById    String
-  dueDate        DateTime?
-  source         TaskSource   @default(WEB)
-  parentId       String?
+  id                      String        @id @default(uuid())
+  caseId                  String?
+  title                   String
+  description             String?
+  status                  TaskStatus    @default(TODO)
+  /// Immutable office SOP snapshot; old/general tasks have no routine requirements.
+  routine                 Json?
+  routineCompletedChecks  Int[]         @default([])
+  /// A retry after a lost response returns the same created task.
+  createRequestId         String?       @unique
+  assigneeId              String?
+  createdById             String
+  dueDate                 DateTime?
+  source                  TaskSource    @default(WEB)
+  parentId                String?
   /// A confirmed AI follow-up keeps its source even if the comment is later removed.
   followUpSourceTaskId    String?
-  followUpSourceCommentId String? @unique
-  followUpSourceQuote     String? @db.Text
-  priority       TaskPriority @default(MEDIUM)
-  labels         String[]     @default([])
+  followUpSourceCommentId String?       @unique
+  followUpSourceQuote     String?       @db.Text
+  priority                TaskPriority  @default(MEDIUM)
+  labels                  String[]      @default([])
   /// งานประจำ: เมื่อปิดงาน ระบบสร้างงานรอบถัดไปให้อัตโนมัติ ครบกำหนด +N วัน
-  recurrenceDays Int?
+  recurrenceDays          Int?
   /// งานนี้เริ่มไม่ได้จนกว่างาน blocker จะเสร็จ (single blocker พอสำหรับ pipeline งานคดี)
-  blockedById    String?
+  blockedById             String?
   /// Set on the transition to DONE; legacy tasks remain null.
-  completedAt    DateTime?
+  completedAt             DateTime?
   /// Explicit tenant for new tasks; older case/intake tasks retain their existing scope.
-  firmId         String?
-  workType       TaskWorkType?
+  firmId                  String?
+  workType                TaskWorkType?
   /// ขนาดงานโดยประมาณ ใช้คิดแต้มภาระงาน (S=1 M=2 L=4)
-  size           TaskSize     @default(M)
-  scheduledFor   DateTime? @db.Date
-  queuePosition  Int @default(0)
-  requiresReview Boolean @default(false)
-  reviewerId     String?
-  assignedAt     DateTime?
-  acknowledgedAt DateTime?
-  planConfirmedAt DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  size                    TaskSize      @default(M)
+  scheduledFor            DateTime?     @db.Date
+  queuePosition           Int           @default(0)
+  requiresReview          Boolean       @default(false)
+  reviewerId              String?
+  assignedAt              DateTime?
+  acknowledgedAt          DateTime?
+  planConfirmedAt         DateTime?
+  workflowRunId           String?
+  workflowStep            Int?
+  workflowDurationDays    Int?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
 
   case           Case?               @relation(fields: [caseId], references: [id], onDelete: Cascade)
   /// งานของเรื่องรับเข้า — เปิดคดีแล้วถูกย้ายไปเป็นงานคดี (caseId แทน intakeId)
@@ -1244,6 +1359,7 @@ model Task {
   blocks         Task[]              @relation("TaskBlocks")
   assignee       User?               @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy      User                @relation("TaskCreator", fields: [createdById], references: [id])
+  workflowRun    WorkflowRun?        @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
   onHold         TaskOnHold?
   assignmentLogs TaskAssignmentLog[]
   parent         Task?               @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
@@ -1260,6 +1376,7 @@ model Task {
   @@index([blockedById])
   @@index([firmId, assigneeId, queuePosition])
   @@index([scheduledFor])
+  @@index([workflowRunId, workflowStep])
 }
 
 model TaskAttachment {
@@ -1856,54 +1973,61 @@ model DocumentTemplate {
 }
 
 model Invoice {
-  id               String        @id @default(uuid())
-  firmId           String
+  id                String        @id @default(uuid())
+  firmId            String
   /// ใบแจ้งหนี้ออกได้โดยไม่มีคดี — จากเรื่องที่รับเข้ามา หรือออกเปล่าให้ลูกค้าดูก่อน
-  caseId           String?
-  intakeId         String?
-  invoiceNumber    String        @unique
-  status           InvoiceStatus @default(DRAFT)
-  totalAmount      Float         @default(0)
-  issuedAt         DateTime?
-  dueAt            DateTime?
+  caseId            String?
+  intakeId          String?
+  invoiceNumber     String        @unique
+  status            InvoiceStatus @default(DRAFT)
+  totalAmount       Float         @default(0)
+  issuedAt          DateTime?
+  dueAt             DateTime?
   /// เวลาที่ส่งการแจ้งเตือนทวงเงินครั้งล่าสุด — กันแจ้งซ้ำถี่เกินไป
-  lastReminderAt   DateTime?
-  createdById      String
-  billToCustomerId String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  lastReminderAt    DateTime?
+  collectionOwnerId String?
+  collectionNextAt  DateTime?     @db.Date
+  collectionNote    String?       @db.Text
+  createdById       String
+  billToCustomerId  String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
-  firm           Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  case           Case?             @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  intake         Intake?           @relation(fields: [intakeId], references: [id], onDelete: Cascade)
-  createdBy      User              @relation("InvoiceCreator", fields: [createdById], references: [id])
-  timeEntries    TimeEntry[]
-  expenses       Expense[]
-  billToCustomer Client?           @relation("InvoiceBillTo", fields: [billToCustomerId], references: [id], onDelete: SetNull)
-  lineItems      InvoiceLineItem[]
-  payments       InvoicePayment[]
+  firm            Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  case            Case?             @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  intake          Intake?           @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  createdBy       User              @relation("InvoiceCreator", fields: [createdById], references: [id])
+  collectionOwner User?             @relation("InvoiceCollector", fields: [collectionOwnerId], references: [id], onDelete: SetNull)
+  timeEntries     TimeEntry[]
+  expenses        Expense[]
+  billToCustomer  Client?           @relation("InvoiceBillTo", fields: [billToCustomerId], references: [id], onDelete: SetNull)
+  lineItems       InvoiceLineItem[]
+  payments        InvoicePayment[]
 
   @@index([firmId])
   @@index([caseId])
   @@index([intakeId])
   @@index([billToCustomerId])
+  @@index([firmId, collectionNextAt])
 }
 
 model InvoicePayment {
-  id           String        @id @default(uuid())
-  firmId       String
-  invoiceId    String
-  amount       Float
-  method       PaymentMethod @default(TRANSFER)
-  receivedAt   DateTime      @db.Date
-  note         String?
-  recordedById String
-  createdAt    DateTime      @default(now())
+  id              String        @id @default(uuid())
+  firmId          String
+  invoiceId       String
+  amount          Float
+  method          PaymentMethod @default(TRANSFER)
+  receivedAt      DateTime      @db.Date
+  note            String?
+  recordedById    String
+  createdAt       DateTime      @default(now())
+  createRequestId String?
 
   firm       Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
   invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   recordedBy User    @relation("InvoicePaymentRecorder", fields: [recordedById], references: [id])
 
+  @@unique([firmId, createRequestId])
   @@index([invoiceId])
   @@index([firmId, receivedAt])
 }

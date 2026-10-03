@@ -3,6 +3,7 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { AuthUser, FirmRole, maskEmail } from '@lawfirm/shared';
@@ -181,6 +182,12 @@ export class InvitationService {
     }
 
     let user = await this.prisma.user.findUnique({ where: { email: invitation.email } });
+    // The inviter holds this token too, so for an existing account the token
+    // alone must not be a login: the account's own password has to match.
+    const existing = Boolean(user);
+    if (user && !(await bcrypt.compare(dto.password, user.passwordHash))) {
+      throw new UnauthorizedException('อีเมลนี้มีบัญชีอยู่แล้ว — ใส่รหัสผ่านของบัญชีเดิมเพื่อเข้าร่วม');
+    }
 
     await this.prisma.$transaction(async (tx) => {
       if (!user) {
@@ -218,9 +225,11 @@ export class InvitationService {
       });
     });
 
+    // An existing account signs in through the normal login (which also runs its MFA).
+    if (existing) return { existingAccount: { email: invitation.email, firmId: invitation.firmId } };
     const authUser = await this.tenant.buildAuthUser(user!.id, invitation.firmId);
     if (!authUser) throw new BadRequestException('Failed to join firm');
-    return authUser;
+    return { authUser };
   }
 
   async listPending(user: AuthUser) {

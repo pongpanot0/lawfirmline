@@ -52,6 +52,7 @@ describe('Billing LINE notifications', () => {
     mockPrisma.expense.update.mockResolvedValue({ id: 'e1', userId: 'u2', amount: 1500 });
     await billing.updateExpenseStatus(owner, 'e1', { status: ExpenseStatus.APPROVED } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      category: 'BILLING',
       firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'owner-1',
@@ -78,11 +79,13 @@ describe('Billing LINE notifications', () => {
     });
     await billing.updateExpenseClaimStatus(owner, 'cl1', { status: ExpenseClaimStatus.PAID } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      category: 'BILLING',
       firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'owner-1',
       summaryText: expect.stringContaining('จ่ายแล้ว'),
       entityPath: '/expenses/claim',
+      appPath: '/expenses/claim/cl1',
     });
   });
 
@@ -94,6 +97,7 @@ describe('Billing LINE notifications', () => {
     });
     await advances.issue(owner, { userId: 'u2', amount: 5000, note: 'ค่าเดินทาง' } as any);
     expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith({
+      category: 'BILLING',
       firmId: 'firm-1',
       userIds: ['u2'],
       actorUserId: 'owner-1',

@@ -8,7 +8,8 @@ const TOKEN_KEY = 'lawfirm_access_token';
 const REFRESH_KEY = 'lawfirm_refresh_token';
 
 function parseApiErrorMessage(body: unknown, fallback: string): string {
-  const payload = body as { message?: string | { message?: string } };
+  const payload = body as { message?: string | string[] | { message?: string } };
+  if (Array.isArray(payload.message)) return payload.message.join(', ');
   if (typeof payload.message === 'string') return payload.message;
   if (payload.message?.message) return payload.message.message;
   return fallback;
@@ -54,7 +55,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: RequestInit & { token?: string; refreshAuth?: boolean; silent?: boolean } = {},
 ): Promise<T> {
@@ -702,6 +703,7 @@ export interface TaskPerson {
 
 // งานที่ Playbook แนะนำเมื่อเรื่องย้ายเข้าขั้นตอนหนึ่ง
 export interface StageTaskProposal {
+  routineSource?: { releaseId: string; stepIndex: number };
   title: string;
   description: string;
   dueDate: string | null;
@@ -710,6 +712,7 @@ export interface StageTaskProposal {
 }
 
 export interface StageTaskDraft {
+  routineSource?: { releaseId: string; stepIndex: number };
   title: string;
   description?: string;
   dueDate?: string | null;
@@ -738,6 +741,7 @@ export interface TaskItem {
   recurrenceDays?: number | null;
   blockedById?: string | null;
   createdById?: string;
+  handedOffById?: string | null;
   createdBy?: TaskPerson | null;
   assignee?: TaskPerson | null;
   observers?: Array<{ id: string; userId: string; user: TaskPerson; createdAt: string }> | null;
@@ -1275,6 +1279,79 @@ function announceDocumentUpload(scope: 'case' | 'intake', scopeId: string, docum
       detail: { scope, scopeId, documentId: document.id, filename: document.filename },
     }));
   }
+}
+
+export type WorkflowRole = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT' | 'EXTERNAL';
+
+export interface WorkflowStepDef {
+  title: string;
+  instructions?: string;
+  role: WorkflowRole;
+  durationDays: number;
+  requiresReview?: boolean;
+}
+
+export interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  steps: WorkflowStepDef[];
+  isActive: boolean;
+}
+
+export interface WorkflowAssignee {
+  userId: string;
+  name: string;
+  openTaskCount: number;
+}
+
+/** A run in the owner's pipeline (GET /workflows/runs). */
+export interface WorkflowPipelineRun {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'DONE' | 'CANCELLED';
+  case: { id: string; ownRef: string; title: string };
+  currentStep: { index: number; title: string; assignee: { id: string; name: string } | null; dueDate?: string; overdueDays: number } | null;
+  stepsDone: number;
+  stepsTotal: number;
+  projectedFinish: string;
+  lateByDays: number;
+  promisedAt?: string;
+}
+
+/** A run on a case page (GET /cases/:id/workflows). */
+export interface CaseWorkflowRun {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'DONE' | 'CANCELLED';
+  createdAt: string;
+  steps: Array<{
+    taskId: string;
+    title: string;
+    assignee: { id: string; name: string } | null;
+    status: string;
+    dueDate: string | null;
+    completedAt: string | null;
+    attachmentCount: number;
+  }>;
+}
+
+export interface WorkflowRunFiles {
+  step: number;
+  taskId: string;
+  files: Array<{ id: string; filename: string; size: number }>;
+}
+
+export interface ExternalStep {
+  taskId: string;
+  title: string;
+  instructions?: string;
+  status: string;
+  dueDate?: string;
+  blocked: boolean;
+  run: { name: string; caseRef: string };
+  inputs: Array<{ attachmentId: string; filename: string; size: number; step: number }>;
+  outputs: Array<{ attachmentId: string; filename: string; size: number }>;
 }
 
 export const api = {
@@ -1989,7 +2066,7 @@ export const api = {
     }),
 
   createTask: (token: string, caseId: string, data: Record<string, unknown>) =>
-    request(`/cases/${caseId}/tasks`, {
+    request<TaskItem>(`/cases/${caseId}/tasks`, {
       method: 'POST',
       token,
       body: JSON.stringify(data),
@@ -3066,6 +3143,59 @@ export const api = {
       method: 'DELETE',
       token,
     }),
+
+  // ===== Workflows (สายงาน) =====
+  getWorkflowTemplates: (token: string) =>
+    request<WorkflowTemplate[]>('/workflows/templates', { token }),
+
+  createWorkflowTemplate: (token: string, data: { name: string; description?: string; steps: WorkflowStepDef[] }) =>
+    request<WorkflowTemplate>('/workflows/templates', { method: 'POST', token, body: JSON.stringify(data) }),
+
+  updateWorkflowTemplate: (token: string, id: string, data: { name?: string; description?: string; steps?: WorkflowStepDef[] }) =>
+    request<WorkflowTemplate>(`/workflows/templates/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  deleteWorkflowTemplate: (token: string, id: string) =>
+    request(`/workflows/templates/${id}`, { method: 'DELETE', token }),
+
+  getWorkflowAssignees: (token: string, role: WorkflowRole) =>
+    request<WorkflowAssignee[]>(`/workflows/assignees?role=${encodeURIComponent(role)}`, { token }),
+
+  getWorkflowRuns: (token: string, status?: 'ACTIVE' | 'DONE' | 'CANCELLED') =>
+    request<WorkflowPipelineRun[]>(`/workflows/runs${status ? `?status=${status}` : ''}`, { token }),
+
+  getCaseWorkflows: (token: string, caseId: string) =>
+    request<CaseWorkflowRun[]>(`/cases/${caseId}/workflows`, { token }),
+
+  createWorkflowRun: (token: string, caseId: string, data: { templateId?: string; steps?: WorkflowStepDef[]; name: string; promisedAt?: string; assignees?: (string | null)[] }) =>
+    request<{ id: string }>(`/cases/${caseId}/workflows`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  getWorkflowRunFiles: (token: string, runId: string) =>
+    request<WorkflowRunFiles[]>(`/workflows/runs/${runId}/files`, { token }),
+
+  sendBackWorkflow: (token: string, runId: string, data: { toStep: number; reason: string }) =>
+    request(`/workflows/runs/${runId}/send-back`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  cancelWorkflow: (token: string, runId: string) =>
+    request(`/workflows/runs/${runId}/cancel`, { method: 'POST', token }),
+
+  // Freelancer (EXTERNAL) surface
+  getExternalSteps: (token: string) =>
+    request<ExternalStep[]>('/external/steps', { token }),
+
+  downloadExternalFile: (token: string, attachmentId: string) =>
+    fetchBlob(`/external/files/${attachmentId}`, { token }),
+
+  uploadExternalFile: (token: string, taskId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{ id: string; filename: string; size: number }>(`/external/steps/${taskId}/files`, { method: 'POST', token, body: form });
+  },
+
+  deleteExternalFile: (token: string, attachmentId: string) =>
+    request(`/external/files/${attachmentId}`, { method: 'DELETE', token }),
+
+  completeExternalStep: (token: string, taskId: string) =>
+    request(`/external/steps/${taskId}/done`, { method: 'POST', token }),
 };
 
 export interface BillingInvoiceItem {

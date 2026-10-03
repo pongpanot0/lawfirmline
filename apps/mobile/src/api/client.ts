@@ -12,6 +12,7 @@ export const API_URL =
 
 const ACCESS_KEY = 'lexflow.accessToken';
 const REFRESH_KEY = 'lexflow.refreshToken';
+export const USER_PROFILE_KEY = 'lexflow.userProfile';
 
 export class ApiError extends Error {
   constructor(
@@ -39,6 +40,7 @@ export async function clearTokens() {
   await Promise.all([
     SecureStore.deleteItemAsync(ACCESS_KEY),
     SecureStore.deleteItemAsync(REFRESH_KEY),
+    SecureStore.deleteItemAsync(USER_PROFILE_KEY),
   ]);
 }
 
@@ -55,12 +57,11 @@ async function refreshAccessToken(): Promise<string | null> {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
         });
+        if (res.status >= 500 || res.status === 429) throw new Error('ยังต่ออายุ session ไม่ได้ กรุณาลองเมื่อการเชื่อมต่อพร้อม');
         if (!res.ok) return null;
         const body = (await res.json()) as { accessToken: string };
         await setTokens(body.accessToken);
         return body.accessToken;
-      } catch {
-        return null;
       } finally {
         refreshing = null;
       }
@@ -69,27 +70,32 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshing;
 }
 
-export async function api<T>(
-  path: string,
-  init: Omit<RequestInit, 'body'> & { body?: unknown } = {},
-): Promise<T> {
+export async function authenticatedFetch(path: string, init: RequestInit = {}) {
   const { accessToken } = await getTokens();
-  const doFetch = (token: string | null) =>
-    fetch(`${API_URL}${path}`, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(init.headers ?? {}),
-      },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    });
-
+  const doFetch = (token: string | null) => fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
+  });
   let res = await doFetch(accessToken);
   if (res.status === 401 && accessToken) {
     const renewed = await refreshAccessToken();
     if (renewed) res = await doFetch(renewed);
   }
+  return res;
+}
+
+export async function api<T>(
+  path: string,
+  init: Omit<RequestInit, 'body'> & { body?: unknown } = {},
+): Promise<T> {
+  const res = await authenticatedFetch(path, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init.headers ?? {}),
+      },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    });
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     try {

@@ -24,7 +24,7 @@ export function FormPage({ children }: { children: React.ReactNode }) {
     <ScrollView ref={scroll} style={{ flex: 1, backgroundColor: colors.bg }} keyboardShouldPersistTaps="handled"
     onFocus={revealFocusedInput}
     automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag"
-    contentContainerStyle={{ ...pageContent, gap: spacing.sm, paddingBottom: spacing.xl + keyboardHeight }}>{children}</ScrollView>
+    contentContainerStyle={{ ...pageContent, maxWidth: 760, gap: spacing.sm, paddingBottom: spacing.xl + keyboardHeight }}>{children}</ScrollView>
     {Platform.OS === 'ios' && <InputAccessoryView nativeID={accessoryId}>
       <View style={{ backgroundColor: colors.soft, alignItems: 'flex-end', borderTopWidth: 1, borderColor: colors.line }}>
         <Pressable accessibilityRole="button" accessibilityLabel="เสร็จสิ้นการกรอก" onPress={Keyboard.dismiss} style={{ minHeight: 44, padding: spacing.md }}>

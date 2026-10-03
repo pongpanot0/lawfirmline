@@ -1,13 +1,14 @@
 export type AgingBucket = '0-30' | '31-60' | '61-90' | '90+';
+import { bangkokDayKey } from '../common/utils/bangkok-time';
 
 const DAY_MS = 86400000;
 
-const utcMidnight = (date: Date) => Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+const dayStart = (date: Date) => new Date(`${bangkokDayKey(date)}T00:00:00Z`).getTime();
 
 /** Whole days past due; not-yet-due or missing due date → 0. */
 export function daysOverdue(dueAt: Date | null, today: Date): number {
   if (!dueAt) return 0;
-  return Math.max(0, Math.floor((utcMidnight(today) - utcMidnight(dueAt)) / DAY_MS));
+  return Math.max(0, Math.floor((dayStart(today) - dayStart(dueAt)) / DAY_MS));
 }
 
 export function agingBucket(days: number): AgingBucket {

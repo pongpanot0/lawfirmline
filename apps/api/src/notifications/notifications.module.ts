@@ -1,6 +1,8 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { LineController } from './line.controller';
 import { DevicesController } from './devices.controller';
+import { NotificationCenterController } from './notification-center.controller';
+import { NotificationCenterService } from './notification-center.service';
 import { PushService } from './push.service';
 import { ReminderScheduler } from './reminder.scheduler';
 import { DailyDigestScheduler } from './daily-digest.scheduler';
@@ -17,6 +19,8 @@ import { LineConversationStoreService } from './line-conversation/line-conversat
 import { LineAuthContextService } from './line-conversation/line-auth-context.service';
 import { LineBotRouterService } from './line-conversation/line-bot-router.service';
 import { LineNotificationService } from './line-conversation/line-notification.service';
+import { LineQuickActionsService } from './line-conversation/line-quick-actions.service';
+import { LineQueryService } from './line-conversation/line-query.service';
 import { LineCaseFlowService } from './line-conversation/flows/line-case-flow.service';
 import { LineTaskFlowService } from './line-conversation/flows/line-task-flow.service';
 import { LineTodoFlowService } from './line-conversation/flows/line-todo-flow.service';
@@ -33,6 +37,7 @@ import { CasesModule } from '../cases/cases.module';
 import { UsersModule } from '../users/users.module';
 import { SaasModule } from '../saas/saas.module';
 import { AgendaModule } from '../agenda/agenda.module';
+import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
   imports: [
@@ -44,10 +49,12 @@ import { AgendaModule } from '../agenda/agenda.module';
     AgendaModule,
     forwardRef(() => BillingModule),
     forwardRef(() => IntelligenceModule),
+    forwardRef(() => CalendarModule),
   ],
-  controllers: [LineController, DevicesController, LeaveController],
+  controllers: [LineController, DevicesController, NotificationCenterController, LeaveController],
   providers: [
     PushService,
+    NotificationCenterService,
     ReminderScheduler,
     DailyDigestScheduler,
     EscalationScheduler,
@@ -63,6 +70,8 @@ import { AgendaModule } from '../agenda/agenda.module';
     LineAuthContextService,
     LineBotRouterService,
     LineNotificationService,
+    LineQuickActionsService,
+    LineQueryService,
     LineCaseFlowService,
     LineTaskFlowService,
     LineTodoFlowService,
