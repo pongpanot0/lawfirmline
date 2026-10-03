@@ -1,3 +1,5 @@
+import { ModuleRef } from '@nestjs/core';
+import { WorkflowsService } from '../workflows/workflows.service';
 import { assertFirmRefs } from '../common/firm-refs';
 import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
 import {
@@ -53,6 +55,7 @@ export class TasksService {
     private caseAccess: CaseAccessService,
     private fileStorage: FileStorageService,
     private assignmentNotifier: AssignmentNotifierService,
+    private moduleRef: ModuleRef,
   ) {}
 
   private taskInclude = {
@@ -871,39 +874,11 @@ export class TasksService {
       });
     }
 
-    // Handle workflow run completion
+    // Workflow steps: re-plan the rest of the run or close it (owned by WorkflowsService,
+    // resolved lazily because the workflows module itself depends on tasks).
     if (task.workflowRunId) {
-      const run = await this.prisma.workflowRun.findUnique({
-        where: { id: task.workflowRunId },
-        select: { id: true, caseId: true, createdById: true, tasks: { select: { id: true, status: true } } },
-      });
-      if (run) {
-        const undone = run.tasks.filter((t) => t.status !== TaskStatus.DONE);
-        if (undone.length === 0) {
-          // All tasks done - mark run as complete
-          const legalCase = await this.prisma.case.findUnique({
-            where: { id: run.caseId },
-            select: { leadLawyerId: true, firmId: true },
-          });
-          await this.prisma.workflowRun.update({
-            where: { id: run.id },
-            data: { status: 'DONE', completedAt: new Date() },
-          });
-          // Notify run creator and case lead
-          const notifyIds = [run.createdById];
-          if (legalCase?.leadLawyerId && legalCase.leadLawyerId !== run.createdById) {
-            notifyIds.push(legalCase.leadLawyerId);
-          }
-          await this.assignmentNotifier.notifyAssigned({
-            firmId: legalCase?.firmId ?? null,
-            userIds: notifyIds.filter((id) => id !== actorUserId),
-            actorUserId,
-            category: NotificationCategory.TASK,
-            summaryText: `✅ สายงาน "${run.id.substring(0, 8)}" เสร็จครบทุกขั้น`,
-            entityPath: run.caseId ? `/cases/${run.caseId}` : '/todos',
-          });
-        }
-      }
+      await this.moduleRef.get(WorkflowsService, { strict: false }).onStepCompleted(task.id, actorUserId)
+        .catch((err: Error) => this.logger.error(`Workflow follow-up for task ${task.id} failed: ${err.message}`));
     }
   }
 

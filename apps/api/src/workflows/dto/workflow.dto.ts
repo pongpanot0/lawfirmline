@@ -43,8 +43,10 @@ export class CreateWorkflowRunDto {
   @IsDateString()
   promisedAt?: string;
 
+  /** Person per step index; steps left out are auto-assigned by role and load. */
   @IsOptional()
-  record?: Record<number, string>; // Record<stepIndex, userId>
+  @IsArray()
+  assignees?: Array<string | null>;
 }
 
 export class WorkflowAssigneeDto {

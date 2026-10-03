@@ -1,229 +1,115 @@
-import { Test } from '@nestjs/testing';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ExternalController } from './external.controller';
-import { PrismaService } from '../prisma/prisma.module';
-import { FileStorageService } from '../common/services/file-storage.service';
-import { TasksService } from '../tasks/tasks.service';
-import { FirmRole } from '@lawfirm/shared';
-import { ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
+
+const RUN = 'run-1';
+const ext = { id: 'ext-1', firmId: 'firm-1', firmRole: 'EXTERNAL' } as any;
+const staff = { id: 'staff-1', firmId: 'firm-1', firmRole: 'LAWYER' } as any;
+
+/** Step 0 (translator) → step 1 (this freelancer). */
+const tasks: Record<string, any> = {
+  step0: { id: 'step0', status: 'TODO', blockedById: null, workflowRunId: RUN, workflowStep: 0, assigneeId: 'ext-other', firmId: 'firm-1' },
+  step1: { id: 'step1', status: 'TODO', blockedById: 'step0', workflowRunId: RUN, workflowStep: 1, assigneeId: 'ext-1', firmId: 'firm-1' },
+};
+
+const build = () => {
+  const prisma: any = {
+    task: {
+      findUnique: jest.fn(async ({ where }: any) => tasks[where.id] ?? null),
+      findFirst: jest.fn(async ({ where }: any) => {
+        const t = tasks[where.id];
+        return t && t.assigneeId === where.assigneeId && t.firmId === where.firmId ? t : null;
+      }),
+      findMany: jest.fn(async ({ where }: any) => Object.values(tasks).filter((t: any) =>
+        t.assigneeId === where.assigneeId && t.workflowRunId === where.workflowRunId && t.workflowStep > where.workflowStep.gt)),
+    },
+    taskAttachment: { findUnique: jest.fn(), create: jest.fn(async ({ data }: any) => ({ id: 'att-new', ...data })), delete: jest.fn() },
+  };
+  const fileStorage: any = {
+    put: jest.fn(async (key: string) => `stored/${key}`),
+    delete: jest.fn(async () => undefined),
+    openDownloadStream: jest.fn(async () => ({ on: jest.fn(), pipe: jest.fn() })),
+  };
+  const tasksService: any = { completeWorkflowStep: jest.fn() };
+  const res: any = { setHeader: jest.fn(), destroy: jest.fn() };
+  return { ctrl: new ExternalController(prisma, fileStorage, tasksService), prisma, fileStorage, tasksService, res };
+};
+const pdf = { originalname: Buffer.from('คำแปล.pdf', 'utf8').toString('latin1'), mimetype: 'application/pdf', size: 1000, buffer: Buffer.from('x') } as any;
 
 describe('ExternalController', () => {
-  let controller: ExternalController;
-  let prisma: PrismaService;
-  let fileStorage: FileStorageService;
-  let tasksService: TasksService;
+  beforeEach(() => { tasks.step0.status = 'TODO'; tasks.step1.status = 'TODO'; });
 
-  const mockPrisma = {
-    task: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
-    taskAttachment: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
-    firmMember: { findFirst: jest.fn() },
-  };
-
-  const mockFileStorage = {
-    getBuffer: jest.fn(),
-    put: jest.fn(),
-    delete: jest.fn(),
-  };
-
-  const mockTasksService = {
-    completeWorkflowStep: jest.fn(),
-  };
-
-  const externalUser = {
-    id: 'external1',
-    firmId: 'firm1',
-    firmRole: FirmRole.EXTERNAL,
-    email: 'ext@example.com',
-    firstName: 'External',
-    lastName: 'User',
-    firmSlug: 'firm1',
-    lineUserId: null,
-  } as any;
-
-  const staffUser = {
-    id: 'staff1',
-    firmId: 'firm1',
-    firmRole: FirmRole.LAWYER,
-    email: 'staff@example.com',
-    firstName: 'Staff',
-    lastName: 'User',
-    firmSlug: 'firm1',
-    lineUserId: null,
-  } as any;
-
-  beforeEach(async () => {
-    const module = await Test.createTestingModule({
-      controllers: [ExternalController],
-      providers: [
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: FileStorageService, useValue: mockFileStorage },
-        { provide: TasksService, useValue: mockTasksService },
-      ],
-    }).compile();
-
-    controller = module.get(ExternalController);
-    prisma = module.get(PrismaService);
-    fileStorage = module.get(FileStorageService);
-    tasksService = module.get(TasksService);
+  it('staff tokens cannot use the freelancer surface', async () => {
+    const { ctrl } = build();
+    await expect(ctrl.getMySteps(staff)).rejects.toThrow(ForbiddenException);
   });
 
-  describe('getMySteps', () => {
-    it('should list only my assigned workflow tasks', async () => {
-      const tasks = [
-        {
-          id: 'task1',
-          title: 'Translate',
-          description: 'Translate doc',
-          status: 'TODO',
-          dueDate: new Date('2026-10-15'),
-          blockedById: null,
-          workflowRunId: 'run1',
-          workflowStep: 0,
-          attachments: [],
-          workflowRun: {
-            id: 'run1',
-            name: 'Doc Translation',
-            case: { ownRef: 'CASE-001' },
-            tasks: [],
-          },
-        },
-      ];
+  describe('downloading the previous step\'s output', () => {
+    const fileOfStep0 = { storagePath: 's/a', filename: 'ต้นฉบับ.pdf', mimeType: 'application/pdf', task: { assigneeId: 'ext-other', firmId: 'firm-1', workflowRunId: RUN, workflowStep: 0 } };
 
-      jest.spyOn(mockPrisma.task, 'findMany').mockResolvedValue(tasks);
-
-      const result = await controller.getMySteps(externalUser);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].taskId).toBe('task1');
-      expect(result[0].blocked).toBe(false);
+    it('is refused while my step still waits for it', async () => {
+      const { ctrl, prisma, res } = build();
+      prisma.taskAttachment.findUnique.mockResolvedValue(fileOfStep0);
+      await expect(ctrl.downloadFile(ext, 'a1', res)).rejects.toThrow(NotFoundException);
     });
 
-    it('should deny non-external users', async () => {
-      await expect(controller.getMySteps(staffUser)).rejects.toThrow(ForbiddenException);
+    it('works once the previous step is done', async () => {
+      tasks.step0.status = 'DONE';
+      const { ctrl, prisma, fileStorage, res } = build();
+      prisma.taskAttachment.findUnique.mockResolvedValue(fileOfStep0);
+      await ctrl.downloadFile(ext, 'a1', res);
+      expect(fileStorage.openDownloadStream).toHaveBeenCalledWith('s/a');
+      expect(res.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
+    });
+
+    it('never reaches a file of another firm', async () => {
+      const { ctrl, prisma, res } = build();
+      prisma.taskAttachment.findUnique.mockResolvedValue({ ...fileOfStep0, task: { ...fileOfStep0.task, firmId: 'firm-2' } });
+      await expect(ctrl.downloadFile(ext, 'a1', res)).rejects.toThrow(NotFoundException);
+    });
+
+    it('never reaches a later step\'s file', async () => {
+      tasks.step0.status = 'DONE';
+      const { ctrl, prisma, res } = build();
+      prisma.taskAttachment.findUnique.mockResolvedValue({ ...fileOfStep0, task: { ...fileOfStep0.task, workflowStep: 5 } });
+      await expect(ctrl.downloadFile(ext, 'a1', res)).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('downloadFile', () => {
-    it('should allow download of file from own task', async () => {
-      const attachment = {
-        id: 'att1',
-        storagePath: 'tasks/t1/file.pdf',
-        filename: 'file.pdf',
-        mimeType: 'application/pdf',
-        task: {
-          assigneeId: externalUser.id,
-          firmId: externalUser.firmId,
-          workflowRunId: null,
-          workflowStep: null,
-        },
-      };
-
-      jest.spyOn(mockPrisma.taskAttachment, 'findUnique').mockResolvedValue(attachment);
-      jest.spyOn(mockFileStorage, 'getBuffer').mockResolvedValue(Buffer.from('test'));
-
-      await expect(controller.downloadFile(externalUser, 'att1')).resolves.toBeDefined();
-    });
-
-    it('should deny download from another user\'s task', async () => {
-      const attachment = {
-        id: 'att1',
-        storagePath: 'tasks/t1/file.pdf',
-        task: {
-          assigneeId: 'other_user',
-          firmId: externalUser.firmId,
-          workflowRunId: null,
-        },
-      };
-
-      jest.spyOn(mockPrisma.taskAttachment, 'findUnique').mockResolvedValue(attachment);
-
-      await expect(controller.downloadFile(externalUser, 'att1')).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should deny access to cross-firm attachment', async () => {
-      const attachment = {
-        id: 'att1',
-        task: { assigneeId: externalUser.id, firmId: 'other_firm', workflowRunId: null },
-      };
-
-      jest.spyOn(mockPrisma.taskAttachment, 'findUnique').mockResolvedValue(attachment);
-
-      await expect(controller.downloadFile(externalUser, 'att1')).rejects.toThrow(ForbiddenException);
-    });
+  it('uploads to my own open step with a key that never contains the filename', async () => {
+    const { ctrl, prisma, fileStorage } = build();
+    const out = await ctrl.uploadFile(ext, 'step1', pdf);
+    expect(out.filename).toBe('คำแปล.pdf');
+    const key = fileStorage.put.mock.calls[0][0];
+    expect(key).toMatch(/^tasks\/step1\/\d+-[a-z0-9]+\.pdf$/);
+    expect(prisma.taskAttachment.create.mock.calls[0][0].data.storagePath).toBe(`stored/${key}`);
   });
 
-  describe('uploadFile', () => {
-    it('should upload file to own task', async () => {
-      const task = {
-        assigneeId: externalUser.id,
-        firmId: externalUser.firmId,
-        status: 'TODO',
-      };
-      const file = { buffer: Buffer.from('test'), originalname: 'test.pdf', size: 1024, mimetype: 'application/pdf' };
-
-      jest.spyOn(mockPrisma.task, 'findUnique').mockResolvedValue(task);
-      jest.spyOn(mockFileStorage, 'put').mockResolvedValue(undefined);
-      jest.spyOn(mockPrisma.taskAttachment, 'create').mockResolvedValue({
-        id: 'att1',
-        filename: 'test.pdf',
-        size: 1024,
-      });
-
-      const result = await controller.uploadFile(externalUser, 'task1', file as Express.Multer.File);
-
-      expect(result.id).toBe('att1');
-      expect(mockFileStorage.put).toHaveBeenCalled();
-    });
-
-    it('should deny upload to completed task', async () => {
-      const task = {
-        assigneeId: externalUser.id,
-        firmId: externalUser.firmId,
-        status: 'DONE',
-      };
-      const file = { buffer: Buffer.from('test'), originalname: 'test.pdf', size: 1024, mimetype: 'application/pdf' };
-
-      jest.spyOn(mockPrisma.task, 'findUnique').mockResolvedValue(task);
-
-      await expect(controller.uploadFile(externalUser, 'task1', file as Express.Multer.File)).rejects.toThrow(BadRequestException);
-    });
-
-    it('should reject oversized file', async () => {
-      const file = { size: 100 * 1024 * 1024 } as Express.Multer.File;
-
-      await expect(controller.uploadFile(externalUser, 'task1', file)).rejects.toThrow(BadRequestException);
-    });
+  it('refuses uploads to someone else\'s step and unsupported types', async () => {
+    const { ctrl } = build();
+    await expect(ctrl.uploadFile(ext, 'step0', pdf)).rejects.toThrow(NotFoundException);
+    await expect(ctrl.uploadFile(ext, 'step1', { ...pdf, mimetype: 'text/html' })).rejects.toThrow(BadRequestException);
   });
 
-  describe('completeStep', () => {
-    it('should complete own task', async () => {
-      const task = {
-        id: 'task1',
-        assigneeId: externalUser.id,
-        firmId: externalUser.firmId,
-        status: 'TODO',
-        blockedById: null,
-        requiresReview: false,
-      };
+  it('cannot hand in a step that is still waiting, can once the previous is done', async () => {
+    const { ctrl, tasksService } = build();
+    await expect(ctrl.completeStep(ext, 'step1')).rejects.toThrow(BadRequestException);
+    expect(tasksService.completeWorkflowStep).not.toHaveBeenCalled();
+    tasks.step0.status = 'DONE';
+    await ctrl.completeStep(ext, 'step1');
+    expect(tasksService.completeWorkflowStep).toHaveBeenCalledWith('step1', ext);
+  });
 
-      jest.spyOn(mockPrisma.task, 'findUnique').mockResolvedValue(task);
-      jest.spyOn(mockTasksService, 'completeWorkflowStep').mockResolvedValue({});
+  it('cannot hand in twice', async () => {
+    tasks.step0.status = 'DONE';
+    tasks.step1.status = 'PENDING_REVIEW';
+    const { ctrl } = build();
+    await expect(ctrl.completeStep(ext, 'step1')).rejects.toThrow('ส่งงานนี้ไปแล้ว');
+  });
 
-      const result = await controller.completeStep(externalUser, 'task1');
-
-      expect(result.completed).toBe(true);
-      expect(mockTasksService.completeWorkflowStep).toHaveBeenCalledWith('task1', externalUser);
-    });
-
-    it('should deny completion of another user\'s task', async () => {
-      const task = {
-        id: 'task1',
-        assigneeId: 'other_user',
-        firmId: externalUser.firmId,
-      };
-
-      jest.spyOn(mockPrisma.task, 'findUnique').mockResolvedValue(task);
-
-      await expect(controller.completeStep(externalUser, 'task1')).rejects.toThrow(ForbiddenException);
-    });
+  it('deletes only my own upload', async () => {
+    const { ctrl, prisma } = build();
+    prisma.taskAttachment.findUnique.mockResolvedValue({ storagePath: 's/x', uploadedById: 'ext-other', taskId: 'step1', task: { firmId: 'firm-1' } });
+    await expect(ctrl.deleteFile(ext, 'a1')).rejects.toThrow(NotFoundException);
+    expect(prisma.taskAttachment.delete).not.toHaveBeenCalled();
   });
 });
