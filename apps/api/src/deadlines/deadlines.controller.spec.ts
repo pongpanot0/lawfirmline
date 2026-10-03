@@ -1,3 +1,5 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { DeadlineTrigger, FirmRole, Role } from '@lawfirm/shared';
@@ -39,10 +41,11 @@ describe('deadline controllers', () => {
     reflector = module.get(Reflector);
   });
 
-  it('lets any member read the rules but only an admin change them', () => {
+  it('lets any member read the rules but only a platform admin change them', () => {
     expect(reflector.get(ROLES_KEY, rules.list)).toBeUndefined();
+    // Shared by every firm: a firm OWNER (who passes Role.ADMIN) must not write it.
     for (const handler of [rules.create, rules.update, rules.remove]) {
-      expect(reflector.get(ROLES_KEY, handler)).toEqual([Role.ADMIN]);
+      expect(reflector.get(GUARDS_METADATA, handler)).toContain(PlatformAdminGuard);
     }
   });
 

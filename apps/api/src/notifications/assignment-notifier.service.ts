@@ -66,7 +66,9 @@ export class AssignmentNotifierService {
       const targets = [...new Set(params.userIds)].filter((id) => id && id !== params.actorUserId);
       if (!targets.length) return NOTHING_SENT;
       const users = await this.prisma.user.findMany({
-        where: { id: { in: targets } },
+        // With a firm in hand, only its members: an id that slipped past a
+        // caller's checks must not receive this firm's case details.
+        where: { id: { in: targets }, ...(params.firmId && { firmMembers: { some: { firmId: params.firmId } } }) },
         select: {
           id: true,
           lineUserId: true,

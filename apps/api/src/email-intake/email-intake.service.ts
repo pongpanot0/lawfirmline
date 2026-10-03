@@ -130,6 +130,12 @@ export class EmailIntakeService {
       return this.prisma.intake.findUnique({ where: { id: thread.intake.id } });
     }
 
+    // A related case must be one this person can open, not just any id.
+    if (dto.relatedCaseId) {
+      const related = await this.prisma.case.count({ where: { id: dto.relatedCaseId, ...this.caseAccess.getCaseFilterForUser(user) } });
+      if (!related) throw new NotFoundException('ไม่พบคดีที่อ้างถึง');
+    }
+
     const latestMessage = thread.messages[0];
     const clientMatch = dto.clientId
       ? await this.prisma.client.findFirst({ where: { id: dto.clientId, firmId: user.firmId } })

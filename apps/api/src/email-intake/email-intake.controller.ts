@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { EmailIntakeService } from './email-intake.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -36,6 +36,8 @@ export class EmailIntakeController {
     @Param('threadId') threadId: string,
     @Body() dto: SeedMockReplyDto,
   ) {
+    // A fake client email must never be creatable on a real system.
+    if (process.env.NODE_ENV === 'production') throw new NotFoundException();
     return this.service.recordReply(user, threadId, dto);
   }
 

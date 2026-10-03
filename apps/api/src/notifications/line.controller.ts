@@ -1,3 +1,5 @@
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
+import { SkipThrottle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -67,6 +69,7 @@ export class LineController {
   }
 
   @Post('line/webhook')
+  @SkipThrottle()
   @HttpCode(200)
   @SkipSubscription()
   async handleWebhook(
@@ -193,8 +196,7 @@ export class LineController {
   }
 
   @Post('integrations/line/test')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   testMessage() {
     return this.line.sendTestMessage();
   }

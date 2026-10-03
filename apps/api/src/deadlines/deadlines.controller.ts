@@ -1,3 +1,4 @@
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthUser, Role } from '@lawfirm/shared';
 import { DeadlineRulesService } from './deadline-rules.service';
@@ -20,13 +21,13 @@ export class DeadlineRulesController {
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @UseGuards(PlatformAdminGuard)
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateDeadlineRuleDto) {
     return this.rules.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @UseGuards(PlatformAdminGuard)
   update(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -36,7 +37,7 @@ export class DeadlineRulesController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @UseGuards(PlatformAdminGuard)
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.rules.remove(user, id);
   }

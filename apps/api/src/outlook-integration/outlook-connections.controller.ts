@@ -19,14 +19,15 @@ export class OutlookConnectionsController {
   }
 
   @Delete(':id')
-  disconnect(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async disconnect(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.connections.assertCanManage(user, id);
     return this.connections.disconnect(user.firmId, id);
   }
 
   /** Manual "sync now" — useful while a webhook subscription is not configured (e.g. local dev without a public URL). */
   @Post(':id/sync')
   async sync(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    await this.connections.assertOwnership(user.firmId, id);
+    await this.connections.assertCanManage(user, id);
     return this.syncService.syncConnection(id);
   }
 }

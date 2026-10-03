@@ -1,3 +1,4 @@
+import { assertFirmRefs } from '../common/firm-refs';
 import {
   Injectable,
   NotFoundException,
@@ -332,6 +333,10 @@ export class CasesService {
   }
 
   async create(user: AuthUser, dto: CreateCaseDto) {
+    await assertFirmRefs(this.prisma, user.firmId, {
+      clientIds: [...(dto.customers ?? []).map((c) => c.customerId), ...(dto.clients ?? []).map((c) => c.clientId)],
+      contactIds: (dto.customers ?? []).map((c) => c.contactId),
+    });
     if (dto.caseTypeId) {
       const caseType = await this.prisma.caseType.findFirst({
         where: { id: dto.caseTypeId, firmId: user.firmId, isActive: true },
@@ -465,6 +470,13 @@ export class CasesService {
         throw new BadRequestException('Lead lawyer must belong to your firm');
       }
     }
+
+    // Every linked row must be this firm's — the case include returns their names and contacts.
+    await assertFirmRefs(this.prisma, user.firmId, {
+      clientIds: [dto.clientId, ...((dto.customers ?? [])).map((c) => c.customerId)],
+      contactIds: (dto.customers ?? []).map((c) => c.contactId),
+      caseTypeIds: [dto.caseTypeId],
+    });
 
     const { customFields, customers, ...rest } = dto;
     const stageChanged = !!dto.stage && dto.stage !== before.stage;

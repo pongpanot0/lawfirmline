@@ -13,7 +13,7 @@ describe('DocumentIntelligenceService — date extraction', () => {
   const mockPrisma = {
     case: { findUnique: jest.fn() },
     documentDateSuggestion: { create: jest.fn() },
-    document: { findUnique: jest.fn() },
+    document: { findUnique: jest.fn(), count: jest.fn().mockResolvedValue(1) },
     caseKnowledge: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
   };
   const mockConfig = { get: jest.fn() };

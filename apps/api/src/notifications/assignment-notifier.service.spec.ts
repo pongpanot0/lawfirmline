@@ -55,7 +55,7 @@ describe('AssignmentNotifierService', () => {
       entityPath: `/cases/${CASE_ID}?tab=tasks`,
     });
 
-    expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['u2', 'u3'] } });
+    expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['u2', 'u3'] }, firmMembers: { some: { firmId: 'f1' } } });
     expect(prisma.notification.createManyAndReturn.mock.calls[0][0].data).toEqual([
       expect.objectContaining({ userId: 'u2', firmId: 'f1', category: 'CASE', title: '⚖️ คุณได้รับมอบหมายคดี', body: 'คดี: ทดสอบ', appPath: `/case/${CASE_ID}` }),
       expect.objectContaining({ userId: 'u3' }),

@@ -1,3 +1,4 @@
+import { assertFirmRefs } from '../common/firm-refs';
 import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
 import {
   BadRequestException,
@@ -468,6 +469,8 @@ export class TasksService {
     queuePosition = 0,
     followUp?: { parentId: string; sourceTaskId: string; sourceCommentId: string; sourceQuote: string; ownerEscalation?: boolean },
   ) {
+    // A dependency must be a task this person can see — never another firm's.
+    if (dto.blockedById) await this.assertAccess(dto.blockedById, user);
     const previousRequest = async () => {
       const previous = dto.createRequestId ? await this.prisma.task.findUnique({ where: { createRequestId: dto.createRequestId } }) : null;
       if (previous && (previous.firmId !== user.firmId || previous.createdById !== user.id || previous.caseId !== caseId)) throw new NotFoundException('ไม่พบคำขอบันทึกงานนี้');
@@ -591,6 +594,7 @@ export class TasksService {
   }
 
   async update(id: string, dto: UpdateTaskDto, user: AuthUser, caseId?: string) {
+    if (dto.blockedById) await this.assertAccess(dto.blockedById, user);
     // The case guard only proves the caller may touch THIS case; without
     // binding the task to it, any task id in the database would be editable.
     if (caseId) {
@@ -1142,6 +1146,7 @@ export class TasksService {
   }
 
   async startOnHold(caseId: string, taskId: string, user: AuthUser, dto: StartTaskOnHoldDto) {
+    await assertFirmRefs(this.prisma, user.firmId, { userIds: [dto.followerUserId] });
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, caseId },
       include: { onHold: true },
@@ -1166,6 +1171,10 @@ export class TasksService {
   }
 
   async updateOnHold(caseId: string, taskId: string, dto: UpdateTaskOnHoldDto) {
+    if (dto.followerUserId) {
+      const legalCase = await this.prisma.case.findUnique({ where: { id: caseId }, select: { firmId: true } });
+      await assertFirmRefs(this.prisma, legalCase?.firmId ?? '', { userIds: [dto.followerUserId] });
+    }
     const hold = await this.prisma.taskOnHold.findFirst({
       where: { taskId, task: { caseId } },
     });

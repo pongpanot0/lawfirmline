@@ -11,6 +11,12 @@ import { CaseMessageRateLimiterService } from './case-message-rate-limiter.servi
 import { FileStorageService } from '../common/services/file-storage.service';
 import { randomUUID } from 'crypto';
 
+/** What a client may see of a message: never the internal storage key. */
+const PORTAL_MESSAGE_SELECT = {
+  id: true, caseId: true, senderType: true, senderUserId: true, senderContactId: true,
+  body: true, filename: true, mimeType: true, size: true, createdAt: true,
+} satisfies Prisma.CaseMessageSelect;
+
 @Injectable()
 export class CaseMessageService {
   private readonly logger = new Logger(CaseMessageService.name);
@@ -130,6 +136,7 @@ export class CaseMessageService {
     const messages = await this.prisma.caseMessage.findMany({
       where: { caseId },
       orderBy: { createdAt: 'asc' },
+      select: PORTAL_MESSAGE_SELECT,
     });
 
     // Viewing a case's messages counts as reading them — clears the portal
@@ -163,6 +170,7 @@ export class CaseMessageService {
         body,
         ...(await this.storeAttachment(caseId, file)),
       },
+      select: PORTAL_MESSAGE_SELECT,
     });
 
     await this.writeAuditLog({

@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, ApiError, clearTokens, getTokens, setTokens, USER_PROFILE_KEY } from './client';
 import { unregisterPush } from './push';
 import type { AuthUserInfo, LoginResponse } from './types';
@@ -95,6 +96,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     await unregisterPush();
     await clearTokens();
+    // The offline cache holds case, client and contact details for a week;
+    // signing out must not leave them readable on the phone. Unsaved drafts
+    // stay, scoped to their owner, so no half-written work is lost.
+    try {
+      const cached = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith('mobile-cache:'));
+      if (cached.length) await AsyncStorage.multiRemove(cached);
+    } catch {
+      // Best-effort: a failure here must not keep someone signed in.
+    }
     setUser(null);
     setRestored(false);
   }, []);

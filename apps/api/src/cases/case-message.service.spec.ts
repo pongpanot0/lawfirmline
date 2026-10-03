@@ -123,6 +123,7 @@ describe('CaseMessageService', () => {
 
       expect(mockPrisma.caseMessage.create).toHaveBeenCalledWith({
         data: { caseId: 'case-1', senderType: 'CONTACT', senderContactId: 'contact-1', body: 'hi' },
+        select: expect.not.objectContaining({ storagePath: true }),
       });
       expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({
         firmId: 'firm-1',
@@ -207,6 +208,8 @@ describe('CaseMessageService', () => {
       expect(mockPrisma.caseMessage.findMany).toHaveBeenCalledWith({
         where: { caseId: 'case-1' },
         orderBy: { createdAt: 'asc' },
+        // The storage key is internal; a client never receives it.
+        select: expect.not.objectContaining({ storagePath: true }),
       });
       expect(result).toEqual([{ id: 'msg-1' }]);
     });

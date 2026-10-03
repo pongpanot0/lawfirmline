@@ -29,6 +29,8 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
     timeEntry: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
     expense: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
     case: { findUnique: jest.fn() },
+    // Every named customer belongs to the firm unless a test says otherwise.
+    client: { count: jest.fn(async ({ where }: any) => where.id.in.filter((id: string) => !id.startsWith('other-firm')).length) },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(async (arg: any) =>
       typeof arg === 'function' ? arg(mockPrisma) : Promise.all(arg),
@@ -339,5 +341,14 @@ describe('BillingService.createInvoice — วางบิลลูกค้า 
         billing.createInvoice(user, { caseId: 'case-1' }, { lineItems: [] } as any),
       ).rejects.toThrow(BadRequestException);
     });
+  });
+
+  it('refuses to bill another firm\'s client', async () => {
+    await expect(
+      billing.createInvoice(user, {}, {
+        billToCustomerId: 'other-firm-client', lineItems: [{ description: 'x', amount: 100 }],
+      } as any),
+    ).rejects.toThrow('ลูกความที่เลือกไม่อยู่ในสำนักงานนี้');
+    expect(mockPrisma.invoice.create).not.toHaveBeenCalled();
   });
 });

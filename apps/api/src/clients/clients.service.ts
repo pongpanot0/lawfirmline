@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -118,6 +118,8 @@ export class ClientsService {
             portalEnabled: c.portalEnabled ?? false,
           };
           if (c.id) {
+            // Only this client's own contacts: an id from elsewhere must not be rewritten here.
+            if (!existing.some((e) => e.id === c.id)) throw new BadRequestException('ผู้ติดต่อนี้ไม่ได้อยู่กับลูกความรายนี้');
             await tx.clientContact.update({ where: { id: c.id }, data });
           } else {
             await tx.clientContact.create({ data: { ...data, clientId: id } });

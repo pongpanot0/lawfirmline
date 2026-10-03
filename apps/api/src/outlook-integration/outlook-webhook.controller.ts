@@ -1,3 +1,4 @@
+import { SkipThrottle } from '@nestjs/throttler';
 import { Body, Controller, Logger, Post, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.module';
@@ -24,6 +25,7 @@ interface GraphNotification {
  *    changed data is then pulled via the delta query, not trusted from the
  *    notification body itself.
  */
+@SkipThrottle()
 @Controller('outlook/webhook')
 export class OutlookWebhookController {
   private readonly logger = new Logger(OutlookWebhookController.name);

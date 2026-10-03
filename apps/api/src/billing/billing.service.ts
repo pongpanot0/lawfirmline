@@ -1,3 +1,4 @@
+import { assertFirmRefs } from '../common/firm-refs';
 import { lineActions } from '../notifications/line-actions';
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -1057,6 +1058,11 @@ export class BillingService {
     if (dto.splits && dto.billToCustomerId) {
       throw new BadRequestException('ระบุ splits กับ billToCustomerId พร้อมกันไม่ได้');
     }
+    // Who gets billed must be this firm's client: the invoice then prints their
+    // tax id and address, and reminders go to their contacts.
+    await assertFirmRefs(this.prisma, user.firmId, {
+      clientIds: [dto.billToCustomerId, ...(dto.splits ?? []).map((split) => split.customerId)],
+    });
 
     // งานที่บันทึกเวลา/เบิกไว้มีได้เฉพาะในคดี — เงียบ ๆ ทิ้งไปจะกลายเป็นออกบิลขาด
     if (!caseId && (dto.timeEntryIds?.length || dto.expenseIds?.length)) {
