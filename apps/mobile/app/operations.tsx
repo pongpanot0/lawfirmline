@@ -60,8 +60,9 @@ export default function OperationsScreen() {
             item.nextFollowUpAt && new Date(item.nextFollowUpAt) < new Date();
           return (
             <Pressable
-              disabled={!item.caseId}
-              onPress={() => item.caseId && router.push(`/case/${item.caseId}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`เปิดงาน ${item.taskTitle}`}
+              onPress={() => router.push(`/task/new?id=${item.taskId}`)}
               style={({ pressed }) => pressed && { opacity: 0.7 }}
             >
               <Card style={{ marginBottom: spacing.md }}>

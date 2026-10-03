@@ -71,12 +71,12 @@ export default function TaskFormScreen() {
   const leaves = useLeaves(dueDate, dueDate);
   const flags = leaveFlagsForDate(leaves.data ?? [], dueDate);
   const canAssign = !id || (caseId ? user?.firmRole === 'OWNER' || legalCase.data?.leadLawyer?.id === user?.id
-    : task.data?.assigneeId === user?.id || task.data?.createdById === user?.id);
-  const canStatus = !id || task.data?.assigneeId === user?.id || (!!caseId &&
-    (user?.firmRole === 'OWNER' || legalCase.data?.leadLawyer?.id === user?.id));
+    : user?.firmRole === 'OWNER' || task.data?.assigneeId === user?.id || task.data?.createdById === user?.id);
+  const canStatus = task.data?.status !== 'PENDING_REVIEW' && (!id || task.data?.assigneeId === user?.id || (!!caseId &&
+    (user?.firmRole === 'OWNER' || legalCase.data?.leadLawyer?.id === user?.id)));
   const canReview = !!task.data && !!user && canReviewTask(task.data, user, legalCase.data?.leadLawyer?.id);
   const reviewers = (members.data ?? []).filter(person => person.id !== assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(person.firmRole ?? ''));
-  const candidates = (members.data ?? []).filter(person => person.id === user?.id ||
+  const candidates = (members.data ?? []).filter(person => !!caseId || person.id === user?.id ||
     (!!user?.firmRole && !!person.firmRole && canAssignFirmRole(user.firmRole as FirmRole, person.firmRole)));
   const options = candidates.map(person => ({ value: person.id,
     label: `${person.firstName} ${person.lastName}${flags.get(person.id) ? ` · ${flags.get(person.id)!.label}` : ''}` }));
@@ -86,10 +86,10 @@ export default function TaskFormScreen() {
   useEffect(() => {
     if (!task.data || seeded.current === task.data.id) return;
     seeded.current = task.data.id;
+    setShowDetails(true);
     setTitle(task.data.title); setDescription(task.data.description ?? '');
     setRecurrenceDays(task.data.recurrenceDays ? String(task.data.recurrenceDays) : '');
     setAssigneeId(task.data.assigneeId ?? ''); setStatus(task.data.status);
-    setShowDetails(true);
     setHasDue(!!task.data.dueDate); if (task.data.dueDate) setDueDate(bangkokDay(task.data.dueDate));
   }, [task.data]);
   const draftValue = { files, title, description, assigneeId, dueDate, hasDue, selectedCase, requiresReview, recurrenceDays, routineChoice, reviewerId, status, savedId, requestSnapshot: requestSnapshot.current, reason, comment, showDetails };
@@ -174,9 +174,9 @@ export default function TaskFormScreen() {
       const updated = await api<TaskItem>(caseId ? `/cases/${caseId}/tasks/${id}/${action}` : `/todos/${id}/${action}`,
         { method: action === 'handoff' ? 'PATCH' : 'POST', body });
       setStatus(updated.status); setAssigneeId(updated.assigneeId ?? '');
-      for (const key of [['task', id], ['todos'], ['my-day'], ['case-tasks', caseId]]) await client.invalidateQueries({ queryKey: key });
-      if (!caseId) {
-        router.replace('/(tabs)/tasks');
+      for (const key of [['task', id], ['todos'], ['my-day'], ['case-tasks', caseId], ['daily-workboard'], ['actions']]) await client.invalidateQueries({ queryKey: key });
+      if (!caseId || action !== 'handoff') {
+        router.replace({ pathname: '/(tabs)/tasks', params: { view: action === 'handoff' ? 'mine' : 'review' } });
         Alert.alert(action === 'handoff' ? 'ส่งตรวจงานแล้ว' : action === 'reject' ? 'ส่งกลับแก้ไขแล้ว' : 'ปิดงานแล้ว');
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ'); } finally { setBusy(false); }
@@ -272,20 +272,34 @@ export default function TaskFormScreen() {
         onPress={() => handoff('handoff', caseId ? {} : { reviewerId })} />
     </>}
     {task.data?.status === 'PENDING_REVIEW' && canReview && <>
-      <Button title="ผ่านการตรวจ / ปิดงาน" disabled={busy} onPress={() => handoff('accept')} />
+      <Text style={{ color: colors.text, fontWeight: '700', fontSize: 18 }}>{task.data.title}</Text>
+      {task.data.case && <Text style={{ color: colors.faint }}>{task.data.case.ownRef} · {task.data.case.title}</Text>}
+      {task.data.description && <Text style={{ color: colors.text }}>{task.data.description}</Text>}
+      <SectionLabel>ผลงานและไฟล์ที่ส่งตรวจ</SectionLabel>
+      {task.data.attachments?.map(file => <Button key={file.id} title={`เปิด ${file.filename}`} ghost onPress={() =>
+        openTaskAttachment(id!, file.id, file.filename).catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message))} />)}
+      {task.data.comments?.map(item => <Text key={item.id} style={{ color: colors.text }}>
+        {item.author ? `${item.author.firstName} ${item.author.lastName}: ` : ''}{item.body}
+      </Text>)}
+      {!task.data.attachments?.length && !task.data.comments?.length && <Text style={{ color: colors.faint }}>ยังไม่มีไฟล์หรือข้อความส่งงานให้ตรวจ</Text>}
+      {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
+      <Button title="ผ่านการตรวจ / ปิดงาน" disabled={busy} onPress={() => Alert.alert('ยืนยันผลตรวจ', `ผ่านการตรวจและปิดงาน “${task.data!.title}”?`, [
+        { text: 'ยกเลิก', style: 'cancel' }, { text: 'ผ่านการตรวจ', onPress: () => handoff('accept') },
+      ])} />
       <FormField label="เหตุผลส่งกลับแก้ไข" value={reason} onChange={setReason} disabled={busy} />
       <Button title="ส่งกลับแก้ไข" ghost disabled={busy || !reason.trim()} onPress={() => handoff('reject', { reason: reason.trim() })} />
     </>}
     {id && <>
       <SectionLabel>ความคิดเห็นในงาน</SectionLabel>
-      {task.data?.comments?.map(item => <Text key={item.id} style={{ color: colors.text }}>
+      {!canReview && task.data?.comments?.map(item => <Text key={item.id} style={{ color: colors.text }}>
         {item.author ? `${item.author.firstName} ${item.author.lastName}: ` : ''}{item.body}
       </Text>)}
       <FormField label="เพิ่มความคิดเห็น" value={comment} onChange={setComment} multiline disabled={busy} />
       <Button title="ส่งความคิดเห็น" ghost disabled={busy || !comment.trim()} onPress={async () => {
         setBusy(true); setError('');
         try { await api(`/tasks/${id}/comments`, { method: 'POST', body: { body: comment.trim() } });
-          setComment(''); await client.invalidateQueries({ queryKey: ['task', id] });
+          setComment('');
+          await Promise.all([['task', id], ['todos'], ['daily-workboard']].map(queryKey => client.invalidateQueries({ queryKey })));
         } catch (e) { setError(e instanceof Error ? e.message : 'ส่งความคิดเห็นไม่ได้'); }
         finally { setBusy(false); }
       }} />

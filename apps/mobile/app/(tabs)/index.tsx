@@ -250,7 +250,6 @@ export default function MyDayScreen() {
           <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/team-week')}><Text style={{ color: colors.info }}>ภาระงานทีมล่วงหน้า 7 วัน</Text></Pressable>
         </Card>
       </>}
-
       <SectionLabel>งานที่ต้องจัดการ</SectionLabel>
       <Card style={{ marginBottom: spacing.md, gap: spacing.sm }}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
@@ -281,7 +280,6 @@ export default function MyDayScreen() {
         </Pressable>)}</Card>
       </>}
       {localDrafts.isError && <ErrorNote message="โหลดร่างในเครื่องไม่ได้" onRetry={() => localDrafts.refetch()} />}
-
       {myDay.isError ? (
         <View style={{ marginTop: spacing.lg }}>
           <ErrorNote

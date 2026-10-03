@@ -79,3 +79,11 @@ Integration ใช้ Playwright request API กับฐานข้อมู�
 เครื่องมือ Simulator ไม่ส่งการปัดแนวนอนของตารางวันอย่างเชื่อถือได้ จึงยังไม่รับรอง gesture ด้วยนิ้วบนมือถือ ตรวจตารางครบ 7 วันใน iPad แนวนอนแล้ว จอ iPad mini/13 นิ้ว, Split View, font scale สูง, Android native, กล้อง/ไฟล์/PDF/เน็ตหลุด/แจ้งเตือนบนเครื่องจริง และหลายผู้ใช้หน้างานยังต้องตรวจ ข้อมูลนี้เป็น local proof ไม่ใช่ physical device, TestFlight หรือ production proof
 
 ตั้งงบ รายงานกำไรครบต้นทุน งานใหม่/คุณภาพบริการทั้งสำนักงานเป็นชุดต่อไปตามลำดับงานที่ตกลงไว้ ชุดนี้ให้สามคิวแรกจัดการได้จากมือถือก่อน
+
+## ตรวจการรวม main — 3 October 2026
+
+รวมกับ `78eb2dd` (mobile quick task queues and review workflow) โดยรักษาคิวสร้างงาน/ตรวจงาน พร้อม SOP, ร่างกู้คืน และ Owner office ของชุดนี้ งานย่อยจาก SOP ยังอยู่ในคิวส่วนตัวและคิวตรวจงาน ภายใต้ขอบเขตสำนักงานและสิทธิ์เดิม งานที่ผู้ใช้ส่งต่อแล้วตรวจเสร็จยังค้นกลับได้
+
+ผลโค้ดที่รวมแล้ว: API 146 suites / 1,085 tests และ web 89 tests ผ่าน; TypeScript API/web/mobile ผ่าน; shared build และ Nest build ผ่าน; scripts court/offline-session/routine/task-drafts ผ่าน; Hermes export iOS/Android ผ่าน; local database integration ทั้ง mobile-owner-office, mobile-office-features และ mobile-routine ผ่าน 3 scenarios พร้อม cleanup fixture
+
+Nest build ใช้ config ชั่วคราวที่เหมือน config เดิมแต่ปิด watchAssets เพื่อหลีกเลี่ยง EMFILE ของเครื่องทดสอบ ไม่มีการแก้ config repository ไม่มีการตรวจเครื่องจริงหรือ deploy เพิ่มจากรอบก่อน
