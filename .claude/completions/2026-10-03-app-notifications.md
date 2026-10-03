@@ -16,3 +16,13 @@ Branch: `claude/app-notifications-system-775b93`
 - Notification buttons: postbacks in `notifications/line-actions.ts`, handled by `LineQuickActionsService` through the same service methods the web uses (the tapper is the actor). Covered: task acknowledge and done (assignee only; not tasks that need review or follow an SOP routine), claim approve/reject (owner), event acknowledge carrying the `updatedAt` revision, and leave (moved here). Attached through the hub's `lineActions(userId)`, only for the recipient who can act.
 - Chat questions (`LineQueryService`): "งานค้างของฉัน", plus "คดี <ref | black/red number | title>" (search within case access; several matches become pick buttons). Answers asked in a group go to the asker's private chat.
 - Not done: client replies over LINE and client court reminders were dropped by the user.
+
+## Workflow handoff (สายงานส่งต่อ) + freelancers (same day)
+
+Plan: `docs/superpowers/plans/2026-10-03-workflow-handoff.md`.
+- `FirmRole.EXTERNAL` (freelancer) is deny-by-default. `JwtAuthGuard.canActivate` rejects it on any route without `@AllowExternal()`. Case/task/intake filters match nothing, and every staff picker or assignee check excludes it (`assertFirmRefs` excludes EXTERNAL unless `excludeRoles: []`).
+- `WorkflowTemplate` / `WorkflowRun`. A run is a chain of Tasks (`blockedById`, `workflowRunId`, `workflowStep`, `workflowDurationDays`), with due dates in business days (holidays respected). Each step's assignee is the least-loaded person in its role. `WorkflowsService.onStepCompleted` (called lazily from `TasksService.onTaskCompleted` via ModuleRef) re-plans the remaining steps or closes the run. There is also send-back to a step, cancel, a pipeline with lateness against the promised date, and per-step files.
+- `/external/*` is the only freelancer surface: own steps, earlier-step inputs once unblocked, upload/delete own files, hand in.
+- Web: `/workflows` (pipeline + templates), a case-page section with a start drawer, `/work` for freelancers (minimal shell), and an EXTERNAL invite option. Mobile: workflow info on the task screen; EXTERNAL accounts are told to use the web.
+- Verified in a browser on a scratch DB: full chain, re-plan, notifications, freelancer 403 on staff routes.
+- Microsoft 365 (Outlook + OneDrive) design is waiting on firm input: `docs/superpowers/specs/2026-10-03-microsoft365-cases-design.md`.
