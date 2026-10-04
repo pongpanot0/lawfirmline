@@ -41,7 +41,7 @@ export default function TeamWeek() {
     {radar.isLoading && <Loading />}
     {radar.isError && <ErrorNote message="ตรวจภาระงานล่าสุดไม่ได้ ลองโหลดใหม่ก่อนมอบหมาย" onRetry={() => radar.refetch()} />}
     {members.map(member => <Card key={member.userId} style={{ gap: spacing.sm, marginTop: spacing.md }}>
-      <Text style={{ color: colors.ink, fontWeight: '700' }}>{member.firstName} {member.lastName}</Text>
+      <Button title={`${member.firstName} ${member.lastName} ›`} ghost onPress={() => router.push({ pathname: '/person/[id]', params: { id: member.userId, from: start } })} />
       <Text>งานเปิด {member.openCount} · ภาระคิว {member.openPoints} คะแนน · เกินกำหนด {member.overdueCount} · รอตรวจ {member.reviewCount} · ยังไม่ลงวัน {member.unscheduledCount}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>

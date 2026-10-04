@@ -1,22 +1,24 @@
-/** Design tokens shared by every screen — from the approved mockups. */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4
+ * genre: modern-minimal · macrostructure: Workbench · design-system: design.md · designed-as-app */
+/** Samnuan navy, warm court accents, and readable status colors. */
 export const colors = {
-  bg: '#F6F7F9',
+  bg: '#EDF3F7',
   surface: '#FFFFFF',
-  ink: '#182B49',
-  text: '#232B38',
-  muted: '#5C6470',
-  faint: '#8A93A1',
-  line: '#E3E7EE',
-  soft: '#EEF0F4',
-  accent: '#A67C2E',
-  accentInk: '#7C5A1E',
-  accentSoft: '#F3EDDF',
-  good: '#2E7D4F',
-  goodSoft: '#E1F0E7',
-  warn: '#B3402E',
-  warnSoft: '#F9E3DE',
-  info: '#3A5687',
-  infoSoft: '#E6EBF4',
+  ink: '#12394C',
+  text: '#203545',
+  muted: '#526777',
+  faint: '#546B7B',
+  line: '#D3E0E8',
+  soft: '#E5EEF4',
+  accent: '#A77921',
+  accentInk: '#73520C',
+  accentSoft: '#FFF2D4',
+  good: '#227050',
+  goodSoft: '#E4F3EC',
+  warn: '#A83232',
+  warnSoft: '#FCE5E3',
+  info: '#086C80',
+  infoSoft: '#E0F1F5',
   // Court Day runs dark and high-contrast for hallway readability.
   night: '#131A28',
   nightCard: '#1C2434',
@@ -35,7 +37,7 @@ export const fonts = {
   bold: 'Anuphan_700Bold',
 } as const;
 
-export const radius = { card: 12, pill: 999, button: 10 } as const;
+export const radius = { card: 14, pill: 999, button: 10 } as const;
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
 export const pageContent = {
