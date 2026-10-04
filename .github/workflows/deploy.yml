@@ -64,6 +64,24 @@ jobs:
             aws ecr get-login-password --region ap-southeast-7 \
               | docker login --username AWS --password-stdin 905418334683.dkr.ecr.ap-southeast-7.amazonaws.com
             export IMAGE_TAG=${{ env.IMAGE_TAG }}
+            # Shared-data admins come from the repo variable; kept in .env like IMAGE_TAG.
+            PLATFORM_ADMIN_EMAILS='${{ vars.PLATFORM_ADMIN_EMAILS }}'
+            if [ -n "$PLATFORM_ADMIN_EMAILS" ]; then
+              sed -i '/^PLATFORM_ADMIN_EMAILS=/d' .env
+              echo "PLATFORM_ADMIN_EMAILS=${PLATFORM_ADMIN_EMAILS}" >> .env
+            fi
+            # The api refuses to boot without these (production-secrets.ts). Check the
+            # values compose will actually pass, before touching the running containers.
+            resolved="$(docker compose -f docker-compose.prod.yml config)"
+            for key in JWT_SECRET JWT_REFRESH_SECRET CLIENT_PORTAL_JWT_SECRET; do
+              if ! grep -qE "^ +${key}: [\"']?[^\"' ]" <<<"$resolved"; then
+                echo "::error::${key} is empty or not passed to the api; deploy stopped, prod unchanged" >&2
+                exit 1
+              fi
+            done
+            grep -qE "^ +PLATFORM_ADMIN_EMAILS: [\"']?[^\"' ]" <<<"$resolved" \
+              || echo "::warning::PLATFORM_ADMIN_EMAILS not reaching the api; courts/holidays/deadline-rule admin pages stay locked"
+            unset resolved
             # Free disk before pulling — old tagged images accumulate and the
             # t4g volume fills up (deploys were failing with ENOSPC). -a removes
             # every image not used by a running container; safe mid-deploy.
