@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text, TextInput } from '@/components/AppText';
-import { FormField, FormPage } from '@/components/Form';
+import { FormField, FormPage, FormSection } from '@/components/Form';
 import { Button, ErrorNote, SectionLabel } from '@/components/ui';
 import { useAuth } from '@/api/auth';
 import { ApiError } from '@/api/client';
@@ -49,9 +49,12 @@ export default function RegisterScreen() {
       <Text style={{ color: colors.muted }}>สร้างสำนักงานใหม่และบัญชีเจ้าของสำนักงาน · ทดลองใช้งาน 30 วัน</Text>
       <Text style={{ color: colors.muted }}>ถ้าสำนักงานมีบัญชีแล้ว ให้เจ้าของสำนักงานเชิญคุณด้วยอีเมล เพื่อไม่สร้างสำนักงานซ้ำ</Text>
     </View>
+    <FormSection title="สำนักงานและชื่อของคุณ">
     <FormField label="ชื่อสำนักงาน" value={firmName} onChange={setFirmName} disabled={busy} />
     <FormField label="ชื่อ" value={firstName} onChange={setFirstName} disabled={busy} />
     <FormField label="นามสกุล" value={lastName} onChange={setLastName} disabled={busy} />
+    </FormSection>
+    <FormSection title="ข้อมูลเข้าสู่ระบบ" detail="ใช้อีเมลนี้สำหรับเข้าระบบและตั้งรหัสผ่านใหม่">
     <SectionLabel>อีเมล</SectionLabel>
     <TextInput style={styles.input} accessibilityLabel="อีเมล" autoCapitalize="none" keyboardType="email-address"
       autoComplete="email" value={email} onChangeText={setEmail} editable={!busy} />
@@ -61,6 +64,7 @@ export default function RegisterScreen() {
     <SectionLabel>ยืนยันรหัสผ่าน</SectionLabel>
     <TextInput style={styles.input} accessibilityLabel="ยืนยันรหัสผ่าน" autoCapitalize="none" autoComplete="new-password"
       secureTextEntry value={confirmation} onChangeText={setConfirmation} editable={!busy} onSubmitEditing={submit} />
+    </FormSection>
     {error && <ErrorNote message={error} />}
     <Button title="สร้างบัญชีและสำนักงาน" onPress={submit} busy={busy} />
     <Button ghost title="มีบัญชีแล้ว · เข้าสู่ระบบ" onPress={() => router.replace('/(auth)/login')} disabled={busy} />

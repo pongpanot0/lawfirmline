@@ -6,7 +6,7 @@ import { Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { ApiError } from '@/api/client';
-import { Button } from '@/components/ui';
+import { Button, Card, SectionLabel } from '@/components/ui';
 import { colors, radius, spacing, TOUCH } from '@/theme';
 
 export default function LoginScreen() {
@@ -54,7 +54,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-      <View style={styles.form}>
+      <Card style={styles.form}>
         <Text style={styles.brand}>Samnuan</Text>
         <Text style={styles.subtitle}>ระบบบริหารสำนักงานกฎหมาย</Text>
 
@@ -65,7 +65,9 @@ export default function LoginScreen() {
             onChangeText={(value) => setCode(value.replace(/\D/g, ''))} onSubmitEditing={submit} />
           <Button ghost title="กลับไปเข้าสู่ระบบ" onPress={() => { setMfaToken(null); setCode(''); setError(null); }} disabled={busy} />
         </> : <>
+        <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>อีเมล</SectionLabel>
         <TextInput
+          accessibilityLabel="อีเมล"
           style={styles.input}
           placeholder="อีเมล"
           placeholderTextColor={colors.faint}
@@ -75,8 +77,10 @@ export default function LoginScreen() {
           value={email}
           onChangeText={setEmail}
         />
+        <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>รหัสผ่าน</SectionLabel>
         <View style={styles.passwordRow}>
           <TextInput
+            accessibilityLabel="รหัสผ่าน"
             style={[styles.input, styles.passwordInput]}
             placeholder="รหัสผ่าน"
             placeholderTextColor={colors.faint}
@@ -88,6 +92,7 @@ export default function LoginScreen() {
             onSubmitEditing={submit}
           />
           <Pressable
+            accessibilityRole="button" accessibilityLabel={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
             style={styles.eyeButton}
             hitSlop={8}
             onPress={() => setShowPassword((visible) => !visible)}
@@ -106,18 +111,18 @@ export default function LoginScreen() {
         {!mfaToken && <>
           <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/register')} disabled={busy}
             style={{ minHeight: TOUCH, justifyContent: 'center' }}>
-            <Text style={{ color: colors.accentSoft, textAlign: 'center' }}>ยังไม่มีบัญชี · สมัครใช้งาน</Text>
+            <Text style={{ color: colors.info, textAlign: 'center' }}>ยังไม่มีบัญชี · สมัครใช้งาน</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/forgot-password')} disabled={busy}
             style={{ minHeight: TOUCH, justifyContent: 'center' }}>
-            <Text style={{ color: '#C1CAD8', textAlign: 'center' }}>ลืมรหัสผ่าน</Text>
+            <Text style={{ color: colors.muted, textAlign: 'center' }}>ลืมรหัสผ่าน</Text>
           </Pressable>
           <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://samnuan.com/privacy')}
             style={{ minHeight: TOUCH, justifyContent: 'center' }}>
-            <Text style={{ color: '#C1CAD8', textAlign: 'center', fontSize: 12 }}>นโยบายความเป็นส่วนตัว</Text>
+            <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 12 }}>นโยบายความเป็นส่วนตัว</Text>
           </Pressable>
         </>}
-      </View>
+      </Card>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -126,27 +131,29 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.bg,
   },
   content: {
     flexGrow: 1,
     justifyContent: 'center',
     padding: spacing.xl,
   },
-  form: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: spacing.md },
+  form: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: spacing.md, padding: spacing.xl },
   brand: {
-    color: colors.accentSoft,
+    color: colors.ink,
     fontSize: 36,
     fontWeight: '700',
     textAlign: 'center',
   },
   subtitle: {
-    color: '#93A0B5',
+    color: colors.muted,
     textAlign: 'center',
     marginBottom: spacing.lg,
     fontSize: 14,
   },
   input: {
+    borderWidth: 1,
+    borderColor: colors.line,
     backgroundColor: colors.surface,
     borderRadius: radius.button,
     paddingHorizontal: spacing.lg,
@@ -165,5 +172,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  error: { color: '#E07A63', fontSize: 13, textAlign: 'center' },
+  error: { color: colors.warn, fontSize: 13, textAlign: 'center' },
 });

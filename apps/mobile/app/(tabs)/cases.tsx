@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { Text, TextInput } from '@/components/AppText';
+import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Search } from 'lucide-react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { useCases, useWorkload } from '@/api/hooks';
 import type { CaseListItem } from '@/api/types';
-import { Button, Card, EmptyNote, ErrorNote, Loading, Tag, TagTone } from '@/components/ui';
-import { colors, radius, spacing, pageContent } from '@/theme';
+import { Button, Card, EmptyNote, ErrorNote, Loading, PageIntro, SearchBox, Tag, TagTone } from '@/components/ui';
+import { colors, spacing, pageContent } from '@/theme';
 
 const STATUS_LABEL: Record<string, { label: string; tone: TagTone }> = {
   OPEN: { label: 'เปิด', tone: 'info' },
@@ -22,16 +22,16 @@ const STATUS_LABEL: Record<string, { label: string; tone: TagTone }> = {
 function CaseRow({ item, onPress }: { item: CaseListItem; onPress: () => void }) {
   const status = STATUS_LABEL[item.status] ?? { label: item.status, tone: 'plain' as TagTone };
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`เปิดคดี ${item.title}`} onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.7 }}>
       <Card style={{ marginBottom: spacing.md }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <Text style={styles.ownRef}>{item.ownRef}</Text>
           <View style={{ flex: 1 }} />
           <Tag tone={status.tone}>{status.label}</Tag>
         </View>
-        <Text style={styles.title} numberOfLines={2}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><Text style={[styles.title, { flex: 1 }]}>
           {item.title}
-        </Text>
+        </Text><ChevronRight size={18} color={colors.faint} /></View>
         <Text style={styles.meta} numberOfLines={1}>
           {[item.clientName, item.courtName, item.blackCaseNumber]
             .filter(Boolean)
@@ -53,22 +53,14 @@ export default function CasesScreen() {
 
   return (
     <View style={styles.screen}>
+      <View style={{ ...pageContent, maxWidth: 760, gap: spacing.sm, paddingBottom: 0 }}>
+      <PageIntro title="คดีในสำนักงาน" detail="ค้นหาคดี หรือแตะรายการเพื่อดูงานและเอกสาร" />
       {memberId && <Pressable accessibilityRole="button" style={styles.filter} onPress={() => router.replace('/(tabs)/cases')}>
         <Text style={styles.filterText}>คดีหลักของ {workload.data?.members.find((member) => member.id === memberId)?.name ?? 'สมาชิกทีม'} · ดูทั้งหมด ×</Text>
       </Pressable>}
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}><Button title="รับเคสใหม่" onPress={() => router.push('/case/new')} /></View>
-      <View style={styles.searchBox}>
-        <Search size={16} color={colors.faint} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="ค้นหา Own Ref, ชื่อคดี, ลูกความ"
-          placeholderTextColor={colors.faint}
-          value={search}
-          onChangeText={setSearch}
-          onSubmitEditing={() => setCommitted(search.trim())}
-          returnKeyType="search"
-          autoCapitalize="none"
-        />
+      <SearchBox value={search} onChange={setSearch} onSearch={() => setCommitted(search.trim())} onClear={() => setCommitted('')} placeholder="ค้นหาเลขคดี ชื่อคดี หรือลูกความ" />
+      <Button title="รับเคสใหม่" onPress={() => router.push('/case/new')} />
+      <Text style={{ color: colors.muted, fontSize: 12 }}>{cases.isLoading || cases.isError ? '—' : `${rows.length} คดี${committed ? ` · “${committed}”` : ''}`}</Text>
       </View>
 
       {cases.isLoading ? (
@@ -102,19 +94,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   filter: { minHeight: 44, justifyContent: 'center', marginHorizontal: spacing.lg },
   filterText: { color: colors.info, fontWeight: '600' },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.button,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.md,
-  },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: colors.text },
   ownRef: { fontWeight: '700', color: colors.ink, fontSize: 14 },
   title: { color: colors.text, marginTop: 4, fontSize: 14, fontWeight: '600' },
   meta: { color: colors.faint, fontSize: 12, marginTop: 4 },

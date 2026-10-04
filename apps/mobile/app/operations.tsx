@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { PauseCircle } from 'lucide-react-native';
 import { ApiError } from '@/api/client';
 import { useOnHoldTasks } from '@/api/hooks';
-import { Card, EmptyNote, ErrorNote, Loading, Tag } from '@/components/ui';
+import { Card, EmptyNote, ErrorNote, Loading, PageIntro, Tag } from '@/components/ui';
 import { thDate } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
 
@@ -48,13 +48,15 @@ export default function OperationsScreen() {
         contentContainerStyle={pageContent}
         refreshing={onhold.isRefetching}
         onRefresh={() => onhold.refetch()}
-        ListHeaderComponent={
+        ListHeaderComponent={<>
+          <PageIntro title="ติดตามงานที่พักไว้" detail="เรียงตามวันติดตาม แตะงานเพื่อดูเหตุผลและผู้รับผิดชอบ" />
+          {
           overdueFollowUps > 0 ? (
             <View style={{ marginBottom: spacing.sm }}>
               <Tag tone="due">{overdueFollowUps} รายการเลยกำหนดติดตาม</Tag>
             </View>
           ) : null
-        }
+        }</>}
         renderItem={({ item }) => {
           const overdue =
             item.nextFollowUpAt && new Date(item.nextFollowUpAt) < new Date();
@@ -69,9 +71,10 @@ export default function OperationsScreen() {
                 <View style={styles.row}>
                   <PauseCircle size={16} color={colors.muted} />
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={styles.title} numberOfLines={2}>
+                    <Text style={styles.title}>
                       {item.taskTitle}
                     </Text>
+                    {item.nextFollowUpAt ? <Tag tone={overdue ? 'due' : 'plain'}>ติดตาม {thDate(item.nextFollowUpAt)}</Tag> : null}
                     {item.reason ? (
                       <Text style={styles.reason} numberOfLines={2}>
                         รอ: {item.reason}
@@ -83,17 +86,12 @@ export default function OperationsScreen() {
                         .join(' · ')}
                     </Text>
                   </View>
-                  {item.nextFollowUpAt ? (
-                    <Tag tone={overdue ? 'due' : 'plain'}>
-                      ติดตาม {thDate(item.nextFollowUpAt)}
-                    </Tag>
-                  ) : null}
                 </View>
               </Card>
             </Pressable>
           );
         }}
-        ListEmptyComponent={<EmptyNote>ไม่มีงานพักไว้ 🎉</EmptyNote>}
+        ListEmptyComponent={<EmptyNote>ไม่มีงานพักไว้</EmptyNote>}
       />
     </View>
   );

@@ -3,8 +3,8 @@ import { AppState, Linking, Pressable, Switch, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Text } from '@/components/AppText';
-import { FormPage } from '@/components/Form';
-import { Card, ErrorNote, Loading, SectionLabel } from '@/components/ui';
+import { FormPage, FormSection } from '@/components/Form';
+import { ActionRow, Card, ErrorNote, Loading, PageIntro, SectionLabel } from '@/components/ui';
 import { TEXT_SIZES, useDisplayPreferences } from '@/components/AppText';
 import { api } from '@/api/client';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/api/hooks';
@@ -16,14 +16,15 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { scale, setScale } = useDisplayPreferences();
   return <FormPage>
-    <SectionLabel>บัญชีผู้ใช้</SectionLabel>
-    <Pressable accessibilityRole="button" onPress={() => router.push('/account')}
-      style={{ minHeight: 48, justifyContent: 'center' }}>
-      <Text style={{ color: colors.info }}>บัญชีของฉัน · แก้ชื่อ รหัสผ่าน และขอลบบัญชี</Text>
-    </Pressable>
+    <PageIntro title="ตั้งค่าแอป" detail="บัญชี การแจ้งเตือน และการอ่านบนเครื่องนี้" />
+    <FormSection title="บัญชีผู้ใช้">
+      <ActionRow title="บัญชีของฉัน" detail="แก้ชื่อและเปลี่ยนรหัสผ่าน" onPress={() => router.push('/account')} />
+      <View style={{ borderTopWidth: 1, borderTopColor: colors.line }}>
+        <ActionRow title="ลบบัญชีและข้อมูล" detail="ส่งคำขอและติดตามสถานะ" destructive onPress={() => router.push('/delete-account' as never)} />
+      </View>
+    </FormSection>
     <NotificationSettings />
-    <SectionLabel>ขนาดตัวอักษรทั้งแอป</SectionLabel>
-    <Text style={{ color: colors.muted }}>เลือกขนาดที่อ่านสบาย · แอปจำค่าบนโทรศัพท์เครื่องนี้</Text>
+    <FormSection title="ขนาดตัวอักษรทั้งแอป" detail="เลือกขนาดที่อ่านสบาย · แอปจำค่าบนโทรศัพท์เครื่องนี้">
     <View style={{ gap: spacing.sm }}>
       {TEXT_SIZES.map((value, index) => <Pressable key={value} accessibilityRole="radio"
         accessibilityState={{ selected: scale === value }} onPress={() => setScale(value)}
@@ -32,6 +33,7 @@ export default function SettingsScreen() {
         <Text style={{ color: colors.ink }}>{scale === value ? '✓ ' : ''}{['ปกติ', 'ใหญ่', 'ใหญ่มาก', 'ใหญ่พิเศษ'][index]}</Text>
       </Pressable>)}
     </View>
+    </FormSection>
     <SectionLabel>ตัวอย่าง</SectionLabel>
     <Card><Text style={{ fontWeight: '700', color: colors.ink, fontSize: 17 }}>นัดศาลวันนี้ 09:00</Text>
       <Text style={{ color: colors.text, marginTop: spacing.sm }}>คนหลัก: ทนายสมชาย · คนรอง: ทนายศิริพร</Text>
@@ -75,22 +77,23 @@ function NotificationSettings() {
       ยังไม่ได้เชื่อม LINE · เชื่อมได้ที่หน้าตั้งค่าบนเว็บ แล้วสวิตช์ LINE จึงจะมีผล
     </Text> : null}
     {prefs.isLoading ? <Loading /> : prefs.isError ? <ErrorNote message="โหลดการตั้งค่าแจ้งเตือนไม่สำเร็จ" onRetry={() => prefs.refetch()} /> : <Card>
-      <View style={{ flexDirection: 'row', paddingBottom: spacing.sm }}>
-        <Text style={{ flex: 1, color: colors.faint, fontSize: 12 }}>เรื่อง</Text>
-        <Text style={{ width: 64, textAlign: 'center', color: colors.faint, fontSize: 12 }}>แอป</Text>
-        <Text style={{ width: 64, textAlign: 'center', color: colors.faint, fontSize: 12 }}>LINE</Text>
-      </View>
       {prefs.data?.map((row) => {
         const label = CATEGORY_META[row.category]?.label ?? row.category;
-        return <View key={row.category} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48, borderTopWidth: 1, borderTopColor: colors.line }}>
-          <Text style={{ flex: 1, color: colors.text }}>{label}</Text>
-          <View style={{ width: 64, alignItems: 'center' }}>
+        return <View key={row.category} style={{ gap: spacing.sm, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+          <Text style={{ color: colors.text, fontWeight: '600' }}>{label}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+          <View style={{ flexGrow: 1, flexBasis: '45%', minWidth: 100, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }}>
+            <Text style={{ color: colors.muted }}>แอป</Text>
             <Switch accessibilityLabel={`${label} แจ้งเตือนในแอป`} value={row.push}
+              trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface}
               onValueChange={(push) => update.mutate({ category: row.category, push })} />
           </View>
-          <View style={{ width: 64, alignItems: 'center' }}>
+          <View style={{ flexGrow: 1, flexBasis: '45%', minWidth: 100, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }}>
+            <Text style={{ color: colors.muted }}>LINE</Text>
             <Switch accessibilityLabel={`${label} ส่ง LINE`} value={row.line}
+              trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface}
               onValueChange={(value) => update.mutate({ category: row.category, line: value })} />
+          </View>
           </View>
         </View>;
       })}

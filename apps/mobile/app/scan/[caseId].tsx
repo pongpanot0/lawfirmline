@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { Alert } from 'react-native';
-import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { uploadCaseDocument } from '@/api/files';
 import { Attachments, AttachmentFile } from '@/components/Attachments';
-import { FormPage } from '@/components/Form';
+import { FormPage, FormSection } from '@/components/Form';
 import { Button } from '@/components/ui';
-import { colors } from '@/theme';
 
 export default function CaseFilesScreen() {
   const { caseId } = useLocalSearchParams<{ caseId: string }>();
@@ -30,8 +28,9 @@ export default function CaseFilesScreen() {
   };
   return <FormPage>
     <Stack.Screen options={{ title: 'ถ่ายรูป / แนบไฟล์คดี' }} />
-    <Text style={{ color: colors.muted }}>ถ่ายรูปเอกสารหรือแนบไฟล์ที่มีอยู่ · เก็บไฟล์ต้นฉบับเข้าคดี</Text>
+    <FormSection title="เอกสารเข้าคดี" detail="ถ่ายรูปหรือแนบไฟล์ที่มีอยู่ เก็บไฟล์ต้นฉบับเข้าคดี">
     <Attachments files={files} onChange={setFiles} disabled={busy} />
     <Button title={`เพิ่มไฟล์เข้าคดี (${files.length})`} busy={busy} disabled={!files.length} onPress={upload} />
+    </FormSection>
   </FormPage>;
 }

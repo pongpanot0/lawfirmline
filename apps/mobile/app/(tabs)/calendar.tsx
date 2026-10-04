@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import { useCalendarRange, useWorkload } from '@/api/hooks';
 import type { CalendarEventItem } from '@/api/types';
-import { Card, EmptyNote, ErrorNote, SectionLabel, Tag } from '@/components/ui';
+import { Card, EmptyNote, ErrorNote, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { isoDay, thDate, thTime } from '@/format';
 import { colors, spacing, TOUCH, pageContent } from '@/theme';
 
@@ -61,6 +61,7 @@ export default function CalendarScreen() {
         <RefreshControl refreshing={events.isRefetching} onRefresh={() => events.refetch()} />
       }
     >
+      <PageIntro title="นัดหมายสำนักงาน" detail="เลือกวันเพื่อดูนัดศาล งาน และทีมที่ไปด้วย" />
       {memberId && <Pressable accessibilityRole="button" style={styles.filter} onPress={() => router.replace('/(tabs)/calendar')}>
         <Text style={styles.filterText}>นัดของ {workload.data?.members.find((member) => member.id === memberId)?.name ?? 'สมาชิกทีม'} · ดูทั้งหมด ×</Text>
       </Pressable>}
@@ -112,13 +113,15 @@ export default function CalendarScreen() {
                 return (
                   <Pressable
                     key={key}
+                    accessibilityRole="button" accessibilityLabel={`${date.getDate()} ${TH_MONTHS_FULL[cursor.m]} ${cursor.y + 543}${hasEvents ? ' มีนัดหมาย' : ''}`}
+                    accessibilityState={{ selected: isSelected }}
                     style={[styles.cell, isSelected && styles.cellSelected, isToday && styles.cellToday]}
                     onPress={() => setSelected(key)}
                   >
                     <Text
                       style={[
                         styles.cellText,
-                        isToday && { color: colors.bg, fontWeight: '700' },
+                        isToday && { color: colors.ink, fontWeight: '700' },
                         isSelected && !isToday && { color: colors.ink, fontWeight: '700' },
                       ]}
                     >
@@ -169,16 +172,16 @@ export default function CalendarScreen() {
               >
                 <Text style={styles.eventTime}>{thTime(event.startAt)}</Text>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={styles.eventTitle} numberOfLines={2}>
+                  <Text style={styles.eventTitle}>
                     {event.title}
                   </Text>
+                  {event.type === 'COURT_DATE' ? <Tag tone="court">ศาล</Tag> : null}
                   <Text style={styles.eventMeta} numberOfLines={1}>
                     {[event.case?.ownRef, event.courtName].filter(Boolean).join(' · ') || '—'}
                   </Text>
                   <Text style={styles.eventMeta}>หลัก: {event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : 'ยังไม่ระบุ'}</Text>
                   <Text style={styles.eventMeta}>ร่วม: {event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => `${person.user.firstName} ${person.user.lastName}`).join(', ') || 'ไม่มี'}</Text>
                 </View>
-                {event.type === 'COURT_DATE' ? <Tag tone="court">ศาล</Tag> : null}
               </Pressable>
               <Pressable accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center', paddingLeft: 60 }} onPress={() => router.push(`/event/${event.id}/team`)}>
                 <Text style={{ color: colors.info }}>ดู / จัดทีมที่ไปด้วย</Text>
@@ -205,7 +208,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  monthTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.ink },
   grid: { gap: spacing.xs },
   week: { flexDirection: 'row', alignItems: 'center' },
   dow: {
@@ -224,7 +227,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cellSelected: { backgroundColor: colors.soft },
-  cellToday: { backgroundColor: colors.ink },
+  cellToday: { borderWidth: 1, borderColor: colors.ink },
   cellText: { fontSize: 13, color: colors.text, fontVariant: ['tabular-nums'] },
   dot: {
     position: 'absolute',
@@ -236,6 +239,8 @@ const styles = StyleSheet.create({
   },
   dayHead: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: spacing.lg,

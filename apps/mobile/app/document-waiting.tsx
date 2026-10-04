@@ -7,9 +7,9 @@ import { taskDraftScope } from '@/api/drafts';
 import { useTaskDraft } from '@/hooks/useTaskDraft';
 import { Text } from '@/components/AppText';
 import { CasePicker, CaseRef } from '@/components/CasePicker';
-import { FormField, FormPage } from '@/components/Form';
+import { FormField, FormPage, FormSection } from '@/components/Form';
 import { DatePicker } from '@/components/DatePicker';
-import { Button, Card, EmptyNote, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, EmptyNote, ErrorNote, Loading, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay } from '@/format';
 import { colors, spacing } from '@/theme';
 
@@ -51,10 +51,10 @@ export default function DocumentWaiting() {
   if (!draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading />;
   return <FormPage>
     <Stack.Screen options={{ title: 'รอเอกสารจากภายนอก' }} />
-    <Text style={{ color: colors.ink, fontWeight: '700' }}>ยังรอ {waiting.length} รายการ</Text>
+    <PageIntro title="ติดตามเอกสาร" detail={query.isLoading || query.isError ? 'เอกสารจากลูกความและหน่วยงานภายนอก' : `ยังรอ ${waiting.length} รายการ`} />
     <Button title={showClosed ? 'แสดงเฉพาะที่ยังรอ' : 'ดูทั้งหมดรวมที่ได้รับแล้ว'} ghost onPress={() => setShowClosed(!showClosed)} />
     <Button title={adding ? 'ย่อแบบฟอร์ม · ร่างยังอยู่' : 'เพิ่มรายการเอกสารที่รอ'} ghost disabled={busy} onPress={() => { draft.resume(); setAdding(!adding); }} />
-    {adding && <Card style={{ gap: spacing.md }}>
+    {adding && <FormSection title={editId ? 'แก้รายการติดตาม' : 'รายการเอกสารใหม่'}>
       {!caseId && (busy || !!editId ? <Text>{selectedCase?.label}</Text> : <CasePicker value={selectedCase} onChange={setSelectedCase} />)}
       <FormField label="เอกสารที่รอ" value={name} onChange={setName} disabled={busy} />
       <FormField label="รอจากใคร · ชื่อคนหรือหน่วยงาน" value={requestedFrom} onChange={setRequestedFrom} disabled={busy} />
@@ -67,7 +67,7 @@ export default function DocumentWaiting() {
           body: { name: name.trim(), requestedFrom: requestedFrom.trim(), note, dueDate: `${date}T23:59:59+07:00` } });
         await draft.clear(); setAdding(false); setEditId(''); setName(''); setRequestedFrom(''); setNote('');
       })} />
-    </Card>}
+    </FormSection>}
     {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
     {!!error && <ErrorNote message={error} />}
     {query.isLoading && <Loading />}

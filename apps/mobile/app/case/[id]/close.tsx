@@ -7,8 +7,8 @@ import { useAuth } from '@/api/auth';
 import { useCase } from '@/api/hooks';
 import { Text } from '@/components/AppText';
 import { Dropdown } from '@/components/Dropdown';
-import { FormField, FormPage } from '@/components/Form';
-import { Button, Card, ErrorNote, Loading } from '@/components/ui';
+import { FormField, FormPage, FormSection } from '@/components/Form';
+import { Button, Card, ErrorNote, Loading, PageIntro } from '@/components/ui';
 import { thDate } from '@/format';
 import { colors, spacing } from '@/theme';
 
@@ -62,7 +62,7 @@ export default function CaseCloseScreen() {
   };
   return <FormPage>
     <Stack.Screen options={{ title }} />
-    <Text style={{ color: colors.ink, fontWeight: '700' }}>{legalCase.data.ownRef} · {legalCase.data.title}</Text>
+    <PageIntro title={legalCase.data.ownRef} detail={legalCase.data.title} />
     {action === 'close' ? <>
       {outstanding.isLoading && <Text>กำลังตรวจรายการค้าง…</Text>}
       {outstanding.isError && <ErrorNote message="ตรวจรายการค้างไม่สำเร็จ" onRetry={() => outstanding.refetch()} />}
@@ -76,8 +76,10 @@ export default function CaseCloseScreen() {
           <Text style={{ color: colors.warn }}>{acknowledged ? '☑' : '☐'} ตรวจรายการค้างแล้ว และยืนยันจะปิดคดี</Text>
         </Pressable>}
       </Card>}
+      <FormSection title="ผลและสรุปก่อนปิดคดี">
       <Dropdown label="ผลคดี" value={outcome} options={outcomes} onChange={setOutcome} disabled={busy} />
       <FormField label="สรุปผลคดี (อย่างน้อย 10 ตัวอักษร)" value={summary} onChange={setSummary} multiline disabled={busy} placeholder="ผลคดี ข้อตกลง หรือบันทึกสำคัญก่อนปิดคดี" />
+      </FormSection>
     </> : <Text style={{ color: colors.muted }}>{action === 'reopen'
       ? 'คดีจะกลับเป็นสถานะดำเนินการ' : 'เก็บคดีที่ปิดแล้วเข้าคลัง โดยยังเปิดคดีอีกครั้งได้'}</Text>}
     {!!error && <Text accessibilityRole="alert" style={{ color: colors.warn }}>{error}</Text>}

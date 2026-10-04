@@ -9,7 +9,7 @@ import { taskDraftScope } from '@/api/drafts';
 import type { TaskItem } from '@/api/types';
 import { useTaskDraft } from '@/hooks/useTaskDraft';
 import { Text } from '@/components/AppText';
-import { FormField, FormPage } from '@/components/Form';
+import { FormField, FormPage, FormSection } from '@/components/Form';
 import { DatePicker } from '@/components/DatePicker';
 import { Dropdown } from '@/components/Dropdown';
 import { Button, Card, EmptyNote, ErrorNote, Loading } from '@/components/ui';
@@ -46,7 +46,7 @@ export default function BlockerRequest() {
   return <FormPage>
     <Stack.Screen options={{ title: 'ส่งจุดติดขัดให้คนแก้' }} />
     <Card style={{ gap: spacing.sm }}><Text style={{ fontWeight: '700', color: colors.ink }}>{task.data.title}</Text><Text>{quote || 'บันทึกรายงาน “ติดอะไร” ที่หน้างานก่อนส่งเรื่องนี้'}</Text></Card>
-    {existing ? <Button title={`เปิดเรื่องที่ส่งแล้ว · ${existing.title}`} onPress={() => router.replace({ pathname: '/task/new', params: { id: existing.id } })} /> : !!quote && <>
+    {existing ? <Button title={`เปิดเรื่องที่ส่งแล้ว · ${existing.title}`} onPress={() => router.replace({ pathname: '/task/new', params: { id: existing.id } })} /> : !!quote && <FormSection title="คนรับแก้และสิ่งที่ต้องการ">
       <Text style={{ color: colors.faint }}>เลือก Owner ให้ช่วยจัดคนแก้ หรือคนที่คุณมีสิทธิ์มอบหมาย งานต้นทางจะรอเรื่องนี้จนคนแก้ปิดงาน</Text>
       {members.isError && <ErrorNote message="โหลดคนรับแก้ไม่ได้" onRetry={() => members.refetch()} />}
       <Dropdown label="คนรับแก้ / Owner" value={assigneeId} onChange={setAssigneeId} disabled={busy || members.isError || members.isLoading}
@@ -70,7 +70,7 @@ export default function BlockerRequest() {
         } catch (e) { setError(e instanceof Error ? e.message : 'ส่งเรื่องไม่สำเร็จ ร่างยังอยู่'); }
         finally { setBusy(false); }
       }} />
-    </>}
+    </FormSection>}
     {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
     {!!draft.message && <Text>{draft.message}</Text>}
     {!!error && <ErrorNote message={error} onRetry={() => task.refetch()} />}

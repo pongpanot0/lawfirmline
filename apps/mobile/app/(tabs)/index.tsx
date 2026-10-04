@@ -205,16 +205,16 @@ export default function MyDayScreen() {
 
       {owner && <>
         <SectionLabel>คิวตัดสินใจวันนี้</SectionLabel>
-        <Card style={{ gap: spacing.sm, backgroundColor: colors.ink, borderColor: colors.ink }}>
+        <Card style={{ gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>{[
             { view: 'review', label: 'งานรอคุณตรวจ', count: reviews.isError ? undefined : reviews.data?.length },
             { view: 'leave', label: 'ลารออนุมัติ', count: pendingLeaves.isError ? undefined : pendingLeaves.data?.length },
             { view: 'claim', label: 'เบิกรออนุมัติ', count: claims.isError ? undefined : claims.data?.filter(item => item.status === 'PENDING').length },
           ].map(item => <Pressable key={item.view} accessibilityRole="button" style={{ flexBasis: '30%', flexGrow: 1, minWidth: 92, minHeight: 64, gap: 4 }}
-             onPress={() => router.push(`/owner-decisions?view=${item.view}`)}><Text style={{ color: colors.infoSoft }}>{item.label}</Text>
-             <Text style={{ color: colors.surface, fontSize: 26, fontFamily: fonts.bold }}>{item.count ?? '—'}</Text><Text style={{ color: colors.infoSoft, fontSize: 12 }}>เปิดรายการ ›</Text></Pressable>)}</View>
+             onPress={() => router.push(`/owner-decisions?view=${item.view}`)}><Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text>
+             <Text style={{ color: colors.ink, fontSize: 26, fontFamily: fonts.bold }}>{item.count ?? '—'}</Text><Text style={{ color: colors.info, fontSize: 12 }}>เปิดรายการ ›</Text></Pressable>)}</View>
           {pendingLeaves.isError && <ErrorNote message="โหลดลารออนุมัติไม่ได้" onRetry={() => pendingLeaves.refetch()} />}
-          <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/owner-decisions')}><Text style={{ color: colors.surface }}>ดูคิวที่ต้องจัดการทั้งหมด ›</Text></Pressable>
+          <Pressable accessibilityRole="button" style={[styles.peopleButton, { borderTopWidth: 1, borderTopColor: colors.line }]} onPress={() => router.push('/owner-decisions')}><Text style={{ color: colors.ink }}>ดูคิวที่ต้องจัดการทั้งหมด ›</Text></Pressable>
         </Card>
         <Disclosure title="เงินสำนักงาน" summary={finance.data ? `ลูกหนี้ ${formatMoney(finance.data.totals.receivable)} ฿ · ดูรายการ` : 'ลูกหนี้และรายการที่ต้องตาม'}>
         {finance.isError && <ErrorNote message="โหลดข้อมูลการเงินล่าสุดไม่ได้" onRetry={() => finance.refetch()} />}
@@ -309,7 +309,7 @@ export default function MyDayScreen() {
         </View>
         <Card>
           {workload.isLoading ? <EmptyNote>กำลังโหลดกำลังคน…</EmptyNote> : workload.data?.members.length === 0 ? <EmptyNote>ยังไม่มีสมาชิกทีม</EmptyNote> : null}
-          {workload.data?.members.slice(0, showAllPeople ? undefined : 4).map((member, index) => {
+          {workload.data?.members.slice(0, showAllPeople ? undefined : 3).map((member, index) => {
             const events = courtToday.filter((item) => agendaIncludesPerson(item, member.id));
             const tasks = otherToday.filter((item) => item.assigneeId === member.id);
             const leave = leaveFlags.get(member.id);
@@ -333,7 +333,7 @@ export default function MyDayScreen() {
               </View>
             </View>;
           })}
-          {(workload.data?.members.length ?? 0) > 4 && <Pressable accessibilityRole="button" style={styles.peopleButton}
+          {(workload.data?.members.length ?? 0) > 3 && <Pressable accessibilityRole="button" style={styles.peopleButton}
             onPress={() => setShowAllPeople(!showAllPeople)}>
             <Text style={{ color: colors.info }}>{showAllPeople ? 'ย่อรายชื่อ' : `ดูครบ ${workload.data!.members.length} คน`}</Text>
           </Pressable>}

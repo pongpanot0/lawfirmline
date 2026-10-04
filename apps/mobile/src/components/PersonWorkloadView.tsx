@@ -6,7 +6,7 @@ import { TASK_WORK_TYPES, type PersonWorkload } from '@lawfirm/shared';
 import { Text } from '@/components/AppText';
 import { Button, Card, EmptyNote, SectionLabel, StatCard, Tag } from '@/components/ui';
 import { initials, thDate, thTime } from '@/format';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, spacing } from '@/theme';
 
 const ROLES: Record<string, string> = { OWNER: 'เจ้าของสำนักงาน', SENIOR_LAWYER: 'ทนายอาวุโส', LAWYER: 'ทนายความ', JUNIOR_LAWYER: 'ทนายความ', ASSISTANT: 'ผู้ช่วย', ADMIN: 'ผู้ดูแล', EXTERNAL: 'ผู้รับงานภายนอก' };
 const STATUSES: Record<string, string> = { TODO: 'รอเริ่ม', IN_PROGRESS: 'กำลังทำ', NEEDS_REVISION: 'แก้ไขงาน', ON_HOLD: 'พักไว้', PENDING_REVIEW: 'รอตรวจ' };
@@ -31,13 +31,13 @@ export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCa
   // The API redacts inaccessible titles/case fields. Those rows show load without opening private work.
   const canOpenTask = (task: PersonWorkload['tasks'][number]) => owner || person.userId === viewerId || !!task.case;
   return <>
-    <View style={styles.identity}>
+    <Card style={styles.identity}>
       <View style={styles.identityTop}>
         <View style={styles.avatar}><Text style={styles.initials}>{initials(name)}</Text></View>
         <View style={styles.rowText}><Text style={styles.name}>{name}</Text><Text style={styles.role}>{ROLES[person.role] ?? person.role}</Text></View>
       </View>
       <Text style={styles.identityNote}>งานที่รับผิดชอบ · แตะรายการเพื่อดูรายละเอียด</Text>
-    </View>
+    </Card>
     <View style={styles.stats}>
       <StatCard label="งานค้าง" value={person.tasks.length} />
       <StatCard label="เกินกำหนด" value={overdue} tone="warn" />
@@ -91,13 +91,13 @@ export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCa
 }
 
 const styles = StyleSheet.create({
-  identity: { backgroundColor: colors.ink, borderRadius: radius.card, padding: spacing.lg, gap: spacing.md },
+  identity: { padding: spacing.lg, gap: spacing.md },
   identityTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.soft, justifyContent: 'center', alignItems: 'center' },
   initials: { fontFamily: fonts.bold, fontSize: 18, color: colors.ink },
-  name: { fontFamily: fonts.bold, fontSize: 21, color: colors.surface, flexShrink: 1 },
-  role: { color: colors.infoSoft, fontSize: 13, marginTop: spacing.xs },
-  identityNote: { color: colors.infoSoft, fontSize: 12 },
+  name: { fontFamily: fonts.bold, fontSize: 21, color: colors.ink, flexShrink: 1 },
+  role: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
+  identityNote: { color: colors.muted, fontSize: 12 },
   stats: { flexDirection: 'row', gap: spacing.sm, marginVertical: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   rowText: { flex: 1, minWidth: 0, gap: spacing.xs },

@@ -12,7 +12,7 @@ import { draftScope, saveDraft } from '@/api/drafts';
 import { useCourtDay, useSaveCourtDay, useCompleteCourtDay } from '@/api/hooks';
 import type { CourtDayResponse, CourtDayState } from '@/api/types';
 import { openCaseDocument } from '@/api/files';
-import { Button, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
 import { DatePicker } from '@/components/DatePicker';
 import { Dropdown } from '@/components/Dropdown';
 import { bangkokDay, formatMoney, formatMoneyInput, thDateLong, thTime } from '@/format';
@@ -137,11 +137,11 @@ export default function CourtDayScreen() {
       }} />}
   </View>;
   const toggle = (label: string, value: boolean, onChange: (value: boolean) => void) => <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: spacing.sm }}>
-    <Text style={{ color: colors.text, flex: 1 }}>{label}</Text><Switch accessibilityLabel={label} value={value} onValueChange={onChange} disabled={!editable} />
+    <Text style={{ color: colors.text, flex: 1 }}>{label}</Text><Switch accessibilityLabel={label} trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface} value={value} onValueChange={onChange} disabled={!editable} />
   </View>;
   return <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
     <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ ...pageContent, paddingBottom: spacing.xl + keyboardHeight }}>
-      <View style={{ paddingBottom: spacing.md, gap: spacing.sm }}>
+      <Card style={{ marginBottom: spacing.md, gap: spacing.sm }}>
         <Button title="กลับ" ghost onPress={() => router.back()} />
         <Text style={{ fontSize: 20, fontWeight: '700', color: colors.ink }}>{event.title}</Text>
         <Text style={{ color: colors.muted }}>{event.case?.ownRef} · {event.courtName ?? event.case?.courtName} · {thTime(event.startAt)}</Text>
@@ -149,12 +149,12 @@ export default function CourtDayScreen() {
         {done && <Tag tone="ok">ยืนยันผลแล้ว</Tag>}
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {PHASES.map((label, index) => <Pressable key={label} accessibilityRole="tab" accessibilityState={{ selected: phase === index }}
-            onPress={() => setPhase(index)} style={{ flex: 1, minHeight: 44, backgroundColor: phase === index ? colors.ink : colors.soft, borderRadius: 10, justifyContent: 'center', padding: spacing.sm }}>
-            <Text style={{ color: phase === index ? colors.surface : colors.ink, textAlign: 'center' }}>{label}</Text>
+            onPress={() => setPhase(index)} style={{ flex: 1, minHeight: 44, backgroundColor: colors.surface, borderWidth: 1, borderColor: phase === index ? colors.ink : colors.line, borderRadius: 10, justifyContent: 'center', padding: spacing.sm }}>
+            <Text style={{ color: colors.ink, fontWeight: phase === index ? '700' : '400', textAlign: 'center' }}>{label}</Text>
           </Pressable>)}
         </View>
-      </View>
-      <View style={{ gap: spacing.sm }}>
+      </Card>
+      <Card style={{ gap: spacing.sm }}>
         {court.isError && <ErrorNote message="โหลดข้อมูลล่าสุดไม่ได้ แสดงข้อมูลที่เก็บไว้" onRetry={() => court.refetch()} />}
         {stale && !done && <><ErrorNote message="มีข้อมูลใหม่ในระบบ ร่างในเครื่องยังอยู่ กรุณาตรวจข้อมูลล่าสุดก่อนบันทึก" /><Button title="โหลดข้อมูลล่าสุด" ghost onPress={reload} disabled={busy} /></>}
         <SectionLabel style={formLabelSpacing}>ใครไปด้วย</SectionLabel>
@@ -224,7 +224,7 @@ export default function CourtDayScreen() {
           {writer && <Button title="บันทึกร่างเข้าระบบ · ยังไม่ยืนยันผล" onPress={() => sync().catch((error) => Alert.alert('บันทึกไม่สำเร็จ', error.message))}
             busy={busy} disabled={stale || court.isError || court.isFetching} />}
         </>}
-      </View>
+      </Card>
     </ScrollView>
   </SafeAreaView>;
 }

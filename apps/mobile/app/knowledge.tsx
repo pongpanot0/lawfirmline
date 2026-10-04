@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { Text, TextInput } from '@/components/AppText';
+import { Text } from '@/components/AppText';
 import { useRouter } from 'expo-router';
-import { Search } from 'lucide-react-native';
 import { useKnowledge } from '@/api/hooks';
-import { Button, Card, EmptyNote, ErrorNote, Loading, Tag } from '@/components/ui';
+import { Button, Card, EmptyNote, ErrorNote, Loading, PageIntro, SearchBox, Tag } from '@/components/ui';
 import { thDate } from '@/format';
-import { colors, radius, spacing, pageContent } from '@/theme';
+import { colors, spacing, pageContent } from '@/theme';
 
 const CATEGORY_LABEL: Record<string, string> = {
   SUMMARY: 'สรุปคดี',
@@ -24,18 +23,10 @@ export default function KnowledgeScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}><Button title="ค้นหาไฟล์ในคดี" ghost onPress={() => router.push('/search')} /></View>
-      <View style={styles.searchBox}>
-        <Search size={16} color={colors.faint} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="ค้นหาความรู้ แนวทาง คำพิพากษา"
-          placeholderTextColor={colors.faint}
-          value={search}
-          onChangeText={setSearch}
-          onSubmitEditing={() => setCommitted(search.trim())}
-          returnKeyType="search"
-        />
+      <View style={{ ...pageContent, maxWidth: 760, gap: spacing.sm, paddingBottom: 0 }}>
+        <PageIntro title="ความรู้จากคดี" detail="ค้นหาสรุปคดี แนวทาง และบทเรียนที่สำนักงานบันทึกไว้" />
+        <SearchBox value={search} onChange={setSearch} onSearch={() => setCommitted(search.trim())} onClear={() => setCommitted('')} placeholder="ค้นหาความรู้ แนวทาง คำพิพากษา" />
+        <Button title="ค้นหาไฟล์ในคดี" ghost onPress={() => router.push('/search')} />
       </View>
       {knowledge.isLoading ? (
         <Loading />
@@ -52,6 +43,7 @@ export default function KnowledgeScreen() {
           onRefresh={() => knowledge.refetch()}
           renderItem={({ item }) => (
             <Pressable
+              accessibilityRole="button" disabled={!item.caseId}
               onPress={() => item.caseId && router.push(`/case/${item.caseId}`)}
               style={({ pressed }) => pressed && { opacity: 0.7 }}
             >
@@ -84,20 +76,7 @@ export default function KnowledgeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.button,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.md,
-  },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: colors.text },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  row: { alignItems: 'flex-start', gap: spacing.sm },
   title: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text },
   summary: { fontSize: 13, color: colors.muted, marginTop: 6, lineHeight: 19 },
   meta: { fontSize: 12, color: colors.faint, marginTop: 8 },

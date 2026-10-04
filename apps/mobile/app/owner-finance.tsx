@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/api/auth';
@@ -7,7 +7,7 @@ import { api } from '@/api/client';
 import { useOwnerFinance } from '@/api/hooks';
 import { PAYMENT_METHOD_LABEL, type UnbilledCase } from '@/api/types';
 import { Text } from '@/components/AppText';
-import { Button, Card, EmptyNote, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, EmptyNote, ErrorNote, FilterTabs, Loading, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { OwnerFinanceSummary, FinanceView } from '@/components/OwnerFinanceSummary';
 import { DatePicker } from '@/components/DatePicker';
 import { bangkokDay, formatMoney, thDate } from '@/format';
@@ -46,13 +46,14 @@ export default function OwnerFinanceScreen() {
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.sm }}
     refreshControl={<RefreshControl refreshing={finance.isRefetching} onRefresh={() => finance.refetch()} />}>
     <Stack.Screen options={{ title: 'เงินสำนักงาน / ลูกหนี้' }} />
+    <PageIntro title="การเงินสำนักงาน" detail="ตรวจยอดค้าง รับเงิน และติดตามใบแจ้งหนี้" />
     <Text style={{ color: colors.muted }}>รับเงินและวางบิล: {month} · ยังไม่วางบิล รอจ่าย และลูกหนี้: ยอดที่ยังค้างทั้งหมด</Text>
     <Button title={changeMonth ? 'ปิดตัวเลือกเดือน' : 'เปลี่ยนเดือนที่ดูรับเงิน / วางบิล'} ghost onPress={() => setChangeMonth(!changeMonth)} />
     {changeMonth && <><Text>เลือกวันที่ในเดือนที่ต้องการดู</Text><DatePicker value={`${month}-01`} onChange={value => setMonth(value.slice(0, 7))} /></>}
     {finance.isError && <ErrorNote message="โหลดข้อมูลการเงินล่าสุดไม่ได้ กรุณาลองใหม่ก่อนทำรายการ" onRetry={() => finance.refetch()} />}
     {finance.isLoading && <Loading />}
     <OwnerFinanceSummary data={data} onOpen={setView} />
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>{VIEWS.map(item => <View key={item.value} style={{ minWidth: 110, flexGrow: 1 }}><Button title={item.label} ghost={view !== item.value} onPress={() => setView(item.value)} /></View>)}</View>
+    <FilterTabs items={VIEWS} value={view} onChange={value => setView(value as FinanceView)} />
     {view === 'receivables' && <>
       <SectionLabel>ลูกหนี้ที่ต้องตาม · ยอดค้างทั้งหมด {data ? `${formatMoney(data.totals.receivable)} ฿` : '—'}</SectionLabel>
       <Text style={{ color: colors.muted }}>คิวต้องตามรวมเกินกำหนด นัดติดตามถึงวันนี้ ยังไม่มีผู้ติดตาม หรือยังไม่ระบุวันครบกำหนด</Text>

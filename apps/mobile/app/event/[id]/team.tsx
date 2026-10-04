@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/api/auth';
 import { useEvent, useMembers, useLeaves, useUpdateEventTeam } from '@/api/hooks';
 import { Dropdown } from '@/components/Dropdown';
+import { FormSection } from '@/components/Form';
 import { Button, Card, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay, thDate, thTime } from '@/format';
 import { leaveFlagsForDate, leaveWarning } from '@/lib/leave-flags';
@@ -58,6 +59,7 @@ export default function EventTeamScreen() {
     {editable && <Button title="แก้ไขนัดหมาย" ghost onPress={() => router.push(`/event/new?id=${id}`)} />}
     {(event.isError || members.isError) && <ErrorNote message="ข้อมูลทีมอาจยังไม่ล่าสุด" onRetry={() => { event.refetch(); members.refetch(); }} />}
     {leaves.isError && <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
+    <FormSection title="คนหลักของนัดนี้">
     <SectionLabel style={formLabelSpacing}>ผู้รับผิดชอบหลัก · 1 คน</SectionLabel>
     <Dropdown label="เลือกผู้รับผิดชอบหลัก" value={ids[0] ?? ''}
       options={[...names].map(([value, label]) => ({ value, label }))}
@@ -66,6 +68,8 @@ export default function EventTeamScreen() {
         if (next.length > 10) return Alert.alert('ทีมเต็มแล้ว', 'เอาผู้ร่วมไปออกหนึ่งคนก่อนเปลี่ยนผู้รับผิดชอบหลัก');
         setIds(next);
       }} />
+    </FormSection>
+    <FormSection title="ผู้ร่วมไป" detail="เพิ่มหรือเอาออกได้เฉพาะนัดนี้ รวมไม่เกิน 10 คน">
     <SectionLabel style={formLabelSpacing}>ผู้ร่วมไป · เพิ่ม / เอาออกเฉพาะนัดนี้</SectionLabel>
     {ids.slice(1).map((personId) => <Card key={personId}>
       <Text style={{ color: colors.ink }}>{names.get(personId) ?? 'สมาชิกเดิม'}</Text>
@@ -84,5 +88,6 @@ export default function EventTeamScreen() {
         disabled={!ids.length || event.isError || members.isError || leaves.isError || leaves.isLoading} />
     </>}
     {!editable && <Text style={{ color: colors.muted }}>ให้ทนายหรือเจ้าของสำนักงานจัดทีมสำหรับนัดนี้</Text>}
+    </FormSection>
   </ScrollView>;
 }

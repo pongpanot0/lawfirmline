@@ -12,7 +12,7 @@ import { useCase, useLawyers, useLeaves, useDailyWorkboard } from '@/api/hooks';
 import type { TaskItem } from '@/api/types';
 import { uploadTaskAttachment, openTaskAttachment } from '@/api/files';
 import { Attachments, AttachmentFile } from '@/components/Attachments';
-import { FormField, FormPage } from '@/components/Form';
+import { FormField, FormPage, FormSection } from '@/components/Form';
 import { Dropdown } from '@/components/Dropdown';
 import { DatePicker } from '@/components/DatePicker';
 import { CasePicker, CaseRef } from '@/components/CasePicker';
@@ -189,6 +189,7 @@ export default function TaskFormScreen() {
   if (!draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading />;
   return <FormPage>
     <Stack.Screen options={{ title: id ? 'แก้ไขงาน' : 'เพิ่มงาน' }} />
+    <FormSection title={id ? 'รายละเอียดงาน' : 'ชื่องานและคนรับผิดชอบ'} detail="ระบุงานให้ชัด แล้วเลือกคนที่รับงานนี้">
     {!!draft.message && dirty && <Text style={{ color: colors.faint, fontSize: 12 }}>{draft.message}</Text>}
     {!!draft.warning && <Text style={{ color: colors.warn }}>{draft.warning}</Text>}
     {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
@@ -228,12 +229,14 @@ export default function TaskFormScreen() {
       {!!routineChoice && <Dropdown label="ผู้ตรวจงานประจำ" value={reviewerId} options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} onChange={setReviewerId} disabled={busy || checkingPreviousSave} />}
     </>}
     {id && canAssign && <Button title="มอบหมาย / เปลี่ยนผู้รับผิดชอบ" ghost disabled={busy} onPress={() => setReassigning(true)} />}
+    </FormSection>
     {!id && <Button title={showDetails ? 'ซ่อนข้อมูลเพิ่มเติม' : 'เพิ่มกำหนดส่ง / รายละเอียด / ไฟล์'} ghost onPress={() => setShowDetails(!showDetails)} />}
-    {showDetails && <>
+    {showDetails && <FormSection title="กำหนดส่งและข้อมูลเพิ่มเติม">
     {!id && <><SectionLabel>แฟ้มคดี (ถ้ามี)</SectionLabel>{checkingPreviousSave ? <Text>{selectedCase?.label ?? 'ไม่ผูกคดี'}</Text> : <CasePicker value={selectedCase} onChange={setSelectedCase} allowNone />}</>}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
       <Text style={{ flex: 1, color: colors.text }}>กำหนดวันที่ครบกำหนด</Text>
-      <Switch value={hasDue} onValueChange={setHasDue} disabled={busy || checkingPreviousSave || !!savedId || (!!id && !!task.data?.dueDate)} />
+      <Switch accessibilityLabel="กำหนดวันที่ครบกำหนด" trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface}
+        value={hasDue} onValueChange={setHasDue} disabled={busy || checkingPreviousSave || !!savedId || (!!id && !!task.data?.dueDate)} />
     </View>
     {hasDue && (checkingPreviousSave ? <Text>{dueDate}</Text> : <DatePicker value={dueDate} onChange={setDueDate} />)}
     {id && <Dropdown label="สถานะงาน" value={status} onChange={setStatus} disabled={busy || !!savedId || !canStatus || task.data?.status === 'PENDING_REVIEW'}
@@ -241,7 +244,7 @@ export default function TaskFormScreen() {
         ...(status === 'PENDING_REVIEW' || status === 'NEEDS_REVISION' ? [{ value: status, label: status === 'PENDING_REVIEW' ? 'รอตรวจ' : 'ส่งกลับแก้ไข' }] : [])]} />
     }
     {!id && !routineChoice && <>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><Text style={{ flex: 1 }}>ต้องตรวจผลงานก่อนปิด</Text><Switch value={requiresReview} onValueChange={setRequiresReview} disabled={busy || checkingPreviousSave} /></View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><Text style={{ flex: 1 }}>ต้องตรวจผลงานก่อนปิด</Text><Switch accessibilityLabel="ต้องตรวจผลงานก่อนปิด" trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface} value={requiresReview} onValueChange={setRequiresReview} disabled={busy || checkingPreviousSave} /></View>
       {requiresReview && <Dropdown label="ผู้ตรวจผลงาน" value={reviewerId} onChange={setReviewerId} options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} disabled={busy || checkingPreviousSave} />}
     </>}
     <FormField label="รายละเอียด · เติมทีหลังได้" value={description} onChange={setDescription} multiline disabled={busy || checkingPreviousSave || !!savedId || !!routineChoice || !!task.data?.routine} />
@@ -257,7 +260,7 @@ export default function TaskFormScreen() {
     {task.data?.attachments?.map(file => <Button key={file.id} title={`เปิด ${file.filename}`} ghost onPress={() =>
       openTaskAttachment(id!, file.id, file.filename).catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message))} />)}
     <Attachments files={files} onChange={setFiles} disabled={busy} />
-    </>}
+    </FormSection>}
     {!!savedId && <Text style={{ color: colors.info }}>งานบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อโดยไม่สร้างงานซ้ำ</Text>}
     {checkingPreviousSave && <Text style={{ color: colors.info }}>ยังตรวจผลบันทึกครั้งก่อน · กดบันทึกซ้ำใช้คำขอเดิมและไม่เพิ่มงานซ้ำ</Text>}
     {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}

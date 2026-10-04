@@ -10,7 +10,7 @@ import { PAYMENT_METHOD_LABEL, type CollectionDetail, type InvoicePaymentItem } 
 import { useTaskDraft } from '@/hooks/useTaskDraft';
 import { Text } from '@/components/AppText';
 import { Button, Card, EmptyNote, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
-import { FormField, FormPage } from '@/components/Form';
+import { FormField, FormPage, FormSection } from '@/components/Form';
 import { Dropdown } from '@/components/Dropdown';
 import { DatePicker } from '@/components/DatePicker';
 import { bangkokDay, formatMoney, thDate } from '@/format';
@@ -85,7 +85,7 @@ export default function InvoiceScreen() {
         <Text>{data.collectionNote ?? 'ยังไม่มีบันทึกผลติดตาม / ปัญหา'}</Text>
         {!tracking && <Button title="บันทึกผู้ติดตาม / วันนัด / ปัญหา" ghost disabled={disabled} onPress={() => setTracking({ ownerId: data.collectionOwner?.id ?? user!.id, nextAt: data.collectionNextAt ?? today, note: data.collectionNote ?? '', updatedAt: data.updatedAt })} />}
       </Card>
-      {tracking && <>
+      {tracking && <FormSection title="บันทึกการติดตาม">
         {members.isError && <ErrorNote message="โหลดรายชื่อผู้ติดตามไม่ได้" onRetry={() => members.refetch()} />}
         <Dropdown label="ผู้รับผิดชอบติดตาม" value={tracking.ownerId} disabled={busy} onChange={ownerId => setTracking({ ...tracking, ownerId })}
           options={[{ value: '', label: 'ยังไม่ระบุผู้ติดตาม' }, ...(members.data ?? []).map(member => ({ value: member.id, label: `${member.firstName} ${member.lastName}` }))]} />
@@ -96,10 +96,9 @@ export default function InvoiceScreen() {
           <Button title="ใช้สถานะล่าสุดและคงข้อความร่าง" ghost disabled={disabled} onPress={() => setTracking({ ...tracking, updatedAt: data.updatedAt })} /></>}
         <Button title="บันทึกการติดตาม" disabled={disabled || tracking.updatedAt !== data.updatedAt} busy={saveTracking.isPending} onPress={() => saveTracking.mutate(tracking)} />
         <Button title="ยกเลิกร่างการติดตาม" ghost disabled={busy} onPress={() => setTracking(null)} />
-      </>}
+      </FormSection>}
       {!payment && <Button title="บันทึกรับเงินจริง" disabled={disabled} onPress={() => setPayment({ amount: String(data.outstanding), receivedAt: today, method: 'TRANSFER', note: '', createRequestId: requestId() })} />}
-      {payment && <>
-        <SectionLabel>รับเงินตามหลักฐานการชำระ</SectionLabel>
+      {payment && <FormSection title="รับเงินตามหลักฐานการชำระ">
         <FormField label="จำนวนเงินที่รับจริง (บาท)" value={payment.amount} disabled={busy} onChange={amount => patchPayment({ amount })} placeholder="เช่น 1000.00" />
         <SectionLabel>วันที่รับเงินจริง</SectionLabel>{busy ? <Text>{thDate(payment.receivedAt)}</Text> : <DatePicker value={payment.receivedAt} onChange={receivedAt => patchPayment({ receivedAt })} />}
         <Dropdown label="ช่องทางรับเงิน" value={payment.method} disabled={busy} options={Object.entries(PAYMENT_METHOD_LABEL).map(([value, label]) => ({ value, label }))} onChange={method => patchPayment({ method: method as Payment['method'] })} />
@@ -110,7 +109,7 @@ export default function InvoiceScreen() {
           Alert.alert('ยืนยันรับเงินจริง', `${data.invoiceNumber} · ${formatMoney(amount)} ฿\n${thDate(payment.receivedAt)} · ${PAYMENT_METHOD_LABEL[payment.method]}\nยืนยันตามหลักฐานการชำระที่ตรวจแล้ว`, [{ text: 'ยกเลิก', style: 'cancel' }, { text: 'บันทึกรับเงิน', onPress: () => receive.mutate(payment) }]);
         }} />
         <Button title="ยกเลิกร่างรับเงิน" ghost disabled={busy} onPress={() => setPayment(null)} />
-      </>}
+      </FormSection>}
     </>}
     {(tracking || payment) && <View>{draft.message ? <Text style={{ color: colors.info }}>{draft.message}</Text> : null}
       {draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : null}</View>}
