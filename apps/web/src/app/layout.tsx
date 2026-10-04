@@ -31,8 +31,8 @@ export const metadata: Metadata = {
     images: ['/marketing/og.png'],
   },
   icons: {
-    icon: '/brand/samnuan-icon.png',
-    apple: '/brand/samnuan-icon.png',
+    icon: { url: '/brand/samnuan-balance-favicon.png', type: 'image/png', sizes: '32x32' },
+    apple: { url: '/brand/samnuan-balance-icon.png', type: 'image/png', sizes: '256x256' },
   },
 };
 

@@ -10,7 +10,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, ApiError, clearTokens, getTokens, setTokens, USER_PROFILE_KEY } from './client';
 import { unregisterPush } from './push';
-import type { AuthUserInfo, LoginResponse } from './types';
+import type { AuthUserInfo, LoginResponse, MfaChallenge, RegisterInput } from './types';
 
 interface AuthContextValue {
   /** null while restoring the session from SecureStore. */
@@ -22,7 +22,10 @@ interface AuthContextValue {
    * created by typing the password just now needs no second challenge.
    */
   restored: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<MfaChallenge | null>;
+  verifyMfa: (mfaToken: string, code: string) => Promise<void>;
+  register: (input: RegisterInput) => Promise<void>;
+  refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -81,15 +84,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api<LoginResponse>('/auth/login', {
-      method: 'POST',
-      body: { email, password },
-    });
+  const acceptSession = useCallback(async (res: LoginResponse) => {
     await setTokens(res.accessToken, res.refreshToken);
     setRestored(false);
     const me = res.user ?? (await api<AuthUserInfo>('/auth/me'));
     await cacheUser(me, res.refreshToken);
+    setUser(me);
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    const res = await api<LoginResponse | MfaChallenge>('/auth/login', {
+      method: 'POST', body: { email: email.trim().toLowerCase(), password },
+    });
+    if ('mfaRequired' in res) return res;
+    await acceptSession(res);
+    return null;
+  }, [acceptSession]);
+
+  const verifyMfa = useCallback(async (mfaToken: string, code: string) => {
+    await acceptSession(await api<LoginResponse>('/auth/mfa/verify', { method: 'POST', body: { mfaToken, code } }));
+  }, [acceptSession]);
+
+  const register = useCallback(async (input: RegisterInput) => {
+    await acceptSession(await api<LoginResponse>('/auth/register', { method: 'POST', body: input }));
+  }, [acceptSession]);
+
+  const refreshUser = useCallback(async () => {
+    const { refreshToken } = await getTokens();
+    const me = await api<AuthUserInfo>('/auth/me');
+    if ((await getTokens()).refreshToken !== refreshToken) throw new Error('Session changed while loading profile');
+    await cacheUser(me, refreshToken);
+    if ((await getTokens()).refreshToken !== refreshToken) throw new Error('Session changed while caching profile');
     setUser(me);
   }, []);
 
@@ -110,8 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ready, user, restored, login, logout }),
-    [ready, user, restored, login, logout],
+    () => ({ ready, user, restored, login, verifyMfa, register, refreshUser, logout }),
+    [ready, user, restored, login, verifyMfa, register, refreshUser, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

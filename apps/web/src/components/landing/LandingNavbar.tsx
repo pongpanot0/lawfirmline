@@ -30,8 +30,13 @@ export function LandingNavbar() {
           boxShadow: '0 1px 2px oklch(23% 0.02 40 / 0.05)',
         }}
       >
-        <Link href="/" className="flex shrink-0 items-center gap-2 pl-1.5" onClick={close}>
-          <SamnuanLogo className="lf-display text-base sm:text-lg" markClassName="h-8 w-8 rounded-full" />
+        <Link href="/" aria-label="Samnuan" className="flex shrink-0 items-center gap-2 pl-1.5" onClick={close}>
+          <SamnuanLogo
+            variant="horizontal"
+            className="text-[var(--color-brand)]"
+            markClassName="h-9 w-9 sm:h-10 sm:w-10"
+            wordmarkClassName="text-base sm:text-lg"
+          />
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm md:flex" style={{ color: 'var(--color-ink-2)' }}>

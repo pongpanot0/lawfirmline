@@ -6,6 +6,8 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { MfaService } from './mfa.service';
 import { SessionService } from './session.service';
+import { AccountService } from './account.service';
+import { AccountController } from './account.controller';
 import { SaasModule } from '../saas/saas.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -16,8 +18,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     forwardRef(() => SaasModule),
     forwardRef(() => NotificationsModule),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, MfaService, SessionService],
+  controllers: [AuthController, AccountController],
+  providers: [AuthService, JwtStrategy, MfaService, SessionService, AccountService],
   exports: [AuthService],
 })
 export class AuthModule {}

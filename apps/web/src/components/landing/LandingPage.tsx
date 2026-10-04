@@ -16,6 +16,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { fbTrack } from '@/components/FacebookPixel';
+import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 import { useLocale } from './LocaleProvider';
 import { demoHref } from './contact';
 import { LandingNavbar } from './LandingNavbar';
@@ -279,13 +280,21 @@ export function LandingPage() {
       {/* Footer — Ft2 inline single line */}
       <footer className="border-t" style={{ borderColor: 'var(--color-rule)' }}>
         <div className="lf-shell flex flex-col items-center justify-between gap-3 py-8 text-center sm:flex-row sm:text-left">
-          <Link href="/" className="flex items-center gap-2">
-            <img src="/brand/samnuan-icon.png" alt="" className="h-7 w-7 rounded-full object-contain" />
-            <span className="lf-display text-sm">Samnuan</span>
+          <Link href="/" aria-label="Samnuan" className="flex items-center gap-2">
+            <SamnuanLogo
+              variant="horizontal"
+              className="text-[var(--color-brand)]"
+              markClassName="h-8 w-8"
+              wordmarkClassName="text-sm"
+            />
           </Link>
           <p className="text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
             {t.footer}
           </p>
+          <nav className="flex flex-wrap justify-center gap-4 text-xs" aria-label="ข้อมูลบัญชี">
+            <Link href="/privacy" className="underline underline-offset-4">ความเป็นส่วนตัว</Link>
+            <Link href="/delete-account" className="underline underline-offset-4">ขอลบบัญชี</Link>
+          </nav>
         </div>
       </footer>
     </div>
