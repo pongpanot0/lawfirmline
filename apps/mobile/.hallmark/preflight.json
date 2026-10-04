@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-04",
+  "framework": "Expo 56 / React Native 0.85 / Expo Router",
+  "fontSource": "app/_layout.tsx:8",
+  "fonts": ["Anuphan_600SemiBold", "Anuphan_700Bold", "platform Thai body"],
+  "tokens": "src/theme.ts",
+  "motion": "press feedback only; no new spatial animation",
+  "spacing": "4 / 8 / 12 / 16 / 24",
+  "routeFamilies": {
+    "tabs": ["Today", "Cases", "Calendar", "Tasks", "Team"],
+    "people": ["person/[id]", "team-week"],
+    "operations": ["owner-decisions", "owner-finance", "operations", "task/new", "task/blocker"],
+    "cases": ["case/[id]", "case/[id]/close", "case/new", "intake/new", "court-day/[eventId]", "scan/[caseId]"],
+    "events": ["event/new", "event/[id]/team"],
+    "account": ["account", "settings", "(auth)/login", "(auth)/register", "(auth)/forgot-password"],
+    "office": ["more", "search", "notifications", "reports", "knowledge", "leaves", "document-template", "document-waiting", "invoice/[id]", "clients/index", "clients/[id]", "expenses/index", "expenses/new", "expenses/claims", "expenses/claim/[id]"]
+  }
+}

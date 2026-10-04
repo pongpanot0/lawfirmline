@@ -19,7 +19,7 @@ import { useAuth } from '@/api/auth';
 import { listTaskDrafts, taskDraftScope } from '@/api/drafts';
 import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange, useTodos, useDailyWorkboard, usePendingLeaves, useOwnerFinance, useUnreadNotifications } from '@/api/hooks';
 import { AgendaItemKind, AgendaUrgency, followUpReason, ownerDecisionTasks, assignmentCandidates, assignmentWarnings, canAssignFirmRole, FirmRole, TaskWorkType } from '@lawfirm/shared';
-import { WorkloadSummary } from '@/components/WorkloadSummary';
+import { Disclosure } from '@/components/Disclosure';
 import { OwnerFinanceSummary } from '@/components/OwnerFinanceSummary';
 import type { AgendaItem } from '@/api/types';
 import {
@@ -31,7 +31,7 @@ import {
   Tag,
   TagTone,
 } from '@/components/ui';
-import { bangkokDay, formatMoney, thDateLong, thTime } from '@/format';
+import { bangkokDay, formatMoney, initials, thDateLong, thTime } from '@/format';
 import { agendaIncludesPerson } from '@/workflow';
 import { leaveFlagsForDate } from '@/lib/leave-flags';
 import { colors, fonts, spacing, pageContent } from '@/theme';
@@ -136,7 +136,6 @@ export default function MyDayScreen() {
   const appointments = useCalendarRange(today, today);
   const leaves = useLeaves(today, today, owner);
   const [showAllPeople, setShowAllPeople] = useState(false);
-  const [expandedPeople, setExpandedPeople] = useState<string[]>([]);
   const leaveFlags = leaveFlagsForDate(leaves.data ?? [], today);
   const pendingActions = new Set([...(actions.data?.items ?? []).map(item => item.id), ...(reviews.data ?? []).map(task => `task:${task.id}`)]).size;
 
@@ -145,7 +144,7 @@ export default function MyDayScreen() {
     else if (item.kind !== 'TASK') router.push(`/event/${item.entityId}/team`);
     else router.push(`/task/new?id=${item.entityId}`);
   };
-  const openPerson = (id: string) => router.push({ pathname: '/(tabs)/team', params: { memberId: id } });
+  const openPerson = (id: string) => router.push({ pathname: '/person/[id]', params: { id } });
 
   // The work queue omits finished appointments; today's calendar must keep them visible.
   const courtToday: AgendaItem[] = appointments.data ? appointments.data.map((event) => ({
@@ -183,7 +182,7 @@ export default function MyDayScreen() {
           <Text style={styles.date}>{thDateLong(new Date())}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="เมนูเพิ่มเติม" style={styles.bell} hitSlop={8} onPress={() => router.push('/more')}>
-          <LayoutGrid size={19} color={colors.ink} />
+          <LayoutGrid size={19} color={colors.surface} />
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -192,7 +191,7 @@ export default function MyDayScreen() {
           hitSlop={8}
           onPress={() => router.push('/notifications')}
         >
-          <Bell size={20} color={colors.ink} />
+          <Bell size={20} color={colors.surface} />
           {/* The number is unread news; a bare dot means only the waiting queue has items. */}
           {unread > 0 ? (
             <View style={styles.bellBadge}>
@@ -206,28 +205,27 @@ export default function MyDayScreen() {
 
       {owner && <>
         <SectionLabel>คิวตัดสินใจวันนี้</SectionLabel>
-        <Card style={{ gap: spacing.sm }}>
+        <Card style={{ gap: spacing.sm, backgroundColor: colors.ink, borderColor: colors.ink }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>{[
             { view: 'review', label: 'งานรอคุณตรวจ', count: reviews.isError ? undefined : reviews.data?.length },
             { view: 'leave', label: 'ลารออนุมัติ', count: pendingLeaves.isError ? undefined : pendingLeaves.data?.length },
             { view: 'claim', label: 'เบิกรออนุมัติ', count: claims.isError ? undefined : claims.data?.filter(item => item.status === 'PENDING').length },
           ].map(item => <Pressable key={item.view} accessibilityRole="button" style={{ flexBasis: '30%', flexGrow: 1, minWidth: 92, minHeight: 64, gap: 4 }}
-            onPress={() => router.push(`/owner-decisions?view=${item.view}`)}><Text style={{ color: colors.muted }}>{item.label}</Text>
-            <Text style={{ color: colors.ink, fontSize: 22, fontWeight: '700' }}>{item.count ?? '—'}</Text><Text style={{ color: colors.info, fontSize: 12 }}>เปิดหลักฐาน / จัดการ</Text></Pressable>)}</View>
+             onPress={() => router.push(`/owner-decisions?view=${item.view}`)}><Text style={{ color: colors.infoSoft }}>{item.label}</Text>
+             <Text style={{ color: colors.surface, fontSize: 26, fontFamily: fonts.bold }}>{item.count ?? '—'}</Text><Text style={{ color: colors.infoSoft, fontSize: 12 }}>เปิดรายการ ›</Text></Pressable>)}</View>
           {pendingLeaves.isError && <ErrorNote message="โหลดลารออนุมัติไม่ได้" onRetry={() => pendingLeaves.refetch()} />}
-          <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/owner-decisions')}><Text style={{ color: colors.info }}>เปิดคิวทั้งหมด รวมเรื่องที่ต้องเข้าไปช่วย</Text></Pressable>
+          <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/owner-decisions')}><Text style={{ color: colors.surface }}>ดูคิวที่ต้องจัดการทั้งหมด ›</Text></Pressable>
         </Card>
-        <Card style={{ marginTop: spacing.sm }}><Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/team-week')}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>กำลังคนทั้งสัปดาห์</Text><Text style={{ color: colors.info }}>เทียบศาล วันลา และภาระงาน / เลือกงานที่จะย้าย</Text>
-        </Pressable></Card>
-        <SectionLabel>เงินสำนักงาน · เปิดรายการได้</SectionLabel>
+        <Disclosure title="เงินสำนักงาน" summary={finance.data ? `ลูกหนี้ ${formatMoney(finance.data.totals.receivable)} ฿ · ดูรายการ` : 'ลูกหนี้และรายการที่ต้องตาม'}>
         {finance.isError && <ErrorNote message="โหลดข้อมูลการเงินล่าสุดไม่ได้" onRetry={() => finance.refetch()} />}
         <OwnerFinanceSummary data={finance.data} onOpen={view => router.push(`/owner-finance?view=${view}`)} />
         <Card style={{ marginTop: spacing.sm }}><Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/owner-finance')}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>ลูกหนี้ที่ต้องตาม · {finance.data ? `${formatMoney(finance.data.totals.receivable)} ฿` : '—'}</Text>
           <Text style={{ color: colors.info }}>ดูครบกำหนด ผู้ติดตาม ปัญหา และบันทึกรับเงิน</Text>
         </Pressable></Card>
-        <SectionLabel>เรื่องที่ต้องตัดสินใจก่อน</SectionLabel>
+        </Disclosure>
+        {(decisions.length > 0 || daily.isLoading || daily.isError) && <>
+        <SectionLabel>งานที่ต้องเข้าไปช่วย</SectionLabel>
         <Card style={{ gap: spacing.sm }}>
           {daily.isError ? <ErrorNote message="ยังตรวจงานเสี่ยงล่าสุดไม่ได้" onRetry={() => daily.refetch()} />
             : daily.isLoading ? <EmptyNote>กำลังตรวจงานทีม…</EmptyNote>
@@ -237,7 +235,8 @@ export default function MyDayScreen() {
               </Pressable>)}
           {decisions.length > 4 && <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { view: 'follow-up' } })}><Text style={{ color: colors.info }}>เปิดคิวติดตามทั้งหมด · {decisions.length} เรื่อง</Text></Pressable>}
         </Card>
-        <SectionLabel>พิจารณาคนก่อนมอบหมาย</SectionLabel>
+        </>}
+        <Disclosure title="เทียบคนก่อนมอบหมาย" summary="คิวงาน นัด และวันลาล่วงหน้า 7 วัน">
         <Card style={{ gap: spacing.sm }}>
           <Text style={styles.agendaCase}>เรียงจากคิวและรายงานที่บันทึกไว้ · ยังไม่ได้ยืนยันเวลาว่าง</Text>
           {assignmentPeople.map(person => <Pressable key={person.member.userId} accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push({ pathname: '/task/new', params: { assigneeId: person.member.userId } })}>
@@ -249,8 +248,9 @@ export default function MyDayScreen() {
           </Pressable>)}
           {!assignmentPeople.length && <EmptyNote>ยังไม่มีคนที่ตั้งประเภทงานนี้และไม่ตรงวันลา · เปิดเทียบทีมก่อนเลือก</EmptyNote>}
           <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/task/new')}><Text style={{ color: colors.info }}>เทียบคนทั้งทีม / เลือกประเภทงาน</Text></Pressable>
-          <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/team-week')}><Text style={{ color: colors.info }}>ภาระงานทีมล่วงหน้า 7 วัน</Text></Pressable>
+          <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/team-week')}><Text style={{ color: colors.info }}>ดูภาระงาน 7 วัน ›</Text></Pressable>
         </Card>
+        </Disclosure>
       </>}
       <SectionLabel>งานที่ต้องจัดการ</SectionLabel>
       <Card style={{ marginBottom: spacing.md, gap: spacing.sm }}>
@@ -318,7 +318,8 @@ export default function MyDayScreen() {
               <View style={styles.personDay}>
                 <View style={styles.personHead}>
                   <Pressable accessibilityRole="link" accessibilityLabel={`ดูงานและนัดของ ${member.name}`}
-                    style={{ flex: 1, minHeight: 44, justifyContent: 'center' }} onPress={() => openPerson(member.id)}>
+                    style={styles.personIdentity} onPress={() => openPerson(member.id)}>
+                    <View style={styles.personAvatar}><Text style={styles.personInitials}>{initials(member.name)}</Text></View>
                     <Text style={styles.personName}>{member.name} ›</Text>
                   </Pressable>
                   {leave ? <Tag tone={leave.kind === 'ON_LEAVE' ? 'due' : 'plain'}>{leave.label}</Tag> : null}
@@ -327,30 +328,8 @@ export default function MyDayScreen() {
                   นัดวันนี้ {appointments.data || myDay.data ? events.length : '—'} · งานครบกำหนด {myDay.data ? tasks.length : '—'}
                 </Text>
                 <Text style={styles.personSummary}>คิวค้าง {peopleToday.find(p => p.member.userId === member.id)?.queue.length ?? '—'} · รอตรวจ {peopleToday.find(p => p.member.userId === member.id)?.reviews.length ?? '—'}</Text>
-                <Pressable accessibilityRole="button" accessibilityState={{ expanded: expandedPeople.includes(member.id) }} style={styles.peopleButton}
-                  onPress={() => setExpandedPeople(previous => previous.includes(member.id) ? previous.filter(id => id !== member.id) : [...previous, member.id])}>
-                  <Text style={{ color: colors.info }}>{expandedPeople.includes(member.id) ? 'ย่อรายละเอียด' : 'ดูงาน นัด และจุดติดขัด'}</Text>
-                </Pressable>
-                {expandedPeople.includes(member.id) && <>
-                {events.slice(0, 2).map((item) => <Pressable key={item.id} accessibilityRole="button"
-                  style={styles.personEvent} onPress={() => openItem(item)}>
-                  <Text style={styles.personEventTime}>{item.allDay ? 'ทั้งวัน' : thTime(item.at)}</Text>
-                  <Text style={styles.personEventTitle} numberOfLines={2}>
-                    {item.title}{item.kind === 'COURT_DATE' ? ` · ${item.assigneeId === member.id ? 'หลัก' : 'ร่วม'}` : ''}
-                  </Text>
-                </Pressable>)}
-                {events.length > 2 && <Text style={styles.agendaCase}>อีก {events.length - 2} นัด · ดูรายการนัดด้านล่าง</Text>}
-                {tasks.length > 0 && <Text style={styles.personTask} numberOfLines={2}>
-                  งาน: {tasks.slice(0, 2).map((item) => item.title).join(' · ')}{tasks.length > 2 ? ` · อีก ${tasks.length - 2} งาน` : ''}
-                </Text>}
                 {leave?.kind === 'ON_LEAVE' && (events.length > 0 || tasks.length > 0)
                   ? <Text style={{ color: colors.warn, fontSize: 12 }}>มีนัดหรืองานตรงวันลา · ตรวจผู้รับผิดชอบ</Text> : null}
-                <WorkloadSummary candidate={peopleToday.find(person => person.member.userId === member.id)} onTask={id => router.push(`/task/new?id=${id}`)} />
-                {member.id !== user?.id && peopleToday.some(p => p.member.userId === member.id && canAssignFirmRole(FirmRole.OWNER, p.member.role as FirmRole)) && <Pressable accessibilityRole="button" style={styles.peopleButton}
-                  onPress={() => router.push({ pathname: '/task/new', params: { assigneeId: member.id } })}>
-                  <Text style={{ color: colors.info, fontWeight: '600' }}>มอบหมายให้ {member.name}</Text>
-                </Pressable>}
-                </>}
               </View>
             </View>;
           })}
@@ -360,7 +339,7 @@ export default function MyDayScreen() {
           </Pressable>}
           <View style={styles.peopleActions}>
             <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/task/new')}>
-              <Text style={{ color: colors.info, fontWeight: '600' }}>เทียบคนก่อนมอบหมาย</Text>
+              <Text style={{ color: colors.info, fontWeight: '600' }}>สร้างงาน / เลือกผู้รับผิดชอบ</Text>
             </Pressable>
             <Pressable accessibilityRole="button" style={styles.peopleButton} onPress={() => router.push('/(tabs)/team')}>
               <Text style={{ color: colors.info }}>ดูภาระงานทั้งทีม</Text>
@@ -423,7 +402,7 @@ export default function MyDayScreen() {
       </>}
 
       <View style={styles.statRow}>
-        <StatCard label="นัดวันนี้" value={appointments.data || myDay.data ? courtToday.length : '—'} />
+        <StatCard label="นัดวันนี้" value={appointments.data || myDay.data ? courtToday.length : '—'} tone="court" />
         <StatCard
           label="เกินกำหนด"
           value={myDay.data?.overdue.length ?? '—'}
@@ -463,11 +442,12 @@ export default function MyDayScreen() {
           <Pressable
             key={shortcut.route}
             accessibilityRole="button"
+            accessibilityLabel={shortcut.label}
             style={({ pressed }) => [styles.shortcut, pressed && { opacity: 0.7 }]}
             onPress={() => router.push(shortcut.route as never)}
           >
             <View style={styles.shortcutIcon}>
-              <shortcut.Icon size={19} color={colors.accentInk} />
+              <shortcut.Icon size={19} color={colors.info} />
             </View>
             <Text style={styles.shortcutLabel} numberOfLines={1}>
               {shortcut.label}
@@ -486,7 +466,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.soft,
+    backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -504,34 +484,34 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.bg,
   },
-  bellBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  bellBadgeText: { color: colors.surface, fontSize: 9, fontWeight: '700' },
   bellDot: { position: 'absolute', top: 8, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.warn, borderWidth: 1.5, borderColor: colors.bg },
   hello: { fontSize: 24, fontFamily: fonts.bold, color: colors.ink },
   date: { fontSize: 13, color: colors.muted, marginTop: 2 },
   personDay: { paddingVertical: spacing.md, gap: spacing.xs },
   personHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  personName: { color: colors.info, fontFamily: fonts.semibold, fontSize: 15 },
+  personIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48 },
+  personAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.infoSoft, alignItems: 'center', justifyContent: 'center' },
+  personInitials: { color: colors.info, fontFamily: fonts.bold, fontSize: 12 },
+  personName: { flex: 1, color: colors.ink, fontFamily: fonts.semibold, fontSize: 15 },
   personLinks: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   personLink: { color: colors.info, fontSize: 12, fontWeight: '600' },
   personSummary: { color: colors.muted, fontSize: 13 },
-  personEvent: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
-  personEventTime: { color: colors.ink, fontSize: 13, fontWeight: '600', width: 44 },
-  personEventTitle: { color: colors.info, fontSize: 13, flex: 1 },
-  personTask: { color: colors.text, fontSize: 13 },
   peopleButton: { minHeight: 44, justifyContent: 'center' },
   peopleActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.md },
   statRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
   shortcutRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: spacing.md,
     marginTop: spacing.md,
   },
-  shortcut: { alignItems: 'center', gap: 4, flex: 1 },
+  shortcut: { alignItems: 'center', gap: spacing.xs, flexBasis: '25%', minHeight: 64 },
   shortcutIcon: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.infoSoft,
     borderWidth: 1,
     borderColor: colors.line,
     alignItems: 'center',

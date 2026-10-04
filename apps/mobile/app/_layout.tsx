@@ -149,13 +149,14 @@ function SessionRoot() {
 function AppStack() {
   const { scale } = useDisplayPreferences();
   const insets = useSafeAreaInsets();
+  const segments = useSegments();
   return (
           <LockGate>
-            <StatusBar style="dark" />
+            <StatusBar style={segments[0] === '(auth)' ? 'dark' : 'light'} />
             <Stack
               screenOptions={{
-                headerStyle: { backgroundColor: colors.bg },
-                headerTintColor: colors.ink,
+                headerStyle: { backgroundColor: colors.ink },
+                headerTintColor: colors.surface,
                 headerBackTitle: 'กลับ',
                 headerTitleStyle: { fontFamily: fonts.bold, fontSize: 18 * scale },
                 contentStyle: { backgroundColor: colors.bg, paddingBottom: Platform.OS === 'android' ? insets.bottom : 0 },
@@ -168,6 +169,7 @@ function AppStack() {
               <Stack.Screen name="account" options={{ title: 'บัญชีของฉัน' }} />
               <Stack.Screen name="case/[id]" options={{ title: 'คดี' }} />
               <Stack.Screen name="team-week" options={{ title: 'ภาระงานทีม 7 วัน' }} />
+              <Stack.Screen name="person/[id]" options={{ title: 'รายละเอียดสมาชิก' }} />
               <Stack.Screen name="owner-decisions" options={{ title: 'คิวตัดสินใจวันนี้' }} />
               <Stack.Screen name="owner-finance" options={{ title: 'เงินสำนักงาน / ลูกหนี้' }} />
               <Stack.Screen name="invoice/[id]" options={{ title: 'ใบแจ้งหนี้ / รับเงิน' }} />

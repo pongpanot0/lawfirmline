@@ -44,15 +44,16 @@ export function StatCard({
 }: {
   label: string;
   value: number | string;
-  tone?: 'warn';
+  tone?: 'warn' | 'info' | 'court';
   hint?: string;
 }) {
+  const palette = TAG_TONES[tone === 'warn' ? 'due' : tone ?? 'info'];
   return (
-    <Card style={styles.statCard}>
-      <Text style={styles.statLabel} numberOfLines={1}>
+    <Card style={[styles.statCard, { backgroundColor: palette.bg, borderTopColor: palette.fg }]}>
+      <Text style={[styles.statLabel, { color: palette.fg }]} numberOfLines={2}>
         {label}
       </Text>
-      <Text style={[styles.statValue, tone === 'warn' && { color: colors.warn }]}>
+      <Text style={[styles.statValue, { color: palette.fg }]}>
         {value}
       </Text>
       {hint ? <Text style={styles.statHint}>{hint}</Text> : null}
@@ -128,13 +129,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.card,
     padding: spacing.md,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 5,
+    elevation: 2,
   },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: colors.faint,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    color: colors.ink,
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
@@ -145,13 +149,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   tagText: { fontSize: 11, fontWeight: '600' },
-  statCard: { flex: 1, justifyContent: 'space-between', gap: 2 },
+  statCard: { flex: 1, minWidth: 0, minHeight: 88, borderTopWidth: 3, justifyContent: 'space-between', gap: 4 },
   statLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.faint,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: colors.muted,
   },
   statHint: { fontSize: 11, color: colors.faint },
   statValue: {
@@ -168,7 +170,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
   },
-  buttonGhost: { backgroundColor: colors.soft },
+  buttonGhost: { backgroundColor: colors.infoSoft, borderWidth: 1, borderColor: colors.line },
   buttonText: { color: colors.bg, fontWeight: '600', fontSize: 15 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: {

@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import { calendarRangeQuery } from '../format';
-import type { DailyWorkboard } from '@lawfirm/shared';
+import type { DailyWorkboard, PersonWorkload } from '@lawfirm/shared';
 import type {
   AppNotification,
   CalendarEventItem,
@@ -273,6 +273,14 @@ export function useWorkload(enabled = true) {
     queryKey: ['workload'],
     queryFn: () => api<WorkloadResponse>('/dashboard/workload'),
     enabled,
+  });
+}
+
+export function usePersonWorkload(id: string, from: string) {
+  return useQuery({
+    queryKey: ['person-workload', id, from],
+    queryFn: () => api<PersonWorkload>(`/operations/people/${encodeURIComponent(id)}?from=${encodeURIComponent(from)}`),
+    enabled: !!id,
   });
 }
 
