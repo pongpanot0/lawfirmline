@@ -5,7 +5,7 @@ import { useAuth } from '@/api/auth';
 import { useOwnerKpis, useReportsSummary, useOwnerFinance } from '@/api/hooks';
 import { useRouter } from 'expo-router';
 import { OwnerFinanceSummary } from '@/components/OwnerFinanceSummary';
-import { Card, ErrorNote, Loading, SectionLabel, StatCard, Tag } from '@/components/ui';
+import { Card, ErrorNote, Loading, PageIntro, SectionLabel, StatCard } from '@/components/ui';
 import { formatMoney } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
 
@@ -36,7 +36,7 @@ export default function ReportsScreen() {
         <RefreshControl refreshing={reports.isRefetching} onRefresh={() => { void reports.refetch(); if (user?.firmRole === 'OWNER') { void ownerKpis.refetch(); void finance.refetch(); } }} />
       }
     >
-      <Tag tone="info">{scope === 'firm' ? 'ภาพรวมทั้งสำนักงาน' : 'เฉพาะคดีของฉัน'}</Tag>
+      <PageIntro title="สรุปงานและผลคดี" detail={scope === 'firm' ? 'ภาพรวมทั้งสำนักงาน' : 'เฉพาะคดีที่คุณรับผิดชอบ'} />
 
       {ownerKpis.isSuccess && ownerKpis.data && (
         <>
@@ -96,13 +96,15 @@ export default function ReportsScreen() {
         ) : (
           caseVolumeByType.map((row) => (
             <View key={row.label} style={styles.volumeRow}>
-              <Text style={styles.volumeLabel} numberOfLines={1}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Text style={styles.volumeLabel}>
                 {row.label}
               </Text>
+              <Text style={styles.count}>{row.count}</Text>
+              </View>
               <View style={styles.track}>
                 <View style={[styles.fill, { width: `${(row.count / maxVolume) * 100}%` }]} />
               </View>
-              <Text style={styles.count}>{row.count}</Text>
             </View>
           ))
         )}
@@ -116,7 +118,7 @@ export default function ReportsScreen() {
               <View key={row.lawyerName}>
                 {index > 0 && <View style={styles.divider} />}
                 <View style={styles.lawyerRow}>
-                  <Text style={styles.volumeLabel} numberOfLines={1}>
+                  <Text style={styles.volumeLabel}>
                     {row.lawyerName}
                   </Text>
                   <Text style={styles.meta}>{row.hours.toLocaleString('th-TH')} ชม.</Text>
@@ -138,14 +140,11 @@ const styles = StyleSheet.create({
   statRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   empty: { color: colors.faint, textAlign: 'center', paddingVertical: spacing.lg },
   volumeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.sm,
-    paddingVertical: 6,
+    paddingVertical: spacing.md,
   },
   volumeLabel: { flex: 1, fontSize: 13, color: colors.text, fontWeight: '600' },
   track: {
-    flex: 1,
     height: 6,
     borderRadius: 3,
     backgroundColor: colors.soft,
@@ -160,7 +159,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontVariant: ['tabular-nums'],
   },
-  lawyerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 7 },
+  lawyerRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
   meta: { fontSize: 12, color: colors.faint },
   divider: { height: 1, backgroundColor: colors.soft },
 });

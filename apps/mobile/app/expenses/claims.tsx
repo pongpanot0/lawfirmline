@@ -4,7 +4,7 @@ import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/api/auth';
 import { useExpenseClaims } from '@/api/hooks';
-import { Card, EmptyNote, ErrorNote, Loading, Tag, TagTone } from '@/components/ui';
+import { Card, EmptyNote, ErrorNote, Loading, PageIntro, Tag, TagTone } from '@/components/ui';
 import { Dropdown } from '@/components/Dropdown';
 import { formatMoney, thDate, thTime } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
@@ -24,14 +24,14 @@ export default function ClaimsScreen() {
   const rows = (claims.data ?? []).filter((claim) => !status || claim.status === status);
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={pageContent}
     refreshControl={<RefreshControl refreshing={claims.isRefetching} onRefresh={() => claims.refetch()} />}>
-    <Text style={{ color: colors.muted, marginBottom: spacing.md }}>{user?.firmRole === 'OWNER' ? 'ชุดเบิกจากทีม · แตะเพื่อตรวจรายการและใบเสร็จ' : 'ชุดที่ฉันส่งเบิก'}</Text>
+    <PageIntro title={user?.firmRole === 'OWNER' ? 'ชุดเบิกจากทีม' : 'ชุดที่ฉันส่งเบิก'} detail="แตะชุดเบิกเพื่อตรวจรายการ ใบเสร็จ และสถานะ" />
     <Dropdown label="สถานะชุดเบิก" value={status} onChange={setStatus} options={[{ value: '', label: 'ทุกสถานะ' },
       ...Object.entries(CLAIM_STATUS).map(([value, meta]) => ({ value, label: meta.label }))]} />
     {claims.isError && <ErrorNote message="โหลดชุดเบิกไม่สำเร็จ" onRetry={() => claims.refetch()} />}
     {!rows.length && !claims.isError && <EmptyNote>ไม่มีชุดเบิกในสถานะนี้</EmptyNote>}
     {rows.map((claim) => <Pressable key={claim.id} accessibilityRole="button" onPress={() => router.push(`/expenses/claim/${claim.id}`)}>
       <Card style={{ marginTop: spacing.md }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
+        <View style={{ gap: spacing.sm }}>
           <Text style={{ flex: 1, color: colors.ink, fontWeight: '700' }}>{claim.submittedBy.firstName} {claim.submittedBy.lastName}</Text>
           <Tag tone={CLAIM_STATUS[claim.status].tone}>{CLAIM_STATUS[claim.status].label}</Tag>
         </View>
@@ -39,6 +39,7 @@ export default function ClaimsScreen() {
         <Text style={{ color: colors.muted }}>{claim.itemCount} รายการ · ใบเสร็จ {claim.receiptCount} ใบ</Text>
         <Text style={{ color: colors.text }}>{claim.cases.map((item) => item.ownRef).join(' · ') || 'สำนักงาน'}</Text>
         <Text style={{ color: colors.muted }}>ส่ง {thDate(claim.submittedAt)} {thTime(claim.submittedAt)} · ชุด {claim.id.slice(0, 8)}</Text>
+        <Text style={{ color: colors.info, marginTop: spacing.sm }}>เปิดรายละเอียด ›</Text>
       </Card>
     </Pressable>)}
   </ScrollView>;

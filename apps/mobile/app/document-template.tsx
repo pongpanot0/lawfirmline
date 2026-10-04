@@ -8,7 +8,7 @@ import { taskDraftScope } from '@/api/drafts';
 import { useTaskDraft } from '@/hooks/useTaskDraft';
 import { useCase } from '@/api/hooks';
 import { Text } from '@/components/AppText';
-import { FormField, FormPage } from '@/components/Form';
+import { FormField, FormPage, FormSection } from '@/components/Form';
 import { Dropdown } from '@/components/Dropdown';
 import { Button, EmptyNote, ErrorNote, Loading } from '@/components/ui';
 import { colors } from '@/theme';
@@ -51,6 +51,7 @@ export default function DocumentTemplate() {
   if (!draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading />;
   return <FormPage>
     <Stack.Screen options={{ title: 'สร้างเอกสารจากแบบ' }} />
+    <FormSection title="แบบเอกสารของคดี">
     <Text>{legalCase.data?.ownRef} · {legalCase.data?.title}</Text>
     {legalCase.isError && <ErrorNote message="โหลดข้อมูลคดีไม่ได้" onRetry={() => legalCase.refetch()} />}
     {templates.isLoading && <Loading />}
@@ -58,7 +59,8 @@ export default function DocumentTemplate() {
     {templates.data?.length === 0 && <EmptyNote>ยังไม่มีแบบเอกสารสำหรับคดีนี้ ให้ Owner เพิ่มแบบในเมนูแบบเอกสารบนเว็บ</EmptyNote>}
     <Dropdown label="เลือกแบบเอกสาร" value={templateId} options={(templates.data ?? []).map(t => ({ value: t.id, label: t.name }))} disabled={busy || templates.isError || templates.isLoading}
       onChange={id => { if (content.trim()) Alert.alert('เปลี่ยนแบบเอกสาร', 'ข้อความในร่างจะถูกแทนด้วยแบบที่เลือก', [{ text: 'กลับ', style: 'cancel' }, { text: 'เปลี่ยนแบบ', onPress: () => void select(id) }]); else void select(id); }} />
-    {!!content && <>
+    </FormSection>
+    {!!content && <FormSection title="ตรวจร่างก่อนสร้างไฟล์">
       <Text style={{ color: colors.faint }}>ข้อมูลคดีและลูกความเติมแล้ว ตรวจข้อความและแทนช่อง {'{{ข้อมูล}}'} ที่ยังขาด ร่างจะบันทึกในคดีเพื่อเปิดตรวจต่อ</Text>
       <FormField label="ตรวจและแก้ร่างเอกสาร" value={content} onChange={text => { setContent(text); setReviewed(false); }} multiline disabled={busy} />
       <Button title={reviewed ? 'ตรวจร่างแล้ว' : 'ฉันตรวจร่างและเติมข้อมูลครบแล้ว'} ghost disabled={busy || /\{\{[^{}]+\}\}/.test(content)} onPress={() => setReviewed(true)} />
@@ -73,7 +75,7 @@ export default function DocumentTemplate() {
         } catch (e) { setError(e instanceof Error ? e.message : 'สร้างไฟล์ไม่สำเร็จ ร่างยังอยู่'); }
         finally { setBusy(false); }
       }} />
-    </>}
+    </FormSection>}
     {!!draft.message && <Text>{draft.message}</Text>}
     {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
     {!!error && <ErrorNote message={error} />}

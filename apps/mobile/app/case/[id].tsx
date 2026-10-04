@@ -15,6 +15,7 @@ import {
   useToggleTask,
 } from '@/api/hooks';
 import { ReassignSheet } from '@/components/ReassignSheet';
+import { Disclosure } from '@/components/Disclosure';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
   Card,
@@ -59,7 +60,10 @@ interface DocumentItem {
   updatedAt?: string;
 }
 
-function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
+function InfoRow({ label, value, onPress }: { label: string; value: string | null | undefined; onPress?: () => void }) {
+  if (onPress) return <Pressable accessibilityRole="button" accessibilityLabel={`ดูรายละเอียด ${value}`} onPress={onPress}
+    style={[styles.infoRow, { minHeight: 44 }]}><Text style={styles.infoLabel}>{label}</Text>
+    <Text style={[styles.infoValue, { color: colors.info }]}>{value || '—'} ›</Text></Pressable>;
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -121,6 +125,7 @@ export default function CaseDetailScreen() {
         }
       >
         <Text style={styles.caseTitle}>{detail.title}</Text>
+        <Disclosure title="จัดการคดีและผู้รับผิดชอบ" summary="แก้รายละเอียด เปลี่ยนทีม หรือจัดการสถานะคดี">
         <Button title="แก้ไขคดี / จัดคนหลักและคนรอง" ghost onPress={() => router.push(`/case/new?id=${id}`)} />
         {(user?.firmRole === 'OWNER' || user?.role === 'ADMIN' || user?.role === 'LAWYER') && <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
           {detail.status === 'CLOSED' || detail.status === 'ARCHIVED'
@@ -129,6 +134,7 @@ export default function CaseDetailScreen() {
           {detail.status === 'CLOSED' && <Button title="เก็บคดีเข้าคลัง" ghost onPress={() => router.push(`/case/${id}/close?action=archive`)} />}
         </View>}
 
+        </Disclosure>
         <View style={styles.segment}>
           {TABS.map((name) => (
             <Pressable
@@ -154,13 +160,17 @@ export default function CaseDetailScreen() {
             <View style={styles.divider} />
             <InfoRow
               label="คนหลัก"
+              onPress={detail.leadLawyer?.id ? () => router.push({ pathname: '/person/[id]', params: { id: detail.leadLawyer!.id } }) : undefined}
               value={
                 detail.leadLawyer
                   ? `${detail.leadLawyer.firstName} ${detail.leadLawyer.lastName}`
                   : null
               }
             />
-            <InfoRow label="คนรอง" value={(detail.assignments ?? []).filter(item => item.assignmentType === 'BUDDY').map(item => `${item.user.firstName} ${item.user.lastName}`).join(', ')} />
+            {(detail.assignments ?? []).filter(item => item.assignmentType === 'BUDDY').length ?
+              (detail.assignments ?? []).filter(item => item.assignmentType === 'BUDDY').map(item => <InfoRow key={item.userId} label="คนรอง"
+                value={`${item.user.firstName} ${item.user.lastName}`} onPress={() => router.push({ pathname: '/person/[id]', params: { id: item.userId } })} />)
+              : <InfoRow label="คนรอง" value={null} />}
             <InfoRow label="ลูกความ" value={detail.clientName ?? detail.client?.name} />
             <InfoRow label="ศาล" value={detail.courtName} />
             <InfoRow
@@ -283,7 +293,7 @@ export default function CaseDetailScreen() {
                         onPress={() => toggle.mutate({ task: { ...task, caseId: id }, done: !done })}
                         style={[styles.checkbox, done && styles.checkboxDone]}
                       >
-                        {done ? <Check size={13} color="#fff" strokeWidth={3} /> : null}
+                        {done ? <Check size={13} color={colors.surface} strokeWidth={3} /> : null}
                       </Pressable>
                       <View style={{ flex: 1 }}>
                         <Text
@@ -393,10 +403,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.soft,
     borderRadius: radius.button,
     padding: 3,
+    marginTop: spacing.md,
     marginBottom: spacing.md,
   },
   segmentItem: {
     flex: 1,
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: 9,
     borderRadius: radius.button - 2,
     alignItems: 'center',
@@ -417,7 +430,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: 7,
   },
-  infoLabel: { color: colors.faint, fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  infoLabel: { color: colors.faint, fontSize: 12, fontWeight: '600', maxWidth: '35%' },
   infoValue: { color: colors.text, fontSize: 14, flex: 1, textAlign: 'right' },
   divider: { height: 1, backgroundColor: colors.soft, marginVertical: 6 },
   listRow: {
@@ -434,7 +447,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: '#B9C1CC',
+    borderColor: colors.muted,
     alignItems: 'center',
     justifyContent: 'center',
   },

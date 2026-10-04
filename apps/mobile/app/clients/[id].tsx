@@ -50,8 +50,9 @@ export default function ClientDetailScreen() {
           <RefreshControl refreshing={client.isRefetching} onRefresh={() => client.refetch()} />
         }
       >
-        <Text style={styles.name}>{detail.name}</Text>
+        <Card><Text style={styles.name}>{detail.name}</Text>
         {detail.type ? <Text style={styles.type}>{detail.type}</Text> : null}
+        </Card>
 
         <SectionLabel>ผู้ติดต่อ</SectionLabel>
         <Card>
@@ -67,7 +68,7 @@ export default function ClientDetailScreen() {
                       {contact.name}
                       {contact.nickname ? ` (${contact.nickname})` : ''}
                     </Text>
-                    <Text style={styles.contactMeta} numberOfLines={1}>
+                    <Text style={styles.contactMeta}>
                       {[contact.position, contact.phone, contact.email]
                         .filter(Boolean)
                         .join(' · ') || '—'}
@@ -105,13 +106,11 @@ export default function ClientDetailScreen() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.caseRef}>{caseRow.ownRef}</Text>
-                    <Text style={styles.caseTitle} numberOfLines={2}>
+                    <Text style={styles.caseTitle}>
                       {caseRow.title}
                     </Text>
+                    <Tag tone={caseRow.status === 'CLOSED' ? 'ok' : 'info'}>{caseRow.status === 'CLOSED' ? 'ปิดแล้ว' : 'เปิด'}</Tag>
                   </View>
-                  <Tag tone={caseRow.status === 'CLOSED' ? 'ok' : 'info'}>
-                    {caseRow.status === 'CLOSED' ? 'ปิดแล้ว' : 'เปิด'}
-                  </Tag>
                 </Pressable>
               </View>
             ))
@@ -136,9 +135,9 @@ const styles = StyleSheet.create({
   contactName: { fontSize: 14, fontWeight: '600', color: colors.text },
   contactMeta: { fontSize: 12, color: colors.faint, marginTop: 2 },
   action: {
-    width: TOUCH - 6,
-    height: TOUCH - 6,
-    borderRadius: (TOUCH - 6) / 2,
+    width: TOUCH,
+    height: TOUCH,
+    borderRadius: TOUCH / 2,
     backgroundColor: colors.soft,
     alignItems: 'center',
     justifyContent: 'center',

@@ -9,7 +9,7 @@ import { api } from '@/api/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTodos, useToggleTask, useWorkload, useDailyWorkboard } from '@/api/hooks';
 import type { TaskItem } from '@/api/types';
-import { Button, Card, EmptyNote, ErrorNote, Loading, Tag } from '@/components/ui';
+import { Button, Card, EmptyNote, ErrorNote, Loading, PageIntro, Tag } from '@/components/ui';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { bangkokDay, thDate } from '@/format';
 import { canToggleTask } from '@/workflow';
@@ -75,6 +75,7 @@ export default function TasksScreen() {
       refreshing={query.isRefetching}
       onRefresh={() => query.refetch()}
       ListHeaderComponent={<View style={{ marginBottom: spacing.md, gap: spacing.sm }}>
+        <PageIntro title={memberId ? 'งานของสมาชิก' : views.find(item => item.value === view)?.label ?? 'งานของฉัน'} detail="แตะงานเพื่อดูรายละเอียด ส่งงาน หรืออัปเดตความคืบหน้า" />
         {memberId ? <Pressable accessibilityRole="button" style={styles.filter} onPress={() => router.replace('/(tabs)/tasks')}>
           <Text style={styles.filterText}>งานของ {workload.data?.members.find(member => member.id === memberId)?.name ?? 'สมาชิกทีม'} · กลับงานของฉัน ×</Text>
         </Pressable> : <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
@@ -98,11 +99,12 @@ export default function TasksScreen() {
               accessibilityLabel={`ทำงาน ${item.title} เสร็จแล้ว`} accessibilityState={{ checked: done, disabled: toggle.isPending }}
               disabled={toggle.isPending} onPress={() => toggle.mutate({ task: item, done: !done })}
               hitSlop={11} style={[styles.checkbox, done && styles.checkboxDone]}>
-              {done && <Check size={13} color="#fff" strokeWidth={3} />}
+              {done && <Check size={13} color={colors.surface} strokeWidth={3} />}
             </Pressable>}
             <Pressable accessibilityRole="button" accessibilityLabel={`เปิดงาน ${item.title}`} style={{ flex: 1, gap: spacing.xs, minHeight: TOUCH }}
               onPress={() => router.push(`/task/new?id=${item.id}`)}>
               <Text style={[styles.title, done && styles.titleDone]}>{item.title}</Text>
+              <Tag tone={done ? 'ok' : item.status === 'PENDING_REVIEW' ? 'info' : 'plain'}>{STATUS_LABEL[item.status] ?? item.status}</Tag>
               {item.case && <Text style={styles.meta} numberOfLines={1}>{item.case.ownRef} · {item.case.title}</Text>}
               <Text style={styles.meta}>ผู้รับผิดชอบ: {item.assignee ? `${item.assignee.firstName} ${item.assignee.lastName}` : item.assigneeId ? 'สมาชิกเดิม / โหลดชื่อไม่ได้' : 'ยังไม่ระบุ'}</Text>
               {reason && <Text style={{ color: colors.warn }}>{reason}</Text>}
@@ -114,7 +116,6 @@ export default function TasksScreen() {
               </Text>}
               {dailyTask?.followedUpAt && <Text style={styles.meta}>ตามล่าสุด {thDate(dailyTask.followedUpAt)}</Text>}
             </Pressable>
-            <Tag tone={done ? 'ok' : item.status === 'PENDING_REVIEW' ? 'info' : 'plain'}>{STATUS_LABEL[item.status] ?? item.status}</Tag>
           </View>
           <View style={styles.assignmentRow}>
             {!['DONE', 'PENDING_REVIEW'].includes(item.status) && (item.caseId
@@ -139,9 +140,9 @@ export default function TasksScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  assignmentRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  assignmentRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.xs },
   assignButton: { minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: spacing.sm },
-  checkbox: { width: 22, height: 22, minWidth: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#B9C1CC', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  checkbox: { width: 22, height: 22, minWidth: 22, borderRadius: 6, borderWidth: 1.5, borderColor: colors.muted, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkboxDone: { backgroundColor: colors.good, borderColor: colors.good },
   title: { color: colors.text, fontWeight: '600', fontSize: 14 },
   titleDone: { color: colors.faint, textDecorationLine: 'line-through' },
@@ -149,5 +150,5 @@ const styles = StyleSheet.create({
   filter: { minHeight: TOUCH, justifyContent: 'center' },
   filterText: { color: colors.info, fontWeight: '600' },
   chip: { minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: 8, backgroundColor: colors.soft },
-  chipActive: { backgroundColor: colors.infoSoft },
+  chipActive: { backgroundColor: colors.infoSoft, borderWidth: 1, borderColor: colors.ink },
 });

@@ -105,11 +105,13 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
       {!!draft.message && dirty && <Text style={{ color: colors.faint, fontSize: 12 }}>{draft.message}</Text>}
       {!!draft.warning && <Text style={{ color: colors.warn }}>{draft.warning}</Text>}
       {!!draft.error && <ErrorNote message={draft.error} onRetry={draft.retry} />}
+      <Card style={{ gap: spacing.sm }}>
       {task.case && <Button title={`${task.case.ownRef} · ${task.case.title}`} ghost onPress={() => router.push(`/case/${task.caseId}`)} />}
       <Tag tone={task.status === 'NEEDS_REVISION' ? 'due' : task.status === 'DONE' ? 'ok' : 'plain'}>{({ TODO: 'ต้องทำ', IN_PROGRESS: 'กำลังทำ', PENDING_REVIEW: 'รอตรวจ', NEEDS_REVISION: 'ส่งกลับแก้ไข', DONE: 'เสร็จแล้ว' } as Record<string, string>)[task.status] ?? task.status}</Tag>
       <Text style={{ color: colors.ink, fontSize: 20, fontWeight: '700' }}>{task.title}</Text>
       {task.dueDate && <Text style={{ color: colors.muted }}>กำหนดส่ง {thDate(task.dueDate)}</Text>}
       {!!task.recurrenceDays && <Text style={{ color: colors.faint }}>ทำซ้ำอีก {task.recurrenceDays} วันหลังปิดรอบนี้</Text>}
+      </Card>
       {task.workflow?.workflowRun && <Card style={{ gap: spacing.sm }}>
         <Text style={{ color: colors.ink, fontWeight: '700' }}>สายงาน: {task.workflow.workflowRun.name} · ขั้น {task.workflow.workflowStep != null && task.workflow.stepsTotal ? `${task.workflow.workflowStep + 1}/${task.workflow.stepsTotal}` : '?'}</Text>
         {task.workflow.previousStepHolder && <Text style={{ color: colors.muted }}>ต่อจาก: {task.workflow.previousStepHolder}</Text>}

@@ -1,31 +1,24 @@
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4
  * genre: modern-minimal · macrostructure: Workbench · design-system: design.md · designed-as-app */
-/** Samnuan navy, warm court accents, and readable status colors. */
+/** White canvas, quiet navy controls, and restrained semantic status colors. */
 export const colors = {
-  bg: '#EDF3F7',
+  bg: '#FFFFFF',
   surface: '#FFFFFF',
   ink: '#12394C',
   text: '#203545',
   muted: '#526777',
   faint: '#546B7B',
-  line: '#D3E0E8',
-  soft: '#E5EEF4',
-  accent: '#A77921',
+  line: '#DFE4E8',
+  soft: '#F5F7F9',
+  accent: '#8B6D32',
   accentInk: '#73520C',
-  accentSoft: '#FFF2D4',
+  accentSoft: '#F7F3EB',
   good: '#227050',
-  goodSoft: '#E4F3EC',
+  goodSoft: '#F0F6F2',
   warn: '#A83232',
-  warnSoft: '#FCE5E3',
-  info: '#086C80',
-  infoSoft: '#E0F1F5',
-  // Court Day runs dark and high-contrast for hallway readability.
-  night: '#131A28',
-  nightCard: '#1C2434',
-  nightLine: '#2A3448',
-  nightText: '#C9D2E0',
-  nightBright: '#E8EDF5',
-  nightMuted: '#7E8AA0',
+  warnSoft: '#FBF2F1',
+  info: '#36566B',
+  infoSoft: '#F1F5F7',
 } as const;
 
 /**

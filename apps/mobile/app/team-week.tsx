@@ -6,7 +6,7 @@ import { HEAVY_DAY_POINTS, type PersonWorkload, type TeamRadar } from '@lawfirm/
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { Text } from '@/components/AppText';
-import { Button, Card, EmptyNote, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, EmptyNote, ErrorNote, Loading, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { DatePicker } from '@/components/DatePicker';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import type { TaskItem } from '@/api/types';
@@ -34,6 +34,7 @@ export default function TeamWeek() {
   return <><ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={pageContent}
     refreshControl={<RefreshControl refreshing={radar.isFetching} onRefresh={() => { void radar.refetch(); if (person) void detail.refetch(); }} />}>
     <Stack.Screen options={{ title: 'ภาระงานทีม 7 วัน' }} />
+    <PageIntro title="เทียบภาระงาน 7 วัน" detail="ดูงาน นัด และวันลาก่อนเลือกคนรับงาน" />
     <SectionLabel>เริ่มดูตั้งแต่วันที่</SectionLabel>
     <DatePicker value={start} onChange={value => { setStart(value); setPerson(''); }} />
     <Text style={{ color: colors.faint }}>เลื่อนแถววันที่ซ้ายขวาเพื่อดูครบ 7 วัน · เทียบวันลา นัดหมาย และงานที่ลงวันไว้ · คะแนนงานไม่ได้บอกชั่วโมงว่าง</Text>

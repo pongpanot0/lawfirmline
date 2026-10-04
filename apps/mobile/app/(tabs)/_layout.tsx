@@ -9,13 +9,13 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: colors.ink },
-        headerShadowVisible: false,
-        headerTintColor: colors.surface,
+        headerStyle: { backgroundColor: colors.surface },
+        headerShadowVisible: true,
+        headerTintColor: colors.ink,
         headerTitleStyle: { fontWeight: '700', fontSize: 18 * scale },
         tabBarLabelStyle: { fontSize: 11 * scale, fontWeight: '600' },
         tabBarActiveTintColor: colors.ink,
-        tabBarActiveBackgroundColor: colors.infoSoft,
+        tabBarActiveBackgroundColor: colors.soft,
         tabBarInactiveTintColor: colors.faint,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, elevation: 8 },
         sceneStyle: { backgroundColor: colors.bg },

@@ -12,7 +12,8 @@ import { draftScope, ExpenseDraft, removeExpenseDraft, retainReceipt, saveDraft 
 import { CasePicker } from '@/components/CasePicker';
 import { DatePicker } from '@/components/DatePicker';
 import { Dropdown } from '@/components/Dropdown';
-import { Button, Loading, SectionLabel } from '@/components/ui';
+import { FormSection } from '@/components/Form';
+import { Button, Loading, PageIntro, SectionLabel } from '@/components/ui';
 import { expenseError } from '@/workflow';
 import { bangkokDay, formatMoneyInput } from '@/format';
 import { colors, spacing, formLabelSpacing, pageContent } from '@/theme';
@@ -105,7 +106,8 @@ export default function NewExpenseScreen() {
     <Stack.Screen options={{ title: 'เพิ่มค่าใช้จ่าย' }} />
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ ...pageContent, gap: spacing.sm, paddingBottom: spacing.xl + keyboardHeight }}>
-        <Text style={{ color: colors.muted }}>เลือกว่าเบิกค่าอะไร เก็บหลักฐานไว้ แล้วเติมต่อที่สำนักงานได้</Text>
+        <PageIntro title="บันทึกค่าใช้จ่าย" detail="เก็บร่างพร้อมใบเสร็จก่อน แล้วเติมต่อที่สำนักงานได้" />
+        <FormSection title="รายการและหลักฐาน">
         <SectionLabel style={formLabelSpacing}>เบิกค่าอะไร *</SectionLabel>
         <Dropdown label="เลือกประเภทค่าใช้จ่าย" value={draft.category} options={EXPENSE_CATEGORIES.map((value) => ({ value, label: value }))}
           onChange={(category) => change({ category })} disabled={busy} />
@@ -115,6 +117,8 @@ export default function NewExpenseScreen() {
           <View style={{ flex: 1 }}><Button title={draft.receiptUri ? 'ถ่ายใหม่' : 'ถ่ายใบเสร็จ'} ghost onPress={() => photo(true)} disabled={busy} /></View>
           <View style={{ flex: 1 }}><Button title="เลือกรูป" ghost onPress={() => photo(false)} disabled={busy} /></View>
         </View>
+        </FormSection>
+        <FormSection title="จำนวนเงินและแฟ้มคดี">
         <SectionLabel style={formLabelSpacing}>จำนวนเงิน · เติมทีหลังได้</SectionLabel>
         <TextInput inputAccessoryViewID="expense-keyboard" accessibilityLabel="จำนวนเงิน" style={[field, { fontSize: 24 }]} keyboardType="decimal-pad" placeholder="บาท"
           value={formatMoneyInput(draft.amount) ?? draft.amount} onChangeText={(amount) => {
@@ -132,6 +136,7 @@ export default function NewExpenseScreen() {
           <DatePicker value={draft.date} onChange={(date) => change({ date })} />
 
         </>}
+        </FormSection>
         <Button title="เก็บร่างในเครื่อง · เติมที่สำนักงาน" ghost onPress={() => save(false)} disabled={busy} />
         {!!localStatus && <Text style={{ color: localStatus.includes('ไม่สำเร็จ') ? colors.warn : colors.muted }}>{localStatus}</Text>}
         <Button title="บันทึกค่าใช้จ่าย · ยังไม่ส่งเบิก" onPress={() => save(true)} busy={busy} />

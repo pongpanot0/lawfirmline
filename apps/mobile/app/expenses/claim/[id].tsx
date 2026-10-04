@@ -5,7 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/api/auth';
 import { useExpenseClaim, useReviewClaim } from '@/api/hooks';
 import { openExpenseReceipt } from '@/api/files';
-import { Button, Card, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, ErrorNote, Loading, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { claimActions } from '@/workflow';
 import { formatMoney, thDate, thTime } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
@@ -28,6 +28,7 @@ export default function ClaimScreen() {
     }) }]);
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.md }}
     refreshControl={<RefreshControl refreshing={claim.isRefetching} onRefresh={() => claim.refetch()} />}>
+    <PageIntro title="รายละเอียดชุดเบิก" detail={`ชุด ${data.id.slice(0, 8)} · ตรวจหลักฐานก่อนทำรายการ`} />
     {claim.isError && <ErrorNote message="โหลดสถานะล่าสุดไม่ได้ กรุณาลองใหม่ก่อนดำเนินการ" onRetry={() => claim.refetch()} />}
     <Card>
       <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18 }}>{data.submittedBy.firstName} {data.submittedBy.lastName}</Text>
@@ -50,8 +51,11 @@ export default function ClaimScreen() {
         finally { setOpening(null); }
       }} /> : <Text style={{ color: colors.muted }}>ไม่มีใบเสร็จแนบ</Text>}
     </Card>)}
+    {claimActions(data.status, user?.firmRole === 'OWNER').length > 0 && <Card style={{ gap: spacing.sm }}>
+    <SectionLabel style={{ marginTop: 0 }}>ดำเนินการกับชุดนี้</SectionLabel>
     {claimActions(data.status, user?.firmRole === 'OWNER').map((status) => <Button key={status}
       title={LABEL[status]} ghost={status === 'REJECTED'} onPress={() => act(status)}
       busy={review.isPending} disabled={claim.isError || claim.isFetching} />)}
+    </Card>}
   </ScrollView>;
 }

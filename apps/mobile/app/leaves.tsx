@@ -6,7 +6,8 @@ import { useLeaves, useRequestLeave } from '@/api/hooks';
 import type { LeaveItem } from '@/api/types';
 import { DatePicker } from '@/components/DatePicker';
 import { Dropdown } from '@/components/Dropdown';
-import { Button, Card, EmptyNote, ErrorNote, SectionLabel, Tag } from '@/components/ui';
+import { FormSection } from '@/components/Form';
+import { Button, Card, EmptyNote, ErrorNote, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay, thDate } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
 
@@ -37,16 +38,18 @@ export default function LeavesScreen() {
     ]);
   };
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={pageContent}>
-    <Text style={{ color: colors.muted }}>เลือกประเภทและวันลา แล้วส่งได้เลย</Text>
+    <PageIntro title="คำขอลาของฉัน" detail="ระบุประเภทและวันที่ ตรวจข้อมูลแล้วส่งคำขอ" />
+    <FormSection title="วันและประเภทการลา">
     <SectionLabel>ประเภทการลา</SectionLabel>
     <Dropdown label="ประเภทการลา" value={type} options={TYPES} onChange={(value) => setType(value as LeaveItem['type'])} disabled={request.isPending} />
     <SectionLabel>วันที่ลา</SectionLabel>
     <DatePicker value={start} onChange={(value) => { setStart(value); if (end < value) setEnd(value); }} />
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: spacing.md }}>
-      <Text style={{ color: colors.text }}>ลาหลายวัน</Text><Switch accessibilityLabel="ลาหลายวัน" value={multiple} onValueChange={setMultiple} />
+      <Text style={{ flex: 1, color: colors.text }}>ลาหลายวัน</Text><Switch accessibilityLabel="ลาหลายวัน" trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface} value={multiple} onValueChange={setMultiple} />
     </View>
     {multiple && <><SectionLabel>ถึงวันที่</SectionLabel><DatePicker value={end} onChange={setEnd} /></>}
     <View style={{ marginTop: spacing.lg }}><Button title="ส่งคำขอลา" onPress={submit} busy={request.isPending} /></View>
+    </FormSection>
     <SectionLabel>คำขอของฉัน · วันนี้เป็นต้นไป</SectionLabel>
     {history.isError && <ErrorNote message="โหลดคำขอไม่สำเร็จ" onRetry={() => history.refetch()} />}
     {history.isLoading ? <Text>กำลังโหลด…</Text> : !history.data?.some((item) => item.userId === user?.id) && <EmptyNote>ยังไม่มีคำขอ</EmptyNote>}

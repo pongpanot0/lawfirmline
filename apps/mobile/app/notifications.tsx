@@ -23,7 +23,7 @@ import {
 import type { AppNotification } from '@/api/types';
 import { actionAppRoute } from '@/workflow';
 import { CATEGORY_META } from '@/notification-categories';
-import { Card, EmptyNote, ErrorNote, Loading, Tag, TagTone } from '@/components/ui';
+import { Card, EmptyNote, ErrorNote, Loading, PageIntro, Tag, TagTone } from '@/components/ui';
 import { thDate, timeAgo } from '@/format';
 import { colors, spacing, pageContent, TOUCH } from '@/theme';
 
@@ -52,6 +52,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.screen}>
+      <View style={{ ...pageContent, paddingBottom: 0 }}><PageIntro title="ข่าวล่าสุดและเรื่องรอจัดการ" detail="งาน นัดหมาย และข้อความที่ส่งถึงคุณ" /></View>
       <Stack.Screen options={{
         headerRight: () => <View style={styles.headerActions}>
           {view === 'inbox' && (unread.data ?? 0) > 0 ? <Pressable accessibilityRole="button" hitSlop={8}
@@ -180,12 +181,12 @@ function PendingList({ items }: { items: ActionItem[] }) {
                 <meta.Icon size={17} color={colors.muted} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
+                  <Tag tone={meta.tone}>{meta.label}</Tag>
                   {item.detail ? <Text style={styles.detail} numberOfLines={2}>{item.detail}</Text> : null}
                   <Text style={styles.meta} numberOfLines={1}>
                     {[item.caseRef, item.owner, item.dueAt ? thDate(item.dueAt) : null].filter(Boolean).join(' · ')}
                   </Text>
                 </View>
-                <Tag tone={meta.tone}>{meta.label}</Tag>
               </View>
             </Card>
           </Pressable>
@@ -201,7 +202,7 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   tabs: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   chip: { minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: 8, backgroundColor: colors.soft },
-  chipActive: { backgroundColor: colors.infoSoft },
+  chipActive: { backgroundColor: colors.infoSoft, borderWidth: 1, borderColor: colors.ink },
   row: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   inboxCard: { marginBottom: spacing.sm },
   unreadCard: { borderColor: colors.info, backgroundColor: colors.surface },

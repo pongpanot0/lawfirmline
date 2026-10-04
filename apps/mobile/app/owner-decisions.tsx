@@ -1,11 +1,11 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ownerDecisionTasks } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { useDailyWorkboard, useDecideLeave, useExpenseClaims, usePendingLeaves, useTodos } from '@/api/hooks';
 import { Text } from '@/components/AppText';
-import { Button, Card, EmptyNote, ErrorNote, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, EmptyNote, ErrorNote, FilterTabs, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay, formatMoney, thDate, thTime } from '@/format';
 import { colors, pageContent, spacing } from '@/theme';
 
@@ -31,8 +31,8 @@ export default function OwnerDecisions() {
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.sm }}
     refreshControl={<RefreshControl refreshing={reviews.isRefetching || leaves.isRefetching || claims.isRefetching || daily.isRefetching} onRefresh={refresh} />}>
     <Stack.Screen options={{ title: 'คิวตัดสินใจวันนี้' }} />
-    <Text style={{ color: colors.muted }}>รวมรายการที่ยังรอ รวมถึงรายการจากวันก่อน · เปิดผลงานหรือหลักฐานก่อนตัดสินใจ</Text>
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>{FILTERS.map(item => <View key={item.value} style={{ minWidth: 100, flexGrow: 1 }}><Button title={item.label} ghost={filter !== item.value} onPress={() => setFilter(item.value)} /></View>)}</View>
+    <PageIntro title="คิวที่ต้องตัดสินใจ" detail="รวมรายการที่ยังรอ เปิดผลงานหรือหลักฐานก่อนตัดสินใจ" />
+    <FilterTabs items={FILTERS} value={filter} onChange={setFilter} />
     {show('review') && <>
       <SectionLabel>รอ Owner ตรวจ · {reviews.data?.length ?? '—'} งาน</SectionLabel>
       {reviews.isError && <ErrorNote message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}

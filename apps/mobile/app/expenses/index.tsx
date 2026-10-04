@@ -5,7 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '@/api/auth';
 import { useExpenses, useSubmitExpenses } from '@/api/hooks';
 import { draftScope, ExpenseDraft, listExpenseDrafts, removeExpenseDraft } from '@/api/drafts';
-import { Button, Card, EmptyNote, ErrorNote, SectionLabel, Tag } from '@/components/ui';
+import { Button, Card, EmptyNote, ErrorNote, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { formatMoney, thDate } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
 
@@ -35,6 +35,7 @@ export default function ExpensesScreen() {
   ]);
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={pageContent}
     refreshControl={<RefreshControl refreshing={expenses.isRefetching} onRefresh={() => { expenses.refetch(); void load(); }} />}>
+    <PageIntro title="ค่าใช้จ่ายของฉัน" detail="บันทึกรายการ เลือกรวมเป็นชุด แล้วส่งเบิก" />
     <View style={{ gap: spacing.sm }}>
       <Button title="เพิ่มค่าใช้จ่าย" onPress={() => router.push('/expenses/new')} />
       <Button title={user?.firmRole === 'OWNER' ? 'ดูชุดเบิกทีม · อนุมัติ / จ่าย' : 'ดูชุดที่ส่งเบิกแล้ว'} ghost onPress={() => router.push('/expenses/claims')} />
@@ -66,6 +67,9 @@ export default function ExpensesScreen() {
         <Tag tone="plain">{item.receiptFilename ? 'มีใบเสร็จ' : 'ไม่มีใบเสร็จ'}</Tag>
       </Card>
     </Pressable>)}
-    <Button title={`ส่งเบิกชุดนี้ · ${chosen.length} รายการ`} onPress={send} disabled={!chosen.length || expenses.isError || expenses.isFetching} busy={submit.isPending} />
+    <Card style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+      <Text style={{ color: colors.ink, fontWeight: '700' }}>เลือก {chosen.length} รายการ · {formatMoney(chosen.reduce((sum, item) => sum + item.amount, 0))} ฿</Text>
+      <Button title="ส่งเบิกชุดที่เลือก" onPress={send} disabled={!chosen.length || expenses.isError || expenses.isFetching} busy={submit.isPending} />
+    </Card>
   </ScrollView>;
 }

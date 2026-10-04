@@ -4,6 +4,16 @@
     "scope": "app",
     "genre": "modern-minimal",
     "macrostructure": "Workbench (native operations)",
+    "theme": "Samnuan white canvas and restrained navy",
+    "enrichment": "none",
+    "brief": "All-route white visual system, grouped forms and lists, direct account deletion request entry",
+    "designSystem": "design.md"
+  },
+  {
+    "date": "2026-10-04",
+    "scope": "app",
+    "genre": "modern-minimal",
+    "macrostructure": "Workbench (native operations)",
     "theme": "Samnuan existing brand",
     "enrichment": "none",
     "brief": "Direct person details, compact Today workflow, navy hierarchy and readable status colors",

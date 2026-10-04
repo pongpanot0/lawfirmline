@@ -9,7 +9,7 @@ import { api } from '@/api/client';
 import { useCreateEvent, useEvent, useCase, useCourts, useLeaves } from '@/api/hooks';
 import { Dropdown } from '@/components/Dropdown';
 import { TeamFields } from '@/components/TeamFields';
-import { FormField, FormPage } from '@/components/Form';
+import { FormField, FormPage, FormSection } from '@/components/Form';
 import { CasePicker, CaseRef } from '@/components/CasePicker';
 import { DatePicker } from '@/components/DatePicker';
 import { Button, Card, ErrorNote, Loading, SectionLabel } from '@/components/ui';
@@ -136,6 +136,7 @@ export default function NewEventScreen() {
       <Stack.Screen options={{ title: id ? 'แก้ไขนัดหมาย' : 'เพิ่มนัดหมาย' }} />
       <View style={styles.screen}>
         <FormPage>
+          <FormSection title="รายละเอียดนัดหมาย">
           <SectionLabel>คดี</SectionLabel>
           {id ? <Text style={{ color: colors.text }}>{caseRef?.label}</Text> : <CasePicker value={caseRef} onChange={setCaseRef} />}
 
@@ -174,6 +175,8 @@ export default function NewEventScreen() {
               {courts.isError && <ErrorNote message="โหลดรายชื่อศาลไม่สำเร็จ" onRetry={() => courts.refetch()} />}
             </>
           ) : null}
+          </FormSection>
+          <FormSection title="วันและเวลา">
 
           <SectionLabel>วันที่</SectionLabel>
           <DatePicker value={day} onChange={setDay} />
@@ -201,8 +204,11 @@ export default function NewEventScreen() {
             />
           </View>
 
+          </FormSection>
+          <FormSection title="ทีมที่ไปด้วย" detail="เลือกคนหลักและผู้ร่วม ตรวจวันลาก่อนยืนยันนัด">
           <TeamFields ids={ids} onChange={setIds} primaryLabel="คนหลัก" secondaryLabel="คนที่ไปด้วย" disabled={busy} />
           {leaves.isError && <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} />}
+          </FormSection>
           {moving && <FormField label="เหตุผลการเลื่อนนัด" value={reason} onChange={setReason} disabled={busy} />}
           {preview && <Card style={{ marginTop: spacing.md }}>
             <Text style={{ color: colors.ink, fontWeight: '700' }}>ตรวจผลกระทบก่อนยืนยันเลื่อนนัด</Text>
@@ -238,6 +244,8 @@ const styles = StyleSheet.create({
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
+    minHeight: 44,
+    justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.line,
@@ -245,8 +253,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  chipOn: { backgroundColor: colors.soft, borderColor: colors.ink },
   chipText: { fontSize: 13, color: colors.muted, fontWeight: '600' },
-  chipTextOn: { color: colors.bg },
+  chipTextOn: { color: colors.ink },
   timeInput: { width: 110, paddingVertical: 8 },
 });

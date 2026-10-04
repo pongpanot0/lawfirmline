@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { InputAccessoryView, Keyboard, Platform, Pressable, ScrollView, TextInput as NativeTextInput, View } from 'react-native';
 import { KeyboardAccessoryContext, Text, TextInput } from '@/components/AppText';
-import { SectionLabel } from './ui';
+import { Card, SectionLabel } from './ui';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { colors, spacing, pageContent, formLabelSpacing } from '@/theme';
 
@@ -45,4 +45,14 @@ export function FormField({ label, value, onChange, multiline = false, disabled 
       style={{ minHeight: multiline ? 100 : 48, textAlignVertical: multiline ? 'top' : 'center', padding: spacing.md,
         borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.surface, color: colors.text, fontSize: 15 }} />
   </View>;
+}
+
+export function FormSection({ title, detail, children }: { title: string; detail?: string; children: React.ReactNode }) {
+  return <Card style={{ gap: spacing.sm, marginVertical: spacing.xs, padding: spacing.lg }}>
+    <View style={{ borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: spacing.md }}>
+      <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>{title}</SectionLabel>
+      {detail ? <Text style={{ color: colors.muted, fontSize: 13, marginTop: spacing.xs }}>{detail}</Text> : null}
+    </View>
+    {children}
+  </Card>;
 }

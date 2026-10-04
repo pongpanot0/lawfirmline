@@ -18,7 +18,7 @@ import { bangkokDay, initials } from '@/format';
 import { leaveFlagsForDate, LeaveFlag } from '@/lib/leave-flags';
 import { colors, spacing, pageContent } from '@/theme';
 import { useAuth } from '@/api/auth';
-import { Button } from '@/components/ui';
+import { Button, PageIntro } from '@/components/ui';
 
 /**
  * Compare counts without treating fewer tasks as confirmed availability.
@@ -39,7 +39,7 @@ function MemberCard({ member, max, leave, todayEvents, onDetail, onTasks, onCale
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials(member.name)}</Text>
         </View>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={styles.name}>
           {member.name} ›
         </Text>
         <Text style={styles.count}>{member.openTasks}</Text>
@@ -99,6 +99,7 @@ export default function TeamScreen() {
         />
       }
     >
+      <PageIntro title="ภาระงานรายคน" detail="แตะชื่อเพื่อดูงาน คดี นัดหมาย และจุดติดขัด" />
       {(user?.firmRole === 'OWNER' || user?.firmRole === 'SENIOR_LAWYER') && <Button title="ภาระงานทีม 7 วัน" ghost onPress={() => router.push('/team-week')} />}
       {workload.isError ? (
         <ErrorNote message="โหลดภาระงานทีมไม่สำเร็จ" onRetry={() => workload.refetch()} />
@@ -147,14 +148,14 @@ const styles = StyleSheet.create({
   statRow: { flexDirection: 'row', gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   avatar: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.soft,
     width: 32,
     height: 32,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: colors.surface, fontWeight: '700', fontSize: 12 },
+  avatarText: { color: colors.ink, fontWeight: '700', fontSize: 12 },
   name: { flex: 1, fontWeight: '600', color: colors.text, fontSize: 15 },
   count: {
     fontWeight: '700',

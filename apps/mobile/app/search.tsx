@@ -5,8 +5,8 @@ import { useRouter } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { api, API_URL, getTokens } from '@/api/client';
 import { openCaseDocument, openTaskAttachment } from '@/api/files';
-import { FormField, FormPage } from '@/components/Form';
-import { Button, Card, EmptyNote, ErrorNote } from '@/components/ui';
+import { FormField, FormPage, FormSection } from '@/components/Form';
+import { Button, Card, EmptyNote, ErrorNote, PageIntro } from '@/components/ui';
 import { thDate } from '@/format';
 import { colors, spacing } from '@/theme';
 
@@ -32,12 +32,15 @@ export default function FileSearchScreen() {
   }, [files.dataUpdatedAt]);
   const rows = [...new Map((files.data?.pages.flatMap(page => page.items) ?? []).map(file => [`${file.source}:${file.id}`, file])).values()];
   return <FormPage>
+    <PageIntro title="ค้นหาไฟล์" detail="ค้นในคดีและงานที่คุณมีสิทธิ์เข้าถึง" />
+    <FormSection title="ชื่อไฟล์ที่ต้องการ">
     <FormField label="ค้นชื่อไฟล์ในคดีและงานที่คุณเข้าถึงได้" value={text} onChange={setText} placeholder="พิมพ์ชื่อไฟล์บางส่วน…" />
     <Button title="ค้นหาไฟล์" disabled={!text.trim()} onPress={() => {
       Keyboard.dismiss();
       const next = text.trim(); if (next === query) void files.refetch(); else setQuery(next);
       setExpanded(null);
     }} />
+    </FormSection>
     {!query && <EmptyNote>ค้นจากชื่อไฟล์ แล้วเลือกดูตัวอย่างหรือเปิดไฟล์ต้นฉบับ</EmptyNote>}
     {files.isLoading && !!query && <Text style={{ color: colors.muted }}>กำลังค้นหา…</Text>}
     {files.isError && <ErrorNote message="ค้นไฟล์ไม่สำเร็จ" onRetry={() => files.refetch()} />}
