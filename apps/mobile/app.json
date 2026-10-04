@@ -11,7 +11,7 @@
       "bundleIdentifier": "co.lexflow.mobile"
     },
     "android": {
-      "package": "co.lexflow.mobile",
+      "package": "com.samnuan.app",
       "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize"
     },

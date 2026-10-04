@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { AppState, Linking, Pressable, Switch, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Text } from '@/components/AppText';
 import { FormPage } from '@/components/Form';
@@ -13,8 +13,14 @@ import { CATEGORY_META } from '@/notification-categories';
 import { colors, spacing } from '@/theme';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { scale, setScale } = useDisplayPreferences();
   return <FormPage>
+    <SectionLabel>บัญชีผู้ใช้</SectionLabel>
+    <Pressable accessibilityRole="button" onPress={() => router.push('/account')}
+      style={{ minHeight: 48, justifyContent: 'center' }}>
+      <Text style={{ color: colors.info }}>บัญชีของฉัน · แก้ชื่อ รหัสผ่าน และขอลบบัญชี</Text>
+    </Pressable>
     <NotificationSettings />
     <SectionLabel>ขนาดตัวอักษรทั้งแอป</SectionLabel>
     <Text style={{ color: colors.muted }}>เลือกขนาดที่อ่านสบาย · แอปจำค่าบนโทรศัพท์เครื่องนี้</Text>

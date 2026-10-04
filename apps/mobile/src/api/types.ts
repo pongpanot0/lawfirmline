@@ -22,6 +22,25 @@ export interface LoginResponse {
   user: AuthUserInfo;
 }
 
+export interface MfaChallenge {
+  mfaRequired: true;
+  mfaToken: string;
+}
+
+export interface RegisterInput {
+  firmName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}
+
+export interface AccountDeletionRequest {
+  id: string;
+  requestedAt: string;
+  status: 'PENDING_REVIEW';
+}
+
 export interface DashboardStats {
   stats: {
     totalCases: number;

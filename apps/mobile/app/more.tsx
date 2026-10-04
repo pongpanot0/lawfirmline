@@ -14,12 +14,14 @@ import {
   CalendarOff,
   Search,
   Settings,
+  UserRound,
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { Card } from '@/components/ui';
 import { colors, spacing, pageContent } from '@/theme';
 
 const ITEMS = [
+  { route: '/account', Icon: UserRound, title: 'บัญชีของฉัน', detail: 'แก้ชื่อ เปลี่ยนรหัสผ่าน และขอลบบัญชี' },
   { route: '/document-waiting', Icon: FilePlus2, title: 'รอเอกสารจากภายนอก', detail: 'ขาดอะไร รอจากใคร ติดตามวันไหน และได้รับแล้วหรือยัง' },
   { route: '/settings', Icon: Settings, title: 'ตั้งค่า', detail: 'การแจ้งเตือน (แอป / LINE) และขนาดตัวอักษร' },
   { route: '/search', Icon: Search, title: 'ค้นหาไฟล์', detail: 'ค้นชื่อไฟล์ในทุกคดีที่เข้าถึงได้' },

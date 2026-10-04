@@ -163,6 +163,9 @@ function AppStack() {
             >
               <Stack.Screen name="(tabs)" options={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
               <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+              <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
+              <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
+              <Stack.Screen name="account" options={{ title: 'บัญชีของฉัน' }} />
               <Stack.Screen name="case/[id]" options={{ title: 'คดี' }} />
               <Stack.Screen name="team-week" options={{ title: 'ภาระงานทีม 7 วัน' }} />
               <Stack.Screen name="owner-decisions" options={{ title: 'คิวตัดสินใจวันนี้' }} />
