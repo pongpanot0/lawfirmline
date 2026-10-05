@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { FirmRole } from '@lawfirm/shared';
-import { api, ApiError, SopItem } from '@/lib/api';
+import { api, ApiError, SopItem, type WorkflowTemplate } from '@/lib/api';
 import { FirmRoleStr, latestPlaybookReleases, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { caseStageLabel } from '@/lib/stage-labels';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { WorkflowTemplates } from '@/components/workflows/WorkflowTemplates';
-import { BookOpen, ChevronDown, Plus, Pencil, Trash2, Zap } from 'lucide-react';
+import { ArrowRightLeft, BookOpen, ChevronDown, Plus, Pencil, Trash2, Zap } from 'lucide-react';
 
 const ROLE_LABELS: Record<FirmRoleStr, string> = {
   OWNER: 'เจ้าของสำนักงาน',
@@ -36,6 +36,7 @@ export default function SopsPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
   const [view, setView] = useState<'all' | 'manual' | 'auto' | 'handoff'>('all');
+  const [flowEditor, setFlowEditor] = useState<WorkflowTemplate | 'new' | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [saved, setSaved] = useState('');
@@ -90,34 +91,50 @@ export default function SopsPage() {
     <div className="mx-auto max-w-5xl min-w-0 space-y-4">
       <PageHeader
         title="SOP / คู่มือการทำงาน"
-        description="คู่มือ สร้างงานอัตโนมัติ และสายงานส่งต่อของสำนักงาน"
+        description="จัดวิธีทำงานของสำนักงาน ตั้งแต่คู่มือจนถึงการส่งต่องานในคดี"
         actions={
-          isOwner ? (
+          canEditFlows ? (
             <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); }}>
+                <Plus className="mr-1 h-4 w-4" />สร้าง Handoff flow
+              </Button>
+              {isOwner && <>
               <Button size="sm" variant="outline" onClick={() => { setEditing({}); setError(null); setSaved(''); }}>
                 <Plus className="mr-1 h-4 w-4" /> เขียนคู่มือ
               </Button>
               <Link href="/playbooks/new">
-                <Button size="sm">
+                <Button size="sm" variant="outline">
                   <Zap className="mr-1 h-4 w-4" /> สร้าง SOP อัตโนมัติ
                 </Button>
               </Link>
+              </>}
             </div>
           ) : undefined
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
         <Input
           aria-label="ค้นหาคู่มือหรือขั้นตอน"
           placeholder="ค้นหา SOP หรือสายงานส่งต่อ..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="max-w-sm"
+          className="min-w-0 flex-1 sm:max-w-sm"
         />
-        <div role="group" aria-label="ประเภทคู่มือ" className="flex flex-wrap gap-2">
-          {([['all', 'ทั้งหมด'], ['manual', `คู่มือให้อ่าน (${manualItems.length})`], ['auto', `สร้างงานอัตโนมัติ (${autoItems.length})`], ['handoff', 'Handoff flow']] as const).map(([key, label]) =>
-            <Button key={key} size="sm" variant={view === key ? 'default' : 'outline'} aria-pressed={view === key} onClick={() => setView(key)}>{label}</Button>)}
+        <Button size="sm" variant={view === 'all' ? 'default' : 'outline'} aria-pressed={view === 'all'} onClick={() => setView('all')}>ทั้งหมด</Button>
+        </div>
+        <div role="group" aria-label="ประเภทคู่มือ" className="grid gap-2 sm:grid-cols-3">
+          {([
+            ['handoff', 'Handoff flow', 'ส่งต่อทีละขั้น พร้อมผู้รับและผู้ตรวจ', ArrowRightLeft],
+            ['auto', `สร้างงานอัตโนมัติ (${autoItems.length})`, 'เพิ่มรายการงานลงในคดีพร้อมกัน', Zap],
+            ['manual', `คู่มือให้อ่าน (${manualItems.length})`, 'เก็บวิธีทำงานให้ทีมเปิดอ่าน', BookOpen],
+          ] as const).map(([key, label, description, Icon]) =>
+            <button key={key} type="button" aria-label={label} aria-pressed={view === key} onClick={() => setView(key)}
+              className={`flex min-w-0 items-start gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${view === key ? 'border-primary bg-primary/5' : 'bg-card hover:border-primary/40'}`}>
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              <span className="min-w-0"><span className="block text-sm font-semibold">{label}</span><span className="mt-1 block text-xs text-muted-foreground">{description}</span></span>
+            </button>)}
         </div>
       </div>
       {saved && <p role="status" className="text-sm text-primary">{saved}</p>}
@@ -170,7 +187,7 @@ export default function SopsPage() {
         </Card>
       )}
 
-      {token && (view === 'all' || view === 'handoff') && <WorkflowTemplates token={token} canEdit={canEditFlows} search={q} />}
+      {token && (view === 'all' || view === 'handoff') && <WorkflowTemplates token={token} canEdit={canEditFlows} search={q} editor={flowEditor} onEditorChange={setFlowEditor} />}
 
       {!loading && !loadError && (view === 'all' || view === 'auto') && autoItems.length > 0 && (
         <div className="mb-3 space-y-3">

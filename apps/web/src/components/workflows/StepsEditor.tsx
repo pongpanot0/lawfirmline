@@ -22,7 +22,7 @@ export function StepsEditor({ steps, onChange }: { steps: WorkflowStepDef[]; onC
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{i + 1}</span>
             <input
               aria-label={`ชื่อขั้นที่ ${i + 1}`}
-              className="h-9 min-w-0 flex-1 basis-[calc(100%-2rem)] rounded-md border border-input bg-card px-3 text-sm sm:basis-0"
+              className="min-h-11 min-w-0 flex-1 basis-[calc(100%-2rem)] rounded-md border border-input bg-card px-3 text-sm sm:basis-0"
               placeholder="เช่น แปลเอกสาร"
               value={step.title}
               onChange={(e) => update(i, { title: e.target.value })}
@@ -37,7 +37,7 @@ export function StepsEditor({ steps, onChange }: { steps: WorkflowStepDef[]; onC
             <label className="text-xs text-muted-foreground">
               ใครทำ
               <select
-                className="mt-1 h-9 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
+                className="mt-1 min-h-11 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
                 value={step.role}
                 onChange={(e) => update(i, { role: e.target.value as WorkflowRole })}
               >
@@ -48,12 +48,14 @@ export function StepsEditor({ steps, onChange }: { steps: WorkflowStepDef[]; onC
               ภายใน (วันทำการ)
               <input
                 type="number" min={1} max={60}
-                className="mt-1 h-9 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
+                className="mt-1 min-h-11 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
                 value={step.durationDays}
                 onChange={(e) => update(i, { durationDays: Number(e.target.value) })}
               />
             </label>
           </div>
+          <details className="mt-2 rounded-md border p-2">
+          <summary className="min-h-9 cursor-pointer text-xs text-muted-foreground" aria-label={`รายละเอียดขั้นที่ ${i + 1}`}>วิธีทำและสิ่งที่ต้องส่งต่อ{step.instructions?.trim() && ' · มีข้อมูลแล้ว'}</summary>
           <textarea
             aria-label={`วิธีทำขั้นที่ ${i + 1}`}
             className="mt-2 min-h-[56px] w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
@@ -61,6 +63,7 @@ export function StepsEditor({ steps, onChange }: { steps: WorkflowStepDef[]; onC
             value={step.instructions ?? ''}
             onChange={(e) => update(i, { instructions: e.target.value })}
           />
+          </details>
           <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
             <input type="checkbox" checked={Boolean(step.requiresReview)} onChange={(e) => update(i, { requiresReview: e.target.checked })} />
             ต้องมีผู้ตรวจก่อนส่งต่อ
