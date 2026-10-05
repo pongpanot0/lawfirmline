@@ -18,6 +18,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY packages/shared packages/shared
 COPY apps/web apps/web
+COPY tokens.css ./tokens.css
 
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_ROOT_DOMAIN=samnuan.com
