@@ -19,14 +19,23 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
     };
     await signIn(auth);
     await page.getByRole('button', { name: 'สร้าง Handoff flow', exact: true }).click();
-    const drawer = page.getByRole('dialog', { name: 'สร้างแม่แบบสายงาน', exact: true });
+    const drawer = page.getByRole('dialog', { name: 'สร้าง Handoff flow', exact: true });
+    await drawer.getByRole('button', { name: 'ใช้ตัวอย่างรับเรื่อง', exact: true }).click();
+    await expect(drawer.getByLabel('ชื่อขั้นที่ 3', { exact: true })).toHaveValue('ตรวจแนวทางก่อนแจ้งลูกความ');
+    expect(await data.db.workflowTemplate.count({ where: { firmId: auth.user.firmId } })).toBe(0);
+    await drawer.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
+    await page.getByRole('button', { name: 'สร้าง Handoff flow', exact: true }).click();
     await drawer.getByRole('button', { name: 'บันทึก', exact: true }).click();
     await expect(drawer.getByRole('alert')).toHaveText('ตั้งชื่อแม่แบบก่อน');
     const name = `ส่งต่อ ${data.tag} ${'A'.repeat(100)}`;
     await drawer.getByRole('textbox', { name: 'ชื่อแม่แบบ', exact: true }).fill(name);
+    await drawer.getByText('คำอธิบาย (ไม่บังคับ)', { exact: true }).click();
+    await drawer.getByLabel('อธิบาย (ไม่บังคับ)', { exact: true }).fill('ตรวจคำอธิบายก่อนส่งต่อ');
     await drawer.getByRole('button', { name: 'บันทึก', exact: true }).click();
     await expect(drawer.getByRole('alert')).toBeVisible();
     await drawer.getByLabel('ชื่อขั้นที่ 1', { exact: true }).fill('ตรวจต้นฉบับ');
+    await expect(drawer.getByLabel('วิธีทำขั้นที่ 1', { exact: true })).toBeHidden();
+    await drawer.getByLabel('รายละเอียดขั้นที่ 1', { exact: true }).click();
     await drawer.getByLabel('วิธีทำขั้นที่ 1', { exact: true }).fill('ตรวจหลักฐานเฉพาะสายงานก่อนส่งต่อ');
     await drawer.getByRole('combobox', { name: /ใครทำ/ }).selectOption('OWNER');
     await drawer.getByLabel('ภายใน (วันทำการ)', { exact: true }).fill('2');
@@ -63,7 +72,8 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
       { title: 'ตรวจต้นฉบับ', role: 'OWNER', durationDays: 2, instructions: 'ตรวจหลักฐานเฉพาะสายงานก่อนส่งต่อ', requiresReview: false },
       { title: 'ส่งผลให้ลูกความ', role: 'OWNER', durationDays: 1, requiresReview: true },
     ]);
-    await page.getByRole('button', { name: `ตั้งเป็นค่าเริ่มต้น ${name}`, exact: true }).click();
+    const defaultSelect = page.getByRole('combobox', { name: 'แม่แบบเริ่มต้นของสำนักงาน', exact: true });
+    await defaultSelect.selectOption(template.id);
     await expect(page.getByText('ค่าเริ่มต้นของสำนักงาน', { exact: true })).toHaveCount(1);
     await page.reload();
     await page.getByRole('button', { name: 'Handoff flow', exact: true }).click();
@@ -74,13 +84,20 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
     await expect(page.getByText('ไม่พบสายงานส่งต่อที่ค้นหา', { exact: true })).toBeVisible();
     await search.fill('');
     await page.getByRole('button', { name: `แก้ ${name}`, exact: true }).click();
-    const editing = page.getByRole('dialog', { name: 'แก้แม่แบบสายงาน', exact: true });
+    const editing = page.getByRole('dialog', { name: 'แก้ Handoff flow', exact: true });
+    await editing.getByText('คำอธิบาย (ไม่บังคับ) · มีข้อมูลแล้ว', { exact: true }).click();
+    await editing.getByLabel('อธิบาย (ไม่บังคับ)', { exact: true }).fill('');
     await expect(editing.getByLabel('ชื่อขั้นที่ 2', { exact: true })).toHaveValue('ส่งผลให้ลูกความ');
+    await editing.getByLabel('รายละเอียดขั้นที่ 2', { exact: true }).click();
     await editing.getByLabel('วิธีทำขั้นที่ 2', { exact: true }).fill('แนบเอกสารที่ตรวจแล้ว');
     await editing.getByRole('button', { name: 'บันทึก', exact: true }).click();
     await expect(editing).toHaveCount(0);
     const updated = await data.db.workflowTemplate.findUniqueOrThrow({ where: { id: template.id } });
+    expect(updated.isDefault).toBe(true);
+    expect(updated.description).toBe('');
     expect((updated.steps as { instructions?: string }[])[1].instructions).toBe('แนบเอกสารที่ตรวจแล้ว');
+    await page.locator('article').filter({ has: page.getByRole('heading', { name, exact: true }) }).locator('summary').click();
+    await expect(page.getByText('แนบเอกสารที่ตรวจแล้ว', { exact: true })).toBeVisible();
     for (const width of [320, 375, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
@@ -89,7 +106,12 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
     }
     await page.goto(`${origin}/workflows?tab=templates`);
     await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: `ยกเลิกค่าเริ่มต้น ${name}`, exact: true })).toBeVisible();
+    await expect(defaultSelect).toHaveValue(template.id);
+    await defaultSelect.selectOption('');
+    await expect(page.getByText('ค่าเริ่มต้นของสำนักงาน', { exact: true })).toHaveCount(0);
+    expect((await data.db.workflowTemplate.findUniqueOrThrow({ where: { id: template.id } })).isDefault).toBe(false);
+    await defaultSelect.selectOption(template.id);
+    await expect(defaultSelect).toBeEnabled();
     const legalCase = await data.db.case.create({ data: {
       firmId: auth.user.firmId, ownRef: data.tag, folderId: data.tag, title: data.tag, leadLawyerId: auth.user.id,
     } });
@@ -119,7 +141,7 @@ test('SOP creates a reusable handoff flow, fits narrow screens, and respects edi
       } else {
         await expect(page.getByRole('button', { name: 'สร้าง Handoff flow', exact: true })).toHaveCount(0);
         await expect(page.getByRole('button', { name: `แก้ ${name}`, exact: true })).toHaveCount(0);
-        await expect(page.getByRole('button', { name: `ยกเลิกค่าเริ่มต้น ${name}`, exact: true })).toHaveCount(0);
+        await expect(defaultSelect).toHaveCount(0);
         expect((await request.post(`${API}/workflows/templates`, { headers: { Authorization: `Bearer ${session.accessToken}` },
           data: { name: 'Forbidden', steps: [{ title: 'Step', role: 'OWNER', durationDays: 1 }] } })).status()).toBe(403);
       }

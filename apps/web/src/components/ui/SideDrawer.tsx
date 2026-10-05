@@ -75,7 +75,7 @@ export function SideDrawer({
         ref={asideRef}
         className="flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card shadow-xl"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+        <div className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-3 border-b border-border bg-card p-4">
           <h2 className="min-w-0 flex-1 font-semibold">{title}</h2>
           <button
             type="button"

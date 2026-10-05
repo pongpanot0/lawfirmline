@@ -40,16 +40,17 @@ test('office default workflow persists, is preselected for review, and stays ten
     const hash = new URLSearchParams({ access_token: auth.accessToken, refresh_token: auth.refreshToken,
       next: '/workflows?tab=templates', locale: 'th' });
     await page.goto(`${origin}/handoff#${hash}`);
-    await page.getByRole('button', { name: 'ตั้งเป็นค่าเริ่มต้น สายงานมาตรฐาน', exact: true }).click();
+    const defaultSelect = page.getByRole('combobox', { name: 'แม่แบบเริ่มต้นของสำนักงาน', exact: true });
+    await defaultSelect.selectOption(templates[0].id);
     await expect(page.getByText('ค่าเริ่มต้นของสำนักงาน', { exact: true })).toHaveCount(1);
     await page.reload();
-    await expect(page.getByRole('button', { name: 'ยกเลิกค่าเริ่มต้น สายงานมาตรฐาน', exact: true })).toBeVisible();
+    await expect(defaultSelect).toHaveValue(templates[0].id);
     await page.route('**/workflows/templates/*', route => route.request().method() === 'PATCH'
       ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"ตั้งค่าไม่สำเร็จ ลองอีกครั้ง"}' })
       : route.continue(), { times: 1 });
-    await page.getByRole('button', { name: 'ตั้งเป็นค่าเริ่มต้น สายงานทางเลือก', exact: true }).click();
+    await defaultSelect.selectOption(templates[1].id);
     await expect(page.locator('main [role="alert"]')).toContainText('ตั้งค่าไม่สำเร็จ');
-    await expect(page.getByRole('button', { name: 'ยกเลิกค่าเริ่มต้น สายงานมาตรฐาน', exact: true })).toBeVisible();
+    await expect(defaultSelect).toHaveValue(templates[0].id);
     await page.goto(`${origin}/cases/${legalCase.id}?tab=tasks`);
     await page.setViewportSize({ width: 375, height: 900 });
     await page.getByRole('button', { name: 'เริ่มสายงาน', exact: true }).click();

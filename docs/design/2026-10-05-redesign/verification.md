@@ -33,10 +33,22 @@ Final representative web checks ran against a local production build (`NEXT_BUIL
 
 The SOP follow-up reused the existing workflow template editor and API. Its handoff creation and default integrity checks passed against the updated local production build; existing SOP publishing/application checks passed on the local dev server. Web TypeScript and all 89 web unit tests also passed again. No API or native source changed in this follow-up.
 
+## SOP library refinement and release
+
+The second SOP refinement puts Handoff creation in the page header, explains the three SOP types, provides one office-default selector, and expands saved flows into readable steps with roles, days, review requirements and instructions. The editor supports an editable intake example, optional descriptions/instructions and persistent save/close controls. Failed saves retain inputs; clearing a description persists; editing preserves the office default. Existing permissions and server APIs are reused.
+
+All three SOP browser tests passed against the final local production build, including widths 320, 375, 768 and 1440 px. The office-default/tenant test and its login setup passed. All 89 web unit tests, TypeScript and the production build passed. A repeat fixture batch hit the existing registration throttle (429); the owned local API was restarted before the successful bounded rerun. Production throttles were unchanged.
+
+The initial redesign production release `prod-20261005-stitch-hallmark-redesign` deployed commit `3f6b2b3bfec2043913ab4a76e986b867fa393eb9` successfully in [run 37309456825](https://github.com/pongpanot0/lawfirmline/actions/runs/37309456825). API health returned `ok`, the deployment log confirmed 121 migrations with none pending, and the live public/login surfaces loaded the new fonts, colours and marketing assets. The container build now includes root `tokens.css`.
+
+Android APK 0.1.1 / versionCode 8 was built locally with EAS preview, existing remote signing credentials and production API `https://api.samnuan.com`. Gradle completed successfully; ZIP integrity and APK v2 signature verified. Package: `com.samnuan.app`; bytes: 105371718; SHA256: `6848a0ad24d6a48e150583eea607a6578b840704883b586d374b438526f101df`. Native source comes from commit `3f6b2b3`; the subsequent SOP refinement changes only web source. Artifact: `samnuan-redesign.apk` in this task's deliverables.
+
+Expo Doctor reported 19/22 checks passing: duplicate React versions in the workspace, a known Hermes V1 memory regression reported for Expo 56.0.21, and six Expo patch mismatches. These existing dependency warnings did not prevent the APK build. No SDK major upgrade was included in the UI refinement.
+
 ## Boundaries
 
-- Isolated local PostgreSQL database: `lawfirm_redesign_20261005`. All 121 migrations applied locally, including `20261005121500_workflow_default_template`. Production must apply that additive migration with the API release.
-- No production deployment, TestFlight build, Android installation or physical-device visual verification was performed. Native source coverage and bundle success do not establish device layout correctness.
+- Isolated local PostgreSQL database: `lawfirm_redesign_20261005`. All 121 migrations applied locally, including `20261005121500_workflow_default_template`; the production redesign deployment completed migration checks with none pending.
+- No TestFlight build, Android installation or physical-device visual verification was performed. The APK build and signature verification do not establish device layout correctness or runtime stability. Authenticated production SOP UI remains behind user login; its detailed workflows were verified against the real local API/database and production web build.
 - Optional wide tables keep contained horizontal scrolling so additional legal fields remain accessible. Page content, case tabs and portal navigation fit their available width. Long records/forms retain normal vertical scrolling.
 - An initial combined Court Day/journey run hit the unchanged registration rate limit and stale selectors for the Thai split date control. Court Day was rerun successfully in bounded local batches with corrected date selectors. Legacy full onboarding assertions still assume the retired Dashboard heading; that complete journey suite is not claimed as passing. No authentication throttles were weakened.
 

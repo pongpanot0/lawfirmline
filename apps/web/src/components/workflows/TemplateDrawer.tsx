@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, type WorkflowStepDef, type WorkflowTemplate } from '@/lib/api';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ export function TemplateDrawer({
   const [steps, setSteps] = useState<WorkflowStepDef[]>([blankStep()]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const close = useCallback(() => { if (!busy) onClose(); }, [busy, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -33,11 +34,13 @@ export function TemplateDrawer({
   }, [open, template]);
 
   const save = async () => {
+    if (busy) return;
     const problem = !name.trim() ? 'ตั้งชื่อแม่แบบก่อน' : stepsProblem(steps);
     if (problem) return setError(problem);
+    setError('');
     setBusy(true);
     try {
-      const data = { name: name.trim(), description: description.trim() || undefined, steps: cleanSteps(steps) };
+      const data = { name: name.trim(), description: description.trim() || (template ? '' : undefined), steps: cleanSteps(steps) };
       if (template) await api.updateWorkflowTemplate(token, template.id, data);
       else await api.createWorkflowTemplate(token, data);
       onSaved();
@@ -50,20 +53,34 @@ export function TemplateDrawer({
   };
 
   return (
-    <SideDrawer open={open} title={template ? 'แก้แม่แบบสายงาน' : 'สร้างแม่แบบสายงาน'} onClose={onClose}>
-      <div className="space-y-4">
-        <TextField label="ชื่อแม่แบบ" placeholder="เช่น แปล → ใบเบิกความ → คำฟ้อง" value={name} onChange={(e) => setName(e.target.value)} required />
-        <TextareaField label="อธิบาย (ไม่บังคับ)" value={description} onChange={(e) => setDescription(e.target.value)} />
+    <SideDrawer open={open} title={template ? 'แก้ Handoff flow' : 'สร้าง Handoff flow'} onClose={close}>
+      <form noValidate aria-label="แม่แบบสายงานส่งต่อ" onSubmit={e => { e.preventDefault(); void save(); }}>
+      <fieldset disabled={busy} className="min-w-0 space-y-4">
+        <p className="text-sm text-muted-foreground">บันทึกเป็นแม่แบบใช้ซ้ำ แล้วเลือกผู้รับจริงเมื่อเริ่มสายงานในคดี</p>
+        <TextField label="ชื่อแม่แบบ" placeholder="เช่น รับเรื่อง → ตรวจหลักฐาน → วางแนวทางคดี" value={name} onChange={(e) => setName(e.target.value)} required />
+        <details className="rounded-lg border p-3">
+          <summary className="cursor-pointer text-sm">คำอธิบาย (ไม่บังคับ){description.trim() && ' · มีข้อมูลแล้ว'}</summary>
+          <TextareaField className="mt-3" label="อธิบาย (ไม่บังคับ)" value={description} onChange={(e) => setDescription(e.target.value)} />
+        </details>
+        {!template && !name && steps.length === 1 && !steps[0].title && <Button type="button" variant="outline" size="sm" onClick={() => {
+          setName('รับเรื่องและวางแนวทางคดี');
+          setSteps([
+            { title: 'รวบรวมข้อมูลและเอกสาร', role: 'ASSISTANT', durationDays: 1, instructions: 'ตรวจข้อมูลลูกความและแนบเอกสารที่ได้รับ', requiresReview: false },
+            { title: 'ตรวจหลักฐานและสรุปประเด็น', role: 'LAWYER', durationDays: 2, instructions: 'สรุปข้อเท็จจริงและประเด็นที่ต้องขอข้อมูลเพิ่ม', requiresReview: true },
+            { title: 'ตรวจแนวทางก่อนแจ้งลูกความ', role: 'SENIOR_LAWYER', durationDays: 1, instructions: 'ตรวจข้อเสนอและแนวทางดำเนินคดี', requiresReview: false },
+          ]);
+        }}>ใช้ตัวอย่างรับเรื่อง</Button>}
         <div>
-          <p className="mb-2 text-sm font-medium">ขั้นตอน (ทำตามลำดับ ขั้นถัดไปเริ่มเมื่อขั้นก่อนเสร็จ)</p>
+          <p className="mb-2 text-sm font-semibold">ลำดับส่งต่องาน · {steps.length} ขั้น</p>
           <StepsEditor steps={steps} onChange={setSteps} />
         </div>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button onClick={save} disabled={busy}>{busy ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+        <div className="sticky -bottom-4 -mx-4 flex justify-end gap-2 border-t bg-card px-4 py-3">
+          <Button type="button" variant="outline" onClick={close}>ยกเลิก</Button>
+          <Button type="submit">{busy ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
         </div>
-      </div>
+      </fieldset>
+      </form>
     </SideDrawer>
   );
 }
