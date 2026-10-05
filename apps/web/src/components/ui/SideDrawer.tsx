@@ -64,7 +64,7 @@ export function SideDrawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-0 !m-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>
       <button
         type="button"
         aria-label="ปิด"

@@ -21,6 +21,8 @@ Implemented coverage: 79 web pages and 41 native screens. The inventory records 
 | Auth and recovery | TH/EN login and registration layouts, login error announcement, trial link, invitation/handoff recovery and neutral password recovery passed |
 | Preferred workflow | Persists after reload, selected ahead of newer templates, editable before starting; no run created on opening the drawer |
 | Default integrity | Concurrent replacements leave one default; foreign templates return 404, ordinary members return 403, null values return 400; archiving clears the default |
+| SOP handoff creation | Create, reorder/remove steps, review requirement, failed-save retention, edit, search and office default passed; shared template appears in workflows and the case start drawer; owner/senior editing and ordinary-member denial verified; editor and library fit 320, 375, 768 and 1440 px |
+| Existing SOP library | Manual editing, automatic publishing/versioning and case application passed at 375 and 1440 px |
 | Court Day | Nine checks passed: TH/EN layouts at five widths, file download, atomic outcomes, retries, rollback, draft recovery, future appointments and tenant boundaries |
 | New client/case forms and payer contact | Existing simple form checks and updated payer contact flow passed |
 | Portal workroom | Existing agreement/file/access flow passed |
@@ -28,6 +30,8 @@ Implemented coverage: 79 web pages and 41 native screens. The inventory records 
 | Native existing checks | Person detail/access/state/contrast, account validation/session races and offline session isolation passed |
 
 Final representative web checks ran against a local production build (`NEXT_BUILD_DIR=.next-verify`), with the API on port 3001 and web on port 3005. Marketing screenshots were recaptured from this rendered build using fictional seeded records, with animations disabled for stable language controls. Both staff light and dark themes were visually inspected.
+
+The SOP follow-up reused the existing workflow template editor and API. Its handoff creation and default integrity checks passed against the updated local production build; existing SOP publishing/application checks passed on the local dev server. Web TypeScript and all 89 web unit tests also passed again. No API or native source changed in this follow-up.
 
 ## Boundaries
 
@@ -46,6 +50,7 @@ pnpm --filter api exec jest --config jest.config.js --runInBand workflows.servic
 pnpm --filter web exec tsc --noEmit --incremental false
 pnpm --filter @lawfirm/mobile typecheck
 pnpm exec playwright test --project=workspace
+pnpm exec playwright test --project=sop-ui
 pnpm exec playwright test --project=journeys --grep 'public pages|auth forms fit|trial call|login fields|invalid invitation|forgot password gives'
 pnpm exec playwright test --project=court-day --grep responsive
 pnpm exec playwright test --project=court-day --grep-invert responsive

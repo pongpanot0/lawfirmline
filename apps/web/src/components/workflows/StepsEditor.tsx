@@ -18,18 +18,20 @@ export function StepsEditor({ steps, onChange }: { steps: WorkflowStepDef[]; onC
     <ol className="space-y-3">
       {steps.map((step, i) => (
         <li key={i} className="rounded-lg border bg-card p-3">
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{i + 1}</span>
             <input
               aria-label={`ชื่อขั้นที่ ${i + 1}`}
-              className="h-9 min-w-0 flex-1 rounded-md border border-input bg-card px-3 text-sm"
+              className="h-9 min-w-0 flex-1 basis-[calc(100%-2rem)] rounded-md border border-input bg-card px-3 text-sm sm:basis-0"
               placeholder="เช่น แปลเอกสาร"
               value={step.title}
               onChange={(e) => update(i, { title: e.target.value })}
             />
+            <div className="flex w-full justify-end gap-1 sm:w-auto">
             <Button type="button" variant="ghost" size="icon" aria-label="เลื่อนขึ้น" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp className="h-4 w-4" /></Button>
             <Button type="button" variant="ghost" size="icon" aria-label="เลื่อนลง" disabled={i === steps.length - 1} onClick={() => move(i, 1)}><ArrowDown className="h-4 w-4" /></Button>
             <Button type="button" variant="ghost" size="icon" aria-label={`ลบขั้นที่ ${i + 1}`} disabled={steps.length === 1} onClick={() => onChange(steps.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
+            </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-[1fr_9rem]">
             <label className="text-xs text-muted-foreground">
@@ -59,7 +61,7 @@ export function StepsEditor({ steps, onChange }: { steps: WorkflowStepDef[]; onC
             value={step.instructions ?? ''}
             onChange={(e) => update(i, { instructions: e.target.value })}
           />
-          <label className="mt-2 flex items-center gap-2 text-sm">
+          <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
             <input type="checkbox" checked={Boolean(step.requiresReview)} onChange={(e) => update(i, { requiresReview: e.target.checked })} />
             ต้องมีผู้ตรวจก่อนส่งต่อ
           </label>
