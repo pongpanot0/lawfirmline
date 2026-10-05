@@ -1,32 +1,25 @@
 /* Hallmark · pre-emit critique: P5 H5 E5 S4 R4 V5 */
-/* Hallmark · macrostructure: Bento Grid · nav: N5 · footer: Ft2 · studied: yes · DNA-source: url
- * source-url: https://era-residence.com · observed-fonts: ambroise-francois-std (classical serif display)
- *   + Maison Neue Extended (tracked micro-labels) → translated: Trirong (Thai didone) + Inter/Noto Sans Thai
- * DNA adopted: alternating full-bleed color acts (cream / dark plum / tinted), oversized classical
- *   display, masked line reveals + parallax (GSAP). Brand = approved Balance navy #142E43.
- *
- * Scoped under .lf-landing only — the app's shared shadcn tokens in globals.css
- * (dashboard, portal, auth) are untouched.
- */
+/* Hallmark · Long Document · Editorial Juris · design-system: /design.md
+ * Composition: Google Stitch Samnuan Legal Operations Redesign. */
 
 .lf-landing {
-  --color-paper: oklch(97% 0.012 55);
-  --color-paper-2: oklch(94.3% 0.015 50);
-  --color-paper-3: oklch(100% 0 0);
-  --color-ink: oklch(24% 0.025 262);
-  --color-ink-2: oklch(46% 0.025 262);
-  --color-rule: oklch(88% 0.014 50);
-  --color-rule-2: oklch(80% 0.02 45);
+  --color-paper: hsl(var(--background));
+  --color-paper-2: hsl(var(--muted));
+  --color-paper-3: hsl(var(--card));
+  --color-ink: hsl(var(--foreground));
+  --color-ink-2: hsl(var(--muted-foreground));
+  --color-rule: hsl(var(--border));
+  --color-rule-2: hsl(var(--input));
 
   /* Balance identity — solid navy mark, serif wordmark and navy actions. */
   --color-brand: #142e43;
   --color-accent: var(--color-brand);
   --color-accent-2: #0e2233;
-  --color-accent-soft: #e7edf1;
+  --color-accent-soft: hsl(var(--accent));
   --color-accent-line: color-mix(in oklab, var(--color-accent) 22%, transparent);
   --color-accent-ink: oklch(99% 0 0);
   --color-focus: var(--color-brand);
-  --color-success: oklch(56% 0.13 152);
+  --color-success: hsl(var(--success));
 
   /* Dark act — era-residence-style full-bleed band, now deep navy to match the brand */
   --color-band-dark: #142e43;
@@ -36,7 +29,7 @@
   --color-band-rule: oklch(38% 0.04 264);
 
   --font-display: 'Trirong', 'Inter', ui-serif, Georgia, serif;
-  --font-body: 'Inter', 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-sans);
 
   --space-3xs: 0.25rem;
   --space-2xs: 0.5rem;
@@ -45,8 +38,8 @@
   --space-md: 1.5rem;
   --space-lg: 2rem;
   --space-xl: 3rem;
-  --space-2xl: 4.5rem;
-  --space-3xl: 7rem;
+  --space-2xl: 4rem;
+  --space-3xl: 5rem;
 
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -55,13 +48,13 @@
   --text-xl: 1.625rem;
   --text-2xl: 2rem;
   --text-display-s: clamp(2.125rem, 4vw + 1rem, 3.25rem);
-  --text-display: clamp(2.625rem, 5vw + 1rem, 4.75rem);
+  --text-display: clamp(2.125rem, 3.5vw + 1rem, 3.5rem);
   --text-giant: clamp(4.5rem, 14vw, 13rem);
 
-  --radius-tile: 20px;
-  --radius-card: 16px;
-  --radius-pill: 999px;
-  --radius-input: 10px;
+  --radius-tile: var(--radius);
+  --radius-card: var(--radius);
+  --radius-pill: var(--radius);
+  --radius-input: var(--radius);
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
@@ -76,7 +69,6 @@
   height: 100dvh;
   overflow-y: auto;
   overflow-x: clip;
-  scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   /* The sticky nav sits above the snap-port — push snap positions below it. */
@@ -93,20 +85,8 @@
   box-sizing: border-box;
 }
 
-/* Full-screen acts: every section locks to the viewport on scroll.
-   .lf-snap sections are true slides (hero, tour, CTA); taller sections
-   (features, pricing) snap to their start and scroll freely inside. */
-.lf-landing > section {
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-}
-
-.lf-landing > footer {
-  scroll-snap-align: end;
-}
-
+/* Sections follow document flow; long content remains readable at any height. */
 .lf-snap {
-  min-height: calc(100dvh - 5rem);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -165,7 +145,7 @@
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.015em;
-  line-height: 1.12;
+  line-height: 1.4;
   overflow-wrap: anywhere;
   min-width: 0;
 }
@@ -174,7 +154,7 @@
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.01em;
-  line-height: 1.2;
+  line-height: 1.4;
   overflow-wrap: anywhere;
   min-width: 0;
 }
@@ -229,7 +209,7 @@
 }
 
 .lf-section--dark .lf-kicker {
-  color: oklch(74% 0.1 264);
+  color: var(--color-band-ink-2);
 }
 
 .lf-section--dark .lf-tour-frame {
@@ -353,9 +333,8 @@
 
 .lf-bento {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-flow: dense;
-  gap: clamp(0.75rem, 1.6vw, 1.25rem);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
 }
 
 .lf-tile {
@@ -387,21 +366,20 @@
 }
 
 .lf-tile--anchor {
-  grid-column: span 2;
-  grid-row: span 2;
+  grid-column: span 1;
 }
 
 .lf-tile--anchor.lf-tile--feature {
-  background: var(--color-accent-soft);
-  border-color: var(--color-accent-line);
+  background: var(--color-paper-3);
+  border-color: var(--color-rule);
 }
 
 .lf-tile--wide {
-  grid-column: span 2;
+  grid-column: span 1;
 }
 
 .lf-tile--full {
-  grid-column: span 4;
+  grid-column: span 2;
 }
 
 .lf-tile--sm {
@@ -455,6 +433,9 @@
 
 .lf-tour-stage {
   position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
   margin-inline: auto;
   max-width: 56rem;
   /* margin, not padding — the aux frames are absolutely positioned against
@@ -481,12 +462,14 @@
 
 .lf-tour-frame--main {
   position: relative;
+  grid-column: 1 / -1;
+  grid-row: 1;
   z-index: 3;
 }
 
 .lf-tour-frame--aux {
-  position: absolute;
-  width: 46%;
+  position: relative;
+  width: 100%;
   z-index: 1;
   box-shadow: 0 16px 32px -20px oklch(23% 0.02 40 / 0.3);
 }
@@ -495,16 +478,12 @@
   /* Fixed rem offsets, not percentages — a percentage here is relative to
      the stage's own padding-box height, so it can grow arbitrarily large
      (and reach above the heading) as the stage itself grows. */
-  top: -1.25rem;
-  left: -1.25rem;
-  transform: rotate(-6deg);
+  transform: none;
 }
 
 .lf-tour-frame--aux-b {
-  bottom: -1.25rem;
-  right: -1.25rem;
   z-index: 2;
-  transform: rotate(5deg);
+  transform: none;
 }
 
 .lf-tour-caption {

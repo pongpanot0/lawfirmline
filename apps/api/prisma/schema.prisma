@@ -981,6 +981,7 @@ model WorkflowTemplate {
   /// WorkflowStepDefinition[] (packages/shared): { title, instructions?, role: FirmRole, durationDays: number (1-60), requiresReview?: boolean }
   steps       Json
   isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

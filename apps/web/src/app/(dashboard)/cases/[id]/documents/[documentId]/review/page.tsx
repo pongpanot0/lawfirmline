@@ -22,11 +22,11 @@ const VERSION_STATUS_LABELS: Record<string, string> = {
 };
 
 const VERSION_STATUS_VARIANT: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
+  DRAFT: 'bg-muted text-foreground',
   WAITING_REVIEW: 'bg-amber-100 text-amber-700',
   RETURNED_FOR_CHANGES: 'bg-red-100 text-red-700',
   APPROVED: 'bg-green-100 text-green-700',
-  SUPERSEDED: 'bg-gray-100 text-gray-400',
+  SUPERSEDED: 'bg-muted text-muted-foreground',
 };
 
 function formatDateTime(date: string) {

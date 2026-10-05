@@ -155,7 +155,7 @@ export function Loading() {
 
 export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <Card style={{ borderColor: colors.warnSoft }}>
+    <Card style={{ borderColor: colors.warn, backgroundColor: colors.warnSoft }}>
       <Text style={{ color: colors.warn, fontSize: 14 }}>{message}</Text>
       {onRetry ? (
         <Pressable accessibilityRole="button" onPress={onRetry} style={{ marginTop: spacing.sm, minHeight: 44, justifyContent: 'center' }}>
@@ -177,11 +177,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.card,
     padding: spacing.md,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 3,
   },
   sectionLabel: {
     fontSize: 15,
@@ -190,14 +185,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
-  intro: { gap: spacing.xs, paddingTop: spacing.xs, paddingBottom: spacing.md },
-  introTitle: { fontSize: 21, fontFamily: fonts.bold, color: colors.ink },
-  introDetail: { fontSize: 13, lineHeight: 20, color: colors.muted },
+  intro: { gap: spacing.sm, paddingTop: spacing.xs, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line, marginBottom: spacing.md },
+  introTitle: { fontSize: 24, lineHeight: 34, fontFamily: fonts.bold, color: colors.ink },
+  introDetail: { fontSize: 14, lineHeight: 22, color: colors.muted },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 60, paddingVertical: spacing.md },
   actionTitle: { fontSize: 15, fontWeight: '600', color: colors.ink },
-  actionDetail: { fontSize: 12, lineHeight: 19, color: colors.muted, marginTop: spacing.xs },
+  actionDetail: { fontSize: 14, lineHeight: 22, color: colors.muted, marginTop: spacing.xs },
   searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.line,
-    borderRadius: radius.button, backgroundColor: colors.soft, paddingLeft: spacing.md },
+    borderRadius: radius.button, backgroundColor: colors.surface, paddingLeft: spacing.md },
   searchInput: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: spacing.sm, color: colors.text, fontSize: 14 },
   searchAction: { width: 44, minHeight: 48, justifyContent: 'center', alignItems: 'center' },
   filterTab: { minHeight: 44, borderRadius: radius.button, paddingHorizontal: spacing.md, justifyContent: 'center',
@@ -208,14 +203,14 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     alignSelf: 'flex-start',
   },
-  tagText: { fontSize: 11, fontWeight: '600' },
+  tagText: { fontSize: 12, lineHeight: 20, fontWeight: '600' },
   statCard: { flex: 1, minWidth: 0, minHeight: 88, justifyContent: 'space-between', gap: spacing.sm },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.muted,
   },
-  statHint: { fontSize: 11, color: colors.faint },
+  statHint: { fontSize: 12, color: colors.faint },
   statValue: {
     fontSize: 24,
     fontFamily: fonts.bold,
@@ -225,7 +220,7 @@ const styles = StyleSheet.create({
   button: {
     backgroundColor: colors.ink,
     borderRadius: radius.button,
-    paddingVertical: 13,
+    paddingVertical: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,

@@ -1297,6 +1297,7 @@ export interface WorkflowTemplate {
   description?: string | null;
   steps: WorkflowStepDef[];
   isActive: boolean;
+  isDefault: boolean;
 }
 
 export interface WorkflowAssignee {
@@ -3151,7 +3152,7 @@ export const api = {
   createWorkflowTemplate: (token: string, data: { name: string; description?: string; steps: WorkflowStepDef[] }) =>
     request<WorkflowTemplate>('/workflows/templates', { method: 'POST', token, body: JSON.stringify(data) }),
 
-  updateWorkflowTemplate: (token: string, id: string, data: { name?: string; description?: string; steps?: WorkflowStepDef[] }) =>
+  updateWorkflowTemplate: (token: string, id: string, data: { name?: string; description?: string; steps?: WorkflowStepDef[]; isDefault?: boolean }) =>
     request<WorkflowTemplate>(`/workflows/templates/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
   deleteWorkflowTemplate: (token: string, id: string) =>

@@ -105,18 +105,18 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
   return (
     <aside
       className={cn(
-        'flex h-dvh flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200',
+        'samnuan-sidebar flex h-dvh flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200',
         'fixed inset-y-0 left-0 z-50 w-72 shrink-0 md:relative md:h-full md:z-auto',
         mobileOpen ? 'translate-x-0' : 'max-md:-translate-x-full',
         collapsed ? 'md:w-[68px]' : 'md:w-60',
       )}
     >
-      <div className={cn('flex h-14 items-center gap-2 border-b border-sidebar-border px-4', collapsed && 'md:justify-center md:px-2')}>
+      <div className={cn('flex h-16 items-center gap-3 border-b border-sidebar-border px-4', collapsed && 'md:justify-center md:px-2')}>
         <SamnuanLogo wordmark={false} markClassName="h-8 w-8" />
         {(!collapsed || mobileOpen) && (
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold tracking-tight text-foreground">Samnuan</p>
-            <p className="truncate text-[10px] text-muted-foreground">{d.nav.tagline}</p>
+            <p className="font-display text-lg font-semibold text-sidebar-foreground">Samnuan</p>
+            <p className="truncate text-xs text-sidebar-muted">{d.nav.tagline}</p>
           </div>
         )}
         <button
@@ -141,7 +141,7 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
                 past court types to reach their cases.
               */}
               {(!collapsed || mobileOpen) && (
-                <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className="px-3 pb-2 pt-4 text-xs font-medium text-sidebar-muted">
                   {d.nav[group.labelKey]}
                 </p>
               )}
@@ -171,7 +171,7 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
           type="button"
           onClick={toggleTheme}
           className={cn(
-            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent',
+            'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent',
             collapsed && 'md:justify-center md:px-2',
           )}
         >
@@ -184,10 +184,10 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
         <Separator className="my-2" />
 
         <div className={cn('flex items-center gap-3 rounded-lg px-2 py-2', collapsed && 'md:justify-center')}>
-          <Avatar fallback={`${user.firstName[0]}${user.lastName[0]}`} />
+          <Avatar fallback={`${user.firstName[0]}${user.lastName[0]}`} className="bg-sidebar-accent text-sidebar-foreground" />
           <div className={cn('min-w-0 flex-1', collapsed && 'md:hidden')}>
             <p className="truncate text-sm font-medium">{user.firstName} {user.lastName}</p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-xs text-sidebar-muted">
               {user.firmRole === FirmRole.OWNER
                 ? d.team.roleOwner
                 : user.firmRole === FirmRole.SENIOR_LAWYER
@@ -202,7 +202,7 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
         <Button
           variant="ghost"
           size="sm"
-          className={cn('w-full justify-start text-muted-foreground', collapsed && 'md:hidden')}
+          className={cn('w-full justify-start text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground', collapsed && 'md:hidden')}
           onClick={onLogout}
         >
           {d.nav.signOut}
@@ -211,7 +211,7 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
         <Button
           variant="ghost"
           size="icon"
-          className="mx-auto mt-1 hidden md:flex"
+          className="mx-auto mt-1 hidden hover:bg-sidebar-accent hover:text-sidebar-foreground md:flex"
           aria-label={collapsed ? d.nav.openMenu : d.nav.closeMenu}
           onClick={() => setCollapsed(!collapsed)}
         >
@@ -261,10 +261,10 @@ function NavItemRow({
 
   const linkClass = (isActive: boolean) =>
     cn(
-      'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
+      'samnuan-navlink flex min-h-11 items-center gap-3 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-foreground focus-visible:ring-inset',
       isActive
-        ? 'bg-primary/10 text-primary'
-        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground',
+        ? 'bg-sidebar-accent text-sidebar-foreground'
+        : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground',
       collapsed && 'md:justify-center md:px-2',
     );
 

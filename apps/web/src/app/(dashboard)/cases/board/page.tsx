@@ -41,17 +41,17 @@ export default function CaseBoardPage() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <div className="samnuan-page-header mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{d.admin.boardTitle}</h1>
-          <p className="mt-1 text-sm text-slate-500">แยกคดีตามสถานะปัจจุบัน เลือกคดีเพื่อทำงานต่อ</p>
+          <h1 className="text-2xl text-foreground sm:text-3xl">{d.admin.boardTitle}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">แยกคดีตามสถานะปัจจุบัน เลือกคดีเพื่อทำงานต่อ</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/cases" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">
+          <Link href="/cases" className="inline-flex min-h-11 items-center rounded-lg border border-input bg-card px-4 py-2 text-sm hover:bg-accent">
             {d.admin.listView}
           </Link>
           {canEdit && (
-            <Link href="/cases/new" className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
+            <Link href="/cases/new" className="inline-flex min-h-11 items-center rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
               + {d.admin.newCase}
             </Link>
           )}

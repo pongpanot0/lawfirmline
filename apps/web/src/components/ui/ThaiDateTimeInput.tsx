@@ -19,6 +19,7 @@ export interface ThaiDateTimeInputProps {
   /** ได้ค่ากลับเป็น `YYYY-MM-DDTHH:mm` เหมือนกัน — แปลง พ.ศ.↔ค.ศ. ให้ในตัว */
   onChange: (value: string) => void;
   id?: string;
+  'aria-label'?: string;
   className?: string;
   required?: boolean;
   disabled?: boolean;
@@ -28,7 +29,7 @@ export interface ThaiDateTimeInputProps {
  * ช่องเลือกวันที่+เวลาแบบไทย: วัน/เดือนไทยเต็ม/ปี พ.ศ. (เหมือน ThaiDateInput) บวกเวลา —
  * ค่าที่ส่งออกยังเป็น `YYYY-MM-DDTHH:mm` เดิมเหมือน `<input type="datetime-local">`
  */
-export function ThaiDateTimeInput({ value, onChange, id, className, required, disabled }: ThaiDateTimeInputProps) {
+export function ThaiDateTimeInput({ value, onChange, id, className, required, disabled, 'aria-label': ariaLabel }: ThaiDateTimeInputProps) {
   const [local, setLocal] = useState<Parts>(() => parseValue(value));
 
   useEffect(() => {
@@ -59,7 +60,7 @@ export function ThaiDateTimeInput({ value, onChange, id, className, required, di
   const selectClass = 'h-9 min-w-[7.5rem] flex-1 rounded-lg border border-input bg-background px-2 text-sm';
 
   return (
-    <div className={`flex flex-wrap gap-1.5 ${className ?? ''}`} id={id}>
+    <div role="group" aria-label={ariaLabel ?? 'วันและเวลา'} className={`flex flex-wrap gap-1.5 ${className ?? ''}`} id={id}>
       <input
         aria-label="วัน"
         inputMode="numeric"

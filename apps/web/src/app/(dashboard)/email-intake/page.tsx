@@ -18,7 +18,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_VARIANT: Record<string, string> = {
   PENDING_INTAKE: 'bg-amber-100 text-amber-700',
   LINKED: 'bg-green-100 text-green-700',
-  ARCHIVED: 'bg-gray-100 text-gray-700',
+  ARCHIVED: 'bg-muted text-foreground',
 };
 
 function formatDateTime(date: string) {
@@ -96,7 +96,7 @@ export default function EmailIntakePage() {
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      STATUS_VARIANT[thread.status] ?? 'bg-gray-100 text-gray-700'
+                      STATUS_VARIANT[thread.status] ?? 'bg-muted text-foreground'
                     }`}
                   >
                     {STATUS_LABELS[thread.status] ?? thread.status}

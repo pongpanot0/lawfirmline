@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Scale } from 'lucide-react';
+import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 import { portalApi, PortalApiError } from '@/lib/portal-api';
 import { portalHomeFor, usePortalAuth } from '@/lib/portal-auth';
 import { Button } from '@/components/ui/button';
@@ -66,24 +66,23 @@ export default function PortalLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-md border-0 shadow-card">
-        <CardContent className="p-9">
-          <div className="mb-7 flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Scale className="h-4 w-4" />
-            </div>
-            <span className="text-base font-extrabold">Samnuan — พอร์ทัลลูกความ</span>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md">
+        <CardContent className="p-4 sm:p-8">
+          <div className="mb-8 flex flex-wrap items-center gap-3">
+            <SamnuanLogo />
+            <span className="text-sm text-muted-foreground">พอร์ทัลลูกความ</span>
           </div>
-          <h1 className="mb-1.5 text-[19px] font-bold">เข้าสู่ระบบพอร์ทัล</h1>
+          <h1 className="mb-2 text-2xl font-semibold">เข้าสู่ระบบพอร์ทัล</h1>
           <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
             มีรหัสผ่านแล้วใช้ด้านล่างได้เลย — ยังไม่มีหรือลืมรหัส ให้ขอลิงก์ทางอีเมล
           </p>
           <form onSubmit={handlePasswordLogin} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-[12.5px] font-semibold">อีเมล</label>
+              <label htmlFor="portal-email" className="mb-2 block text-sm font-medium">อีเมล</label>
               <Input
                 type="email"
+                id="portal-email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
@@ -92,9 +91,10 @@ export default function PortalLoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-[12.5px] font-semibold">รหัสผ่าน</label>
+              <label htmlFor="portal-password" className="mb-2 block text-sm font-medium">รหัสผ่าน</label>
               <Input
                 type="password"
+                id="portal-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="อย่างน้อย 6 ตัวอักษร"

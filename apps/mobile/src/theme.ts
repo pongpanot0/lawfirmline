@@ -1,24 +1,24 @@
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4
  * genre: modern-minimal · macrostructure: Workbench · design-system: design.md · designed-as-app */
-/** White canvas, quiet navy controls, and restrained semantic status colors. */
+/** Editorial Juris: paper cream, navy controls; mirrors the root design.md. */
 export const colors = {
-  bg: '#FFFFFF',
-  surface: '#FFFFFF',
-  ink: '#12394C',
-  text: '#203545',
-  muted: '#526777',
-  faint: '#546B7B',
-  line: '#DFE4E8',
-  soft: '#F5F7F9',
+  bg: '#F7F4ED',
+  surface: '#FFFDFA',
+  ink: '#142E43',
+  text: '#142E43',
+  muted: '#52616B',
+  faint: '#52616B',
+  line: '#DFE0DC',
+  soft: '#EDEAE3',
   accent: '#8B6D32',
   accentInk: '#73520C',
   accentSoft: '#F7F3EB',
   good: '#227050',
-  goodSoft: '#F0F6F2',
+  goodSoft: '#EAF3ED',
   warn: '#A83232',
-  warnSoft: '#FBF2F1',
+  warnSoft: '#FAEDEB',
   info: '#36566B',
-  infoSoft: '#F1F5F7',
+  infoSoft: '#E8EDF0',
 } as const;
 
 /**
@@ -30,7 +30,7 @@ export const fonts = {
   bold: 'Anuphan_700Bold',
 } as const;
 
-export const radius = { card: 14, pill: 999, button: 10 } as const;
+export const radius = { card: 8, pill: 4, button: 8 } as const;
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
 export const pageContent = {
@@ -38,7 +38,7 @@ export const pageContent = {
   maxWidth: 1080,
   alignSelf: 'center',
   paddingHorizontal: spacing.lg,
-  paddingTop: spacing.md,
+  paddingTop: spacing.lg,
   paddingBottom: spacing.xl,
 } as const;
 

@@ -48,12 +48,12 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  RECEIVED: 'bg-gray-100 text-gray-700',
-  ASSESSING: 'bg-blue-100 text-blue-700',
+  RECEIVED: 'bg-muted text-foreground',
+  ASSESSING: 'bg-accent text-primary',
   ACCEPTED: 'bg-green-100 text-green-700',
   REJECTED: 'bg-red-100 text-red-700',
   CONVERTED: 'bg-purple-100 text-purple-700',
-  CONSULTED: 'bg-slate-100 text-slate-700',
+  CONSULTED: 'bg-muted text-foreground',
 };
 
 const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
@@ -980,7 +980,7 @@ export default function IntakeDetailPage() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" onClick={() => openNoticeModal()}>ออก Notice</Button>
-          <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[intake.status] ?? 'bg-gray-100 text-gray-700'}`}>
+          <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[intake.status] ?? 'bg-muted text-foreground'}`}>
             {STATUS_LABELS[intake.status] ?? intake.status}
           </span>
         </div>
@@ -1270,7 +1270,7 @@ export default function IntakeDetailPage() {
                           <label className="mt-2 block text-xs text-amber-950">
                             เลือกรายการเอกสารที่จะอัปเดต
                             <select
-                              className="mt-1 min-h-9 w-full rounded-md border border-amber-300 bg-white px-2"
+                              className="mt-1 min-h-9 w-full rounded-md border border-amber-300 bg-card px-2"
                               value={selectedRequestId ?? ''}
                               onChange={(e) => setSuggestionRequestIds((previous) => ({ ...previous, [suggestion.documentId]: e.target.value }))}
                             >

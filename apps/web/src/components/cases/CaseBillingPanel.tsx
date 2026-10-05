@@ -111,38 +111,38 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
   return (
     <div>
-      <h2 className="mb-6 text-xl font-bold text-slate-900">{d.caseBilling.title}</h2>
+      <h2 className="mb-6 text-xl font-bold text-foreground">{d.caseBilling.title}</h2>
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">รายได้</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">รายได้</p>
           <p className="text-2xl font-bold text-emerald-600">{formatCurrency(caseRevenue)}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">ค่าใช้จ่ายอนุมัติ</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">ค่าใช้จ่ายอนุมัติ</p>
           <p className="text-2xl font-bold text-violet-600">{formatCurrency(totalSpent)}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">กำไร</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">กำไร</p>
           <p className={`text-2xl font-bold ${caseProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
             {formatCurrency(caseProfit)}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">{d.caseBilling.billableHours}</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">{d.caseBilling.billableHours}</p>
           <p className="text-2xl font-bold text-brand-600">{totalHours.toFixed(1)}h</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">{d.caseBilling.timeBilled}</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">{d.caseBilling.timeBilled}</p>
           <p className="text-2xl font-bold text-green-600">{formatCurrency(totalBilled)}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">{d.caseBilling.allExpenses}</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">{d.caseBilling.allExpenses}</p>
           <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalExpenses)}</p>
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mb-6 rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-semibold">{d.caseBilling.expenseClaims}</h2>
           <button
@@ -154,7 +154,7 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         </div>
 
         {showExpenseForm && (
-          <form onSubmit={handleCreateExpense} className="mb-4 space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-4">
+          <form onSubmit={handleCreateExpense} className="mb-4 space-y-3 rounded-lg border border-border bg-muted p-4">
             <div className="grid gap-3 md:grid-cols-2">
               <div>
                 <MoneyInput
@@ -165,14 +165,14 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
                   placeholder={d.caseBilling.amount}
                   value={expenseForm.amount}
                   onValueChange={(next) => setExpenseForm({ ...expenseForm, amount: next })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 />
-                <p className="mt-1 text-xs text-slate-500">{MONEY_HINT}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{MONEY_HINT}</p>
               </div>
               <select
                 value={expenseForm.category}
                 onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-lg border border-input px-3 py-2 text-sm"
               >
                 {EXPENSE_CATEGORIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
@@ -183,15 +183,15 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
               required placeholder={d.caseBilling.descriptionField}
               value={expenseForm.description}
               onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-input px-3 py-2 text-sm"
             />
             <input
               placeholder={d.caseBilling.purpose}
               value={expenseForm.expensePurpose}
               onChange={(e) => setExpenseForm({ ...expenseForm, expensePurpose: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-input px-3 py-2 text-sm"
             />
-            <p className="text-xs text-slate-500">{d.caseBilling.draftHint}</p>
+            <p className="text-xs text-muted-foreground">{d.caseBilling.draftHint}</p>
             {expenseError && <p role="alert" className="text-sm text-red-600">{expenseError}</p>}
             <button type="submit" disabled={savingExpense} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white disabled:opacity-50">
               {savingExpense ? d.caseBilling.savingDraft : d.caseBilling.saveDraft}
@@ -201,10 +201,10 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
 
         <div className="space-y-2">
           {expenses.map((e) => (
-            <div key={e.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
+            <div key={e.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
               <div>
                 <p className="font-medium">{e.description}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   {e.user.firstName} {e.user.lastName}
                   {e.category && ` — ${e.category}`}
                   {' — '}
@@ -214,13 +214,13 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
               <div className="flex items-center gap-3 text-right">
                 {/* ออกบิลไปแล้วเปลี่ยนไม่ได้ ต้องไปแก้ที่ใบแจ้งหนี้ */}
                 {!e.invoiceId && (
-                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <input
                       type="checkbox"
                       aria-label={`สำนักงานออกเอง: ${e.description}`}
                       checked={e.billable === false}
                       onChange={(ev) => handleSetBillable(e.id, !ev.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-slate-300"
+                      className="h-3.5 w-3.5 rounded border-input"
                     />
                     สำนักงานออกเอง
                   </label>
@@ -250,20 +250,20 @@ export function CaseBillingPanel({ caseId }: { caseId: string }) {
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mb-6 rounded-xl border border-border bg-card p-6 shadow-sm">
         <h2 className="mb-4 font-semibold">{d.caseBilling.timeEntries}</h2>
         <div className="space-y-2">
           {timeEntries.map((e) => (
-            <div key={e.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
+            <div key={e.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
               <div>
                 <p className="font-medium">{e.description || d.caseBilling.timeEntry}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   {e.user.firstName} {e.user.lastName} — {formatDate(e.date)}
                 </p>
               </div>
               <div className="text-right">
                 <p>{e.hours}h @ ฿{e.rate}</p>
-                <p className="text-xs text-slate-400">{formatCurrency(e.hours * e.rate)}</p>
+                <p className="text-xs text-muted-foreground">{formatCurrency(e.hours * e.rate)}</p>
               </div>
             </div>
           ))}

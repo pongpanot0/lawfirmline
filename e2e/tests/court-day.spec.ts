@@ -5,6 +5,16 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 const API = process.env.E2E_API_URL ?? 'http://localhost:3001';
 
+async function fillNextAppointment(page: Page, label: string, value: string) {
+  const [date, time] = value.split('T');
+  const [year, month, day] = date.split('-');
+  const field = page.getByRole('group', { name: label, exact: true });
+  await field.getByLabel('วัน', { exact: true }).fill(String(Number(day)));
+  await field.getByLabel('เดือน', { exact: true }).selectOption(String(Number(month)));
+  await field.getByLabel('ปี พ.ศ.', { exact: true }).fill(String(Number(year) + 543));
+  await field.getByLabel('เวลา', { exact: true }).fill(time);
+}
+
 async function fixture(request: APIRequestContext) {
   const data = localTestData();
   const folder = await mkdtemp(path.join(tmpdir(), 'court-day-'));
@@ -220,9 +230,7 @@ test('court day: prepare from My Day → download → record → follow-up + dra
     const nextDate = new Date(Date.now() + 7 * 86400000)
       .toISOString()
       .slice(0, 10);
-    await page
-      .getByLabel('วันและเวลานัดครั้งหน้า', { exact: true })
-      .fill(`${nextDate}T09:00`);
+    await fillNextAppointment(page, 'วันและเวลานัดครั้งหน้า', `${nextDate}T09:00`);
     await page.getByLabel('สร้างงานติดตาม', { exact: true }).check();
     await page
       .getByLabel('งานที่ต้องทำต่อ', { exact: true })
@@ -569,14 +577,9 @@ for (const width of [320, 375, 414, 768, 1440]) {
                   ? 'บันทึกผลนัดเพื่อทดสอบหน้าจอ'
                   : 'A hearing outcome for responsive testing.',
               );
-            await page
-              .getByLabel(
-                th
-                  ? 'วันและเวลานัดครั้งหน้า'
-                  : 'Next appointment date and time',
-                { exact: true },
-              )
-              .fill('2027-01-20T09:00');
+            await fillNextAppointment(page,
+              th ? 'วันและเวลานัดครั้งหน้า' : 'Next appointment date and time',
+              '2027-01-20T09:00');
           }
           await expect(page.locator('[aria-current="step"]')).toContainText(
             `0${stage + 1}`,

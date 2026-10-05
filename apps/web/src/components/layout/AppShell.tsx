@@ -39,7 +39,8 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
   }, [mobileNavOpen]);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-background">
+    <div className="samnuan-workspace flex h-dvh w-full overflow-hidden bg-background">
+      <a href="#workspace-content" className="sr-only z-50 rounded-lg bg-card p-3 text-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4">ข้ามไปเนื้อหา</a>
       {mobileNavOpen && (
         <button
           type="button"
@@ -63,8 +64,8 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           onSearchChange={setSearchQuery}
           onMenuClick={() => setMobileNavOpen(true)}
         />
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 pb-24 sm:p-4 sm:pb-24 md:p-6 md:pb-24 lg:p-8 lg:pb-24 scrollbar-thin">
-          {children}
+        <main id="workspace-content" className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 pb-24 md:p-6 md:pb-24 lg:p-8 lg:pb-24 scrollbar-thin">
+          <div className="samnuan-page">{children}</div>
         </main>
       </div>
       {pathname !== '/dashboard' && pathname !== '/research' && pathname !== '/intake' && pathname !== '/intake/new' && (

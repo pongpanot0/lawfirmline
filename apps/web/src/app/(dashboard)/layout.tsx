@@ -38,15 +38,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!loading && user && external) {
     if (pathname !== '/work') return <DashboardLoading />;
     return (
-      <div className="min-h-screen bg-background">
-        <header className="flex items-center gap-3 border-b bg-card px-4 py-3">
+      <div className="samnuan-workspace min-h-screen bg-background">
+        <header className="flex flex-wrap items-center gap-3 border-b bg-card px-4 py-3">
           <span className="font-semibold">{user.firmName}</span>
           <span className="text-sm text-muted-foreground">· ผู้รับงานภายนอก</span>
           <button type="button" onClick={signOut} className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-lg px-3 text-sm hover:bg-accent">
             <LogOut className="h-4 w-4" />ออกจากระบบ
           </button>
         </header>
-        <main className="px-4 py-6">{children}</main>
+        <main className="px-4 py-6"><div className="samnuan-page">{children}</div></main>
       </div>
     );
   }

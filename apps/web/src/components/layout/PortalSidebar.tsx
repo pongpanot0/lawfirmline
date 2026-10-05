@@ -29,16 +29,16 @@ export function PortalSidebar({ contact, onLogout }: { contact: PortalContact; o
   const pathname = usePathname();
 
   return (
-    <aside className="hidden h-dvh w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 md:flex print:!hidden">
+    <aside className="samnuan-sidebar sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 md:flex print:!hidden">
       <div className="mb-6 flex items-center gap-2.5 px-2">
         <SamnuanLogo wordmark={false} markClassName="h-[34px] w-[34px] rounded-[9px]" />
         <div>
-          <p className="text-[15px] font-bold leading-tight">Samnuan</p>
-          <p className="text-[11px] font-medium text-muted-foreground">Client Portal</p>
+          <p className="font-display text-lg font-semibold">Samnuan</p>
+          <p className="text-xs text-sidebar-muted">Client Portal</p>
         </div>
       </div>
 
-      <p className="px-3 pb-1.5 pt-3 text-[11px] font-semibold tracking-wide text-muted-foreground">เมนูหลัก</p>
+      <p className="px-3 pb-2 pt-4 text-xs font-medium text-sidebar-muted">เมนูหลัก</p>
       <nav className="flex flex-col gap-0.5">
         {PORTAL_NAV_ITEMS.map((item) => {
           const active = item.href === '/portal' ? pathname === '/portal' : pathname.startsWith(item.href);
@@ -47,9 +47,10 @@ export function PortalSidebar({ contact, onLogout }: { contact: PortalContact; o
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? 'page' : undefined}
               className={cn(
-                'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium',
-                active ? 'bg-primary/10 font-semibold text-primary' : 'text-sidebar-foreground hover:bg-sidebar-accent',
+                'samnuan-navlink flex min-h-11 items-center gap-3 px-3 py-2 text-sm font-medium',
+                active ? 'bg-sidebar-accent text-sidebar-foreground' : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground',
               )}
             >
               <Icon className="h-[18px] w-[18px] shrink-0" />
@@ -62,17 +63,17 @@ export function PortalSidebar({ contact, onLogout }: { contact: PortalContact; o
       <button
         type="button"
         onClick={onLogout}
-        className="mt-auto flex items-center gap-2.5 rounded-lg border-t border-sidebar-border px-3 pt-4 text-[13.5px] font-medium text-sidebar-foreground hover:bg-sidebar-accent"
+        className="mt-auto flex min-h-11 items-center gap-3 rounded-lg border-t border-sidebar-border px-3 py-3 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent"
       >
         <LogOut className="h-[18px] w-[18px] shrink-0" />
         ออกจากระบบ
       </button>
 
       <div className="mt-3 flex items-center gap-2.5 rounded-lg px-2 py-2">
-        <Avatar fallback={initials(contact.name)} />
+        <Avatar fallback={initials(contact.name)} className="bg-sidebar-accent text-sidebar-foreground" />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold leading-tight">{contact.name}</p>
-          <p className="truncate text-[11.5px] text-muted-foreground">{contact.client?.name}</p>
+          <p className="truncate text-xs text-sidebar-muted">{contact.client?.name}</p>
         </div>
       </div>
     </aside>

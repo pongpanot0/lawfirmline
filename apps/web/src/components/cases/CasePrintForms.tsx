@@ -96,7 +96,7 @@ export function CasePrintForms({ legalCase }: { legalCase: CaseDetail }) {
               }} /><span className="mt-1 block text-xs text-muted-foreground">ภาพใช้ในเครื่องสำหรับจัดพิมพ์เท่านั้น ไม่ได้อัปโหลด รูปถ่ายตัวอย่างไม่ถูกนำมาใส่เป็นพื้นหลัง</span></label>
               {images[kind] && <Button variant="outline" onClick={() => { setReady(false); setImages(previous => ({ ...previous, [kind]: '' })); }}>นำภาพออก</Button>}
             </div>
-            <section className="min-w-0 space-y-2"><h3 className="font-medium">ตัวอย่างก่อนส่งออก</h3><div ref={previewBox} className="overflow-hidden rounded-md border bg-white" style={{ height: 1123 * scale }}><iframe key={kind} ref={preview} title={`ตัวอย่าง ${CASE_PRINT_LABELS[kind]}`} srcDoc={html} sandbox="allow-same-origin allow-modals" className="h-[1123px] w-[794px] max-w-none origin-top-left border-0" style={{ transform: `scale(${scale})` }} onLoad={async () => {
+            <section className="min-w-0 space-y-2"><h3 className="font-medium">ตัวอย่างก่อนส่งออก</h3><div ref={previewBox} className="overflow-hidden rounded-md border bg-card" style={{ height: 1123 * scale }}><iframe key={kind} ref={preview} title={`ตัวอย่าง ${CASE_PRINT_LABELS[kind]}`} srcDoc={html} sandbox="allow-same-origin allow-modals" className="h-[1123px] w-[794px] max-w-none origin-top-left border-0" style={{ transform: `scale(${scale})` }} onLoad={async () => {
               const doc = preview.current?.contentDocument;
               if (!doc) return;
               await doc.fonts.ready;

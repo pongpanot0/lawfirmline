@@ -1,7 +1,7 @@
 # Samnuan Mobile design
 
 Hallmark · modern-minimal · Workbench adapted for a native legal operations app.
-The runtime tokens are in `src/theme.ts`; all screens share this system. This file applies to Mobile, not the web landing page.
+The root [design.md](../../design.md) locks the shared Editorial Juris identity from Stitch. Native tokens are in `src/theme.ts`; all 41 screens share this system.
 
 ## Hierarchy and flow
 
@@ -11,17 +11,17 @@ The runtime tokens are in `src/theme.ts`; all screens share this system. This fi
 - Cases, Calendar, Tasks: group search/filter controls above the list; keep the current filter visible and mark tappable details with a chevron.
 - Forms: separate required details, scheduling, people and attachments into titled sections. Labels sit directly above inputs. Keep existing validation, permissions and submission behavior.
 - Account: show profile first, fold password changes, and expose a dedicated deletion-request screen from Account, More and Settings. Clearly state that submitting a request does not delete the account immediately.
-- Clients, expenses, leave, notifications, owner operations, reports, knowledge, court and authentication screens share the white canvas and restrained controls. Route-specific sectioning complements the shared system.
+- Clients, expenses, leave, notifications, owner operations, reports, knowledge, court and authentication screens share the cream canvas and restrained controls. Route-specific sectioning complements the shared system.
 
 ## Locked tokens
 
-The canvas and navigation headers are white. Navy `ink` anchors text and primary actions. White cards use a soft gray border and shallow shadow; quiet gray surfaces group controls. Links use muted navy. Warm brown marks court dates/review queues, red marks overdue work, green marks completion. Keep these colors in small labels, icons or numbers, with text explaining every status. Do not fill headers, identity cards, dashboard blocks or statistic cards with saturated color.
+The canvas is paper cream (#F7F4ED), with warm-white surfaces (#FFFDFA) and navy ink (#142E43). Cards use a hairline division and no decorative shadow. Links use muted navy. Brass marks court dates/review queues, red marks overdue work, green marks completion, with text explaining every status.
 
 `src/theme.ts` exports native-compatible color values; React Native does not consume CSS custom properties or OKLCH. These named tokens are the native equivalent of Hallmark's portable token block. Do not add one-off colors or fonts in screens.
 
-Display: Anuphan 600/700; body: platform font with Thai support. Retain the app's text size preference and OS font scaling. Headings stay upright. Use the existing 4-point spacing scale; card radius 14, button radius 10. Shadows are subtle and functional.
+Display: Anuphan 600/700; body: platform font with Thai support. Retain text size preference and OS scaling. Upright headings, existing 4-point spacing scale, card/button radius 8, status radius 4. Body and detail text wrap.
 
-All routes, including Court Day and authentication, use white backgrounds. No screen-local palette or dark-mode exception. Large text wraps; rows place auxiliary actions below content rather than squeezing titles beside buttons.
+All routes, including Court Day and authentication, use cream backgrounds. Large text wraps; rows place auxiliary actions below content rather than squeezing titles beside buttons.
 
 ## Interaction
 

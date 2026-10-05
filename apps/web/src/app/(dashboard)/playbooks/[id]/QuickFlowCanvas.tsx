@@ -74,7 +74,7 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
     setExpandedIndex(null);
   };
 
-  return <section aria-label={th ? 'ผังลำดับงาน' : 'Workflow canvas'} className="mx-auto max-w-3xl overflow-hidden rounded-xl border bg-[#f6f8fc]">
+  return <section aria-label={th ? 'ผังลำดับงาน' : 'Workflow canvas'} className="mx-auto max-w-3xl overflow-hidden rounded-lg border bg-muted">
     <div className="border-b bg-card p-4 sm:p-5">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="font-semibold">{th ? 'ขั้นตอนใน SOP' : 'SOP steps'}</h2>
@@ -100,8 +100,8 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
                   <Input id={`sop-step-title-${index}`} aria-label={th ? `ชื่องานขั้นตอน ${index + 1}` : `Step ${index + 1} task name`} aria-invalid={!!titleErrors?.[index]} aria-describedby={titleErrors?.[index] ? `sop-step-title-${index}-error` : undefined} required maxLength={200} value={step.title} onChange={e => editStep(index, { title: e.target.value })} className={`h-auto bg-transparent px-0 py-1 font-medium shadow-none focus-visible:ring-0 ${titleErrors?.[index] ? 'border-destructive' : 'border-0'}`} />
                   {titleErrors?.[index] && <p id={`sop-step-title-${index}-error`} role="alert" className="text-xs text-destructive">{titleErrors[index]}</p>}
                   {(step.stage || step.primaryRole || step.offsetDays != null) && <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
-                    {step.stage && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{stageLabel(step.stage)}</span>}
-                    {step.primaryRole && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">{ROLE_LABELS[step.primaryRole][th ? 'th' : 'en']}</span>}
+              {step.stage && <span className="rounded-sm bg-muted px-2 py-1 text-muted-foreground">{stageLabel(step.stage)}</span>}
+              {step.primaryRole && <span className="rounded-sm bg-accent px-2 py-1 text-accent-foreground">{ROLE_LABELS[step.primaryRole][th ? 'th' : 'en']}</span>}
                     {step.offsetDays != null && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-800">+{step.offsetDays} {DAY_BASIS_LABELS[step.dayBasis ?? 'CALENDAR'][th ? 'th' : 'en']}</span>}
                   </div>}
                 </div>
@@ -162,7 +162,7 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
                 <Button type="submit" size="sm">{th ? 'เพิ่ม' : 'Add'}</Button>
                 <Button type="button" size="sm" variant="ghost" onClick={() => { setInsertAfter(null); setInsertTitle(''); setInsertTitleError(''); }}>{th ? 'ยกเลิก' : 'Cancel'}</Button>
                 {insertTitleError && <p id="insert-step-title-error" role="alert" className="w-full text-xs text-destructive">{insertTitleError}</p>}
-              </form> : <><span className="h-2 w-px bg-slate-300" aria-hidden="true" /><button type="button" disabled={steps.length >= 50} onClick={() => { setInsertAfter(index); setInsertTitle(''); setInsertTitleError(''); }} aria-label={th ? `เพิ่มงานหลังขั้นตอน ${index + 1}` : `Add task after step ${index + 1}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-card text-slate-500 hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40"><Plus className="h-4 w-4" /></button>{index < steps.length - 1 && <span className="h-2 w-px bg-slate-300" aria-hidden="true" />}</>}
+              </form> : <><span className="h-2 w-px bg-muted" aria-hidden="true" /><button type="button" disabled={steps.length >= 50} onClick={() => { setInsertAfter(index); setInsertTitle(''); setInsertTitleError(''); }} aria-label={th ? `เพิ่มงานหลังขั้นตอน ${index + 1}` : `Add task after step ${index + 1}`} className="flex h-7 w-7 items-center justify-center rounded-full border border-input bg-card text-muted-foreground hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40"><Plus className="h-4 w-4" /></button>{index < steps.length - 1 && <span className="h-2 w-px bg-muted" aria-hidden="true" />}</>}
             </div>
           </li>)}
         </ol>}

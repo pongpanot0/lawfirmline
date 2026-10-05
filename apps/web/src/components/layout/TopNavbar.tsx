@@ -55,7 +55,7 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
   ].filter((i) => i.show);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-card/80 px-3 backdrop-blur-md sm:gap-4 sm:px-4 md:px-6">
+    <header className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2 sm:h-16 sm:flex-nowrap sm:gap-4 sm:px-4 md:px-6">
       <Button
         variant="ghost"
         size="icon"
@@ -66,11 +66,12 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
         <Menu className="h-5 w-5" />
       </Button>
 
-      <div className="relative min-w-0 flex-1 md:max-w-md">
+      <div className="relative order-last min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-auto md:max-w-md">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder={d.topbar.searchPlaceholder}
-          className="h-9 border-transparent bg-muted/50 pl-9 focus-visible:bg-card"
+          aria-label={d.topbar.searchPlaceholder}
+          className="bg-background pl-9 focus-visible:bg-card"
           value={searchQuery}
           onChange={(e) => onSearchChange?.(e.target.value)}
           onKeyDown={(e) => {
@@ -81,8 +82,8 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
         />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-        <Link href={taskHref} onClick={() => setOpen(false)} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90">
+      <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+        <Link href={taskHref} onClick={() => setOpen(false)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:opacity-90">
           <Plus className="h-4 w-4" aria-hidden />
           <span>{d.topbar.newTask}</span>
         </Link>
@@ -108,7 +109,7 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
                   key={item.href}
                   role="menuitem"
                   type="button"
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
+                  className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
                   onClick={() => {
                     setOpen(false);
                     router.push(item.href);
@@ -132,7 +133,7 @@ export function TopNavbar({ user, searchQuery, onSearchChange, onMenuClick }: To
             <HelpCircle className="h-5 w-5 text-muted-foreground" />
           </Button>
         )}
-        <Link href="/settings" data-tour="settings-link">
+        <Link href="/settings" data-tour="settings-link" aria-label={d.nav.settings} className="hidden min-h-11 min-w-11 items-center justify-center sm:flex">
           <Avatar fallback={`${user.firstName[0]}${user.lastName[0]}`} className="cursor-pointer" />
         </Link>
       </div>

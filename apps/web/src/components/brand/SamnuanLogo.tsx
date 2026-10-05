@@ -33,7 +33,7 @@ export function SamnuanLogo({
         <span
           aria-hidden="true"
           className={cn('whitespace-nowrap text-[1em] font-normal leading-none tracking-[0.14em]', wordmarkClassName)}
-          style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+          style={{ fontFamily: 'var(--font-display)' }}
         >
           SAMNUAN
         </span>

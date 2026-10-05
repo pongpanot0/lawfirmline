@@ -1,5 +1,6 @@
 .workbench {
   min-width: 0;
+  container-type: inline-size;
   overflow-wrap: anywhere;
   font-family: var(--case-font-body);
 }
@@ -68,7 +69,7 @@
   font-style: normal;
   font-weight: 700;
   letter-spacing: -0.035em;
-  line-height: 1.12;
+  line-height: 1.45;
 }
 
 .identityMeta {
@@ -186,11 +187,9 @@
 
 .stageScroller {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--case-space-2);
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
   padding: var(--case-space-1);
-  scrollbar-width: thin;
 }
 
 .stageButton {
@@ -252,15 +251,13 @@
 
 .tabScroller {
   min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: thin;
+  flex: 1;
 }
 
 .tabList {
   display: flex;
-  width: max-content;
-  min-width: 100%;
+  flex-wrap: wrap;
+  width: 100%;
   gap: var(--case-space-1);
 }
 
@@ -317,7 +314,7 @@
   background: var(--case-color-surface);
 }
 
-@media (min-width: 23.4375rem) {
+@container (min-width: 20rem) {
   .signalStrip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -333,7 +330,7 @@
   }
 }
 
-@media (min-width: 48rem) {
+@container (min-width: 45rem) {
   .identityGrid {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
@@ -363,7 +360,7 @@
   }
 }
 
-@media (min-width: 64rem) {
+@container (min-width: 60rem) {
   .workspace {
     grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
     column-gap: 0;

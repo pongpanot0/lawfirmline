@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'ความเป็นส่วน
 export default function PrivacyPage() {
   return (
     <PublicAccountPage>
-      <h1 className="text-3xl font-semibold">นโยบายความเป็นส่วนตัวของ Samnuan</h1>
+      <h1 className="font-display text-3xl font-semibold leading-relaxed">นโยบายความเป็นส่วนตัวของ Samnuan</h1>
       <p className="mt-3 text-sm">อัปเดต 4 ตุลาคม 2569 · Samnuan Privacy Policy</p>
       <div className="mt-8 space-y-8 text-base leading-7">
         <section><h2 className="text-xl font-semibold">ข้อมูลที่บริการใช้</h2><p className="mt-2">Samnuan เป็นบริการจัดการงานสำนักงานกฎหมาย บัญชีใช้ชื่อ อีเมล รหัสผ่านที่จัดเก็บเป็นค่าแฮช และข้อมูลสำนักงาน เพื่อยืนยันตัวตนและกำหนดสิทธิ์ ข้อมูลการใช้งานอาจประกอบด้วยลูกความ บุคคลติดต่อ คดี นัดหมาย งาน เอกสาร และรายการการเงินที่คุณหรือสำนักงานบันทึก รวมถึงประวัติการทำรายการและเซสชันเพื่อดูแลความปลอดภัย</p></section>

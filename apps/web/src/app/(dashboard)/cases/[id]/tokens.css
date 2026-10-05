@@ -12,7 +12,7 @@
   --case-color-accent-ink: hsl(var(--primary-foreground));
   --case-color-accent-soft: hsl(var(--primary) / 0.08);
   --case-color-focus: hsl(var(--ring));
-  --case-font-display: "Trirong", "Noto Sans Thai", serif;
+  --case-font-display: var(--font-display);
   --case-font-body: var(--font-sans);
   --case-space-1: 0.25rem;
   --case-space-2: 0.5rem;
@@ -31,6 +31,6 @@
   --case-dur-short: 160ms;
   --case-dur-medium: 240ms;
   --case-rule: 1px solid var(--case-color-rule);
-  --case-radius-control: 0.625rem;
-  --case-radius-panel: 0.875rem;
+  --case-radius-control: var(--radius);
+  --case-radius-panel: var(--radius);
 }

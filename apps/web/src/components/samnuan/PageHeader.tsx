@@ -12,12 +12,12 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <div className="samnuan-page-header mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{title}</h1>
+        <h1 className="text-2xl text-foreground sm:text-3xl">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
@@ -41,7 +41,7 @@ export function KpiCard({
   const card = (
     <div
       className={cn(
-        'min-w-0 rounded-xl border bg-card p-3 shadow-soft sm:p-5',
+        'min-w-0 rounded-lg border bg-card p-4 sm:p-5',
         href && 'transition-colors hover:border-primary/40 hover:bg-primary/5',
       )}
     >
@@ -53,12 +53,12 @@ export function KpiCard({
           </div>
         )}
       </div>
-      <p className="mt-2 truncate text-xl font-bold tracking-tight sm:text-3xl">{value}</p>
+      <p className="mt-2 break-words text-xl font-semibold tabular-nums sm:text-2xl">{value}</p>
       {change && (
         <p className={cn(
           'mt-1 truncate text-xs font-medium',
-          trend === 'up' && 'text-emerald-600',
-          trend === 'down' && 'text-red-600',
+          trend === 'up' && 'text-success',
+          trend === 'down' && 'text-destructive',
           trend === 'neutral' && 'text-muted-foreground',
         )}>
           {change}

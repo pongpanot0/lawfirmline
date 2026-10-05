@@ -1,4 +1,5 @@
 import { test, expect } from '../helpers/tenant-test';
+import { localTestData } from '../helpers/test-data';
 
 const routes = [
   '/dashboard', '/my-day', '/todos', '/intake', '/intake/new', '/cases', '/cases/new',
@@ -6,7 +7,84 @@ const routes = [
   '/expenses', '/expenses/new', '/team', '/settings', '/reports', '/email-intake',
   '/intake/portal-submissions', '/admin/courts', '/admin/case-types', '/admin/deadline-rules',
   '/admin/holidays', '/admin/reimbursements', '/account/billing', '/knowledge', '/admin/users', '/admin/users/new',
+  '/account/billing/checkout', '/admin/audit-log', '/ai-usage', '/cases/board',
+  '/expenses/claim', '/getting-started', '/invoices', '/leaves',
+  '/playbooks', '/playbooks/new', '/research', '/sops', '/workflows', '/work',
 ];
+
+test('office default workflow persists, is preselected for review, and stays tenant scoped', async ({ page, request }) => {
+  const data = localTestData();
+  const apiUrl = process.env.E2E_API_URL ?? 'http://localhost:3001';
+  try {
+    const registration = await request.post(`${apiUrl}/auth/register`, { data: {
+      firmName: data.firmName, firstName: 'Workflow', lastName: 'Owner', email: data.email, password: data.password,
+    } });
+    expect(registration.status()).toBe(201);
+    const auth = await registration.json();
+    const headers = { Authorization: `Bearer ${auth.accessToken}` };
+    const templates = [];
+    for (const name of ['สายงานมาตรฐาน', 'สายงานทางเลือก']) {
+      const result = await request.post(`${apiUrl}/workflows/templates`, { headers, data: {
+        name, steps: [{ title: 'ตรวจเอกสาร', role: 'OWNER', durationDays: 1 }],
+      } });
+      expect(result.status()).toBe(201);
+      templates.push(await result.json());
+    }
+    expect((await request.patch(`${apiUrl}/workflows/templates/${templates[0].id}`, {
+      headers, data: { isDefault: null },
+    })).status()).toBe(400);
+    const legalCase = await data.db.case.create({ data: {
+      firmId: auth.user.firmId, ownRef: data.tag, folderId: data.tag, title: `คดีสายงาน ${data.tag}`, leadLawyerId: auth.user.id,
+    } });
+    const origin = `http://${auth.user.firmSlug}.localhost:3005`;
+    const hash = new URLSearchParams({ access_token: auth.accessToken, refresh_token: auth.refreshToken,
+      next: '/workflows?tab=templates', locale: 'th' });
+    await page.goto(`${origin}/handoff#${hash}`);
+    await page.getByRole('button', { name: 'ตั้งเป็นค่าเริ่มต้น สายงานมาตรฐาน', exact: true }).click();
+    await expect(page.getByText('ค่าเริ่มต้นของสำนักงาน', { exact: true })).toHaveCount(1);
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'ยกเลิกค่าเริ่มต้น สายงานมาตรฐาน', exact: true })).toBeVisible();
+    await page.route('**/workflows/templates/*', route => route.request().method() === 'PATCH'
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"ตั้งค่าไม่สำเร็จ ลองอีกครั้ง"}' })
+      : route.continue(), { times: 1 });
+    await page.getByRole('button', { name: 'ตั้งเป็นค่าเริ่มต้น สายงานทางเลือก', exact: true }).click();
+    await expect(page.locator('main [role="alert"]')).toContainText('ตั้งค่าไม่สำเร็จ');
+    await expect(page.getByRole('button', { name: 'ยกเลิกค่าเริ่มต้น สายงานมาตรฐาน', exact: true })).toBeVisible();
+    await page.goto(`${origin}/cases/${legalCase.id}?tab=tasks`);
+    await page.setViewportSize({ width: 375, height: 900 });
+    await page.getByRole('button', { name: 'เริ่มสายงาน', exact: true }).click();
+    const drawer = page.getByRole('dialog', { name: 'เริ่มสายงาน', exact: true });
+    await expect(drawer.getByLabel('แม่แบบ', { exact: true })).toHaveValue(templates[0].id);
+    await expect(drawer.getByLabel('ผู้รับขั้นที่ 1', { exact: true })).toHaveValue(auth.user.id);
+    expect(await data.db.workflowRun.count({ where: { caseId: legalCase.id } })).toBe(0);
+    expect(await drawer.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    await drawer.getByLabel('แม่แบบ', { exact: true }).selectOption(templates[1].id);
+    await expect(drawer.getByRole('textbox', { name: 'ชื่อสายงาน', exact: true })).toHaveValue(templates[1].name);
+    await drawer.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
+
+    const ownUser = await data.db.user.findUniqueOrThrow({ where: { id: auth.user.id } });
+    const staff = await data.db.user.create({ data: { email: `${data.tag}-staff@example.test`,
+      passwordHash: ownUser.passwordHash, firstName: 'Staff', lastName: 'Test', role: 'LAWYER',
+      firmMembers: { create: { firmId: auth.user.firmId, role: 'LAWYER' } },
+    } });
+    const staffSession = await (await request.post(`${apiUrl}/auth/login`, { data: { email: staff.email, password: data.password } })).json();
+    expect((await request.patch(`${apiUrl}/workflows/templates/${templates[0].id}`, {
+      headers: { Authorization: `Bearer ${staffSession.accessToken}` }, data: { isDefault: true },
+    })).status()).toBe(403);
+
+    const otherFirm = await data.db.firm.create({ data: { name: `E2E ${data.tag}-other`, slug: `${data.tag}-other`, trialEndAt: new Date(Date.now() + 86400000) } });
+    const foreign = await data.db.workflowTemplate.create({ data: {
+      firmId: otherFirm.id, createdById: auth.user.id, name: 'Foreign template', steps: templates[0].steps,
+    } });
+    expect((await request.patch(`${apiUrl}/workflows/templates/${foreign.id}`, { headers, data: { isDefault: true } })).status()).toBe(404);
+    const replacements = await Promise.all(templates.map(t => request.patch(`${apiUrl}/workflows/templates/${t.id}`, { headers, data: { isDefault: true } })));
+    expect(replacements.map(r => r.status())).toEqual([200, 200]);
+    const defaults = await data.db.workflowTemplate.findMany({ where: { firmId: auth.user.firmId, isDefault: true, isActive: true } });
+    expect(defaults).toHaveLength(1);
+    expect((await request.delete(`${apiUrl}/workflows/templates/${defaults[0].id}`, { headers })).status()).toBe(200);
+    expect(await data.db.workflowTemplate.count({ where: { firmId: auth.user.firmId, isDefault: true } })).toBe(0);
+  } finally { await data.cleanup(); }
+});
 
 for (const route of routes) {
   test(`owner can open ${route} without runtime or server errors`, async ({ page }) => {
@@ -23,7 +101,48 @@ for (const route of routes) {
   });
 }
 
-for (const width of [375, 1440]) {
+for (const width of [320, 768, 1024]) {
+  test(`every static workspace route fits ${width}px`, async ({ page }) => {
+    test.setTimeout(300_000);
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of routes) {
+      await page.goto(route);
+      await page.waitForLoadState('networkidle');
+      await expect(page.locator('main')).toBeVisible();
+      const overflow = await page.locator('main').evaluate(main => ({
+        root: document.documentElement.scrollWidth - innerWidth,
+        content: main.scrollWidth - main.clientWidth,
+        offenders: [...main.querySelectorAll('*')].filter(el => el.getBoundingClientRect().right > main.getBoundingClientRect().right + 1)
+          .slice(0, 5).map(el => ({ tag: el.tagName, classes: el.className })),
+      }));
+      expect(overflow.root, `${route} ${JSON.stringify(overflow)}`).toBeLessThanOrEqual(1);
+      expect(overflow.content, `${route} ${JSON.stringify(overflow)}`).toBeLessThanOrEqual(1);
+    }
+  });
+}
+
+for (const width of [320, 375, 414, 768, 1024, 1440]) {
+  test(`case tabs and stage controls fit ${width}px without sideways scrolling`, async ({ page }, testInfo) => {
+    await page.goto('/cases');
+    await page.getByRole('link', { name: 'Smith vs. Johnson Contract Dispute', exact: true }).click();
+    await expect(page.getByTestId('case-identity')).toBeVisible();
+    await page.setViewportSize({ width, height: 900 });
+    const tabs = page.locator('[role="tablist"]');
+    await expect.poll(() => tabs.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    const labels = await tabs.getByRole('tab').allTextContents();
+    for (let i = 0; i < labels.length; i++) {
+      await tabs.getByRole('tab').nth(i).click();
+      await page.waitForLoadState('networkidle');
+      const overflow = await page.locator('main').evaluate(el => el.scrollWidth - el.clientWidth);
+      expect(overflow, `${labels[i]} at ${width}`).toBeLessThanOrEqual(1);
+    }
+    await tabs.getByRole('tab').first().click();
+    await page.locator('main').evaluate(el => el.scrollTop = 0);
+    await page.screenshot({ path: testInfo.outputPath(`case-detail-${width}.png`), fullPage: true });
+  });
+}
+
+for (const width of [320, 375, 414, 768, 1440]) {
   test(`main work screens fit ${width}px in both languages`, async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width, height: 900 });
@@ -49,7 +168,7 @@ for (const width of [375, 1440]) {
           const main = document.querySelector('main')!;
           return { root: document.documentElement.scrollWidth <= innerWidth, content: main.scrollWidth <= main.clientWidth + 1 };
         }), `${route} ${lang} ${JSON.stringify(overflow)}`).toEqual({ root: true, content: true });
-        await testInfo.attach(`${route.slice(1)}-${lang}-${width}`, { body: await page.screenshot({ path: testInfo.outputPath(`${route.slice(1)}-${lang}-${width}.png`) }), contentType: 'image/png' });
+        await testInfo.attach(`${route.slice(1)}-${lang}-${width}`, { body: await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`${route.slice(1)}-${lang}-${width}.png`) }), contentType: 'image/png' });
       }
     }
   });
@@ -62,6 +181,18 @@ test('header search filters case list', async ({ page }) => {
   await search.press('Enter');
   await expect(page).toHaveURL(/\/cases\?search=E2E-NO-SUCH-CASE-2026$/);
   await expect(page.locator('main')).toContainText(/ไม่พบ|ไม่มี/);
+});
+
+test('compact case register exposes legal identifiers and remembers column selection', async ({ page }) => {
+  await page.goto('/cases');
+  await expect(page.locator('table')).toContainText('Smith vs. Johnson');
+  await expect(page.getByRole('columnheader', { name: 'หมายเลขคดีดำ', exact: true })).toHaveCount(0);
+  await page.getByText('คอลัมน์', { exact: true }).click();
+  await page.getByLabel('หมายเลขคดีดำ / แดง', { exact: true }).check();
+  await expect(page.getByRole('columnheader', { name: 'หมายเลขคดีดำ', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('columnheader', { name: 'หมายเลขคดีดำ', exact: true })).toBeVisible();
+  await expect(page.locator('table').getByRole('link', { name: 'Smith vs. Johnson Contract Dispute', exact: true })).toBeVisible();
 });
 
 test('team load failure is visible and retry recovers', async ({ page }) => {
@@ -81,7 +212,7 @@ test('new intake leaves initial documents for the workspace after saving', async
   await expect(page.getByText('ลากไฟล์มาวางที่นี่ หรือกดเลือกไฟล์จากเครื่อง')).toHaveCount(0);
 });
 
-test('creates a payer contact in a dialog and selects the new contact', async ({ page }) => {
+test('creates a payer contact in the case form and selects the new contact', async ({ page }) => {
   const payer = {
     id: 'payer-1',
     name: 'บริษัท วิริยะประกันภัย จำกัด (มหาชน)',
@@ -134,10 +265,11 @@ test('creates a payer contact in a dialog and selects the new contact', async ({
     });
   });
 
-  await page.goto('/intake/new');
+  await page.goto('/cases/new');
   await page.getByRole('button', { name: 'เสร็จสิ้น', exact: true }).click({ timeout: 1_000 }).catch(() => {});
-  await page.locator('#intake-customer-0').selectOption('payer-1');
-  await page.getByRole('button', { name: 'เพิ่มคนติดต่อ' }).click();
+  await page.getByText('ผู้ว่าจ้าง / ผู้จ่ายเงิน (ถ้าต่างจากลูกความ)', { exact: true }).click();
+  await page.locator('#case-customer-0').selectOption('payer-1');
+  await page.getByRole('button', { name: 'เพิ่มผู้ติดต่อ' }).click();
 
   const dialog = page.getByRole('dialog', { name: 'เพิ่มคนติดต่อ' });
   await expect(dialog).toBeVisible();
@@ -148,8 +280,8 @@ test('creates a payer contact in a dialog and selects the new contact', async ({
   await dialog.getByLabel('อีเมล', { exact: true }).fill('kamonwan@example.test');
   await dialog.getByRole('button', { name: 'บันทึกและเลือกคนนี้' }).click();
 
-  const contactSelect = page.getByLabel('คนติดต่อของผู้มอบหมายรายที่ 1');
+  const contactSelect = page.getByLabel('ผู้ติดต่อผู้ว่าจ้างรายที่ 1');
   await expect(dialog).toHaveCount(0);
   await expect(contactSelect).toHaveValue('contact-new');
-  await expect(contactSelect.locator('option:checked')).toHaveText('กมลวรรณ ศรีสุข · 0812345678');
+  await expect(contactSelect.locator('option:checked')).toHaveText('กมลวรรณ ศรีสุข');
 });

@@ -62,9 +62,9 @@ export default function PortalDashboardPage() {
             นี่คือภาพรวมคดีและเอกสารล่าสุดของ {contact.client?.name}
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex max-w-full flex-wrap items-center gap-2.5">
           <button
-            className="flex h-[38px] w-[38px] items-center justify-center rounded-lg border border-border bg-card"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border bg-card"
             aria-label="การแจ้งเตือน"
           >
             <Bell className="h-4 w-4" />
@@ -227,12 +227,12 @@ export default function PortalDashboardPage() {
             ))}
           </Card>
 
-          <Card className="border-none bg-gradient-to-br from-primary to-[hsl(224,70%,38%)] p-5 text-primary-foreground">
+            <Card className="border-none bg-primary p-5 text-primary-foreground">
             <h2 className="mb-1.5 text-[14px] font-bold">มีเรื่องใหม่ที่ต้องการคำปรึกษา?</h2>
             <p className="mb-3.5 text-[12.5px] leading-relaxed text-primary-foreground/85">
               ส่งรายละเอียดเบื้องต้นให้ทีมกฎหมายของเรา เราจะติดต่อกลับภายใน 1 วันทำการ
             </p>
-            <Link href="/portal/intake/new" className="block w-full rounded-lg bg-white py-2 text-center text-[13.5px] font-semibold text-primary">
+            <Link href="/portal/intake/new" className="block w-full rounded-lg bg-card py-2 text-center text-[13.5px] font-semibold text-primary">
               ส่งเรื่องใหม่
             </Link>
           </Card>

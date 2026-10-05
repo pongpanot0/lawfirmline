@@ -1367,7 +1367,7 @@ export default function CaseDetailPage() {
                             buddyIds: f.buddyIds.filter((uid) => uid !== e.target.value),
                           }))
                         }
-                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                        className="mt-1 w-full rounded-lg border border-input px-3 py-2 text-sm"
                       >
                         {lawyers.map((l) => (
                           <option key={l.id} value={l.id}>

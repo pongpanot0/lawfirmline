@@ -11,6 +11,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { api, KnowledgeItem, CaseItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
+import { PageHeader } from '@/components/samnuan/PageHeader';
 
 const CATEGORIES = ['', 'SUMMARY', 'CONTRACT', 'COURT_ORDER', 'CORRESPONDENCE', 'OTHER'];
 
@@ -55,21 +56,22 @@ export default function KnowledgePage() {
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">{d.knowledge.title}</h1>
-      <p className="mb-6 text-sm text-slate-500">{d.knowledge.description}</p>
+      <PageHeader title={d.knowledge.title} description={d.knowledge.description} />
 
       <div className="mb-6 flex flex-wrap gap-3">
         <input
           type="text"
           placeholder={d.knowledge.searchPlaceholder}
+          aria-label={d.knowledge.searchPlaceholder}
           value={filters.search}
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="min-w-0 max-w-full flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm"
         />
         <select
           value={filters.caseId}
+          aria-label={d.knowledge.allCases}
           onChange={(e) => setFilters({ ...filters, caseId: e.target.value })}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="min-w-0 max-w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
         >
           <option value="">{d.knowledge.allCases}</option>
           {cases.map((c) => (
@@ -78,8 +80,9 @@ export default function KnowledgePage() {
         </select>
         <select
           value={filters.category}
+          aria-label={d.knowledge.allCategories}
           onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="min-w-0 max-w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
         >
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>{c ? CATEGORY_LABELS[c] : d.knowledge.allCategories}</option>
@@ -96,29 +99,30 @@ export default function KnowledgePage() {
       ) : (
         <div className="space-y-3">
           {items.map((item) => (
-            <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
+            <div key={item.id} className="rounded-lg border border-border bg-card p-4 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
                   <h3 className="font-semibold">{item.title}</h3>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     <Link href={`/cases/${item.case.id}#case-analyses`} className="text-brand-600 hover:underline">
                       {item.case.ownRef}
                     </Link>
                     {' — '}{item.createdBy.firstName} {item.createdBy.lastName}
                     {' — '}{formatDate(item.createdAt)}
                   </p>
-                  <span className="mt-2 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                  <span className="mt-2 inline-block rounded-sm bg-muted px-2 py-1 text-xs text-muted-foreground">
                     {CATEGORY_LABELS[item.category] ?? item.category}
                   </span>
                 </div>
                 <button
                   onClick={() => setExpanded(expanded === item.id ? null : item.id)}
-                  className="text-sm text-brand-600 hover:underline"
+                  aria-expanded={expanded === item.id}
+                  className="min-h-11 shrink-0 px-2 text-sm text-primary hover:underline"
                 >
                   {expanded === item.id ? d.knowledge.collapse : d.knowledge.expand}
                 </button>
               </div>
-              <p className={`mt-3 text-sm text-slate-600 whitespace-pre-wrap ${expanded === item.id ? '' : 'line-clamp-3'}`}>
+              <p className={`mt-4 max-w-prose whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground ${expanded === item.id ? '' : 'line-clamp-3'}`}>
                 {isUnusableAnalysis(item.summary) ? 'อ่านเอกสารไม่สำเร็จ — ผลเดิมไม่ใช่สรุปที่พร้อมใช้งาน กรุณาวิเคราะห์เอกสารใหม่' : item.summary}
               </p>
             </div>

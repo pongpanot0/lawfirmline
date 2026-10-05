@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsNumber, Min, Max, IsBoolean, IsUUID, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsNumber, Min, Max, IsBoolean, IsUUID, IsDateString, ValidateIf } from 'class-validator';
 import { WorkflowStepDefinition, FirmRole } from '@lawfirm/shared';
 
 export class CreateWorkflowTemplateDto {
@@ -14,6 +14,10 @@ export class CreateWorkflowTemplateDto {
 }
 
 export class UpdateWorkflowTemplateDto {
+  @ValidateIf((_dto, value) => value !== undefined)
+  @IsBoolean()
+  isDefault?: boolean;
+
   @IsOptional()
   @IsString()
   name?: string;

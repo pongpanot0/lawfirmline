@@ -27,6 +27,10 @@ const PAGE_SIZE = 10;
 
 /** Columns a lawyer can hide — mostly-empty in practice, so they crowd the table by default. */
 const OPTIONAL_COLUMNS = [
+  { key: 'customerRef', label: 'เลขอ้างอิงลูกค้า' },
+  { key: 'courtNumbers', label: 'หมายเลขคดีดำ / แดง' },
+  { key: 'parties', label: 'โจทก์ / จำเลย' },
+  { key: 'description', label: 'หมายเหตุ' },
   { key: 'estimatedFee', label: 'รายได้โดยประมาณ' },
   { key: 'updatedAt', label: 'อัปเดตล่าสุด' },
 ] as const;
@@ -70,7 +74,7 @@ function CasesPageContent() {
   const [bulkLawyerId, setBulkLawyerId] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkError, setBulkError] = useState('');
-  const [hiddenColumns, setHiddenColumns] = useState<Set<OptionalColumnKey>>(new Set());
+  const [hiddenColumns, setHiddenColumns] = useState<Set<OptionalColumnKey>>(new Set(OPTIONAL_COLUMNS.map(column => column.key)));
   const [unlinkedIntakeCount, setUnlinkedIntakeCount] = useState<number | null>(null);
   const [convertingLegacyIntakes, setConvertingLegacyIntakes] = useState(false);
   const [legacyConversionMessage, setLegacyConversionMessage] = useState('');
@@ -111,7 +115,7 @@ function CasesPageContent() {
       const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY);
       if (saved) setHiddenColumns(new Set(JSON.parse(saved)));
     } catch {
-      // A private-browsing tab or cleared storage just keeps every column shown.
+      // Keep the compact register when preferences are unavailable.
     }
   }, []);
 
@@ -481,18 +485,16 @@ function CasesPageContent() {
                         {d.cases.ownRef} <ArrowUpDown className="h-3 w-3" />
                       </button>
                     </TableHead>
-                    <TableHead>{d.cases.customerRef}</TableHead>
-                    <TableHead>หมายเลขคดีดำ</TableHead>
-                    <TableHead>หมายเลขคดีแดง</TableHead>
-                    <TableHead>{d.home.court}</TableHead>
-                    <TableHead>โจทก์</TableHead>
-                    <TableHead>จำเลย</TableHead>
                     <TableHead>{d.cases.caseTitle}</TableHead>
                     <TableHead>{d.home.client}</TableHead>
-                    <TableHead>หมายเหตุ</TableHead>
-                    <TableHead>{d.cases.assignedLawyer}</TableHead>
-                    {!hiddenColumns.has('estimatedFee') && <TableHead>รายได้โดยประมาณ</TableHead>}
                     <TableHead>{d.billing.status}</TableHead>
+                    <TableHead>{d.cases.assignedLawyer}</TableHead>
+                    <TableHead>{d.home.court}</TableHead>
+                    {!hiddenColumns.has('customerRef') && <TableHead>{d.cases.customerRef}</TableHead>}
+                    {!hiddenColumns.has('courtNumbers') && <><TableHead>หมายเลขคดีดำ</TableHead><TableHead>หมายเลขคดีแดง</TableHead></>}
+                    {!hiddenColumns.has('parties') && <><TableHead>โจทก์</TableHead><TableHead>จำเลย</TableHead></>}
+                    {!hiddenColumns.has('description') && <TableHead>หมายเหตุ</TableHead>}
+                    {!hiddenColumns.has('estimatedFee') && <TableHead>รายได้โดยประมาณ</TableHead>}
                     {!hiddenColumns.has('updatedAt') && <TableHead>{d.cases.lastUpdated}</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -514,7 +516,7 @@ function CasesPageContent() {
                       )}
                       <TableCell className="font-medium text-primary">
                         <span className="flex flex-col items-start gap-1">
-                          <span>{c.ownRef}</span>
+                          <Link href={caseHref(c.id)} onClick={event => event.stopPropagation()} className="inline-flex min-h-11 items-center hover:underline">{c.ownRef}</Link>
                           {firstIntakeId(c) && (
                             <Link
                               href={`/intake/${firstIntakeId(c)}`}
@@ -526,27 +528,25 @@ function CasesPageContent() {
                           )}
                         </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{c.customerRef ?? '—'}</TableCell>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">{caseNumberDisplay(c.blackCaseNumber)}</TableCell>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">{caseNumberDisplay(c.redCaseNumber)}</TableCell>
-                      <TableCell className="max-w-[180px] truncate text-muted-foreground" title={c.courtName ?? undefined}>{c.courtName ?? '—'}</TableCell>
-                      <TableCell className="max-w-[180px] truncate text-muted-foreground" title={casePartyDisplay(c.participants ?? [], 'plaintiff')}>{casePartyDisplay(c.participants ?? [], 'plaintiff')}</TableCell>
-                      <TableCell className="max-w-[180px] truncate text-muted-foreground" title={casePartyDisplay(c.participants ?? [], 'defendant')}>{casePartyDisplay(c.participants ?? [], 'defendant')}</TableCell>
-                      <TableCell className="max-w-[220px] truncate" title={c.title}>{c.title}</TableCell>
-                      <TableCell className="max-w-[160px] truncate text-muted-foreground" title={c.clientName ?? undefined}>{c.clientName ?? '—'}</TableCell>
-                      <TableCell className="max-w-[220px] truncate text-muted-foreground" title={c.description ?? undefined}>{c.description ?? '—'}</TableCell>
+                      <TableCell className="min-w-[200px] max-w-xs font-medium"><Link href={caseHref(c.id)} onClick={event => event.stopPropagation()} className="block py-2 leading-relaxed hover:underline">{c.title}</Link></TableCell>
+                      <TableCell className="max-w-[160px] text-muted-foreground">{c.clientName ?? '—'}</TableCell>
+                      <TableCell>
+                        <span className="flex flex-col items-start gap-1">
+                          <CaseStatusBadge status={c.status} />
+                          {c.stage && <span className="rounded-sm bg-muted px-2 py-1 text-xs">{caseStageLabel(c.stage, 'th')}</span>}
+                        </span>
+                      </TableCell>
                       <TableCell>{c.leadLawyer.firstName} {c.leadLawyer.lastName}</TableCell>
+                      <TableCell className="max-w-[180px] text-muted-foreground">{c.courtName ?? '—'}</TableCell>
+                      {!hiddenColumns.has('customerRef') && <TableCell className="text-muted-foreground">{c.customerRef ?? '—'}</TableCell>}
+                      {!hiddenColumns.has('courtNumbers') && <><TableCell className="whitespace-nowrap text-muted-foreground">{caseNumberDisplay(c.blackCaseNumber)}</TableCell><TableCell className="whitespace-nowrap text-muted-foreground">{caseNumberDisplay(c.redCaseNumber)}</TableCell></>}
+                      {!hiddenColumns.has('parties') && <><TableCell className="max-w-[180px] text-muted-foreground">{casePartyDisplay(c.participants ?? [], 'plaintiff')}</TableCell><TableCell className="max-w-[180px] text-muted-foreground">{casePartyDisplay(c.participants ?? [], 'defendant')}</TableCell></>}
+                      {!hiddenColumns.has('description') && <TableCell className="max-w-[220px] text-muted-foreground">{c.description ?? '—'}</TableCell>}
                       {!hiddenColumns.has('estimatedFee') && (
                         <TableCell className="text-muted-foreground">
                           {c.estimatedFee != null ? formatCurrency(c.estimatedFee) : '—'}
                         </TableCell>
                       )}
-                      <TableCell>
-                        <span className="flex flex-col items-start gap-1">
-                          <CaseStatusBadge status={c.status} />
-                          {c.stage && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{caseStageLabel(c.stage, 'th')}</span>}
-                        </span>
-                      </TableCell>
                       {!hiddenColumns.has('updatedAt') && (
                         <TableCell className="text-muted-foreground text-xs">
                           {c.updatedAt ? formatDate(c.updatedAt) : '—'}

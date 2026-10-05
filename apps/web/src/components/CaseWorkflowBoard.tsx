@@ -23,11 +23,11 @@ const WORKFLOW_COLUMNS: { status: string; color: string }[] = [
   // and a badge can never disagree about what a status is called.
   { status: 'OPEN', color: 'border-sky-200 bg-sky-50' },
   { status: 'DRAFTING', color: 'border-amber-200 bg-amber-50' },
-  { status: 'IN_PROGRESS', color: 'border-blue-200 bg-blue-50' },
+  { status: 'IN_PROGRESS', color: 'border-border bg-accent' },
   { status: 'PENDING', color: 'border-amber-200 bg-amber-50' },
   { status: 'COURT_DATE', color: 'border-violet-200 bg-violet-50' },
-  { status: 'CLOSED', color: 'border-slate-200 bg-slate-50' },
-  { status: 'ARCHIVED', color: 'border-slate-200 bg-slate-50' },
+  { status: 'CLOSED', color: 'border-border bg-muted' },
+  { status: 'ARCHIVED', color: 'border-border bg-muted' },
 ];
 
 interface CaseWorkflowBoardProps {
@@ -47,9 +47,9 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {WORKFLOW_COLUMNS.map((col) => (
         <div key={col.status} className={`rounded-xl border-2 p-4 ${col.color}`}>
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">
+          <h3 className="mb-3 text-sm font-semibold text-foreground">
             {getCaseStatusDisplay(col.status, d.caseStatus).label}
-            <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-slate-500">
+            <span className="ml-2 rounded-full bg-card px-2 py-0.5 text-xs text-muted-foreground">
               {getColumnCases(col.status).length}
             </span>
           </h3>
@@ -57,16 +57,16 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
             {getColumnCases(col.status).map((c) => (
               <div
                 key={c.id}
-                className="rounded-lg border border-white bg-white p-3 shadow-sm"
+                className="rounded-lg border border-white bg-card p-3 shadow-sm"
               >
                 <Link href={`/cases/${c.id}`} className="block hover:text-brand-600">
-                  <p className="text-xs text-slate-400">{c.ownRef}</p>
+                  <p className="text-xs text-muted-foreground">{c.ownRef}</p>
                   <p className="text-sm font-medium">{c.title}</p>
                   {c.courtName && (
-                    <p className="mt-1 text-xs text-slate-500">🏛 {c.courtName}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">🏛 {c.courtName}</p>
                   )}
                   {c.clientName && (
-                    <p className="text-xs text-slate-400">ลูกความ: {c.clientName}</p>
+                    <p className="text-xs text-muted-foreground">ลูกความ: {c.clientName}</p>
                   )}
                 </Link>
                 {canDrag && onStatusChange && (
@@ -74,7 +74,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                     aria-label={`สถานะคดี ${c.ownRef}`}
                     value={c.status}
                     onChange={(e) => onStatusChange(c.id, e.target.value)}
-                    className="mt-2 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                    className="mt-2 w-full rounded border border-border px-2 py-1 text-xs"
                   >
                     {WORKFLOW_COLUMNS.map((w) => (
                       <option key={w.status} value={w.status}>{getCaseStatusDisplay(w.status, d.caseStatus).label}</option>
@@ -87,7 +87,7 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
               </div>
             ))}
             {getColumnCases(col.status).length === 0 && (
-              <p className="py-4 text-center text-xs text-slate-400">ไม่มีคดี</p>
+              <p className="py-4 text-center text-xs text-muted-foreground">ไม่มีคดี</p>
             )}
           </div>
         </div>

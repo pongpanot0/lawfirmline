@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, type WorkflowPipelineRun, type WorkflowTemplate } from '@/lib/api';
@@ -17,7 +18,8 @@ export default function WorkflowsPage() {
 
 function WorkflowsContent() {
   const { token, user } = useAuth();
-  const [tab, setTab] = useState('pipeline');
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') === 'templates' ? 'templates' : 'pipeline');
   if (!token || !user) return null;
   const canEdit = user.firmRole === 'OWNER' || user.firmRole === 'SENIOR_LAWYER';
 
@@ -86,6 +88,7 @@ function Templates({ token, canEdit }: { token: string; canEdit: boolean }) {
   const [editing, setEditing] = useState<WorkflowTemplate | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
+  const [savingDefault, setSavingDefault] = useState(false);
   const load = useCallback(() => { api.getWorkflowTemplates(token).then(setTemplates).catch((e) => setError(e.message)); }, [token]);
   useEffect(load, [load]);
 
@@ -94,8 +97,18 @@ function Templates({ token, canEdit }: { token: string; canEdit: boolean }) {
     try { await api.deleteWorkflowTemplate(token, t.id); load(); } catch (e) { setError(e instanceof Error ? e.message : 'ลบไม่สำเร็จ'); }
   };
 
+  const setDefault = async (t: WorkflowTemplate) => {
+    setSavingDefault(true); setError('');
+    try {
+      await api.updateWorkflowTemplate(token, t.id, { isDefault: !t.isDefault });
+      setTemplates(await api.getWorkflowTemplates(token));
+    } catch (e) { setError(e instanceof Error ? e.message : 'ตั้งค่าเริ่มต้นไม่สำเร็จ กรุณาลองใหม่'); }
+    finally { setSavingDefault(false); }
+  };
+
   return (
     <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">แม่แบบเริ่มต้นใช้ร่วมกันทั้งสำนักงาน ระบบจะเลือกให้เมื่อกดเริ่มสายงานในคดี และให้ตรวจผู้รับแต่ละขั้นก่อนเริ่ม</p>
       {canEdit && (
         <div className="flex justify-end">
           <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="mr-1 h-4 w-4" />สร้างแม่แบบ</Button>
@@ -107,9 +120,10 @@ function Templates({ token, canEdit }: { token: string; canEdit: boolean }) {
       )}
       {templates?.map((t) => (
         <article key={t.id} className="rounded-lg border bg-card p-4">
-          <div className="flex items-start gap-2">
+          <div className="flex flex-wrap items-start gap-2">
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold">{t.name}</h3>
+              {t.isDefault && <Badge className="mt-1" variant="default">ค่าเริ่มต้นของสำนักงาน</Badge>}
               {t.description && <p className="text-sm text-muted-foreground">{t.description}</p>}
             </div>
             {canEdit && (
@@ -119,6 +133,9 @@ function Templates({ token, canEdit }: { token: string; canEdit: boolean }) {
               </>
             )}
           </div>
+          {canEdit && <Button size="sm" variant="outline" className="mt-3" disabled={savingDefault}
+            aria-label={`${t.isDefault ? 'ยกเลิกค่าเริ่มต้น' : 'ตั้งเป็นค่าเริ่มต้น'} ${t.name}`}
+            onClick={() => setDefault(t)}>{t.isDefault ? 'ยกเลิกค่าเริ่มต้น' : 'ตั้งเป็นค่าเริ่มต้น'}</Button>}
           <ol className="mt-2 flex flex-wrap items-center gap-1 text-sm">
             {t.steps.map((s, i) => (
               <li key={i} className="flex items-center gap-1">

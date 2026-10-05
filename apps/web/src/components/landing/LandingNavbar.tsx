@@ -20,14 +20,12 @@ export function LandingNavbar() {
   const close = () => setOpen(false);
 
   return (
-    <div className="sticky top-0 z-50 px-3 pt-3 sm:px-4 sm:pt-4" style={{ background: 'var(--color-paper)' }}>
+    <div className="sticky top-0 z-50 border-b px-4" style={{ background: 'var(--color-paper)', borderColor: 'var(--color-rule)' }}>
       <header
-        className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-3 rounded-full border px-3 sm:h-16 sm:px-4"
+        className="mx-auto flex min-h-16 max-w-6xl items-center justify-between gap-4 py-2"
         style={{
           borderColor: 'var(--color-rule)',
-          background: 'color-mix(in oklab, var(--color-paper-3) 88%, transparent)',
-          backdropFilter: 'blur(10px) saturate(140%)',
-          boxShadow: '0 1px 2px oklch(23% 0.02 40 / 0.05)',
+          background: 'var(--color-paper)',
         }}
       >
         <Link href="/" aria-label="Samnuan" className="flex shrink-0 items-center gap-2 pl-1.5" onClick={close}>
@@ -53,16 +51,16 @@ export function LandingNavbar() {
               otherwise beat `hidden` at every width. */}
           <div className="hidden items-center gap-2 md:flex">
             <LanguageSwitcher />
-            <Link href="/login" className="lf-btn lf-btn--outline !h-9 !px-4 !text-xs">
+            <Link href="/login" className="lf-btn lf-btn--outline !px-4">
               {t.nav.login}
             </Link>
-            <Link href="/register" className="lf-btn lf-btn--primary !h-9 !px-4 !text-xs">
+            <Link href="/register" className="lf-btn lf-btn--primary !px-4">
               {t.nav.tryFree}
             </Link>
           </div>
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border md:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border md:hidden"
             style={{ borderColor: 'var(--color-rule)' }}
             onClick={() => setOpen((v) => !v)}
             aria-label={t.nav.menu}
@@ -75,7 +73,7 @@ export function LandingNavbar() {
 
       {open && (
         <div
-          className="mx-auto mt-2 max-w-4xl rounded-3xl border px-4 py-4 md:hidden"
+          className="mx-auto my-2 max-w-6xl rounded-lg border px-4 py-4 md:hidden"
           style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)' }}
         >
           <nav className="flex flex-col gap-1">
@@ -84,7 +82,7 @@ export function LandingNavbar() {
                 key={link.href}
                 href={link.href}
                 onClick={close}
-                className="rounded-xl px-3 py-2.5 text-sm font-medium"
+                className="flex min-h-11 items-center rounded-lg px-3 py-2 text-sm font-medium"
                 style={{ color: 'var(--color-ink)' }}
               >
                 {link.label}
@@ -105,6 +103,9 @@ export function LandingNavbar() {
 
       <style jsx>{`
         .lf-nav-link {
+          display: inline-flex;
+          min-height: 44px;
+          align-items: center;
           position: relative;
           transition: color var(--dur-short) var(--ease-out);
         }

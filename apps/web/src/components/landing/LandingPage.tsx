@@ -2,6 +2,9 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import dashboardScreenshot from '../../../public/marketing/dashboard.png';
+import casesScreenshot from '../../../public/marketing/cases-list.png';
+import scheduleScreenshot from '../../../public/marketing/court-schedule.png';
 import {
   PhoneOff,
   FolderOpen,
@@ -26,14 +29,14 @@ import './landing-tokens.css';
 
 const problemIcons = [PhoneOff, FolderOpen, CalendarX, UserX, MessageCircle];
 const featureIcons = [Briefcase, Calendar, Users, Bell];
-const featureSpans = ['lf-tile--anchor', 'lf-tile--wide', 'lf-tile--wide', 'lf-tile--full'];
+const featureSpans = ['lf-tile--sm', 'lf-tile--sm', 'lf-tile--sm', 'lf-tile--sm'];
 
 export function LandingPage() {
   const { t } = useLocale();
   const scope = useLandingMotion();
 
   return (
-    <div className="lf-landing" ref={scope}>
+    <div className="samnuan-paper lf-landing" ref={scope}>
       <LandingNavbar />
 
       {/* Hero — H2 split diptych: title/CTA left, illustrative notification stack right */}
@@ -41,13 +44,6 @@ export function LandingPage() {
         <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-8">
           <div className="lg:col-span-7">
             <span className="lf-eyebrow" data-motion="hero-eyebrow">
-              <span className="relative flex h-1.5 w-1.5 shrink-0">
-                <span
-                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-50"
-                  style={{ background: 'var(--color-accent)' }}
-                />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: 'var(--color-accent)' }} />
-              </span>
               {t.hero.badge}
             </span>
             <h1 className="lf-display mt-4" style={{ fontSize: 'var(--text-display)' }}>
@@ -78,13 +74,8 @@ export function LandingPage() {
           <div className="lg:col-span-5">
             <div className="relative mx-auto max-w-sm" data-motion="hero-card">
               <div
-                className="absolute -right-3 top-6 w-full rotate-3 rounded-2xl border opacity-70 sm:-right-4"
-                style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-2)', aspectRatio: '4 / 3' }}
-                aria-hidden
-              />
-              <div
-                className="relative rounded-2xl border p-5"
-                style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)', boxShadow: '0 8px 24px oklch(23% 0.02 40 / 0.08)' }}
+                className="relative rounded-lg border p-6"
+                style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)' }}
               >
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
                   {t.hero.cardTitle}
@@ -97,8 +88,8 @@ export function LandingPage() {
                   ].map(({ icon: Icon, label }) => (
                     <li
                       key={label}
-                      className="flex items-center gap-3 rounded-xl border p-3"
-                      style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper)' }}
+                      className="flex items-center gap-3 border-t py-4"
+                      style={{ borderColor: 'var(--color-rule)' }}
                     >
                       <span
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
@@ -129,14 +120,14 @@ export function LandingPage() {
         </div>
         <div className="lf-tour-stage" data-motion="tour-stage">
           <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-a" data-motion="tour-aux-a">
-            <Image src="/marketing/court-schedule.png" alt={t.tour.schedule} width={2880} height={1800} sizes="46vw" />
+            <Image src={scheduleScreenshot} alt={t.tour.schedule} width={2880} height={1800} sizes="46vw" />
           </figure>
           <figure className="lf-tour-frame lf-tour-frame--aux lf-tour-frame--aux-b" data-motion="tour-aux-b">
-            <Image src="/marketing/cases-list.png" alt={t.tour.cases} width={2880} height={1800} sizes="46vw" />
+            <Image src={casesScreenshot} alt={t.tour.cases} width={2880} height={1800} sizes="46vw" />
           </figure>
           <figure className="lf-tour-frame lf-tour-frame--main" data-motion="tour-main">
             <Image
-              src="/marketing/dashboard.png"
+              src={dashboardScreenshot}
               alt={t.tour.dashboard}
               width={2880}
               height={1800}
@@ -230,13 +221,6 @@ export function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* Oversized display word — era's "ARCHITECTURE" moment, scrubbed sideways on scroll */}
-      <div aria-hidden className="overflow-clip pb-2 pt-10" style={{ overflowX: 'clip' }}>
-        <p className="lf-giant" data-motion="giant-word">
-          Samnuan · สำนวน · Samnuan
-        </p>
-      </div>
 
       <PricingSection />
 

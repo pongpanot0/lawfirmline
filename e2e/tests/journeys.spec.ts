@@ -189,6 +189,36 @@ for (const width of [320, 375, 414, 768, 1440]) {
   });
 }
 
+for (const width of [320, 375, 414, 768, 1440]) {
+  test(`public pages and client portal fit ${width}px`, async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of ['/', '/privacy', '/delete-account', '/forgot-password', '/reset-password', '/portal/login', '/portal/check-email']) {
+      await page.goto(route);
+      await page.waitForLoadState('networkidle');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), route).toBeLessThanOrEqual(1);
+      if (route === '/' && [375, 1440].includes(width)) await page.screenshot({ path: testInfo.outputPath(`public-${width}.png`), fullPage: true });
+    }
+    await page.goto('/portal/login');
+    await page.getByLabel('อีเมล', { exact: true }).fill('john.smith@email.com');
+    await page.getByLabel('รหัสผ่าน', { exact: true }).fill('password123');
+    await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
+    await expect(page).toHaveURL(/\/portal$/);
+    for (const route of ['/portal', '/portal/operations', '/portal/intake', '/portal/intake/new', '/portal/reports', '/portal/settings']) {
+      await page.goto(route);
+      await page.waitForLoadState('networkidle');
+      const main = page.locator('main');
+      await expect(main).toBeVisible();
+      await expect(main).not.toContainText(/Application error|Internal Server Error/);
+      expect(await main.evaluate(el => el.scrollWidth - el.clientWidth), route).toBeLessThanOrEqual(1);
+      if (width < 768) expect(await page.getByRole('navigation', { name: 'เมนูพอร์ทัล', exact: true })
+        .evaluate(el => el.scrollWidth - el.clientWidth), route).toBeLessThanOrEqual(1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), route).toBeLessThanOrEqual(1);
+      if (route === '/portal' && [375, 1440].includes(width)) await page.screenshot({ path: testInfo.outputPath(`portal-${width}.png`), fullPage: true });
+    }
+  });
+}
+
 test('invalid invitation and missing handoff have a recovery link', async ({ page }) => {
   await page.goto('/invite/e2e-invalid-token');
   await expect(page.locator('p[role="alert"]')).toContainText('หมดอายุ');
@@ -249,7 +279,7 @@ test('forgot password gives a neutral confirmation for an unknown address', asyn
   await page.goto('/forgot-password');
   await page.getByLabel('อีเมล', { exact: true }).fill(`no-account-${Date.now()}@example.test`);
   await page.getByRole('button', { name: 'ส่งลิงก์ตั้งรหัสผ่านใหม่', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('ถ้ามีบัญชี');
+  await expect(page.getByRole('status').filter({ hasText: 'ถ้ามีบัญชี' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'กลับไปหน้าเข้าสู่ระบบ' })).toBeVisible();
 });
 

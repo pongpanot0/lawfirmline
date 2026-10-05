@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { CalendarDays, Scale, SquareCheckBig, Sun, Users } from 'lucide-react-native';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 import { useDisplayPreferences } from '@/components/AppText';
 
 export default function TabsLayout() {
@@ -12,12 +12,12 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: colors.surface },
         headerShadowVisible: true,
         headerTintColor: colors.ink,
-        headerTitleStyle: { fontWeight: '700', fontSize: 18 * scale },
+        headerTitleStyle: { fontFamily: fonts.semibold, fontSize: 18 * scale },
         tabBarLabelStyle: { fontSize: 11 * scale, fontWeight: '600' },
         tabBarActiveTintColor: colors.ink,
         tabBarActiveBackgroundColor: colors.soft,
         tabBarInactiveTintColor: colors.faint,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, elevation: 8 },
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, elevation: 0 },
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
