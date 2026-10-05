@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
+import { WorkflowTemplates } from '@/components/workflows/WorkflowTemplates';
 import { BookOpen, ChevronDown, Plus, Pencil, Trash2, Zap } from 'lucide-react';
 
 const ROLE_LABELS: Record<FirmRoleStr, string> = {
@@ -26,6 +27,7 @@ const ROLE_LABELS: Record<FirmRoleStr, string> = {
 export default function SopsPage() {
   const { token, user } = useAuth();
   const isOwner = user?.firmRole === FirmRole.OWNER;
+  const canEditFlows = isOwner || user?.firmRole === FirmRole.SENIOR_LAWYER;
   const [sops, setSops] = useState<SopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -33,7 +35,7 @@ export default function SopsPage() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [playbooks, setPlaybooks] = useState<PlaybookRelease[]>([]);
-  const [view, setView] = useState<'all' | 'manual' | 'auto'>('all');
+  const [view, setView] = useState<'all' | 'manual' | 'auto' | 'handoff'>('all');
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [saved, setSaved] = useState('');
@@ -88,7 +90,7 @@ export default function SopsPage() {
     <div className="mx-auto max-w-5xl min-w-0 space-y-4">
       <PageHeader
         title="SOP / คู่มือการทำงาน"
-        description="ค้นหาวิธีทำงานของสำนักงาน หรือเลือก SOP ที่ช่วยสร้างงานให้ทีม"
+        description="คู่มือ สร้างงานอัตโนมัติ และสายงานส่งต่อของสำนักงาน"
         actions={
           isOwner ? (
             <div className="flex flex-wrap gap-2">
@@ -108,14 +110,14 @@ export default function SopsPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Input
           aria-label="ค้นหาคู่มือหรือขั้นตอน"
-          placeholder="ค้นหา SOP..."
+          placeholder="ค้นหา SOP หรือสายงานส่งต่อ..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
           className="max-w-sm"
         />
         <div role="group" aria-label="ประเภทคู่มือ" className="flex flex-wrap gap-2">
-          {([['all', 'ทั้งหมด', manualItems.length + autoItems.length], ['manual', 'คู่มือให้อ่าน', manualItems.length], ['auto', 'สร้างงานอัตโนมัติ', autoItems.length]] as const).map(([key, label, count]) =>
-            <Button key={key} size="sm" variant={view === key ? 'default' : 'outline'} aria-pressed={view === key} onClick={() => setView(key)}>{label} ({count})</Button>)}
+          {([['all', 'ทั้งหมด'], ['manual', `คู่มือให้อ่าน (${manualItems.length})`], ['auto', `สร้างงานอัตโนมัติ (${autoItems.length})`], ['handoff', 'Handoff flow']] as const).map(([key, label]) =>
+            <Button key={key} size="sm" variant={view === key ? 'default' : 'outline'} aria-pressed={view === key} onClick={() => setView(key)}>{label}</Button>)}
         </div>
       </div>
       {saved && <p role="status" className="text-sm text-primary">{saved}</p>}
@@ -168,7 +170,9 @@ export default function SopsPage() {
         </Card>
       )}
 
-      {!loading && !loadError && view !== 'manual' && autoItems.length > 0 && (
+      {token && (view === 'all' || view === 'handoff') && <WorkflowTemplates token={token} canEdit={canEditFlows} search={q} />}
+
+      {!loading && !loadError && (view === 'all' || view === 'auto') && autoItems.length > 0 && (
         <div className="mb-3 space-y-3">
           <h2 className="text-sm font-semibold">SOP สร้างงานอัตโนมัติ</h2>
           {autoItems.map((p) => (
@@ -214,9 +218,9 @@ export default function SopsPage() {
         </div>
       )}
 
-      {loading ? (
+      {loading && view !== 'handoff' ? (
         <PageLoading title="กำลังโหลด SOP" lines={3} />
-      ) : !loadError && view !== 'auto' && manualItems.length > 0 && (
+      ) : !loadError && (view === 'all' || view === 'manual') && manualItems.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">คู่มือให้อ่าน</h2>
           {manualItems.map((sop) => (
@@ -257,7 +261,7 @@ export default function SopsPage() {
           ))}
         </div>
       )}
-      {!loading && !loadError && (view === 'auto' ? !autoItems.length : view === 'manual' ? !manualItems.length : !autoItems.length && !manualItems.length) && <EmptyState
+      {!loading && !loadError && (view === 'auto' ? !autoItems.length : view === 'manual' ? !manualItems.length : false) && <EmptyState
         title={search ? 'ไม่พบคู่มือที่ค้นหา' : 'ยังไม่มีคู่มือในหมวดนี้'}
         description={search ? 'ลองค้นด้วยชื่อคู่มือ คำในขั้นตอน หรือเปลี่ยนประเภทคู่มือ' : isOwner ? 'เริ่มจากเขียนคู่มือ หรือสร้าง SOP อัตโนมัติด้านบน' : 'เจ้าของสำนักงานยังไม่ได้เพิ่มคู่มือในหมวดนี้'} />}
     </div>
