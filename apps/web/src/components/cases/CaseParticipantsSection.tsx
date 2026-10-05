@@ -28,7 +28,7 @@ const SIDE_LABELS: Record<string, string> = {
 };
 
 const ROLE_BADGE_COLORS: Record<string, string> = {
-  PLAINTIFF: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+  PLAINTIFF: 'bg-accent text-primary dark:bg-brand-700 dark:text-primary',
   JOINT_PLAINTIFF: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300',
   DEFENDANT: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
   JOINT_DEFENDANT: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
@@ -38,7 +38,7 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
   EXPERT: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
   OPPOSING_LAWYER: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
   OPPOSING_INSURER: 'bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-300',
-  OTHER: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  OTHER: 'bg-muted text-foreground dark:bg-sidebar dark:text-muted-foreground',
 };
 
 const SIDES = ['OURS', 'OPPONENT', 'NEUTRAL'];

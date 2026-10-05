@@ -5,8 +5,8 @@ import type { LoginResponse, LoginResult } from '@lawfirm/shared';
 import { ApiError, request } from '@/lib/api';
 
 type Receipt = { id: string; requestedAt: string; status: 'PENDING_REVIEW' };
-const inputClass = 'mt-2 w-full rounded-lg border border-[#142e43]/25 bg-white px-3 py-3 text-base disabled:opacity-60';
-const buttonClass = 'w-full rounded-lg bg-[#142e43] px-4 py-3 font-medium text-white disabled:opacity-50';
+const inputClass = 'mt-2 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-3 text-base disabled:opacity-60';
+const buttonClass = 'min-h-11 w-full rounded-lg bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-50';
 
 export function DeleteAccountForm() {
   const [email, setEmail] = useState('');
@@ -50,7 +50,7 @@ export function DeleteAccountForm() {
   }
 
   if (receipt) return (
-    <section className="mt-8 rounded-xl border border-[#142e43]/20 bg-white p-6" role="status">
+      <section className="mt-8 rounded-lg border border-border bg-card p-6" role="status">
       <h2 className="text-xl font-semibold">รับคำขอแล้ว / Request received</h2>
       <p className="mt-3 break-all">เลขคำขอ: {receipt.id}</p>
       <p className="mt-2">สถานะ: รอตรวจสอบ · Pending review</p>
@@ -59,7 +59,7 @@ export function DeleteAccountForm() {
   );
 
   return (
-    <form onSubmit={submit} className="mt-8 space-y-5 rounded-xl border border-[#142e43]/15 bg-white p-5 sm:p-7">
+    <form onSubmit={submit} className="mt-8 space-y-6 rounded-lg border border-border bg-card p-4 sm:p-8">
       <h2 className="text-xl font-semibold">{session ? 'ยืนยันคำขอลบบัญชี' : 'ยืนยันบัญชีของคุณ / Verify your account'}</h2>
       {session ? <>
         <p className="break-all">บัญชีที่จะขอลบ: <strong>{session.user.email}</strong></p>

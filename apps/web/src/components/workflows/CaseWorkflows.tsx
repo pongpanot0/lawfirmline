@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Check, Circle, Download, GitFork, Loader2, Plus } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, type CaseWorkflowRun, type WorkflowRunFiles } from '@/lib/api';
@@ -36,11 +37,12 @@ export function CaseWorkflows({ caseId }: { caseId: string }) {
 
   return (
     <section className="mb-4 rounded-xl border bg-card p-4" aria-labelledby="case-workflows-title">
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <GitFork className="h-4 w-4 text-primary" />
         <h2 id="case-workflows-title" className="font-semibold">สายงานส่งต่อ</h2>
         <Button size="sm" className="ml-auto" onClick={() => setStarting(true)}><Plus className="mr-1 h-4 w-4" />เริ่มสายงาน</Button>
       </div>
+      <Link href="/workflows?tab=templates" className="mb-3 inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4">แม่แบบและค่าเริ่มต้นของสำนักงาน</Link>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {!runs.length && !error && (
         <p className="text-sm text-muted-foreground">ยังไม่มีสายงาน — ใช้เมื่องานต้องส่งต่อเป็นทอด เช่น แปล → ทำใบเบิกความ → เขียนคำฟ้อง</p>

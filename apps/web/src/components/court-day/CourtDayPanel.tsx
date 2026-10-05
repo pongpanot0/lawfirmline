@@ -869,6 +869,7 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                   <label className="block min-w-0 text-sm">
                     {t.nextAt}
                     <ThaiDateTimeInput
+                      aria-label={t.nextAt}
                       className="mt-1"
                       value={
                         state.nextAt ? bangkokInputValue(state.nextAt) : ''

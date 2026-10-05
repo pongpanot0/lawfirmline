@@ -37,7 +37,8 @@ export function StartWorkflowDrawer({
     setError(''); setName(''); setPromisedAt(''); setTemplateId(''); setCustomSteps([blankStep()]);
     api.getWorkflowTemplates(token).then((items) => {
       setTemplates(items);
-      if (items[0]) { setTemplateId(items[0].id); setName(items[0].name); }
+      const preferred = items.find((item) => item.isDefault) ?? items[0];
+      if (preferred) { setTemplateId(preferred.id); setName(preferred.name); }
     }).catch((e) => setError(e.message));
   }, [open, token]);
 
@@ -96,7 +97,7 @@ export function StartWorkflowDrawer({
           const t = templates.find((x) => x.id === e.target.value);
           if (t) setName(t.name);
         }}>
-          {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.steps.length} ขั้น)</option>)}
+          {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.steps.length} ขั้น){t.isDefault ? ' · ค่าเริ่มต้น' : ''}</option>)}
           <option value="">— กำหนดขั้นเอง —</option>
         </SelectField>
         <TextField label="ชื่อสายงาน" placeholder="เช่น คำให้การพยาน นาย ก." value={name} onChange={(e) => setName(e.target.value)} required />

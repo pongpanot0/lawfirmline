@@ -45,16 +45,16 @@ export function DocumentPreviewModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-card shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <p className="truncate text-sm font-medium text-slate-900">{filename}</p>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <p className="truncate text-sm font-medium text-foreground">{filename}</p>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleDownload}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
             >
               <Download className="h-3.5 w-3.5" />
               ดาวน์โหลด
@@ -62,7 +62,7 @@ export function DocumentPreviewModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 hover:bg-slate-100"
+              className="rounded-lg p-1.5 hover:bg-muted"
               aria-label="ปิดหน้าตัวอย่าง"
             >
               <X className="h-4 w-4" />
@@ -70,19 +70,19 @@ export function DocumentPreviewModal({
           </div>
         </div>
 
-        <div className="min-h-[320px] flex-1 overflow-auto bg-slate-50 p-4">
+        <div className="min-h-[320px] flex-1 overflow-auto bg-muted p-4">
           {canPreviewInline(mimeType) ? (
             mimeType.startsWith('image/') ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={url} alt={filename} className="mx-auto max-h-[70vh] object-contain" />
             ) : mimeType === 'application/pdf' ? (
-              <iframe src={url} title={filename} className="h-[70vh] w-full rounded-lg border-0 bg-white" />
+              <iframe src={url} title={filename} className="h-[70vh] w-full rounded-lg border-0 bg-card" />
             ) : (
-              <iframe src={url} title={filename} className="h-[70vh] w-full rounded-lg border-0 bg-white" />
+              <iframe src={url} title={filename} className="h-[70vh] w-full rounded-lg border-0 bg-card" />
             )
           ) : (
             <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-3 text-center">
-              <p className="text-sm text-slate-600">ไม่สามารถแสดงตัวอย่างไฟล์ประเภทนี้ได้</p>
+              <p className="text-sm text-muted-foreground">ไม่สามารถแสดงตัวอย่างไฟล์ประเภทนี้ได้</p>
               <button
                 type="button"
                 onClick={handleDownload}

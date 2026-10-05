@@ -89,7 +89,7 @@ function ProposalRow({
             </span>
           )}
           {isRejected && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
               <XCircle className="h-3.5 w-3.5" /> ไม่ใช้ข้อมูลนี้
             </span>
           )}

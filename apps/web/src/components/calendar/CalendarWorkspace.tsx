@@ -19,9 +19,9 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const EVENT_COLORS: Record<string, string> = {
   COURT_DATE: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
-  CLIENT_MEETING: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+  CLIENT_MEETING: 'bg-accent text-primary dark:bg-brand-700 dark:text-primary',
   DEADLINE: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300',
-  OTHER: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  OTHER: 'bg-muted text-foreground dark:bg-sidebar dark:text-muted-foreground',
   LEAVE: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
 };
 
@@ -151,8 +151,8 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
               : d.calendar.description
         }
         actions={
-          <div className="flex items-center gap-2">
-            <div role="tablist" aria-label={d.calendar.title} className="flex rounded-lg border border-border p-0.5">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+            <div role="tablist" aria-label={d.calendar.title} className="flex max-w-full flex-wrap rounded-lg border border-border p-1">
               {(['day', 'agenda', 'month'] as const).map((v) => (
                 <button
                   key={v}
@@ -160,7 +160,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
                   type="button"
                   aria-selected={view === v}
                   onClick={() => setView(v)}
-                  className={`rounded-md px-2.5 py-1 text-xs ${view === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                  className={`min-h-11 rounded-md px-3 py-2 text-xs ${view === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
                 >
                   {v === 'day' ? d.myDay.title : v === 'agenda' ? 'ตารางรายวัน' : d.calendar.title}
                 </button>
@@ -192,7 +192,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
       {view !== 'day' && <div aria-label="สีประจำผู้รับผิดชอบ" className="mb-4 flex flex-wrap items-center gap-2 text-xs">
         <span className="text-muted-foreground">สีประจำผู้รับผิดชอบ:</span>
         {[...people.entries()].map(([id, name]) => <button key={id} type="button" aria-pressed={personFilter === id} onClick={() => setPersonFilter(personFilter === id ? '' : id)} className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-2.5 ${personFilter === id ? 'border-primary bg-primary/5' : 'border-border'}`}><span aria-hidden className="size-3 rounded-full" style={{ backgroundColor: personColors.get(id) }} />{name}</button>)}
-        <span className="inline-flex items-center gap-2"><span aria-hidden className="size-3 rounded-full bg-slate-500" />ยังไม่ระบุผู้รับผิดชอบ</span>
+        <span className="inline-flex items-center gap-2"><span aria-hidden className="size-3 rounded-full bg-sidebar" />ยังไม่ระบุผู้รับผิดชอบ</span>
       </div>}
       {view === 'day' ? (
         <MyDayPanel />

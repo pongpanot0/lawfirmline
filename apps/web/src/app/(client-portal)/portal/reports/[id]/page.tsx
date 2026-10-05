@@ -47,9 +47,9 @@ export default function PortalReportDetailPage() {
           <p className="mb-4 text-xs text-muted-foreground print:hidden">
             หากต้องการเก็บไฟล์ ให้กด “พิมพ์ / บันทึกเป็น PDF” แล้วเลือกปลายทางเป็น PDF
           </p>
-          <div className="rounded-xl border bg-white p-4 shadow-sm sm:p-8 print:border-0 print:p-0 print:shadow-none">
+          <div className="rounded-lg border bg-card p-4 sm:p-8 print:border-0 print:bg-white print:p-0 print:shadow-none">
             <AnnualReportView report={report.snapshot} portal />
-            <p className="mt-6 border-t pt-3 text-xs text-slate-500">
+            <p className="mt-6 border-t pt-3 text-xs text-muted-foreground">
               เผยแพร่เมื่อ {new Date(report.publishedAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}
             </p>
           </div>

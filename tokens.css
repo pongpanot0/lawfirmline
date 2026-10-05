@@ -1,0 +1,98 @@
+/* Hallmark · P4 H4 E4 S4 R4 V4 · modern-minimal · Workbench · designed-as-app */
+:root {
+  --font-sans: "Noto Sans Thai", "Inter", system-ui, sans-serif;
+  --font-display: "Trirong", "Noto Sans Thai", serif;
+  --radius: 0.5rem;
+  --space-3xs: 4px;
+  --space-2xs: 8px;
+  --space-xs: 12px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 32px;
+  --space-xl: 48px;
+  --space-2xl: 64px;
+  --space-3xl: 80px;
+  --space-4xl: 96px;
+  --space-5xl: 128px;
+  --palette-paper: 42 38.46% 94.9%;
+  --palette-surface: 36 100% 99.02%;
+  --palette-ink: 206.81 54.02% 17.06%;
+  --palette-muted: 204 13.23% 37.06%;
+  --palette-rule: 75 6.06% 87.06%;
+  --palette-input: 197.14 8.43% 67.45%;
+  --palette-soft: 42 21.74% 90.98%;
+  --palette-selection: 202.5 21.05% 92.55%;
+  --palette-action: 206.81 54.02% 17.06%;
+  --palette-on-action: 36 100% 99.02%;
+  --palette-success: 155.38 53.42% 28.63%;
+  --palette-error: 0 54.13% 42.75%;
+  --palette-warning: 40.78 81.1% 24.9%;
+  --color-brand: #142e43;
+  --color-brass: #8b6d32;
+  --color-nav: #101d2a;
+  --color-nav-text: #f4f0e7;
+  --color-nav-muted: #b1bec9;
+  --color-nav-selection: #243c50;
+  --color-nav-rule: #334657;
+  --shadow-soft: 0 1px 2px rgb(20 46 67 / 0.03);
+  --shadow-card: 0 4px 16px rgb(20 46 67 / 0.06);
+}
+.dark {
+  --palette-paper: 210 44.83% 11.37%;
+  --palette-surface: 210 41.03% 15.29%;
+  --palette-ink: 41.54 37.14% 93.14%;
+  --palette-muted: 207.5 18.18% 74.12%;
+  --palette-rule: 208.33 26.09% 27.06%;
+  --palette-input: 206.15 15.66% 48.82%;
+  --palette-soft: 208.33 37.5% 18.82%;
+  --palette-selection: 207.27 37.93% 22.75%;
+  --palette-action: 41.54 37.14% 93.14%;
+  --palette-on-action: 210 44.83% 11.37%;
+  --palette-success: 144.41 38.56% 70%;
+  --palette-error: 3.95 73.08% 79.61%;
+  --palette-warning: 39.76 59.71% 72.75%;
+}
+/* Public and account surfaces retain the paper identity in either staff theme. */
+.samnuan-paper {
+  --palette-paper: 42 38.46% 94.9%;
+  --palette-surface: 36 100% 99.02%;
+  --palette-ink: 206.81 54.02% 17.06%;
+  --palette-muted: 204 13.23% 37.06%;
+  --palette-rule: 75 6.06% 87.06%;
+  --palette-input: 197.14 8.43% 67.45%;
+  --palette-soft: 42 21.74% 90.98%;
+  --palette-selection: 202.5 21.05% 92.55%;
+  --palette-action: 206.81 54.02% 17.06%;
+  --palette-on-action: 36 100% 99.02%;
+  --palette-success: 155.38 53.42% 28.63%;
+  --palette-error: 0 54.13% 42.75%;
+  --palette-warning: 40.78 81.1% 24.9%;
+}
+:root, .dark, .samnuan-paper {
+  --background: var(--palette-paper);
+  --foreground: var(--palette-ink);
+  --card: var(--palette-surface);
+  --card-foreground: var(--palette-ink);
+  --primary: var(--palette-action);
+  --primary-foreground: var(--palette-on-action);
+  --secondary: var(--palette-soft);
+  --secondary-foreground: var(--palette-ink);
+  --muted: var(--palette-soft);
+  --muted-foreground: var(--palette-muted);
+  --accent: var(--palette-selection);
+  --accent-foreground: var(--palette-ink);
+  --border: var(--palette-rule);
+  --input: var(--palette-input);
+  --ring: var(--palette-action);
+  --destructive: var(--palette-error);
+  --destructive-foreground: var(--palette-on-action);
+  --success: var(--palette-success);
+  --success-foreground: var(--palette-paper);
+  --warning: var(--palette-warning);
+  --warning-foreground: var(--palette-paper);
+  --sidebar: 210 44.83% 11.37%;
+  --sidebar-foreground: 41.54 37.14% 93.14%;
+  --sidebar-muted: 207.5 18.18% 74.12%;
+  --sidebar-accent: 207.27 37.93% 22.75%;
+  --sidebar-border: 208.33 26.09% 27.06%;
+}

@@ -25,9 +25,10 @@ export function LanguageSwitcher({ className }: { className?: string }) {
         <button
           key={value}
           type="button"
+          aria-pressed={locale === value}
           onClick={() => setLocale(value)}
           className={cn(
-            'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+            'min-h-11 min-w-11 rounded-md px-3 py-2 text-xs font-medium transition-colors',
             locale === value
               ? 'bg-card text-foreground shadow-soft'
               : 'text-muted-foreground hover:text-foreground',

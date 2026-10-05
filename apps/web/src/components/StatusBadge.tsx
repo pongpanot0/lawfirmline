@@ -4,12 +4,12 @@ import type { CaseStatus } from '@lawfirm/shared';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const statusColors: Record<string, string> = {
-  OPEN: 'bg-sky-100 text-sky-800',
-  DRAFTING: 'bg-indigo-100 text-indigo-800',
-  COURT_DATE: 'bg-violet-100 text-violet-800',
-  IN_PROGRESS: 'bg-amber-100 text-amber-800',
-  PENDING: 'bg-orange-100 text-orange-800',
-  CLOSED: 'bg-slate-100 text-slate-600',
+  OPEN: 'bg-accent text-accent-foreground',
+  DRAFTING: 'bg-accent text-accent-foreground',
+  COURT_DATE: 'bg-warning/10 text-warning',
+  IN_PROGRESS: 'bg-warning/10 text-warning',
+  PENDING: 'bg-muted text-muted-foreground',
+  CLOSED: 'bg-muted text-muted-foreground',
 };
 
 export function StatusBadge({ status }: { status: CaseStatus | string }) {
@@ -17,7 +17,7 @@ export function StatusBadge({ status }: { status: CaseStatus | string }) {
   const key = String(status);
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[key] ?? 'bg-slate-100 text-slate-600'}`}
+      className={`inline-flex rounded-sm px-2 py-1 text-xs font-medium ${statusColors[key] ?? 'bg-muted text-muted-foreground'}`}
     >
       {d.caseStatus[key as keyof typeof d.caseStatus] ?? key.replace('_', ' ')}
     </span>

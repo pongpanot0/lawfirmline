@@ -99,33 +99,46 @@ export class WorkflowsService {
   }
 
   async updateTemplate(user: AuthUser, templateId: string, dto: UpdateWorkflowTemplateDto) {
-    const tmpl = await this.prisma.workflowTemplate.findFirst({
-      where: { id: templateId, firmId: user.firmId },
-      select: { id: true },
-    });
-    if (!tmpl) throw new NotFoundException('Template not found');
-
     const steps = dto.steps ? this.validateSteps(dto.steps) : undefined;
-    return this.prisma.workflowTemplate.update({
-      where: { id: templateId },
-      data: {
-        name: dto.name,
-        description: dto.description,
-        steps: steps as unknown as Prisma.InputJsonValue | undefined,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize changes for this firm so two administrators can replace the
+      // default concurrently without leaving zero or two defaults.
+      await tx.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
+      const tmpl = await tx.workflowTemplate.findFirst({
+        where: { id: templateId, firmId: user.firmId, isActive: true },
+        select: { id: true },
+      });
+      if (!tmpl) throw new NotFoundException('Template not found');
+      if (dto.isDefault === true) {
+        await tx.workflowTemplate.updateMany({
+          where: { firmId: user.firmId, isDefault: true },
+          data: { isDefault: false },
+        });
+      }
+      return tx.workflowTemplate.update({
+        where: { id: templateId },
+        data: {
+          name: dto.name,
+          description: dto.description,
+          steps: steps as unknown as Prisma.InputJsonValue | undefined,
+          isDefault: dto.isDefault,
+        },
+      });
     });
   }
 
   async deleteTemplate(user: AuthUser, templateId: string) {
-    const tmpl = await this.prisma.workflowTemplate.findFirst({
-      where: { id: templateId, firmId: user.firmId },
-      select: { id: true },
-    });
-    if (!tmpl) throw new NotFoundException('Template not found');
-
-    await this.prisma.workflowTemplate.update({
-      where: { id: templateId },
-      data: { isActive: false },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${user.firmId} FOR UPDATE`;
+      const tmpl = await tx.workflowTemplate.findFirst({
+        where: { id: templateId, firmId: user.firmId, isActive: true },
+        select: { id: true },
+      });
+      if (!tmpl) throw new NotFoundException('Template not found');
+      await tx.workflowTemplate.update({
+        where: { id: templateId },
+        data: { isActive: false, isDefault: false },
+      });
     });
     return { deleted: true };
   }

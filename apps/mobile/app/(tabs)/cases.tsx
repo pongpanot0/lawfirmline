@@ -32,7 +32,7 @@ function CaseRow({ item, onPress }: { item: CaseListItem; onPress: () => void })
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><Text style={[styles.title, { flex: 1 }]}>
           {item.title}
         </Text><ChevronRight size={18} color={colors.faint} /></View>
-        <Text style={styles.meta} numberOfLines={1}>
+        <Text style={styles.meta}>
           {[item.clientName, item.courtName, item.blackCaseNumber]
             .filter(Boolean)
             .join(' · ') || '—'}
@@ -95,6 +95,6 @@ const styles = StyleSheet.create({
   filter: { minHeight: 44, justifyContent: 'center', marginHorizontal: spacing.lg },
   filterText: { color: colors.info, fontWeight: '600' },
   ownRef: { fontWeight: '700', color: colors.ink, fontSize: 14 },
-  title: { color: colors.text, marginTop: 4, fontSize: 14, fontWeight: '600' },
-  meta: { color: colors.faint, fontSize: 12, marginTop: 4 },
+  title: { color: colors.text, marginTop: spacing.sm, fontSize: 16, lineHeight: 24, fontWeight: '600' },
+  meta: { color: colors.faint, fontSize: 14, lineHeight: 22, marginTop: spacing.sm },
 });

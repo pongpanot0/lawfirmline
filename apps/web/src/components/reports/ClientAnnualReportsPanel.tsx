@@ -141,17 +141,17 @@ export function ClientAnnualReportsPanel({
 
   return (
     <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-2xl bg-slate-950 p-6 text-white sm:p-8">
-        <div className="absolute inset-y-0 right-0 w-1 bg-blue-500" aria-hidden />
-        <p className="text-xs font-semibold tracking-wide text-blue-200">แฟ้มรายงานลูกค้า / ANNUAL CASE REPORT</p>
+      <header className="relative overflow-hidden rounded-2xl bg-sidebar p-6 text-white sm:p-8">
+        <div className="absolute inset-y-0 right-0 w-1 bg-brand-700" aria-hidden />
+        <p className="text-xs font-semibold tracking-wide text-primary">แฟ้มรายงานลูกค้า / ANNUAL CASE REPORT</p>
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold">{client.name}</h2>
-            <p className="mt-2 max-w-xl text-sm text-slate-300">
+            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
               เลือกคดี ตรวจตัวเลขและรายละเอียด แล้วระบุผู้ติดต่อที่เปิดรายงานฉบับนี้ได้
             </p>
           </div>
-          <p className="text-4xl font-semibold tabular-nums text-blue-200">{year + 543}</p>
+          <p className="text-4xl font-semibold tabular-nums text-primary">{year + 543}</p>
         </div>
       </header>
 
@@ -308,7 +308,7 @@ export function ClientAnnualReportsPanel({
                 ใบแจ้งหนี้ {preview.snapshot.totals.unassignedInvoiceCount} รายการยังไม่ระบุผู้รับ ต้องตรวจในคดีก่อนเผยแพร่
               </p>
             )}
-            <div className="rounded-lg border bg-white p-4 shadow-sm sm:p-6">
+            <div className="rounded-lg border bg-card p-4 shadow-sm sm:p-6">
               <AnnualReportView report={preview.snapshot} />
             </div>
           </div>
@@ -386,7 +386,7 @@ export function ClientAnnualReportsPanel({
                 {item.snapshot && (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-primary">ดูฉบับที่เผยแพร่</summary>
-                    <div className="mt-3 rounded-lg border bg-white p-4">
+                    <div className="mt-3 rounded-lg border bg-card p-4">
                       <AnnualReportView report={item.snapshot} />
                     </div>
                   </details>

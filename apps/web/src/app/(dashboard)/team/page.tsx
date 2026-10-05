@@ -271,7 +271,7 @@ export default function TeamPage() {
                   <InlineEmptyState title="ยังไม่มีสมาชิกทีม" description="เชิญสมาชิกคนแรกด้วยอีเมลด้านบน แล้วสิทธิ์สำนักงานจะถูกผูกให้ทันที" />
                 ) : (
                   members.map((m) => (
-                    <div key={m.id} className="flex items-center gap-3 rounded-lg border p-3">
+                    <div key={m.id} className="grid grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-3 rounded-lg border p-3">
                       <Avatar fallback={`${m.firstName[0]}${m.lastName[0]}`} />
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">{m.firstName} {m.lastName}</p>
@@ -280,12 +280,13 @@ export default function TeamPage() {
                           {m.email}
                         </p>
                       </div>
+                      <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-2">
                       {canChangeRole(m) ? (
                         <select
                           value={m.firmRole}
                           disabled={changingRoleId === m.id}
                           onChange={(e) => handleRoleChange(m, e.target.value as FirmRole)}
-                          className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
+                          className="min-w-0 max-w-full flex-1 rounded-lg border border-input bg-card px-3 text-sm"
                           aria-label={d.team.changeRole}
                         >
                           {ROLE_OPTIONS.map((opt) => (
@@ -309,6 +310,7 @@ export default function TeamPage() {
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       )}
+                      </div>
                     </div>
                   ))
                 )}
@@ -396,9 +398,9 @@ export default function TeamPage() {
                   key={inv.id}
                   className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{inv.email}</span>
+                    <span className="min-w-0 break-all font-medium">{inv.email}</span>
                     <Badge variant="muted">{firmRoleLabel(inv.role)}</Badge>
                   </div>
                   <div className="flex items-center gap-2">

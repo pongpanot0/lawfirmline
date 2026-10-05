@@ -13,14 +13,14 @@ export function TravelPreviewCard({ travel }: { travel: TravelPreview }) {
   const mins = Math.round(travel.durationSeconds / 60);
 
   return (
-    <div className={`rounded-xl border p-4 ${travel.warning ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+    <div className={`rounded-xl border p-4 ${travel.warning ? 'border-amber-300 bg-amber-50' : 'border-border bg-card'}`}>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-800">เดินทางไปศาล</p>
+          <p className="text-sm font-semibold text-foreground">เดินทางไปศาล</p>
           <p className="mt-1 text-2xl font-bold text-brand-600">{mins} นาที</p>
-          <p className="text-xs text-slate-500">{km} กม. จากสำนักงาน</p>
+          <p className="text-xs text-muted-foreground">{km} กม. จากสำนักงาน</p>
           {travel.fromCache && (
-            <p className="mt-1 text-xs text-slate-400">เส้นทางที่บันทึกไว้</p>
+            <p className="mt-1 text-xs text-muted-foreground">เส้นทางที่บันทึกไว้</p>
           )}
         </div>
         <span className="text-2xl">🗺️</span>

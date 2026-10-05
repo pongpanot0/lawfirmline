@@ -191,7 +191,7 @@ export function InvoicePanel({
   const hasWork = Boolean(draft?.timeEntries.length || draft?.expenses.length);
 
   return (
-    <div className={formOnly ? 'contents' : 'rounded-xl border border-slate-200 bg-white p-6 shadow-sm'}>
+    <div className={formOnly ? 'contents' : 'rounded-xl border border-border bg-card p-6 shadow-sm'}>
       {!formOnly && <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="font-semibold">ใบแจ้งหนี้</h2>
         <button
@@ -200,7 +200,7 @@ export function InvoicePanel({
             setShowForm(true);
             setError('');
           }}
-          className="min-h-11 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+          className="min-h-11 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted active:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
         >
           {standalone ? '+ ออกใบเปล่า' : '+ ออกใบแจ้งหนี้'}
         </button>
@@ -229,11 +229,11 @@ export function InvoicePanel({
                           e.target.checked ? [...ids, entry.id] : ids.filter((i) => i !== entry.id),
                         )
                       }
-                      className="h-4 w-4 rounded border-slate-300"
+                      className="h-4 w-4 rounded border-input"
                     />
                     <span className="min-w-0 flex-1 truncate">
                       {entry.description || 'ค่าทนายความ'}
-                      <span className="text-slate-400">
+                      <span className="text-muted-foreground">
                         {' '}
                         · {entry.hours} ชม. × {formatCurrency(entry.rate)}
                       </span>
@@ -251,18 +251,18 @@ export function InvoicePanel({
                           e.target.checked ? [...ids, expense.id] : ids.filter((i) => i !== expense.id),
                         )
                       }
-                      className="h-4 w-4 rounded border-slate-300"
+                      className="h-4 w-4 rounded border-input"
                     />
                     <span className="min-w-0 flex-1 truncate">
                       {expense.description}
-                      <span className="text-slate-400"> · ค่าใช้จ่าย</span>
+                      <span className="text-muted-foreground"> · ค่าใช้จ่าย</span>
                     </span>
                     <span className="font-medium">{formatCurrency(expense.amount)}</span>
                   </label>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 คดีนี้ยังไม่มีบันทึกเวลาหรือค่าใช้จ่ายที่รอเก็บเงิน
                 {draft?.agreedFee ? ` — ค่าจ้างที่ตกลงไว้คือ ${formatCurrency(draft.agreedFee)}` : ''}
               </p>
@@ -291,7 +291,7 @@ export function InvoicePanel({
                     )
                   }
                   placeholder="เช่น ค่าว่าความศาลชั้นต้น"
-                  className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm"
                 />
                 <input
                   aria-label={`จำนวนของรายการที่ ${index + 1}`}
@@ -302,7 +302,7 @@ export function InvoicePanel({
                     )
                   }
                   inputMode="decimal"
-                  className="w-16 rounded-lg border border-slate-200 px-2 py-2 text-sm"
+                  className="w-16 rounded-lg border border-border px-2 py-2 text-sm"
                 />
                 <MoneyInput
                   aria-label={`ราคาต่อหน่วยของรายการที่ ${index + 1}`}
@@ -313,14 +313,14 @@ export function InvoicePanel({
                     )
                   }
                   placeholder="ราคา"
-                  className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="w-28 rounded-lg border border-border px-3 py-2 text-sm"
                 />
                 {items.length > 1 && (
                   <button
                     type="button"
                     aria-label={`ลบรายการที่ ${index + 1}`}
                     onClick={() => setItems((rows) => rows.filter((_, i) => i !== index))}
-                    className="px-1 text-sm text-slate-400"
+                    className="px-1 text-sm text-muted-foreground"
                   >
                     ลบ
                   </button>
@@ -349,8 +349,8 @@ export function InvoicePanel({
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
-            <label className="text-sm text-slate-500">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+            <label className="text-sm text-muted-foreground">
               ครบกำหนดชำระ{' '}
               <ThaiDateInput
                 value={dueAt}
@@ -363,7 +363,7 @@ export function InvoicePanel({
           </div>
 
           {customers.length > 1 && (
-            <div className="space-y-2 rounded-lg bg-slate-50 p-3">
+            <div className="space-y-2 rounded-lg bg-muted p-3">
               <p className="text-sm font-medium">แบ่งบิล {customers.length} ใบ</p>
               {customers.map((customer, index) => (
                 <div key={customer.id} className="flex items-center justify-between gap-2 text-sm">
@@ -375,9 +375,9 @@ export function InvoicePanel({
                       setShareOverrides((rows) => ({ ...rows, [customer.customerId]: e.target.value }))
                     }
                     inputMode="decimal"
-                    className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm"
+                    className="w-16 rounded-lg border border-border px-2 py-1 text-right text-sm"
                   />
-                  <span className="text-slate-400">%</span>
+                  <span className="text-muted-foreground">%</span>
                   <span className="w-28 text-right font-medium">
                     {formatCurrency(splitPreview[index] ?? 0)}
                   </span>
@@ -386,7 +386,7 @@ export function InvoicePanel({
             </div>
           )}
           {customers.length === 1 && (
-            <p className="text-sm text-slate-500">วางบิลที่ {customers[0].customer.name}</p>
+            <p className="text-sm text-muted-foreground">วางบิลที่ {customers[0].customer.name}</p>
           )}
           {customers.length === 0 && !standalone && (
             <p className="text-sm text-amber-600">
@@ -402,7 +402,7 @@ export function InvoicePanel({
           <button
             type="submit"
             disabled={submitting}
-            className="min-h-11 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+            className="min-h-11 rounded-lg bg-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-sidebar active:bg-sidebar focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           >
             {submitting
               ? 'กำลังออก…'
@@ -417,18 +417,18 @@ export function InvoicePanel({
         {invoices.map((inv) => (
           <div
             key={inv.id}
-            className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm"
+            className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
           >
             <div className="min-w-0">
               <span className="font-medium">{inv.invoiceNumber}</span>
               {inv.billToCustomer && (
-                <p className="truncate text-xs text-slate-400">{inv.billToCustomer.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{inv.billToCustomer.name}</p>
               )}
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p>{formatCurrency(inv.totalAmount)}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   {INVOICE_STATUS_LABELS[inv.status] ?? inv.status}
                 </p>
               </div>

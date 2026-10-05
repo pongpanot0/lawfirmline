@@ -22,17 +22,17 @@ export function CaseCard({
   return (
     <Link
       href={`/cases/${id}`}
-      className="block rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-brand-200 hover:shadow-md"
+      className="block rounded-xl border border-border bg-card p-5 shadow-sm transition hover:border-brand-200 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-slate-500">{ownRef}</p>
-          <h3 className="mt-1 font-semibold text-slate-900">{title}</h3>
+          <p className="text-xs font-medium text-muted-foreground">{ownRef}</p>
+          <h3 className="mt-1 font-semibold text-foreground">{title}</h3>
           {clientName && (
-            <p className="mt-1 text-sm text-slate-500">Client: {clientName}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Client: {clientName}</p>
           )}
           {leadLawyer && (
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Owner: {leadLawyer.firstName} {leadLawyer.lastName}
             </p>
           )}

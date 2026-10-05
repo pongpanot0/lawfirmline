@@ -26,9 +26,9 @@ export function AnnualReportView({
   portal?: boolean;
 }) {
   return (
-    <article className="space-y-6 bg-white text-slate-900 print:space-y-4">
+    <article className="space-y-6 bg-card text-foreground print:space-y-4">
       <header className="border-b pb-4">
-        <p className="text-sm text-slate-500">รายงานคดีประจำปี · {reportAudienceLabel(report.audience)}</p>
+        <p className="text-sm text-muted-foreground">รายงานคดีประจำปี · {reportAudienceLabel(report.audience)}</p>
         <h1 className="text-2xl font-bold">{report.clientName}</h1>
         <p className="text-sm">ปี {report.year + 543} · 1 มกราคม – 31 ธันวาคม</p>
       </header>
@@ -42,7 +42,7 @@ export function AnnualReportView({
           ['ดำเนินอยู่สิ้นปี', report.totals.ongoing],
         ].map(([label, value]) => (
           <div key={label} className="rounded-lg border p-3">
-            <p className="text-xs text-slate-500">{label}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
             <p className="text-xl font-bold">{value}</p>
           </div>
         ))}
@@ -53,7 +53,7 @@ export function AnnualReportView({
         <Amount label="ยอดใบแจ้งหนี้ที่ออกในปี" value={report.totals.invoicedAmount} />
         <Amount label="ยอดรับชำระในปี" value={report.totals.receivedAmount} />
       </section>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted-foreground">
         ยอดเรียกร้องรวมจาก {report.totals.claimedCaseCount} คดีที่บันทึกยอด เป็นมูลค่าของคดี ไม่ใช่ยอดชนะคดีหรือยอดรับเงินจริง
         ยอดใบแจ้งหนี้และยอดรับชำระนับตามวันที่ของแต่ละรายการ
       </p>
@@ -102,7 +102,7 @@ export function AnnualReportView({
 function Amount({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border p-3">
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-lg font-semibold tabular-nums">{number(value)}</p>
     </div>
   );
@@ -111,7 +111,7 @@ function Amount({ label, value }: { label: string; value: number }) {
 function Field({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="break-words">{value?.trim() || '—'}</dd>
     </div>
   );

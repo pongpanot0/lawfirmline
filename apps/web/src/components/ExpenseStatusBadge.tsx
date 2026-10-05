@@ -4,20 +4,20 @@ import type { ExpenseStatus } from '@lawfirm/shared';
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   // A draft commits nothing: it is deliberately the quietest colour here.
-  DRAFT: { label: 'ร่าง', className: 'bg-slate-100 text-slate-700' },
-  PENDING: { label: 'รออนุมัติ', className: 'bg-amber-100 text-amber-800' },
-  APPROVED: { label: 'อนุมัติแล้ว', className: 'bg-blue-100 text-blue-800' },
-  PAID: { label: 'จ่ายแล้ว', className: 'bg-green-100 text-green-800' },
-  REJECTED: { label: 'ปฏิเสธ', className: 'bg-red-100 text-red-800' },
+  DRAFT: { label: 'ร่าง', className: 'bg-muted text-foreground' },
+  PENDING: { label: 'รออนุมัติ', className: 'bg-warning/10 text-warning' },
+  APPROVED: { label: 'อนุมัติแล้ว', className: 'bg-accent text-primary' },
+  PAID: { label: 'จ่ายแล้ว', className: 'bg-success/10 text-success' },
+  REJECTED: { label: 'ปฏิเสธ', className: 'bg-destructive/10 text-destructive' },
 };
 
 export function ExpenseStatusBadge({ status }: { status: ExpenseStatus | string }) {
   const config = statusConfig[status] ?? {
     label: status,
-    className: 'bg-slate-100 text-slate-700',
+    className: 'bg-muted text-foreground',
   };
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${config.className}`}>
+    <span className={`inline-flex rounded-sm px-2 py-1 text-xs font-medium ${config.className}`}>
       {config.label}
     </span>
   );

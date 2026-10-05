@@ -184,7 +184,7 @@ export default function DocumentsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
+        <div className="min-w-0 lg:col-span-2 space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder={d.documents.searchPlaceholder} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -268,7 +268,7 @@ export default function DocumentsPage() {
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <Card>
             <CardContent className="p-4 space-y-3">
               <p className="text-sm font-medium">{d.documents.uploadToCase}</p>

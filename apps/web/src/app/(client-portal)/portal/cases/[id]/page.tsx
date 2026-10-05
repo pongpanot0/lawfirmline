@@ -392,12 +392,12 @@ export default function PortalCaseDetailPage() {
             </div>
           </Card>
 
-          <Card className="border-none bg-gradient-to-br from-primary to-[hsl(224,70%,38%)] p-5 text-primary-foreground">
+          <Card className="border-none bg-primary p-5 text-primary-foreground">
             <h2 className="mb-1.5 text-[14px] font-bold">ต้องการความช่วยเหลือเพิ่มเติม?</h2>
             <p className="mb-3.5 text-[12.5px] leading-relaxed text-primary-foreground/85">
               ส่งเรื่องใหม่เกี่ยวกับคดีนี้ หรือสอบถามผ่านข้อความด้านซ้ายได้ตลอดเวลา
             </p>
-            <Link href="/portal/intake/new" className={buttonVariants({ className: 'w-full bg-white text-primary hover:bg-white/90' })}>
+            <Link href="/portal/intake/new" className={buttonVariants({ className: 'w-full bg-card text-primary hover:bg-card/90' })}>
               ส่งเรื่องใหม่
             </Link>
           </Card>

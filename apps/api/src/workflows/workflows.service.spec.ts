@@ -20,6 +20,12 @@ const steps = [
 function build() {
   const created: any[] = [];
   const tx: any = {
+    $queryRaw: jest.fn(),
+    workflowTemplate: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'template-1' }),
+      updateMany: jest.fn(),
+      update: jest.fn(async ({ data }: any) => ({ id: 'template-1', ...data })),
+    },
     workflowRun: { create: jest.fn(async ({ data }: any) => ({ id: 'run-1', ...data })) },
     task: {
       create: jest.fn(async ({ data }: any) => { const t = { id: `t${created.length}`, ...data }; created.push(t); return t; }),
@@ -54,6 +60,31 @@ function build() {
 
 describe('WorkflowsService', () => {
   describe('templates', () => {
+    it('replaces only this firm default atomically and clears it when archived', async () => {
+      const { svc, tx } = build();
+      await svc.updateTemplate(owner, 'template-1', { isDefault: true });
+      expect(tx.workflowTemplate.findFirst).toHaveBeenCalledWith({
+        where: { id: 'template-1', firmId: 'f1', isActive: true }, select: { id: true },
+      });
+      expect(tx.workflowTemplate.updateMany).toHaveBeenCalledWith({
+        where: { firmId: 'f1', isDefault: true }, data: { isDefault: false },
+      });
+      expect(tx.workflowTemplate.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ isDefault: true }) }));
+      await svc.deleteTemplate(owner, 'template-1');
+      expect(tx.workflowTemplate.update).toHaveBeenLastCalledWith({
+        where: { id: 'template-1' }, data: { isActive: false, isDefault: false },
+      });
+      expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('leaves the current default intact for an inactive or foreign template', async () => {
+      const { svc, tx } = build();
+      tx.workflowTemplate.findFirst.mockResolvedValue(null);
+      await expect(svc.updateTemplate(owner, 'foreign-template', { isDefault: true })).rejects.toThrow(NotFoundException);
+      expect(tx.workflowTemplate.updateMany).not.toHaveBeenCalled();
+      expect(tx.workflowTemplate.update).not.toHaveBeenCalled();
+    });
+
     it('stores cleaned steps only', async () => {
       const { svc, prisma } = build();
       await svc.createTemplate(owner, { name: 'แปล→เบิกความ→ฟ้อง', steps: [{ ...steps[0], title: '  แปล  ', extra: 'x' } as any] });

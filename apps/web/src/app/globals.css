@@ -1,87 +1,18 @@
+@import "../../../../tokens.css";
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
 @layer base {
-  :root {
-    --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-    --radius: 0.625rem;
-
-    --background: 220 20% 98%;
-    --foreground: 224 30% 12%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 224 30% 12%;
-
-    --primary: 224 76% 48%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 224 20% 30%;
-
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 10% 46%;
-
-    --accent: 220 14% 94%;
-    --accent-foreground: 224 30% 12%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 224 76% 48%;
-
-    --sidebar: 0 0% 100%;
-    --sidebar-foreground: 224 20% 30%;
-    --sidebar-accent: 220 14% 96%;
-    --sidebar-border: 220 13% 93%;
-
-    --success: 152 60% 40%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-  }
-
-  .dark {
-    --background: 224 30% 8%;
-    --foreground: 220 14% 96%;
-
-    --card: 224 28% 11%;
-    --card-foreground: 220 14% 96%;
-
-    --primary: 224 76% 58%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 224 20% 16%;
-    --secondary-foreground: 220 14% 90%;
-
-    --muted: 224 20% 16%;
-    --muted-foreground: 220 10% 60%;
-
-    --accent: 224 20% 18%;
-    --accent-foreground: 220 14% 96%;
-
-    --destructive: 0 62% 45%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 224 20% 18%;
-    --input: 224 20% 18%;
-    --ring: 224 76% 58%;
-
-    --sidebar: 224 30% 10%;
-    --sidebar-foreground: 220 14% 85%;
-    --sidebar-accent: 224 20% 16%;
-    --sidebar-border: 224 20% 16%;
-  }
-
   * {
     @apply border-border;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
+    line-height: 1.65;
     min-height: 100dvh;
     width: 100%;
   }
@@ -94,6 +25,37 @@
   body {
     overflow-x: clip;
   }
+  h1, h2, h3 { overflow-wrap: anywhere; }
+  button, input, select, textarea { font: inherit; }
+  :where([hidden]) { display: none !important; }
+  :where(button, a, input, select, textarea, summary):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
+  button:active:not(:disabled), a:active { opacity: 0.85; }
+  button:disabled { cursor: not-allowed; }
+  ::selection { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+}
+
+@layer components {
+  .samnuan-page { width: 100%; min-width: 0; max-width: 1600px; margin-inline: auto; }
+  .samnuan-sidebar { color: var(--color-nav-text); }
+  .samnuan-sidebar :where(a, button):focus-visible { outline-color: var(--color-nav-text); }
+  .samnuan-sidebar [aria-label="Language"] { background: var(--color-nav); border-color: var(--color-nav-rule); }
+  .samnuan-sidebar [aria-label="Language"] button { color: var(--color-nav-muted); }
+  .samnuan-sidebar [aria-label="Language"] button[aria-pressed="true"] { background: var(--color-nav-text); color: var(--color-nav); }
+  .samnuan-navlink { border-left: 2px solid transparent; border-radius: 4px; }
+  .samnuan-navlink[aria-current="page"] { border-left-color: var(--color-brass); }
+  .samnuan-page-header { border-bottom: 1px solid hsl(var(--border)); padding-bottom: var(--space-md); }
+  .samnuan-page-header h1 { font-family: var(--font-display); font-weight: 600; line-height: 1.5; }
+  .samnuan-page h1 { font-family: var(--font-display); line-height: 1.5; }
+  .samnuan-paper h1 { font-family: var(--font-display); line-height: 1.5; }
+  .samnuan-workspace :where(button, select) { min-height: 44px; }
+  .samnuan-workspace :where(select, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])) { min-height: 44px; }
+  .samnuan-workspace :where(summary) { min-height: 44px; cursor: pointer; }
+  .samnuan-page :where(p) { overflow-wrap: anywhere; }
+  .samnuan-page :where(th) { font-weight: 600; }
+  .samnuan-page :where(td) { line-height: 1.6; }
 }
 
 @layer utilities {
@@ -101,4 +63,8 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

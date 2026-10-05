@@ -1,6 +1,7 @@
 import React, { createContext, forwardRef, useContext, useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text as NativeText, TextInput as NativeTextInput, TextProps, TextInputProps } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { colors } from '@/theme';
 
 export const TEXT_SIZES = [1, 1.2, 1.4, 1.6] as const;
 const KEY = 'samnuan.display.text-size';
@@ -31,7 +32,7 @@ export const Text = forwardRef<React.ElementRef<typeof NativeText>, TextProps>(f
   const { scale } = useDisplayPreferences();
   const style = StyleSheet.flatten(props.style);
   return <NativeText {...props} ref={ref} allowFontScaling={props.allowFontScaling ?? true}
-    style={[props.style, { fontSize: (style?.fontSize ?? 14) * scale,
+    style={[{ color: colors.text }, props.style, { fontSize: (style?.fontSize ?? 15) * scale,
       ...(style?.lineHeight ? { lineHeight: style.lineHeight * scale } : {}) }]} />;
 });
 
@@ -44,6 +45,6 @@ export const TextInput = forwardRef<React.ElementRef<typeof NativeTextInput>, Te
     autoComplete={props.autoComplete ?? 'off'}
     textContentType={props.textContentType ?? (props.autoComplete && props.autoComplete !== 'off' ? undefined : 'none')}
     allowFontScaling={props.allowFontScaling ?? true}
-    style={[props.style, { fontSize: (style?.fontSize ?? 14) * scale,
+    style={[{ color: colors.text }, props.style, { fontSize: (style?.fontSize ?? 16) * scale,
       ...(style?.lineHeight ? { lineHeight: style.lineHeight * scale } : {}) }]} />;
 });

@@ -6,7 +6,7 @@ import { PortalPasswordGate } from '@/components/portal/PortalPasswordGate';
 export default function ClientPortalLayout({ children }: { children: React.ReactNode }) {
   return (
     <PortalAuthProvider>
-      <PortalPasswordGate>{children}</PortalPasswordGate>
+      <div className="samnuan-paper samnuan-workspace text-foreground"><PortalPasswordGate>{children}</PortalPasswordGate></div>
     </PortalAuthProvider>
   );
 }

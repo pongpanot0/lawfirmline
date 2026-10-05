@@ -77,7 +77,7 @@ export function PromptPayQrPanel({
         <div className="mx-auto flex max-w-[280px] flex-col items-center gap-3">
           <div
             className={cn(
-              'relative rounded-2xl border-2 bg-white p-4 shadow-inner',
+              'relative rounded-2xl border-2 bg-card p-4 shadow-inner',
               expired ? 'border-destructive/40 opacity-60' : 'border-[#1e4598]/20',
             )}
           >
@@ -89,7 +89,7 @@ export function PromptPayQrPanel({
             />
             {polling && !expired && (
               <div className="absolute inset-0 flex items-end justify-center rounded-2xl bg-gradient-to-t from-black/5 to-transparent pb-3">
-                <Badge variant="muted" className="gap-1 bg-white/95 shadow-sm">
+                <Badge variant="muted" className="gap-1 bg-card/95 shadow-sm">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   {d.payment.waitingPayment}
                 </Badge>

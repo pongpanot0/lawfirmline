@@ -3,7 +3,7 @@ import { InputAccessoryView, Keyboard, Platform, Pressable, ScrollView, TextInpu
 import { KeyboardAccessoryContext, Text, TextInput } from '@/components/AppText';
 import { Card, SectionLabel } from './ui';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
-import { colors, spacing, pageContent, formLabelSpacing } from '@/theme';
+import { colors, spacing, radius, pageContent, formLabelSpacing } from '@/theme';
 
 export function FormPage({ children }: { children: React.ReactNode }) {
   const keyboardHeight = useKeyboardHeight();
@@ -43,7 +43,7 @@ export function FormField({ label, value, onChange, multiline = false, disabled 
     <TextInput accessibilityLabel={label} value={value} onChangeText={onChange} editable={!disabled}
       multiline={multiline} placeholder={placeholder} placeholderTextColor={colors.faint}
       style={{ minHeight: multiline ? 100 : 48, textAlignVertical: multiline ? 'top' : 'center', padding: spacing.md,
-        borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.surface, color: colors.text, fontSize: 15 }} />
+        borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text, fontSize: 16 }} />
   </View>;
 }
 
@@ -51,7 +51,7 @@ export function FormSection({ title, detail, children }: { title: string; detail
   return <Card style={{ gap: spacing.sm, marginVertical: spacing.xs, padding: spacing.lg }}>
     <View style={{ borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: spacing.md }}>
       <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>{title}</SectionLabel>
-      {detail ? <Text style={{ color: colors.muted, fontSize: 13, marginTop: spacing.xs }}>{detail}</Text> : null}
+      {detail ? <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22, marginTop: spacing.sm }}>{detail}</Text> : null}
     </View>
     {children}
   </Card>;

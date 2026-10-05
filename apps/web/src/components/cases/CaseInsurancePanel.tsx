@@ -140,30 +140,30 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
             </p>
           )}
           <div>
-            <label className="block text-sm font-medium text-slate-700">บริษัทประกัน</label>
+            <label className="block text-sm font-medium text-foreground">บริษัทประกัน</label>
             <InsurerSelect
               value={form.insurerName}
               onChange={(name) => setForm({ ...form, insurerName: name })}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700">เลขกรมธรรม์</label>
+            <label className="block text-sm font-medium text-foreground">เลขกรมธรรม์</label>
             <input
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded-md border border-input px-3 py-2"
               value={form.policyNumber}
               onChange={(e) => setForm({ ...form, policyNumber: e.target.value })}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700">เลขเคลม</label>
+            <label className="block text-sm font-medium text-foreground">เลขเคลม</label>
             <input
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded-md border border-input px-3 py-2"
               value={form.claimNumber}
               onChange={(e) => setForm({ ...form, claimNumber: e.target.value })}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700">วันวินาศภัย</label>
+            <label className="block text-sm font-medium text-foreground">วันวินาศภัย</label>
             <ThaiDateInput
               required
               className="mt-1"
@@ -200,13 +200,13 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
                   <div key={stage} className="flex flex-1 items-center">
                     <div
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
-                        done ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-500'
+                        done ? 'bg-brand-600 text-white' : 'bg-muted text-muted-foreground'
                       }`}
                     >
                       {i + 1}
                     </div>
-                    <span className="ml-2 text-xs text-slate-600">{INSURANCE_CLAIM_STAGE_LABELS[stage]}</span>
-                    {i < arr.length - 1 && <div className="mx-2 h-px flex-1 bg-slate-200" />}
+                    <span className="ml-2 text-xs text-muted-foreground">{INSURANCE_CLAIM_STAGE_LABELS[stage]}</span>
+                    {i < arr.length - 1 && <div className="mx-2 h-px flex-1 bg-muted" />}
                   </div>
                 );
               })}
@@ -215,39 +215,39 @@ export function CaseInsurancePanel({ caseId }: { caseId: string }) {
 
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
-              <p className="text-sm text-slate-500">บริษัทประกัน</p>
-              <p className="font-medium text-slate-900">{claim.insurerName}</p>
+              <p className="text-sm text-muted-foreground">บริษัทประกัน</p>
+              <p className="font-medium text-foreground">{claim.insurerName}</p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">เลขกรมธรรม์ / เลขเคลม</p>
-              <p className="font-medium text-slate-900">{claim.policyNumber ?? '—'} / {claim.claimNumber ?? '—'}</p>
+              <p className="text-sm text-muted-foreground">เลขกรมธรรม์ / เลขเคลม</p>
+              <p className="font-medium text-foreground">{claim.policyNumber ?? '—'} / {claim.claimNumber ?? '—'}</p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">วันวินาศภัย</p>
-              <p className="font-medium text-slate-900">{formatDate(claim.incidentDate)}</p>
+              <p className="text-sm text-muted-foreground">วันวินาศภัย</p>
+              <p className="font-medium text-foreground">{formatDate(claim.incidentDate)}</p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">วันครบอายุความ</p>
-              <p className="font-medium text-slate-900">
+              <p className="text-sm text-muted-foreground">วันครบอายุความ</p>
+              <p className="font-medium text-foreground">
                 {claim.limitationDeadline ? formatDate(claim.limitationDeadline) : '—'}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">กำหนดหนังสือทวงถาม</p>
-              <p className="font-medium text-slate-900">
+              <p className="text-sm text-muted-foreground">กำหนดหนังสือทวงถาม</p>
+              <p className="font-medium text-foreground">
                 {claim.demandLetterDeadline ? formatDate(claim.demandLetterDeadline) : '—'}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">วันยื่นร้องเรียน คปภ.</p>
-              <p className="font-medium text-slate-900">
+              <p className="text-sm text-muted-foreground">วันยื่นร้องเรียน คปภ.</p>
+              <p className="font-medium text-foreground">
                 {claim.oicComplaintDate ? formatDate(claim.oicComplaintDate) : '—'}
               </p>
             </div>
           </div>
 
           <div className="border-t pt-4">
-            <p className="mb-3 text-sm font-medium text-slate-700">เปลี่ยนสถานะ</p>
+            <p className="mb-3 text-sm font-medium text-foreground">เปลี่ยนสถานะ</p>
             <div className="flex flex-wrap gap-2">
               {INSURANCE_CLAIM_STAGE_ORDER.filter(
                 (s) => INSURANCE_CLAIM_STAGE_ORDER.indexOf(s) > INSURANCE_CLAIM_STAGE_ORDER.indexOf(claim.stage),

@@ -1,5 +1,14 @@
 [
   {
+    "date": "2026-10-05",
+    "macrostructure": "Workbench",
+    "theme": "Editorial Juris",
+    "enrichment": "Google Stitch",
+    "brief": "Full Samnuan redesign: 79 web pages and 41 native screens; one cream/navy system",
+    "designSystem": "design.md",
+    "source": "https://stitch.withgoogle.com/projects/394194744767221958"
+  },
+  {
     "date": "2026-09-23",
     "macrostructure": "Index-First",
     "theme": "existing Samnuan",
