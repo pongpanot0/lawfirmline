@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
 import { LeaveStatus, LeaveType, Prisma } from '../generated/prisma';
 import { LeaveService } from './leave.service';
-import { bangkokDayKey } from '../common/utils/bangkok-time';
+import { addBangkokDays, bangkokDayKey } from '../common/utils/bangkok-time';
 import { eventForUserWhere } from '../calendar/event-people';
 
 const notifier = { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } as any;
@@ -82,6 +82,8 @@ describe('LeaveService approval workflow', () => {
     { userId: 'owner-2', user: { lineUserId: 'line-owner-2' } },
   ];
   const requester = { firstName: 'Alice', lastName: 'A' };
+  // create() rejects past dates, so filings are relative to today (Bangkok).
+  const inDays = (n: number) => bangkokDayKey(addBangkokDays(new Date(), n));
 
   function makePrisma(overrides: Partial<Record<string, any>> = {}) {
     return {
@@ -112,7 +114,7 @@ describe('LeaveService approval workflow', () => {
     const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
     const leave = await new LeaveService(prisma, line, notifier, center).create(
       { id: 'alice', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any,
-      { type: LeaveType.SICK, startDate: '2026-10-05', endDate: '2026-10-05' },
+      { type: LeaveType.SICK, startDate: inDays(1), endDate: inDays(1) },
     );
     expect(leave.status).toBe(LeaveStatus.APPROVED);
     expect(line.pushTo).not.toHaveBeenCalled();
@@ -123,7 +125,7 @@ describe('LeaveService approval workflow', () => {
     const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
     const leave = await new LeaveService(prisma, line, notifier, center).create(
       { id: 'alice', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any,
-      { type: LeaveType.VACATION, startDate: '2026-10-05', endDate: '2026-10-06' },
+      { type: LeaveType.VACATION, startDate: inDays(1), endDate: inDays(2) },
     );
     expect(leave.status).toBe(LeaveStatus.PENDING);
     expect(line.pushTo).toHaveBeenCalledTimes(2);
@@ -139,7 +141,7 @@ describe('LeaveService approval workflow', () => {
     const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
     const leave = await new LeaveService(prisma, line, notifier, center).create(
       { id: 'alice', firmId: 'firm-a', firmRole: FirmRole.OWNER } as any,
-      { type: LeaveType.VACATION, startDate: '2026-10-05', endDate: '2026-10-06' },
+      { type: LeaveType.VACATION, startDate: inDays(1), endDate: inDays(2) },
     );
     expect(leave.status).toBe(LeaveStatus.APPROVED);
   });
