@@ -3,13 +3,13 @@ import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { OwnerOnly } from '../saas/decorators/saas.decorators';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { DailyOperationsService } from './daily-operations.service';
 import { AssignDailyTaskDto, CreateDailyTaskDto, DailyWorkQueryDto, PersonWorkloadQueryDto, MoveDailyTaskDto, TaskSizeDto, WorkTypesDto } from './dto/daily-operations.dto';
 
 @Controller('operations')
 @UseGuards(JwtAuthGuard, FirmRoleGuard)
-@OwnerOnly()
+@RequireCapability('runOperations')
 export class DailyOperationsController {
   constructor(private daily: DailyOperationsService) {}
   @Get('daily') board(@CurrentUser() user: AuthUser, @Query() query: DailyWorkQueryDto) { return this.daily.board(user, query.date); }

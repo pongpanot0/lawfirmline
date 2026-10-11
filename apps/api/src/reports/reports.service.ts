@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, hasFirmCapability } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 
@@ -21,7 +21,7 @@ export class ReportsService {
     // Drafts are private notes until claimed — never roll them into reports.
     const submittedOnly = { status: { not: 'DRAFT' as const } };
 
-    if (user.firmRole === FirmRole.OWNER) {
+    if (hasFirmCapability(user.firmRole, 'viewFirmReports')) {
       return { AND: [firmFilter, submittedOnly] };
     }
 
@@ -152,7 +152,7 @@ export class ReportsService {
     return {
       firmId,
       firmName: user.firmName,
-      scope: user.firmRole === FirmRole.OWNER ? 'firm' : 'user',
+      scope: hasFirmCapability(user.firmRole, 'viewFirmReports') ? 'firm' : 'user',
       kpis: {
         casesClosedYtd,
         casesClosedChange: casesClosedYtd - casesClosedLastYear,

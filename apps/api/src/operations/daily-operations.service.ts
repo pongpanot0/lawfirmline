@@ -1,7 +1,7 @@
 import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
 import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AssignmentType, AuthUser, FirmRole, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
+import { AssignmentType, AuthUser, FirmRole, hasFirmCapability, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
@@ -39,7 +39,7 @@ export class DailyOperationsService {
   constructor(private prisma: PrismaService, private tasks: TasksService, private notifier: AssignmentNotifierService, private caseAccess: CaseAccessService) {}
 
   private owner(user: AuthUser) {
-    if (user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('เฉพาะ Owner');
+    if (!hasFirmCapability(user.firmRole, 'runOperations')) throw new ForbiddenException('เฉพาะ Owner');
   }
 
   async board(user: AuthUser, date: string) {
@@ -152,7 +152,7 @@ export class DailyOperationsService {
       }, orderBy: { startAt: 'asc' } }),
       this.prisma.leaveRequest.findMany({ where: { firmId: user.firmId, userId, status: 'APPROVED', endDate: { gte: bangkokDateOnly(windowStart < now ? windowStart : now) } }, select: { id: true, type: true, startDate: true, endDate: true }, orderBy: { startDate: 'asc' }, take: 5 }),
     ]);
-    const owner = user.firmRole === FirmRole.OWNER;
+    const owner = hasFirmCapability(user.firmRole, 'viewAllCases');
     const caseIds = [...new Set([...tasks.map((t) => t.caseId), ...cases.map((c) => c.id), ...events.map((e) => e.caseId)].filter((id): id is string => !!id))];
     const visible = owner ? new Set(caseIds) : new Set((await this.prisma.case.findMany({
       where: { AND: [{ id: { in: caseIds } }, this.caseAccess.getCaseFilterForUser(user)] }, select: { id: true },

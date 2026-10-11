@@ -154,3 +154,28 @@ describe('TenantService.allowOnDemandTls', () => {
     await expect(service.allowOnDemandTls(undefined)).resolves.toBe(false);
   });
 });
+
+describe('TenantService office manager permissions', () => {
+  const manager = { id: 'om-1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
+  const mockPrisma = {
+    firmMember: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn() },
+    $transaction: jest.fn(),
+  };
+  let service: TenantService;
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [TenantService, { provide: PrismaService, useValue: mockPrisma }],
+    }).compile();
+    service = module.get(TenantService);
+  });
+
+  it('can list members', async () => {
+    await expect(service.listMembers(manager)).resolves.toEqual([]);
+  });
+  it('cannot change roles', async () => {
+    await expect(service.updateMemberRole(manager, 't', FirmRole.LAWYER)).rejects.toThrow(ForbiddenException);
+  });
+  it('cannot remove members', async () => {
+    await expect(service.removeMember(manager, 't')).rejects.toThrow(ForbiddenException);
+  });
+});

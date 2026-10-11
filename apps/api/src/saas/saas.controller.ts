@@ -16,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, hasFirmCapability } from '@lawfirm/shared';
 import { InvitationService } from './invitation.service';
 import { SubscriptionService } from './subscription.service';
 import { OmiseService } from './omise.service';
@@ -24,7 +24,7 @@ import { TenantService } from './tenant.service';
 import { AuthService } from '../auth/auth.service';
 import { AcceptInviteDto, CheckoutDto, InviteUserDto, OpenJoinDto, PromptPayCheckoutDto, UpdateMemberRoleDto, UpdateFirmSettingsDto } from './dto/saas.dto';
 import { FirmRoleGuard } from './guards/firm-role.guard';
-import { OwnerOnly, SkipSubscription } from './decorators/saas.decorators';
+import { RequireCapability, SkipSubscription } from './decorators/saas.decorators';
 import { BillingPeriod, SubscriptionPlan } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 
@@ -55,7 +55,7 @@ export class SaasController {
 
   @Get('billing/history')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageSubscription')
   @SkipSubscription()
   getBillingHistory(@CurrentUser() user: AuthUser) {
     return this.subscriptions.getBillingHistory(user);
@@ -63,7 +63,7 @@ export class SaasController {
 
   @Post('billing/checkout')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageSubscription')
   @SkipSubscription()
   checkout(@CurrentUser() user: AuthUser, @Body() dto: CheckoutDto) {
     return this.subscriptions.createCheckout(
@@ -79,7 +79,7 @@ export class SaasController {
 
   @Post('billing/checkout/promptpay')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageSubscription')
   @SkipSubscription()
   promptPayCheckout(@CurrentUser() user: AuthUser, @Body() dto: PromptPayCheckoutDto) {
     return this.subscriptions.createPromptPayCheckout(
@@ -91,7 +91,7 @@ export class SaasController {
 
   @Get('billing/invoices/:invoiceId/qr')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageSubscription')
   @SkipSubscription()
   async getInvoiceQr(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     const { data, contentType } = await this.subscriptions.getInvoiceQrImage(user, invoiceId);
@@ -103,7 +103,7 @@ export class SaasController {
 
   @Get('billing/invoices/:invoiceId/status')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageSubscription')
   @SkipSubscription()
   invoiceStatus(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
     return this.subscriptions.getInvoicePaymentStatus(user, invoiceId);
@@ -111,7 +111,7 @@ export class SaasController {
 
   @Post('billing/cancel')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageSubscription')
   @SkipSubscription()
   cancel(@CurrentUser() user: AuthUser) {
     return this.subscriptions.cancel(user);
@@ -125,7 +125,7 @@ export class SaasController {
 
   @Post('invitations')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('inviteMembers')
   @SkipSubscription()
   invite(@CurrentUser() user: AuthUser, @Body() dto: InviteUserDto) {
     return this.invitations.invite(user, dto);
@@ -133,7 +133,7 @@ export class SaasController {
 
   @Get('members')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('inviteMembers')
   @SkipSubscription()
   listMembers(@CurrentUser() user: AuthUser) {
     return this.tenant.listMembers(user);
@@ -141,7 +141,7 @@ export class SaasController {
 
   @Get('invitations')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('inviteMembers')
   @SkipSubscription()
   listInvitations(@CurrentUser() user: AuthUser) {
     return this.invitations.listPending(user);
@@ -149,7 +149,7 @@ export class SaasController {
 
   @Delete('members/:userId')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageMembers')
   @SkipSubscription()
   removeMember(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
     return this.tenant.removeMember(user, userId);
@@ -157,7 +157,7 @@ export class SaasController {
 
   @Patch('members/:userId/role')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageMembers')
   @SkipSubscription()
   updateMemberRole(
     @CurrentUser() user: AuthUser,
@@ -169,7 +169,7 @@ export class SaasController {
 
   @Delete('invitations/:id')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('inviteMembers')
   @SkipSubscription()
   cancelInvitation(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.invitations.cancel(user, id);
@@ -190,7 +190,7 @@ export class SaasController {
   @UseGuards(JwtAuthGuard)
   @SkipSubscription()
   async updateFirmSettings(@CurrentUser() user: AuthUser, @Body() dto: UpdateFirmSettingsDto) {
-    if (user.firmRole !== FirmRole.OWNER) {
+    if (!hasFirmCapability(user.firmRole, 'manageSubscription')) {
       throw new ForbiddenException('Only firm owners can update settings');
     }
 

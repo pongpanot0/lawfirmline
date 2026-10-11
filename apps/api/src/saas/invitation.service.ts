@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { AuthUser, FirmRole, maskEmail } from '@lawfirm/shared';
+import { AuthUser, FirmRole, canInviteFirmRole, hasFirmCapability, maskEmail } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
 import { EmailService } from '../notifications/email.service';
@@ -22,8 +22,11 @@ export class InvitationService {
   ) {}
 
   async invite(user: AuthUser, dto: InviteUserDto) {
-    if (!this.tenant.isOwner(user)) {
+    if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
       throw new ForbiddenException('Only owners can invite users');
+    }
+    if (!canInviteFirmRole(user.firmRole, dto.role ?? FirmRole.ASSISTANT)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เชิญตำแหน่งนี้');
     }
 
     const check = await this.tenant.assertCanInvite(user.firmId, dto.email);
@@ -233,7 +236,7 @@ export class InvitationService {
   }
 
   async listPending(user: AuthUser) {
-    if (!this.tenant.isOwner(user)) {
+    if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
       throw new ForbiddenException('Only owners can view invitations');
     }
     return this.prisma.invitation.findMany({
@@ -243,7 +246,7 @@ export class InvitationService {
   }
 
   async cancel(user: AuthUser, invitationId: string) {
-    if (!this.tenant.isOwner(user)) {
+    if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
       throw new ForbiddenException('Only owners can cancel invitations');
     }
 
