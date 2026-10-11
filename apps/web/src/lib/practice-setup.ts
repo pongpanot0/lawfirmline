@@ -46,3 +46,7 @@ export function parseImportCsv(text: string): ImportRow[] {
   if (!table.length || table.length > 200) throw new Error('Import 1–200 rows / นำเข้าได้ 1–200 แถว');
   return table.map((cells, i) => { if (cells.length !== 3) throw new Error(`Row ${i + 2}: expected 3 columns / จำนวนคอลัมน์ไม่ครบ`); return Object.fromEntries(names.map(n => [n, cells[header.indexOf(n)]])) as unknown as ImportRow; });
 }
+/** The three records a new office needs; both the setup page and the operations nudge read these. */
+export function setupChecks(p: SetupProgress) {
+  return { team: p.members > 1, clients: p.clients > 0, cases: p.cases > 0 };
+}

@@ -22,12 +22,13 @@ type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
 const ROLE_OPTIONS: Array<{
   value: FirmRole;
   labelKey: 'roleAssistant' | 'roleLawyer' | 'roleSeniorLawyer' | 'roleOwner' | 'roleExternal';
+  hintKey: 'roleAssistantHint' | 'roleLawyerHint' | 'roleSeniorLawyerHint' | 'roleOwnerHint' | 'roleExternalHint';
 }> = [
-  { value: FirmRole.ASSISTANT, labelKey: 'roleAssistant' },
-  { value: FirmRole.LAWYER, labelKey: 'roleLawyer' },
-  { value: FirmRole.SENIOR_LAWYER, labelKey: 'roleSeniorLawyer' },
-  { value: FirmRole.OWNER, labelKey: 'roleOwner' },
-  { value: FirmRole.EXTERNAL, labelKey: 'roleExternal' },
+  { value: FirmRole.ASSISTANT, labelKey: 'roleAssistant', hintKey: 'roleAssistantHint' },
+  { value: FirmRole.LAWYER, labelKey: 'roleLawyer', hintKey: 'roleLawyerHint' },
+  { value: FirmRole.SENIOR_LAWYER, labelKey: 'roleSeniorLawyer', hintKey: 'roleSeniorLawyerHint' },
+  { value: FirmRole.OWNER, labelKey: 'roleOwner', hintKey: 'roleOwnerHint' },
+  { value: FirmRole.EXTERNAL, labelKey: 'roleExternal', hintKey: 'roleExternalHint' },
 ];
 
 export default function TeamPage() {
@@ -239,7 +240,8 @@ export default function TeamPage() {
               </Button>
             </div>
           </form>
-          {inviteRole === FirmRole.EXTERNAL && <p className="mt-2 text-xs text-muted-foreground">{d.team.roleExternalHint}</p>}
+          {/* Picking a role is picking what someone sees; say it before the invite goes out. */}
+          <p className="mt-2 text-xs text-muted-foreground">{d.team[ROLE_OPTIONS.find((o) => o.value === inviteRole)!.hintKey]}</p>
           {inviteError && <p role="alert" className="mt-2 text-sm text-destructive">{inviteError}</p>}
           {inviteUrl && (
             <div className="mt-4 rounded-lg bg-muted p-3">

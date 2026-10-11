@@ -9,6 +9,7 @@ import { CaseStatus, FirmRole } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth, TeamPerformanceRow, WorkflowMetrics } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
+import { setupChecks, setupRequest, SetupProgress } from '@/lib/practice-setup';
 import { DailyWorkboard } from '@/components/operations/DailyWorkboard';
 import { TeamRadar } from '@/components/operations/TeamRadar';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
@@ -120,6 +121,14 @@ export default function OperationsPage() {
   const [caseHealth, setCaseHealth] = useState<CaseHealth | null>(null);
   const [performance, setPerformance] = useState<TeamPerformanceRow[]>([]);
   const [workflowMetrics, setWorkflowMetrics] = useState<WorkflowMetrics | null>(null);
+  const [setupLeft, setSetupLeft] = useState(0);
+
+  useEffect(() => {
+    if (!token || !isOwner) return;
+    setupRequest<SetupProgress>(token, '/progress', undefined, true)
+      .then((p) => setSetupLeft(Object.values(setupChecks(p)).filter((done) => !done).length))
+      .catch(() => setSetupLeft(0));
+  }, [token, isOwner]);
 
   useEffect(() => {
     if (!token || !isOwner || teamTab) return;
@@ -209,7 +218,14 @@ export default function OperationsPage() {
 
   return (
     <div>
-      <PageHeader title={teamTab ? 'งานของทีม' : d.operations.title} description={teamTab ? 'จัดคนทำงาน ติดตามความคืบหน้า และช่วยแก้คอขวด' : d.operations.description} />
+      <PageHeader title={teamTab ? d.nav.operations : d.operations.title} description={teamTab ? 'จัดคนทำงาน ติดตามความคืบหน้า และช่วยแก้คอขวด' : d.operations.description} />
+
+      {setupLeft > 0 && (
+        <Link href="/getting-started" className="mb-6 flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3 text-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <span>ตั้งค่าสำนักงานยังเหลืออีก {setupLeft} ขั้น: ทีม ลูกความ และคดีแรก</span>
+          <span className="font-medium text-primary">ไปที่เริ่มต้นใช้งาน →</span>
+        </Link>
+      )}
 
       {!teamTab && <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label={d.operations.kpiLawyers} value={enriched.length} icon={Users} />
@@ -234,6 +250,9 @@ export default function OperationsPage() {
         <TabsList className="max-w-full overflow-x-auto">
           <TabsTrigger value="daily">ต้องจัดการวันนี้</TabsTrigger>
           <TabsTrigger value="radar">ภาพรวมทีม</TabsTrigger>
+          {/* The first two tabs are the daily job; the rest are reports a new office manager can leave for later. */}
+          <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-border" />
+          <span className="px-1 text-xs text-muted-foreground">รายงาน</span>
           <TabsTrigger value="workload">{d.operations.tabWorkload}</TabsTrigger>
           <TabsTrigger value="pairing">{d.operations.tabPairing}</TabsTrigger>
           <TabsTrigger value="onhold">
