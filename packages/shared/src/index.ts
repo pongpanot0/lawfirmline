@@ -1,23 +1,19 @@
 export * from './task-operations';
 export * from './task-routine';
+export * from './firm-role';
+export * from './firm-capabilities';
+import { FirmRole } from './firm-role';
 
 export enum Role {
   ADMIN = 'ADMIN',
   LAWYER = 'LAWYER',
 }
 
-export enum FirmRole {
-  OWNER = 'OWNER',
-  SENIOR_LAWYER = 'SENIOR_LAWYER',
-  LAWYER = 'LAWYER',
-  ASSISTANT = 'ASSISTANT',
-  EXTERNAL = 'EXTERNAL',
-}
-
 /** Higher number = higher authority. Used for "assign only to roles below yours". */
 export const FIRM_ROLE_RANK: Record<FirmRole, number> = {
   [FirmRole.OWNER]: 3,
   [FirmRole.SENIOR_LAWYER]: 2,
+  [FirmRole.OFFICE_MANAGER]: 2,
   [FirmRole.LAWYER]: 1,
   [FirmRole.ASSISTANT]: 0,
   [FirmRole.EXTERNAL]: -1,

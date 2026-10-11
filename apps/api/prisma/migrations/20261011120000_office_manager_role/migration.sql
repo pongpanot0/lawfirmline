@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "FirmRole" ADD VALUE 'OFFICE_MANAGER';

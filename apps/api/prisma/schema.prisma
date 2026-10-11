@@ -16,6 +16,7 @@ enum Role {
 enum FirmRole {
   OWNER
   SENIOR_LAWYER
+  OFFICE_MANAGER
   LAWYER
   ASSISTANT
   EXTERNAL
