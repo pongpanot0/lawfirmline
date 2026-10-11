@@ -183,7 +183,7 @@ export default function ReportsPage() {
         }
       />
 
-      {hasFirmCapability(user.firmRole, 'viewFirmReports') && token && <OwnerKpiSection token={token} />}
+      {hasFirmCapability(user.firmRole, 'runOperations') && token && <OwnerKpiSection token={token} />}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard

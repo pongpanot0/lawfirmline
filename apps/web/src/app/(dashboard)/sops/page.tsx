@@ -281,7 +281,7 @@ export default function SopsPage() {
       )}
       {!loading && !loadError && (view === 'auto' ? !autoItems.length : view === 'manual' ? !manualItems.length : false) && <EmptyState
         title={search ? 'ไม่พบคู่มือที่ค้นหา' : 'ยังไม่มีคู่มือในหมวดนี้'}
-        description={search ? 'ลองค้นด้วยชื่อคู่มือ คำในขั้นตอน หรือเปลี่ยนประเภทคู่มือ' : canManageContent ? 'เริ่มจากเขียนคู่มือ หรือสร้าง SOP อัตโนมัติด้านบน' : 'เจ้าของสำนักงานยังไม่ได้เพิ่มคู่มือในหมวดนี้'} />}
+        description={search ? 'ลองค้นด้วยชื่อคู่มือ คำในขั้นตอน หรือเปลี่ยนประเภทคู่มือ' : canManageContent ? 'เริ่มจากเขียนคู่มือ หรือสร้าง SOP อัตโนมัติด้านบน' : 'ยังไม่มีคู่มือในหมวดนี้'} />}
     </div>
   );
 }

@@ -20,7 +20,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { formatDate, formatDateTime } from '@/lib/utils';
 
-/** Office-wide master data; owner-only, so it sits under Settings instead of the sidebar. */
+/** Office-wide master data; each link is capability-gated, so it sits under Settings instead of the sidebar. */
 const OFFICE_LINKS: Array<{ href: string; icon: typeof Shield; labelKey: 'reimbursements' | 'caseTypes' | 'deadlineRules' | 'holidays' | 'courts' | 'auditLog'; capability: FirmCapability }> = [
   { href: '/admin/reimbursements', icon: Shield, labelKey: 'reimbursements', capability: 'approveExpenses' },
   { href: '/admin/case-types', icon: Tags, labelKey: 'caseTypes', capability: 'manageFirmContent' },

@@ -198,7 +198,7 @@ export default function ClientsPage() {
   };
 
   useEffect(() => {
-    if (!selected || !token) return;
+    if (!selected || !token || !hasFirmCapability(user?.firmRole, 'manageFirmContent')) return;
     (selected.cases ?? []).forEach((c) => loadCaseAccess(c.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, token]);
@@ -249,7 +249,7 @@ export default function ClientsPage() {
               <TabsTrigger value="overview">ภาพรวม 360</TabsTrigger>
               <TabsTrigger value="information">{d.clients.information}</TabsTrigger>
               <TabsTrigger value="contacts">{d.clients.contactsTab}</TabsTrigger>
-              <TabsTrigger value="cases">สิทธิ์คดีพอร์ทัล</TabsTrigger>
+              {hasFirmCapability(user?.firmRole, 'manageFirmContent') && <TabsTrigger value="cases">สิทธิ์คดีพอร์ทัล</TabsTrigger>}
               {hasFirmCapability(user?.firmRole, 'manageFirmContent') && <TabsTrigger value="annual-reports">รายงานประจำปี</TabsTrigger>}
             </TabsList>
           </div>
@@ -534,7 +534,7 @@ export default function ClientsPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="cases">
+          {hasFirmCapability(user?.firmRole, 'manageFirmContent') && <TabsContent value="cases">
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">จัดการสิทธิ์พอร์ทัลของคดีที่ลูกค้ารายนี้เป็นลูกความหลัก คดีทุกบทบาทดูได้ในภาพรวม 360</p>
               {(selected.cases ?? []).map((c) => {
@@ -633,7 +633,7 @@ export default function ClientsPage() {
                 />
               )}
             </div>
-          </TabsContent>
+          </TabsContent>}
           {hasFirmCapability(user?.firmRole, 'manageFirmContent') && token && (
             <TabsContent value="annual-reports">
               <ClientAnnualReportsPanel

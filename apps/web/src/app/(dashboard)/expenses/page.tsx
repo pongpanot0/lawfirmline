@@ -42,6 +42,8 @@ export default function ExpensesPage() {
   const [requesterFilter, setRequesterFilter] = useState('');
 
   const canApprove = hasFirmCapability(user?.firmRole, 'approveExpenses');
+  // /finance/summary needs manageInvoices; everyone else sees the list without the firm KPI row.
+  const canSeeFinance = hasFirmCapability(user?.firmRole, 'manageInvoices');
 
   const statusLabels: Record<string, string> = {
     DRAFT: d.expenses.statusDraft,
@@ -64,7 +66,7 @@ export default function ExpensesPage() {
     };
     const loads: Promise<unknown>[] = [
       api.getExpenses(authToken, Object.keys(expenseParams).length ? expenseParams : undefined),
-      api.getFinanceSummary(authToken),
+      canSeeFinance ? api.getFinanceSummary(authToken) : Promise.resolve(null),
     ];
     if (canApprove) {
       loads.push(api.getTeamMembers(authToken).catch(() => []));
@@ -73,7 +75,7 @@ export default function ExpensesPage() {
       .then(([e, f, m]) => {
         setExpenses(e as ExpenseItem[]);
         setSelectedDraftIds(prev => prev.filter(id => (e as ExpenseItem[]).some(item => item.id === id)));
-        setFinance(f as FinanceSummary);
+        setFinance(f as FinanceSummary | null);
         if (Array.isArray(m)) setMembers(m as TeamMember[]);
       })
       .catch((err) => {
@@ -81,7 +83,7 @@ export default function ExpensesPage() {
         setError(err instanceof Error ? err.message : d.expenses.loadFailed);
       })
       .finally(() => setLoading(false));
-  }, [token, reloadKey, statusFilter, requesterFilter, canApprove, d.expenses.loadFailed]);
+  }, [token, reloadKey, statusFilter, requesterFilter, canApprove, canSeeFinance, d.expenses.loadFailed]);
 
   const draftExpenses = useMemo(
     () => expenses.filter((e) => e.status === 'DRAFT'),
@@ -142,15 +144,13 @@ export default function ExpensesPage() {
 
   if (loading) return <PageLoading title={d.common.loading} lines={4} />;
 
-  if (error && !finance) {
+  if (error && !expenses.length && !finance) {
     return (
       <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
         <p className="text-destructive">{error}</p>
       </div>
     );
   }
-
-  if (!finance) return null;
 
   const colSpan = (canApprove ? 1 : 0) + 5;
 
@@ -159,9 +159,11 @@ export default function ExpensesPage() {
       <PageHeader
         title={d.expenses.title}
         description={
-          finance.scope === 'user'
-            ? `ค่าใช้จ่ายของคุณ · ${finance.firmName}`
-            : `บันทึก เบิก และติดตามค่าใช้จ่ายของ ${finance.firmName}`
+          !finance
+            ? 'ค่าใช้จ่ายของคุณ'
+            : finance.scope === 'user'
+              ? `ค่าใช้จ่ายของคุณ · ${finance.firmName}`
+              : `บันทึก เบิก และติดตามค่าใช้จ่ายของ ${finance.firmName}`
         }
         actions={
           <div className="flex items-center gap-2">
@@ -187,7 +189,7 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      {finance && <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <KpiCard
           label={d.expenses.draftKpi}
           value={formatCurrency(finance.draftTotal ?? 0)}
@@ -209,7 +211,7 @@ export default function ExpensesPage() {
           change={`${finance.expenseCount} รายการ`}
           trend="down"
         />
-      </div>
+      </div>}
 
       <div className="mb-4 flex flex-wrap gap-2">
         <label className="flex items-center gap-2 text-sm text-muted-foreground">

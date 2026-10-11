@@ -199,7 +199,7 @@ export default function OperationsPage() {
     })[0];
   }, [enriched]);
 
-  // Everyone sees the team's load so they can coordinate; the management tabs stay with the owner.
+  // Everyone sees the team's load so they can coordinate; the management tabs need the runOperations capability (owner, office manager).
   if (!canRunOps) {
     return <div>
       <PageHeader title="ภาระงานทีม" description="ดูว่าใครถืองานอะไร และวันไหนว่าง ก่อนขอให้ช่วยหรือส่งต่องาน" />

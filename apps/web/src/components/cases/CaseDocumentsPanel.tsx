@@ -17,14 +17,15 @@ import { DateSuggestionsPanel } from '@/components/cases/DateSuggestionsPanel';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { documentCategoryLabel } from '@/lib/stage-labels';
-import { DocumentCategory } from '@lawfirm/shared';
+import { DocumentCategory, hasFirmCapability } from '@lawfirm/shared';
 
 const DOCUMENT_CATEGORY_VALUES = Object.values(DocumentCategory);
 
 export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
   const d = useDashboardT();
   const id = caseId;
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const canManageContent = hasFirmCapability(user?.firmRole, 'manageFirmContent');
   const [analysisRevision, setAnalysisRevision] = useState(0);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [templates, setTemplates] = useState<DocumentTemplateItem[]>([]);
@@ -394,6 +395,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
                   <CalendarSearch className="h-3.5 w-3.5" />
                   {extractingId === doc.id ? d.caseDocuments.extracting : d.caseDocuments.extractDates}
                 </button>
+                {canManageContent && <>
                 <button
                   type="button"
                   onClick={() => handleToggleVisibility(doc)}
@@ -428,6 +430,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
                     </button>
                   );
                 })()}
+                </>}
                 <button
                   type="button"
                   onClick={() => handleView(doc)}

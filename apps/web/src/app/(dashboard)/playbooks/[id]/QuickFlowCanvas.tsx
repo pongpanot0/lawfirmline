@@ -17,7 +17,8 @@ const ROLE_LABELS: Record<FirmRoleStr, { th: string; en: string }> = {
   ASSISTANT: { th: 'ผู้ช่วย', en: 'Assistant' },
   EXTERNAL: { th: 'ผู้รับงานภายนอก (ฟรีแลนซ์)', en: 'External (freelancer)' },
 };
-const ROLE_OPTIONS = Object.keys(ROLE_LABELS) as FirmRoleStr[];
+// The API accepts only these four step roles (OFFICE_MANAGER/EXTERNAL labels exist for display only).
+const ROLE_OPTIONS: FirmRoleStr[] = ['OWNER', 'SENIOR_LAWYER', 'LAWYER', 'ASSISTANT'];
 const DAY_BASIS_LABELS: Record<PlaybookDayBasis, { th: string; en: string }> = {
   CALENDAR: { th: 'วันปฏิทิน', en: 'Calendar days' },
   BUSINESS: { th: 'วันทำการ', en: 'Business days' },
