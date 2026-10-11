@@ -24,7 +24,7 @@ import {
   GitFork,
   type LucideIcon,
   Sparkles, BookOpen } from 'lucide-react';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, FirmRole, hasFirmCapability, type FirmCapability } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
 import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 import { useTheme } from '@/lib/theme';
@@ -45,40 +45,38 @@ const NAV_GROUPS = [
 ] as const;
 
 const NAV_ITEMS = [
-  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, ownerOnly: false, group: 'work', children: [] as const },
-  { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, ownerOnly: false, group: 'work', children: [] as const },
-  { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/operations', labelKey: 'operations' as const, icon: Gauge, group: 'work', children: [] as const },
+  { href: '/dashboard', labelKey: 'dashboard' as const, icon: LayoutDashboard, group: 'work', children: [] as const },
+  { href: '/todos', labelKey: 'todos' as const, icon: ListTodo, group: 'work', children: [] as const },
   {
     href: '/cases',
     labelKey: 'cases' as const,
     icon: Briefcase,
-    ownerOnly: false,
     group: 'work',
     children: [
-      { href: '/email-intake', labelKey: 'emailIntake' as const, icon: Mail, ownerOnly: false },
+      { href: '/email-intake', labelKey: 'emailIntake' as const, icon: Mail },
     ],
   },
-  { href: '/clients', labelKey: 'clients' as const, icon: Users, ownerOnly: false, group: 'work', children: [] as const },
-  { href: '/workflows', labelKey: 'workflows' as const, icon: GitFork, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/clients', labelKey: 'clients' as const, icon: Users, group: 'work', children: [] as const },
+  { href: '/workflows', labelKey: 'workflows' as const, icon: GitFork, group: 'work', children: [] as const },
 
-  { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, ownerOnly: false, group: 'work', children: [] as const },
-  { href: '/leaves', labelKey: 'leaves' as const, icon: CalendarOff, ownerOnly: false, group: 'work', children: [] as const },
-  { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, ownerOnly: false, group: 'work', children: [] as const },
+  { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, group: 'work', children: [] as const },
+  { href: '/leaves', labelKey: 'leaves' as const, icon: CalendarOff, group: 'work', children: [] as const },
+  { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, group: 'work', children: [] as const },
   {
     href: '/expenses',
     labelKey: 'expenses' as const,
     icon: Receipt,
-    ownerOnly: false,
     group: 'firm',
     children: [
-      { href: '/invoices', labelKey: 'invoices' as const, icon: Receipt, ownerOnly: false },
-      { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, ownerOnly: true },
+      { href: '/invoices', labelKey: 'invoices' as const, icon: Receipt },
+      { href: '/reports', labelKey: 'reports' as const, icon: BarChart3, capability: 'viewFirmReports' as const },
     ],
   },
-  { href: '/ai-usage', labelKey: 'aiUsage' as const, icon: Sparkles, ownerOnly: true, group: 'firm', children: [] as const },
-  { href: '/sops', labelKey: 'sops' as const, icon: BookOpen, ownerOnly: false, group: 'firm', children: [] as const },
-  { href: '/team', labelKey: 'team' as const, icon: UsersRound, ownerOnly: true, group: 'firm', children: [] as const },
-  { href: '/settings', labelKey: 'settings' as const, icon: Settings, ownerOnly: false, group: 'firm', children: [] as const },
+  { href: '/ai-usage', labelKey: 'aiUsage' as const, icon: Sparkles, capability: 'viewFirmReports' as const, group: 'firm', children: [] as const },
+  { href: '/sops', labelKey: 'sops' as const, icon: BookOpen, group: 'firm', children: [] as const },
+  { href: '/team', labelKey: 'team' as const, icon: UsersRound, capability: 'inviteMembers' as const, group: 'firm', children: [] as const },
+  { href: '/settings', labelKey: 'settings' as const, icon: Settings, group: 'firm', children: [] as const },
 ] as const;
 
 interface SamnuanSidebarProps {
@@ -98,8 +96,8 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
     ...item.children.map(child => ({ ...child, group: item.group, children: [] })),
   ]);
   const filtered = links.filter(
-    (item) => (!item.ownerOnly || user.firmRole === FirmRole.OWNER)
-      && !(item.href === '/dashboard' && user.firmRole === FirmRole.OWNER),
+    (item) => (!item.capability || hasFirmCapability(user.firmRole, item.capability))
+      && !(item.href === '/dashboard' && hasFirmCapability(user.firmRole, 'runOperations')),
   );
 
   return (
@@ -192,9 +190,11 @@ export function SamnuanSidebar({ user, onLogout, mobileOpen = false, onMobileClo
                 ? d.team.roleOwner
                 : user.firmRole === FirmRole.SENIOR_LAWYER
                   ? d.team.roleSeniorLawyer
-                  : user.firmRole === FirmRole.LAWYER
-                    ? d.team.roleLawyer
-                    : d.team.roleAssistant}
+                  : user.firmRole === FirmRole.OFFICE_MANAGER
+                    ? d.team.roleOfficeManager
+                    : user.firmRole === FirmRole.LAWYER
+                      ? d.team.roleLawyer
+                      : d.team.roleAssistant}
             </p>
           </div>
         </div>
@@ -228,7 +228,7 @@ interface NavChild {
   href: string;
   labelKey: keyof NavDict;
   icon: LucideIcon;
-  ownerOnly: boolean;
+  capability?: FirmCapability;
 }
 
 interface NavItem extends NavChild {

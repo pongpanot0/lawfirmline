@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Plus, Wallet, Receipt, Paperclip, FileText, Clock } from 'lucide-react';
-import { FirmRole } from '@lawfirm/shared';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ExpenseItem, FinanceSummary } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
@@ -41,7 +41,7 @@ export default function ExpensesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [requesterFilter, setRequesterFilter] = useState('');
 
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const canApprove = hasFirmCapability(user?.firmRole, 'approveExpenses');
 
   const statusLabels: Record<string, string> = {
     DRAFT: d.expenses.statusDraft,
@@ -60,13 +60,13 @@ export default function ExpensesPage() {
     setError('');
     const expenseParams = {
       ...(statusFilter ? { status: statusFilter } : {}),
-      ...(isOwner && requesterFilter ? { userId: requesterFilter } : {}),
+      ...(canApprove && requesterFilter ? { userId: requesterFilter } : {}),
     };
     const loads: Promise<unknown>[] = [
       api.getExpenses(authToken, Object.keys(expenseParams).length ? expenseParams : undefined),
       api.getFinanceSummary(authToken),
     ];
-    if (isOwner) {
+    if (canApprove) {
       loads.push(api.getTeamMembers(authToken).catch(() => []));
     }
     Promise.all(loads)
@@ -81,7 +81,7 @@ export default function ExpensesPage() {
         setError(err instanceof Error ? err.message : d.expenses.loadFailed);
       })
       .finally(() => setLoading(false));
-  }, [token, reloadKey, statusFilter, requesterFilter, isOwner, d.expenses.loadFailed]);
+  }, [token, reloadKey, statusFilter, requesterFilter, canApprove, d.expenses.loadFailed]);
 
   const draftExpenses = useMemo(
     () => expenses.filter((e) => e.status === 'DRAFT'),
@@ -152,7 +152,7 @@ export default function ExpensesPage() {
 
   if (!finance) return null;
 
-  const colSpan = (isOwner ? 1 : 0) + 5;
+  const colSpan = (canApprove ? 1 : 0) + 5;
 
   return (
     <div>
@@ -230,7 +230,7 @@ export default function ExpensesPage() {
             ))}
           </select>
         </label>
-        {isOwner && (
+        {canApprove && (
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{d.expenses.filterRequester}</span>
             <select
@@ -274,7 +274,7 @@ export default function ExpensesPage() {
                   />
                 </TableHead>
                 <TableHead>{d.expenses.descriptionField}</TableHead>
-                {isOwner && <TableHead>{d.expenses.requester}</TableHead>}
+                {canApprove && <TableHead>{d.expenses.requester}</TableHead>}
                 <TableHead>{d.expenses.caseField}</TableHead>
                 <TableHead>{d.expenses.amount}</TableHead>
               </TableRow>
@@ -310,7 +310,7 @@ export default function ExpensesPage() {
                         </button>
                       )}
                     </TableCell>
-                    {isOwner && (
+                    {canApprove && (
                       <TableCell className="text-sm text-muted-foreground">
                         {e.user.firstName} {e.user.lastName}
                       </TableCell>
@@ -331,7 +331,7 @@ export default function ExpensesPage() {
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>{d.expenses.submittedList}</CardTitle>
-          {isOwner && (
+          {canApprove && (
             <Link href="/admin/reimbursements">
               <Button variant="outline" size="sm">
                 {d.expenses.approveClaims}
@@ -344,7 +344,7 @@ export default function ExpensesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10"><Checkbox aria-label="เลือกประวัติทั้งหมด" checked={submittedExpenses.length > 0 && submittedExpenses.every(e => selectedDraftIds.includes(e.id))} onChange={() => setSelectedDraftIds(prev => submittedExpenses.every(e => prev.includes(e.id)) ? prev.filter(id => !submittedExpenses.some(e => e.id === id)) : [...new Set([...prev, ...submittedExpenses.map(e => e.id)])])} /></TableHead><TableHead>{d.expenses.descriptionField}</TableHead>
-                {isOwner && <TableHead>{d.expenses.requester}</TableHead>}
+                {canApprove && <TableHead>{d.expenses.requester}</TableHead>}
                 <TableHead>{d.expenses.caseField}</TableHead>
                 <TableHead>{d.expenses.amount}</TableHead>
                 <TableHead>{d.expenses.status}</TableHead>
@@ -370,7 +370,7 @@ export default function ExpensesPage() {
                         </button>
                       )}
                     </TableCell>
-                    {isOwner && (
+                    {canApprove && (
                       <TableCell className="text-sm text-muted-foreground">
                         {e.user.firstName} {e.user.lastName}
                       </TableCell>

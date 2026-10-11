@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { DocumentCategory } from '@lawfirm/shared';
+import { DocumentCategory, hasFirmCapability } from '@lawfirm/shared';
 import { CheckCircle2, ChevronDown, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
@@ -170,7 +170,7 @@ export default function SopFlowEditor() {
   const canPublish = hasChanges && !busy;
 
   if (loading) return <p className="p-6 text-sm text-muted-foreground">{th ? 'กำลังโหลด SOP…' : 'Loading SOP…'}</p>;
-  if (user && user.firmRole !== 'OWNER') return <div className="space-y-3"><p>{th ? 'เฉพาะเจ้าของสำนักงานแก้ไข SOP อัตโนมัติได้' : 'Only the firm owner can edit automated SOPs.'}</p><Link href="/sops" className="text-primary underline">← SOP</Link></div>;
+  if (user && !hasFirmCapability(user.firmRole, 'manageFirmContent')) return <div className="space-y-3"><p>{th ? 'เฉพาะเจ้าของสำนักงานหรือผู้จัดการสำนักงานแก้ไข SOP อัตโนมัติได้' : 'Only the firm owner or office manager can edit automated SOPs.'}</p><Link href="/sops" className="text-primary underline">← SOP</Link></div>;
   if (loadError) return <div className="space-y-3"><p role="alert" className="text-sm text-destructive">{loadError}</p><div className="flex gap-3"><Button variant="outline" onClick={() => setReload(value => value + 1)}>{th ? 'ลองโหลดอีกครั้ง' : 'Retry'}</Button><Link href="/playbooks" className="self-center text-sm text-primary underline">← {th ? 'รายการ SOP' : 'SOP list'}</Link></div></div>;
   if (!isNew && !source) return <div className="space-y-3"><p role="alert">{th ? 'ไม่พบ SOP นี้' : 'SOP not found'}</p><Link href="/playbooks" className="text-primary underline">← {th ? 'รายการ SOP' : 'SOP list'}</Link></div>;
 

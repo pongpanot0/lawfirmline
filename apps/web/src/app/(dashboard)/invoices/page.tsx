@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { ArrowUpRight, FileText, Plus, Search, X } from 'lucide-react';
 import { InvoicePanel } from '@/components/billing/InvoicePanel';
 import { ReceivablesPanel } from '@/components/billing/ReceivablesPanel';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { api, FirmInvoiceItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency } from '@/lib/utils';
@@ -30,7 +31,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function InvoicesPage() {
   const { token, user } = useAuth();
-  const canManageBilling = user?.firmRole === 'OWNER' || user?.role === 'ADMIN';
+  const canManageBilling = hasFirmCapability(user?.firmRole, 'manageInvoices') || user?.role === 'ADMIN';
   const [rows, setRows] = useState<FirmInvoiceItem[]>([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<InvoiceStatus>('ALL');

@@ -273,7 +273,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   };
   const field = 'mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   const label = 'text-xs font-medium text-muted-foreground';
-  const manager = !!user && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole);
+  const manager = !!user && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole);
   const ownWork = task?.assignee?.id === user?.id;
   const pendingReview = task?.status === TaskStatus.PENDING_REVIEW;
   const canReview = pendingReview && ownWork;

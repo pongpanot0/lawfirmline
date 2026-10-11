@@ -40,7 +40,7 @@ import {
   CourtLevel,
   COURT_LEVEL_LABELS,
   CASE_NUMBER_HINT,
-  FirmRole,
+  hasFirmCapability,
 } from '@lawfirm/shared';
 import {
   CASE_TAB_IDS,
@@ -1325,7 +1325,7 @@ export default function CaseDetailPage() {
               <div className="col-span-full rounded-lg border border-border bg-muted/30 p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground">ทีมของคดี</p>
-                  {!editingTeam && user?.firmRole === FirmRole.OWNER && (
+                  {!editingTeam && hasFirmCapability(user?.firmRole, 'reassignCaseLead') && (
                     <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={startEditTeam}>
                       <Pencil className="h-3 w-3" />
                       แก้ไขทีม

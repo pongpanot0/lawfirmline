@@ -5,12 +5,14 @@ import { CaseStage } from '@lawfirm/shared';
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { FirmRoleStr, PlaybookDayBasis, PlaybookStep } from '@/lib/practice-setup';
 import { caseStageLabel } from '@/lib/stage-labels';
+import { FIRM_ROLE_LABELS } from '@lawfirm/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 const ROLE_LABELS: Record<FirmRoleStr, { th: string; en: string }> = {
   OWNER: { th: 'เจ้าของสำนักงาน', en: 'Firm owner' },
   SENIOR_LAWYER: { th: 'ทนายอาวุโส', en: 'Senior lawyer' },
+  OFFICE_MANAGER: FIRM_ROLE_LABELS.OFFICE_MANAGER,
   LAWYER: { th: 'ทนาย', en: 'Lawyer' },
   ASSISTANT: { th: 'ผู้ช่วย', en: 'Assistant' },
   EXTERNAL: { th: 'ผู้รับงานภายนอก (ฟรีแลนซ์)', en: 'External (freelancer)' },

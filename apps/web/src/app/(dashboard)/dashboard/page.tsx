@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Plus, Search, CalendarDays, FileText } from 'lucide-react';
-import { AgendaItemKind, FirmRole } from '@lawfirm/shared';
+import { AgendaItemKind, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, DashboardStats, MyDayResponse, IntakeItem, WorkloadSummary } from '@/lib/api';
 import { bangkokDateInputValue, bangkokDayLabel, bangkokTime } from '@/lib/bangkok';
@@ -20,13 +20,13 @@ const link = 'inline-flex items-center gap-1 text-sm font-medium text-primary ho
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const canRunOps = hasFirmCapability(user?.firmRole, 'runOperations');
 
   useEffect(() => {
-    if (isOwner) router.replace('/operations');
-  }, [isOwner, router]);
+    if (canRunOps) router.replace('/operations');
+  }, [canRunOps, router]);
 
-  if (loading || !user || isOwner) return <PageLoading lines={5} />;
+  if (loading || !user || canRunOps) return <PageLoading lines={5} />;
   return <WorkDashboardPage />;
 }
 
@@ -35,7 +35,7 @@ function WorkDashboardPage() {
   const actionToken = token ?? getStoredToken();
   const { locale, d } = useLocale();
   const t = (th: string, en: string) => locale === 'th' ? th : en;
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const canRunOps = hasFirmCapability(user?.firmRole, 'runOperations');
   const [data, setData] = useState<DashboardStats | null>(null);
   const [tasks, setTasks] = useState<Inbox | null>(null);
   const [intakes, setIntakes] = useState<IntakeItem[] | null>(null);
@@ -68,7 +68,7 @@ function WorkDashboardPage() {
   }, [token, retry]);
 
   useEffect(() => {
-    if (!isOwner || !actionToken) {
+    if (!canRunOps || !actionToken) {
       setTeamWorkload(null);
       setTeamWorkloadLoading(false);
       return;
@@ -81,7 +81,7 @@ function WorkDashboardPage() {
       .catch(() => { if (active) { setTeamWorkload(null); setTeamWorkloadFailed(true); } })
       .finally(() => { if (active) setTeamWorkloadLoading(false); });
     return () => { active = false; };
-  }, [actionToken, isOwner, retry]);
+  }, [actionToken, canRunOps, retry]);
 
   if (loading) return <PageLoading title={d.common.loading} lines={5} />;
   const failed = <div role="alert" className="p-6 text-sm text-muted-foreground">{t('โหลดข้อมูลไม่สำเร็จ', 'Unable to load data')} <button onClick={() => setRetry(x => x + 1)} className={link}>{t('ลองอีกครั้ง', 'Retry')}</button></div>;
@@ -133,7 +133,7 @@ function WorkDashboardPage() {
       <Link href="/cases/new" data-tour="new-intake" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"><Plus className="size-4" />{t('เปิดคดีใหม่', 'New case')}</Link>
     </header>
 
-    {isOwner && <section className={`${panel} p-5`} aria-labelledby="team-workload-heading">
+    {canRunOps && <section className={`${panel} p-5`} aria-labelledby="team-workload-heading">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="team-workload-heading" className="text-base font-semibold">{t('ภาระงานทีม', 'Team workload')}</h2>
@@ -203,7 +203,7 @@ function WorkDashboardPage() {
             <Link href="/cases" className={link}>{t('เปิดรายการเรื่องและคดี', 'Open matters')}<ArrowRight className="size-4" /></Link>
           </div>
         </section>
-        {user?.firmRole === FirmRole.OWNER && <div className="flex flex-wrap gap-x-5 gap-y-3 px-1"><Link href="/reports" className={link}>{t('รายงานสำนักงาน', 'Firm reports')} ↗</Link><Link href="/expenses" className={link}>{t('ค่าใช้จ่าย', 'Expenses')} ↗</Link></div>}
+        {hasFirmCapability(user?.firmRole, 'viewFirmReports') && <div className="flex flex-wrap gap-x-5 gap-y-3 px-1"><Link href="/reports" className={link}>{t('รายงานสำนักงาน', 'Firm reports')} ↗</Link><Link href="/expenses" className={link}>{t('ค่าใช้จ่าย', 'Expenses')} ↗</Link></div>}
       </aside>
     </div>
   </div>;

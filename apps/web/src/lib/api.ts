@@ -1281,7 +1281,7 @@ function announceDocumentUpload(scope: 'case' | 'intake', scopeId: string, docum
   }
 }
 
-export type WorkflowRole = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT' | 'EXTERNAL';
+export type WorkflowRole = 'OWNER' | 'SENIOR_LAWYER' | 'OFFICE_MANAGER' | 'LAWYER' | 'ASSISTANT' | 'EXTERNAL';
 
 export interface WorkflowStepDef {
   title: string;

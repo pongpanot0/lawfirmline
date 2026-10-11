@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FirmRole } from '@lawfirm/shared';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -41,7 +41,7 @@ export default function AuditLogPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, actionFilter]);
 
-  if (user?.firmRole !== FirmRole.OWNER) {
+  if (!hasFirmCapability(user?.firmRole, 'viewFirmReports')) {
     return <p className="text-destructive">{d.admin.accessDenied}</p>;
   }
 

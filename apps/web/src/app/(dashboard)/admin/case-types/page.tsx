@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { FirmRole } from '@lawfirm/shared';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -32,7 +32,7 @@ export default function CaseTypesPage() {
     load();
   }, [token]);
 
-  if (user?.firmRole !== FirmRole.OWNER) {
+  if (!hasFirmCapability(user?.firmRole, 'manageFirmContent')) {
     return <p className="text-destructive">{d.admin.accessDenied}</p>;
   }
 

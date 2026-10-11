@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BillingPeriod, FirmRole, PLAN_CONFIG, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
+import { BillingPeriod, hasFirmCapability, PLAN_CONFIG, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, BillingInvoiceItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -47,7 +47,7 @@ function BillingPageContent() {
   const loc = dateLocale(locale);
 
   useEffect(() => {
-    if (user && user.firmRole !== FirmRole.OWNER) {
+    if (user && !hasFirmCapability(user.firmRole, 'manageSubscription')) {
       router.replace('/dashboard');
     }
   }, [user, router]);
@@ -100,7 +100,7 @@ function BillingPageContent() {
     window.location.href = '/account/billing?success=1';
   };
 
-  if (!user || user.firmRole !== FirmRole.OWNER) return null;
+  if (!user || !hasFirmCapability(user.firmRole, 'manageSubscription')) return null;
 
   const statusBadge = () => {
     switch (user.subscriptionStatus) {

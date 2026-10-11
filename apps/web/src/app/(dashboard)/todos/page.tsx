@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
-import { canAssignFirmRole, FirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { canAssignFirmRole, hasFirmCapability, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
@@ -71,7 +71,7 @@ function TodosPageContent() {
   const [layout, setLayout] = useTaskLayout();
   const [scope, setScope] = useState<'mine' | 'team' | 'created' | 'review'>('mine');
   useEffect(() => {
-    setScope(user?.firmRole === FirmRole.OWNER ? 'team' : 'mine');
+    setScope(hasFirmCapability(user?.firmRole, 'runOperations') ? 'team' : 'mine');
   }, [user?.firmRole]);
   const [taskType, setTaskType] = useState<'all' | 'case' | 'general'>('all');
   const [includeCompleted, setIncludeCompleted] = useState(false);
@@ -310,7 +310,7 @@ function TodosPageContent() {
 
       {(
         <div role="group" aria-label={d.todos.taskScope} className="mb-4 flex flex-wrap gap-2">
-          {scopes.filter(s => s.key !== 'team' || seesOthers || user?.firmRole === FirmRole.OWNER).map((s) => (
+          {scopes.filter(s => s.key !== 'team' || seesOthers || hasFirmCapability(user?.firmRole, 'runOperations')).map((s) => (
             <button
               key={s.key}
               type="button"

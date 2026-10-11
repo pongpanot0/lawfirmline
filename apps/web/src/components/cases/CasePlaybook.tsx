@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
+import { FIRM_ROLE_LABELS } from '@lawfirm/shared';
 import { latestPlaybookReleases, PlaybookPreview, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { Button } from '@/components/ui/button';
 import { caseStageLabel } from '@/lib/stage-labels';
@@ -9,6 +10,7 @@ import { caseStageLabel } from '@/lib/stage-labels';
 const ROLE_LABELS: Record<string, { th: string; en: string }> = {
   OWNER: { th: 'เจ้าของสำนักงาน', en: 'Firm owner' },
   SENIOR_LAWYER: { th: 'ทนายอาวุโส', en: 'Senior lawyer' },
+  OFFICE_MANAGER: FIRM_ROLE_LABELS.OFFICE_MANAGER,
   LAWYER: { th: 'ทนาย', en: 'Lawyer' },
   ASSISTANT: { th: 'ผู้ช่วย', en: 'Assistant' },
   EXTERNAL: { th: 'ผู้รับงานภายนอก (ฟรีแลนซ์)', en: 'External (freelancer)' },

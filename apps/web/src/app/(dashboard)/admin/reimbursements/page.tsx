@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Paperclip } from 'lucide-react';
 import type { ExpenseClaimStatus } from '@lawfirm/shared';
-import { FirmRole } from '@lawfirm/shared';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -127,7 +127,7 @@ export default function ReimbursementsPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (user?.firmRole !== FirmRole.OWNER) {
+  if (!hasFirmCapability(user?.firmRole, 'approveExpenses')) {
     return <p className="text-destructive">{d.admin.accessDenied}</p>;
   }
 

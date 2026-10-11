@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
 import { ImportPreview, parseImportCsv, setupRequest, SetupProgress } from '@/lib/practice-setup';
@@ -10,9 +11,9 @@ export default function GettingStarted() {
   const { user, token } = useAuth(); const { locale } = useLocale(); const th = locale === 'th';
   const [progress, setProgress] = useState<SetupProgress | null>(null); const [csv, setCsv] = useState('clientName,caseRef,caseTitle\n'); const [preview, setPreview] = useState<ImportPreview | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
   const load = async () => { if (token) setProgress(await setupRequest(token, '/progress')); };
-  useEffect(() => { if (token && user?.firmRole === 'OWNER') load().catch(e => setError(e.message)); }, [token, user?.firmRole]);
+  useEffect(() => { if (token && hasFirmCapability(user?.firmRole, 'manageFirmContent')) load().catch(e => setError(e.message)); }, [token, user?.firmRole]);
   async function run(fn: () => Promise<void>) { setBusy(true); setError(''); setNotice(''); try { await fn(); } catch(e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); } }
-  if (user?.firmRole !== 'OWNER') return <p>{th ? 'ส่วนนี้สำหรับเจ้าของสำนักงาน' : 'This page is for the firm owner.'}</p>;
+  if (!hasFirmCapability(user?.firmRole, 'manageFirmContent')) return <p>{th ? 'ส่วนนี้สำหรับเจ้าของสำนักงาน' : 'This page is for the firm owner.'}</p>;
   return <div className="mx-auto max-w-4xl space-y-6"><header><h1 className="text-2xl font-semibold">{th ? 'เริ่มใช้งานสำนักงาน' : 'Set up your office'}</h1><p className="mt-1 text-sm text-muted-foreground">{th ? 'ความคืบหน้าอ้างอิงจากข้อมูลจริง เริ่มด้วยทีม ลูกความ และคดีแรก' : 'Progress comes from real records. Start with your team, clients and first case.'}</p></header>
     {error && <p role="alert" className="text-destructive">{error}</p>}{notice && <p role="status" className="rounded-lg bg-muted p-3">{notice}</p>}
     {progress && <div className="grid gap-3 sm:grid-cols-3">{[{ title: th ? 'ทีมงาน' : 'Team', count: progress.members, done: progress.members > 1, href: '/team', hint: th ? `คำเชิญรอตอบ ${progress.invites}` : `${progress.invites} pending invitations` }, { title: th ? 'ลูกความ' : 'Clients', count: progress.clients, done: progress.clients > 0, href: '/clients', hint: th ? 'เพิ่มทีละรายหรือนำเข้าด้านล่าง' : 'Add one or import below' }, { title: th ? 'คดี' : 'Cases', count: progress.cases, done: progress.cases > 0, href: '/cases', hint: th ? 'เปิดคดีแรกแล้วใช้ Playbook' : 'Open a case and apply a playbook' }].map(s => <Link key={s.href} href={s.href} className="rounded-xl border bg-card p-4"><p className="font-medium">{s.done ? '✓ ' : ''}{s.title} · {s.count}</p><p className="mt-1 text-xs text-muted-foreground">{s.hint}</p></Link>)}</div>}

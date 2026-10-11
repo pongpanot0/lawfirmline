@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowLeft, ArrowUp } from 'lucide-react';
-import { DailyWorkboard, DailyWorkTask, FirmRole, PersonWorkload, TASK_SIZES, TASK_WORK_TYPES, TaskWorkType, taskPoints } from '@lawfirm/shared';
+import { DailyWorkboard, DailyWorkTask, hasFirmCapability, PersonWorkload, TASK_SIZES, TASK_WORK_TYPES, TaskWorkType, taskPoints } from '@lawfirm/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { bangkokDateInputValue, bangkokTime } from '@/lib/bangkok';
@@ -36,7 +36,7 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
   userId: string | null; from?: string; focusDay?: string | null; onClose: () => void; onChanged?: () => void;
 }) {
   const { token, user } = useAuth();
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const canRunOps = hasFirmCapability(user?.firmRole, 'runOperations');
   const [data, setData] = useState<PersonWorkload | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -77,7 +77,7 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
   const dayEvents = focusDay ? data?.events.filter((e) => bangkokDay(e.startAt) === focusDay) ?? [] : [];
   const dayLeave = focusDay ? data?.leaves.find((l) => l.startDate <= focusDay && l.endDate >= focusDay) : undefined;
 
-  const sizeBadge = (t: PersonWorkload['tasks'][number]) => isOwner
+  const sizeBadge = (t: PersonWorkload['tasks'][number]) => canRunOps
     ? <TaskSizePicker taskId={t.id} title={t.title} size={t.size} onSaved={() => void changed()} />
     : <span className="shrink-0 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">{SIZE_LABELS[t.size]}</span>;
   const taskMeta = (t: PersonWorkload['tasks'][number]) => <p className="mt-0.5 text-xs text-muted-foreground">
@@ -118,16 +118,16 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
             {data.leaves.map((l) => <p key={l.id}>{l.type ? LEAVE_LABELS[l.type] ?? 'ลา' : 'ลา'} {formatDate(`${l.startDate}T00:00:00+07:00`)}{l.endDate !== l.startDate ? ` – ${formatDate(`${l.endDate}T00:00:00+07:00`)}` : ''}</p>)}
           </div>}
 
-          <Section title={isOwner ? 'คิวงาน (บนสุดทำก่อน)' : 'คิวงาน'} empty={data.tasks.length === 0} emptyText="ไม่มีงานในคิว">
+          <Section title={canRunOps ? 'คิวงาน (บนสุดทำก่อน)' : 'คิวงาน'} empty={data.tasks.length === 0} emptyText="ไม่มีงานในคิว">
             {data.tasks.map((t, i) => <li key={t.id} className="px-3 py-2 text-sm">
               <div className="flex items-start gap-2">
-                {isOwner && <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted text-[11px] font-semibold">{i + 1}</span>}
+                {canRunOps && <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted text-[11px] font-semibold">{i + 1}</span>}
                 <span className="min-w-0 flex-1 break-words font-medium">{t.title}</span>
                 {sizeBadge(t)}
               </div>
               {taskMeta(t)}
               {t.holdReason && <p className="mt-1 text-xs text-amber-700">พักไว้: {t.holdReason}</p>}
-              {isOwner && <div className="mt-1 flex items-center gap-1">
+              {canRunOps && <div className="mt-1 flex items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-7 w-7" disabled={busy || i === 0} aria-label={`เลื่อน ${t.title} ขึ้น`} onClick={() => void act(() => api.moveDailyTask(token!, t.id, 'UP'))}><ArrowUp className="h-3.5 w-3.5" /></Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7" disabled={busy || i === data.tasks.length - 1} aria-label={`เลื่อน ${t.title} ลง`} onClick={() => void act(() => api.moveDailyTask(token!, t.id, 'DOWN'))}><ArrowDown className="h-3.5 w-3.5" /></Button>
                 <Button variant="ghost" size="sm" className="h-7" disabled={busy} onClick={() => void openReassign(t.id)}>ย้ายให้คนอื่น</Button>
@@ -151,7 +151,7 @@ export function PersonWorkloadDrawer({ userId, from, focusDay, onClose, onChange
             {data.hiddenCaseCount > 0 && <li className="px-3 py-2 text-xs text-muted-foreground">และอีก {data.hiddenCaseCount} คดีที่คุณไม่มีสิทธิ์ดู</li>}
           </Section>
 
-          {isOwner && <section className="space-y-2">
+          {canRunOps && <section className="space-y-2">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">ประเภทงานที่ทำได้</h3>
               {types === null && <Button variant="ghost" size="sm" onClick={() => setTypes(data.workTypes)}>แก้ไข</Button>}</div>
             {types === null

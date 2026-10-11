@@ -141,6 +141,7 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
 const FIRM_ROLE_LABELS: Record<string, string> = {
   OWNER: 'เจ้าของ',
   SENIOR_LAWYER: 'ทนายอาวุโส',
+  OFFICE_MANAGER: 'ผู้จัดการสำนักงาน',
   LAWYER: 'ทนายความ',
   ASSISTANT: 'ผู้ช่วย',
 };
