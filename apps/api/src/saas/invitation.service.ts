@@ -44,6 +44,15 @@ export class InvitationService {
       }
     }
 
+    // The upsert below would rewrite an existing pending invitation's role, so the
+    // caller must also be allowed to invite the role it currently carries.
+    const pending = await this.prisma.invitation.findUnique({
+      where: { firmId_email: { firmId: user.firmId, email: dto.email } },
+    });
+    if (pending && !pending.acceptedAt && pending.expiresAt > new Date() && !canInviteFirmRole(user.firmRole, pending.role as FirmRole)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขคำเชิญตำแหน่งนี้');
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -241,6 +250,8 @@ export class InvitationService {
     }
     return this.prisma.invitation.findMany({
       where: { firmId: user.firmId, acceptedAt: null, expiresAt: { gt: new Date() } },
+      // Never return the token: holding it is enough to accept the invitation.
+      select: { id: true, email: true, role: true, expiresAt: true, createdAt: true, invitedById: true },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -255,6 +266,9 @@ export class InvitationService {
     });
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
+    }
+    if (!canInviteFirmRole(user.firmRole, invitation.role as FirmRole)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์ยกเลิกคำเชิญตำแหน่งนี้');
     }
 
     await this.prisma.invitation.delete({ where: { id: invitationId } });
