@@ -90,6 +90,14 @@ describe('DocumentsController RolesGuard outcome', () => {
     expect(() => new FirmRoleGuard(new Reflector()).canActivate(context)).toThrow(ForbiddenException);
   });
 
+  it('denies a legacy professional-ADMIN who is not a firm owner or office manager', () => {
+    const context = buildContext(DocumentsController.prototype.updateVisibility, {
+      role: Role.ADMIN,
+      firmRole: FirmRole.ASSISTANT,
+    });
+    expect(() => new FirmRoleGuard(new Reflector()).canActivate(context)).toThrow(ForbiddenException);
+  });
+
   it('allows an OFFICE_MANAGER on the visibility toggle', () => {
     const context = buildContext(DocumentsController.prototype.updateVisibility, {
       role: Role.LAWYER,

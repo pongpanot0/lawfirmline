@@ -83,6 +83,14 @@ describe('ContactCaseAccessController FirmRoleGuard outcome', () => {
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
+  it('denies a legacy professional-ADMIN who is not a firm owner or office manager', () => {
+    const context = buildContext(ContactCaseAccessController.prototype.grant, {
+      role: Role.ADMIN,
+      firmRole: FirmRole.ASSISTANT,
+    });
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+  });
+
   it('allows an OFFICE_MANAGER on grant', () => {
     const context = buildContext(ContactCaseAccessController.prototype.grant, {
       role: Role.LAWYER,

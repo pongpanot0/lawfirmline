@@ -71,7 +71,7 @@ export class PracticeSetupService {
     private assignmentNotifier: AssignmentNotifierService,
     private caseFeed: CaseFeedService,
   ) {}
-  private owner(user: AuthUser) { if (!hasFirmCapability(user.firmRole, 'manageFirmContent')) throw new ForbiddenException('เจ้าของสำนักงานเท่านั้น / Firm owner required'); }
+  private owner(user: AuthUser) { if (!hasFirmCapability(user.firmRole, 'manageFirmContent')) throw new ForbiddenException('ไม่มีสิทธิ์จัดการเนื้อหาสำนักงาน / Insufficient permissions'); }
   async progress(user: AuthUser) {
     this.owner(user);
     const [members, clients, cases, invites, batches] = await Promise.all([

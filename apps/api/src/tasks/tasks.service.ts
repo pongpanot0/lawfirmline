@@ -188,6 +188,12 @@ export class TasksService {
     return task;
   }
 
+  /** Approving/rejecting a review stays with the owner or the case lead; office managers run operations but do not review. */
+  private assertLeadOrOwnerForReview(user: AuthUser, legalCase: CaseForAccess) {
+    if (user.firmRole === FirmRole.OWNER || legalCase.leadLawyerId === user.id) return;
+    throw new ForbiddenException('เฉพาะทนายความหลักของคดี (Lead) หรือ Owner เท่านั้นที่ตรวจงานได้');
+  }
+
   private assertLeadOrOwner(user: AuthUser, legalCase: CaseForAccess) {
     if (hasFirmCapability(user.firmRole, 'runOperations')) return;
     if (legalCase.leadLawyerId === user.id) return;
@@ -389,7 +395,7 @@ export class TasksService {
   private async assertCanAssignTodo(user: AuthUser, assigneeId: string) {
     if (assigneeId === user.id) return;
     if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole)) {
-      throw new ForbiddenException('เฉพาะ Owner หรือทนายอาวุโสที่มอบหมายงานให้ผู้อื่นได้');
+      throw new ForbiddenException('เฉพาะ Owner ผู้จัดการสำนักงาน หรือทนายอาวุโสที่มอบหมายงานให้ผู้อื่นได้');
     }
     const member = await this.prisma.firmMember.findFirst({
       where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: assigneeId },
@@ -1008,7 +1014,7 @@ export class TasksService {
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!legalCase) throw new NotFoundException('Case not found');
     if (task.reviewerId && task.reviewerId !== user.id) throw new ForbiddenException('เฉพาะผู้ตรวจที่ระบุไว้เท่านั้น');
-    if (!task.reviewerId) this.assertLeadOrOwner(user, legalCase);
+    if (!task.reviewerId) this.assertLeadOrOwnerForReview(user, legalCase);
 
     if (task.status !== TaskStatus.PENDING_REVIEW) {
       throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
@@ -1029,7 +1035,7 @@ export class TasksService {
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!legalCase) throw new NotFoundException('Case not found');
     if (task.reviewerId && task.reviewerId !== user.id) throw new ForbiddenException('เฉพาะผู้ตรวจที่ระบุไว้เท่านั้น');
-    if (!task.reviewerId) this.assertLeadOrOwner(user, legalCase);
+    if (!task.reviewerId) this.assertLeadOrOwnerForReview(user, legalCase);
 
     if (task.status !== TaskStatus.PENDING_REVIEW) {
       throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');

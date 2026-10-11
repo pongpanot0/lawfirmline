@@ -79,6 +79,14 @@ describe('DocumentPublicationController FirmRoleGuard outcome', () => {
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
+  it('denies a legacy professional-ADMIN who is not a firm owner or office manager', () => {
+    const context = buildContext(DocumentPublicationController.prototype.publish, {
+      role: Role.ADMIN,
+      firmRole: FirmRole.ASSISTANT,
+    });
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+  });
+
   it('allows an OFFICE_MANAGER on publish', () => {
     const context = buildContext(DocumentPublicationController.prototype.publish, {
       role: Role.LAWYER,

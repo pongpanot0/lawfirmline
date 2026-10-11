@@ -39,7 +39,7 @@ export class LeaveService {
   ) {}
 
   async pending(user: AuthUser) {
-    if (!hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('Owner access required');
+    if (!hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('Insufficient permissions');
     const leaves = await this.prisma.leaveRequest.findMany({
       where: { firmId: user.firmId, status: LeaveStatus.PENDING },
       include: { user: { select: { firstName: true, lastName: true } } },
@@ -145,7 +145,7 @@ export class LeaveService {
     });
     if (!leave) throw new NotFoundException('ไม่พบรายการลา');
     if (leave.status !== LeaveStatus.PENDING) throw new BadRequestException('คำขอนี้ตัดสินไปแล้ว');
-    if (!hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('อนุมัติได้เฉพาะเจ้าของสำนักงาน');
+    if (!hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('ไม่มีสิทธิ์อนุมัติการลา');
     // Claim only while still PENDING so two owners deciding at once can't both win.
     const data = { status: decision, decidedById: user.id, decidedAt: new Date() };
     const claimed = await this.prisma.leaveRequest.updateMany({ where: { id: leaveId, firmId: user.firmId, status: LeaveStatus.PENDING }, data });

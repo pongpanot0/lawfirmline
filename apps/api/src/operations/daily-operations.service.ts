@@ -39,7 +39,7 @@ export class DailyOperationsService {
   constructor(private prisma: PrismaService, private tasks: TasksService, private notifier: AssignmentNotifierService, private caseAccess: CaseAccessService) {}
 
   private owner(user: AuthUser) {
-    if (!hasFirmCapability(user.firmRole, 'runOperations')) throw new ForbiddenException('เฉพาะ Owner');
+    if (!hasFirmCapability(user.firmRole, 'runOperations')) throw new ForbiddenException('ไม่มีสิทธิ์ดูภาพรวมงานประจำวัน / Insufficient permissions');
   }
 
   async board(user: AuthUser, date: string) {

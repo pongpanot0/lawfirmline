@@ -160,7 +160,7 @@ export class TenantService {
 
   async listMembers(user: AuthUser) {
     if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
-      throw new ForbiddenException('Only owners can list team members');
+      throw new ForbiddenException('Insufficient permissions to list team members');
     }
 
     const members = await this.prisma.firmMember.findMany({

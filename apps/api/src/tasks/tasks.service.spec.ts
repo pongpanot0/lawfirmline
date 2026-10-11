@@ -225,6 +225,27 @@ describe('TasksService on-hold', () => {
       );
     });
 
+    it('OFFICE_MANAGER cannot accept or reject a reviewer-less task (review stays legal/owner)', async () => {
+      const manager = { id: 'om-1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
+      mockPrisma.task.findFirst.mockResolvedValue({ id: 'task-1', status: TaskStatus.PENDING_REVIEW, reviewerId: null });
+      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
+
+      await expect(service.accept('case-1', 'task-1', manager)).rejects.toThrow(ForbiddenException);
+      await expect(service.reject('case-1', 'task-1', manager, { reason: 'x' })).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    });
+
+    it('OWNER and the case lead still pass the reviewer-less accept check', async () => {
+      const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
+      mockPrisma.task.findFirst.mockResolvedValue({ id: 'task-1', title: 't', status: TaskStatus.PENDING_REVIEW, reviewerId: null });
+      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
+
+      await service.accept('case-1', 'task-1', owner);
+      await service.accept('case-1', 'task-1', senior);
+      expect(mockPrisma.task.update).toHaveBeenCalledTimes(2);
+    });
+
     it('accept sets status to DONE for the lead lawyer', async () => {
       mockPrisma.task.findFirst.mockResolvedValue({
         id: 'task-1',

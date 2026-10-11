@@ -23,7 +23,7 @@ export class InvitationService {
 
   async invite(user: AuthUser, dto: InviteUserDto) {
     if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
-      throw new ForbiddenException('Only owners can invite users');
+      throw new ForbiddenException('Insufficient permissions to invite users');
     }
     if (!canInviteFirmRole(user.firmRole, dto.role ?? FirmRole.ASSISTANT)) {
       throw new ForbiddenException('ไม่มีสิทธิ์เชิญตำแหน่งนี้');
@@ -237,7 +237,7 @@ export class InvitationService {
 
   async listPending(user: AuthUser) {
     if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
-      throw new ForbiddenException('Only owners can view invitations');
+      throw new ForbiddenException('Insufficient permissions to view invitations');
     }
     return this.prisma.invitation.findMany({
       where: { firmId: user.firmId, acceptedAt: null, expiresAt: { gt: new Date() } },
@@ -247,7 +247,7 @@ export class InvitationService {
 
   async cancel(user: AuthUser, invitationId: string) {
     if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
-      throw new ForbiddenException('Only owners can cancel invitations');
+      throw new ForbiddenException('Insufficient permissions to cancel invitations');
     }
 
     const invitation = await this.prisma.invitation.findFirst({
