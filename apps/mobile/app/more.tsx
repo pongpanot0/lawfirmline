@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useRouter } from 'expo-router';
+import { hasFirmCapability } from '@lawfirm/shared';
 import {
   BarChart3,
   BookOpen,
@@ -82,7 +83,7 @@ export default function MoreScreen() {
       {groups.map(group => <View key={group.title}>
       <SectionLabel style={{ marginTop: spacing.sm }}>{group.title}</SectionLabel>
       <Card style={{ marginBottom: spacing.md }}>
-      {ITEMS.filter(item => group.routes.includes(item.route) && (item.route !== '/operations' || user?.firmRole === 'OWNER')).map((item, index) => (
+      {ITEMS.filter(item => group.routes.includes(item.route) && (item.route !== '/operations' || hasFirmCapability(user?.firmRole, 'runOperations'))).map((item, index) => (
         <Pressable
           accessibilityRole="button" accessibilityLabel={item.title}
           key={item.route}

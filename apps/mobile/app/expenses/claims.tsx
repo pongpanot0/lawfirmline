@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { useExpenseClaims } from '@/api/hooks';
 import { Card, EmptyNote, ErrorNote, Loading, PageIntro, Tag, TagTone } from '@/components/ui';
@@ -24,7 +25,7 @@ export default function ClaimsScreen() {
   const rows = (claims.data ?? []).filter((claim) => !status || claim.status === status);
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={pageContent}
     refreshControl={<RefreshControl refreshing={claims.isRefetching} onRefresh={() => claims.refetch()} />}>
-    <PageIntro title={user?.firmRole === 'OWNER' ? 'ชุดเบิกจากทีม' : 'ชุดที่ฉันส่งเบิก'} detail="แตะชุดเบิกเพื่อตรวจรายการ ใบเสร็จ และสถานะ" />
+    <PageIntro title={hasFirmCapability(user?.firmRole, 'approveExpenses') ? 'ชุดเบิกจากทีม' : 'ชุดที่ฉันส่งเบิก'} detail="แตะชุดเบิกเพื่อตรวจรายการ ใบเสร็จ และสถานะ" />
     <Dropdown label="สถานะชุดเบิก" value={status} onChange={setStatus} options={[{ value: '', label: 'ทุกสถานะ' },
       ...Object.entries(CLAIM_STATUS).map(([value, meta]) => ({ value, label: meta.label }))]} />
     {claims.isError && <ErrorNote message="โหลดชุดเบิกไม่สำเร็จ" onRetry={() => claims.refetch()} />}

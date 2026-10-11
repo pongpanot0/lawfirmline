@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, RefreshControl, ScrollView, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams } from 'expo-router';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { useExpenseClaim, useReviewClaim } from '@/api/hooks';
 import { openExpenseReceipt } from '@/api/files';
@@ -51,9 +52,9 @@ export default function ClaimScreen() {
         finally { setOpening(null); }
       }} /> : <Text style={{ color: colors.muted }}>ไม่มีใบเสร็จแนบ</Text>}
     </Card>)}
-    {claimActions(data.status, user?.firmRole === 'OWNER').length > 0 && <Card style={{ gap: spacing.sm }}>
+    {claimActions(data.status, hasFirmCapability(user?.firmRole, 'approveExpenses')).length > 0 && <Card style={{ gap: spacing.sm }}>
     <SectionLabel style={{ marginTop: 0 }}>ดำเนินการกับชุดนี้</SectionLabel>
-    {claimActions(data.status, user?.firmRole === 'OWNER').map((status) => <Button key={status}
+    {claimActions(data.status, hasFirmCapability(user?.firmRole, 'approveExpenses')).map((status) => <Button key={status}
       title={LABEL[status]} ghost={status === 'REJECTED'} onPress={() => act(status)}
       busy={review.isPending} disabled={claim.isError || claim.isFetching} />)}
     </Card>}

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Alert, RefreshControl, ScrollView } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { ownerDecisionTasks } from '@lawfirm/shared';
+import { hasFirmCapability, ownerDecisionTasks } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { useDailyWorkboard, useDecideLeave, useExpenseClaims, usePendingLeaves, useTodos } from '@/api/hooks';
 import { Text } from '@/components/AppText';
@@ -17,22 +17,26 @@ export default function OwnerDecisions() {
   const [filter, setFilter] = useState(FILTERS.some(item => item.value === view) ? view! : 'all');
   const [expandedLeave, setExpandedLeave] = useState('');
   const { user } = useAuth();
-  const owner = user?.firmRole === 'OWNER';
+  // Each queue follows the capability of the endpoint behind it; review stays with the owner (reviewer eligibility).
+  const canReview = user?.firmRole === 'OWNER', canLeave = hasFirmCapability(user?.firmRole, 'approveLeave');
+  const canClaim = hasFirmCapability(user?.firmRole, 'approveExpenses'), canRisk = hasFirmCapability(user?.firmRole, 'runOperations');
+  const anyQueue = canReview || canLeave || canClaim || canRisk;
+  const filters = FILTERS.filter(item => item.value === 'all' || (item.value === 'review' ? canReview : item.value === 'leave' ? canLeave : item.value === 'claim' ? canClaim : canRisk));
   const router = useRouter();
   const today = bangkokDay(new Date().toISOString());
-  const reviews = useTodos('review', owner), leaves = usePendingLeaves(owner), claims = useExpenseClaims(owner), daily = useDailyWorkboard(today, owner);
+  const reviews = useTodos('review', canReview), leaves = usePendingLeaves(canLeave), claims = useExpenseClaims(canClaim), daily = useDailyWorkboard(today, canRisk);
   const decision = useDecideLeave();
-  const refresh = useCallback(() => { if (owner) { void reviews.refetch(); void leaves.refetch(); void claims.refetch(); void daily.refetch(); } }, [owner, reviews.refetch, leaves.refetch, claims.refetch, daily.refetch]);
+  const refresh = useCallback(() => { if (canReview) void reviews.refetch(); if (canLeave) void leaves.refetch(); if (canClaim) void claims.refetch(); if (canRisk) void daily.refetch(); }, [canReview, canLeave, canClaim, canRisk, reviews.refetch, leaves.refetch, claims.refetch, daily.refetch]);
   useFocusEffect(refresh);
   const risks = daily.data ? ownerDecisionTasks(daily.data.tasks, today).filter(item => item.task.status !== 'PENDING_REVIEW') : [];
   const pendingClaims = claims.data?.filter(item => item.status === 'PENDING');
-  const show = (value: string) => filter === 'all' || filter === value;
-  if (!owner) return <EmptyNote>คิวนี้สำหรับ Owner</EmptyNote>;
+  const show = (value: string) => filters.some(item => item.value === value) && (filter === 'all' || filter === value);
+  if (!anyQueue) return <EmptyNote>คิวนี้สำหรับ Owner และผู้จัดการสำนักงาน</EmptyNote>;
   return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ ...pageContent, gap: spacing.sm }}
     refreshControl={<RefreshControl refreshing={reviews.isRefetching || leaves.isRefetching || claims.isRefetching || daily.isRefetching} onRefresh={refresh} />}>
     <Stack.Screen options={{ title: 'คิวตัดสินใจวันนี้' }} />
     <PageIntro title="คิวที่ต้องตัดสินใจ" detail="รวมรายการที่ยังรอ เปิดผลงานหรือหลักฐานก่อนตัดสินใจ" />
-    <FilterTabs items={FILTERS} value={filter} onChange={setFilter} />
+    <FilterTabs items={filters} value={filter} onChange={setFilter} />
     {show('review') && <>
       <SectionLabel>รอ Owner ตรวจ · {reviews.data?.length ?? '—'} งาน</SectionLabel>
       {reviews.isError && <ErrorNote message="โหลดงานรอตรวจไม่ได้" onRetry={() => reviews.refetch()} />}

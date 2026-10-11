@@ -1,4 +1,4 @@
-import { EXPENSE_CATEGORIES, MONEY_MAX } from '@lawfirm/shared';
+import { EXPENSE_CATEGORIES, MONEY_MAX, hasFirmCapability } from '@lawfirm/shared';
 import type { AgendaItem } from '@lawfirm/shared';
 import type { TaskItem } from './api/types';
 
@@ -10,7 +10,7 @@ export function canReviewTask(task: TaskItem, user: { id: string; firmRole?: str
 
 export function canToggleTask(task: TaskItem, user: { id: string; firmRole?: string | null }) {
   if (task.status === 'PENDING_REVIEW' || task.requiresReview || task.routine) return false;
-  return task.assigneeId === user.id || (!!task.caseId && (user.firmRole === 'OWNER' || task.case?.leadLawyerId === user.id));
+  return task.assigneeId === user.id || (!!task.caseId && (hasFirmCapability(user.firmRole, 'runOperations') || task.case?.leadLawyerId === user.id));
 }
 
 export function actionAppRoute(item: { id: string; kind: string; url: string }): string | null {

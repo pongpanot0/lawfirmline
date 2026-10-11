@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { RefreshControl, ScrollView } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { canAssignFirmRole, FirmRole } from '@lawfirm/shared';
+import { canAssignFirmRole, FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { usePersonWorkload } from '@/api/hooks';
 import { PersonWorkloadView } from '@/components/PersonWorkloadView';
@@ -17,14 +17,15 @@ export default function PersonScreen() {
   const person = usePersonWorkload(id ?? '', start);
   useFocusEffect(useCallback(() => { if (id) void person.refetch(); }, [id, start, person.refetch]));
   const data = person.data;
-  const canAssign = user?.firmRole === FirmRole.OWNER && data && canAssignFirmRole(FirmRole.OWNER, data.role as FirmRole);
+  const manager = hasFirmCapability(user?.firmRole, 'runOperations');
+  const canAssign = manager && data && canAssignFirmRole(user!.firmRole as FirmRole, data.role as FirmRole);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={pageContent}
       refreshControl={<RefreshControl refreshing={person.isRefetching} tintColor={colors.ink} onRefresh={() => person.refetch()} />}>
       <Stack.Screen options={{ title: 'รายละเอียดสมาชิก' }} />
       {!id ? <EmptyNote>ไม่พบสมาชิก · กลับไปเลือกรายชื่อในหน้าทีม</EmptyNote> : person.isLoading ? <Loading /> : null}
       {person.isError && <ErrorNote message="โหลดรายละเอียดสมาชิกไม่ได้ ตรวจการเชื่อมต่อแล้วลองใหม่ หรือกลับไปเลือกรายชื่อในหน้าทีม" onRetry={() => person.refetch()} />}
-      {data && <PersonWorkloadView person={data} from={start} viewerId={user?.id ?? ''} owner={user?.firmRole === FirmRole.OWNER}
+      {data && <PersonWorkloadView person={data} from={start} viewerId={user?.id ?? ''} owner={manager}
         onTask={taskId => router.push({ pathname: '/task/new', params: { id: taskId } })}
         onCase={caseId => router.push({ pathname: '/case/[id]', params: { id: caseId } })}
         onEvent={eventId => router.push({ pathname: '/event/[id]/team', params: { id: eventId } })}

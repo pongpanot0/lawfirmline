@@ -3,7 +3,7 @@ import { FlatList, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
-import { followUpReason } from '@lawfirm/shared';
+import { followUpReason, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -31,7 +31,7 @@ export default function TasksScreen() {
   const client = useQueryClient();
   const { memberId, view: requestedView } = useLocalSearchParams<{ memberId?: string; view?: string }>();
   const { user } = useAuth();
-  const owner = user?.firmRole === 'OWNER';
+  const owner = hasFirmCapability(user?.firmRole, 'runOperations');
   const views = VIEWS.filter(item => !('owner' in item) || owner);
   const view = views.find(item => item.value === requestedView)?.value ?? 'mine';
   const officeQueue = !memberId && (view === 'follow-up' || view === 'unassigned');
@@ -119,7 +119,7 @@ export default function TasksScreen() {
           </View>
           <View style={styles.assignmentRow}>
             {!['DONE', 'PENDING_REVIEW'].includes(item.status) && (item.caseId
-              ? ['OWNER', 'SENIOR_LAWYER', 'LAWYER'].includes(user?.firmRole ?? '')
+              ? ['OWNER', 'SENIOR_LAWYER', 'OFFICE_MANAGER', 'LAWYER'].includes(user?.firmRole ?? '')
               : owner || item.assigneeId === user?.id || item.createdById === user?.id) &&
               <Pressable accessibilityRole="button" accessibilityLabel={`มอบหมายงาน ${item.title}`} style={styles.assignButton} onPress={() => setReassigning(item)}>
                 <Text style={styles.filterText}>มอบหมาย</Text>

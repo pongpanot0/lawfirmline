@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Alert, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { taskDraftScope } from '@/api/drafts';
@@ -22,7 +23,7 @@ const requestId = () => `mobile-payment-${Date.now()}-${Math.random().toString(3
 
 export default function InvoiceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(), { user } = useAuth(), router = useRouter(), client = useQueryClient();
-  const owner = user?.firmRole === 'OWNER', today = bangkokDay(new Date().toISOString());
+  const owner = hasFirmCapability(user?.firmRole, 'manageInvoices'), today = bangkokDay(new Date().toISOString());
   const invoice = useQuery({ queryKey: ['collection-invoice', id], enabled: owner && !!id, queryFn: () => api<CollectionDetail>(`/invoices/${id}/collection`) });
   const members = useMembers();
   useFocusEffect(useCallback(() => { if (owner) void invoice.refetch(); }, [owner, invoice.refetch]));
@@ -50,7 +51,7 @@ export default function InvoiceScreen() {
     onSuccess: () => { refreshMoney(); Alert.alert('บันทึกวางบิลแล้ว'); },
     onError: error => { void invoice.refetch(); Alert.alert('บันทึกวางบิลไม่สำเร็จ', `${error.message}\nตรวจสถานะล่าสุดก่อนทำอีกครั้ง`); },
   });
-  if (!owner) return <EmptyNote>ข้อมูลการเงินสำหรับ Owner</EmptyNote>;
+  if (!owner) return <EmptyNote>ข้อมูลการเงินสำหรับ Owner และผู้จัดการสำนักงาน</EmptyNote>;
   if (invoice.isLoading) return <Loading />;
   const data = invoice.data;
   if (!data) return <ErrorNote message="โหลดใบแจ้งหนี้ไม่ได้" onRetry={() => invoice.refetch()} />;

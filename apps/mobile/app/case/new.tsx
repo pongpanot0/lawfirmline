@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { COURT_LEVEL_LABELS, CourtLevel } from '@lawfirm/shared';
+import { COURT_LEVEL_LABELS, CourtLevel, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { useCase, useCourts } from '@/api/hooks';
@@ -20,6 +20,7 @@ import { colors, formLabelSpacing } from '@/theme';
 export default function CaseFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuth();
+  const canReassign = hasFirmCapability(user?.firmRole, 'reassignCaseLead');
   const router = useRouter();
   const client = useQueryClient();
   const current = useCase(id ?? '');
@@ -59,10 +60,10 @@ export default function CaseFormScreen() {
           description: description.trim(), courtName: courtName || undefined, courtLevel, caseTypeId: caseTypeId || undefined,
           ...(id && status !== current.data?.status ? { status } : {}) };
         const saved = await api<CaseDetail>(id ? `/cases/${id}` : '/cases', { method: id ? 'PATCH' : 'POST',
-          body: { ...body, ...(!id || user?.firmRole === 'OWNER' ? { leadLawyerId: ids[0] } : {}), ...(!id ? { buddyIds: ids.slice(1) } : {}) } });
+          body: { ...body, ...(!id || canReassign ? { leadLawyerId: ids[0] } : {}), ...(!id ? { buddyIds: ids.slice(1) } : {}) } });
         target = saved.id; setSavedId(target);
       }
-      if (id && user?.firmRole === 'OWNER') await api(`/cases/${target}/assignments`, { method: 'PUT', body: { buddyIds: ids.slice(1) } });
+      if (id && canReassign) await api(`/cases/${target}/assignments`, { method: 'PUT', body: { buddyIds: ids.slice(1) } });
       for (const file of files) {
         await uploadCaseDocument(target, file.uri, file.name, file.mimeType);
         setFiles(previous => previous.filter(item => item.uri !== file.uri));
@@ -97,7 +98,7 @@ export default function CaseFormScreen() {
     </FormSection>
     <FormSection title="ผู้รับผิดชอบ" detail="คนหลักดูแลคดี คนรองร่วมทำงานในแฟ้มนี้">
     <TeamFields ids={ids} onChange={setIds} primaryLabel="คนหลัก" secondaryLabel="คนรอง"
-      max={999} disabled={busy || !!savedId || (!!id && user?.firmRole !== 'OWNER')} />
+      max={999} disabled={busy || !!savedId || (!!id && !canReassign)} />
     </FormSection>
     <Disclosure title="ศาลและรายละเอียดเพิ่มเติม" summary="เลือกศาล ชั้นศาล และบันทึกรายละเอียด">
     <SectionLabel style={formLabelSpacing}>ศาล</SectionLabel>

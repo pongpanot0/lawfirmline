@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { useOwnerKpis, useReportsSummary, useOwnerFinance } from '@/api/hooks';
 import { useRouter } from 'expo-router';
@@ -13,8 +14,9 @@ import { colors, spacing, pageContent } from '@/theme';
 export default function ReportsScreen() {
   const reports = useReportsSummary();
   const { user } = useAuth();
-  const ownerKpis = useOwnerKpis(user?.firmRole === 'OWNER');
-  const finance = useOwnerFinance(user?.firmRole === 'OWNER');
+  const canViewFirm = hasFirmCapability(user?.firmRole, 'viewFirmReports');
+  const ownerKpis = useOwnerKpis(canViewFirm);
+  const finance = useOwnerFinance(canViewFirm);
   const router = useRouter();
 
   if (reports.isLoading) return <Loading />;
@@ -33,7 +35,7 @@ export default function ReportsScreen() {
       style={styles.screen}
       contentContainerStyle={pageContent}
       refreshControl={
-        <RefreshControl refreshing={reports.isRefetching} onRefresh={() => { void reports.refetch(); if (user?.firmRole === 'OWNER') { void ownerKpis.refetch(); void finance.refetch(); } }} />
+        <RefreshControl refreshing={reports.isRefetching} onRefresh={() => { void reports.refetch(); if (canViewFirm) { void ownerKpis.refetch(); void finance.refetch(); } }} />
       }
     >
       <PageIntro title="สรุปงานและผลคดี" detail={scope === 'firm' ? 'ภาพรวมทั้งสำนักงาน' : 'เฉพาะคดีที่คุณรับผิดชอบ'} />
@@ -122,7 +124,7 @@ export default function ReportsScreen() {
                     {row.lawyerName}
                   </Text>
                   <Text style={styles.meta}>{row.hours.toLocaleString('th-TH')} ชม.</Text>
-                  {user?.firmRole === 'OWNER' && <Text style={styles.count}>
+                  {canViewFirm && <Text style={styles.count}>
                     {formatMoney(row.revenue)} ฿
                   </Text>}
                 </View>

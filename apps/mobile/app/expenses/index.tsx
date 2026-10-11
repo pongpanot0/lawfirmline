@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Alert, ScrollView, View, Pressable, RefreshControl } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { useExpenses, useSubmitExpenses } from '@/api/hooks';
 import { draftScope, ExpenseDraft, listExpenseDrafts, removeExpenseDraft } from '@/api/drafts';
@@ -38,7 +39,7 @@ export default function ExpensesScreen() {
     <PageIntro title="ค่าใช้จ่ายของฉัน" detail="บันทึกรายการ เลือกรวมเป็นชุด แล้วส่งเบิก" />
     <View style={{ gap: spacing.sm }}>
       <Button title="เพิ่มค่าใช้จ่าย" onPress={() => router.push('/expenses/new')} />
-      <Button title={user?.firmRole === 'OWNER' ? 'ดูชุดเบิกทีม · อนุมัติ / จ่าย' : 'ดูชุดที่ส่งเบิกแล้ว'} ghost onPress={() => router.push('/expenses/claims')} />
+      <Button title={hasFirmCapability(user?.firmRole, 'approveExpenses') ? 'ดูชุดเบิกทีม · อนุมัติ / จ่าย' : 'ดูชุดที่ส่งเบิกแล้ว'} ghost onPress={() => router.push('/expenses/claims')} />
     </View>
     <SectionLabel>ร่างในเครื่อง · รอเติมรายละเอียด</SectionLabel>
     {!!localError && <ErrorNote message={localError} onRetry={load} />}

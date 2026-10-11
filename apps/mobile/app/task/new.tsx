@@ -3,7 +3,7 @@ import { Alert, Pressable, Switch, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { canAssignFirmRole, FirmRole, assignmentCandidates, assignmentWarnings, TaskWorkType, TaskRoutineDefinition } from '@lawfirm/shared';
+import { canAssignFirmRole, FirmRole, hasFirmCapability, assignmentCandidates, assignmentWarnings, TaskWorkType, TaskRoutineDefinition } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api, ApiError } from '@/api/client';
 import { taskDraftScope } from '@/api/drafts';
@@ -57,11 +57,12 @@ export default function TaskFormScreen() {
   const [reason, setReason] = useState('');
   const [comment, setComment] = useState('');
   const assignmentDate = hasDue ? dueDate : bangkokDay(new Date().toISOString());
-  const owner = user?.firmRole === 'OWNER';
+  const owner = hasFirmCapability(user?.firmRole, 'runOperations');
+  const isOwner = user?.firmRole === FirmRole.OWNER; // recurrence edits stay owner-only on the API
   const board = useDailyWorkboard(assignmentDate, owner && !id);
   const people = board.data && !board.isError ? assignmentCandidates(board.data.members, board.data.tasks, TaskWorkType.GENERAL, assignmentDate) : [];
   const warnings = owner && assigneeId !== user?.id && !id ? assignmentWarnings(people.find(p => p.member.userId === assigneeId)) : [];
-  const playbooks = useQuery({ queryKey: ['playbooks'], enabled: !id && ['OWNER', 'SENIOR_LAWYER'].includes(user?.firmRole ?? ''),
+  const playbooks = useQuery({ queryKey: ['playbooks'], enabled: !id && ['OWNER', 'SENIOR_LAWYER', 'OFFICE_MANAGER'].includes(user?.firmRole ?? ''),
     queryFn: () => api<Array<{ id: string; name: string; version: number; steps: { title: string; routine?: TaskRoutineDefinition }[] }>>('/practice-setup/playbooks') });
   const routines = (playbooks.data ?? []).flatMap(release => release.steps.flatMap((step, index) => step.routine ? [{ value: `${release.id}:${index}`, label: `${step.title} · ${release.name} รุ่น ${release.version}`, releaseId: release.id, stepIndex: index, title: step.title }] : []));
   useEffect(() => { setRisksConfirmed(false); }, [assigneeId, assignmentDate, warnings.join('\n')]);
@@ -70,10 +71,10 @@ export default function TaskFormScreen() {
   const [checkingPreviousSave, setCheckingPreviousSave] = useState(false);
   const leaves = useLeaves(dueDate, dueDate);
   const flags = leaveFlagsForDate(leaves.data ?? [], dueDate);
-  const canAssign = !id || (caseId ? user?.firmRole === 'OWNER' || legalCase.data?.leadLawyer?.id === user?.id
-    : user?.firmRole === 'OWNER' || task.data?.assigneeId === user?.id || task.data?.createdById === user?.id);
+  const canAssign = !id || (caseId ? owner || legalCase.data?.leadLawyer?.id === user?.id
+    : owner || task.data?.assigneeId === user?.id || task.data?.createdById === user?.id);
   const canStatus = task.data?.status !== 'PENDING_REVIEW' && (!id || task.data?.assigneeId === user?.id || (!!caseId &&
-    (user?.firmRole === 'OWNER' || legalCase.data?.leadLawyer?.id === user?.id)));
+    (owner || legalCase.data?.leadLawyer?.id === user?.id)));
   const canReview = !!task.data && !!user && canReviewTask(task.data, user, legalCase.data?.leadLawyer?.id);
   const reviewers = (members.data ?? []).filter(person => person.id !== assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(person.firmRole ?? ''));
   const candidates = (members.data ?? []).filter(person => !!caseId || person.id === user?.id ||
@@ -131,7 +132,7 @@ export default function TaskFormScreen() {
           : caseId ? `/cases/${caseId}/tasks` : '/todos';
         const body = requestSnapshot.current ?? {
           title: title.trim(), description, ...(hasDue ? { dueDate: `${dueDate}T23:59:59+07:00` } : {}),
-          ...(!id || ((owner || task.data?.assigneeId === user?.id) && (Number(recurrenceDays) || null) !== task.data?.recurrenceDays) ? { recurrenceDays: recurrenceDays ? Number(recurrenceDays) : null } : {}),
+          ...(!id || ((isOwner || task.data?.assigneeId === user?.id) && (Number(recurrenceDays) || null) !== task.data?.recurrenceDays) ? { recurrenceDays: recurrenceDays ? Number(recurrenceDays) : null } : {}),
           ...(!id || (canAssign && assigneeId !== task.data?.assigneeId) ? { assigneeId } : {}),
           ...(canStatus && (!id || status !== task.data?.status) ? { status } : {}),
           ...(!id ? { requiresReview: requiresReview || !!routineChoice, ...((requiresReview || routineChoice) ? { reviewerId } : {}) } : {}),
@@ -222,7 +223,7 @@ export default function TaskFormScreen() {
         </Pressable>
       </Card>}
     </>}
-    {!id && ['OWNER', 'SENIOR_LAWYER'].includes(user?.firmRole ?? '') && <>
+    {!id && ['OWNER', 'SENIOR_LAWYER', 'OFFICE_MANAGER'].includes(user?.firmRole ?? '') && <>
       <Dropdown label="วิธีทำงานประจำ (ถ้ามี)" value={routineChoice} options={[{ value: '', label: 'งานทั่วไป · ไม่บังคับรายการตรวจ' }, ...routines]} disabled={busy || checkingPreviousSave || playbooks.isLoading || playbooks.isError}
         onChange={value => { setRoutineChoice(value); if (value) { const selected = routines.find(r => r.value === value); if (!title.trim() && selected) setTitle(selected.title); setRequiresReview(true); setReviewerId(reviewers.find(p => p.id === legalCase.data?.leadLawyer?.id)?.id ?? reviewers[0]?.id ?? ''); } }} />
       {playbooks.isError && <ErrorNote message="โหลดวิธีทำงานประจำไม่ได้" onRetry={() => playbooks.refetch()} />}
@@ -248,7 +249,7 @@ export default function TaskFormScreen() {
       {requiresReview && <Dropdown label="ผู้ตรวจผลงาน" value={reviewerId} onChange={setReviewerId} options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} disabled={busy || checkingPreviousSave} />}
     </>}
     <FormField label="รายละเอียด · เติมทีหลังได้" value={description} onChange={setDescription} multiline disabled={busy || checkingPreviousSave || !!savedId || !!routineChoice || !!task.data?.routine} />
-    {(!id || owner || task.data?.assigneeId === user?.id) && <>
+    {(!id || isOwner || task.data?.assigneeId === user?.id) && <>
       <SectionLabel>ทำซ้ำหลังปิดรอบนี้</SectionLabel>
       <Dropdown label="ตั้งรอบงานทำซ้ำ" value={['', '1', '7', '30'].includes(recurrenceDays) ? recurrenceDays : 'custom'}
         onChange={value => setRecurrenceDays(value === 'custom' ? '14' : value)} disabled={busy || checkingPreviousSave || !!savedId}
