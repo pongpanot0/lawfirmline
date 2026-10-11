@@ -1,6 +1,6 @@
 import { NotificationCategory } from '../../../generated/prisma';
 import { Injectable } from '@nestjs/common';
-import { FirmRole } from '@lawfirm/shared';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { CashAdvanceService } from '../../../billing/cash-advance.service';
 import { UsersService } from '../../../users/users.service';
 import { LineMessagingService, QuickReplyItem } from '../../line-messaging.service';
@@ -38,7 +38,7 @@ export class LineAdvanceFlowService {
 
   async start(session: ConversationSession): Promise<void> {
     const authUser = await this.authContext.resolve(session.lineUserId);
-    if (!authUser || authUser.firmRole !== FirmRole.OWNER) {
+    if (!authUser || !hasFirmCapability(authUser.firmRole, 'issueCashAdvance')) {
       this.store.clear(session.lineUserId);
       await this.reply(session, 'ขออภัยครับ เบิกล่วงหน้าทำได้เฉพาะเจ้าของสำนักงาน');
       return;

@@ -1,5 +1,5 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { InvoiceStatus, Invoice, InvoicePayment, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { CollectionFollowUpDto, RecordPaymentDto } from './dto/billing.dto';
@@ -30,7 +30,7 @@ export class CollectionsService {
   ) {}
 
   private owner(user: AuthUser) {
-    if (user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('Owner access required');
+    if (!hasFirmCapability(user.firmRole, 'manageInvoices')) throw new ForbiddenException('Insufficient permissions');
   }
 
   private row(invoice: Prisma.InvoiceGetPayload<{ include: typeof INVOICE_INCLUDE }>, today: Date) {

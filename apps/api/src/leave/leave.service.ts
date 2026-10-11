@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, FirmRole, hasFirmCapability, rolesWithCapability } from '@lawfirm/shared';
 import { EventType, LeaveStatus, LeaveType, NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { LineMessagingService, QuickReplyItem } from '../notifications/line-messaging.service';
@@ -39,7 +39,7 @@ export class LeaveService {
   ) {}
 
   async pending(user: AuthUser) {
-    if (user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('Owner access required');
+    if (!hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('Owner access required');
     const leaves = await this.prisma.leaveRequest.findMany({
       where: { firmId: user.firmId, status: LeaveStatus.PENDING },
       include: { user: { select: { firstName: true, lastName: true } } },
@@ -145,7 +145,7 @@ export class LeaveService {
     });
     if (!leave) throw new NotFoundException('ไม่พบรายการลา');
     if (leave.status !== LeaveStatus.PENDING) throw new BadRequestException('คำขอนี้ตัดสินไปแล้ว');
-    if (user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('อนุมัติได้เฉพาะเจ้าของสำนักงาน');
+    if (!hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('อนุมัติได้เฉพาะเจ้าของสำนักงาน');
     // Claim only while still PENDING so two owners deciding at once can't both win.
     const data = { status: decision, decidedById: user.id, decidedAt: new Date() };
     const claimed = await this.prisma.leaveRequest.updateMany({ where: { id: leaveId, firmId: user.firmId, status: LeaveStatus.PENDING }, data });
@@ -172,7 +172,7 @@ export class LeaveService {
       include: { user: { select: { firstName: true, lastName: true } } },
     });
     if (!leave) throw new NotFoundException('ไม่พบรายการลา');
-    if (leave.userId !== user.id && user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('ยกเลิกได้เฉพาะรายการลาของตนเอง');
+    if (leave.userId !== user.id && !hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('ยกเลิกได้เฉพาะรายการลาของตนเอง');
     await this.prisma.leaveRequest.delete({ where: { id } });
     // Members were only ever told about approved leave — nothing to retract otherwise.
     if (leave.status !== LeaveStatus.APPROVED) return { deleted: true };
@@ -286,7 +286,7 @@ export class LeaveService {
       { label: 'ไม่อนุมัติ', text: 'ไม่อนุมัติลา', data: `leave:reject:${leave.id}` },
     ];
     const owners = await this.prisma.firmMember.findMany({
-      where: { firmId: leave.firmId, role: FirmRole.OWNER, user: { lineUserId: { not: null } } },
+      where: { firmId: leave.firmId, role: { in: rolesWithCapability('approveLeave') }, user: { lineUserId: { not: null } } },
       select: { userId: true, user: { select: { lineUserId: true } } },
     });
     const allowed = await this.lineAllowed(owners.map((owner) => owner.userId));

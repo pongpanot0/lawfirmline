@@ -146,6 +146,28 @@ describe('LeaveService approval workflow', () => {
     expect(leave.status).toBe(LeaveStatus.APPROVED);
   });
 
+  it('a request filed by an OFFICE_MANAGER stays PENDING (only an owner auto-approves)', async () => {
+    const prisma = makePrisma();
+    const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
+    const leave = await new LeaveService(prisma, line, notifier, center).create(
+      { id: 'alice', firmId: 'firm-a', firmRole: FirmRole.OFFICE_MANAGER } as any,
+      { type: LeaveType.VACATION, startDate: inDays(1), endDate: inDays(2) },
+    );
+    expect(leave.status).toBe(LeaveStatus.PENDING);
+  });
+
+  it('asks owners and office managers to approve a pending request', async () => {
+    const prisma = makePrisma();
+    const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
+    await new LeaveService(prisma, line, notifier, center).create(
+      { id: 'alice', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any,
+      { type: LeaveType.VACATION, startDate: inDays(1), endDate: inDays(2) },
+    );
+    expect(prisma.firmMember.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ role: { in: ['OWNER', 'OFFICE_MANAGER'] } }),
+    }));
+  });
+
   function makeDecidePrisma(leave: any) {
     return {
       leaveRequest: {
@@ -174,6 +196,16 @@ describe('LeaveService approval workflow', () => {
     await expect(new LeaveService(prisma, line, notifier, center).decide(
       { id: 'u1', firmId: 'firm-a', firmRole: FirmRole.LAWYER } as any, 'leave-1', 'APPROVED',
     )).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('an OFFICE_MANAGER can decide another member\'s leave request', async () => {
+    const leave = { id: 'leave-1', firmId: 'firm-a', userId: 'alice', type: LeaveType.PERSONAL, status: LeaveStatus.PENDING, startDate: new Date('2026-10-05'), endDate: new Date('2026-10-05'), user: { lineUserId: null } };
+    const prisma = makeDecidePrisma(leave);
+    const line = { sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) } as any;
+    const decided = await new LeaveService(prisma, line, notifier, center).decide(
+      { id: 'om-1', firmId: 'firm-a', firmRole: FirmRole.OFFICE_MANAGER } as any, 'leave-1', 'APPROVED',
+    );
+    expect(decided.status).toBe('APPROVED');
   });
 
   it('deciding an already-decided request is rejected', async () => {
