@@ -20,7 +20,7 @@ export class ClientPortalInviteController {
    */
   @Post()
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER)
+  @FirmRoles(FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER)
   create(@CurrentUser() user: AuthUser, @Body() dto: CreatePortalInviteDto) {
     return this.invites.createInvite(user, dto.clientContactId);
   }

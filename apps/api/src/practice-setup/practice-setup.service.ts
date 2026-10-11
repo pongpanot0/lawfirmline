@@ -1,4 +1,4 @@
-import { FirmRole } from '@lawfirm/shared';
+import { FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   ActivityType,
@@ -71,7 +71,7 @@ export class PracticeSetupService {
     private assignmentNotifier: AssignmentNotifierService,
     private caseFeed: CaseFeedService,
   ) {}
-  private owner(user: AuthUser) { if (user.firmRole !== 'OWNER') throw new ForbiddenException('เจ้าของสำนักงานเท่านั้น / Firm owner required'); }
+  private owner(user: AuthUser) { if (!hasFirmCapability(user.firmRole, 'manageFirmContent')) throw new ForbiddenException('เจ้าของสำนักงานเท่านั้น / Firm owner required'); }
   async progress(user: AuthUser) {
     this.owner(user);
     const [members, clients, cases, invites, batches] = await Promise.all([

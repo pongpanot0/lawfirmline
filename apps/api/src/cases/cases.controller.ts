@@ -21,7 +21,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser, Role } from '@lawfirm/shared';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { OwnerOnly } from '../saas/decorators/saas.decorators';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { IntakePrecedentAnalysisService } from '../intake/intake-precedent-analysis.service';
 import { CaseCommentsService } from './case-comments.service';
 
@@ -74,7 +74,7 @@ export class CasesController {
 
   @Put(':id/assignments')
   @UseGuards(CaseAccessGuard, FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('reassignCaseLead')
   updateAssignments(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -115,8 +115,8 @@ export class CasesController {
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
-  @UseGuards(CaseAccessGuard)
+  @UseGuards(CaseAccessGuard, FirmRoleGuard)
+  @RequireCapability('deleteCase')
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.casesService.remove(user, id);
   }

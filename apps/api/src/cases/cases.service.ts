@@ -14,6 +14,7 @@ import {
   CaseStage,
   CaseStatus,
   FirmRole,
+  hasFirmCapability,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -460,7 +461,7 @@ export class CasesService {
     }
 
     if (dto.leadLawyerId) {
-      if (user.firmRole !== FirmRole.OWNER) {
+      if (!hasFirmCapability(user.firmRole, 'reassignCaseLead')) {
         throw new ForbiddenException('Only owners can reassign the case lead lawyer');
       }
       const isMember = await this.prisma.firmMember.count({
@@ -767,7 +768,7 @@ export class CasesService {
    * คดีที่ลบแล้วถูกกรองออกทุก query ที่ CaseAccessService
    */
   async remove(user: AuthUser, id: string) {
-    if (user.firmRole !== FirmRole.OWNER) {
+    if (!hasFirmCapability(user.firmRole, 'deleteCase')) {
       throw new ForbiddenException('Only owners can delete cases');
     }
     const legalCase = await this.findOne(user, id);

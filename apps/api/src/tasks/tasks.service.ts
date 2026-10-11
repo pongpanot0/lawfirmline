@@ -16,6 +16,7 @@ import {
   AuthUser,
   FirmRole,
   canAssignFirmRole,
+  hasFirmCapability,
   TaskLogAction,
   TaskPriority,
   TaskStatus,
@@ -162,7 +163,7 @@ export class TasksService {
     });
     if (!inFirm) throw new NotFoundException('Task not found');
 
-    if (user.firmRole === FirmRole.OWNER) return task;
+    if (hasFirmCapability(user.firmRole, 'viewAllCases')) return task;
     if (task.assigneeId === user.id || task.createdById === user.id) return task;
     // Sending for review changes the assignee; the sender still needs to follow the delivered work.
     if ([TaskStatus.PENDING_REVIEW, TaskStatus.DONE].includes(task.status as TaskStatus)) {
@@ -188,7 +189,7 @@ export class TasksService {
   }
 
   private assertLeadOrOwner(user: AuthUser, legalCase: CaseForAccess) {
-    if (user.firmRole === FirmRole.OWNER) return;
+    if (hasFirmCapability(user.firmRole, 'runOperations')) return;
     if (legalCase.leadLawyerId === user.id) return;
     throw new ForbiddenException('เฉพาะทนายความหลักของคดี (Lead) หรือ Owner เท่านั้นที่ทำรายการนี้ได้');
   }
@@ -359,7 +360,7 @@ export class TasksService {
   }
 
   async assertStandaloneOwnership(id: string, user: AuthUser) {
-    if (user.firmRole === FirmRole.OWNER || user.firmRole === FirmRole.SENIOR_LAWYER) {
+    if ([FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole)) {
       const task = await this.assertAccess(id, user);
       if (task.caseId) throw new NotFoundException('Task not found');
       return;
@@ -387,7 +388,7 @@ export class TasksService {
    */
   private async assertCanAssignTodo(user: AuthUser, assigneeId: string) {
     if (assigneeId === user.id) return;
-    if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole)) {
+    if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole)) {
       throw new ForbiddenException('เฉพาะ Owner หรือทนายอาวุโสที่มอบหมายงานให้ผู้อื่นได้');
     }
     const member = await this.prisma.firmMember.findFirst({
@@ -484,7 +485,7 @@ export class TasksService {
     if (!dto.title.trim()) throw new BadRequestException('ระบุชื่องาน');
     let routine: TaskRoutineSnapshot | null = null;
     if (dto.routineSource) {
-      if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole)) throw new ForbiddenException('ผู้ดูแลงานเท่านั้นที่เลือกวิธีทำงานประจำได้');
+      if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole)) throw new ForbiddenException('ผู้ดูแลงานเท่านั้นที่เลือกวิธีทำงานประจำได้');
       const release = await this.prisma.playbookRelease.findFirst({ where: { id: dto.routineSource.releaseId, firmId: user.firmId } });
       const step = (release?.steps as unknown as { instructions?: string; routine?: TaskRoutineDefinition }[])?.[dto.routineSource.stepIndex];
       if (!release || !step?.routine) throw new BadRequestException('ไม่พบวิธีทำงานประจำนี้ในสำนักงาน');
@@ -647,7 +648,7 @@ export class TasksService {
       const legalCase = task.caseId
         ? await this.prisma.case.findUnique({ where: { id: task.caseId } })
         : null;
-      if (!legalCase && user.firmRole !== FirmRole.OWNER) {
+      if (!legalCase && !hasFirmCapability(user.firmRole, 'runOperations')) {
         throw new ForbiddenException('เปลี่ยนสถานะได้เฉพาะงานของตัวเอง');
       }
       if (legalCase) this.assertLeadOrOwner(user, legalCase);

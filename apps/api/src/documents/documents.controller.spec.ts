@@ -4,6 +4,9 @@ import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { ForbiddenException } from '@nestjs/common';
+import { REQUIRE_CAPABILITY_KEY } from '../saas/decorators/saas.decorators';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { Role, FirmRole } from '@lawfirm/shared';
@@ -42,9 +45,8 @@ describe('DocumentsController role restrictions', () => {
     expect(roles).toEqual([Role.ADMIN, Role.LAWYER]);
   });
 
-  it('requires ADMIN role (singular) on updateVisibility', () => {
-    const roles = reflector.get(ROLES_KEY, controller.updateVisibility);
-    expect(roles).toEqual([Role.ADMIN]);
+  it('requires the manageFirmContent capability on updateVisibility', () => {
+    expect(reflector.get(REQUIRE_CAPABILITY_KEY, controller.updateVisibility)).toBe('manageFirmContent');
   });
 
   it('does NOT require a specific role on findByCase (read-only)', () => {
@@ -85,7 +87,15 @@ describe('DocumentsController RolesGuard outcome', () => {
       role: Role.LAWYER,
       firmRole: FirmRole.LAWYER,
     });
-    expect(guard.canActivate(context)).toBe(false);
+    expect(() => new FirmRoleGuard(new Reflector()).canActivate(context)).toThrow(ForbiddenException);
+  });
+
+  it('allows an OFFICE_MANAGER on the visibility toggle', () => {
+    const context = buildContext(DocumentsController.prototype.updateVisibility, {
+      role: Role.LAWYER,
+      firmRole: FirmRole.OFFICE_MANAGER,
+    });
+    expect(new FirmRoleGuard(new Reflector()).canActivate(context)).toBe(true);
   });
 
   it('allows a firm OWNER on upload regardless of professional role', () => {

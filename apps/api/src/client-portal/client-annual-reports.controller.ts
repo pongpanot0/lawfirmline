@@ -8,7 +8,7 @@ import {
 import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { OwnerOnly, SkipSubscription } from '../saas/decorators/saas.decorators';
+import { RequireCapability, SkipSubscription } from '../saas/decorators/saas.decorators';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ClientPortalGuard } from './client-portal.guard';
 import { CurrentPortalUser } from './current-portal-user.decorator';
@@ -42,7 +42,7 @@ class PublishAnnualReportDto extends ReportSelectionDto {
 
 @Controller('clients/:clientId/annual-reports')
 @UseGuards(JwtAuthGuard, FirmRoleGuard)
-@OwnerOnly()
+@RequireCapability('manageFirmContent')
 export class StaffAnnualReportsController {
   constructor(private reports: ClientAnnualReportsService) {}
 

@@ -28,6 +28,13 @@ describe('CaseAccessService client and intake filters', () => {
     expect(filter).toEqual({ firmId: 'firm-1' });
   });
 
+  it('OFFICE_MANAGER sees all firm clients, intakes and email threads', async () => {
+    const user = { id: 'om1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
+    expect(service.getClientFilterForUser(user)).toEqual({ firmId: 'firm-1' });
+    expect(await service.getIntakeFilterForUser(user)).toEqual({ firmId: 'firm-1' });
+    expect(await service.getEmailThreadFilterForUser(user)).toEqual({ firmId: 'firm-1' });
+  });
+
   it('LAWYER sees clients in any role only through visible cases', () => {
     const filter = service.getClientFilterForUser({
       id: 'u1',

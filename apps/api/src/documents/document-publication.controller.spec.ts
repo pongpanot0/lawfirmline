@@ -4,7 +4,8 @@ import { DocumentPublicationController } from './document-publication.controller
 import { DocumentPublicationService } from './document-publication.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { ForbiddenException } from '@nestjs/common';
 import { Role, FirmRole } from '@lawfirm/shared';
 
 describe('DocumentPublicationController', () => {
@@ -22,7 +23,7 @@ describe('DocumentPublicationController', () => {
       .useValue({ canActivate: () => true })
       .overrideGuard(CaseAccessGuard)
       .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
+      .overrideGuard(FirmRoleGuard)
       .useValue({ canActivate: () => true })
       .compile();
     controller = module.get(DocumentPublicationController);
@@ -51,8 +52,8 @@ describe('DocumentPublicationController', () => {
   });
 });
 
-describe('DocumentPublicationController RolesGuard outcome', () => {
-  const guard = new RolesGuard(new Reflector());
+describe('DocumentPublicationController FirmRoleGuard outcome', () => {
+  const guard = new FirmRoleGuard(new Reflector());
 
   function buildContext(handler: (...args: any[]) => unknown, reqUser: Record<string, unknown>) {
     return {
@@ -67,7 +68,7 @@ describe('DocumentPublicationController RolesGuard outcome', () => {
       role: Role.LAWYER,
       firmRole: FirmRole.ASSISTANT,
     });
-    expect(guard.canActivate(context)).toBe(false);
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
   it('denies a non-owner LAWYER on unpublish', () => {
@@ -75,13 +76,13 @@ describe('DocumentPublicationController RolesGuard outcome', () => {
       role: Role.LAWYER,
       firmRole: FirmRole.ASSISTANT,
     });
-    expect(guard.canActivate(context)).toBe(false);
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('allows an ADMIN on publish', () => {
+  it('allows an OFFICE_MANAGER on publish', () => {
     const context = buildContext(DocumentPublicationController.prototype.publish, {
-      role: Role.ADMIN,
-      firmRole: FirmRole.ASSISTANT,
+      role: Role.LAWYER,
+      firmRole: FirmRole.OFFICE_MANAGER,
     });
     expect(guard.canActivate(context)).toBe(true);
   });

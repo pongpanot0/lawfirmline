@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { OwnerOnly } from '../saas/decorators/saas.decorators';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 
 class TemplateDto {
   @IsString() @IsNotEmpty() @MaxLength(200) name!: string;
@@ -38,21 +38,21 @@ export class TemplatesController {
 
   @Post('document-templates')
   @UseGuards(FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageFirmContent')
   create(@CurrentUser() user: AuthUser, @Body() dto: TemplateDto) {
     return this.templatesService.create(user.firmId, dto);
   }
 
   @Patch('document-templates/:id')
   @UseGuards(FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageFirmContent')
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateTemplateDto) {
     return this.templatesService.update(user.firmId, id, dto);
   }
 
   @Delete('document-templates/:id')
   @UseGuards(FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('manageFirmContent')
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.templatesService.remove(user.firmId, id);
   }

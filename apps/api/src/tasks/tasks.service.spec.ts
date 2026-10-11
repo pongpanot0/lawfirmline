@@ -615,3 +615,63 @@ describe('TasksService.update — who may change a status', () => {
     expect(mockPrisma.task.update).toHaveBeenCalled();
   });
 });
+
+describe('TasksService — OFFICE_MANAGER', () => {
+  let service: TasksService;
+  const mockPrisma = {
+    task: { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn().mockResolvedValue([]), findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', recurrenceDays: null }) },
+    taskObserver: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
+    case: { findUnique: jest.fn() },
+    caseActivity: { create: jest.fn() },
+    taskAssignmentLog: { create: jest.fn() },
+    firmMember: { count: jest.fn(), findFirst: jest.fn() },
+  };
+  const mockCaseAccess = {
+    getTaskFilterForUser: jest.fn(),
+    getTaskAccessFilterForUser: jest.fn().mockReturnValue({}),
+  };
+  const manager = { id: 'om-1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockPrisma.task.update.mockResolvedValue({ id: 'task-1' });
+    mockTaskHistoryTransaction(mockPrisma);
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'case-1', firmId: 'firm-1', leadLawyerId: 'lead-1' });
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        TasksService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: mockCaseAccess },
+        { provide: FileStorageService, useValue: { delete: jest.fn() } },
+        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(TasksService);
+  });
+
+  it('can assign a todo to a LAWYER', async () => {
+    mockPrisma.firmMember.findFirst.mockResolvedValue({ role: FirmRole.LAWYER });
+    await expect((service as any).assertCanAssignTodo(manager, 'lawyer-1')).resolves.toBeUndefined();
+  });
+
+  it('cannot assign a todo to an OWNER', async () => {
+    mockPrisma.firmMember.findFirst.mockResolvedValue({ role: FirmRole.OWNER });
+    await expect((service as any).assertCanAssignTodo(manager, 'owner-1')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('can change the status of a colleague’s task (runs operations)', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1', caseId: 'case-1', assigneeId: 'someone-else', title: 'x' });
+    await service.update('task-1', { status: TaskStatus.DONE }, manager);
+    expect(mockPrisma.task.update).toHaveBeenCalled();
+  });
+
+  it('is never offered as a reviewer', async () => {
+    mockPrisma.firmMember.findFirst.mockResolvedValue(null);
+    await expect((service as any).validateReview(manager, true, 'om-2')).rejects.toThrow(BadRequestException);
+    expect(mockPrisma.firmMember.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ role: { in: [FirmRole.OWNER, FirmRole.SENIOR_LAWYER] } }),
+      }),
+    );
+  });
+});

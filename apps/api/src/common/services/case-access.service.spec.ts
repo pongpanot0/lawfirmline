@@ -21,6 +21,11 @@ describe('CaseAccessService', () => {
       expect(service.getCaseFilterForUser(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
     });
 
+    it('returns only a firm filter for OFFICE_MANAGER', () => {
+      const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
+      expect(service.getCaseFilterForUser(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
+    });
+
     it('returns the staffed-or-assigned filter for LAWYER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
       expect(service.getCaseFilterForUser(user)).toEqual({
@@ -117,6 +122,11 @@ describe('CaseAccessService', () => {
       expect(service.getTaskFilterForUser(user)).toEqual(firmScope);
     });
 
+    it('returns only the firm scope for OFFICE_MANAGER', () => {
+      const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
+      expect(service.getTaskFilterForUser(user)).toEqual(firmScope);
+    });
+
     it('keeps senior handed-off work visible inside the firm scope', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
       expect(service.getTaskFilterForUser(user)).toEqual({
@@ -156,6 +166,11 @@ describe('CaseAccessService', () => {
   describe('getCaseFilterForFinancials', () => {
     it('returns only a firm filter for OWNER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
+      expect(service.getCaseFilterForFinancials(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
+    });
+
+    it('returns only a firm filter for OFFICE_MANAGER financials', () => {
+      const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
       expect(service.getCaseFilterForFinancials(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
     });
 

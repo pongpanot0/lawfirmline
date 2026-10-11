@@ -4,7 +4,7 @@ import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { OwnerOnly } from '../saas/decorators/saas.decorators';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { SopsService } from './sops.service';
 
 class SopDto {
@@ -35,19 +35,19 @@ export class SopsController {
   }
 
   @Post()
-  @OwnerOnly()
+  @RequireCapability('manageFirmContent')
   create(@CurrentUser() user: AuthUser, @Body() dto: SopDto) {
     return this.sopsService.create(user, dto);
   }
 
   @Patch(':id')
-  @OwnerOnly()
+  @RequireCapability('manageFirmContent')
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateSopDto) {
     return this.sopsService.update(user, id, dto);
   }
 
   @Delete(':id')
-  @OwnerOnly()
+  @RequireCapability('manageFirmContent')
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.sopsService.remove(user, id);
   }

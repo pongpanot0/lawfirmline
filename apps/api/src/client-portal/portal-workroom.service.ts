@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
-import { AuthUser } from '@lawfirm/shared';
+import { AuthUser, hasFirmCapability } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -17,7 +17,7 @@ export class PortalWorkroomService {
   private async scope(actor: WorkroomActor): Promise<Prisma.PortalIntakeSubmissionWhereInput> {
     if ('portal' in actor) return portalRequestScope(actor.portal);
     const u = actor.staff;
-    if (u.firmRole === 'OWNER' || u.firmRole === 'SENIOR_LAWYER') return { client: { firmId: u.firmId } };
+    if (hasFirmCapability(u.firmRole, 'viewAllCases') || u.firmRole === 'SENIOR_LAWYER') return { client: { firmId: u.firmId } };
     // Requests are backed by an intake (F01) or opened straight as a case — either grants access.
     return { client: { firmId: u.firmId }, OR: [{ intake: await this.access.getIntakeFilterForUser(u) }, { case: this.access.getCaseFilterForUser(u) }] };
   }

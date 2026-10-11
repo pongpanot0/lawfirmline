@@ -1,6 +1,6 @@
 import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -107,7 +107,7 @@ export class Client360Service {
         select: { userId: true, role: true, user: { select: { firstName: true, lastName: true } } },
         orderBy: { user: { lastName: 'asc' } },
       }),
-      user.firmRole === FirmRole.OWNER
+      hasFirmCapability(user.firmRole, 'viewAllCases')
         ? this.prisma.clientAnnualReport.findFirst({
           where: { firmId: user.firmId, clientId, revokedAt: null },
           select: { id: true, year: true, audience: true, publishedAt: true },

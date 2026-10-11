@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
-import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AuthUser, Role } from '@lawfirm/shared';
+import { AuthUser } from '@lawfirm/shared';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { DocumentPublicationService } from './document-publication.service';
 import { PublishDocumentDto } from './dto/publish-document.dto';
 
@@ -23,8 +23,8 @@ export class DocumentPublicationController {
   }
 
   @Post()
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageFirmContent')
   publish(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
@@ -35,8 +35,8 @@ export class DocumentPublicationController {
   }
 
   @Delete(':publicationId')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageFirmContent')
   unpublish(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
