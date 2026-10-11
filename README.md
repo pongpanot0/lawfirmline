@@ -79,6 +79,7 @@ All accounts use password: `password123`
 |------|-------|
 | Admin | admin@lawfirm.com |
 | Lawyer | lawyer1@lawfirm.com … lawyer4@lawfirm.com |
+| Office manager | office@lawfirm.com |
 
 ## API Endpoints
 

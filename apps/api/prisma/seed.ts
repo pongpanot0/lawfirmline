@@ -109,6 +109,16 @@ async function main() {
     },
   });
 
+  const officeManager = await prisma.user.create({
+    data: {
+      email: 'office@lawfirm.com',
+      passwordHash,
+      firstName: 'Office',
+      lastName: 'Manager',
+      role: Role.LAWYER,
+    },
+  });
+
   await prisma.firmMember.createMany({
     data: [
       { firmId: firm.id, userId: admin.id, role: 'OWNER' },
@@ -116,6 +126,7 @@ async function main() {
       { firmId: firm.id, userId: lawyer1.id, role: 'LAWYER' },
       { firmId: firm.id, userId: lawyer2.id, role: 'LAWYER' },
       { firmId: firm.id, userId: assistant.id, role: 'ASSISTANT' },
+      { firmId: firm.id, userId: officeManager.id, role: 'OFFICE_MANAGER' },
     ],
   });
 
