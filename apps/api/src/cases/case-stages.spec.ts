@@ -37,6 +37,7 @@ describe('case stages', () => {
       caseType: { count: jest.fn().mockResolvedValue(0) },
       clientContact: { count: jest.fn().mockResolvedValue(0) },
     };
+    prisma.$transaction = jest.fn((fn: (tx: unknown) => unknown) => fn(prisma));
     const module = await Test.createTestingModule({
       providers: [
         CasesService,
@@ -188,5 +189,87 @@ describe('case stages', () => {
         update: { blackCaseNumber: 'พ.9/2569' },
       }),
     );
+  });
+
+  describe('court levels keep each level’s numbers', () => {
+    // In-memory case row + proceedings so the tests see what ends up where.
+    const useDb = (caseRow: Record<string, unknown>, rows: Record<string, unknown>[] = []) => {
+      const legalCase = { ...base, ...caseRow };
+      const proceedings = new Map<string, any>(rows.map((r) => [r.courtLevel as string, { ...r }]));
+      prisma.case.findUnique.mockImplementation(() => Promise.resolve({ ...legalCase }));
+      prisma.case.update.mockImplementation(({ data }: any) => {
+        Object.assign(legalCase, data);
+        return Promise.resolve({ ...legalCase });
+      });
+      prisma.caseProceeding.upsert.mockImplementation(({ where, create, update }: any) => {
+        const level = where.caseId_courtLevel.courtLevel;
+        const row = proceedings.has(level)
+          ? Object.assign(proceedings.get(level), update)
+          : { courtName: null, blackCaseNumber: null, redCaseNumber: null, ...create };
+        proceedings.set(level, row);
+        return Promise.resolve(row);
+      });
+      prisma.caseProceeding.findUnique.mockImplementation(({ where }: any) =>
+        Promise.resolve(proceedings.get(where.caseId_courtLevel.courtLevel) ?? null),
+      );
+      return { legalCase, proceedings };
+    };
+    const trialCase = { courtLevel: 'TRIAL', courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569', redCaseNumber: null };
+    const overview = (over: Record<string, unknown>) =>
+      ({ courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569', redCaseNumber: '', courtLevel: 'TRIAL', ...over }) as any;
+
+    it('moving to APPEAL keeps the trial numbers on a TRIAL proceeding even when none existed', async () => {
+      const db = useDb({ ...trialCase, stage: 'AWAITING_JUDGMENT' });
+
+      await service.update(user, 'case-1', { stage: 'APPEAL' } as any);
+
+      expect(db.proceedings.get('TRIAL')).toMatchObject({ courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569' });
+      expect(db.legalCase).toMatchObject({
+        courtLevel: 'APPEAL', courtName: 'ศาลอุทธรณ์', blackCaseNumber: null, redCaseNumber: null,
+      });
+      expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('an overview save switching TRIAL → APPEAL leaves the trial numbers on TRIAL', async () => {
+      const db = useDb(trialCase);
+
+      await service.update(user, 'case-1', overview({ courtLevel: 'APPEAL' }));
+
+      expect(db.proceedings.get('TRIAL')).toMatchObject({ blackCaseNumber: 'พ.1/2569' });
+      expect(db.proceedings.get('APPEAL')).toMatchObject({ courtName: 'ศาลอุทธรณ์', blackCaseNumber: null });
+      expect(db.legalCase).toMatchObject({ courtLevel: 'APPEAL', blackCaseNumber: null });
+    });
+
+    it('numbers edited in the same save as a level switch belong to the level being edited', async () => {
+      const db = useDb(trialCase);
+
+      await service.update(user, 'case-1', overview({ courtLevel: 'APPEAL', redCaseNumber: 'พ.9/2570' }));
+
+      expect(db.proceedings.get('TRIAL')).toMatchObject({ redCaseNumber: 'พ.9/2570' });
+      expect(db.proceedings.get('APPEAL')).toMatchObject({ redCaseNumber: null });
+    });
+
+    it('switching APPEAL → TRIAL does not overwrite TRIAL with the appeal numbers', async () => {
+      const db = useDb(
+        { courtLevel: 'APPEAL', courtName: 'ศาลอุทธรณ์', blackCaseNumber: 'อ.5/2570', redCaseNumber: null },
+        [
+          { courtLevel: 'TRIAL', courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569', redCaseNumber: null },
+          { courtLevel: 'APPEAL', courtName: 'ศาลอุทธรณ์', blackCaseNumber: 'อ.5/2570', redCaseNumber: null },
+        ],
+      );
+
+      await service.update(user, 'case-1', overview({ courtName: 'ศาลอุทธรณ์', blackCaseNumber: 'อ.5/2570', courtLevel: 'TRIAL' }));
+
+      expect(db.proceedings.get('TRIAL')).toMatchObject({ courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569' });
+      expect(db.legalCase).toMatchObject({ courtLevel: 'TRIAL', courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569' });
+    });
+
+    it('an unchanged overview save creates no proceeding', async () => {
+      useDb(trialCase);
+
+      await service.update(user, 'case-1', overview({}));
+
+      expect(prisma.caseProceeding.upsert).not.toHaveBeenCalled();
+    });
   });
 });

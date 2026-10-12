@@ -10,6 +10,37 @@ const key = (caseId: string, courtLevel: CourtLevel) => ({ caseId_courtLevel: { 
 const blankToNull = (value: string | null | undefined) =>
   value === undefined ? undefined : value?.trim() ? value.trim() : null;
 
+/** The level a case is at: its courtLevel, TRIAL when unset. */
+export const currentLevel = (legalCase: { courtLevel?: string | null }) =>
+  (legalCase.courtLevel as CourtLevel | null | undefined) ?? CourtLevel.TRIAL;
+
+/**
+ * Keeps what the case shows now in the proceeding of its current level, so moving
+ * the case to another level never loses those numbers. An existing row wins.
+ */
+export async function snapshotCurrentLevel(
+  db: ProceedingDb,
+  legalCase: {
+    id: string;
+    courtLevel?: string | null;
+    courtName?: string | null;
+    blackCaseNumber?: string | null;
+    redCaseNumber?: string | null;
+  },
+) {
+  return db.caseProceeding.upsert({
+    where: key(legalCase.id, currentLevel(legalCase)),
+    create: {
+      caseId: legalCase.id,
+      courtLevel: currentLevel(legalCase),
+      courtName: blankToNull(legalCase.courtName) ?? null,
+      blackCaseNumber: blankToNull(legalCase.blackCaseNumber) ?? null,
+      redCaseNumber: blankToNull(legalCase.redCaseNumber) ?? null,
+    },
+    update: {},
+  });
+}
+
 /** A trial proceeding starts with the case's court; a higher one with the court level's name. */
 async function initialCourtName(db: ProceedingDb, caseId: string, courtLevel: CourtLevel) {
   if (courtLevel !== CourtLevel.TRIAL) return COURT_LEVEL_LABELS[courtLevel];
@@ -33,7 +64,7 @@ export async function ensureProceeding(db: ProceedingDb, caseId: string, courtLe
  */
 export async function mirrorProceeding(db: ProceedingDb, caseId: string): Promise<void> {
   const legalCase = await db.case.findUnique({ where: { id: caseId }, select: { courtLevel: true } });
-  const level = (legalCase?.courtLevel as CourtLevel | null) ?? CourtLevel.TRIAL;
+  const level = currentLevel(legalCase ?? {});
   const current = await db.caseProceeding.findUnique({ where: key(caseId, level) });
   if (!current) return;
   await db.case.update({

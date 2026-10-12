@@ -32,7 +32,13 @@ import { CLIENT_CONTACT_SELECT } from '../clients/client-contact.select';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
 import { Optional } from '@nestjs/common';
 import { formatCaseNotificationReference } from '../notifications/reference-label';
-import { ensureProceeding, mirrorProceeding, saveCaseNumbers } from './proceeding-mirror';
+import {
+  currentLevel,
+  ensureProceeding,
+  mirrorProceeding,
+  saveCaseNumbers,
+  snapshotCurrentLevel,
+} from './proceeding-mirror';
 
 const OWN_REF_TAKEN_MESSAGE = 'เลขคดีนี้ถูกใช้กับคดีอื่นในสำนักงานแล้ว กรุณาใช้เลขอื่น';
 
@@ -420,6 +426,9 @@ export class CasesService {
       at: created.openedAt,
     });
     if (dto.limitationDeadline) await syncLimitationReminder(this.prisma, created.id);
+    if ([dto.courtName, dto.blackCaseNumber, dto.redCaseNumber].some((v) => v?.trim())) {
+      await snapshotCurrentLevel(this.prisma, created);
+    }
 
     if (dto.initialActivity) {
       await this.activitiesService.create(
@@ -584,27 +593,47 @@ export class CasesService {
       });
     }
 
-    // Numbers typed on the overview belong to the proceeding the case is at.
-    if (dto.blackCaseNumber !== undefined || dto.redCaseNumber !== undefined || dto.courtName !== undefined) {
-      await saveCaseNumbers(this.prisma, id, (updated.courtLevel as CourtLevel | null) ?? CourtLevel.TRIAL, {
-        courtName: dto.courtName,
-        blackCaseNumber: dto.blackCaseNumber,
-        redCaseNumber: dto.redCaseNumber,
-      });
+    if (await this.syncProceedings(id, before, dto, stageChanged)) {
+      // Re-read so the response carries the level, mirrored numbers and proceedings.
+      return this.findOne(user, id);
     }
-    // Entering APPEAL / SUPREME moves the case to that court (spec L2).
-    if (stageChanged && (dto.stage === CaseStage.APPEAL || dto.stage === CaseStage.SUPREME)) {
-      const level = dto.stage === CaseStage.APPEAL ? CourtLevel.APPEAL : CourtLevel.SUPREME;
-      await ensureProceeding(this.prisma, id, level);
-      if (updated.courtLevel !== level) {
-        await this.prisma.case.update({ where: { id }, data: { courtLevel: level } });
-        await mirrorProceeding(this.prisma, id);
-        // Re-read so the response carries the new level and mirrored numbers.
-        return this.findOne(user, id);
-      }
-    }
-
     return updated;
+  }
+
+  /**
+   * Court numbers live per level (spec L3); Case only mirrors the current one.
+   * Numbers typed on the overview belong to the level the user was looking at
+   * (`before`); a level change (direct, or entering APPEAL / SUPREME — spec L2)
+   * first snapshots that level so nothing it showed is lost. Returns whether
+   * anything was written.
+   */
+  private async syncProceedings(
+    id: string,
+    before: { courtLevel: string | null; courtName: string | null; blackCaseNumber: string | null; redCaseNumber: string | null },
+    dto: UpdateCaseDto,
+    stageChanged: boolean,
+  ): Promise<boolean> {
+    const fromLevel = currentLevel(before);
+    const enteredHigherCourt = stageChanged && (dto.stage === CaseStage.APPEAL || dto.stage === CaseStage.SUPREME);
+    const toLevel = enteredHigherCourt
+      ? dto.stage === CaseStage.APPEAL ? CourtLevel.APPEAL : CourtLevel.SUPREME
+      : dto.courtLevel !== undefined ? currentLevel(dto) : fromLevel;
+    const numbers = { courtName: dto.courtName, blackCaseNumber: dto.blackCaseNumber, redCaseNumber: dto.redCaseNumber };
+    const numbersChanged = (Object.keys(numbers) as (keyof typeof numbers)[]).some(
+      (field) => numbers[field] !== undefined && (numbers[field]?.trim() || null) !== (before[field]?.trim() || null),
+    );
+    if (!numbersChanged && !enteredHigherCourt && toLevel === fromLevel) return false;
+
+    await this.prisma.$transaction(async (tx) => {
+      await snapshotCurrentLevel(tx, { id, ...before });
+      if (numbersChanged) await saveCaseNumbers(tx, id, fromLevel, numbers);
+      if (toLevel !== fromLevel) {
+        await ensureProceeding(tx, id, toLevel);
+        await tx.case.update({ where: { id }, data: { courtLevel: toLevel } });
+      }
+      await mirrorProceeding(tx, id);
+    });
+    return true;
   }
 
   async updateAssignments(user: AuthUser, id: string, dto: UpdateCaseAssignmentsDto) {
