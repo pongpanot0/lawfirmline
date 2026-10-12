@@ -70,6 +70,17 @@ export interface CaseListItem {
   updatedAt: string;
 }
 
+export interface CaseParticipant {
+  id: string;
+  name: string;
+  role: string;
+  side: string;
+  personType: string | null;
+  phone: string | null;
+  clientId: string | null;
+  representedByParticipantId: string | null;
+}
+
 export interface CaseDetail extends CaseListItem {
   clientName: string | null;
   courtLevel: string;
@@ -81,6 +92,8 @@ export interface CaseDetail extends CaseListItem {
   redCaseNumber: string | null;
   openedAt: string;
   client?: { id: string; name: string; phone?: string | null } | null;
+  partyRole?: import('@lawfirm/shared').PartyRole | null;
+  participants?: CaseParticipant[];
 }
 
 export interface TaskItem {

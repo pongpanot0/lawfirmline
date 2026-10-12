@@ -554,6 +554,36 @@ export enum ParticipantSide {
   NEUTRAL = 'NEUTRAL',
 }
 
+export const PARTICIPANT_ROLE_LABELS: Record<ParticipantRole, string> = {
+  [ParticipantRole.PLAINTIFF]: 'โจทก์',
+  [ParticipantRole.JOINT_PLAINTIFF]: 'โจทก์ร่วม',
+  [ParticipantRole.DEFENDANT]: 'จำเลย',
+  [ParticipantRole.JOINT_DEFENDANT]: 'จำเลยร่วม',
+  [ParticipantRole.PETITIONER]: 'ผู้ร้อง',
+  [ParticipantRole.RESPONDENT]: 'ผู้คัดค้าน',
+  [ParticipantRole.WITNESS]: 'พยาน',
+  [ParticipantRole.EXPERT]: 'ผู้เชี่ยวชาญ',
+  [ParticipantRole.OPPOSING_LAWYER]: 'ทนายฝ่ายตรงข้าม',
+  [ParticipantRole.OPPOSING_INSURER]: 'บริษัทประกันฝ่ายตรงข้าม',
+  [ParticipantRole.OTHER]: 'อื่น ๆ',
+};
+
+export const PARTICIPANT_SIDE_LABELS: Record<ParticipantSide, string> = {
+  [ParticipantSide.OURS]: 'ฝ่ายเรา',
+  [ParticipantSide.OPPONENT]: 'ฝ่ายตรงข้าม',
+  [ParticipantSide.NEUTRAL]: 'ผู้เกี่ยวข้อง',
+};
+
+const SIDE_ORDER: ParticipantSide[] = [ParticipantSide.OURS, ParticipantSide.OPPONENT, ParticipantSide.NEUTRAL];
+
+export function groupParticipantsBySide<T extends { side: string }>(rows: T[]) {
+  return SIDE_ORDER.map((side) => ({
+    side,
+    label: PARTICIPANT_SIDE_LABELS[side],
+    items: rows.filter((row) => row.side === side),
+  })).filter((group) => group.items.length > 0);
+}
+
 export enum InsuranceClaimStage {
   CLAIM_FILED = 'CLAIM_FILED',
   DENIED_OR_PARTIAL = 'DENIED_OR_PARTIAL',

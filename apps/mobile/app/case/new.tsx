@@ -3,18 +3,19 @@ import { Alert } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { COURT_LEVEL_LABELS, CourtLevel, hasFirmCapability } from '@lawfirm/shared';
+import { COURT_LEVEL_LABELS, CourtLevel, PARTY_ROLE_LABELS, PartyRole, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
-import { api } from '@/api/client';
+import { ApiError, api } from '@/api/client';
 import { useCase, useCourts } from '@/api/hooks';
 import type { CaseDetail } from '@/api/types';
 import { uploadCaseDocument } from '@/api/files';
 import { Attachments, AttachmentFile } from '@/components/Attachments';
 import { TeamFields } from '@/components/TeamFields';
+import { ClientPicker, PickedClient } from '@/components/ClientPicker';
 import { Dropdown } from '@/components/Dropdown';
 import { FormPage, FormField, FormSection } from '@/components/Form';
 import { Disclosure } from '@/components/Disclosure';
-import { Button, ErrorNote, Loading, PageIntro, SectionLabel } from '@/components/ui';
+import { Button, Card, ErrorNote, Loading, PageIntro, SectionLabel } from '@/components/ui';
 import { colors, formLabelSpacing } from '@/theme';
 
 export default function CaseFormScreen() {
@@ -27,7 +28,11 @@ export default function CaseFormScreen() {
   const courts = useCourts();
   const types = useQuery({ queryKey: ['case-types'], queryFn: () => api<Array<{ id: string; name: string }>>('/case-types?activeOnly=true') });
   const [title, setTitle] = useState('');
-  const [clientName, setClientName] = useState('');
+  const [pickedClient, setPickedClient] = useState<PickedClient | null>(null);
+  const [partyRole, setPartyRole] = useState('');
+  const [opponents, setOpponents] = useState<string[]>(['']);
+  const [conflict, setConflict] = useState<Array<{ name: string; side?: string; ownRef?: string; caseTitle?: string }> | null>(null);
+  const [overrideReason, setOverrideReason] = useState('');
   const [description, setDescription] = useState('');
   const [courtName, setCourtName] = useState('');
   const [courtLevel, setCourtLevel] = useState<string>('TRIAL');
@@ -43,7 +48,8 @@ export default function CaseFormScreen() {
     if (!current.data || seeded.current === current.data.id) return;
     seeded.current = current.data.id;
     const data = current.data;
-    setTitle(data.title); setClientName(data.clientName ?? data.client?.name ?? '');
+    setTitle(data.title);
+    setPickedClient(data.client ? { id: data.client.id, name: data.client.name } : null); setPartyRole(data.partyRole ?? '');
     setDescription(data.description ?? ''); setCourtName(data.courtName ?? ''); setCourtLevel(data.courtLevel);
     setCaseTypeId(data.caseTypeId ?? '');
     setStatus(data.status);
@@ -56,7 +62,11 @@ export default function CaseFormScreen() {
     try {
       let target = savedId;
       if (!target) {
-        const body = { title: title.trim(), clientName: clientName.trim() || undefined,
+        const body = { title: title.trim(),
+          ...(pickedClient ? { clientId: pickedClient.id, clientName: pickedClient.name } : {}),
+          partyRole: partyRole || (id ? null : undefined),
+          ...(!id ? { opponents: opponents.map(name => name.trim()).filter(Boolean).map(name => ({ name })) } : {}),
+          ...(!id && overrideReason.trim() ? { conflictOverrideReason: overrideReason.trim() } : {}),
           description: description.trim(), courtName: courtName || undefined, courtLevel, caseTypeId: caseTypeId || undefined,
           ...(id && status !== current.data?.status ? { status } : {}) };
         const saved = await api<CaseDetail>(id ? `/cases/${id}` : '/cases', { method: id ? 'PATCH' : 'POST',
@@ -74,6 +84,8 @@ export default function CaseFormScreen() {
       await client.invalidateQueries({ queryKey: ['workload'] });
       router.replace(`/case/${target}`);
     } catch (e) {
+      const conflictBody = e instanceof ApiError && e.status === 409 ? (e.body as { code?: string; matches?: typeof conflict }) : null;
+      if (conflictBody?.code === 'CONFLICT_FOUND') { setConflict(conflictBody.matches ?? []); return; }
       setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ');
     } finally { setBusy(false); }
   };
@@ -84,7 +96,16 @@ export default function CaseFormScreen() {
     <PageIntro title={id ? 'รายละเอียดคดี' : 'เริ่มแฟ้มคดีใหม่'} detail="กรอกชื่อคดีและเลือกคนหลักก่อน ข้อมูลศาลและไฟล์เติมเพิ่มได้" />
     <FormSection title="ข้อมูลคดี">
     <FormField label="ชื่อคดี" value={title} onChange={setTitle} disabled={busy || !!savedId} />
-    <FormField label="ชื่อลูกความ" value={clientName} onChange={setClientName} disabled={busy || !!savedId} />
+    <SectionLabel style={formLabelSpacing}>ลูกความ</SectionLabel>
+    <ClientPicker value={pickedClient} onChange={setPickedClient} disabled={busy || !!savedId} />
+    <Dropdown label="เราเป็น" value={partyRole} onChange={setPartyRole} disabled={busy || !!savedId}
+      options={[{ value: '', label: 'ยังไม่ระบุ' }, ...Object.values(PartyRole).map(role => ({ value: role, label: PARTY_ROLE_LABELS[role] }))]} />
+    {!id && <>
+      <SectionLabel style={formLabelSpacing}>คู่ความฝ่ายตรงข้าม</SectionLabel>
+      {opponents.map((name, index) => <FormField key={index} label={`รายที่ ${index + 1}`} value={name} disabled={busy || !!savedId}
+        onChange={next => setOpponents(rows => rows.map((row, i) => i === index ? next : row))} placeholder="ชื่อบุคคลหรือบริษัท" />)}
+      <Button title="เพิ่มคู่ความ" ghost disabled={busy || !!savedId} onPress={() => setOpponents(rows => [...rows, ''])} />
+    </>}
     {id && <Dropdown label="สถานะคดี" value={status} onChange={setStatus}
       disabled={busy || !!savedId || ['CLOSED', 'ARCHIVED'].includes(current.data?.status ?? '')}
       options={[{ value: 'OPEN', label: 'เปิดคดี' }, { value: 'DRAFTING', label: 'ร่างเอกสาร' },
@@ -115,6 +136,12 @@ export default function CaseFormScreen() {
     </FormSection>
     {!!savedId && <Text style={{ color: colors.info }}>คดีบันทึกแล้ว · ส่งไฟล์ที่เหลือต่อได้โดยไม่สร้างคดีซ้ำ</Text>}
     {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
-    <Button title={savedId ? 'ส่งไฟล์ที่เหลือ / เปิดคดี' : id ? 'บันทึกคดี' : 'บันทึกเคส'} busy={busy} onPress={save} />
+    {conflict && <Card>
+      <Text style={{ color: colors.warn, fontWeight: '700' }}>พบชื่อที่อาจขัดกัน</Text>
+      {conflict.map((m, i) => <Text key={i} style={{ marginTop: 4 }}>{m.name} — {m.side === 'OURS' ? 'ฝ่ายเรา' : 'ฝ่ายตรงข้าม'}{m.ownRef ? ` ในคดี ${m.ownRef}` : ''}</Text>)}
+      <FormField label="เหตุผลที่เปิดต่อ (อย่างน้อย 10 ตัวอักษร)" value={overrideReason} onChange={setOverrideReason} multiline disabled={busy} />
+    </Card>}
+    <Button title={savedId ? 'ส่งไฟล์ที่เหลือ / เปิดคดี' : id ? 'บันทึกคดี' : 'บันทึกเคส'} busy={busy}
+      disabled={!!conflict && overrideReason.trim().length < 10} onPress={save} />
   </FormPage>;
 }
