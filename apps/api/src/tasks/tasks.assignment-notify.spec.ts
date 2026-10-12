@@ -10,7 +10,7 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 describe('TasksService assignment notifications', () => {
   let service: TasksService;
   const mockPrisma = {
-    task: { create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    task: { create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },

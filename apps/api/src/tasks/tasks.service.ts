@@ -199,7 +199,8 @@ export class TasksService {
    * else the case lead. A reviewer-less case task may also be closed by the
    * OWNER, so a lead who left the case never strands it.
    */
-  private assertReviewer(task: { reviewerId: string | null }, leadLawyerId: string | null, user: AuthUser) {
+  private assertReviewer(task: { reviewerId: string | null; assigneeId: string | null }, leadLawyerId: string | null, user: AuthUser) {
+    if (task.assigneeId === user.id) throw new ForbiddenException('ผู้ทำงานตรวจงานของตัวเองไม่ได้');
     if (user.firmRole === FirmRole.OFFICE_MANAGER) throw new ForbiddenException('เฉพาะผู้ตรวจของงานนี้เท่านั้น');
     if (effectiveReviewerId(task, leadLawyerId) === user.id) return;
     if (!task.reviewerId && leadLawyerId && user.firmRole === FirmRole.OWNER) return;
@@ -279,20 +280,24 @@ export class TasksService {
   }
 
   private async notifyReviewer(task: { id: string; title: string; caseId: string | null }, reviewerId: string, user: AuthUser, note: string) {
-    const [worker, reference] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: user.id }, select: { firstName: true, lastName: true } }),
-      this.referenceLine(task.caseId),
-    ]);
-    await this.assignmentNotifier.notifyAssigned({
-      firmId: user.firmId,
-      userIds: [reviewerId],
-      actorUserId: user.id,
-      category: NotificationCategory.TASK,
-      summaryText: `📋 ส่งงานให้ตรวจ: ${task.title}\nจาก: ${worker?.firstName ?? ''} ${worker?.lastName ?? ''}${reference ? `\n${reference}` : ''}\nหมายเหตุ: ${note}`,
-      entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
-      appPath: taskAppRoute(task.id),
-      lineActions: () => lineActions.review(task.id),
-    });
+    try {
+      const [worker, reference] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: user.id }, select: { firstName: true, lastName: true } }),
+        this.referenceLine(task.caseId),
+      ]);
+      await this.assignmentNotifier.notifyAssigned({
+        firmId: user.firmId,
+        userIds: [reviewerId],
+        actorUserId: user.id,
+        category: NotificationCategory.TASK,
+        summaryText: `📋 ส่งงานให้ตรวจ: ${task.title}\nจาก: ${worker?.firstName ?? ''} ${worker?.lastName ?? ''}${reference ? `\n${reference}` : ''}\nหมายเหตุ: ${note}`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+        appPath: taskAppRoute(task.id),
+        lineActions: () => lineActions.review(task.id),
+      });
+    } catch (err) {
+      this.logger.warn(`Review notice failed for task ${task.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private async logAssignment(params: {
@@ -680,13 +685,15 @@ export class TasksService {
     if (dto.recurrenceDays !== undefined && user.firmRole !== FirmRole.OWNER && task.assigneeId !== user.id) {
       throw new ForbiddenException('Owner หรือผู้รับงานเท่านั้นที่ตั้งรอบงานซ้ำได้');
     }
-    if (task.routine && dto.requiresReview === false) throw new BadRequestException('งานประจำนี้ต้องผ่านผู้ตรวจตาม SOP');
+    if (task.routine && (dto.requiresReview === false || dto.requiresAttachment === false)) throw new BadRequestException('งานประจำนี้ต้องผ่านผู้ตรวจตาม SOP');
     if (task.routine && dto.description !== undefined && dto.description !== task.description) throw new BadRequestException('งานนี้คงวิธีทำตามรุ่น SOP ที่ได้รับ');
     if (dto.assigneeId && dto.assigneeId !== task.assigneeId) await this.assertCanAssignTodo(user, dto.assigneeId);
-    if (dto.requiresReview !== undefined || dto.reviewerId !== undefined) {
+    if (dto.requiresReview !== undefined || dto.reviewerId !== undefined || dto.requiresAttachment !== undefined) {
       if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(user.firmRole)) {
         throw new ForbiddenException('เฉพาะ Owner หรือทนายอาวุโสที่เปลี่ยนเงื่อนไขตรวจงานได้');
       }
+    }
+    if (dto.requiresReview !== undefined || dto.reviewerId !== undefined) {
       await this.validateReview(user, dto.requiresReview ?? task.requiresReview, dto.reviewerId === undefined ? task.reviewerId : dto.reviewerId, { caseId: task.caseId, assigneeId: dto.assigneeId ?? task.assigneeId });
     }
     if (dto.status === TaskStatus.DONE && (dto.requiresReview ?? task.requiresReview)) {
@@ -790,6 +797,21 @@ export class TasksService {
     }
 
     return updated;
+  }
+
+  /** Check-and-set status change: only the caller that still finds the task in `from` wins; the loser is refused. */
+  private async transition(taskId: string, from: TaskStatus[], data: Prisma.TaskUpdateManyMutationInput & { assigneeId?: string | null; reviewerId?: string | null }, user: AuthUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.task.findUniqueOrThrow({ where: { id: taskId } });
+      const claimed = await tx.task.updateMany({ where: { id: taskId, status: { in: from } }, data });
+      if (!claimed.count) throw new BadRequestException('งานนี้ถูกดำเนินการไปแล้ว กรุณารีเฟรช');
+      const updated = await tx.task.findUniqueOrThrow({ where: { id: taskId } });
+      if (before.status !== updated.status) await tx.auditLog.create({ data: {
+        firmId: user.firmId, userId: user.id, action: 'TASK_CHANGED',
+        metadata: { taskId, changes: [{ field: 'status', before: before.status, after: updated.status }] },
+      } });
+      return updated;
+    });
   }
 
   private async updateWithHistory<T extends Prisma.TaskUpdateArgs>(args: Prisma.SelectSubset<T, Prisma.TaskUpdateArgs>, user: AuthUser) {
@@ -979,6 +1001,7 @@ export class TasksService {
     if (!claimed.count) throw new BadRequestException('ส่งงานนี้ไปแล้ว');
 
     if (toReview) {
+      if (task.caseId) await this.ensureCaseMembership(task.caseId, task.reviewerId!);
       // Recorded as a hand-off so a rejection returns the work to whoever did it.
       await this.logAssignment({
         taskId, action: TaskLogAction.HANDED_OFF, fromUserId: user.id, toUserId: task.reviewerId!, performedById: user.id,
@@ -1052,9 +1075,9 @@ export class TasksService {
 
     const note = await this.prepareHandoff(task, user, dto.note);
     await this.ensureCaseMembership(caseId, reviewerId);
-    await this.updateWithHistory({ where: { id: taskId }, data: {
+    await this.transition(taskId, allowed, {
       status: TaskStatus.PENDING_REVIEW, assigneeId: task.assigneeId ?? user.id, submittedAt: new Date(), completedAt: null,
-    } }, user);
+    }, user);
     await this.logAssignment({
       taskId, action: TaskLogAction.HANDED_OFF, fromUserId: user.id, toUserId: reviewerId, performedById: user.id,
       note, stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
@@ -1073,7 +1096,7 @@ export class TasksService {
     if (task.status !== TaskStatus.PENDING_REVIEW) throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
 
     await this.assertRoutineReady(task);
-    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.DONE, completedAt: new Date() } }, user);
+    await this.transition(taskId, [TaskStatus.PENDING_REVIEW], { status: TaskStatus.DONE, completedAt: new Date() }, user);
     await this.logActivity(caseId, `ปิดงาน "${task.title}"`, user.id);
     await this.notifyWorker(task, user, `✅ งานผ่านการตรวจแล้ว\nงาน: ${task.title}`);
     await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
@@ -1096,9 +1119,9 @@ export class TasksService {
       where: { taskId: task.id, action: TaskLogAction.HANDED_OFF }, orderBy: { createdAt: 'desc' },
     });
     const workerId = task.assigneeId ?? lastHandoff?.fromUserId ?? task.createdById;
-    await this.updateWithHistory({ where: { id: task.id }, data: {
+    await this.transition(task.id, [TaskStatus.PENDING_REVIEW], {
       status: TaskStatus.NEEDS_REVISION, assigneeId: workerId, submittedAt: null, routineCompletedChecks: [],
-    } }, user);
+    }, user);
     await this.logAssignment({ taskId: task.id, action: TaskLogAction.REJECTED, fromUserId: user.id, toUserId: workerId, performedById: user.id, note: reason });
     await this.logActivity(task.caseId, `ตีกลับงาน "${task.title}": ${reason}`, user.id);
     await this.notifyWorker({ ...task, assigneeId: workerId }, user, `🔁 งานถูกตีกลับให้แก้ไข\nงาน: ${task.title}\nเหตุผล: ${reason}`);
@@ -1112,6 +1135,7 @@ export class TasksService {
     const legalCase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!legalCase) throw new NotFoundException('Case not found');
     this.assertLeadOrOwner(user, legalCase);
+    if (task.status === TaskStatus.PENDING_REVIEW) throw new BadRequestException('ใช้ตรวจผ่านหรือตีกลับสำหรับงานที่รอตรวจ');
 
     await this.assertCanAssignTodo(user, dto.assigneeId);
 
@@ -1147,9 +1171,9 @@ export class TasksService {
     await this.validateReview(user, true, dto.reviewerId, { assigneeId: task.assigneeId });
 
     const note = await this.prepareHandoff(task, user, dto.note);
-    await this.updateWithHistory({ where: { id: taskId }, data: {
+    await this.transition(taskId, allowed, {
       status: TaskStatus.PENDING_REVIEW, reviewerId: dto.reviewerId, submittedAt: new Date(), completedAt: null,
-    } }, user);
+    }, user);
     await this.logAssignment({
       taskId, action: TaskLogAction.HANDED_OFF, fromUserId: user.id, toUserId: dto.reviewerId, performedById: user.id,
       note, stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
@@ -1164,7 +1188,7 @@ export class TasksService {
     this.assertReviewer(task, null, user);
     if (task.status !== TaskStatus.PENDING_REVIEW) throw new BadRequestException('งานนี้ไม่ได้อยู่ในสถานะรอตรวจ');
     await this.assertRoutineReady(task);
-    await this.updateWithHistory({ where: { id: taskId }, data: { status: TaskStatus.DONE, completedAt: new Date() } }, user);
+    await this.transition(taskId, [TaskStatus.PENDING_REVIEW], { status: TaskStatus.DONE, completedAt: new Date() }, user);
     await this.notifyWorker(task, user, `✅ งานผ่านการตรวจแล้ว\nงาน: ${task.title}`);
     await this.onTaskCompleted(await this.prisma.task.findUniqueOrThrow({ where: { id: taskId } }), user.id);
     return this.findOne(taskId);
