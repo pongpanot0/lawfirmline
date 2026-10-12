@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { DocumentVersionStatus, NotificationCategory, ReviewDecisionType, ReviewRoundStatus } from '../generated/prisma';
+import { DocumentVersionStatus, NotificationCategory, Prisma, ReviewDecisionType, ReviewRoundStatus } from '../generated/prisma';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 import { formatBangkokDateThai } from '../common/utils/bangkok-time';
 import { CreateReviewRoundDto, ReviewDecisionDto } from './dto/document-review.dto';
 
@@ -11,9 +12,26 @@ const roundInclude = {
   documentVersion: { include: { document: { select: { filename: true } } } },
 };
 
+/** What a round list needs: the document, its case, and who decided what (no file contents). */
+const summaryInclude = {
+  decisions: { select: { reviewerId: true, decision: true } },
+  documentVersion: {
+    select: {
+      documentId: true,
+      version: true,
+      document: { select: { filename: true, caseId: true, case: { select: { ownRef: true, title: true } } } },
+    },
+  },
+} satisfies Prisma.ReviewRoundInclude;
+type SummaryRound = Prisma.ReviewRoundGetPayload<{ include: typeof summaryInclude }>;
+
 @Injectable()
 export class DocumentReviewService {
-  constructor(private prisma: PrismaService, private notifier: AssignmentNotifierService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifier: AssignmentNotifierService,
+    private caseAccess: CaseAccessService,
+  ) {}
 
   private async getVersionOrThrow(caseId: string, documentId: string, documentVersionId: string) {
     const version = await this.prisma.documentVersion.findFirst({
@@ -73,6 +91,66 @@ export class DocumentReviewService {
     });
   }
 
+  /** Rounds still waiting for the caller's own decision, on live cases they can open (home + notices). */
+  async listMine(user: AuthUser) {
+    const rounds = await this.prisma.reviewRound.findMany({
+      where: {
+        status: ReviewRoundStatus.WAITING_REVIEW,
+        reviewerIds: { has: user.id },
+        decisions: { none: { reviewerId: user.id } },
+        documentVersion: {
+          document: { case: { AND: [this.caseAccess.getCaseFilterForUser(user), { status: { notIn: ['CLOSED', 'ARCHIVED'] } }] } },
+        },
+      },
+      include: summaryInclude,
+      orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
+      take: 50,
+    });
+    return this.toSummaries(rounds);
+  }
+
+  /** Every round on one case's documents, newest first. CaseAccessGuard already checked the case. */
+  async listForCase(caseId: string) {
+    const rounds = await this.prisma.reviewRound.findMany({
+      where: { documentVersion: { document: { caseId } } },
+      include: summaryInclude,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return this.toSummaries(rounds);
+  }
+
+  /** Names for the sender and reviewers in one query; each reviewer carries their own decision. */
+  private async toSummaries(rounds: SummaryRound[]) {
+    if (!rounds.length) return [];
+    const ids = [...new Set(rounds.flatMap((round) => [round.createdById, ...round.reviewerIds]))];
+    const people = await this.prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    const names = new Map(people.map((person) => [person.id, `${person.firstName} ${person.lastName}`]));
+    return rounds.map((round) => ({
+      id: round.id,
+      caseId: round.documentVersion.document.caseId,
+      caseRef: round.documentVersion.document.case?.ownRef ?? null,
+      caseTitle: round.documentVersion.document.case?.title ?? null,
+      documentId: round.documentVersion.documentId,
+      documentVersionId: round.documentVersionId,
+      filename: round.documentVersion.document.filename,
+      version: round.documentVersion.version,
+      scope: round.scope,
+      dueAt: round.dueAt?.toISOString() ?? null,
+      status: round.status,
+      createdAt: round.createdAt.toISOString(),
+      createdByName: names.get(round.createdById) ?? null,
+      reviewers: round.reviewerIds.map((id) => ({
+        id,
+        name: names.get(id) ?? null,
+        decision: round.decisions.find((decision) => decision.reviewerId === id)?.decision ?? null,
+      })),
+    }));
+  }
+
   async createReviewRound(
     user: AuthUser,
     caseId: string,
@@ -117,7 +195,7 @@ export class DocumentReviewService {
       actorUserId: user.id,
       category: NotificationCategory.TASK,
       summaryText: `📝 ขอให้ตรวจเอกสาร: ${version.document.filename}${dto.dueAt ? `\nกำหนด: ${formatBangkokDateThai(new Date(dto.dueAt))}` : ''}`,
-      entityPath: `/cases/${caseId}`,
+      entityPath: `/cases/${caseId}?tab=documents`,
     });
     return round;
   }
@@ -221,7 +299,7 @@ export class DocumentReviewService {
       summaryText: approved
         ? `✅ เอกสารผ่านการตรวจ: ${round.documentVersion.document.filename}`
         : `↩️ เอกสารถูกส่งกลับแก้: ${round.documentVersion.document.filename}${reason ? `\nเหตุผล: ${reason}` : ''}`,
-      entityPath: `/cases/${caseId}`,
+      entityPath: `/cases/${caseId}?tab=documents`,
     });
   }
 }

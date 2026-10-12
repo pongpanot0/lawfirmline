@@ -3,6 +3,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DocumentReviewService } from './document-review.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { CaseAccessService } from '../common/services/case-access.service';
 
 describe('DocumentReviewService', () => {
   let service: DocumentReviewService;
@@ -12,8 +13,10 @@ describe('DocumentReviewService', () => {
     firmMember: { findMany: jest.fn() },
     reviewRound: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     reviewDecision: { create: jest.fn(), findMany: jest.fn() },
+    user: { findMany: jest.fn() },
   };
   const notifier = { notifyAssigned: jest.fn() };
+  const mockCaseAccess = { getCaseFilterForUser: jest.fn().mockReturnValue({ firmId: 'firm-1' }) };
   const user = { id: 'reviewer-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -23,6 +26,7 @@ describe('DocumentReviewService', () => {
         DocumentReviewService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AssignmentNotifierService, useValue: notifier },
+        { provide: CaseAccessService, useValue: mockCaseAccess },
       ],
     }).compile();
     service = module.get(DocumentReviewService);
@@ -194,6 +198,7 @@ describe('DocumentReviewService', () => {
       await service.createReviewRound({ id: 'author', firmId: 'firm-1' } as any, 'case-1', 'doc-1', 'version-1', { reviewerIds: ['reviewer-1', 'reviewer-2'] } as any);
       expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({
         userIds: ['reviewer-1', 'reviewer-2'], summaryText: expect.stringContaining('คำฟ้อง.docx'),
+        entityPath: '/cases/case-1?tab=documents',
       }));
     });
 
@@ -202,6 +207,7 @@ describe('DocumentReviewService', () => {
       await service.recordDecision(user, 'case-1', 'doc-1', 'round-1', { action: 'return', reason: 'แก้ข้อ 2', reviewedDocumentVersionId: 'version-1' } as any);
       expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({
         userIds: ['author'], summaryText: expect.stringContaining('ส่งกลับ'),
+        entityPath: '/cases/case-1?tab=documents',
       }));
     });
 
@@ -213,6 +219,75 @@ describe('DocumentReviewService', () => {
       mockPrisma.reviewDecision.findMany.mockResolvedValue([{ decision: 'APPROVED' }, { decision: 'APPROVED' }]);
       await service.recordDecision({ id: 'reviewer-2', firmId: 'firm-1' } as any, 'case-1', 'doc-1', 'round-1', { action: 'approve', reviewedDocumentVersionId: 'version-1' } as any);
       expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['author'], summaryText: expect.stringContaining('ผ่าน') }));
+    });
+  });
+
+  describe('review queues (D2)', () => {
+    const summaryRow = {
+      id: 'round-1',
+      documentVersionId: 'version-3',
+      reviewerIds: ['reviewer-1', 'reviewer-2'],
+      scope: 'ข้อ 1-5',
+      dueAt: new Date('2026-10-15T09:30:00Z'),
+      status: 'WAITING_REVIEW',
+      createdById: 'author',
+      createdAt: new Date('2026-10-11T03:00:00Z'),
+      decisions: [{ reviewerId: 'reviewer-2', decision: 'APPROVED' }],
+      documentVersion: {
+        documentId: 'doc-1',
+        version: 3,
+        document: { filename: 'สัญญา.pdf', caseId: 'case-1', case: { ownRef: 'C-001', title: 'คดีทดสอบ' } },
+      },
+    };
+
+    beforeEach(() => {
+      mockPrisma.reviewRound.findMany.mockResolvedValue([summaryRow]);
+      mockPrisma.user.findMany.mockResolvedValue([
+        { id: 'author', firstName: 'สมชาย', lastName: 'ใจดี' },
+        { id: 'reviewer-1', firstName: 'สมหญิง', lastName: 'ตรวจดี' },
+        { id: 'reviewer-2', firstName: 'มานะ', lastName: 'ขยัน' },
+      ]);
+    });
+
+    it('lists only rounds still waiting for my own decision, on live cases I can open', async () => {
+      const rows = await service.listMine(user);
+
+      expect(mockCaseAccess.getCaseFilterForUser).toHaveBeenCalledWith(user);
+      expect(mockPrisma.reviewRound.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          status: 'WAITING_REVIEW',
+          reviewerIds: { has: 'reviewer-1' },
+          decisions: { none: { reviewerId: 'reviewer-1' } },
+          documentVersion: { document: { case: { AND: [{ firmId: 'firm-1' }, { status: { notIn: ['CLOSED', 'ARCHIVED'] } }] } } },
+        },
+        orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
+        take: 50,
+      }));
+      expect(rows).toEqual([{
+        id: 'round-1', caseId: 'case-1', caseRef: 'C-001', caseTitle: 'คดีทดสอบ',
+        documentId: 'doc-1', documentVersionId: 'version-3', filename: 'สัญญา.pdf', version: 3,
+        scope: 'ข้อ 1-5', dueAt: '2026-10-15T09:30:00.000Z', status: 'WAITING_REVIEW',
+        createdAt: '2026-10-11T03:00:00.000Z', createdByName: 'สมชาย ใจดี',
+        reviewers: [
+          { id: 'reviewer-1', name: 'สมหญิง ตรวจดี', decision: null },
+          { id: 'reviewer-2', name: 'มานะ ขยัน', decision: 'APPROVED' },
+        ],
+      }]);
+    });
+
+    it('lists every round on one case, newest first, scoped to that case', async () => {
+      await service.listForCase('case-1');
+      expect(mockPrisma.reviewRound.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { documentVersion: { document: { caseId: 'case-1' } } },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }));
+    });
+
+    it('skips the name lookup when there are no rounds', async () => {
+      mockPrisma.reviewRound.findMany.mockResolvedValue([]);
+      expect(await service.listMine(user)).toEqual([]);
+      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
     });
   });
 });
