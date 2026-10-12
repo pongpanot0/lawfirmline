@@ -9,7 +9,9 @@ import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { draftScope, saveDraft } from '@/api/drafts';
-import { useCourtDay, useSaveCourtDay, useCompleteCourtDay } from '@/api/hooks';
+import { useCase, useCourtDay, useSaveCourtDay, useCompleteCourtDay } from '@/api/hooks';
+import { RecordCourtEventSheet } from '@/components/RecordCourtEventSheet';
+import { canRecordProceedings, isNetworkError } from '@/litigation';
 import type { CourtDayResponse, CourtDayState } from '@/api/types';
 import { openCaseDocument } from '@/api/files';
 import { Button, Card, ErrorNote, Loading, SectionLabel, Tag } from '@/components/ui';
@@ -50,6 +52,10 @@ export default function CourtDayScreen() {
     queryFn: () => api<Document[]>(`/cases/${court.data!.event.caseId}/documents`),
     enabled: !!court.data && phase === 0,
   });
+  // Case status and level for the judgment chip; usually already cached from the case screen.
+  const legalCase = useCase(court.data?.event.caseId ?? '');
+  const [recordingJudgment, setRecordingJudgment] = useState(false);
+  const [judgmentResult, setJudgmentResult] = useState('');
   useEffect(() => {
     if (!court.data || draft || !key) return;
     let active = true;
@@ -192,6 +198,15 @@ export default function CourtDayScreen() {
           <SectionLabel style={formLabelSpacing}>ผลนัด · เติมภายหลังได้</SectionLabel>
           <TextInput accessibilityLabel="ผลนัด" style={[input, { minHeight: 100, textAlignVertical: 'top' }]} multiline editable={editable}
             placeholder="ผลที่เกิดขึ้นในนัดนี้" maxLength={10000} value={state.outcome} onChangeText={(outcome) => change({ outcome })} />
+          {legalCase.data && canRecordProceedings(legalCase.data.status) ? <>
+            <Pressable accessibilityRole="button" accessibilityLabel="ศาลอ่านคำพิพากษาวันนี้ บันทึกเหตุการณ์ในศาล"
+              onPress={() => setRecordingJudgment(true)}
+              style={({ pressed }) => ({ minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: spacing.md,
+                borderRadius: 10, borderWidth: 1, borderColor: colors.ink, backgroundColor: colors.accentSoft, opacity: pressed ? 0.8 : 1 })}>
+              <Text style={{ color: colors.ink, fontWeight: '600' }}>ศาลอ่านคำพิพากษาวันนี้</Text>
+            </Pressable>
+            {judgmentResult ? <Text accessibilityLiveRegion="polite" style={{ color: colors.good, fontWeight: '600' }}>{judgmentResult}</Text> : null}
+          </> : null}
           <Button title="เก็บใบเสร็จ / ค่าใช้จ่ายของคดีนี้" ghost onPress={() => router.push({ pathname: '/expenses/new', params: { caseId: event.caseId, caseLabel: event.case?.ownRef, eventId } })} disabled={busy} />
         </>}
         {phase === 2 && <>
@@ -226,5 +241,10 @@ export default function CourtDayScreen() {
         </>}
       </Card>
     </ScrollView>
+    {legalCase.data ? <RecordCourtEventSheet visible={recordingJudgment} caseId={event.caseId}
+      currentLevel={legalCase.data.courtLevel} stageBefore={legalCase.data.stage}
+      initialKind="judgment" initialDay={bangkokDay(event.startAt)}
+      offline={court.isError && isNetworkError(court.error)}
+      onClose={() => setRecordingJudgment(false)} onRecorded={(text) => setJudgmentResult(text)} /> : null}
   </SafeAreaView>;
 }

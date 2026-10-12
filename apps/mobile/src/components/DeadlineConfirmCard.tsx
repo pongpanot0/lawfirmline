@@ -16,11 +16,13 @@ type Settled = { row: DateSuggestion; text: string; confirmed: boolean; visible:
  * "รอยืนยันวันครบกำหนด": one-tap ✓, ✕ after a confirmation. Nothing moves before the server answers;
  * a handled row then shows its result for 1.5 s and stays out of the list.
  */
-export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline }: {
+export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, highlightSince }: {
   caseId: string;
   leadLawyerId?: string | null;
   canAct: boolean;
   offline: boolean;
+  /** Rows created at or after this instant (a court event just recorded on this phone) are marked ใหม่. */
+  highlightSince?: string | null;
 }) {
   const suggestions = useDateSuggestions(caseId);
   const decide = useDecideSuggestion();
@@ -80,9 +82,10 @@ export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline }: {
       const done = settled[row.id];
       const urgency = deadlineUrgency(row.suggestedDate, new Date());
       const basis = legalBasis(row.deadlineRule?.label ?? row.label);
-      return <View key={row.id} style={[styles.row, done && (done.confirmed ? styles.confirmed : styles.dismissed)]}>
+      const fresh = !done && !!highlightSince && row.createdAt >= highlightSince;
+      return <View key={row.id} style={[styles.row, fresh && styles.fresh, done && (done.confirmed ? styles.confirmed : styles.dismissed)]}>
         <View style={styles.head}>
-          <Text style={styles.label}>{row.label}</Text>
+          <Text style={styles.label}>{fresh ? <Text style={styles.freshTag}>ใหม่ · </Text> : null}{row.label}</Text>
           <UrgencyTag urgency={urgency} />
         </View>
         <Text style={styles.date}>{thDate(row.suggestedDate)} · {thTime(row.suggestedDate)} น.</Text>
@@ -104,6 +107,8 @@ export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline }: {
 
 const styles = StyleSheet.create({
   row: { gap: spacing.xs, padding: spacing.sm, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line },
+  fresh: { borderColor: colors.info, borderWidth: 2, backgroundColor: colors.infoSoft },
+  freshTag: { color: colors.info, fontWeight: '700' },
   confirmed: { borderColor: colors.good, backgroundColor: colors.goodSoft },
   dismissed: { backgroundColor: colors.soft },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },

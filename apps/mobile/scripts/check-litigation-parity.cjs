@@ -218,6 +218,42 @@ check('limitation matters until filing; one court row per level, current level f
 });
 
 
+check('court-event body, confirmation and result say exactly what will be and was recorded (D3)', async () => {
+  const { proceedingBody, proceedingLevel, proceedingConfirm, proceedingResultText, runProceeding, LEVEL_TABS, PROCEEDING_LABELS } = lit;
+  assert.deepEqual(LEVEL_TABS.map((tab) => tab.label), ['ชั้นต้น', 'อุทธรณ์', 'ฎีกา']);
+  assert.deepEqual(Object.values(PROCEEDING_LABELS), ['ยื่นฟ้อง', 'ส่งหมาย', 'อ่านคำพิพากษา', 'ได้รับสำเนาอุทธรณ์']);
+  const base = { level: 'APPEAL', day: '2026-10-13', method: '', outcome: '' };
+  const at = '2026-10-12T17:00:00.000Z';
+  assert.deepEqual(proceedingBody({ ...base, kind: 'filing' }), { filedAt: at, courtLevel: 'APPEAL' });
+  assert.equal(proceedingBody({ ...base, kind: 'service' }), null, 'service needs a method');
+  assert.deepEqual(proceedingBody({ ...base, kind: 'service', method: 'POSTED' }), { servedAt: at, method: 'POSTED' });
+  assert.equal(proceedingBody({ ...base, kind: 'judgment' }), null, 'judgment needs an outcome');
+  assert.deepEqual(proceedingBody({ ...base, kind: 'judgment', outcome: 'WON' }), { courtLevel: 'APPEAL', judgmentAt: at, outcome: 'WON' });
+  assert.deepEqual(proceedingBody({ ...base, kind: 'appeal-served' }), { servedAt: at });
+  assert.equal(proceedingBody({ ...base, kind: null }), null);
+  assert.equal(proceedingBody({ ...base, kind: 'filing', day: null }), null);
+  assert.equal(proceedingLevel('service', 'SUPREME', 'TRIAL'), 'TRIAL', 'service lands on the current level');
+  assert.equal(proceedingLevel('judgment', 'APPEAL', 'TRIAL'), 'APPEAL');
+  assert.deepEqual(proceedingConfirm('judgment', 'APPEAL', '2026-10-13'), {
+    title: 'ยืนยันบันทึกอ่านคำพิพากษา',
+    body: 'ชั้นอุทธรณ์ · วันที่ 13 ต.ค. 2569\nระบบจะปรับขั้นตอนคดีและเสนอวันครบกำหนดให้ยืนยัน',
+  });
+  assert.equal(proceedingConfirm('filing', 'TRIAL', '2026-10-13').body.split(' · ')[0], 'ชั้นต้น');
+  assert.equal(proceedingResultText(0, 'FILING', 'FILING'), 'บันทึกแล้ว · ไม่มีวันครบกำหนดที่ต้องยืนยัน');
+  assert.equal(proceedingResultText(2, 'FILING', 'AWAITING_JUDGMENT'),
+    'บันทึกแล้ว · ขั้นตอนคดีเป็น "รอคำพิพากษา" · ระบบเสนอวันครบกำหนด 2 รายการ รอยืนยัน');
+  // Offline: nothing recorded; the caller keeps the sheet and its input and shows this line.
+  assert.deepEqual(await runProceeding(async () => { throw new TypeError('Network request failed'); }, async () => 'FILING', 'FILING'),
+    { ok: false, message: 'ต้องต่อเน็ตเพื่อบันทึก' });
+  assert.deepEqual(await runProceeding(async () => { throw Object.assign(new Error('คดีปิดแล้ว'), { status: 400 }); }, async () => null, null),
+    { ok: false, message: 'คดีปิดแล้ว' });
+  // Recorded, but the case refetch failed: no claim about the stage.
+  assert.deepEqual(await runProceeding(async () => ({ suggestions: 1 }), async () => { throw new TypeError('x'); }, 'PRE_LITIGATION'),
+    { ok: true, text: 'บันทึกแล้ว · ระบบเสนอวันครบกำหนด 1 รายการ รอยืนยัน' });
+  assert.deepEqual(await runProceeding(async () => ({ suggestions: 1 }), async () => 'FILING', 'PRE_LITIGATION'),
+    { ok: true, text: 'บันทึกแล้ว · ขั้นตอนคดีเป็น "ยื่นฟ้อง" · ระบบเสนอวันครบกำหนด 1 รายการ รอยืนยัน' });
+});
+
 // ── add new check(...) blocks above this line ──
 (async () => {
   for (const [name, fn] of checks) {

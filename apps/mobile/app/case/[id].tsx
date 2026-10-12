@@ -19,6 +19,7 @@ import { cachedDataNote, canRecordProceedings, isNetworkError, limitationRelevan
 import { deadlineUrgency } from '@/deadline';
 import { CourtNumbersCard } from '@/components/CourtNumbersCard';
 import { DeadlineConfirmCard } from '@/components/DeadlineConfirmCard';
+import { RecordCourtEventSheet } from '@/components/RecordCourtEventSheet';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { Disclosure } from '@/components/Disclosure';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
@@ -91,6 +92,9 @@ export default function CaseDetailScreen() {
   const courtY = useRef(0);
   const pendingScroll = useRef(false);
   useEffect(() => () => { pendingScroll.current = false; }, []);
+  const [recording, setRecording] = useState(false);
+  const [recordResult, setRecordResult] = useState('');
+  const [highlightSince, setHighlightSince] = useState<string | null>(null);
 
   const caseQuery = useCase(id);
   const tasks = useCaseTasks(id);
@@ -147,11 +151,16 @@ export default function CaseDetailScreen() {
         }
       >
         <Text style={styles.caseTitle}>{detail.title}</Text>
+        {recordResult ? (
+          <Card style={{ borderColor: colors.good, backgroundColor: colors.goodSoft, marginBottom: spacing.sm }}>
+            <Text accessibilityLiveRegion="polite" style={{ color: colors.good, fontWeight: '600' }}>{recordResult}</Text>
+          </Card>
+        ) : null}
         {caseQuery.isError ? (
           <ErrorNote message={cachedDataNote(caseQuery.error, caseQuery.dataUpdatedAt)} onRetry={() => caseQuery.refetch()} />
         ) : null}
         <DeadlineConfirmCard caseId={id} leadLawyerId={detail.leadLawyerId ?? detail.leadLawyer?.id}
-          canAct={canRecordProceedings(detail.status)} offline={offline} />
+          canAct={canRecordProceedings(detail.status)} offline={offline} highlightSince={highlightSince} />
         {limitation && detail.limitationDeadline ? (
           <Pressable accessibilityRole="button" onPress={showCourtNumbers} style={styles.limitationLine}
             accessibilityLabel={`อายุความ ${thDate(detail.limitationDeadline)} ${limitation.label} ดูศาลและเลขคดี`}>
@@ -244,6 +253,11 @@ export default function CaseDetailScreen() {
             <CourtNumbersCard detail={detail}
               onEditLimitation={canRecordProceedings(detail.status) ? () => router.push(`/case/new?id=${id}`) : undefined} />
           </View>
+          {canRecordProceedings(detail.status) ? (
+            <View style={{ marginTop: spacing.md }}>
+              <Button title="บันทึกเหตุการณ์ในศาล" onPress={() => setRecording(true)} />
+            </View>
+          ) : null}
           <Card style={{ marginTop: spacing.md }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.infoLabel}>คู่ความ</Text>
@@ -453,6 +467,13 @@ export default function CaseDetailScreen() {
           </>
         ) : null}
       </ScrollView>
+      <RecordCourtEventSheet visible={recording} caseId={id} currentLevel={detail.courtLevel} stageBefore={detail.stage}
+        offline={offline} onClose={() => setRecording(false)}
+        onRecorded={(text, since) => {
+          setRecordResult(text);
+          setHighlightSince(since);
+          scrollRef.current?.scrollTo({ y: 0, animated: true });
+        }} />
       <ReassignSheet caseId={id} task={reassigning} onClose={() => setReassigning(null)} />
     </>
   );

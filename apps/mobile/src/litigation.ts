@@ -1,6 +1,7 @@
-import { timeAgo } from './format';
-import { CourtLevel } from '@lawfirm/shared';
-import type { CaseDetail, DateSuggestion, ReviewRoundSummary } from './api/types';
+import { thDate, timeAgo } from './format';
+import { CASE_STAGE_LABELS_TH, CaseStage, CourtLevel } from '@lawfirm/shared';
+import type { CaseDetail, DateSuggestion, ProceedingKind, ReviewRoundSummary } from './api/types';
+import { bangkokDayToIso } from './thai-date';
 
 /** Court-event records refuse a closed or archived case ('คดีปิดแล้ว'); D8 hides deadline actions there too. */
 export function canRecordProceedings(caseStatus: string | null | undefined): boolean {
@@ -105,4 +106,83 @@ export function courtLevelRows(
       red: row?.redCaseNumber ?? (current ? detail.redCaseNumber : null),
     };
   });
+}
+
+export const PROCEEDING_LABELS: Record<ProceedingKind, string> = {
+  filing: 'ยื่นฟ้อง',
+  service: 'ส่งหมาย',
+  judgment: 'อ่านคำพิพากษา',
+  'appeal-served': 'ได้รับสำเนาอุทธรณ์',
+};
+
+const LEVEL_WORD: Record<CourtLevel, string> = {
+  [CourtLevel.TRIAL]: 'ต้น',
+  [CourtLevel.APPEAL]: 'อุทธรณ์',
+  [CourtLevel.SUPREME]: 'ฎีกา',
+};
+
+/** The sheet's court-level switch: [ชั้นต้น|อุทธรณ์|ฎีกา]. */
+export const LEVEL_TABS = LEVELS.map((level) => ({ value: level, label: level === CourtLevel.TRIAL ? 'ชั้นต้น' : LEVEL_WORD[level] }));
+
+export interface ProceedingDraft {
+  kind: ProceedingKind | null;
+  level: CourtLevel;
+  /** Bangkok day `YYYY-MM-DD`. */
+  day: string | null;
+  method: string;
+  outcome: string;
+}
+
+/** The POST body for one court event, or null while a choice the API requires is missing. */
+export function proceedingBody(draft: ProceedingDraft): Record<string, string> | null {
+  if (!draft.kind || !draft.day) return null;
+  const at = bangkokDayToIso(draft.day);
+  switch (draft.kind) {
+    case 'filing': return { filedAt: at, courtLevel: draft.level };
+    case 'service': return draft.method ? { servedAt: at, method: draft.method } : null;
+    case 'judgment': return draft.outcome ? { courtLevel: draft.level, judgmentAt: at, outcome: draft.outcome } : null;
+    case 'appeal-served': return { servedAt: at };
+  }
+}
+
+/** Filing and judgment take the chosen level; service and appeal-served land on the case's current one. */
+export function proceedingLevel(kind: ProceedingKind, chosen: CourtLevel, current: CourtLevel): CourtLevel {
+  return kind === 'filing' || kind === 'judgment' ? chosen : current;
+}
+
+/** The Alert before a legal record: there is no undo route, so this is the last check. */
+export function proceedingConfirm(kind: ProceedingKind, level: CourtLevel, day: string): { title: string; body: string } {
+  return {
+    title: `ยืนยันบันทึก${PROCEEDING_LABELS[kind]}`,
+    body: `ชั้น${LEVEL_WORD[level]} · วันที่ ${thDate(bangkokDayToIso(day))}\nระบบจะปรับขั้นตอนคดีและเสนอวันครบกำหนดให้ยืนยัน`,
+  };
+}
+
+/** D3: the count from the response, and the stage only when the refetched case shows it moved. */
+export function proceedingResultText(count: number, stageBefore?: string | null, stageAfter?: string | null): string {
+  const parts = ['บันทึกแล้ว'];
+  if (stageAfter && stageAfter !== stageBefore) {
+    parts.push(`ขั้นตอนคดีเป็น "${CASE_STAGE_LABELS_TH[stageAfter as CaseStage] ?? stageAfter}"`);
+  }
+  parts.push(count > 0 ? `ระบบเสนอวันครบกำหนด ${count} รายการ รอยืนยัน` : 'ไม่มีวันครบกำหนดที่ต้องยืนยัน');
+  return parts.join(' · ');
+}
+
+/**
+ * Record, then describe. A failure returns `ok: false` and the caller keeps the sheet open with its input;
+ * a failed case refetch after a successful record only drops the stage claim.
+ */
+export async function runProceeding(
+  record: () => Promise<{ suggestions: number }>,
+  stageAfter: () => Promise<string | null | undefined>,
+  stageBefore: string | null | undefined,
+): Promise<{ ok: true; text: string } | { ok: false; message: string }> {
+  let result: { suggestions: number };
+  try {
+    result = await record();
+  } catch (error) {
+    return { ok: false, message: actionErrorText(error) };
+  }
+  const after = await stageAfter().catch(() => stageBefore);
+  return { ok: true, text: proceedingResultText(result.suggestions, stageBefore, after) };
 }
