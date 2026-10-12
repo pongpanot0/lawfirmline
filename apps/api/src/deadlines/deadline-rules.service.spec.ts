@@ -17,6 +17,9 @@ describe('DeadlineRulesService', () => {
       count: jest.fn(),
       updateMany: jest.fn(),
       deleteMany: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
     },
     publicHoliday: { findMany: jest.fn() },
     case: { findUnique: jest.fn() },
@@ -402,42 +405,89 @@ describe('DeadlineRulesService', () => {
   });
 
   describe('list', () => {
-    it('provisions the starter rules when the catalog is empty', async () => {
-      await service.list(user);
+    const owner = { ...user, email: 'owner@firm.test', firmRole: FirmRole.OWNER };
+    const lawyer = { ...user, email: 'lawyer@firm.test', firmRole: FirmRole.LAWYER };
 
-      expect(mockPrisma.deadlineRule.createMany).toHaveBeenCalled();
-      expect(mockPrisma.deadlineRule.findMany).toHaveBeenCalledWith({
-        orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
-      });
+    beforeEach(() => {
+      process.env.PLATFORM_ADMIN_EMAILS = 'ops@platform.test';
+      mockPrisma.deadlineRule.count.mockResolvedValue(11);
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([
+        { ...rule, id: 'g', firmId: null },
+        { ...rule, id: 'f', firmId: 'firm-1' },
+      ]);
     });
 
-    it('does not re-seed when rules already exist', async () => {
-      mockPrisma.deadlineRule.count.mockResolvedValue(4);
+    it('returns global rows plus the caller firm rows, flagging what the caller may edit', async () => {
+      const rows = await service.list(owner);
 
-      await service.list(user);
+      expect(mockPrisma.deadlineRule.findMany).toHaveBeenCalledWith({
+        where: { OR: [{ firmId: null }, { firmId: 'firm-1' }] },
+        orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
+      });
+      expect(rows.map((r) => [r.id, r.canEdit])).toEqual([['g', false], ['f', true]]);
+      expect((await service.list(lawyer)).map((r) => r.canEdit)).toEqual([false, false]);
+      expect((await service.list({ ...owner, email: 'OPS@platform.test' })).map((r) => r.canEdit)).toEqual([true, true]);
+    });
 
-      expect(mockPrisma.deadlineRule.createMany).not.toHaveBeenCalled();
+    it('provisions the starter rules when the catalog is empty', async () => {
+      mockPrisma.deadlineRule.count.mockResolvedValue(0);
+      await service.list(owner);
+      expect(mockPrisma.deadlineRule.createMany).toHaveBeenCalled();
     });
   });
 
   describe('rule management', () => {
-    it('updates a global rule by id', async () => {
-      mockPrisma.deadlineRule.updateMany.mockResolvedValue({ count: 1 });
+    const owner = { ...user, email: 'owner@firm.test', firmRole: FirmRole.OWNER };
+    const manager = { ...user, email: 'om@firm.test', firmRole: FirmRole.OFFICE_MANAGER };
+    const lawyer = { ...user, email: 'lawyer@firm.test', firmRole: FirmRole.LAWYER };
+    const admin = { ...user, email: 'ops@platform.test', firmRole: FirmRole.OWNER };
+    const dto = { trigger: DeadlineTrigger.COURT_DATE, label: ' ยื่นบัญชีระบุพยาน ', offsetDays: -10, dayBasis: DeadlineDayBasis.CALENDAR };
 
-      await service.update(user, 'rule-1', { offsetDays: 15 });
+    beforeEach(() => {
+      process.env.PLATFORM_ADMIN_EMAILS = 'ops@platform.test';
+      mockPrisma.deadlineRule.findFirst.mockResolvedValue(null);
+      mockPrisma.deadlineRule.create.mockImplementation(({ data }) => Promise.resolve({ id: 'new', ...data }));
+    });
 
-      expect(mockPrisma.deadlineRule.updateMany).toHaveBeenCalledWith({
-        where: { id: 'rule-1' },
-        data: { offsetDays: 15, caseTypeId: null },
+    it('an office manager creates a firm rule (the override of a global rule with the same label)', async () => {
+      await service.create(manager, dto);
+      expect(mockPrisma.deadlineRule.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ firmId: 'firm-1', label: 'ยื่นบัญชีระบุพยาน', offsetDays: -10, adjustDays: 0, caseTypeId: null }),
       });
     });
 
-    it('reports a miss when the rule does not exist', async () => {
-      mockPrisma.deadlineRule.updateMany.mockResolvedValue({ count: 0 });
+    it('a lawyer cannot create firm rules', async () => {
+      await expect(service.create(lawyer, dto)).rejects.toThrow('ไม่มีสิทธิ์แก้กฎวันครบกำหนดของสำนักงาน');
+    });
 
-      await expect(service.update(user, 'rule-x', { offsetDays: 15 })).rejects.toThrow(
-        'Deadline rule not found',
-      );
+    it('only a platform admin creates a global rule', async () => {
+      await expect(service.create(owner, { ...dto, global: true })).rejects.toThrow('ข้อมูลส่วนกลางแก้ได้เฉพาะผู้ดูแลระบบ');
+      await service.create(admin, { ...dto, global: true });
+      expect(mockPrisma.deadlineRule.create).toHaveBeenCalledWith({ data: expect.objectContaining({ firmId: null }) });
+    });
+
+    it('rejects a duplicate trigger + label in the same scope', async () => {
+      mockPrisma.deadlineRule.findFirst.mockResolvedValue({ id: 'dup' });
+      await expect(service.create(owner, dto)).rejects.toThrow('มีกฎชื่อนี้สำหรับเหตุนี้อยู่แล้ว');
+    });
+
+    it('an owner edits their firm rule but not a global one', async () => {
+      mockPrisma.deadlineRule.findFirst.mockResolvedValueOnce({ id: 'f', firmId: 'firm-1' });
+      await service.update(owner, 'f', { offsetDays: 15 });
+      expect(mockPrisma.deadlineRule.update).toHaveBeenCalledWith({ where: { id: 'f' }, data: { offsetDays: 15 } });
+
+      mockPrisma.deadlineRule.findFirst.mockResolvedValueOnce({ id: 'g', firmId: null });
+      await expect(service.update(owner, 'g', { offsetDays: 15 })).rejects.toThrow('ข้อมูลส่วนกลางแก้ได้เฉพาะผู้ดูแลระบบ');
+    });
+
+    it('never reaches another firm’s rule', async () => {
+      mockPrisma.deadlineRule.findFirst.mockResolvedValue(null);
+      await expect(service.update(owner, 'x', { offsetDays: 1 })).rejects.toThrow('Deadline rule not found');
+      await expect(service.remove(owner, 'x')).rejects.toThrow('Deadline rule not found');
+      expect(mockPrisma.deadlineRule.findFirst).toHaveBeenCalledWith({
+        where: { id: 'x', OR: [{ firmId: null }, { firmId: 'firm-1' }] },
+        select: { id: true, firmId: true },
+      });
     });
   });
 });

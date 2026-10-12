@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   AuthUser,
   CourtEventKind,
@@ -12,7 +12,9 @@ import {
   ServiceMethod,
   deadlineRuleApplies,
   effectiveDeadlineRules,
+  hasFirmCapability,
 } from '@lawfirm/shared';
+import { platformAdminEmails } from '../common/guards/platform-admin.guard';
 import { PrismaService } from '../prisma/prisma.module';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
@@ -89,45 +91,77 @@ export class DeadlineRulesService {
     });
   }
 
-  async list(_user: AuthUser) {
-    await this.provisionDefaults();
-
-    return this.prisma.deadlineRule.findMany({
-      orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
-    });
+  private canEdit(user: AuthUser, firmId: string | null): boolean {
+    if (firmId === null) return platformAdminEmails().has((user.email ?? '').toLowerCase());
+    return firmId === user.firmId && hasFirmCapability(user.firmRole, 'manageFirmContent');
   }
 
-  create(_user: AuthUser, dto: CreateDeadlineRuleDto) {
-    // Platform-global rules only in this pass — ignore per-firm caseType links.
+  private assertCanEdit(user: AuthUser, firmId: string | null): void {
+    if (this.canEdit(user, firmId)) return;
+    throw new ForbiddenException(
+      firmId === null ? 'ข้อมูลส่วนกลางแก้ได้เฉพาะผู้ดูแลระบบ' : 'ไม่มีสิทธิ์แก้กฎวันครบกำหนดของสำนักงาน',
+    );
+  }
+
+  /** A rule this caller can see: global, or their own firm's. */
+  private async findVisible(user: AuthUser, id: string) {
+    const rule = await this.prisma.deadlineRule.findFirst({
+      where: { id, OR: [{ firmId: null }, { firmId: user.firmId }] },
+      select: { id: true, firmId: true },
+    });
+    if (!rule) throw new NotFoundException('Deadline rule not found');
+    return rule;
+  }
+
+  async list(user: AuthUser) {
+    await this.provisionDefaults();
+    const rows = await this.prisma.deadlineRule.findMany({
+      where: { OR: [{ firmId: null }, { firmId: user.firmId }] },
+      orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
+    });
+    return rows.map((row) => ({ ...row, canEdit: this.canEdit(user, row.firmId) }));
+  }
+
+  async create(user: AuthUser, dto: CreateDeadlineRuleDto) {
+    const firmId = dto.global ? null : user.firmId;
+    this.assertCanEdit(user, firmId);
+    const label = dto.label.trim();
+    const clash = await this.prisma.deadlineRule.findFirst({
+      where: { firmId, trigger: dto.trigger, label },
+      select: { id: true },
+    });
+    if (clash) throw new ConflictException('มีกฎชื่อนี้สำหรับเหตุนี้อยู่แล้ว');
     return this.prisma.deadlineRule.create({
       data: {
+        firmId,
         caseTypeId: null,
         trigger: dto.trigger,
-        label: dto.label,
+        label,
         offsetDays: dto.offsetDays,
         dayBasis: dto.dayBasis ?? DeadlineDayBasis.CALENDAR,
+        adjustDays: dto.adjustDays ?? 0,
+        courtEventKind: dto.courtEventKind ?? null,
+        courtLevel: dto.courtLevel ?? null,
+        partySide: dto.partySide ?? null,
+        serviceMethod: dto.serviceMethod ?? null,
         isActive: dto.isActive ?? true,
       },
     });
   }
 
-  async update(_user: AuthUser, id: string, dto: UpdateDeadlineRuleDto) {
-    const { caseTypeId: _ignored, ...rest } = dto as UpdateDeadlineRuleDto & {
-      caseTypeId?: string | null;
-    };
-    const result = await this.prisma.deadlineRule.updateMany({
-      where: { id },
-      data: { ...rest, caseTypeId: null },
-    });
-    if (result.count === 0) throw new NotFoundException('Deadline rule not found');
+  async update(user: AuthUser, id: string, dto: UpdateDeadlineRuleDto) {
+    const rule = await this.findVisible(user, id);
+    this.assertCanEdit(user, rule.firmId);
+    const { caseTypeId: _ignored, ...data } = dto as UpdateDeadlineRuleDto & { caseTypeId?: string | null };
+    if (data.label !== undefined) data.label = data.label.trim();
+    await this.prisma.deadlineRule.update({ where: { id }, data });
     return { updated: true };
   }
 
-  async remove(_user: AuthUser, id: string) {
-    const result = await this.prisma.deadlineRule.deleteMany({
-      where: { id },
-    });
-    if (result.count === 0) throw new NotFoundException('Deadline rule not found');
+  async remove(user: AuthUser, id: string) {
+    const rule = await this.findVisible(user, id);
+    this.assertCanEdit(user, rule.firmId);
+    await this.prisma.deadlineRule.delete({ where: { id } });
     return { deleted: true };
   }
 

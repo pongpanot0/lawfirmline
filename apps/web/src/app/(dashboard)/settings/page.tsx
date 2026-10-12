@@ -24,8 +24,8 @@ import { formatDate, formatDateTime } from '@/lib/utils';
 const OFFICE_LINKS: Array<{ href: string; icon: typeof Shield; labelKey: 'reimbursements' | 'caseTypes' | 'deadlineRules' | 'holidays' | 'courts' | 'auditLog'; capability: FirmCapability }> = [
   { href: '/admin/reimbursements', icon: Shield, labelKey: 'reimbursements', capability: 'approveExpenses' },
   { href: '/admin/case-types', icon: Tags, labelKey: 'caseTypes', capability: 'manageFirmContent' },
+  { href: '/admin/deadline-rules', icon: Timer, labelKey: 'deadlineRules', capability: 'manageFirmContent' },
   // Platform-admin pages: they stay with the firm owner.
-  { href: '/admin/deadline-rules', icon: Timer, labelKey: 'deadlineRules', capability: 'manageSubscription' },
   { href: '/admin/holidays', icon: CalendarOff, labelKey: 'holidays', capability: 'manageSubscription' },
   { href: '/admin/courts', icon: Scale, labelKey: 'courts', capability: 'manageSubscription' },
   { href: '/admin/audit-log', icon: History, labelKey: 'auditLog', capability: 'viewFirmReports' },
