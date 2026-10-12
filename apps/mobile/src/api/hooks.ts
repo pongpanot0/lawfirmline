@@ -6,20 +6,25 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import { calendarRangeQuery } from '../format';
+import { reviewDecisionRequest, suggestionRequest } from '../litigation';
 import type { DailyWorkboard, PersonWorkload } from '@lawfirm/shared';
 import type {
   AppNotification,
   CalendarEventItem,
   CaseDetail,
   CaseListItem,
+  CaseProceeding,
   CourtDayResponse,
   CourtDayState,
   DashboardStats,
+  DateSuggestion,
   LeaveItem,
   MyDayResponse,
   NotificationPreference,
   OwnerKpis,
   OwnerFinance,
+  ProceedingKind,
+  ReviewRoundSummary,
   TaskItem,
   WorkloadResponse,
 } from './types';
@@ -653,6 +658,75 @@ export function useUpdateNotificationPreference() {
     // Refetch once the last pending toggle settles, not between taps.
     onSettled: () => {
       if (queryClient.isMutating({ mutationKey }) <= 1) queryClient.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+/** Everything a court-event record or a deadline decision can change. */
+function invalidateCaseDeadlines(client: ReturnType<typeof useQueryClient>, caseId: string) {
+  for (const queryKey of [['case', caseId], ['date-suggestions', caseId], ['my-day'], ['todos'], ['case-events', caseId], ['calendar']]) {
+    client.invalidateQueries({ queryKey });
+  }
+  invalidateNotifications(client);
+}
+
+export function useDateSuggestions(caseId: string) {
+  return useQuery({
+    queryKey: ['date-suggestions', caseId],
+    queryFn: () => api<DateSuggestion[]>(`/cases/${caseId}/date-suggestions`),
+    enabled: !!caseId,
+    // A row confirmed elsewhere must not linger as "pending" from the 7-day cache: refetch on every mount.
+    staleTime: 0,
+  });
+}
+
+/** No optimistic update: a legal deadline row changes only after the server answers. */
+export function useDecideSuggestion(caseId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ suggestion, action, leadLawyerId }: { suggestion: DateSuggestion; action: 'confirm' | 'dismiss'; leadLawyerId?: string | null }) => {
+      const request = suggestionRequest(suggestion, action, leadLawyerId);
+      return api<DateSuggestion>(request.path, { method: 'POST', body: request.body });
+    },
+    retry: false,
+    onSettled: () => invalidateCaseDeadlines(client, caseId),
+  });
+}
+
+export function useRecordProceeding(caseId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ kind, body }: { kind: ProceedingKind; body: Record<string, string> }) =>
+      api<{ proceeding: CaseProceeding | null; suggestions: number }>(`/cases/${caseId}/proceedings/${kind}`, { method: 'POST', body }),
+    retry: false,
+    onSettled: () => invalidateCaseDeadlines(client, caseId),
+  });
+}
+
+export function useCaseReviewRounds(caseId: string) {
+  return useQuery({
+    queryKey: ['review-rounds', caseId],
+    queryFn: () => api<ReviewRoundSummary[]>(`/cases/${caseId}/review-rounds`),
+    enabled: !!caseId,
+    staleTime: 0,
+  });
+}
+
+export function useMyReviewRounds() {
+  return useQuery({ queryKey: ['my-review-rounds'], queryFn: () => api<ReviewRoundSummary[]>('/document-review/mine') });
+}
+
+export function useDecideReviewRound(caseId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ round, action, reason }: { round: ReviewRoundSummary; action: 'approve' | 'return'; reason?: string }) => {
+      const request = reviewDecisionRequest(round, action, reason);
+      return api<{ id: string; status: string }>(request.path, { method: 'POST', body: request.body });
+    },
+    retry: false,
+    onSettled: () => {
+      for (const queryKey of [['review-rounds', caseId], ['my-review-rounds'], ['case-documents', caseId]]) client.invalidateQueries({ queryKey });
+      invalidateNotifications(client);
     },
   });
 }

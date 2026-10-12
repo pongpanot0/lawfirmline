@@ -94,6 +94,12 @@ export interface CaseDetail extends CaseListItem {
   client?: { id: string; name: string; phone?: string | null } | null;
   partyRole?: import('@lawfirm/shared').PartyRole | null;
   participants?: CaseParticipant[];
+  /** CaseStage; read before and after a court-event record to say whether the stage moved (D3). */
+  stage?: string;
+  /** Bangkok midnight of the last filing day. Optional: caches persisted by older builds lack it. */
+  limitationDeadline?: string | null;
+  /** Recorded court levels, TRIAL → SUPREME (`GET /cases/:id` includes them). */
+  proceedings?: CaseProceeding[];
 }
 
 export interface TaskItem {
@@ -287,4 +293,50 @@ export interface NotificationPreference {
   category: NotificationCategory;
   push: boolean;
   line: boolean;
+}
+
+export interface CaseProceeding {
+  id: string;
+  courtLevel: string;
+  courtName: string | null;
+  blackCaseNumber: string | null;
+  redCaseNumber: string | null;
+  filedAt: string | null;
+  judgmentAt: string | null;
+}
+
+/** The four court events the phone records: `POST /cases/:caseId/proceedings/<kind>`. */
+export type ProceedingKind = 'filing' | 'service' | 'judgment' | 'appeal-served';
+
+/** `GET /cases/:caseId/date-suggestions` row (PENDING unless asked otherwise). */
+export interface DateSuggestion {
+  id: string;
+  caseId: string;
+  label: string;
+  suggestedDate: string;
+  status: string;
+  source: 'DOCUMENT' | 'RULE';
+  sourceExcerpt: string | null;
+  deadlineRule: { label: string; trigger: string } | null;
+  holidayDataIncomplete?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `GET /document-review/mine` and `GET /cases/:caseId/review-rounds` row. */
+export interface ReviewRoundSummary {
+  id: string;
+  caseId: string;
+  caseRef: string | null;
+  caseTitle: string | null;
+  documentId: string;
+  documentVersionId: string;
+  filename: string;
+  version: number;
+  scope: string | null;
+  dueAt: string | null;
+  status: string;
+  createdAt: string;
+  createdByName: string | null;
+  reviewers: Array<{ id: string; name: string | null; decision: 'APPROVED' | 'RETURNED' | null }>;
 }
