@@ -1,17 +1,19 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { DocumentVersionStatus, ReviewDecisionType, ReviewRoundStatus } from '../generated/prisma';
+import { DocumentVersionStatus, NotificationCategory, ReviewDecisionType, ReviewRoundStatus } from '../generated/prisma';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { formatBangkokDateThai } from '../common/utils/bangkok-time';
 import { CreateReviewRoundDto, ReviewDecisionDto } from './dto/document-review.dto';
 
 const roundInclude = {
   decisions: { orderBy: { decidedAt: 'desc' as const } },
-  documentVersion: true,
+  documentVersion: { include: { document: { select: { filename: true } } } },
 };
 
 @Injectable()
 export class DocumentReviewService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private notifier: AssignmentNotifierService) {}
 
   private async getVersionOrThrow(caseId: string, documentId: string, documentVersionId: string) {
     const version = await this.prisma.documentVersion.findFirst({
@@ -102,13 +104,22 @@ export class DocumentReviewService {
       data: { status: DocumentVersionStatus.WAITING_REVIEW },
     });
 
-    return this.getReviewRound(caseId, documentId, (
+    const round = await this.getReviewRound(caseId, documentId, (
       await this.prisma.reviewRound.findFirst({
         where: { documentVersionId },
         orderBy: { createdAt: 'desc' },
         select: { id: true },
       })
     )!.id);
+    await this.notifier.notifyAssigned({
+      firmId: user.firmId,
+      userIds: dto.reviewerIds,
+      actorUserId: user.id,
+      category: NotificationCategory.TASK,
+      summaryText: `📝 ขอให้ตรวจเอกสาร: ${version.document.filename}${dto.dueAt ? `\nกำหนด: ${formatBangkokDateThai(new Date(dto.dueAt))}` : ''}`,
+      entityPath: `/cases/${caseId}`,
+    });
+    return round;
   }
 
   async getReviewRound(caseId: string, documentId: string, roundId: string) {
@@ -174,6 +185,7 @@ export class DocumentReviewService {
         where: { id: round.documentVersionId },
         data: { status: DocumentVersionStatus.RETURNED_FOR_CHANGES },
       });
+      await this.notifyRoundClosed(round, user, caseId, false, dto.reason);
       return this.getReviewRound(caseId, documentId, roundId);
     }
 
@@ -188,8 +200,28 @@ export class DocumentReviewService {
         where: { id: round.documentVersionId },
         data: { status: DocumentVersionStatus.APPROVED },
       });
+      await this.notifyRoundClosed(round, user, caseId, true);
     }
 
     return this.getReviewRound(caseId, documentId, roundId);
+  }
+
+  private async notifyRoundClosed(
+    round: { createdById: string; documentVersion: { document: { filename: string } } },
+    user: AuthUser,
+    caseId: string,
+    approved: boolean,
+    reason?: string,
+  ) {
+    await this.notifier.notifyAssigned({
+      firmId: user.firmId,
+      userIds: [round.createdById],
+      actorUserId: user.id,
+      category: NotificationCategory.TASK,
+      summaryText: approved
+        ? `✅ เอกสารผ่านการตรวจ: ${round.documentVersion.document.filename}`
+        : `↩️ เอกสารถูกส่งกลับแก้: ${round.documentVersion.document.filename}${reason ? `\nเหตุผล: ${reason}` : ''}`,
+      entityPath: `/cases/${caseId}`,
+    });
   }
 }

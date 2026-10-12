@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DocumentReviewService } from './document-review.service';
 import { PrismaService } from '../prisma/prisma.module';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 
 describe('DocumentReviewService', () => {
   let service: DocumentReviewService;
@@ -12,12 +13,17 @@ describe('DocumentReviewService', () => {
     reviewRound: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     reviewDecision: { create: jest.fn(), findMany: jest.fn() },
   };
+  const notifier = { notifyAssigned: jest.fn() };
   const user = { id: 'reviewer-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DocumentReviewService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        DocumentReviewService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: AssignmentNotifierService, useValue: notifier },
+      ],
     }).compile();
     service = module.get(DocumentReviewService);
   });
@@ -28,6 +34,8 @@ describe('DocumentReviewService', () => {
     reviewerIds: ['reviewer-1', 'reviewer-2'],
     approvalRule: 'ALL',
     status: 'WAITING_REVIEW',
+    createdById: 'author',
+    documentVersion: { document: { filename: 'คำฟ้อง.docx' } },
     decisions: [],
   };
 
@@ -174,6 +182,37 @@ describe('DocumentReviewService', () => {
           reviewerIds: ['not-a-member'],
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('notices', () => {
+    it('tells each reviewer when a round is created', async () => {
+      mockPrisma.documentVersion.findFirst.mockResolvedValue({ id: 'version-1', status: 'DRAFT', document: { id: 'doc-1', filename: 'คำฟ้อง.docx', caseId: 'case-1' } });
+      mockPrisma.case.findFirst.mockResolvedValue({ id: 'case-1', leadLawyer: null, assignments: [{ user: { id: 'reviewer-1' } }, { user: { id: 'reviewer-2' } }] });
+      mockPrisma.firmMember.findMany.mockResolvedValue([]);
+      mockPrisma.reviewRound.findFirst.mockResolvedValue({ ...baseRound });
+      await service.createReviewRound({ id: 'author', firmId: 'firm-1' } as any, 'case-1', 'doc-1', 'version-1', { reviewerIds: ['reviewer-1', 'reviewer-2'] } as any);
+      expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({
+        userIds: ['reviewer-1', 'reviewer-2'], summaryText: expect.stringContaining('คำฟ้อง.docx'),
+      }));
+    });
+
+    it('tells the creator when a round is returned', async () => {
+      mockPrisma.reviewRound.findFirst.mockResolvedValue({ ...baseRound, createdById: 'author', documentVersion: { document: { filename: 'คำฟ้อง.docx' } } });
+      await service.recordDecision(user, 'case-1', 'doc-1', 'round-1', { action: 'return', reason: 'แก้ข้อ 2', reviewedDocumentVersionId: 'version-1' } as any);
+      expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({
+        userIds: ['author'], summaryText: expect.stringContaining('ส่งกลับ'),
+      }));
+    });
+
+    it('tells the creator only when the last approval closes the round', async () => {
+      mockPrisma.reviewRound.findFirst.mockResolvedValue({ ...baseRound, createdById: 'author', documentVersion: { document: { filename: 'คำฟ้อง.docx' } } });
+      mockPrisma.reviewDecision.findMany.mockResolvedValue([{ decision: 'APPROVED' }]);
+      await service.recordDecision(user, 'case-1', 'doc-1', 'round-1', { action: 'approve', reviewedDocumentVersionId: 'version-1' } as any);
+      expect(notifier.notifyAssigned).not.toHaveBeenCalled();
+      mockPrisma.reviewDecision.findMany.mockResolvedValue([{ decision: 'APPROVED' }, { decision: 'APPROVED' }]);
+      await service.recordDecision({ id: 'reviewer-2', firmId: 'firm-1' } as any, 'case-1', 'doc-1', 'round-1', { action: 'approve', reviewedDocumentVersionId: 'version-1' } as any);
+      expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['author'], summaryText: expect.stringContaining('ผ่าน') }));
     });
   });
 });
