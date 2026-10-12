@@ -1,3 +1,4 @@
+import { assignmentCandidates } from '@lawfirm/shared';
 import {
   DEFAULT_PLAYBOOKS,
   FirmRole,
@@ -78,5 +79,18 @@ describe('default playbook tags', () => {
     for (const title of ['ร่างคำฟ้องและบัญชีท้ายฟ้อง', 'ร่างและยื่นอุทธรณ์', 'ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)', 'ยื่นบัญชีระบุพยานและสำเนาเอกสาร']) {
       expect(step(title).requiresAttachment).toBe(true);
     }
+  });
+});
+
+describe('assignmentCandidates reviews', () => {
+  it('counts a review for the reviewer, not for the worker who still holds the task', () => {
+    const base = { title: 't', priority: 'MEDIUM', workType: null, size: 'M', dueDate: null, scheduledFor: null, queuePosition: 0,
+      requiresReview: true, assignedAt: null, acknowledgedAt: null, completedAt: null, holdReason: null, blockedBy: null, blocker: null,
+      planConfirmedAt: null, followedUpAt: null, latestUpdate: null, caseId: 'c1' } as any;
+    const tasks = [{ ...base, id: 'a', status: 'PENDING_REVIEW', assigneeId: 'worker', workerId: 'worker', reviewerId: null, case: { id: 'c1', ownRef: 'R', title: 'T', leadLawyerId: 'lead' } }];
+    const members = ['worker', 'lead'].map((userId) => ({ userId, firstName: userId, lastName: '', email: '', role: 'LAWYER', workTypes: [], onLeave: false, appointments: [] })) as any;
+    const result = assignmentCandidates(members, tasks, 'OTHER' as any, '2026-10-12');
+    expect(result.find((r) => r.member.userId === 'lead')!.reviews.map((t) => t.id)).toEqual(['a']);
+    expect(result.find((r) => r.member.userId === 'worker')!.reviews).toEqual([]);
   });
 });

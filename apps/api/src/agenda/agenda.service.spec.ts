@@ -320,4 +320,14 @@ describe('AgendaService', () => {
       startAt: { gte: expect.any(Date), lt: expect.any(Date) },
     });
   });
+
+  it('my-day carries a review queue built from the reviewer rule', async () => {
+    mockPrisma.calendarEvent.findMany.mockResolvedValue([]);
+    mockPrisma.task.findMany.mockImplementation(async ({ where }: any) => where?.status === 'PENDING_REVIEW'
+      ? [{ id: 'r1', title: 'ตรวจคำฟ้อง', caseId: 'case-1', dueDate: null, submittedAt: NOW,
+          case: { id: 'case-1', ownRef: 'C-001', title: 'คดีทดสอบ' }, assignee: { id: 'w', firstName: 'สมชาย', lastName: 'ใจดี' } }]
+      : []);
+    const day = await service.getMyDay(user);
+    expect(day.reviewQueue).toEqual([expect.objectContaining({ id: 'r1', workerName: 'สมชาย ใจดี', caseRef: 'C-001' })]);
+  });
 });

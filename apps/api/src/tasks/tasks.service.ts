@@ -39,6 +39,7 @@ import {
   formatCaseNotificationReference,
   formatIntakeNotificationReference,
 } from '../notifications/reference-label';
+import { reviewQueueWhere } from './review-queue';
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 import { StartTaskOnHoldDto, UpdateTaskOnHoldDto } from './dto/task-on-hold.dto';
 import {
@@ -397,12 +398,7 @@ export class TasksService {
     const viewFilter: Prisma.TaskWhereInput = view === 'created'
       ? { createdById: user.id }
       : view === 'review'
-        ? { status: TaskStatus.PENDING_REVIEW, OR: [
-          { caseId: null, assigneeId: user.id },
-          { caseId: { not: null }, reviewerId: user.id },
-          { reviewerId: null, case: user.firmRole === FirmRole.OWNER
-            ? { firmId: user.firmId } : { leadLawyerId: user.id } },
-        ] }
+        ? reviewQueueWhere(user)
         : { OR: [{ assigneeId: user.id }, { status: { in: [TaskStatus.PENDING_REVIEW, TaskStatus.DONE] }, assignmentLogs: { some: { action: TaskLogAction.HANDED_OFF, fromUserId: user.id } } }] };
     const tasks = await this.prisma.task.findMany({
       where: view === 'all' ? {

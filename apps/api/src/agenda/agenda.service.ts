@@ -13,6 +13,7 @@ import {
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
+import { reviewQueueOrder, reviewQueueSelect, reviewQueueWhere, toReviewQueueItem } from '../tasks/review-queue';
 import { TravelService } from '../travel/travel.service';
 import { eventAssigneesInclude } from '../calendar/event-people';
 import {
@@ -93,9 +94,10 @@ export class AgendaService {
     const todayStart = bangkokDayStart(now);
     const horizonEnd = addBangkokDays(todayStart, UPCOMING_DAYS + 2);
 
-    const [overdueItems, aheadItems] = await Promise.all([
+    const [overdueItems, aheadItems, reviewRows] = await Promise.all([
       this.getOverdue(user, todayStart),
       this.getAgenda(user, todayStart, horizonEnd),
+      this.prisma.task.findMany({ where: reviewQueueWhere(user), select: reviewQueueSelect, orderBy: reviewQueueOrder, take: 20 }),
     ]);
 
     const todayKey = bangkokDayKey(now);
@@ -114,7 +116,7 @@ export class AgendaService {
     // the calls — a conflict five days out is not actionable this morning.
     const warnings = await this.buildWarnings(user, [...todayItems, ...tomorrow]);
 
-    return { today: todayKey, overdue: overdueItems, todayItems, tomorrow, upcoming, warnings };
+    return { today: todayKey, overdue: overdueItems, todayItems, tomorrow, upcoming, warnings, reviewQueue: reviewRows.map(toReviewQueueItem) };
   }
 
   /**

@@ -484,6 +484,17 @@ describe('TasksService on-hold', () => {
   });
 
   describe('findMine', () => {
+    it('view=review is exactly the reviewer rule, never "assigned to me"', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([]);
+      await service.findMine({ ...user, firmRole: 'OWNER' }, 'review');
+      const where = mockPrisma.task.findMany.mock.calls[0][0].where;
+      expect(where.AND).toContainEqual(expect.objectContaining({
+        status: 'PENDING_REVIEW',
+        AND: expect.arrayContaining([{ OR: [{ reviewerId: 'user-1' }, { reviewerId: null, case: { leadLawyerId: 'user-1', deletedAt: null } }] }]),
+      }));
+      expect(JSON.stringify(where)).not.toContain('"assigneeId":"user-1"');
+    });
+
     it('scopes tasks (standalone and case alike) to the firm and the role-based filter', async () => {
       mockCaseAccess.getTaskFilterForUser.mockReturnValue({ assigneeId: 'user-1' });
       mockPrisma.task.findMany.mockResolvedValue([]);

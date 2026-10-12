@@ -123,10 +123,9 @@ describe('TasksService detail support', () => {
           { assigneeId: 'u1' },
           { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'u1' } } },
         ] }
-          : { status: 'PENDING_REVIEW', OR: [
-            { caseId: null, assigneeId: 'u1' },
-            { caseId: { not: null }, reviewerId: 'u1' },
-            { reviewerId: null, case: { leadLawyerId: 'u1' } },
+          : { status: 'PENDING_REVIEW', AND: [
+            { OR: [{ firmId: 'f1' }, { case: { firmId: 'f1' } }] },
+            { OR: [{ reviewerId: 'u1' }, { reviewerId: null, case: { leadLawyerId: 'u1', deletedAt: null } }] },
           ] },
       ] });
       // Delegated/unassigned created tasks must not be narrowed to the current assignee.
@@ -135,14 +134,13 @@ describe('TasksService detail support', () => {
       expect(query.where.parentId).toBeUndefined();
       expect(query.include.comments).toMatchObject({ orderBy: { createdAt: 'desc' }, take: 1 });
     });
-    it('allows the owner fallback only when a case has no named reviewer', async () => {
+    it('gives the owner of another firm no review fallback: only named reviewer or case lead, in their firm', async () => {
       mockPrisma.task.findMany.mockResolvedValue([]);
       await service.findMine(ownerOfOtherFirm, 'review');
       const where = mockPrisma.task.findMany.mock.calls[0][0].where;
-      expect(where.AND[2]).toEqual({ status: 'PENDING_REVIEW', OR: [
-        { caseId: null, assigneeId: 'u9' },
-        { caseId: { not: null }, reviewerId: 'u9' },
-        { reviewerId: null, case: { firmId: 'f2' } },
+      expect(where.AND[2]).toEqual({ status: 'PENDING_REVIEW', AND: [
+        { OR: [{ firmId: 'f2' }, { case: { firmId: 'f2' } }] },
+        { OR: [{ reviewerId: 'u9' }, { reviewerId: null, case: { leadLawyerId: 'u9', deletedAt: null } }] },
       ] });
       expect(where.AND[0].OR[0]).toEqual({ case: { firmId: 'f2', deletedAt: null } });
     });

@@ -91,6 +91,19 @@ export interface MyDayResponse {
   tomorrow: AgendaItem[];
   upcoming: AgendaDay[];
   warnings: AgendaWarning[];
+  reviewQueue: ReviewQueueItem[];
+}
+
+/** A task waiting for the caller's review ("รอฉันตรวจ"). */
+export interface ReviewQueueItem {
+  id: string;
+  title: string;
+  caseId: string | null;
+  caseRef: string | null;
+  caseTitle: string | null;
+  workerName: string | null;
+  submittedAt: string | null;
+  dueDate: string | null;
 }
 
 /** What produced a date suggestion awaiting a lawyer's confirmation. */
