@@ -17,6 +17,8 @@ export default function CasePartyScreen() {
   const cache = useQueryClient();
   const legalCase = useCase(id);
   const existing = legalCase.data?.participants?.find((p) => p.id === participantId);
+  // The row that stands for the case's own client: the API refuses to delete it or move it off our side.
+  const isCaseClient = !!existing?.clientId && existing.clientId === legalCase.data?.client?.id;
   const [name, setName] = useState('');
   const [side, setSide] = useState<string>(ParticipantSide.OPPONENT);
   const [role, setRole] = useState<string>(ParticipantRole.OTHER);
@@ -46,7 +48,7 @@ export default function CasePartyScreen() {
     if (!name.trim()) return Alert.alert('กรอกไม่ครบ', 'ใส่ชื่อคู่ความ');
     setBusy(true); setError('');
     try {
-      const body = { name: name.trim(), side, role, personType: personType || null, phone: phone.trim() || null };
+      const body = { name: name.trim(), ...(isCaseClient ? {} : { side }), role, personType: personType || null, phone: phone.trim() || null };
       await api(existing ? `/cases/${id}/participants/${existing.id}` : `/cases/${id}/participants`, { method: existing ? 'PATCH' : 'POST', body });
       await done();
     } catch (e) {
@@ -67,7 +69,7 @@ export default function CasePartyScreen() {
     <Stack.Screen options={{ title: existing ? 'แก้ไขคู่ความ' : 'เพิ่มคู่ความ' }} />
     <FormSection title={legalCase.data.ownRef} detail={legalCase.data.title}>
       <FormField label="ชื่อ" value={name} onChange={setName} disabled={busy} />
-      <Dropdown label="ฝ่าย" value={side} onChange={setSide} disabled={busy}
+      <Dropdown label="ฝ่าย" value={side} onChange={setSide} disabled={busy || isCaseClient}
         options={Object.values(ParticipantSide).map((s) => ({ value: s, label: PARTICIPANT_SIDE_LABELS[s] }))} />
       <Dropdown label="ฐานะในคดี" value={role} onChange={setRole} disabled={busy}
         options={Object.values(ParticipantRole).map((r) => ({ value: r, label: PARTICIPANT_ROLE_LABELS[r] }))} />
@@ -75,8 +77,9 @@ export default function CasePartyScreen() {
         options={[{ value: '', label: 'ยังไม่ระบุ' }, { value: 'บุคคลธรรมดา', label: 'บุคคลธรรมดา' }, { value: 'นิติบุคคล', label: 'นิติบุคคล' }]} />
       <FormField label="โทรศัพท์" value={phone} onChange={setPhone} disabled={busy} />
     </FormSection>
+    {isCaseClient && <Text style={{ color: colors.muted }}>นี่คือลูกความหลักของคดี ย้ายฝ่ายหรือลบไม่ได้ ถ้าจะเปลี่ยนลูกความให้แก้ที่หน้าแก้ไขคดี</Text>}
     {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
     <Button title="บันทึก" busy={busy} onPress={save} />
-    {existing && <Button title="ลบคู่ความ" ghost disabled={busy} onPress={remove} />}
+    {existing && !isCaseClient && <Button title="ลบคู่ความ" ghost disabled={busy} onPress={remove} />}
   </FormPage>;
 }

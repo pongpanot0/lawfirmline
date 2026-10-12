@@ -78,4 +78,47 @@ describe('CaseParticipantsService', () => {
       data: expect.objectContaining({ action: 'CASE_PARTICIPANT_REMOVED' }),
     });
   });
+
+  describe('the row that represents the case client', () => {
+    const REFUSED = 'ลบหรือย้ายฝ่ายลูกความหลักของคดีไม่ได้ — เปลี่ยนลูกความที่หน้าข้อมูลคดีแทน';
+    const ourRow = { id: 'p1', caseId: 'case-1', name: 'ลูกความ', role: 'PLAINTIFF', side: 'OURS', clientId: 'client-1' };
+
+    beforeEach(() => {
+      prisma.case.findFirst.mockResolvedValue({ id: 'case-1', clientId: 'client-1' });
+      prisma.caseParticipant.findFirst.mockResolvedValue(ourRow);
+    });
+
+    it('cannot be deleted', async () => {
+      await expect(service.remove(user, 'case-1', 'p1')).rejects.toThrow(REFUSED);
+      expect(prisma.caseParticipant.delete).not.toHaveBeenCalled();
+    });
+
+    it('cannot leave our side or be re-linked to another client or none', async () => {
+      for (const dto of [{ side: 'OPPONENT' }, { side: 'NEUTRAL' }, { clientId: null }, { clientId: 'client-2' }]) {
+        await expect(service.update(user, 'case-1', 'p1', dto as any)).rejects.toThrow(REFUSED);
+      }
+      expect(prisma.caseParticipant.update).not.toHaveBeenCalled();
+    });
+
+    it('can still be renamed, re-roled or saved with the same side and client', async () => {
+      await service.update(user, 'case-1', 'p1', { name: 'ชื่อใหม่', role: 'JOINT_PLAINTIFF', side: 'OURS', clientId: 'client-1' } as any);
+      expect(prisma.caseParticipant.update).toHaveBeenCalled();
+    });
+
+    it('can be renamed when an older row already sits outside our side, as long as the side is not changed again', async () => {
+      prisma.caseParticipant.findFirst.mockResolvedValue({ ...ourRow, side: 'NEUTRAL' });
+      await service.update(user, 'case-1', 'p1', { name: 'ชื่อใหม่', side: 'NEUTRAL' } as any);
+      expect(prisma.caseParticipant.update).toHaveBeenCalled();
+      await expect(service.update(user, 'case-1', 'p1', { side: 'OPPONENT' } as any)).rejects.toThrow(REFUSED);
+    });
+
+    it('does not protect an unrelated party, and protects nothing on a case without a client', async () => {
+      prisma.caseParticipant.findFirst.mockResolvedValue({ ...ourRow, id: 'p2', side: 'OPPONENT', clientId: null });
+      await expect(service.remove(user, 'case-1', 'p2')).resolves.toEqual({ deleted: true });
+
+      prisma.case.findFirst.mockResolvedValue({ id: 'case-1', clientId: null });
+      prisma.caseParticipant.findFirst.mockResolvedValue({ ...ourRow, clientId: null });
+      await expect(service.remove(user, 'case-1', 'p1')).resolves.toEqual({ deleted: true });
+    });
+  });
 });

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ActivityType, AuthUser } from '@lawfirm/shared';
+import { ActivityType, AuthUser, ParticipantSide } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { assertFirmRefs } from '../common/firm-refs';
@@ -10,6 +10,9 @@ const ROLE_TH: Record<string, string> = {
   PETITIONER: 'ผู้ร้อง', RESPONDENT: 'ผู้คัดค้าน', WITNESS: 'พยาน', EXPERT: 'ผู้เชี่ยวชาญ',
   OPPOSING_LAWYER: 'ทนายฝ่ายตรงข้าม', OPPOSING_INSURER: 'บริษัทประกันฝ่ายตรงข้าม', OTHER: 'อื่น ๆ',
 };
+
+/** Case.clientId is represented by exactly this row; losing it would drop our client from conflict checks. */
+const OUR_CLIENT_ROW_LOCKED = 'ลบหรือย้ายฝ่ายลูกความหลักของคดีไม่ได้ — เปลี่ยนลูกความที่หน้าข้อมูลคดีแทน';
 
 @Injectable()
 export class CaseParticipantsService {
@@ -22,6 +25,10 @@ export class CaseParticipantsService {
     const legalCase = await this.prisma.case.findFirst({ where: { id: caseId, firmId } });
     if (!legalCase) throw new NotFoundException('Case not found');
     return legalCase;
+  }
+
+  private isCaseClientRow(legalCase: { clientId: string | null }, participant: { clientId: string | null }) {
+    return !!legalCase.clientId && participant.clientId === legalCase.clientId;
   }
 
   /** A linked client must be this firm's; represented party must be on this case and not the row itself. */
@@ -77,9 +84,16 @@ export class CaseParticipantsService {
   }
 
   async update(user: AuthUser, caseId: string, participantId: string, dto: UpdateParticipantDto) {
-    await this.verifyCase(user.firmId, caseId);
+    const legalCase = await this.verifyCase(user.firmId, caseId);
     const participant = await this.prisma.caseParticipant.findFirst({ where: { id: participantId, caseId } });
     if (!participant) throw new NotFoundException('Participant not found');
+    if (
+      this.isCaseClientRow(legalCase, participant) &&
+      ((dto.side !== undefined && dto.side !== ParticipantSide.OURS && dto.side !== participant.side) ||
+        (dto.clientId !== undefined && dto.clientId !== participant.clientId))
+    ) {
+      throw new BadRequestException(OUR_CLIENT_ROW_LOCKED);
+    }
     await this.checkLinks(user, caseId, dto, participantId);
     const updated = await this.prisma.caseParticipant.update({ where: { id: participantId }, data: dto });
     await this.record(user, caseId, 'UPDATED', updated);
@@ -87,9 +101,10 @@ export class CaseParticipantsService {
   }
 
   async remove(user: AuthUser, caseId: string, participantId: string) {
-    await this.verifyCase(user.firmId, caseId);
+    const legalCase = await this.verifyCase(user.firmId, caseId);
     const participant = await this.prisma.caseParticipant.findFirst({ where: { id: participantId, caseId } });
     if (!participant) throw new NotFoundException('Participant not found');
+    if (this.isCaseClientRow(legalCase, participant)) throw new BadRequestException(OUR_CLIENT_ROW_LOCKED);
     await this.prisma.caseParticipant.delete({ where: { id: participantId } });
     await this.record(user, caseId, 'REMOVED', participant);
     return { deleted: true };

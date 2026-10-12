@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { COURT_LEVEL_LABELS, CourtLevel, PARTY_ROLE_LABELS, PartyRole, hasFirmCapability } from '@lawfirm/shared';
+import { COURT_LEVEL_LABELS, CourtLevel, PARTICIPANT_SIDE_LABELS, PARTY_ROLE_LABELS, PartyRole, type ParticipantSide, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { ApiError, api } from '@/api/client';
 import { useCase, useCourts } from '@/api/hooks';
@@ -33,6 +33,8 @@ export default function CaseFormScreen() {
   const [opponents, setOpponents] = useState<string[]>(['']);
   const [conflict, setConflict] = useState<Array<{ name: string; side?: string; ownRef?: string; caseTitle?: string }> | null>(null);
   const [overrideReason, setOverrideReason] = useState('');
+  // A new name deserves a fresh conflict check: drop the old matches and the reason written for them.
+  const resetConflict = () => { setConflict(null); setOverrideReason(''); };
   const [description, setDescription] = useState('');
   const [courtName, setCourtName] = useState('');
   const [courtLevel, setCourtLevel] = useState<string>('TRIAL');
@@ -63,7 +65,8 @@ export default function CaseFormScreen() {
       let target = savedId;
       if (!target) {
         const body = { title: title.trim(),
-          ...(pickedClient ? { clientId: pickedClient.id, clientName: pickedClient.name } : {}),
+          // The registered name is only sent for a client the case does not already have; a typed name stays as is.
+          ...(pickedClient ? { clientId: pickedClient.id, ...(pickedClient.id !== current.data?.client?.id ? { clientName: pickedClient.name } : {}) } : {}),
           partyRole: partyRole || (id ? null : undefined),
           ...(!id ? { opponents: opponents.map(name => name.trim()).filter(Boolean).map(name => ({ name })) } : {}),
           ...(!id && overrideReason.trim() ? { conflictOverrideReason: overrideReason.trim() } : {}),
@@ -97,13 +100,14 @@ export default function CaseFormScreen() {
     <FormSection title="ข้อมูลคดี">
     <FormField label="ชื่อคดี" value={title} onChange={setTitle} disabled={busy || !!savedId} />
     <SectionLabel style={formLabelSpacing}>ลูกความ</SectionLabel>
-    <ClientPicker value={pickedClient} onChange={setPickedClient} disabled={busy || !!savedId} />
+    <ClientPicker value={pickedClient} onChange={client => { setPickedClient(client); resetConflict(); }} disabled={busy || !!savedId}
+      allowClear={!(id && current.data?.client)} />
     <Dropdown label="เราเป็น" value={partyRole} onChange={setPartyRole} disabled={busy || !!savedId}
       options={[{ value: '', label: 'ยังไม่ระบุ' }, ...Object.values(PartyRole).map(role => ({ value: role, label: PARTY_ROLE_LABELS[role] }))]} />
     {!id && <>
       <SectionLabel style={formLabelSpacing}>คู่ความฝ่ายตรงข้าม</SectionLabel>
       {opponents.map((name, index) => <FormField key={index} label={`รายที่ ${index + 1}`} value={name} disabled={busy || !!savedId}
-        onChange={next => setOpponents(rows => rows.map((row, i) => i === index ? next : row))} placeholder="ชื่อบุคคลหรือบริษัท" />)}
+        onChange={next => { setOpponents(rows => rows.map((row, i) => i === index ? next : row)); resetConflict(); }} placeholder="ชื่อบุคคลหรือบริษัท" />)}
       <Button title="เพิ่มคู่ความ" ghost disabled={busy || !!savedId} onPress={() => setOpponents(rows => [...rows, ''])} />
     </>}
     {id && <Dropdown label="สถานะคดี" value={status} onChange={setStatus}
@@ -138,7 +142,7 @@ export default function CaseFormScreen() {
     {!!error && <Text style={{ color: colors.warn }}>{error}</Text>}
     {conflict && <Card>
       <Text style={{ color: colors.warn, fontWeight: '700' }}>พบชื่อที่อาจขัดกัน</Text>
-      {conflict.map((m, i) => <Text key={i} style={{ marginTop: 4 }}>{m.name} — {m.side === 'OURS' ? 'ฝ่ายเรา' : 'ฝ่ายตรงข้าม'}{m.ownRef ? ` ในคดี ${m.ownRef}` : ''}</Text>)}
+      {conflict.map((m, i) => <Text key={i} style={{ marginTop: 4 }}>{m.name}{m.side ? ` — ${PARTICIPANT_SIDE_LABELS[m.side as ParticipantSide] ?? m.side}` : ''}{m.ownRef ? ` ในคดี ${m.ownRef}` : ''}</Text>)}
       <FormField label="เหตุผลที่เปิดต่อ (อย่างน้อย 10 ตัวอักษร)" value={overrideReason} onChange={setOverrideReason} multiline disabled={busy} />
     </Card>}
     <Button title={savedId ? 'ส่งไฟล์ที่เหลือ / เปิดคดี' : id ? 'บันทึกคดี' : 'บันทึกเคส'} busy={busy}
