@@ -82,6 +82,7 @@ function NewCaseForm() {
   const [uploadFailures, setUploadFailures] = useState<string[]>([]);
   const [opponents, setOpponents] = useState<OpponentRow[]>([{ name: '', role: '', personType: '' }]);
   const [courts, setCourts] = useState<CourtItem[]>([]);
+  const [limitationIncomplete, setLimitationIncomplete] = useState(false);
   const [conflict, setConflict] = useState<ConflictMatchItem[] | null>(null);
 
   const [form, setForm] = useState({
@@ -115,6 +116,10 @@ function NewCaseForm() {
   const fieldSchema = (
     Array.isArray(selectedType?.fieldSchema) ? selectedType.fieldSchema : []
   ) as CaseFieldSchema[];
+
+  // chargeSection and the keys with their own input elsewhere on the form are not repeated here.
+  const isRequired = (key: string) => fieldSchema.some((field) => field.key === key && field.required);
+  const customFieldList = fieldSchema.filter((field) => !['chargeSection', 'incidentDate', 'estimatedDamage', 'opposingParty'].includes(field.key));
 
   const workloadLabel = (userId: string) => {
     const w = workload.find((x) => x.userId === userId);
@@ -214,6 +219,7 @@ function NewCaseForm() {
   const validationMessage = () => {
     if (!form.caseTypeId) return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
     if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
+    if (limitationIncomplete) return 'กรอกวันครบอายุความให้ครบ (วัน/เดือน/ปี พ.ศ.) หรือเว้นว่างทั้งหมด';
     const missing = fieldSchema.find(
       (f) => f.required && !(f.key === 'chargeSection' ? form.chargeSection : form.customFields[f.key])?.trim(),
     );
@@ -340,9 +346,13 @@ function NewCaseForm() {
 
   const applySuggestion = (field: SuggestibleField, value: string) => {
     if (field === 'opposingParty') {
-      setOpponents((rows) => rows.some((row) => row.name.trim() === value.trim())
-        ? rows
-        : [...rows.filter((row) => row.name.trim()), { name: value.trim(), role: '', personType: '' }]);
+      const name = value.trim().slice(0, 200);
+      setOpponents((rows) => {
+        const filled = rows.filter((row) => row.name.trim());
+        return !name || filled.some((row) => row.name.trim() === name) || filled.length >= 20
+          ? rows
+          : [...filled, { name, role: '', personType: '' }];
+      });
       return;
     }
     if (field === 'title') setAutoTitle(false);
@@ -473,15 +483,15 @@ function NewCaseForm() {
                     {Object.values(PartyRole).map((role) => <option key={role} value={role}>{PARTY_ROLE_LABELS[role]}</option>)}
                   </select>
                 </label>
-                <div className="space-y-2">
-                  <p className={fieldLabel}>คู่ความฝ่ายตรงข้าม</p>
+                <fieldset className="min-w-0 space-y-2">
+                  <legend className={fieldLabel}>คู่ความฝ่ายตรงข้าม</legend>
                   {opponents.map((row, index) => (
                     <div key={index} className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem_auto]">
                       <input aria-label={`ชื่อคู่ความฝ่ายตรงข้ามรายที่ ${index + 1}`} value={row.name} placeholder="ชื่อบุคคลหรือบริษัท" maxLength={200}
                         onChange={(e) => setOpponents((rows) => rows.map((r, i) => i === index ? { ...r, name: e.target.value } : r))} className={inputClass} />
                       <select aria-label={`ฐานะคู่ความรายที่ ${index + 1}`} value={row.role}
                         onChange={(e) => setOpponents((rows) => rows.map((r, i) => i === index ? { ...r, role: e.target.value } : r))} className={inputClass}>
-                        <option value="">ฝั่งตรงข้ามของเรา</option>
+                        <option value="">ตามฝ่ายของเรา (ถ้าระบุ)</option>
                         <option value="PLAINTIFF">โจทก์</option><option value="DEFENDANT">จำเลย</option>
                         <option value="PETITIONER">ผู้ร้อง</option><option value="RESPONDENT">ผู้คัดค้าน</option>
                         <option value="OPPOSING_LAWYER">ทนายฝ่ายตรงข้าม</option><option value="OPPOSING_INSURER">บริษัทประกันฝ่ายตรงข้าม</option>
@@ -498,7 +508,7 @@ function NewCaseForm() {
                   <Button type="button" variant="outline" size="sm" disabled={opponents.length >= 20} onClick={() => setOpponents((rows) => [...rows, { name: '', role: '', personType: '' }])}>
                     <Plus className="h-3.5 w-3.5" /> เพิ่มคู่ความ
                   </Button>
-                </div>
+                </fieldset>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label htmlFor="court-level" className={fieldLabel}>ระดับศาล
                     <select id="court-level" value={form.courtLevel} onChange={(e) => setForm({ ...form, courtLevel: e.target.value })} className={inputClass}>
@@ -512,9 +522,9 @@ function NewCaseForm() {
                     <input id="black-case-number" value={form.blackCaseNumber} onChange={(e) => setForm({ ...form, blackCaseNumber: e.target.value })}
                       placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={inputClass} />
                   </label>
-                  <div className={fieldLabel}>
-                    <label htmlFor="limitation-deadline">วันครบอายุความ</label>
-                    <ThaiDateInput id="limitation-deadline" className="mt-1" value={form.limitationDeadline} onChange={(limitationDeadline) => setForm((current) => ({ ...current, limitationDeadline }))} />
+                  <div role="group" aria-labelledby="limitation-deadline-label" className={fieldLabel}>
+                    <span id="limitation-deadline-label">วันครบอายุความ</span>
+                    <ThaiDateInput id="limitation-deadline" className="mt-1" value={form.limitationDeadline} onChange={(limitationDeadline) => setForm((current) => ({ ...current, limitationDeadline }))} onIncompleteChange={setLimitationIncomplete} />
                     <span className="mt-1 block text-xs font-normal text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน</span>
                   </div>
                 </div>
@@ -665,13 +675,13 @@ function NewCaseForm() {
               </div>
               <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
                 <label className={fieldLabel}>วันเกิดเหตุ
-                  <input type="date" value={form.customFields.incidentDate?.slice(0, 10) ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, incidentDate: event.target.value } }))} className={inputClass} />
+                  <input type="date" required={isRequired('incidentDate')} value={form.customFields.incidentDate?.slice(0, 10) ?? ''} onChange={(event) => setForm((current) => ({ ...current, customFields: { ...current.customFields, incidentDate: event.target.value } }))} className={inputClass} />
                 </label>
                 <label className={fieldLabel}>ทุนทรัพย์ที่เรียกร้อง (บาท)
                   <MoneyInput min={0} max={FEE_MAX} value={form.claimedAmount} onValueChange={(next) => setForm((current) => ({ ...current, claimedAmount: next }))} className={inputClass} />
                 </label>
                 <label className={fieldLabel}>ความเสียหายโดยประมาณ (บาท)
-                  <MoneyInput min={0} max={FEE_MAX} value={form.customFields.estimatedDamage ?? ''} onValueChange={(next) => setForm((current) => ({ ...current, customFields: { ...current.customFields, estimatedDamage: next } }))} className={inputClass} />
+                  <MoneyInput min={0} max={FEE_MAX} required={isRequired('estimatedDamage')} value={form.customFields.estimatedDamage ?? ''} onValueChange={(next) => setForm((current) => ({ ...current, customFields: { ...current.customFields, estimatedDamage: next } }))} className={inputClass} />
                 </label>
                 <label className="text-sm font-medium sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี
                   <textarea rows={4} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className={inputClass} />
@@ -685,11 +695,11 @@ function NewCaseForm() {
                   <textarea required={fieldSchema.find((field) => field.key === 'chargeSection')?.required} rows={2} maxLength={2000} value={form.chargeSection} onChange={(event) => setForm({ ...form, chargeSection: event.target.value })} className={inputClass} />
                 </label>
               )}
-              {fieldSchema.some((field) => field.key !== 'chargeSection') && (
+              {customFieldList.length > 0 && (
                 <section className="space-y-3 border-t border-border pt-5" aria-label="ข้อมูลของประเภทคดี">
                   <h3 className="text-sm font-semibold">ข้อมูลของประเภทคดีนี้</h3>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {fieldSchema.filter((field) => field.key !== 'chargeSection').map((field) => (
+                    {customFieldList.map((field) => (
                       <label key={field.key} htmlFor={"custom-" + field.key} className="block text-sm font-medium">
                         {field.label}{field.required ? ' *' : ''}
                         {field.type === 'select' ? (

@@ -27,10 +27,17 @@ export function partsToIso(p: ThaiDateParts): string {
   if (!p.d || !p.m || p.yBe.length !== 4 || Number.isNaN(yBe) || yBe < MIN_BE_YEAR) return '';
   if (d < 1 || d > 31 || m < 1 || m > 12) return '';
   const ad = yBe - 543;
-  return `${ad}-${pad(String(m))}-${pad(String(Math.min(d, daysInMonth(ad, m))))}`;
+  if (d > daysInMonth(ad, m)) return ''; // 31 Apr / 30 Feb do not exist — never silently moved to another day
+  return `${ad}-${pad(String(m))}-${pad(String(d))}`;
 }
 
 /** Every field filled in, yet no valid date comes out. */
 export function isInvalidParts(p: ThaiDateParts): boolean {
   return !!p.d && !!p.m && p.yBe.length === 4 && partsToIso(p) === '';
+}
+
+/** Something typed, but not yet day + month + a 4-digit year. */
+export function isPartialParts(p: ThaiDateParts): boolean {
+  const any = !!p.d || !!p.m || !!p.yBe;
+  return any && !(p.d && p.m && p.yBe.length === 4);
 }

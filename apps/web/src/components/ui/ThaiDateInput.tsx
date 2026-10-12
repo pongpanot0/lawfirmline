@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { daysInMonth, isInvalidParts, pad, parseIsoParts, partsToIso, MIN_BE_YEAR, type ThaiDateParts } from '@/lib/thai-date';
+import { daysInMonth, isInvalidParts, isPartialParts, pad, parseIsoParts, partsToIso, MIN_BE_YEAR, type ThaiDateParts } from '@/lib/thai-date';
 
 export const THAI_MONTHS = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -30,13 +30,19 @@ export interface ThaiDateInputProps {
   className?: string;
   required?: boolean;
   disabled?: boolean;
+  /**
+   * Opt-in: called with true while the date is partly typed or impossible (and therefore emitted as ''),
+   * so the parent can refuse to submit instead of silently dropping the date. Also turns on the
+   * "fill it all in or leave it empty" alert once focus leaves the field.
+   */
+  onIncompleteChange?: (incomplete: boolean) => void;
 }
 
 /**
  * ช่องเลือกวันที่แบบไทย: วัน (พิมพ์ได้ รับเลขไทย) / เดือนไทยเต็ม (เลือกจาก dropdown) /
  * ปี พ.ศ. (พิมพ์ได้ รับเลขไทย) — ค่าที่ส่งออกยังเป็น ISO ค.ศ. เดิมเหมือน `<input type="date">`
  */
-export function ThaiDateInput({ value, onChange, id, className, required, disabled }: ThaiDateInputProps) {
+export function ThaiDateInput({ value, onChange, id, className, required, disabled, onIncompleteChange }: ThaiDateInputProps) {
   const [local, setLocal] = useState<Parts>(() => parseIsoParts(value));
 
   useEffect(() => {
@@ -55,11 +61,19 @@ export function ThaiDateInput({ value, onChange, id, className, required, disabl
   };
 
   const invalid = isInvalidParts(local);
+  const partial = isPartialParts(local);
+  const [left, setLeft] = useState(false);
+  useEffect(() => { onIncompleteChange?.(invalid || partial); }, [invalid, partial]); // eslint-disable-line react-hooks/exhaustive-deps
   const textClass = 'h-9 w-14 shrink-0 rounded-lg border border-input bg-background px-2 text-center text-sm';
   const selectClass = 'h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2 text-sm';
 
   return (
-    <div className={`flex flex-wrap gap-1.5 ${className ?? ''}`} id={id}>
+    <div
+      className={`flex flex-wrap gap-1.5 ${className ?? ''}`}
+      id={id}
+      onFocus={() => setLeft(false)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setLeft(true); }}
+    >
       <input
         aria-label="วัน"
         inputMode="numeric"
@@ -96,7 +110,14 @@ export function ThaiDateInput({ value, onChange, id, className, required, disabl
       />
       {invalid && (
         <p role="alert" className="basis-full text-xs text-destructive">
-          วันที่ไม่ถูกต้อง — ปี พ.ศ. ต้องไม่ต่ำกว่า {MIN_BE_YEAR}
+          {Number(local.yBe) < MIN_BE_YEAR
+            ? <>วันที่ไม่ถูกต้อง — ปี พ.ศ. ต้องไม่ต่ำกว่า {MIN_BE_YEAR}</>
+            : 'วันที่ไม่ถูกต้อง — เดือนนี้ไม่มีวันที่ดังกล่าว'}
+        </p>
+      )}
+      {onIncompleteChange && partial && left && (
+        <p role="alert" className="basis-full text-xs text-destructive">
+          กรอกวัน/เดือน/ปี พ.ศ. ให้ครบ หรือเว้นว่างทั้งหมด — วันที่ที่กรอกไม่ครบจะไม่ถูกบันทึก
         </p>
       )}
     </div>

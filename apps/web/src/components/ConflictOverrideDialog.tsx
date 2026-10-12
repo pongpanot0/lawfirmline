@@ -59,6 +59,7 @@ export function ConflictOverrideDialog({
             required
             rows={3}
             maxLength={2000}
+            autoFocus
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
