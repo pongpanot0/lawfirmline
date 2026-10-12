@@ -76,3 +76,9 @@ export function thaiDateAction(next: ThaiDateParts, value: string | null, confir
   if (result.kind === 'empty') return value && confirmClear ? { emit: 'confirm-clear', invalid: false } : { emit: 'clear', invalid: false };
   return { emit: 'none', invalid: true, message: result.message };
 }
+
+/** The limitation part of a case save: create sends a set date only; edit sends only a change (null = confirmed clear). */
+export function limitationBody(editing: boolean, formDay: string | null, storedDay: string | null): { limitationDeadline?: string | null } {
+  if (!editing) return formDay ? { limitationDeadline: bangkokDayToIso(formDay) } : {};
+  return limitationPatch(formDay, storedDay);
+}

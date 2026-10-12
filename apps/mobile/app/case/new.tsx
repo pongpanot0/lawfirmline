@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, TextInput as NativeTextInput } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +17,9 @@ import { FormPage, FormField, FormSection } from '@/components/Form';
 import { Disclosure } from '@/components/Disclosure';
 import { Button, Card, ErrorNote, Loading, PageIntro, SectionLabel } from '@/components/ui';
 import { colors, formLabelSpacing } from '@/theme';
+import { ThaiDateField } from '@/components/ThaiDateField';
+import { bangkokDay } from '@/format';
+import { limitationBody, THAI_DATE_PARTIAL } from '@/thai-date';
 
 export default function CaseFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -40,6 +43,11 @@ export default function CaseFormScreen() {
   const [courtLevel, setCourtLevel] = useState<string>('TRIAL');
   const [caseTypeId, setCaseTypeId] = useState('');
   const [status, setStatus] = useState('OPEN');
+  // Bangkok day or null. A half-typed entry never lands here: ThaiDateField keeps it and reports invalid.
+  const [limitation, setLimitation] = useState<string | null>(null);
+  const [limitationInvalid, setLimitationInvalid] = useState(false);
+  const limitationRef = useRef<NativeTextInput>(null);
+  const storedLimitation = current.data?.limitationDeadline ? bangkokDay(current.data.limitationDeadline) : null;
   const [ids, setIds] = useState<string[]>(user ? [user.id] : []);
   const [files, setFiles] = useState<AttachmentFile[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -55,6 +63,7 @@ export default function CaseFormScreen() {
     setDescription(data.description ?? ''); setCourtName(data.courtName ?? ''); setCourtLevel(data.courtLevel ?? 'TRIAL');
     setCaseTypeId(data.caseTypeId ?? '');
     setStatus(data.status);
+    setLimitation(data.limitationDeadline ? bangkokDay(data.limitationDeadline) : null);
     const lead = data.leadLawyerId ?? data.leadLawyer?.id;
     setIds([...(lead ? [lead] : []), ...(data.assignments ?? []).filter(item => item.assignmentType === 'BUDDY' && item.userId !== lead).map(item => item.userId)]);
   }, [current.data]);
@@ -62,6 +71,12 @@ export default function CaseFormScreen() {
   const levelSwitching = !!id && !!current.data && courtLevel !== (current.data.courtLevel ?? 'TRIAL');
   const save = async () => {
     if (!title.trim() || !ids[0]) return Alert.alert('กรอกไม่ครบ', 'ใส่ชื่อคดีและเลือกคนรับผิดชอบหลัก');
+    if (limitationInvalid) {
+      // The field's own warning may not show yet (it waits for blur), so say it here.
+      Alert.alert('ตรวจวันครบอายุความ', THAI_DATE_PARTIAL);
+      limitationRef.current?.focus();
+      return;
+    }
     setBusy(true); setError('');
     try {
       let target = savedId;
@@ -73,6 +88,7 @@ export default function CaseFormScreen() {
           ...(!id ? { opponents: opponents.map(name => name.trim()).filter(Boolean).map(name => ({ name })) } : {}),
           ...(!id && overrideReason.trim() ? { conflictOverrideReason: overrideReason.trim() } : {}),
           description: description.trim(), ...(levelSwitching ? {} : { courtName: courtName || undefined }), courtLevel, caseTypeId: caseTypeId || undefined,
+          ...limitationBody(!!id, limitation, storedLimitation),
           ...(id && status !== current.data?.status ? { status } : {}) };
         const saved = await api<CaseDetail>(id ? `/cases/${id}` : '/cases', { method: id ? 'PATCH' : 'POST',
           body: { ...body, ...(!id || canReassign ? { leadLawyerId: ids[0] } : {}), ...(!id ? { buddyIds: ids.slice(1) } : {}) } });
@@ -121,6 +137,13 @@ export default function CaseFormScreen() {
     <Dropdown label="เลือกประเภทคดี" value={caseTypeId} onChange={setCaseTypeId} disabled={busy || !!savedId}
       options={[{ value: '', label: 'ยังไม่ระบุ' }, ...(types.data ?? []).map(item => ({ value: item.id, label: item.name }))]} />
     {types.isError && <ErrorNote message="โหลดประเภทคดีไม่ได้" onRetry={() => types.refetch()} />}
+    <ThaiDateField ref={limitationRef} label="วันครบอายุความ" value={limitation} onChange={setLimitation}
+      onInvalidChange={setLimitationInvalid} clearable hint="ว่างได้ ถ้ายังไม่ทราบ" disabled={busy || !!savedId}
+      clearConfirm={storedLimitation ? { title: 'ลบวันครบอายุความ?', body: 'คดีนี้จะไม่มีการเตือนอายุความอีก' } : undefined} />
+    {!!storedLimitation && limitation === null && <>
+      <Text style={{ color: colors.warn }}>จะลบเมื่อกดบันทึก</Text>
+      <Button title="คืนค่าเดิม" ghost disabled={busy || !!savedId} onPress={() => setLimitation(storedLimitation)} />
+    </>}
     </FormSection>
     <FormSection title="ผู้รับผิดชอบ" detail="คนหลักดูแลคดี คนรองร่วมทำงานในแฟ้มนี้">
     <TeamFields ids={ids} onChange={setIds} primaryLabel="คนหลัก" secondaryLabel="คนรอง"

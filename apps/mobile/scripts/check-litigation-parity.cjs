@@ -261,6 +261,32 @@ check('home queue rows open the one case, or the filtered waiting list for sever
   assert.equal(lit.queueRoute(['c1', 'c2'], 'documents'), '/notifications?filter=document');
 });
 
+check('a half-typed limitation never reaches the save; only a confirmed clear sends null', () => {
+  const { thaiDateAction, limitationBody } = thaiDate;
+  assert.deepEqual(limitationBody(false, null, null), {}, 'create without a date sends nothing');
+  assert.deepEqual(limitationBody(false, '2026-11-13', null), { limitationDeadline: '2026-11-12T17:00:00.000Z' });
+  const stored = '2026-11-13';
+  let form = stored;
+  const type = (parts) => {
+    const action = thaiDateAction(parts, form, true);
+    if (action.emit === 'day') form = action.day;
+    if (action.emit === 'clear') form = null;
+    return action;
+  };
+  assert.equal(type({ d: '13', m: '', y: '2569' }).invalid, true);
+  assert.deepEqual(limitationBody(true, form, stored), {}, 'half-typed: the stored date is untouched');
+  assert.equal(type({ d: '31', m: '4', y: '2569' }).invalid, true);
+  assert.deepEqual(limitationBody(true, form, stored), {}, 'impossible day: still untouched');
+  assert.equal(type({ d: '', m: '', y: '' }).emit, 'confirm-clear', 'emptying a saved date asks first');
+  assert.deepEqual(limitationBody(true, form, stored), {}, 'nothing is cleared before the lawyer confirms');
+  form = null; // the lawyer tapped "ลบวันที่"
+  assert.deepEqual(limitationBody(true, form, stored), { limitationDeadline: null });
+  form = stored; // "คืนค่าเดิม"
+  assert.deepEqual(limitationBody(true, form, stored), {});
+  assert.equal(type({ d: '14', m: '11', y: '2569' }).emit, 'day');
+  assert.deepEqual(limitationBody(true, form, stored), { limitationDeadline: '2026-11-13T17:00:00.000Z' });
+});
+
 // ── add new check(...) blocks above this line ──
 (async () => {
   for (const [name, fn] of checks) {
