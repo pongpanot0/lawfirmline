@@ -24,6 +24,8 @@ import { PRE_LITIGATION_STATUS_LABELS } from '@/lib/pre-litigation';
 import { IntakeTasksPanel } from '@/components/intake/IntakeTasksPanel';
 import { ConvertToCaseDialog } from '@/components/intake/ConvertToCaseDialog';
 import { IntakeStageBar } from '@/components/intake/IntakeStageBar';
+import { ConflictOverrideDialog } from '@/components/ConflictOverrideDialog';
+import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
 import { ConflictCheckPanel } from '@/components/intake/ConflictCheckPanel';
 import { IntakeFollowUpPanel } from '@/components/intake/IntakeFollowUpPanel';
 import { DocumentDropZone } from '@/components/DocumentDropZone';
@@ -262,6 +264,7 @@ export default function IntakeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalType>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [conflict, setConflict] = useState<{ matches: ConflictMatchItem[]; retry: (reason: string) => void } | null>(null);
   const [error, setError] = useState('');
   const [quoteLines, setQuoteLines] = useState<CaseCostLine[]>([]);
 
@@ -524,7 +527,7 @@ export default function IntakeDetailPage() {
 
   const ACCEPT_DECISIONS = ['FILE_SUIT', 'NEGOTIATE_FIRST', 'SEND_NOTICE', 'COMPLAIN_TO_AUTHORITY'];
 
-  const handleDecide = async () => {
+  const handleDecide = async (conflictOverrideReason?: string) => {
     if (!token || !id) return;
     setSubmitting(true);
     setError('');
@@ -538,6 +541,7 @@ export default function IntakeDetailPage() {
               title: decideTitle.trim() || undefined,
               leadLawyerId: decideLeadLawyerId || undefined,
               claimedAmount: decideClaimedAmount.trim() ? Number(decideClaimedAmount) : undefined,
+              ...(conflictOverrideReason ? { conflictOverrideReason } : {}),
             }
           : {}),
       })) as IntakeItem;
@@ -553,6 +557,8 @@ export default function IntakeDetailPage() {
       await reload();
       setModal(null);
     } catch (err) {
+      const matches = conflictMatchesFrom(err);
+      if (matches) { setConflict({ matches, retry: (reason) => { setConflict(null); void handleDecide(reason); } }); return; }
       setError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
@@ -899,7 +905,7 @@ export default function IntakeDetailPage() {
     leadLawyerId?: string;
     claimedAmount?: number;
     playbookId?: string;
-  }) => {
+  }, conflictOverrideReason?: string) => {
     if (!token || !id || submitting) return;
     setSubmitting(true);
     setConvertError('');
@@ -908,6 +914,7 @@ export default function IntakeDetailPage() {
         title: payload.title || undefined,
         leadLawyerId: payload.leadLawyerId,
         claimedAmount: payload.claimedAmount,
+        ...(conflictOverrideReason ? { conflictOverrideReason } : {}),
       })) as { id?: string; ownRef?: string } & IntakeItem;
       // A new case comes back as the case itself; attaching to an existing one
       // returns that case. Either way the lawyer lands where the work now is.
@@ -922,6 +929,8 @@ export default function IntakeDetailPage() {
       setConverting(false);
       await reload();
     } catch (err) {
+      const matches = conflictMatchesFrom(err);
+      if (matches) { setConflict({ matches, retry: (reason) => { setConflict(null); void handleConvert(payload, reason); } }); return; }
       setConvertError(err instanceof ApiError ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
@@ -1752,7 +1761,7 @@ export default function IntakeDetailPage() {
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setModal(null)}>ยกเลิก</Button>
-                  <Button onClick={handleDecide} disabled={submitting}>
+                  <Button onClick={() => handleDecide()} disabled={submitting}>
                     {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
                   </Button>
                 </div>
@@ -2178,7 +2187,15 @@ export default function IntakeDetailPage() {
           submitting={submitting}
           error={convertError}
           onClose={() => { setConverting(false); setConvertError(''); }}
-          onConfirm={handleConvert}
+          onConfirm={(payload) => handleConvert(payload)}
+        />
+      )}
+      {conflict && (
+        <ConflictOverrideDialog
+          matches={conflict.matches}
+          busy={submitting}
+          onCancel={() => setConflict(null)}
+          onConfirm={conflict.retry}
         />
       )}
     </div>

@@ -58,6 +58,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Parsed JSON error body — some errors carry data the UI acts on (e.g. CONFLICT_FOUND matches). */
+    public body?: unknown,
   ) {
     super(message);
   }
@@ -102,8 +104,9 @@ export async function request<T>(
     const body = await res.json().catch(() => ({}));
     if (res.status === 401 && refreshAuth) clearSession();
     const message = parseApiErrorMessage(body, res.statusText);
-    if (isAction) publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
-    throw new ApiError(res.status, message);
+    // A 409 CONFLICT_FOUND is a prompt for the user, not a failure.
+    if (isAction && (body as { code?: string })?.code !== 'CONFLICT_FOUND') publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
+    throw new ApiError(res.status, message, body);
   }
 
   if (isAction) publishActionFeedback('success', actionSuccessMessage(method));
@@ -3094,11 +3097,15 @@ export const api = {
   listPortalSubmissions: (token: string) =>
     request<PortalSubmissionStaffEntry[]>('/intake/portal-submissions', { token }),
 
-  convertPortalSubmission: (token: string, submissionId: string, officePlannedDate?: string) =>
+  convertPortalSubmission: (
+    token: string,
+    submissionId: string,
+    data: { officePlannedDate?: string; conflictOverrideReason?: string } = {},
+  ) =>
     request<IntakeItem>(`/intake/portal-submissions/${submissionId}/convert`, {
       method: 'POST',
       token,
-      body: JSON.stringify(officePlannedDate ? { officePlannedDate } : {}),
+      body: JSON.stringify(data),
     }),
 
   createClosingEmailDraft: (token: string, caseId: string, selectedActivityIds: string[]) =>

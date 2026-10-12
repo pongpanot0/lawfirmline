@@ -10,6 +10,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Button } from '@/components/ui/button';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { Inbox } from 'lucide-react';
+import { ConflictOverrideDialog } from '@/components/ConflictOverrideDialog';
+import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
 
 export default function PortalSubmissionsPage() {
   const { token } = useAuth();
@@ -18,6 +20,8 @@ export default function PortalSubmissionsPage() {
   const [selected, setSelected] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [conflict, setConflict] = useState<{ matches: ConflictMatchItem[]; retry: (reason: string) => void } | null>(null);
+  const [converting, setConverting] = useState(false);
 
   const load = () => {
     if (!token) return;
@@ -32,9 +36,21 @@ export default function PortalSubmissionsPage() {
 
   useEffect(load, [token]);
 
-  const handleConvert = async (id: string) => {
+  const handleConvert = async (id: string, reason?: string) => {
     if (!token) return;
-    try { await api.convertPortalSubmission(token, id); setSelected(id); load(); } catch(e) { setError(e instanceof Error ? e.message : 'รับเรื่องไม่สำเร็จ'); }
+    setConverting(true);
+    try {
+      await api.convertPortalSubmission(token, id, reason ? { conflictOverrideReason: reason } : {});
+      setConflict(null);
+      setSelected(id);
+      load();
+    } catch (e) {
+      const matches = conflictMatchesFrom(e);
+      if (matches) setConflict({ matches, retry: (r) => void handleConvert(id, r) });
+      else { setConflict(null); setError(e instanceof Error ? e.message : 'รับเรื่องไม่สำเร็จ'); }
+    } finally {
+      setConverting(false);
+    }
   };
 
   return (
@@ -88,7 +104,7 @@ export default function PortalSubmissionsPage() {
                       {new Date(item.submittedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" onClick={() => handleConvert(item.id)}>
+                      <Button size="sm" disabled={converting} onClick={() => handleConvert(item.id)}>
                         รับเข้า F01
                       </Button>
                     </TableCell>
@@ -99,6 +115,9 @@ export default function PortalSubmissionsPage() {
           )}
         </CardContent>
       </Card>
+      {conflict && (
+        <ConflictOverrideDialog matches={conflict.matches} busy={converting} onCancel={() => setConflict(null)} onConfirm={conflict.retry} />
+      )}
     </div>
   );
 }
