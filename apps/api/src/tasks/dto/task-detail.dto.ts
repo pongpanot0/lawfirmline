@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsDateString, IsEnum, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 import { TaskPriority } from '@lawfirm/shared';
 
 export class CreateSubtaskDto {
@@ -23,6 +23,13 @@ export class CreateTaskCommentDto {
   @IsString()
   @Length(1, 4000)
   body!: string;
+
+  /** Same contract as case comments: the picker inserts "@ชื่อ" and sends the ids. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsUUID('all', { each: true })
+  mentionedUserIds?: string[];
 }
 
 export class CreateAiFollowUpDto {

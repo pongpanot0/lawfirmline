@@ -108,8 +108,9 @@ export class TasksController {
   resumeFromOnHold(
     @Param('caseId') caseId: string,
     @Param('taskId') taskId: string,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.tasksService.resumeFromOnHold(caseId, taskId);
+    return this.tasksService.resumeFromOnHold(caseId, taskId, user);
   }
 
   @Delete(':taskId')

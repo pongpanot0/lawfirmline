@@ -140,7 +140,7 @@ describe('TasksService detail support', () => {
       const where = mockPrisma.task.findMany.mock.calls[0][0].where;
       expect(where.AND[2]).toEqual({ status: 'PENDING_REVIEW', AND: [
         { OR: [{ firmId: 'f2' }, { case: { firmId: 'f2' } }] },
-        { OR: [{ reviewerId: 'u9' }, { reviewerId: null, case: { leadLawyerId: 'u9', deletedAt: null } }] },
+        { OR: [{ reviewerId: 'u9', OR: [{ caseId: null }, { case: { deletedAt: null } }] }, { reviewerId: null, case: { leadLawyerId: 'u9', deletedAt: null } }] },
       ] });
       expect(where.AND[0].OR[0]).toEqual({ case: { firmId: 'f2', deletedAt: null } });
     });

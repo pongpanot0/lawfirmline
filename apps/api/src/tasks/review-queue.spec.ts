@@ -6,7 +6,7 @@ describe('review queue', () => {
       status: 'PENDING_REVIEW',
       AND: [
         { OR: [{ firmId: 'f1' }, { case: { firmId: 'f1' } }] },
-        { OR: [{ reviewerId: 'me' }, { reviewerId: null, case: { leadLawyerId: 'me', deletedAt: null } }] },
+        { OR: [{ reviewerId: 'me', OR: [{ caseId: null }, { case: { deletedAt: null } }] }, { reviewerId: null, case: { leadLawyerId: 'me', deletedAt: null } }] },
       ],
     });
   });

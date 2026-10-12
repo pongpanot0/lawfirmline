@@ -22,6 +22,7 @@ describe('TasksService on-hold', () => {
     taskAssignmentLog: { create: jest.fn(), findFirst: jest.fn() },
     taskOnHold: {
       create: jest.fn(),
+      upsert: jest.fn(),
       update: jest.fn(),
       findFirst: jest.fn(),
     },
@@ -74,7 +75,7 @@ describe('TasksService on-hold', () => {
 
     it('creates a TaskOnHold row when task exists and is not already on hold', async () => {
       mockPrisma.task.findFirst.mockResolvedValue({ id: 'task-1', onHold: null });
-      mockPrisma.taskOnHold.create.mockResolvedValue({
+      mockPrisma.taskOnHold.upsert.mockResolvedValue({
         id: 'hold-1',
         taskId: 'task-1',
         reason: 'รอลูกความส่งเอกสาร',
@@ -95,15 +96,10 @@ describe('TasksService on-hold', () => {
         where: { id: 'task-1', caseId: 'case-1' },
         include: { onHold: true },
       });
-      expect(mockPrisma.taskOnHold.create).toHaveBeenCalledWith({
-        data: {
-          taskId: 'task-1',
-          reason: 'รอลูกความส่งเอกสาร',
-          followerUserId: 'user-1',
-          nextFollowUpAt: undefined,
-          createdById: 'user-1',
-        },
-      });
+      expect(mockPrisma.taskOnHold.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { taskId: 'task-1' },
+        create: expect.objectContaining({ taskId: 'task-1', reason: 'รอลูกความส่งเอกสาร', followerUserId: 'user-1', createdById: 'user-1' }),
+      }));
       expect(result.reason).toBe('รอลูกความส่งเอกสาร');
     });
   });
@@ -111,11 +107,12 @@ describe('TasksService on-hold', () => {
   describe('resumeFromOnHold', () => {
     it('throws NotFoundException when no active on-hold record exists', async () => {
       mockPrisma.taskOnHold.findFirst.mockResolvedValue(null);
-      await expect(service.resumeFromOnHold('case-1', 'task-1')).rejects.toThrow(
+      await expect(service.resumeFromOnHold('case-1', 'task-1', user)).rejects.toThrow(
         NotFoundException,
       );
       expect(mockPrisma.taskOnHold.findFirst).toHaveBeenCalledWith({
         where: { taskId: 'task-1', task: { caseId: 'case-1' } },
+        include: { task: { select: { title: true } } },
       });
     });
 
@@ -125,7 +122,7 @@ describe('TasksService on-hold', () => {
         taskId: 'task-1',
         endedAt: new Date('2026-09-01'),
       });
-      await expect(service.resumeFromOnHold('case-1', 'task-1')).rejects.toThrow(
+      await expect(service.resumeFromOnHold('case-1', 'task-1', user)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -135,6 +132,7 @@ describe('TasksService on-hold', () => {
         id: 'hold-1',
         taskId: 'task-1',
         endedAt: null,
+        task: { title: 'x' },
       });
       mockPrisma.taskOnHold.update.mockResolvedValue({
         id: 'hold-1',
@@ -142,7 +140,7 @@ describe('TasksService on-hold', () => {
         endedAt: new Date('2026-09-05'),
       });
 
-      const result = await service.resumeFromOnHold('case-1', 'task-1');
+      const result = await service.resumeFromOnHold('case-1', 'task-1', user);
 
       expect(mockPrisma.taskOnHold.update).toHaveBeenCalledWith({
         where: { id: 'hold-1' },
@@ -490,7 +488,7 @@ describe('TasksService on-hold', () => {
       const where = mockPrisma.task.findMany.mock.calls[0][0].where;
       expect(where.AND).toContainEqual(expect.objectContaining({
         status: 'PENDING_REVIEW',
-        AND: expect.arrayContaining([{ OR: [{ reviewerId: 'user-1' }, { reviewerId: null, case: { leadLawyerId: 'user-1', deletedAt: null } }] }]),
+        AND: expect.arrayContaining([{ OR: [{ reviewerId: 'user-1', OR: [{ caseId: null }, { case: { deletedAt: null } }] }, { reviewerId: null, case: { leadLawyerId: 'user-1', deletedAt: null } }] }]),
       }));
       expect(JSON.stringify(where)).not.toContain('"assigneeId":"user-1"');
     });
@@ -658,6 +656,21 @@ describe('TasksService — OFFICE_MANAGER', () => {
   it('can assign a todo to a LAWYER', async () => {
     mockPrisma.firmMember.findFirst.mockResolvedValue({ role: FirmRole.LAWYER });
     await expect((service as any).assertCanAssignTodo(manager, 'lawyer-1')).resolves.toBeUndefined();
+  });
+
+  it('a LAWYER may hand a todo to an ASSISTANT or the OFFICE_MANAGER, never to another LAWYER', async () => {
+    const lawyer = { id: 'law-1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
+    mockPrisma.firmMember.findFirst.mockResolvedValueOnce({ role: FirmRole.ASSISTANT });
+    await expect((service as any).assertCanAssignTodo(lawyer, 'asst-1')).resolves.toBeUndefined();
+    mockPrisma.firmMember.findFirst.mockResolvedValueOnce({ role: FirmRole.OFFICE_MANAGER });
+    await expect((service as any).assertCanAssignTodo(lawyer, 'om-1')).resolves.toBeUndefined();
+    mockPrisma.firmMember.findFirst.mockResolvedValueOnce({ role: FirmRole.LAWYER });
+    await expect((service as any).assertCanAssignTodo(lawyer, 'law-2')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('an ASSISTANT still cannot hand work to anyone else', async () => {
+    const assistant = { id: 'a-1', firmId: 'firm-1', firmRole: FirmRole.ASSISTANT } as any;
+    await expect((service as any).assertCanAssignTodo(assistant, 'a-2')).rejects.toThrow(ForbiddenException);
   });
 
   it('cannot assign a todo to an OWNER', async () => {

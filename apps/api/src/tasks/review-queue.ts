@@ -7,7 +7,7 @@ export function reviewQueueWhere(user: { id: string; firmId: string }): Prisma.T
     status: TaskStatus.PENDING_REVIEW,
     AND: [
       { OR: [{ firmId: user.firmId }, { case: { firmId: user.firmId } }] },
-      { OR: [{ reviewerId: user.id }, { reviewerId: null, case: { leadLawyerId: user.id, deletedAt: null } }] },
+      { OR: [{ reviewerId: user.id, OR: [{ caseId: null }, { case: { deletedAt: null } }] }, { reviewerId: null, case: { leadLawyerId: user.id, deletedAt: null } }] },
     ],
   };
 }

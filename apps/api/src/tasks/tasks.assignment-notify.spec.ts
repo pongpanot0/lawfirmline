@@ -12,6 +12,8 @@ describe('TasksService assignment notifications', () => {
   const mockPrisma = {
     task: { create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
+    taskOnHold: { findFirst: jest.fn(), upsert: jest.fn(), update: jest.fn() },
+    user: { findUnique: jest.fn().mockResolvedValue({ firstName: 'สมหญิง', lastName: 'รักงาน' }) },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
     firmMember: { count: jest.fn(), findFirst: jest.fn() },
@@ -119,5 +121,45 @@ describe('TasksService assignment notifications', () => {
       entityPath: '/cases/c1',
       appPath: '/task/new?id=t1',
     });
+  });
+
+  it('reassign tells the new and the previous assignee', async () => {
+    mockPrisma.task.findFirst.mockResolvedValue({ id: 't1', caseId: 'c1', title: 'ถอดเทป', assigneeId: 'old', requiresReview: false, routine: null });
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'c1', leadLawyerId: 'user-1', ownRef: 'TSB-1' });
+    mockPrisma.task.findUnique.mockResolvedValue({ id: 't1' });
+    await service.reassign('c1', 't1', user, { assigneeId: 'new' });
+    const recipients = mockNotifier.notifyAssigned.mock.calls.map((c) => c[0].userIds);
+    expect(recipients).toEqual(expect.arrayContaining([['new'], ['old']]));
+    const toOld = mockNotifier.notifyAssigned.mock.calls.find((c) => c[0].userIds[0] === 'old')![0];
+    expect(toOld.summaryText).toContain('สมหญิง รักงาน');
+  });
+
+  it('starting and resuming a hold tells the lead and the observers, not the actor', async () => {
+    mockPrisma.task.findFirst.mockResolvedValue({ id: 't1', caseId: 'c1', title: 'ถอดเทป', onHold: null });
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'c1', leadLawyerId: 'lead' });
+    mockPrisma.taskObserver.findMany.mockResolvedValue([{ userId: 'obs' }, { userId: 'user-1' }]);
+    mockPrisma.taskOnHold.upsert.mockResolvedValue({ id: 'h1' });
+    await service.startOnHold('c1', 't1', user, { reason: 'รอลูกความส่งเอกสาร' });
+    expect(mockNotifier.notifyAssigned).toHaveBeenLastCalledWith(expect.objectContaining({
+      userIds: ['lead', 'obs'], summaryText: expect.stringContaining('รอลูกความส่งเอกสาร'),
+    }));
+
+    mockPrisma.taskOnHold.findFirst.mockResolvedValue({ id: 'h1', endedAt: null, task: { title: 'ถอดเทป' } });
+    mockPrisma.taskOnHold.update.mockResolvedValue({ id: 'h1' });
+    await service.resumeFromOnHold('c1', 't1', user);
+    expect(mockNotifier.notifyAssigned).toHaveBeenLastCalledWith(expect.objectContaining({
+      userIds: ['lead', 'obs'], summaryText: expect.stringContaining('กลับมาทำต่อ'),
+    }));
+  });
+
+  it('a task that was held and resumed can be held again (one hold row per task)', async () => {
+    mockPrisma.task.findFirst.mockResolvedValue({ id: 't1', caseId: 'c1', title: 'ถอดเทป', onHold: { id: 'h1', endedAt: new Date() } });
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'c1', leadLawyerId: 'lead' });
+    mockPrisma.taskOnHold.upsert.mockResolvedValue({ id: 'h1' });
+    await service.startOnHold('c1', 't1', user, { reason: 'รอศาลออกหมาย' });
+    expect(mockPrisma.taskOnHold.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { taskId: 't1' },
+      update: expect.objectContaining({ reason: 'รอศาลออกหมาย', endedAt: null }),
+    }));
   });
 });

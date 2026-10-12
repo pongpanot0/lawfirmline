@@ -16,6 +16,7 @@ import {
   AuthUser,
   FirmRole,
   canAssignFirmRole,
+  canDelegateTask,
   hasFirmCapability,
   effectiveReviewerId,
   REVIEWER_FIRM_ROLES,
@@ -455,16 +456,18 @@ export class TasksService {
    */
   private async assertCanAssignTodo(user: AuthUser, assigneeId: string) {
     if (assigneeId === user.id) return;
-    if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole)) {
-      throw new ForbiddenException('เฉพาะ Owner ผู้จัดการสำนักงาน หรือทนายอาวุโสที่มอบหมายงานให้ผู้อื่นได้');
+    if (![FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER, FirmRole.LAWYER].includes(user.firmRole)) {
+      throw new ForbiddenException('ผู้ช่วยมอบหมายงานให้ผู้อื่นไม่ได้');
     }
     const member = await this.prisma.firmMember.findFirst({
       where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: assigneeId },
       select: { role: true },
     });
     if (!member) throw new NotFoundException('ผู้รับมอบหมายไม่ได้อยู่ในสำนักงานนี้');
-    if (!canAssignFirmRole(user.firmRole, member.role as FirmRole)) {
-      throw new ForbiddenException('มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณเท่านั้น');
+    if (!canDelegateTask(user.firmRole, member.role as FirmRole)) {
+      throw new ForbiddenException(user.firmRole === FirmRole.LAWYER
+        ? 'ทนายความมอบหมายงานได้เฉพาะผู้ช่วยหรือผู้จัดการสำนักงาน'
+        : 'มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณเท่านั้น');
     }
   }
 
@@ -475,7 +478,7 @@ export class TasksService {
       select: { role: true },
     });
     if (!member) throw new NotFoundException('ผู้รับมอบหมายไม่ได้อยู่ในสำนักงานนี้');
-    if (!caseId && !canAssignFirmRole(user.firmRole, member.role as FirmRole)) {
+    if (!caseId && !canDelegateTask(user.firmRole, member.role as FirmRole)) {
       throw new ForbiddenException('มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณเท่านั้น');
     }
   }
@@ -773,6 +776,9 @@ export class TasksService {
         appPath: taskAppRoute(task.id),
         lineActions: () => lineActions.task(task.id, { canComplete: canCompleteFromLine(updated) }),
       });
+    }
+    if (dto.assigneeId && dto.assigneeId !== task.assigneeId) {
+      await this.notifyPreviousAssignee(task, task.assigneeId, dto.assigneeId, user);
     }
 
     const newObservers = addedObserverIds.filter((uid) => uid !== user.id);
@@ -1151,6 +1157,19 @@ export class TasksService {
       stageDueDate: dto.stageDueDate ? new Date(dto.stageDueDate) : undefined,
     });
     await this.logActivity(caseId, `มอบหมายงาน "${task.title}" ใหม่`, user.id);
+    if (dto.assigneeId !== user.id) {
+      await this.notifyViaAssignmentNotifier({
+        firmId: user.firmId,
+        userIds: [dto.assigneeId],
+        actorUserId: user.id,
+        category: NotificationCategory.TASK,
+        summaryText: await this.taskAssignmentSummary(task.title, caseId, task.intakeId),
+        entityPath: `/cases/${caseId}`,
+        appPath: taskAppRoute(taskId),
+        lineActions: () => lineActions.task(taskId, { canComplete: canCompleteFromLine(task) }),
+      });
+    }
+    await this.notifyPreviousAssignee(task, task.assigneeId, dto.assigneeId, user);
 
     return this.findOne(taskId);
   }
@@ -1211,16 +1230,21 @@ export class TasksService {
       throw new BadRequestException('งานนี้อยู่ในสถานะ On hold อยู่แล้ว');
     }
 
-    return this.prisma.taskOnHold.create({
-      data: {
-        taskId,
-        reason: dto.reason,
-        category: dto.category,
-        followerUserId: dto.followerUserId,
-        nextFollowUpAt: dto.nextFollowUpAt ? new Date(dto.nextFollowUpAt) : undefined,
-        createdById: user.id,
-      },
+    const data = {
+      reason: dto.reason,
+      category: dto.category ?? 'OTHER',
+      followerUserId: dto.followerUserId ?? null,
+      nextFollowUpAt: dto.nextFollowUpAt ? new Date(dto.nextFollowUpAt) : null,
+      createdById: user.id,
+    } as const;
+    // One TaskOnHold row per task (taskId is unique): a resumed hold is reopened, not duplicated.
+    const hold = await this.prisma.taskOnHold.upsert({
+      where: { taskId },
+      create: { taskId, ...data },
+      update: { ...data, startedAt: new Date(), endedAt: null, lastFollowUpAt: null, notes: null },
     });
+    await this.notifyLeadAndObservers({ id: taskId, title: task.title, caseId }, user, `⏸️ พักงาน: ${task.title}\nเหตุผล: ${dto.reason}`);
+    return hold;
   }
 
   async updateOnHold(caseId: string, taskId: string, dto: UpdateTaskOnHoldDto) {
@@ -1247,17 +1271,49 @@ export class TasksService {
     });
   }
 
-  async resumeFromOnHold(caseId: string, taskId: string) {
+  async resumeFromOnHold(caseId: string, taskId: string, user: AuthUser) {
     const hold = await this.prisma.taskOnHold.findFirst({
       where: { taskId, task: { caseId } },
+      include: { task: { select: { title: true } } },
     });
     if (!hold || hold.endedAt) {
       throw new NotFoundException('ไม่พบสถานะ On hold ที่ยังใช้งานอยู่สำหรับงานนี้');
     }
 
-    return this.prisma.taskOnHold.update({
+    const resumed = await this.prisma.taskOnHold.update({
       where: { id: hold.id },
       data: { endedAt: new Date() },
+    });
+    await this.notifyLeadAndObservers({ id: taskId, title: hold.task.title, caseId }, user, `▶️ งานกลับมาทำต่อ: ${hold.task.title}`);
+    return resumed;
+  }
+
+  /** Hold/resume and similar case-level news: the lead lawyer and the task's observers, never the actor. */
+  private async notifyLeadAndObservers(task: { id: string; title: string; caseId: string | null }, user: AuthUser, summaryText: string) {
+    const legalCase = task.caseId ? await this.prisma.case.findUnique({ where: { id: task.caseId }, select: { leadLawyerId: true } }) : null;
+    const userIds = [...new Set([legalCase?.leadLawyerId, ...(await this.getParentObserverIds(task.id))].filter((id): id is string => !!id && id !== user.id))];
+    await this.notifyViaAssignmentNotifier({
+      firmId: user.firmId,
+      userIds,
+      actorUserId: user.id,
+      category: NotificationCategory.TASK,
+      summaryText,
+      entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+      appPath: taskAppRoute(task.id),
+    });
+  }
+
+  private async notifyPreviousAssignee(task: { id: string; title: string; caseId: string | null }, previousId: string | null, newAssigneeId: string, user: AuthUser) {
+    if (!previousId || previousId === newAssigneeId || previousId === user.id) return;
+    const next = await this.prisma.user.findUnique({ where: { id: newAssigneeId }, select: { firstName: true, lastName: true } });
+    await this.notifyViaAssignmentNotifier({
+      firmId: user.firmId,
+      userIds: [previousId],
+      actorUserId: user.id,
+      category: NotificationCategory.TASK,
+      summaryText: `↪️ งาน "${task.title}" ถูกมอบให้ ${next?.firstName ?? ''} ${next?.lastName ?? ''} แทน`,
+      entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+      appPath: taskAppRoute(task.id),
     });
   }
 

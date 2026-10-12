@@ -329,10 +329,26 @@ export class TaskDetailService {
       throw new ForbiddenException('ผู้ทำงานอัปเดตความคืบหน้าได้เฉพาะงานของตัวเองที่ยังไม่ส่งตรวจหรือเสร็จ');
     }
     if (!dto.completed.trim() || !dto.remaining.trim()) throw new BadRequestException('ระบุว่าทำถึงไหนและเหลืออะไร');
-    return this.prisma.taskComment.create({
+    const comment = await this.prisma.taskComment.create({
       data: { taskId, authorId: user.id, kind: 'DAILY_UPDATE', body: dailyTaskUpdateText(dto) },
       include: { author: person },
     });
+    const blocker = dto.blocker?.trim();
+    if (blocker && blocker !== 'ไม่มี' && task.caseId) {
+      const legalCase = await this.prisma.case.findUnique({ where: { id: task.caseId }, select: { leadLawyerId: true } });
+      if (legalCase && legalCase.leadLawyerId !== user.id) {
+        await this.tasks.notifyViaAssignmentNotifier({
+          firmId: user.firmId,
+          userIds: [legalCase.leadLawyerId],
+          actorUserId: user.id,
+          category: NotificationCategory.TASK,
+          summaryText: `🚧 งานติดขัด: ${task.title}\nติดอะไร: ${blocker}`,
+          entityPath: `/cases/${task.caseId}`,
+          appPath: taskAppRoute(taskId),
+        });
+      }
+    }
+    return comment;
   }
 
   async addComment(taskId: string, user: AuthUser, dto: CreateTaskCommentDto) {
@@ -343,8 +359,16 @@ export class TaskDetailService {
     });
     if (!task) throw new NotFoundException('Task not found');
 
+    // Only people in this firm can be mentioned; ids from the request body are never trusted as-is.
+    const mentioned = dto.mentionedUserIds?.length
+      ? (await this.prisma.firmMember.findMany({
+          where: { firmId: user.firmId, role: { not: FirmRole.EXTERNAL }, userId: { in: [...new Set(dto.mentionedUserIds)].slice(0, 20) } },
+          select: { userId: true },
+        })).map((m) => m.userId).filter((id) => id !== user.id)
+      : [];
+
     const comment = await this.prisma.taskComment.create({
-      data: { taskId, authorId: user.id, body: dto.body.trim() },
+      data: { taskId, authorId: user.id, body: dto.body.trim(), mentionedUserIds: mentioned },
       include: { author: person },
     });
 
@@ -353,7 +377,19 @@ export class TaskDetailService {
       task.assigneeId,
       ...(await this.tasks.getParentObserverIds(taskId)),
       ...(task.parentId ? await this.tasks.getParentObserverIds(task.parentId) : []),
-    ].filter(Boolean) as string[])].filter((id) => id !== user.id);
+    ].filter(Boolean) as string[])].filter((id) => id !== user.id && !mentioned.includes(id));
+
+    if (mentioned.length) {
+      await this.tasks.notifyViaAssignmentNotifier({
+        firmId: user.firmId,
+        userIds: mentioned,
+        actorUserId: user.id,
+        category: NotificationCategory.COMMENT,
+        summaryText: `💬 มีคนกล่าวถึงคุณในงาน "${task.title}"\n${dto.body.trim().slice(0, 200)}`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+        appPath: taskAppRoute(taskId),
+      });
+    }
 
     if (notifyIds.length) {
       await this.tasks.notifyViaAssignmentNotifier({
