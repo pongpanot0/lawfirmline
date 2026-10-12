@@ -354,9 +354,13 @@ describe('DeadlineRulesService', () => {
       expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
     });
 
-    it('skips rules that already have a PENDING suggestion for a manual trigger', async () => {
+    it('skips a manual rule only when a PENDING card is already due on the same day', async () => {
       mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
-      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([{ deadlineRuleId: 'rule-1' }]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+      await service.applyTrigger({ ...context, triggerEventId: null });
+      const due = mockPrisma.documentDateSuggestion.createMany.mock.calls[0][0].data[0].suggestedDate;
+      jest.clearAllMocks();
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([{ deadlineRuleId: 'rule-1', suggestedDate: due }]);
 
       const created = await service.applyTrigger({ ...context, triggerEventId: null });
 
@@ -369,9 +373,65 @@ describe('DeadlineRulesService', () => {
           deadlineRuleId: { in: ['rule-1'] },
           triggerEventId: null,
         },
-        select: { deadlineRuleId: true },
+        select: { deadlineRuleId: true, suggestedDate: true },
       });
       expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
+      expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
+    });
+
+    it('a calendar-backed trigger still allows one PENDING card per rule per event, whatever its date', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([
+        { deadlineRuleId: 'rule-1', suggestedDate: new Date('2020-01-01T09:30:00Z') },
+      ]);
+
+      expect(await service.applyTrigger(context)).toBe(0);
+      expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
+    });
+
+    describe('several defendants served on different days (ม.177)', () => {
+      const answerRule = {
+        ...rule, id: 'rule-answer', trigger: DeadlineTrigger.COMPLAINT_SERVED, label: 'ครบกำหนดยื่นคำให้การ',
+        offsetDays: 15, serviceMethod: ServiceMethod.PERSONAL,
+      };
+      let store: { deadlineRuleId: string; suggestedDate: Date; status: string; label: string }[];
+      const serve = (servedAt: string) =>
+        service.applyTrigger({
+          ...context, trigger: DeadlineTrigger.COMPLAINT_SERVED, triggerEventId: null,
+          triggerDate: new Date(servedAt), serviceMethod: ServiceMethod.PERSONAL,
+        });
+
+      beforeEach(() => {
+        store = [];
+        mockPrisma.deadlineRule.findMany.mockResolvedValue([answerRule]);
+        mockPrisma.documentDateSuggestion.findMany.mockImplementation(async ({ where }: any) =>
+          store.filter((r) => r.status === where.status && where.deadlineRuleId.in.includes(r.deadlineRuleId)),
+        );
+        mockPrisma.documentDateSuggestion.createMany.mockImplementation(async ({ data }: any) => {
+          store.push(...data);
+          return { count: data.length };
+        });
+      });
+
+      it('gives each served date its own answer deadline', async () => {
+        await serve('2026-10-01T03:00:00.000Z'); // D1, Thu → 16 Oct
+        await serve('2026-10-10T03:00:00.000Z'); // D2, Sat → 25 Oct is a Sunday → 26 Oct
+
+        expect(store.map((r) => [r.label, r.status, r.suggestedDate.toISOString()])).toEqual([
+          ['ครบกำหนดยื่นคำให้การ', 'PENDING', '2026-10-16T09:30:00.000Z'],
+          ['ครบกำหนดยื่นคำให้การ', 'PENDING', '2026-10-26T09:30:00.000Z'],
+        ]);
+        expect(mockNotifier.notifyAssigned).toHaveBeenCalledTimes(2);
+      });
+
+      it('a re-sent service with the same date creates nothing and sends no notice', async () => {
+        await serve('2026-10-01T03:00:00.000Z');
+        mockNotifier.notifyAssigned.mockClear();
+
+        expect(await serve('2026-10-01T03:00:00.000Z')).toBe(0);
+        expect(store).toHaveLength(1);
+        expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
+      });
     });
 
     it('still creates when a prior suggestion was dismissed', async () => {

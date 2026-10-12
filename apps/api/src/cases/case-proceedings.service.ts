@@ -109,16 +109,18 @@ export class CaseProceedingsService {
   /**
    * A re-recorded date must not leave the old date's PENDING cards behind: the engine
    * skips a rule that already has one, so the stale date would win. Confirmed and
-   * dismissed cards stay. With a level, rules for that level and level-less rules go.
+   * dismissed cards stay. Rules for that level and level-less rules go. Only for
+   * filing and judgment, which happen once per level; service and appeal copy can
+   * repeat for different parties, so they never clear.
    */
-  private clearPending(caseId: string, trigger: DeadlineTrigger, courtLevel?: CourtLevel) {
+  private clearPending(caseId: string, trigger: DeadlineTrigger, courtLevel: CourtLevel) {
     return this.prisma.documentDateSuggestion.deleteMany({
       where: {
         caseId,
         status: 'PENDING',
         source: 'RULE',
         triggerEventId: null,
-        deadlineRule: courtLevel ? { trigger, OR: [{ courtLevel }, { courtLevel: null }] } : { trigger },
+        deadlineRule: { trigger, OR: [{ courtLevel }, { courtLevel: null }] },
       },
     });
   }
@@ -205,9 +207,8 @@ export class CaseProceedingsService {
   async recordService(user: AuthUser, caseId: string, dto: RecordServiceDto) {
     const legalCase = await this.openCase(user, caseId);
     const servedAt = new Date(dto.servedAt);
-    // ponytail: no served date is stored to compare, so every re-record replaces the
-    // pending cards (a double submit re-creates the same ones and repeats the engine notice).
-    await this.clearPending(caseId, DeadlineTrigger.COMPLAINT_SERVED);
+    // Never clears pending cards: each defendant served on its own day needs its own
+    // answer deadline (ม.177). The engine dedupes per rule and due day.
     const suggestions = await this.fire(user, legalCase, DeadlineTrigger.COMPLAINT_SERVED, servedAt, {
       serviceMethod: dto.method,
     });
@@ -318,7 +319,7 @@ export class CaseProceedingsService {
   async recordAppealServed(user: AuthUser, caseId: string, dto: RecordAppealServedDto) {
     const legalCase = await this.openCase(user, caseId);
     const servedAt = new Date(dto.servedAt);
-    await this.clearPending(caseId, DeadlineTrigger.APPEAL_SERVED); // same ceiling as recordService
+    // Several parties may appeal: like service, never clears (see recordService).
     const suggestions = await this.fire(user, legalCase, DeadlineTrigger.APPEAL_SERVED, servedAt);
     await this.caseFeed.log({
       caseId, userId: user.id, type: ActivityType.DEADLINE, title: 'ได้รับสำเนาอุทธรณ์', at: servedAt,

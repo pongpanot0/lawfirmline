@@ -199,9 +199,10 @@ export class DeadlineRulesService {
   /**
    * @returns how many suggestions were created. Calendar-backed runs are
    *   deduped by `(triggerEventId, deadlineRuleId)`. Manual runs (`triggerEventId`
-   *   null) skip any rule that already has a PENDING suggestion on the case —
-   *   Postgres unique indexes do not treat NULL as equal, so `skipDuplicates`
-   *   alone cannot stop a second manual fire.
+   *   null) skip a rule only when a PENDING suggestion for it is already due on the
+   *   same Bangkok day — so each defendant served on a different day gets its own
+   *   deadline, while a double submit creates nothing. Postgres unique indexes do not
+   *   treat NULL as equal, so `skipDuplicates` alone cannot stop a second manual fire.
    */
   async applyTrigger(context: DeadlineTriggerContext, client: PrismaClientLike = this.prisma): Promise<number> {
     const legalCase = await client.case.findUnique({
@@ -226,16 +227,13 @@ export class DeadlineRulesService {
     );
     if (rules.length === 0) return 0;
 
-    const openRules = await this.rulesWithoutPendingSuggestion(context.caseId, rules, context.triggerEventId, client);
-    if (openRules.length === 0) return 0;
-
     const holidays = await this.loadHolidays(
       context.triggerDate,
-      Math.max(...openRules.map(ruleSpanDays)),
+      Math.max(...rules.map(ruleSpanDays)),
       client,
     );
 
-    const data = openRules.map((rule) => ({
+    const computed = rules.map((rule) => ({
       caseId: context.caseId,
       label: rule.label,
       suggestedDate: courtCloseAt(
@@ -255,6 +253,8 @@ export class DeadlineRulesService {
       triggerEventId: context.triggerEventId,
       createdById: context.createdById,
     }));
+    const data = await this.withoutPendingDuplicates(context.caseId, computed, context.triggerEventId, client);
+    if (data.length === 0) return 0;
 
     const result = await client.documentDateSuggestion.createMany({
       data: data as never,
@@ -281,13 +281,13 @@ export class DeadlineRulesService {
   }
 
   /**
-   * Drop rules that already have a PENDING suggestion for this case.
-   * Calendar-backed: only rows tied to the same trigger event count.
-   * Manual: any PENDING for the rule on the case blocks a second card.
+   * Drop rows that a PENDING suggestion on the case already covers.
+   * Calendar-backed: one card per rule per trigger event, whatever its date.
+   * Manual: one card per rule per due day (Bangkok).
    */
-  private async rulesWithoutPendingSuggestion<T extends { id: string }>(
+  private async withoutPendingDuplicates<T extends { deadlineRuleId: string; suggestedDate: Date }>(
     caseId: string,
-    rules: T[],
+    rows: T[],
     triggerEventId: string | null,
     client: PrismaClientLike = this.prisma,
   ): Promise<T[]> {
@@ -296,15 +296,14 @@ export class DeadlineRulesService {
         caseId,
         status: DateSuggestionStatus.PENDING,
         source: DateSuggestionSource.RULE,
-        deadlineRuleId: { in: rules.map((r) => r.id) },
+        deadlineRuleId: { in: rows.map((r) => r.deadlineRuleId) },
         ...(triggerEventId ? { triggerEventId } : { triggerEventId: null }),
       },
-      select: { deadlineRuleId: true },
+      select: { deadlineRuleId: true, suggestedDate: true },
     });
-    const blocked = new Set(
-      existing.map((row) => row.deadlineRuleId).filter((id): id is string => id != null),
-    );
-    return rules.filter((rule) => !blocked.has(rule.id));
+    const keyOf = (ruleId: string | null, due: Date) => (triggerEventId ? `${ruleId}` : `${ruleId}|${bangkokDayKey(due)}`);
+    const blocked = new Set(existing.map((row) => keyOf(row.deadlineRuleId, row.suggestedDate)));
+    return rows.filter((row) => !blocked.has(keyOf(row.deadlineRuleId, row.suggestedDate)));
   }
 
   /**

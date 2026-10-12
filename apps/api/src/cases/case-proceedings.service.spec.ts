@@ -250,18 +250,12 @@ describe('CaseProceedingsService', () => {
     expect(prisma.documentDateSuggestion.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('service and appeal copy re-recorded replace their pending deadlines (no stored date to compare)', async () => {
-    await service.recordService(user, 'case-1', { servedAt: '2026-10-20T03:00:00.000Z', method: 'POSTED' as any });
+  it('service and appeal copy never clear pending deadlines (another party may have been served on another day)', async () => {
+    await service.recordService(user, 'case-1', { servedAt: '2026-10-01T03:00:00.000Z', method: 'PERSONAL' as any });
+    await service.recordService(user, 'case-1', { servedAt: '2026-10-10T03:00:00.000Z', method: 'PERSONAL' as any });
     await service.recordAppealServed(user, 'case-1', { servedAt: '2026-12-01T03:00:00.000Z' });
-    const where = (trigger: string) => ({
-      where: { caseId: 'case-1', status: 'PENDING', source: 'RULE', triggerEventId: null, deadlineRule: { trigger } },
-    });
-    expect(prisma.documentDateSuggestion.deleteMany).toHaveBeenNthCalledWith(1, where('COMPLAINT_SERVED'));
-    expect(prisma.documentDateSuggestion.deleteMany).toHaveBeenNthCalledWith(2, where('APPEAL_SERVED'));
-    const [del1, del2] = prisma.documentDateSuggestion.deleteMany.mock.invocationCallOrder;
-    const [fire1, fire2] = deadlines.applyTrigger.mock.invocationCallOrder;
-    expect(del1).toBeLessThan(fire1);
-    expect(del2).toBeLessThan(fire2);
+    expect(prisma.documentDateSuggestion.deleteMany).not.toHaveBeenCalled();
+    expect(deadlines.applyTrigger).toHaveBeenCalledTimes(3);
   });
 
   it('a judgment re-sent with the same date (double submit) fires, logs and notifies nothing', async () => {
