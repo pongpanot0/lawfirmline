@@ -15,7 +15,9 @@ describe('TasksService on-hold', () => {
     taskObserver: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
-    firmMember: { count: jest.fn() },
+    user: { findUnique: jest.fn().mockResolvedValue({ firstName: 'สมชาย', lastName: 'ใจดี' }) },
+    taskAttachment: { count: jest.fn().mockResolvedValue(1) },
+    firmMember: { count: jest.fn(), findFirst: jest.fn() },
     caseActivity: { create: jest.fn() },
     taskAssignmentLog: { create: jest.fn(), findFirst: jest.fn() },
     taskOnHold: {
@@ -28,6 +30,7 @@ describe('TasksService on-hold', () => {
     getTaskFilterForUser: jest.fn(),
     getTaskAccessFilterForUser: jest.fn().mockReturnValue({}),
   };
+  const notifier = { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
@@ -41,7 +44,7 @@ describe('TasksService on-hold', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
         { provide: FileStorageService, useValue: { delete: jest.fn() } },
-        { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
+        { provide: AssignmentNotifierService, useValue: notifier },
       ],
     }).compile();
     service = module.get(TasksService);
@@ -150,307 +153,188 @@ describe('TasksService on-hold', () => {
   });
 
   describe('handoff', () => {
-    const legalCase = { id: 'case-1', leadLawyerId: 'senior-1' };
+    const legalCase = { id: 'case-1', leadLawyerId: 'senior-1', ownRef: 'TSB-1' };
+    const working = { id: 'task-1', caseId: 'case-1', title: 'ถอดเทป', assigneeId: 'user-1', reviewerId: null, status: TaskStatus.IN_PROGRESS, requiresAttachment: false };
 
-    it('throws BadRequestException when the caller is already the lead lawyer', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        assigneeId: 'senior-1',
-        status: TaskStatus.IN_PROGRESS,
-      });
-      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
-
-      await expect(
-        service.handoff('case-1', 'task-1', { id: 'senior-1' } as any, {}),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('throws ForbiddenException when the caller is not the current assignee', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        assigneeId: 'other-lawyer',
-        status: TaskStatus.IN_PROGRESS,
-      });
-      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
-
-      await expect(service.handoff('case-1', 'task-1', user, {})).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('moves the task to PENDING_REVIEW, reassigns to the lead lawyer, and logs the handoff', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        title: 'ถอดเทป',
-        assigneeId: 'user-1',
-        status: TaskStatus.IN_PROGRESS,
-      });
+    beforeEach(() => {
       mockPrisma.case.findUnique.mockResolvedValue(legalCase);
       mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
+    });
+
+    it('refuses when the caller would be reviewing their own work', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({ ...working, assigneeId: 'senior-1' });
+      await expect(service.handoff('case-1', 'task-1', { id: 'senior-1', firmId: 'firm-1' } as any, { note: 'เสร็จแล้วครับ' }))
+        .rejects.toThrow(BadRequestException);
+    });
+
+    it('refuses a caller who is not the assignee', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({ ...working, assigneeId: 'other-lawyer' });
+      await expect(service.handoff('case-1', 'task-1', user, { note: 'เสร็จแล้วครับ' })).rejects.toThrow(ForbiddenException);
+    });
+
+    it('requires a note of at least 5 characters (whitespace does not count)', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(working);
+      await expect(service.handoff('case-1', 'task-1', user, { note: '  ok   ' })).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    });
+
+    it('requires an attachment when the task demands one', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({ ...working, requiresAttachment: true });
+      mockPrisma.taskAttachment.count.mockResolvedValueOnce(0);
+      await expect(service.handoff('case-1', 'task-1', user, { note: 'แนบร่างแล้ว' })).rejects.toThrow('แนบไฟล์');
+    });
+
+    it('keeps the worker as assignee, stamps submittedAt, logs and notifies the reviewer with LINE buttons', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(working);
 
       await service.handoff('case-1', 'task-1', user, { note: 'เสร็จแล้วครับ' });
 
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'senior-1', completedAt: null },
+        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'user-1', submittedAt: expect.any(Date), completedAt: null },
       });
       expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          taskId: 'task-1',
-          action: TaskLogAction.HANDED_OFF,
-          fromUserId: 'user-1',
-          toUserId: 'senior-1',
-          performedById: 'user-1',
-          note: 'เสร็จแล้วครับ',
-        }),
+        data: expect.objectContaining({ action: TaskLogAction.HANDED_OFF, fromUserId: 'user-1', toUserId: 'senior-1', note: 'เสร็จแล้วครับ' }),
       });
-      expect(mockPrisma.caseActivity.create).toHaveBeenCalled();
+      const call = notifier.notifyAssigned.mock.calls[0][0];
+      expect(call.userIds).toEqual(['senior-1']);
+      expect(call.summaryText).toContain('เสร็จแล้วครับ');
+      expect(call.lineActions('senior-1').map((a: any) => a.data)).toEqual(['task:accept:task-1', 'task:reject:task-1']);
+    });
+
+    it('records IN_PROGRESS before PENDING_REVIEW when handed off straight from TODO', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({ ...working, status: TaskStatus.TODO });
+      await service.handoff('case-1', 'task-1', user, { note: 'เสร็จแล้วครับ' });
+      expect(mockPrisma.task.update.mock.calls.map((c: any[]) => c[0].data.status)).toEqual([TaskStatus.IN_PROGRESS, TaskStatus.PENDING_REVIEW]);
     });
   });
 
   describe('accept / reject', () => {
     const legalCase = { id: 'case-1', leadLawyerId: 'senior-1' };
-    const senior = { id: 'senior-1', firmId: 'firm-1', firmRole: FirmRole.ASSISTANT } as any;
-    const stranger = { id: 'stranger-1', firmId: 'firm-1', firmRole: FirmRole.ASSISTANT } as any;
+    const lead = { id: 'senior-1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
+    const namedReviewer = { id: 'reviewer-9', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
+    const pending = { id: 'task-1', caseId: 'case-1', title: 'ถอดเทป', status: TaskStatus.PENDING_REVIEW, assigneeId: 'user-1', reviewerId: null, createdById: 'user-1' };
 
-    it('accept throws ForbiddenException for a user who is neither lead lawyer nor owner', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        status: TaskStatus.PENDING_REVIEW,
-      });
+    beforeEach(() => {
       mockPrisma.case.findUnique.mockResolvedValue(legalCase);
-
-      await expect(service.accept('case-1', 'task-1', stranger)).rejects.toThrow(
-        ForbiddenException,
-      );
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
     });
 
-    it('OFFICE_MANAGER cannot accept or reject a reviewer-less task (review stays legal/owner)', async () => {
-      const manager = { id: 'om-1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
-      mockPrisma.task.findFirst.mockResolvedValue({ id: 'task-1', status: TaskStatus.PENDING_REVIEW, reviewerId: null });
-      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
+    it('a stranger cannot accept', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(pending);
+      await expect(service.accept('case-1', 'task-1', { id: 'x', firmId: 'firm-1', firmRole: FirmRole.ASSISTANT } as any)).rejects.toThrow(ForbiddenException);
+    });
 
+    it('OFFICE_MANAGER cannot accept or reject a reviewer-less task', async () => {
+      const manager = { id: 'om-1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
+      mockPrisma.task.findFirst.mockResolvedValue(pending);
       await expect(service.accept('case-1', 'task-1', manager)).rejects.toThrow(ForbiddenException);
       await expect(service.reject('case-1', 'task-1', manager, { reason: 'x' })).rejects.toThrow(ForbiddenException);
       expect(mockPrisma.task.update).not.toHaveBeenCalled();
     });
 
-    it('OWNER and the case lead still pass the reviewer-less accept check', async () => {
-      const owner = { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
-      mockPrisma.task.findFirst.mockResolvedValue({ id: 'task-1', title: 't', status: TaskStatus.PENDING_REVIEW, reviewerId: null });
-      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
-      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
-
-      await service.accept('case-1', 'task-1', owner);
-      await service.accept('case-1', 'task-1', senior);
+    it('the case lead and the OWNER pass the reviewer-less check', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(pending);
+      await service.accept('case-1', 'task-1', lead);
+      await service.accept('case-1', 'task-1', { id: 'owner-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any);
       expect(mockPrisma.task.update).toHaveBeenCalledTimes(2);
     });
 
-    it('accept sets status to DONE for the lead lawyer', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        title: 'ถอดเทป',
-        status: TaskStatus.PENDING_REVIEW,
-      });
-      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
-      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
-
-      await service.accept('case-1', 'task-1', senior);
-
-      expect(mockPrisma.task.update).toHaveBeenCalledWith({
-        where: { id: 'task-1' },
-        data: { status: TaskStatus.DONE, completedAt: expect.any(Date) },
-      });
+    it('a named reviewer who is not on the case accepts; the lead then cannot', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({ ...pending, reviewerId: 'reviewer-9' });
+      await service.accept('case-1', 'task-1', namedReviewer);
+      expect(mockPrisma.task.update).toHaveBeenCalledWith({ where: { id: 'task-1' }, data: { status: TaskStatus.DONE, completedAt: expect.any(Date) } });
+      await expect(service.accept('case-1', 'task-1', lead)).rejects.toThrow(ForbiddenException);
     });
 
-    it('reject requires the task to be PENDING_REVIEW', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        status: TaskStatus.TODO,
-      });
-      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
-
-      await expect(
-        service.reject('case-1', 'task-1', senior, { reason: 'แก้คำผิด' }),
-      ).rejects.toThrow(BadRequestException);
+    it('accept tells the worker', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(pending);
+      await service.accept('case-1', 'task-1', lead);
+      expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['user-1'], summaryText: expect.stringContaining('ผ่านการตรวจ') }));
     });
 
-    it('reject returns the task to whoever handed it off, with the reason logged', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        title: 'ถอดเทป',
-        status: TaskStatus.PENDING_REVIEW,
-        createdById: 'user-1',
-      });
-      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
-      mockPrisma.taskAssignmentLog.findFirst.mockResolvedValue({ fromUserId: 'user-1' });
-      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
+    it('reject requires PENDING_REVIEW', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({ ...pending, status: TaskStatus.TODO });
+      await expect(service.reject('case-1', 'task-1', lead, { reason: 'แก้คำผิด' })).rejects.toThrow(BadRequestException);
+    });
 
-      await service.reject('case-1', 'task-1', senior, { reason: 'แก้คำผิด' });
-
+    it('reject sends the task back to NEEDS_REVISION with the same assignee', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(pending);
+      await service.reject('case-1', 'task-1', lead, { reason: 'แก้คำผิด' });
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.NEEDS_REVISION, assigneeId: 'user-1', routineCompletedChecks: [] },
+        data: { status: TaskStatus.NEEDS_REVISION, assigneeId: 'user-1', submittedAt: null, routineCompletedChecks: [] },
       });
       expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          action: TaskLogAction.REJECTED,
-          toUserId: 'user-1',
-          note: 'แก้คำผิด',
-        }),
+        data: expect.objectContaining({ action: TaskLogAction.REJECTED, toUserId: 'user-1', note: 'แก้คำผิด' }),
       });
+      expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['user-1'] }));
     });
   });
 
   describe('handoffStandalone', () => {
-    it('throws ForbiddenException when the caller is not the current assignee', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        caseId: null,
-        assigneeId: 'other-user',
-        status: TaskStatus.IN_PROGRESS,
-      });
+    const todo = { id: 'task-1', caseId: null, firmId: 'firm-1', title: 'ร่างสัญญา', assigneeId: 'user-1', reviewerId: null, status: TaskStatus.IN_PROGRESS, requiresAttachment: false };
 
-      await expect(
-        service.handoffStandalone('task-1', user, { reviewerId: 'reviewer-1' }),
-      ).rejects.toThrow(ForbiddenException);
+    beforeEach(() => {
+      mockPrisma.task.findUnique.mockResolvedValue(todo);
+      mockPrisma.task.findFirst.mockResolvedValue(todo);
     });
 
-    it('throws BadRequestException when the chosen reviewer is the caller themselves', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        caseId: null,
-        assigneeId: 'user-1',
-        status: TaskStatus.IN_PROGRESS,
-      });
-
-      await expect(
-        service.handoffStandalone('task-1', user, { reviewerId: 'user-1' }),
-      ).rejects.toThrow(BadRequestException);
+    it('refuses a caller who is not the assignee', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({ ...todo, assigneeId: 'other-user' });
+      await expect(service.handoffStandalone('task-1', user, { reviewerId: 'reviewer-1', note: 'ส่งตรวจครับ' })).rejects.toThrow(ForbiddenException);
     });
 
-    it('throws BadRequestException when the chosen reviewer is not in the caller\'s firm', async () => {
-      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1', caseId: null, firmId: 'firm-1', assigneeId: 'user-1' });
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        caseId: null,
-        assigneeId: 'user-1',
-        status: TaskStatus.IN_PROGRESS,
-      });
-      mockPrisma.firmMember.count.mockResolvedValue(0);
+    it('refuses the caller as their own reviewer', async () => {
+      await expect(service.handoffStandalone('task-1', user, { reviewerId: 'user-1', note: 'ส่งตรวจครับ' })).rejects.toThrow(BadRequestException);
+    });
 
-      await expect(
-        service.handoffStandalone('task-1', user, { reviewerId: 'outsider-1' }),
-      ).rejects.toThrow(BadRequestException);
-      expect(mockPrisma.firmMember.count).toHaveBeenCalledWith({
-        where: { role: { not: 'EXTERNAL' }, firmId: 'firm-1', userId: 'outsider-1' },
-      });
+    it('refuses a reviewer who is not OWNER/SENIOR_LAWYER in this firm (office manager included)', async () => {
+      mockPrisma.firmMember.findFirst.mockResolvedValue({ role: FirmRole.OFFICE_MANAGER });
+      await expect(service.handoffStandalone('task-1', user, { reviewerId: 'om-1', note: 'ส่งตรวจครับ' })).rejects.toThrow(BadRequestException);
       expect(mockPrisma.task.update).not.toHaveBeenCalled();
     });
 
-    it('moves the task to PENDING_REVIEW, reassigns to the chosen reviewer, and logs the handoff', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        title: 'ร่างสัญญา',
-        caseId: null,
-        assigneeId: 'user-1',
-        status: TaskStatus.IN_PROGRESS,
-      });
-      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
-
-      await service.handoffStandalone('task-1', user, {
-        reviewerId: 'reviewer-1',
-        note: 'ช่วยตรวจให้หน่อย',
-      });
-
+    it('keeps the worker, records the reviewer and notifies them', async () => {
+      mockPrisma.firmMember.findFirst.mockResolvedValue({ role: FirmRole.SENIOR_LAWYER });
+      await service.handoffStandalone('task-1', user, { reviewerId: 'reviewer-1', note: 'ส่งตรวจครับ' });
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.PENDING_REVIEW, assigneeId: 'reviewer-1', completedAt: null },
+        data: { status: TaskStatus.PENDING_REVIEW, reviewerId: 'reviewer-1', submittedAt: expect.any(Date), completedAt: null },
       });
-      expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          taskId: 'task-1',
-          action: TaskLogAction.HANDED_OFF,
-          fromUserId: 'user-1',
-          toUserId: 'reviewer-1',
-          performedById: 'user-1',
-          note: 'ช่วยตรวจให้หน่อย',
-        }),
-      });
+      expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['reviewer-1'] }));
     });
   });
 
   describe('acceptStandalone / rejectStandalone', () => {
-    const reviewer = { id: 'reviewer-1', firmId: 'firm-1' } as any;
+    const reviewer = { id: 'reviewer-1', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
+    const pending = { id: 'task-1', caseId: null, firmId: 'firm-1', title: 'ร่างสัญญา', assigneeId: 'user-1', reviewerId: 'reviewer-1', status: TaskStatus.PENDING_REVIEW, createdById: 'user-1' };
 
-    it('acceptStandalone throws ForbiddenException for a user who is not the current assignee', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        caseId: null,
-        assigneeId: 'reviewer-1',
-        status: TaskStatus.PENDING_REVIEW,
-      });
+    beforeEach(() => mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' }));
 
-      await expect(service.acceptStandalone('task-1', user)).rejects.toThrow(
-        ForbiddenException,
-      );
+    it('only the reviewer may accept — not the worker', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(pending);
+      await expect(service.acceptStandalone('task-1', user)).rejects.toThrow(ForbiddenException);
     });
 
-    it('acceptStandalone sets status to DONE for the chosen reviewer', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        title: 'ร่างสัญญา',
-        caseId: null,
-        assigneeId: 'reviewer-1',
-        status: TaskStatus.PENDING_REVIEW,
-      });
-      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
-
+    it('the reviewer accepts and the worker is told', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(pending);
       await service.acceptStandalone('task-1', reviewer);
-
-      expect(mockPrisma.task.update).toHaveBeenCalledWith({
-        where: { id: 'task-1' },
-        data: { status: TaskStatus.DONE, completedAt: expect.any(Date) },
-      });
+      expect(mockPrisma.task.update).toHaveBeenCalledWith({ where: { id: 'task-1' }, data: { status: TaskStatus.DONE, completedAt: expect.any(Date) } });
+      expect(notifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ userIds: ['user-1'] }));
     });
 
-    it('rejectStandalone requires the task to be PENDING_REVIEW', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        caseId: null,
-        assigneeId: 'reviewer-1',
-        status: TaskStatus.TODO,
-      });
-
-      await expect(
-        service.rejectStandalone('task-1', reviewer, { reason: 'แก้คำผิด' }),
-      ).rejects.toThrow(BadRequestException);
+    it('rejectStandalone requires PENDING_REVIEW', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue({ ...pending, status: TaskStatus.TODO });
+      await expect(service.rejectStandalone('task-1', reviewer, { reason: 'แก้คำผิด' })).rejects.toThrow(BadRequestException);
     });
 
-    it('rejectStandalone returns the task to whoever handed it off, with the reason logged', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({
-        id: 'task-1',
-        title: 'ร่างสัญญา',
-        caseId: null,
-        assigneeId: 'reviewer-1',
-        status: TaskStatus.PENDING_REVIEW,
-        createdById: 'user-1',
-      });
-      mockPrisma.taskAssignmentLog.findFirst.mockResolvedValue({ fromUserId: 'user-1' });
-      mockPrisma.task.findUnique.mockResolvedValue({ id: 'task-1' });
-
+    it('rejectStandalone keeps the worker as assignee', async () => {
+      mockPrisma.task.findFirst.mockResolvedValue(pending);
       await service.rejectStandalone('task-1', reviewer, { reason: 'แก้คำผิด' });
-
       expect(mockPrisma.task.update).toHaveBeenCalledWith({
         where: { id: 'task-1' },
-        data: { status: TaskStatus.NEEDS_REVISION, assigneeId: 'user-1', routineCompletedChecks: [] },
-      });
-      expect(mockPrisma.taskAssignmentLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          action: TaskLogAction.REJECTED,
-          toUserId: 'user-1',
-          note: 'แก้คำผิด',
-        }),
+        data: { status: TaskStatus.NEEDS_REVISION, assigneeId: 'user-1', submittedAt: null, routineCompletedChecks: [] },
       });
     });
   });
@@ -694,5 +578,11 @@ describe('TasksService — OFFICE_MANAGER', () => {
         where: expect.objectContaining({ role: { in: [FirmRole.OWNER, FirmRole.SENIOR_LAWYER] } }),
       }),
     );
+  });
+
+  it('accepts the case lead as reviewer whatever their role, never the assignee', async () => {
+    mockPrisma.case.findUnique.mockResolvedValue({ leadLawyerId: 'lead-lawyer' });
+    await expect((service as any).validateReview(manager, true, 'lead-lawyer', { caseId: 'case-1', assigneeId: 'a1' })).resolves.toBeUndefined();
+    await expect((service as any).validateReview(manager, true, 'a1', { caseId: 'case-1', assigneeId: 'a1' })).rejects.toThrow('คนละคน');
   });
 });

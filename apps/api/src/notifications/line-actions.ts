@@ -16,6 +16,13 @@ export const lineActions = {
   taskDone(taskId: string): QuickReplyItem[] {
     return [{ label: '✅ เสร็จแล้ว', text: 'งานเสร็จแล้ว', data: `task:done:${taskId}` }];
   },
+  /** Sent to the reviewer with a handoff. "ส่งกลับ" asks for the reason as a follow-up message (Task 6). */
+  review(taskId: string): QuickReplyItem[] {
+    return [
+      { label: '✅ อนุมัติ', text: 'อนุมัติงาน', data: `task:accept:${taskId}` },
+      { label: '↩️ ส่งกลับ', text: 'ส่งงานกลับแก้', data: `task:reject:${taskId}` },
+    ];
+  },
   claim(claimId: string): QuickReplyItem[] {
     return [
       { label: '✅ อนุมัติใบเบิก', text: 'อนุมัติใบเบิก', data: `claim:approve:${claimId}` },

@@ -136,7 +136,7 @@ export class CaseAccessService {
           { createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
         ] },
         ...(hasFirmCapability(user.firmRole, 'viewAllCases') ? [] : [{ OR: [
-          { assigneeId: user.id }, { createdById: user.id }, this.getTaskFilterForUser(user),
+          { assigneeId: user.id }, { createdById: user.id }, { reviewerId: user.id }, this.getTaskFilterForUser(user),
         ] }]),
       ],
     };

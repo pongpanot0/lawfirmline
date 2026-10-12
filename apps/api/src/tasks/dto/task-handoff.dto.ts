@@ -1,9 +1,10 @@
-import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { TASK_HANDOFF_NOTE_MIN } from '@lawfirm/shared';
 
 export class HandoffTaskDto {
-  @IsOptional()
   @IsString()
-  note?: string;
+  @MinLength(TASK_HANDOFF_NOTE_MIN, { message: `เขียนหมายเหตุถึงผู้ตรวจอย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร` })
+  note!: string;
 
   @IsOptional()
   @IsDateString()
@@ -29,9 +30,9 @@ export class HandoffStandaloneTaskDto {
   @IsUUID()
   reviewerId!: string;
 
-  @IsOptional()
   @IsString()
-  note?: string;
+  @MinLength(TASK_HANDOFF_NOTE_MIN, { message: `เขียนหมายเหตุถึงผู้ตรวจอย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร` })
+  note!: string;
 
   @IsOptional()
   @IsDateString()
