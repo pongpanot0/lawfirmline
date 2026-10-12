@@ -38,7 +38,7 @@ export default function RegisterScreen() {
       await register({ firmName: firmName.trim(), firstName: firstName.trim(), lastName: lastName.trim(),
         email: email.trim().toLowerCase(), password });
     } catch (err) {
-      setError(err instanceof ApiError ? (err.status === 409 ? 'อีเมลนี้มีบัญชีแล้ว กลับไปเข้าสู่ระบบหรือตั้งรหัสผ่านใหม่' : err.status === 429 ? 'สมัครถี่เกินไป รอสักครู่แล้วลองใหม่' : 'สมัครไม่สำเร็จ ตรวจข้อมูลแล้วลองใหม่ หรือติดต่อ hello@samnuan.co')
+      setError(err instanceof ApiError ? (err.status === 409 ? 'อีเมลนี้มีบัญชีแล้ว กลับไปเข้าสู่ระบบหรือตั้งรหัสผ่านใหม่' : err.status === 429 ? 'สมัครถี่เกินไป รอสักครู่แล้วลองใหม่' : 'สมัครไม่สำเร็จ ตรวจข้อมูลแล้วลองใหม่ หรือติดต่อ hello@samnuan.com')
         : 'เชื่อมต่อไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
     } finally { setBusy(false); }
   };
