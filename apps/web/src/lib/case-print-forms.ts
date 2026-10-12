@@ -1,3 +1,4 @@
+import { courtFee } from '@lawfirm/shared';
 import type { CaseDetail } from './api';
 
 export type CasePrintKind = 'complaint' | 'cover';
@@ -19,6 +20,7 @@ export function casePrintDefaults(c: CaseDetail, firmName: string): CasePrintVal
     plaintiff: parties(['PLAINTIFF', 'JOINT_PLAINTIFF']) || (c.partyRole === 'PLAINTIFF' ? c.clientName ?? c.client?.name ?? '' : ''),
     defendant: parties(['DEFENDANT']) || (!c.participants?.length && c.partyRole === 'DEFENDANT' ? c.clientName ?? c.client?.name ?? '' : ''), jointDefendant: parties(['JOINT_DEFENDANT']),
     subject: typeof c.customFields?.chargeSection === 'string' ? c.customFields.chargeSection.trim() : '', amount: c.claimedAmount == null ? '' : c.claimedAmount.toLocaleString('th-TH', { maximumFractionDigits: 2 }),
+    courtFee: c.claimedAmount == null ? '' : courtFee(c.claimedAmount).toLocaleString('th-TH', { maximumFractionDigits: 2 }),
     lawyerSide: c.partyRole === 'PLAINTIFF' ? 'โจทก์' : c.partyRole === 'DEFENDANT' ? 'จำเลย' : '',
     lawyerName: `${c.leadLawyer.firstName} ${c.leadLawyer.lastName}`.trim(),
     caseClass: '', filedDate: '', complaintDate: '', answerDate: '', counterclaimDate: '', mediationDate: '', settlementDate: '',
@@ -53,7 +55,7 @@ export function buildCasePrintHtml(kind: CasePrintKind, values: CasePrintValues,
     ${pair(line('วันฎีกา', 'supremeDate'), line('วันแก้ฎีกา', 'supremeAnswerDate'))}${line('วันฟังคำพิพากษาศาลฎีกา', 'supremeJudgmentDate')}`;
   const complaint = `<header class="complaint-head"><span></span>${image}<h1>คำฟ้อง</h1></header>${numbers}
     ${line('ศาล', 'court')}${line('วันที่', 'complaintDate')}${line('ความ', 'caseClass')}${parties}
-    ${line('เรื่อง', 'subject')}${line('จำนวนทุนทรัพย์', 'amount', 'บาท')}
+    ${line('เรื่อง', 'subject')}${pair(line('จำนวนทุนทรัพย์', 'amount', 'บาท'), line('ค่าขึ้นศาล', 'courtFee', 'บาท'))}
     ${line('ข้าพเจ้า', 'plaintiff', 'โจทก์')}
     ${line('เชื้อชาติ / สัญชาติ / อาชีพ / อายุ / เลขประจำตัว', 'plaintiffIdentity')}
     ${line('อยู่บ้านเลขที่ / ถนน / ตำบล / อำเภอ / จังหวัด', 'plaintiffAddress')}

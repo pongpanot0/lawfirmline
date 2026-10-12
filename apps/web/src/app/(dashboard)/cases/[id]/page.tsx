@@ -4,6 +4,7 @@ import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CasePrintForms } from '@/components/cases/CasePrintForms';
 import { CaseOverviewForm, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
 import { CaseProceedingsCard } from '@/components/cases/CaseProceedingsCard';
+import { LitigationCalculatorsCard } from '@/components/cases/LitigationCalculatorsCard';
 import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
 import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
@@ -41,6 +42,7 @@ import {
   CourtLevel,
   COURT_LEVEL_LABELS,
   CASE_NUMBER_HINT,
+  courtFee,
   hasFirmCapability,
   isBackwardStage,
   PARTY_ROLE_LABELS,
@@ -1310,6 +1312,9 @@ export default function CaseDetailPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">ทุนทรัพย์</p>
                     <p className="font-medium">{legalCase.claimedAmount != null ? formatCurrency(legalCase.claimedAmount) : 'ยังไม่ระบุ'}</p>
+                    {legalCase.claimedAmount != null && (
+                      <p className="text-xs text-muted-foreground">ค่าขึ้นศาลโดยประมาณ {formatCurrency(courtFee(legalCase.claimedAmount))}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">ฝ่ายเรา</p>
@@ -1478,6 +1483,8 @@ export default function CaseDetailPage() {
             currentLevel={legalCase.courtLevel ?? null}
             onChanged={loadCase}
           />
+
+          <LitigationCalculatorsCard key={legalCase.claimedAmount ?? 'none'} claimedAmount={legalCase.claimedAmount ?? null} />
 
           <div className="min-w-0 space-y-4">
           {legalCase.intake && preFiling && (

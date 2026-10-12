@@ -15,6 +15,9 @@ test('forms preserve party roles and blank unknowns, escape text, and keep priva
   assert.equal(values.blackNumber, '');
   assert.equal(values.filedDate, '');
   assert.equal(values.amount, '0');
+  assert.equal(values.courtFee, '0');
+  assert.equal(casePrintDefaults({ ...c, claimedAmount: 1_000_000 }, '').courtFee, '20,000');
+  assert.equal(casePrintDefaults({ ...c, claimedAmount: null }, '').courtFee, '');
   const filled = casePrintDefaults({ ...c, blackCaseNumber: 'ผบ.407/2569', redCaseNumber: 'ผบ.500/2569', courtName: 'ศาลแพ่งกรุงเทพใต้', participants: c.participants!.map(p => ({ ...p, address: `${p.name} ที่อยู่`, phone: '021234567', email: 'test@example.com' })) }, 'สำนักงาน');
   assert.equal(filled.blackNumber, 'ผบ.407/2569');
   assert.equal(filled.redNumber, 'ผบ.500/2569');
@@ -26,6 +29,7 @@ test('forms preserve party roles and blank unknowns, escape text, and keep priva
   values.firstParagraph = '<script>alert("x")</script> ข้อ ๑. ข้อเท็จจริง';
   values.plaintiffIdentity = 'ข้อมูลส่วนบุคคลเฉพาะคำฟ้อง';
   const complaint = buildCasePrintHtml('complaint', values, 'https://example.com/tracker.png');
+  assert.ok(complaint.includes('ค่าขึ้นศาล'));
   assert.ok(complaint.includes('&lt;script&gt;'));
   assert.ok(!complaint.includes('<script>'));
   assert.ok(!complaint.includes('tracker.png'));
