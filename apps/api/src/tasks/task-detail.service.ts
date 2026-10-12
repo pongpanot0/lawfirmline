@@ -35,6 +35,12 @@ export const TASK_ATTACHMENT_MIME_TYPES = new Set([
 
 const person = { select: { id: true, firstName: true, lastName: true } };
 
+const NO_BLOCKER = ['', 'ไม่มี', '-', 'none'];
+const realBlocker = (text?: string | null) => {
+  const trimmed = (text ?? '').trim();
+  return NO_BLOCKER.includes(trimmed.toLowerCase()) ? '' : trimmed;
+};
+
 @Injectable()
 export class TaskDetailService {
   private readonly logger = new Logger(TaskDetailService.name);
@@ -329,12 +335,16 @@ export class TaskDetailService {
       throw new ForbiddenException('ผู้ทำงานอัปเดตความคืบหน้าได้เฉพาะงานของตัวเองที่ยังไม่ส่งตรวจหรือเสร็จ');
     }
     if (!dto.completed.trim() || !dto.remaining.trim()) throw new BadRequestException('ระบุว่าทำถึงไหนและเหลืออะไร');
+    const previous = await this.prisma.taskComment.findFirst({
+      where: { taskId, kind: 'DAILY_UPDATE' }, orderBy: { createdAt: 'desc' }, select: { body: true },
+    });
     const comment = await this.prisma.taskComment.create({
       data: { taskId, authorId: user.id, kind: 'DAILY_UPDATE', body: dailyTaskUpdateText(dto) },
       include: { author: person },
     });
-    const blocker = dto.blocker?.trim();
-    if (blocker && blocker !== 'ไม่มี' && task.caseId) {
+    const blocker = realBlocker(dto.blocker);
+    // Only news: a blocker repeated verbatim from the last update does not page the lead again.
+    if (blocker && blocker !== realBlocker(previous && dailyUpdateParts(previous.body).blocker) && task.caseId) {
       const legalCase = await this.prisma.case.findUnique({ where: { id: task.caseId }, select: { leadLawyerId: true } });
       if (legalCase && legalCase.leadLawyerId !== user.id) {
         await this.tasks.notifyViaAssignmentNotifier({
@@ -359,13 +369,9 @@ export class TaskDetailService {
     });
     if (!task) throw new NotFoundException('Task not found');
 
-    // Only people in this firm can be mentioned; ids from the request body are never trusted as-is.
-    const mentioned = dto.mentionedUserIds?.length
-      ? (await this.prisma.firmMember.findMany({
-          where: { firmId: user.firmId, role: { not: FirmRole.EXTERNAL }, userId: { in: [...new Set(dto.mentionedUserIds)].slice(0, 20) } },
-          select: { userId: true },
-        })).map((m) => m.userId).filter((id) => id !== user.id)
-      : [];
+    // Ids from the request body are never trusted: keep only people who can open this task.
+    const requested = [...new Set(dto.mentionedUserIds ?? [])].filter((id) => id !== user.id).slice(0, 20);
+    const mentioned = await this.tasks.filterUsersWhoCanSeeTask(taskId, requested, user.firmId);
 
     const comment = await this.prisma.taskComment.create({
       data: { taskId, authorId: user.id, body: dto.body.trim(), mentionedUserIds: mentioned },

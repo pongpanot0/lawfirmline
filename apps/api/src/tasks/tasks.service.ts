@@ -148,6 +148,24 @@ export class TasksService {
    * caller's board already lists (a senior sees their lawyers' cards).
    * Returns the row so callers do not fetch it twice.
    */
+  /** Firm members (not external) among userIds who pass the same access check as opening the task. */
+  async filterUsersWhoCanSeeTask(taskId: string, userIds: string[], firmId: string): Promise<string[]> {
+    if (!userIds.length) return [];
+    const members = await this.prisma.firmMember.findMany({
+      where: { firmId, role: { not: FirmRole.EXTERNAL }, userId: { in: userIds } },
+      select: { userId: true, role: true },
+    });
+    const seen = await Promise.all(members.map(async (m) => {
+      try {
+        await this.assertAccess(taskId, { id: m.userId, firmId, firmRole: m.role } as AuthUser);
+        return m.userId;
+      } catch {
+        return null;
+      }
+    }));
+    return seen.filter((id): id is string => !!id);
+  }
+
   async assertAccess(taskId: string, user: AuthUser) {
     const task = await this.prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundException('Task not found');
@@ -468,18 +486,6 @@ export class TasksService {
       throw new ForbiddenException(user.firmRole === FirmRole.LAWYER
         ? 'ทนายความมอบหมายงานได้เฉพาะผู้ช่วยหรือผู้จัดการสำนักงาน'
         : 'มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณเท่านั้น');
-    }
-  }
-
-  async validateAssigneeForSubtask(caseId: string | null, assigneeId: string, user: AuthUser) {
-    if (assigneeId === user.id) return;
-    const member = await this.prisma.firmMember.findFirst({
-      where: { role: { not: FirmRole.EXTERNAL }, firmId: user.firmId, userId: assigneeId },
-      select: { role: true },
-    });
-    if (!member) throw new NotFoundException('ผู้รับมอบหมายไม่ได้อยู่ในสำนักงานนี้');
-    if (!caseId && !canDelegateTask(user.firmRole, member.role as FirmRole)) {
-      throw new ForbiddenException('มอบหมายได้เฉพาะสมาชิกที่มีบทบาทต่ำกว่าของคุณเท่านั้น');
     }
   }
 
@@ -1218,6 +1224,7 @@ export class TasksService {
   }
 
   async startOnHold(caseId: string, taskId: string, user: AuthUser, dto: StartTaskOnHoldDto) {
+    await this.assertAccess(taskId, user);
     await assertFirmRefs(this.prisma, user.firmId, { userIds: [dto.followerUserId] });
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, caseId },
@@ -1243,11 +1250,12 @@ export class TasksService {
       create: { taskId, ...data },
       update: { ...data, startedAt: new Date(), endedAt: null, lastFollowUpAt: null, notes: null },
     });
-    await this.notifyLeadAndObservers({ id: taskId, title: task.title, caseId }, user, `⏸️ พักงาน: ${task.title}\nเหตุผล: ${dto.reason}`);
+    await this.notifyLeadAndObservers({ id: taskId, title: task.title, caseId, assigneeId: task.assigneeId }, user, `⏸️ พักงาน: ${task.title}\nเหตุผล: ${dto.reason}`);
     return hold;
   }
 
-  async updateOnHold(caseId: string, taskId: string, dto: UpdateTaskOnHoldDto) {
+  async updateOnHold(caseId: string, taskId: string, user: AuthUser, dto: UpdateTaskOnHoldDto) {
+    await this.assertAccess(taskId, user);
     if (dto.followerUserId) {
       const legalCase = await this.prisma.case.findUnique({ where: { id: caseId }, select: { firmId: true } });
       await assertFirmRefs(this.prisma, legalCase?.firmId ?? '', { userIds: [dto.followerUserId] });
@@ -1272,9 +1280,10 @@ export class TasksService {
   }
 
   async resumeFromOnHold(caseId: string, taskId: string, user: AuthUser) {
+    await this.assertAccess(taskId, user);
     const hold = await this.prisma.taskOnHold.findFirst({
       where: { taskId, task: { caseId } },
-      include: { task: { select: { title: true } } },
+      include: { task: { select: { title: true, assigneeId: true } } },
     });
     if (!hold || hold.endedAt) {
       throw new NotFoundException('ไม่พบสถานะ On hold ที่ยังใช้งานอยู่สำหรับงานนี้');
@@ -1284,14 +1293,14 @@ export class TasksService {
       where: { id: hold.id },
       data: { endedAt: new Date() },
     });
-    await this.notifyLeadAndObservers({ id: taskId, title: hold.task.title, caseId }, user, `▶️ งานกลับมาทำต่อ: ${hold.task.title}`);
+    await this.notifyLeadAndObservers({ id: taskId, title: hold.task.title, caseId, assigneeId: hold.task.assigneeId }, user, `▶️ งานกลับมาทำต่อ: ${hold.task.title}`);
     return resumed;
   }
 
-  /** Hold/resume and similar case-level news: the lead lawyer and the task's observers, never the actor. */
-  private async notifyLeadAndObservers(task: { id: string; title: string; caseId: string | null }, user: AuthUser, summaryText: string) {
+  /** Hold/resume and similar case-level news: the lead lawyer, the assignee and the task's observers, never the actor. */
+  private async notifyLeadAndObservers(task: { id: string; title: string; caseId: string | null; assigneeId?: string | null }, user: AuthUser, summaryText: string) {
     const legalCase = task.caseId ? await this.prisma.case.findUnique({ where: { id: task.caseId }, select: { leadLawyerId: true } }) : null;
-    const userIds = [...new Set([legalCase?.leadLawyerId, ...(await this.getParentObserverIds(task.id))].filter((id): id is string => !!id && id !== user.id))];
+    const userIds = [...new Set([legalCase?.leadLawyerId, task.assigneeId, ...(await this.getParentObserverIds(task.id))].filter((id): id is string => !!id && id !== user.id))];
     await this.notifyViaAssignmentNotifier({
       firmId: user.firmId,
       userIds,

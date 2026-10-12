@@ -51,7 +51,18 @@ describe('TasksService on-hold', () => {
     service = module.get(TasksService);
   });
 
+  describe('hold access', () => {
+    it('refuses hold, resume and follow-up edits to a user who cannot see the task', async () => {
+      jest.spyOn(service, 'assertAccess').mockRejectedValue(new ForbiddenException('no'));
+      await expect(service.startOnHold('case-1', 'task-1', user, { reason: 'x' })).rejects.toThrow(ForbiddenException);
+      await expect(service.resumeFromOnHold('case-1', 'task-1', user)).rejects.toThrow(ForbiddenException);
+      await expect(service.updateOnHold('case-1', 'task-1', user, { notes: 'x' })).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.taskOnHold.upsert).not.toHaveBeenCalled();
+    });
+  });
+
   describe('startOnHold', () => {
+    beforeEach(() => { jest.spyOn(service, 'assertAccess').mockResolvedValue({} as any); });
     it('throws NotFoundException when task does not exist in the given case', async () => {
       mockPrisma.task.findFirst.mockResolvedValue(null);
       await expect(
@@ -105,6 +116,7 @@ describe('TasksService on-hold', () => {
   });
 
   describe('resumeFromOnHold', () => {
+    beforeEach(() => { jest.spyOn(service, 'assertAccess').mockResolvedValue({} as any); });
     it('throws NotFoundException when no active on-hold record exists', async () => {
       mockPrisma.taskOnHold.findFirst.mockResolvedValue(null);
       await expect(service.resumeFromOnHold('case-1', 'task-1', user)).rejects.toThrow(
@@ -112,7 +124,7 @@ describe('TasksService on-hold', () => {
       );
       expect(mockPrisma.taskOnHold.findFirst).toHaveBeenCalledWith({
         where: { taskId: 'task-1', task: { caseId: 'case-1' } },
-        include: { task: { select: { title: true } } },
+        include: { task: { select: { title: true, assigneeId: true } } },
       });
     });
 

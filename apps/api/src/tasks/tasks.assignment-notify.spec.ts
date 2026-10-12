@@ -16,7 +16,7 @@ describe('TasksService assignment notifications', () => {
     user: { findUnique: jest.fn().mockResolvedValue({ firstName: 'สมหญิง', lastName: 'รักงาน' }) },
     case: { findUnique: jest.fn() },
     caseAssignment: { upsert: jest.fn() },
-    firmMember: { count: jest.fn(), findFirst: jest.fn() },
+    firmMember: { count: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
     caseActivity: { create: jest.fn() },
     taskAssignmentLog: { create: jest.fn(), findFirst: jest.fn() },
   };
@@ -134,7 +134,36 @@ describe('TasksService assignment notifications', () => {
     expect(toOld.summaryText).toContain('สมหญิง รักงาน');
   });
 
+  it('hold and resume also tell the assignee, once, even when they are also an observer', async () => {
+    jest.spyOn(service, 'assertAccess').mockResolvedValue({} as any);
+    mockPrisma.task.findFirst.mockResolvedValue({ id: 't1', caseId: 'c1', title: 'ถอดเทป', assigneeId: 'w1', onHold: null });
+    mockPrisma.case.findUnique.mockResolvedValue({ id: 'c1', leadLawyerId: 'lead' });
+    mockPrisma.taskObserver.findMany.mockResolvedValue([{ userId: 'w1' }]);
+    mockPrisma.taskOnHold.upsert.mockResolvedValue({ id: 'h1' });
+    await service.startOnHold('c1', 't1', user, { reason: 'รอศาล' });
+    expect(mockNotifier.notifyAssigned).toHaveBeenLastCalledWith(expect.objectContaining({ userIds: ['lead', 'w1'] }));
+    mockPrisma.taskOnHold.findFirst.mockResolvedValue({ id: 'h1', endedAt: null, task: { title: 'ถอดเทป', assigneeId: 'w1' } });
+    mockPrisma.taskOnHold.update.mockResolvedValue({ id: 'h1' });
+    await service.resumeFromOnHold('c1', 't1', user);
+    expect(mockNotifier.notifyAssigned).toHaveBeenLastCalledWith(expect.objectContaining({ userIds: ['lead', 'w1'] }));
+  });
+
+  it('keeps only firm members who can open the task', async () => {
+    mockPrisma.firmMember.findMany.mockResolvedValue([
+      { userId: 'a', role: 'LAWYER' }, { userId: 'b', role: 'LAWYER' },
+    ]);
+    jest.spyOn(service, 'assertAccess').mockImplementation(async (_t, u) => {
+      if (u.id === 'b') throw new Error('no access');
+      return {} as any;
+    });
+    await expect(service.filterUsersWhoCanSeeTask('t1', ['a', 'b', 'outsider'], 'firm-1')).resolves.toEqual(['a']);
+    expect(mockPrisma.firmMember.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ firmId: 'firm-1', userId: { in: ['a', 'b', 'outsider'] } }),
+    }));
+  });
+
   it('starting and resuming a hold tells the lead and the observers, not the actor', async () => {
+    jest.spyOn(service, 'assertAccess').mockResolvedValue({} as any);
     mockPrisma.task.findFirst.mockResolvedValue({ id: 't1', caseId: 'c1', title: 'ถอดเทป', onHold: null });
     mockPrisma.case.findUnique.mockResolvedValue({ id: 'c1', leadLawyerId: 'lead' });
     mockPrisma.taskObserver.findMany.mockResolvedValue([{ userId: 'obs' }, { userId: 'user-1' }]);
@@ -153,6 +182,7 @@ describe('TasksService assignment notifications', () => {
   });
 
   it('a task that was held and resumed can be held again (one hold row per task)', async () => {
+    jest.spyOn(service, 'assertAccess').mockResolvedValue({} as any);
     mockPrisma.task.findFirst.mockResolvedValue({ id: 't1', caseId: 'c1', title: 'ถอดเทป', onHold: { id: 'h1', endedAt: new Date() } });
     mockPrisma.case.findUnique.mockResolvedValue({ id: 'c1', leadLawyerId: 'lead' });
     mockPrisma.taskOnHold.upsert.mockResolvedValue({ id: 'h1' });
