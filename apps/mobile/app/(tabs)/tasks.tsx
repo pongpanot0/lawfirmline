@@ -95,7 +95,7 @@ export default function TasksScreen() {
         const done = item.status === 'DONE';
         const late = !done && item.status !== 'PENDING_REVIEW' && item.dueDate && bangkokDay(item.dueDate) < today;
         const header = submitted(item) && (index === 0 || !submitted(rows[index - 1]))
-          ? <Text style={[styles.meta, { fontWeight: '700', marginBottom: spacing.xs }]}>รอตรวจ</Text> : null;
+          ? <Text style={[styles.meta, { fontWeight: '700', marginBottom: spacing.xs }]}>ส่งตรวจแล้ว</Text> : null;
         return <>{header}<Card style={{ marginBottom: spacing.md }}>
           <View style={styles.row}>
             {!officeQueue && user && canToggleTask(item, user) && <Pressable accessibilityRole="checkbox"

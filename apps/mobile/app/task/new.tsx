@@ -79,9 +79,13 @@ export default function TaskFormScreen() {
     : owner || task.data?.assigneeId === user?.id || task.data?.createdById === user?.id);
   const canStatus = task.data?.status !== 'PENDING_REVIEW' && (!id || task.data?.assigneeId === user?.id || (!!caseId &&
     (owner || legalCase.data?.leadLawyer?.id === user?.id)));
-  const canReview = !!task.data && !!user && canReviewTask(task.data, user, legalCase.data?.leadLawyer?.id);
+  const canReview = !!task.data && !!user && canReviewTask(task.data, user, task.data.case?.leadLawyerId ?? legalCase.data?.leadLawyer?.id);
   const reviewers = (members.data ?? []).filter(person => isEligibleReviewer({ role: person.firmRole, userId: person.id,
     caseLeadId: legalCase.data?.leadLawyer?.id, assigneeId: assigneeId || user?.id }));
+  useEffect(() => {
+    const lead = legalCase.data?.leadLawyer?.id;
+    if (!id && !reviewerId && lead && (requiresReview || routineChoice) && reviewers.some(p => p.id === lead)) setReviewerId(lead);
+  }, [id, reviewerId, requiresReview, routineChoice, legalCase.data, reviewers.length]);
   const candidates = (members.data ?? []).filter(person => person.id === user?.id ||
     (!!user?.firmRole && !!person.firmRole && canDelegateTask(user.firmRole as FirmRole, person.firmRole as FirmRole)));
   const options = candidates.map(person => ({ value: person.id,
@@ -233,10 +237,10 @@ export default function TaskFormScreen() {
       </Card>}
     </>}
     {!id && ['OWNER', 'SENIOR_LAWYER', 'OFFICE_MANAGER'].includes(user?.firmRole ?? '') && <>
-      <Dropdown label="วิธีทำงานประจำ (ถ้ามี)" value={routineChoice} options={[{ value: '', label: 'งานทั่วไป · ไม่บังคับรายการตรวจ' }, ...routines]} disabled={busy || checkingPreviousSave || playbooks.isLoading || playbooks.isError}
-        onChange={value => { setRoutineChoice(value); if (value) { const selected = routines.find(r => r.value === value); if (!title.trim() && selected) setTitle(selected.title); setRequiresReview(true); setReviewerId(reviewers.find(p => p.id === legalCase.data?.leadLawyer?.id)?.id ?? reviewers[0]?.id ?? ''); } }} />
+      <Dropdown label="วิธีทำงานประจำ (ถ้ามี)" value={routineChoice} options={[{ value: '', label: 'งานทั่วไป · ไม่บังคับรายการตรวจ' }, ...routines]} disabled={busy || checkingPreviousSave || playbooks.isLoading || playbooks.isError || (!!caseId && legalCase.isLoading)}
+        onChange={value => { setRoutineChoice(value); if (value) { const selected = routines.find(r => r.value === value); if (!title.trim() && selected) setTitle(selected.title); setRequiresReview(true); setReviewerId(reviewers.find(p => p.id === legalCase.data?.leadLawyer?.id)?.id ?? ''); } }} />
       {playbooks.isError && <ErrorNote message="โหลดวิธีทำงานประจำไม่ได้" onRetry={() => playbooks.refetch()} />}
-      {!!routineChoice && <Dropdown label="ผู้ตรวจงานประจำ" value={reviewerId} options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} onChange={setReviewerId} disabled={busy || checkingPreviousSave} />}
+      {!!routineChoice && <Dropdown label="ผู้ตรวจงานประจำ" value={reviewerId} options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} onChange={setReviewerId} disabled={busy || checkingPreviousSave || (!!caseId && legalCase.isLoading)} />}
     </>}
     {id && canAssign && <Button title="มอบหมาย / เปลี่ยนผู้รับผิดชอบ" ghost disabled={busy} onPress={() => setReassigning(true)} />}
     </FormSection>

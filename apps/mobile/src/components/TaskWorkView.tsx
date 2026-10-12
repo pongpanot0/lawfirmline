@@ -49,7 +49,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
   const [blocker, setBlocker] = useState(previous.blocker);
   const [reviewerId, setReviewerId] = useState(task.reviewerId ?? '');
   const worker = task.assigneeId === user?.id && !['DONE', 'PENDING_REVIEW'].includes(task.status);
-  const reviewer = !!user && canReviewTask(task, user, legalCase.data?.leadLawyer?.id);
+  const reviewer = !!user && canReviewTask(task, user, task.case?.leadLawyerId ?? legalCase.data?.leadLawyer?.id);
   const targetReviewer = task.reviewerId ?? (task.caseId ? legalCase.data?.leadLawyer?.id : reviewerId);
   const reviewerName = members.data?.find(p => p.id === targetReviewer);
   const reviewerLabel = task.reviewer ? `${task.reviewer.firstName} ${task.reviewer.lastName}` : reviewerName ? `${reviewerName.firstName} ${reviewerName.lastName}` : 'ผู้ตรวจที่กำหนด';
@@ -105,6 +105,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         await api(task.caseId ? `/cases/${task.caseId}/tasks/${task.id}` : `/todos/${task.id}`, { method: 'PATCH', body: { status: 'DONE' } });
       }) };
 
+  if (task.status === 'PENDING_REVIEW' && task.caseId && !task.reviewerId && legalCase.isLoading) return <Loading />;
   if (!draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading />;
   return <View style={{ flex: 1, backgroundColor: colors.bg }}>
     <Stack.Screen options={{ title: reviewer ? 'ตรวจงาน' : 'ทำงาน' }} />
@@ -211,7 +212,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
       {latest && <Card><Text style={{ color: colors.text }}>{latest.body}</Text><Text style={{ color: colors.faint, fontSize: 12 }}>อัปเดต {latest.createdAt ? `${thDate(latest.createdAt)} ${thTime(latest.createdAt)}` : 'ไม่ทราบเวลา'} · {latest.author?.firstName}</Text></Card>}
       {worker && !task.caseId && !task.reviewerId && <Dropdown label="ผู้ตรวจงาน (ถ้าจะส่งตรวจ)" value={reviewerId} onChange={setReviewerId}
         options={(members.data ?? []).filter(p => isEligibleReviewer({ role: p.firmRole, userId: p.id, assigneeId: task.assigneeId })).map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} disabled={busy || members.isError} />}
-      {task.caseId && (worker || legalCase.data?.leadLawyer?.id === user?.id || hasFirmCapability(user?.firmRole, 'runOperations')) && <Card style={{ gap: spacing.sm }}>
+      {task.caseId && !['DONE', 'PENDING_REVIEW'].includes(task.status) && (worker || legalCase.data?.leadLawyer?.id === user?.id || hasFirmCapability(user?.firmRole, 'runOperations')) && <Card style={{ gap: spacing.sm }}>
         <Text style={{ color: colors.ink, fontWeight: '700' }}>พักงาน</Text>
         {task.onHold && !task.onHold.endedAt ? <>
           <Text style={{ color: colors.text }}>⏸️ {task.onHold.reason}</Text>

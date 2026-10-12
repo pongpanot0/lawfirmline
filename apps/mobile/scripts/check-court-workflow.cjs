@@ -26,15 +26,17 @@ async function main() {
   }
   assert.equal(actionAppRoute({ id: 'task:invalid', kind: 'WAITING', url: '/todos' }), null);
   assert.equal(actionAppRoute({ id: 'x', kind: 'UNKNOWN', url: 'https://external.example/cases/' + taskId }), null);
-  const review = { status: 'PENDING_REVIEW', assigneeId: 'reviewer', reviewerId: 'reviewer', caseId: 'case' };
+  const review = { status: 'PENDING_REVIEW', assigneeId: 'worker', reviewerId: 'reviewer', caseId: 'case' };
   assert.equal(canReviewTask(review, { id: 'reviewer', firmRole: 'LAWYER' }), true);
   assert.equal(canReviewTask(review, { id: 'owner', firmRole: 'OWNER' }), false);
   assert.equal(canReviewTask({ ...review, reviewerId: null }, { id: 'owner', firmRole: 'OWNER' }), true);
-  assert.equal(canReviewTask({ ...review, caseId: null }, { id: 'reviewer' }), true);
   assert.equal(canReviewTask({ ...review, caseId: null }, { id: 'creator' }), false);
-  assert.equal(canToggleTask(review, { id: 'reviewer' }), false);
-  assert.equal(canToggleTask({ ...review, status: 'TODO', requiresReview: true }, { id: 'reviewer' }), false);
-  assert.equal(canToggleTask({ ...review, status: 'TODO' }, { id: 'reviewer' }), true);
+  assert.equal(canReviewTask({ ...review, assigneeId: 'reviewer' }, { id: 'reviewer', firmRole: 'LAWYER' }), false);
+  assert.equal(canReviewTask({ ...review, assigneeId: 'worker', reviewerId: 'om' }, { id: 'om', firmRole: 'OFFICE_MANAGER' }), false);
+  assert.equal(canReviewTask({ ...review, assigneeId: 'worker', reviewerId: null }, { id: 'owner', firmRole: 'OWNER' }), true);
+  assert.equal(canToggleTask(review, { id: 'worker' }), false);
+  assert.equal(canToggleTask({ ...review, status: 'TODO', requiresReview: true }, { id: 'worker' }), false);
+  assert.equal(canToggleTask({ ...review, status: 'TODO' }, { id: 'worker' }), true);
   assert.equal(canToggleTask({ ...review, status: 'TODO' }, { id: 'creator' }), false);
   const { formatMoney, formatMoneyInput } = load('format.ts');
   assert.equal(formatMoney(50000), '50,000');
