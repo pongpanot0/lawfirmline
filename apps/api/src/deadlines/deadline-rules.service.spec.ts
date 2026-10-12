@@ -2,6 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DeadlineDayBasis, DeadlineTrigger, FirmRole } from '@lawfirm/shared';
 import { DeadlineRulesService } from './deadline-rules.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { CreateDeadlineRuleDto } from './dto/deadline-rule.dto';
 
 describe('DeadlineRulesService', () => {
   let service: DeadlineRulesService;
@@ -95,6 +98,55 @@ describe('DeadlineRulesService', () => {
         service.computeDueDate(new Date('2026-09-04T18:00:00Z'), 2, DeadlineDayBasis.CALENDAR, new Set()),
       ).toBe('2026-09-07');
     });
+
+    it('counts MONTHS to the same day of month (11 Oct → 11 Nov)', () => {
+      expect(
+        service.computeDueDate(new Date('2026-10-11T03:00:00Z'), 1, DeadlineDayBasis.MONTHS, new Set()),
+      ).toBe('2026-11-11');
+    });
+
+    it('counts MONTHS from the Bangkok day of a late-evening trigger', () => {
+      // 18:00Z on 11 Oct is already Mon 12 Oct in Bangkok.
+      expect(
+        service.computeDueDate(new Date('2026-10-11T18:00:00Z'), 1, DeadlineDayBasis.MONTHS, new Set()),
+      ).toBe('2026-11-12');
+    });
+
+    it('clamps MONTHS to month end, then rolls a weekend forward', () => {
+      // 31 Jan 2027 + 1 month = Sun 28 Feb → Mon 1 Mar.
+      expect(
+        service.computeDueDate(new Date('2027-01-31T03:00:00Z'), 1, DeadlineDayBasis.MONTHS, new Set()),
+      ).toBe('2027-03-01');
+    });
+
+    it('rolls a before-trigger deadline BACK off a holiday', () => {
+      // Hearing Tue 20 Apr 2027 − 7 = Tue 13 Apr (Songkran) → Mon 12 Apr.
+      expect(
+        service.computeDueDate(
+          new Date('2027-04-20T03:00:00Z'),
+          -7,
+          DeadlineDayBasis.CALENDAR,
+          new Set(['2027-04-13', '2027-04-14', '2027-04-15']),
+        ),
+      ).toBe('2027-04-12');
+    });
+
+    it('rolls a before-trigger deadline BACK off a weekend', () => {
+      // Fri 11 Sep 2026 − 6 = Sat 5 Sep → Fri 4 Sep.
+      expect(
+        service.computeDueDate(new Date('2026-09-11T03:00:00Z'), -6, DeadlineDayBasis.CALENDAR, new Set()),
+      ).toBe('2026-09-04');
+    });
+
+    it('applies adjustDays after the months and rolls back (10 years − 90 days)', () => {
+      expect(
+        service.computeDueDate(new Date('2026-10-12T03:00:00Z'), 120, DeadlineDayBasis.MONTHS, new Set(), -90),
+      ).toBe('2036-07-14');
+      // 11 Oct 2036 − 90 = Sun 13 Jul → Fri 11 Jul.
+      expect(
+        service.computeDueDate(new Date('2026-10-11T03:00:00Z'), 120, DeadlineDayBasis.MONTHS, new Set(), -90),
+      ).toBe('2036-07-11');
+    });
   });
 
   describe('computeDueDate with the seeded 2569 calendar', () => {
@@ -169,8 +221,8 @@ describe('DeadlineRulesService', () => {
           sourceExcerpt: null,
         }),
       ]);
-      // 2026-10-04 is a Sunday, so the deadline rolls to Mon 5 Oct.
-      expect(data[0].suggestedDate.toISOString()).toBe('2026-10-05T00:00:00.000Z');
+      // 2026-10-04 is a Sunday, so the deadline rolls to Mon 5 Oct, due at 16:30 Bangkok.
+      expect(data[0].suggestedDate.toISOString()).toBe('2026-10-05T09:30:00.000Z');
     });
 
     it('matches global platform rules for the trigger', async () => {
@@ -287,5 +339,14 @@ describe('DeadlineRulesService', () => {
         'Deadline rule not found',
       );
     });
+  });
+});
+
+describe('CreateDeadlineRuleDto', () => {
+  it('accepts a negative offset (N days before the trigger)', async () => {
+    const dto = plainToInstance(CreateDeadlineRuleDto, {
+      trigger: 'COURT_DATE', label: 'ยื่นบัญชีระบุพยาน', offsetDays: -7, dayBasis: 'CALENDAR',
+    });
+    expect(await validate(dto)).toEqual([]);
   });
 });

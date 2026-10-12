@@ -14,7 +14,7 @@ export class CreateDeadlineRuleDto {
   label!: string;
 
   @IsInt()
-  @Min(0)
+  @Min(-3650)
   @Max(3650)
   offsetDays!: number;
 
@@ -34,7 +34,7 @@ export class UpdateDeadlineRuleDto {
 
   @IsOptional()
   @IsInt()
-  @Min(0)
+  @Min(-3650)
   @Max(3650)
   offsetDays?: number;
 

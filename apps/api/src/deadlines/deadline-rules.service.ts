@@ -12,8 +12,10 @@ import { Prisma } from '../generated/prisma';
 import { CreateDeadlineRuleDto, UpdateDeadlineRuleDto } from './dto/deadline-rule.dto';
 import {
   addBangkokDays,
+  addBangkokMonths,
   bangkokDayKey,
   bangkokDayStart,
+  courtCloseAt,
   isBangkokWeekend,
 } from '../common/utils/bangkok-time';
 
@@ -21,6 +23,12 @@ import {
 const MAX_OFFSET_DAYS = 3650;
 /** Extra days of holiday data to load, to cover roll-forward past the offset. */
 const HOLIDAY_PADDING_DAYS = 45;
+
+/** How far from the trigger a rule can reach, in days — sizes the holiday window. */
+export function ruleSpanDays(rule: { offsetDays: number; dayBasis: string; adjustDays?: number }): number {
+  const reach = rule.dayBasis === DeadlineDayBasis.MONTHS ? Math.abs(rule.offsetDays) * 31 : Math.abs(rule.offsetDays);
+  return reach + Math.abs(rule.adjustDays ?? 0);
+}
 
 /** Accepts either the client or an open transaction, as elsewhere in the app. */
 type PrismaClientLike = PrismaService | Prisma.TransactionClient;
@@ -184,20 +192,21 @@ export class DeadlineRulesService {
 
     const holidays = await this.loadHolidays(
       context.triggerDate,
-      Math.max(...openRules.map((r) => r.offsetDays)),
+      Math.max(...openRules.map(ruleSpanDays)),
       client,
     );
 
     const data = openRules.map((rule) => ({
       caseId: context.caseId,
       label: rule.label,
-      suggestedDate: new Date(
-        `${this.computeDueDate(
+      suggestedDate: courtCloseAt(
+        this.computeDueDate(
           context.triggerDate,
           rule.offsetDays,
           rule.dayBasis as DeadlineDayBasis,
           holidays,
-        )}T00:00:00.000Z`,
+          rule.adjustDays ?? 0,
+        ),
       ),
       eventType: EventType.DEADLINE,
       sourceExcerpt: null,
@@ -243,31 +252,41 @@ export class DeadlineRulesService {
   }
 
   /**
-   * @param holidays `YYYY-MM-DD` Bangkok days that are public holidays.
-   * @returns the due date as a `YYYY-MM-DD` Bangkok day, always a working day —
-   *   a period that would end on a weekend or holiday runs to the next one.
+   * @param offset days (CALENDAR/BUSINESS) or months (MONTHS); negative = before the trigger.
+   * @param adjustDays calendar days added after the offset (e.g. −90).
+   * @returns the due date as a `YYYY-MM-DD` Bangkok day, always a working day.
+   *   A period after the trigger that ends on a weekend/holiday runs to the next
+   *   working day (ม.193/8); a deadline *before* the trigger moves back to the
+   *   previous working day so it is never missed.
    */
   computeDueDate(
     triggerDate: Date,
-    offsetDays: number,
+    offset: number,
     dayBasis: DeadlineDayBasis,
     holidays: Set<string>,
+    adjustDays = 0,
   ): string {
-    const offset = Math.min(Math.max(offsetDays, 0), MAX_OFFSET_DAYS);
+    const amount = Math.max(-MAX_OFFSET_DAYS, Math.min(offset, MAX_OFFSET_DAYS));
+    const backward = amount < 0 || adjustDays < 0;
     let cursor = bangkokDayStart(triggerDate);
 
     if (dayBasis === DeadlineDayBasis.BUSINESS) {
-      let remaining = offset;
+      const step = amount < 0 ? -1 : 1;
+      let remaining = Math.abs(amount);
       while (remaining > 0) {
-        cursor = addBangkokDays(cursor, 1);
+        cursor = addBangkokDays(cursor, step);
         if (this.isWorkingDay(cursor, holidays)) remaining--;
       }
+    } else if (dayBasis === DeadlineDayBasis.MONTHS) {
+      cursor = addBangkokMonths(cursor, amount);
     } else {
-      cursor = addBangkokDays(cursor, offset);
+      cursor = addBangkokDays(cursor, amount);
     }
+    cursor = addBangkokDays(cursor, adjustDays);
 
+    const roll = backward ? -1 : 1;
     while (!this.isWorkingDay(cursor, holidays)) {
-      cursor = addBangkokDays(cursor, 1);
+      cursor = addBangkokDays(cursor, roll);
     }
     return bangkokDayKey(cursor);
   }
@@ -276,13 +295,14 @@ export class DeadlineRulesService {
     return !isBangkokWeekend(date) && !holidays.has(bangkokDayKey(date));
   }
 
-  async loadHolidays(from: Date, maxOffsetDays: number, client: PrismaClientLike = this.prisma): Promise<Set<string>> {
+  /** Loads holidays on both sides of `from` — rules may count backwards. */
+  async loadHolidays(from: Date, spanDays: number, client: PrismaClientLike = this.prisma): Promise<Set<string>> {
     const start = bangkokDayStart(from);
     // Business-day counting can run well past the nominal offset, so load a
     // generous window rather than risk missing a holiday mid-count.
-    const span = Math.min(maxOffsetDays, MAX_OFFSET_DAYS) * 2 + HOLIDAY_PADDING_DAYS;
+    const span = Math.min(spanDays, MAX_OFFSET_DAYS) * 2 + HOLIDAY_PADDING_DAYS;
     const rows = await client.publicHoliday.findMany({
-      where: { date: { gte: start, lte: addBangkokDays(start, span) } },
+      where: { date: { gte: addBangkokDays(start, -span), lte: addBangkokDays(start, span) } },
       select: { date: true },
     });
     return new Set(rows.map((row) => bangkokDayKey(row.date)));

@@ -1,5 +1,7 @@
 import {
   addBangkokDays,
+  addBangkokMonths,
+  courtCloseAt,
   bangkokDayKey,
   bangkokDayStart,
   formatBangkokDateTime,
@@ -63,5 +65,30 @@ describe('formatBangkokDateThai', () => {
     const { formatBangkokDateThai } = require('./bangkok-time');
     // 2026-09-07T18:30Z is Tue 8 Sep 2026 in Bangkok → 2569 BE.
     expect(formatBangkokDateThai(new Date('2026-09-07T18:30:00Z'))).toBe('อ. 8 ก.ย. 2569');
+  });
+});
+
+describe('addBangkokMonths', () => {
+  const at = (day: string) => new Date(`${day}T03:00:00Z`);
+
+  it('keeps the day of month', () => {
+    expect(bangkokDayKey(addBangkokMonths(at('2026-10-11'), 1))).toBe('2026-11-11');
+    expect(bangkokDayKey(addBangkokMonths(at('2027-02-15'), 1))).toBe('2027-03-15');
+  });
+
+  it('falls back to the last day of a shorter month (ม.193/5)', () => {
+    expect(bangkokDayKey(addBangkokMonths(at('2027-01-31'), 1))).toBe('2027-02-28');
+    expect(bangkokDayKey(addBangkokMonths(at('2028-01-31'), 1))).toBe('2028-02-29');
+    expect(bangkokDayKey(addBangkokMonths(at('2027-03-31'), -1))).toBe('2027-02-28');
+  });
+
+  it('returns 00:00 Bangkok of the target day', () => {
+    expect(addBangkokMonths(at('2026-10-11'), 1).toISOString()).toBe('2026-11-10T17:00:00.000Z');
+  });
+});
+
+describe('courtCloseAt', () => {
+  it('is 16:30 Bangkok on the given day', () => {
+    expect(courtCloseAt('2026-11-11').toISOString()).toBe('2026-11-11T09:30:00.000Z');
   });
 });

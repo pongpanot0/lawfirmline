@@ -91,3 +91,22 @@ export function formatBangkokTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(wall.getUTCHours())}:${pad(wall.getUTCMinutes())}`;
 }
+
+/**
+ * The Bangkok day `months` later (negative = earlier) with the same day of
+ * month; a day the target month lacks becomes its last day (ป.พ.พ. ม.193/5).
+ * Returns 00:00 Bangkok of that day.
+ */
+export function addBangkokMonths(date: Date, months: number): Date {
+  const [year, month, day] = bangkokDayKey(date).split('-').map(Number);
+  const first = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), Math.min(day, lastDay)) - BANGKOK_OFFSET_MS,
+  );
+}
+
+/** Rule deadlines fall due when the court counter closes: 16:30 Bangkok on `dayKey` (`YYYY-MM-DD`). */
+export function courtCloseAt(dayKey: string): Date {
+  return new Date(`${dayKey}T16:30:00+07:00`);
+}
