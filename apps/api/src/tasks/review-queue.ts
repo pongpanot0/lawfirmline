@@ -1,12 +1,18 @@
 import { ReviewQueueItem, TaskStatus } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
 
-/** PENDING_REVIEW AND (reviewerId = me OR (reviewerId IS NULL AND case.leadLawyerId = me)), inside my firm. */
+/** PENDING_REVIEW AND (reviewerId = me OR (reviewerId IS NULL AND case.leadLawyerId = me)), inside my firm, never my own work. */
 export function reviewQueueWhere(user: { id: string; firmId: string }): Prisma.TaskWhereInput {
   return {
     status: TaskStatus.PENDING_REVIEW,
     AND: [
-      { OR: [{ firmId: user.firmId }, { case: { firmId: user.firmId } }] },
+      { OR: [
+        { firmId: user.firmId },
+        { case: { firmId: user.firmId } },
+        // Legacy standalone rows predate Task.firmId; the creator's membership scopes them.
+        { firmId: null, caseId: null, createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
+      ] },
+      { OR: [{ assigneeId: null }, { assigneeId: { not: user.id } }] },
       { OR: [{ reviewerId: user.id, OR: [{ caseId: null }, { case: { deletedAt: null } }] }, { reviewerId: null, case: { leadLawyerId: user.id, deletedAt: null } }] },
     ],
   };

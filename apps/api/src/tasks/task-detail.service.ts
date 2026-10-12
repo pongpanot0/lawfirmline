@@ -70,7 +70,7 @@ export class TaskDetailService {
         },
         onHold: true,
         parent: { select: { id: true, title: true } },
-        case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true } },
+        case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true, leadLawyer: { select: { id: true, firstName: true, lastName: true } } } },
         subtasks: {
           orderBy: { createdAt: 'asc' },
           include: {

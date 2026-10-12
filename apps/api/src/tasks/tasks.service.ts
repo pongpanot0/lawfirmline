@@ -143,12 +143,6 @@ export class TasksService {
     };
   }
 
-  /**
-   * The one access rule for `/tasks/:id/*`: a case task follows case
-   * membership, a personal task its assignee/creator plus whatever the
-   * caller's board already lists (a senior sees their lawyers' cards).
-   * Returns the row so callers do not fetch it twice.
-   */
   /** Firm members (not external) among userIds who pass the same access check as opening the task. */
   async filterUsersWhoCanSeeTask(taskId: string, userIds: string[], firmId: string): Promise<string[]> {
     if (!userIds.length) return [];
@@ -185,6 +179,12 @@ export class TasksService {
     return task.caseId ? this.reject(task.caseId, taskId, user, { reason }) : this.rejectStandalone(taskId, user, { reason });
   }
 
+  /**
+   * The one access rule for `/tasks/:id/*`: a case task follows case
+   * membership, a personal task its assignee/creator plus whatever the
+   * caller's board already lists (a senior sees their lawyers' cards).
+   * Returns the row so callers do not fetch it twice.
+   */
   async assertAccess(taskId: string, user: AuthUser) {
     const task = await this.prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundException('Task not found');
@@ -313,7 +313,12 @@ export class TasksService {
     }
     await this.assertRoutineReady(task);
     if (task.status === TaskStatus.TODO) {
-      await this.updateWithHistory({ where: { id: task.id }, data: { status: TaskStatus.IN_PROGRESS } }, user);
+      // Check-and-set: a second submit that lost the race must not flip a submitted task back.
+      const moved = await this.prisma.task.updateMany({ where: { id: task.id, status: TaskStatus.TODO }, data: { status: TaskStatus.IN_PROGRESS } });
+      if (moved.count) await this.prisma.auditLog.create({ data: {
+        firmId: user.firmId, userId: user.id, action: 'TASK_CHANGED',
+        metadata: { taskId: task.id, changes: [{ field: 'status', before: TaskStatus.TODO, after: TaskStatus.IN_PROGRESS }] },
+      } });
     }
     return trimmed;
   }
@@ -457,7 +462,7 @@ export class TasksService {
         ...this.boardInclude,
         comments: { orderBy: { createdAt: 'desc' }, take: 1,
           select: { id: true, body: true, createdAt: true, author: { select: { firstName: true, lastName: true } } } },
-        case: { select: { id: true, ownRef: true, title: true, blackCaseNumber: true, redCaseNumber: true, leadLawyerId: true } },
+        case: { select: { id: true, ownRef: true, title: true, blackCaseNumber: true, redCaseNumber: true, leadLawyerId: true, leadLawyer: { select: { id: true, firstName: true, lastName: true } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1162,15 +1167,17 @@ export class TasksService {
     if (!legalCase) throw new NotFoundException('Case not found');
     this.assertLeadOrOwner(user, legalCase);
     if (task.status === TaskStatus.PENDING_REVIEW) throw new BadRequestException('ใช้ตรวจผ่านหรือตีกลับสำหรับงานที่รอตรวจ');
+    if (task.reviewerId && dto.assigneeId === task.reviewerId) throw new BadRequestException('ผู้ทำงานและผู้ตรวจต้องเป็นคนละคน');
 
     await this.assertCanAssignTodo(user, dto.assigneeId);
 
     await this.ensureCaseMembership(caseId, dto.assigneeId);
 
-    await this.prisma.task.update({
-      where: { id: taskId },
+    const moved = await this.prisma.task.updateMany({
+      where: { id: taskId, status: { not: TaskStatus.PENDING_REVIEW } },
       data: { assigneeId: dto.assigneeId, assignedAt: new Date(), acknowledgedAt: null, routineCompletedChecks: [] },
     });
+    if (!moved.count) throw new BadRequestException('ใช้ตรวจผ่านหรือตีกลับสำหรับงานที่รอตรวจ');
 
     await this.logAssignment({
       taskId,
@@ -1250,6 +1257,9 @@ export class TasksService {
     });
     if (!task) {
       throw new NotFoundException('ไม่พบงานนี้');
+    }
+    if (task.status === TaskStatus.DONE || task.status === TaskStatus.PENDING_REVIEW) {
+      throw new BadRequestException('พักงานได้เฉพาะงานที่ยังไม่เสร็จและไม่ได้รอตรวจ');
     }
     if (task.onHold && !task.onHold.endedAt) {
       throw new BadRequestException('งานนี้อยู่ในสถานะ On hold อยู่แล้ว');

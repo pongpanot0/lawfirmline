@@ -129,7 +129,7 @@ describe('TaskDetailService', () => {
         where: { id: 't1' },
         include: expect.objectContaining({
           parent: expect.anything(),
-          case: expect.anything(),
+          case: { select: expect.objectContaining({ leadLawyer: { select: { id: true, firstName: true, lastName: true } } }) },
           subtasks: expect.anything(),
           attachments: expect.anything(),
           comments: expect.anything(),

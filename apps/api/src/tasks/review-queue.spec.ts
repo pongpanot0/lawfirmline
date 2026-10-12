@@ -5,7 +5,8 @@ describe('review queue', () => {
     expect(reviewQueueWhere({ id: 'me', firmId: 'f1' })).toEqual({
       status: 'PENDING_REVIEW',
       AND: [
-        { OR: [{ firmId: 'f1' }, { case: { firmId: 'f1' } }] },
+        { OR: [{ firmId: 'f1' }, { case: { firmId: 'f1' } }, { firmId: null, caseId: null, createdBy: { firmMembers: { some: { firmId: 'f1' } } } }] },
+        { OR: [{ assigneeId: null }, { assigneeId: { not: 'me' } }] },
         { OR: [{ reviewerId: 'me', OR: [{ caseId: null }, { case: { deletedAt: null } }] }, { reviewerId: null, case: { leadLawyerId: 'me', deletedAt: null } }] },
       ],
     });

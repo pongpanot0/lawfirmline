@@ -101,6 +101,11 @@ export class CaseAccessService {
     }
 
     const handedOff = this.deliveredTaskFilter(user);
+    // Reviewers see what awaits them on the case board (the same rule as the review queue).
+    const awaitingMe: Prisma.TaskWhereInput[] = [
+      { status: 'PENDING_REVIEW', reviewerId: user.id },
+      { status: 'PENDING_REVIEW', reviewerId: null, case: { leadLawyerId: user.id } },
+    ];
     if (user.firmRole === FirmRole.SENIOR_LAWYER) {
       return {
         AND: [
@@ -115,6 +120,7 @@ export class CaseAccessService {
               },
               { assigneeId: null },
               handedOff,
+              ...awaitingMe,
             ],
           },
         ],
@@ -122,7 +128,7 @@ export class CaseAccessService {
     }
 
     return {
-      AND: [firmScope, { OR: [{ assigneeId: user.id }, { assigneeId: null }, handedOff] }],
+      AND: [firmScope, { OR: [{ assigneeId: user.id }, { assigneeId: null }, handedOff, ...awaitingMe] }],
     };
   }
 
