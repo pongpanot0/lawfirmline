@@ -1,5 +1,6 @@
 'use client';
 
+import { getMentionContext } from '@/lib/mentions';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Trash2, AtSign } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -55,16 +56,6 @@ export function CaseCommentsPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  // Extract current @mention query from body at cursor position
-  const getMentionContext = (text: string, cursorPos: number) => {
-    const beforeCursor = text.substring(0, cursorPos);
-    const lastAt = beforeCursor.lastIndexOf('@');
-    if (lastAt === -1) return null;
-    const afterLastAt = beforeCursor.substring(lastAt + 1);
-    if (!/^[^\s@]*$/.test(afterLastAt)) return null; // any name chars (incl. Thai) until whitespace
-    return { startIdx: lastAt + 1, query: afterLastAt.toLowerCase() };
-  };
 
   const filteredMembers = useMemo(() => {
     if (!showMentionPicker) return [];

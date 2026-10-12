@@ -746,7 +746,7 @@ export interface TaskItem {
   requiresReview?: boolean;
   reviewerId?: string | null;
   reviewer?: TaskPerson | null;
-  onHold?: { reason: string; endedAt: string | null } | null;
+  onHold?: { reason: string; endedAt: string | null; category?: string | null; nextFollowUpAt?: string | null } | null;
   submittedAt?: string | null;
   requiresAttachment?: boolean;
   assignedAt?: string | null;
@@ -3074,8 +3074,8 @@ export const api = {
   deleteTaskAttachment: (token: string, taskId: string, attachmentId: string) =>
     request(`/tasks/${taskId}/attachments/${attachmentId}`, { method: 'DELETE', token }),
 
-  addTaskComment: (token: string, taskId: string, body: string) =>
-    request<TaskCommentItem>(`/tasks/${taskId}/comments`, { method: 'POST', token, body: JSON.stringify({ body }) }),
+  addTaskComment: (token: string, taskId: string, body: string, mentionedUserIds?: string[]) =>
+    request<TaskCommentItem>(`/tasks/${taskId}/comments`, { method: 'POST', token, body: JSON.stringify({ body, mentionedUserIds }) }),
 
   deleteTaskComment: (token: string, taskId: string, commentId: string) =>
     request(`/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE', token }),

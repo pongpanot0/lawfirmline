@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { X, Trash2, Download } from 'lucide-react';
-import { canActOnReview, canAssignFirmRole, FirmRole, isEligibleReviewer, normalizeTaskLabels, TASK_WORK_TYPES, TaskLogAction, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
-import { handoffNoteError, reviewerName } from '@/lib/task-review-view';
+import { canActOnReview, canDelegateTask, FirmRole, hasFirmCapability, isEligibleReviewer, normalizeTaskLabels, TASK_WORK_TYPES, TaskLogAction, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
+import { getMentionContext, mentionedIdsIn } from '@/lib/mentions';
+import { ON_HOLD_CATEGORY_LABEL } from '@/lib/on-hold';
+import { handoffNoteError, isHeld, reviewerName } from '@/lib/task-review-view';
 import { api, ApiError, TaskDetail, UserItem } from '@/lib/api';
 import { formatBytes, downloadTaskAttachment, priorityLabel } from '@/lib/task-detail';
 import { useAuth } from '@/lib/auth';
@@ -53,6 +55,11 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   // Remounting the autofocused title field puts the cursor back after each add.
   const [subtaskFieldKey, setSubtaskFieldKey] = useState(0);
   const [comment, setComment] = useState('');
+  const [commentCursor, setCommentCursor] = useState(0);
+  const [mentionPicked, setMentionPicked] = useState<UserItem[]>([]);
+  const [holdReason, setHoldReason] = useState('');
+  const [holdCategory, setHoldCategory] = useState('WAITING_CLIENT');
+  const [holdFollowUp, setHoldFollowUp] = useState('');
   const [completed, setCompleted] = useState('');
   const [remaining, setRemaining] = useState('');
   const [blocker, setBlocker] = useState('');
@@ -278,6 +285,9 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const manager = !!user && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole);
   const ownWork = task?.assignee?.id === user?.id;
   const pendingReview = task?.status === TaskStatus.PENDING_REVIEW;
+  const mentionCtx = getMentionContext(comment, commentCursor);
+  const mentionMatches = mentionCtx ? users.filter((u) => `${u.firstName} ${u.lastName}`.toLowerCase().includes(mentionCtx.query)).slice(0, 6) : [];
+  const canHold = !!user && !!task?.caseId && (task.assignee?.id === user.id || task.case?.leadLawyerId === user.id || hasFirmCapability(user.firmRole, 'runOperations'));
   const canReview = !!user && !!task && canActOnReview({ status: task.status, reviewerId: task.reviewerId, assigneeId: task.assignee?.id, caseId: task.caseId, leadLawyerId: task.case?.leadLawyerId }, user.id, user.firmRole);
   const statusOptions = task?.requiresReview ? STATUS_OPTIONS.filter((s) => s !== TaskStatus.DONE) : STATUS_OPTIONS;
 
@@ -315,7 +325,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               aria-label={d.taskDetail.titleField}
               className="mt-1 w-full rounded-md border border-transparent bg-transparent px-1 text-lg font-semibold hover:border-input focus:border-input focus:outline-none"
             />}
-            {task && <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full bg-muted px-2 py-1">{statusLabel[task.status]}</span><span className="rounded-full bg-muted px-2 py-1">{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>{task.assignee && <span>{task.assignee.firstName} {task.assignee.lastName}</span>}</div>}
+            {task && <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full bg-muted px-2 py-1">{statusLabel[task.status]}</span><span className="rounded-full bg-muted px-2 py-1">{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>{task.assignee && <span>{task.assignee.firstName} {task.assignee.lastName}</span>}{isHeld(task) && <span className="rounded-full bg-amber-500/15 px-2 py-1 font-medium text-amber-700 dark:text-amber-300">{d.todos.heldBadge}</span>}</div>}
           </div>
           <button type="button" onClick={onClose} aria-label={d.taskDetail.close} className="rounded-lg p-1.5 hover:bg-muted">
             <X className="h-4 w-4" />
@@ -361,7 +371,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 <div className="text-sm">
                   <p className="text-xs font-medium text-muted-foreground mb-1">{d.taskDetail.observers || 'ผู้ติดตาม'}</p>
                   <MultiUserSelect
-                    users={users.filter((u) => u.id === user?.id || (!!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)))}
+                    users={users.filter((u) => u.id === user?.id || (!!user && u.firmRole != null && canDelegateTask(user.firmRole, u.firmRole)))}
                     value={observerIds}
                     onChange={(ids) => {
                       setObserverIds(ids);
@@ -426,6 +436,36 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               {task.comments.filter((c) => c.kind === 'DAILY_UPDATE').slice(-1).map((c) => <div key={c.id} className="border-t pt-3 text-xs text-muted-foreground"><p className="whitespace-pre-line">{c.body}</p><p className="mt-1">{c.author.firstName} · {formatDateTime(c.createdAt)}</p></div>)}
               {!ownWork && !pendingReview && <p className="text-xs text-muted-foreground">ผู้รับผิดชอบเป็นผู้ยืนยันแผนและอัปเดตความคืบหน้า</p>}
             </section>
+            <section className="space-y-2 border-t pt-3">
+              {manager && (
+                <label className="flex min-h-10 items-center gap-2 text-sm">
+                  <input type="checkbox" checked={!!task.requiresAttachment} disabled={busy} onChange={(e) => void patch({ requiresAttachment: e.target.checked })} />
+                  ต้องแนบไฟล์ผลงานก่อนส่งตรวจ
+                </label>
+              )}
+              {canHold && (
+                <>
+                  <h3 className="text-sm font-semibold">พักงาน</h3>
+                  {isHeld(task) ? (
+                    <>
+                      <p className="text-sm">⏸️ {ON_HOLD_CATEGORY_LABEL[task.onHold!.category ?? 'OTHER']} · {task.onHold!.reason}</p>
+                      {task.onHold!.nextFollowUpAt && <p className="text-xs text-muted-foreground">ติดตามครั้งถัดไป {formatDate(task.onHold!.nextFollowUpAt)}</p>}
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(() => api.resumeTaskFromOnHold(token!, task.caseId!, task.id), 'กลับมาทำต่อแล้ว')}>กลับมาทำต่อ</Button>
+                    </>
+                  ) : (
+                    <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.startTaskOnHold(token!, task.caseId!, task.id, { reason: holdReason.trim(), category: holdCategory, nextFollowUpAt: holdFollowUp || undefined }); setHoldReason(''); setHoldFollowUp(''); }, 'พักงานแล้ว'); }}>
+                      <TextareaField label="เหตุผลที่พัก *" value={holdReason} required rows={2} maxLength={1500} disabled={busy} onChange={(e) => setHoldReason(e.target.value)} />
+                      <SelectField label="ประเภท" value={holdCategory} onChange={(e) => setHoldCategory(e.target.value)}>
+                        {Object.entries(ON_HOLD_CATEGORY_LABEL).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+                      </SelectField>
+                      <DateField label="ติดตามครั้งถัดไป" value={holdFollowUp} disabled={busy} onChange={(e) => setHoldFollowUp(e.target.value)} />
+                      <Button size="sm" type="submit" disabled={busy || !holdReason.trim()}>พักงาน</Button>
+                    </form>
+                  )}
+                </>
+              )}
+            </section>
+
             <section className="grid gap-3 sm:grid-cols-2">
               <div>
                 <SelectField label={d.taskDetail.status} id="td-status" value={task.status} disabled={busy || pendingReview} onChange={(e) => patch({ status: e.target.value })}>
@@ -459,7 +499,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                       (u) =>
                         u.id === user?.id ||
                         u.id === task.assignee?.id ||
-                        (!!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)),
+                        (!!user && u.firmRole != null && canDelegateTask(user.firmRole, u.firmRole)),
                     )}
                     flags={taskLeaveFlags}
                   />
@@ -622,7 +662,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                       users={users.filter(
                         (u) =>
                           u.id === user?.id ||
-                          (manager && !!user && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole)),
+                          (manager && !!user && u.firmRole != null && canDelegateTask(user.firmRole, u.firmRole)),
                       )}
                       flags={subtaskLeaveFlags}
                     />
@@ -674,10 +714,32 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                   e.preventDefault();
                   const body = comment.trim();
                   if (!body) return;
-                  void run(async () => { await api.addTaskComment(token!, task.id, body); setComment(''); });
+                  void run(async () => { await api.addTaskComment(token!, task.id, body, mentionedIdsIn(body, mentionPicked)); setComment(''); setMentionPicked([]); });
                 }}
               >
-                <textarea rows={2} value={comment} disabled={busy} onChange={(e) => setComment(e.target.value)} placeholder={d.taskDetail.commentPlaceholder} className={`${field} mt-0`} />
+                <textarea rows={2} value={comment} disabled={busy} onChange={(e) => { setComment(e.target.value); setCommentCursor(e.target.selectionStart); }} onSelect={(e) => setCommentCursor(e.currentTarget.selectionStart)} placeholder={d.taskDetail.commentPlaceholder} className={`${field} mt-0`} />
+                {mentionCtx && mentionMatches.length > 0 && (
+                  <ul role="listbox" aria-label="@" className="rounded-lg border bg-card text-sm shadow-sm">
+                    {mentionMatches.map((u) => (
+                      <li key={u.id}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={false}
+                          className="block min-h-10 w-full px-3 text-left hover:bg-muted"
+                          onClick={() => {
+                            const next = `${comment.substring(0, mentionCtx.startIdx)}${u.firstName} ${comment.substring(commentCursor)}`;
+                            setComment(next);
+                            setCommentCursor(mentionCtx.startIdx + u.firstName.length + 1);
+                            setMentionPicked((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
+                          }}
+                        >
+                          {u.firstName} {u.lastName}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <Button type="submit" size="sm" disabled={busy || !comment.trim()}>{d.taskDetail.addComment}</Button>
               </form>
             </section>

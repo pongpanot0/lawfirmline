@@ -1,5 +1,6 @@
 'use client';
 
+import { ON_HOLD_CATEGORY_LABEL } from '@/lib/on-hold';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
@@ -37,14 +38,6 @@ const CAPACITY_BADGE: Record<
   NORMAL: { label: 'ปกติ', variant: 'secondary' },
   HIGH: { label: 'งานเยอะ', variant: 'warning' },
   OVERLOADED: { label: 'งานล้น', variant: 'destructive' },
-};
-
-const ON_HOLD_CATEGORY_LABEL: Record<string, string> = {
-  WAITING_CLIENT: 'รอลูกความ',
-  WAITING_COURT: 'รอศาล',
-  WAITING_DOCUMENT: 'รอเอกสาร',
-  WAITING_INTERNAL_REVIEW: 'รอรีวิวภายใน',
-  WAITING_EXTERNAL: 'รอบุคคลภายนอก',
 };
 
 const AVATAR_COLORS = [

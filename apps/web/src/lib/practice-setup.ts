@@ -16,6 +16,10 @@ export interface PlaybookStep {
   /** จำนวนวันหลังเข้าขั้นตอน ก่อนถึงกำหนดส่งงาน */
   offsetDays?: number;
   dayBasis?: PlaybookDayBasis;
+  /** Only for cases where our client is on this side; both when unknown. */
+  side?: 'PLAINTIFF' | 'DEFENDANT';
+  /** Handing the task in requires an attachment. */
+  requiresAttachment?: boolean;
 }
 export interface CargoPlaybookRequirement { code: string; label: string; requiredByDefault: boolean }
 export interface CargoPlaybookTemplate { requirements: CargoPlaybookRequirement[] }

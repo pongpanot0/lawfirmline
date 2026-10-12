@@ -3,7 +3,7 @@
 import { Fragment, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
-import { awaitsReviewBy, canAssignFirmRole, hasFirmCapability, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { awaitsReviewBy, canDelegateTask, hasFirmCapability, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
@@ -81,7 +81,7 @@ function TodosPageContent() {
   // Creating a task for someone else follows the firm hierarchy: only roles
   // below yours (assigning to yourself is the empty default option).
   const assignableUsers = user
-    ? users.filter((u) => u.id !== user.id && u.firmRole != null && canAssignFirmRole(user.firmRole, u.firmRole))
+    ? users.filter((u) => u.id !== user.id && u.firmRole != null && canDelegateTask(user.firmRole, u.firmRole))
     : [];
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
   const today = bangkokDateInputValue(new Date());
@@ -636,6 +636,7 @@ function TodosPageContent() {
           tasks={visibleTasks}
           onStatusChange={handleStatusChange}
           currentUserId={user?.id ?? ''}
+          currentUserRole={user?.firmRole}
           showCaseContext
           enableHandoff
           requireReviewerOnHandoff

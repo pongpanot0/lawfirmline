@@ -102,10 +102,12 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
                 <div className="min-w-0 flex-1">
                   <Input id={`sop-step-title-${index}`} aria-label={th ? `ชื่องานขั้นตอน ${index + 1}` : `Step ${index + 1} task name`} aria-invalid={!!titleErrors?.[index]} aria-describedby={titleErrors?.[index] ? `sop-step-title-${index}-error` : undefined} required maxLength={200} value={step.title} onChange={e => editStep(index, { title: e.target.value })} className={`h-auto bg-transparent px-0 py-1 font-medium shadow-none focus-visible:ring-0 ${titleErrors?.[index] ? 'border-destructive' : 'border-0'}`} />
                   {titleErrors?.[index] && <p id={`sop-step-title-${index}-error`} role="alert" className="text-xs text-destructive">{titleErrors[index]}</p>}
-                  {(step.stage || step.primaryRole || step.offsetDays != null) && <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                  {(step.stage || step.primaryRole || step.offsetDays != null || step.side || step.requiresAttachment) && <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
               {step.stage && <span className="rounded-sm bg-muted px-2 py-1 text-muted-foreground">{stageLabel(step.stage)}</span>}
               {step.primaryRole && <span className="rounded-sm bg-accent px-2 py-1 text-accent-foreground">{ROLE_LABELS[step.primaryRole][th ? 'th' : 'en']}</span>}
                     {step.offsetDays != null && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-800">+{step.offsetDays} {DAY_BASIS_LABELS[step.dayBasis ?? 'CALENDAR'][th ? 'th' : 'en']}</span>}
+                    {step.side && <span className="rounded-sm bg-accent px-2 py-1 text-accent-foreground">{step.side === 'PLAINTIFF' ? (th ? 'ฝ่ายโจทก์' : 'Plaintiff') : (th ? 'ฝ่ายจำเลย' : 'Defendant')}</span>}
+                    {step.requiresAttachment && <span className="rounded-sm bg-muted px-2 py-1 text-muted-foreground">📎</span>}
                   </div>}
                 </div>
                 <button type="button" aria-expanded={expandedIndex === index} onClick={() => setExpandedIndex(expandedIndex === index ? null : index)} className="flex min-h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-xs text-primary hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{th ? 'รายละเอียด' : 'Details'}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${expandedIndex === index ? 'rotate-180' : ''}`} /></button>
@@ -124,6 +126,17 @@ export function QuickFlowCanvas({ steps, setSteps, th, stepsError, titleErrors }
                       <option value="">{th ? 'ทนายเจ้าของคดี' : 'Case lead'}</option>
                       {ROLE_OPTIONS.map(role => <option key={role} value={role}>{ROLE_LABELS[role][th ? 'th' : 'en']}</option>)}
                     </select>
+                  </label>
+                  <label className="block text-sm">{th ? 'ใช้เมื่อเราเป็นฝ่าย' : 'Only when we act for'}
+                    <select className="mt-1 h-9 w-full rounded-lg border bg-background px-2" value={step.side ?? ''} onChange={e => editStep(index, { side: (e.target.value || undefined) as PlaybookStep['side'] })}>
+                      <option value="">{th ? 'ทุกฝ่าย' : 'Either side'}</option>
+                      <option value="PLAINTIFF">{th ? 'โจทก์ / ผู้ร้อง' : 'Plaintiff / petitioner'}</option>
+                      <option value="DEFENDANT">{th ? 'จำเลย / ผู้คัดค้าน' : 'Defendant / respondent'}</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={!!step.requiresAttachment} onChange={e => editStep(index, { requiresAttachment: e.target.checked || undefined })} />
+                    {th ? 'ต้องแนบไฟล์ก่อนส่งตรวจ' : 'Attachment required before review'}
                   </label>
                 </div>
                 <label className="block text-sm">{th ? 'วิธีทำ / ข้อควรระวัง (ถ้ามี)' : 'Instructions / cautions (optional)'}<textarea maxLength={5000} value={step.instructions} onChange={e => editStep(index, { instructions: e.target.value })} className="mt-1 min-h-24 w-full rounded-lg border bg-background p-2" /></label>

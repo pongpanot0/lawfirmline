@@ -215,6 +215,8 @@ export default function SopsPage() {
                               {[
                                 step.primaryRole && `ผู้ทำ: ${ROLE_LABELS[step.primaryRole]}`,
                                 step.secondaryRole && `ผู้สำรอง: ${ROLE_LABELS[step.secondaryRole]}`,
+                                step.side && `ฝ่าย: ${step.side === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}`,
+                                step.requiresAttachment && 'ต้องแนบไฟล์',
                                 step.stage && `ขั้นคดี: ${caseStageLabel(step.stage)}`,
                                 step.offsetDays != null && `กำหนด +${step.offsetDays} ${step.dayBasis === 'BUSINESS' ? 'วันทำการ' : 'วันปฏิทิน'}`,
                               ].filter(Boolean).join(' · ')}

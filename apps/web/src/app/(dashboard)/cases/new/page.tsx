@@ -9,6 +9,7 @@ import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { BatchAnalysisPanel } from '@/components/documents/BatchAnalysisPanel';
 import { SuggestedFieldsPanel } from '@/components/documents/SuggestedFieldsPanel';
 import { CreateClientContactDialog } from '@/components/intake/CreateClientContactDialog';
+import { workloadLabel as workloadHint } from '@/lib/workload-label';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -121,11 +122,7 @@ function NewCaseForm() {
   const isRequired = (key: string) => fieldSchema.some((field) => field.key === key && field.required);
   const customFieldList = fieldSchema.filter((field) => !['chargeSection', 'incidentDate', 'estimatedDamage', 'opposingParty'].includes(field.key));
 
-  const workloadLabel = (userId: string) => {
-    const w = workload.find((x) => x.userId === userId);
-    if (!w) return '';
-    return ` (หลัก ${w.leadCount}, ผู้ช่วย ${w.buddyCount}, ใกล้ deadline ${w.nearDeadlineCount})`;
-  };
+  const workloadLabel = (userId: string) => workloadHint(workload.find((x) => x.userId === userId));
 
   useEffect(() => {
     if (!token) return;
