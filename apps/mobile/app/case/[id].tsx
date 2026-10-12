@@ -21,6 +21,7 @@ import { CourtNumbersCard } from '@/components/CourtNumbersCard';
 import { DeadlineConfirmCard } from '@/components/DeadlineConfirmCard';
 import { RecordCourtEventSheet } from '@/components/RecordCourtEventSheet';
 import { ReviewRoundsCard } from '@/components/ReviewRoundsCard';
+import { LitigationCalculatorCard } from '@/components/LitigationCalculatorCard';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { Disclosure } from '@/components/Disclosure';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
@@ -260,6 +261,9 @@ export default function CaseDetailScreen() {
               <Button title="บันทึกเหตุการณ์ในศาล" onPress={() => setRecording(true)} />
             </View>
           ) : null}
+          <View style={{ marginTop: spacing.md }}>
+            <LitigationCalculatorCard claimedAmount={detail.claimedAmount} />
+          </View>
           <Card style={{ marginTop: spacing.md }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.infoLabel}>คู่ความ</Text>

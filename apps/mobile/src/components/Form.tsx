@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
-import { InputAccessoryView, Keyboard, Platform, Pressable, ScrollView, TextInput as NativeTextInput, View } from 'react-native';
+import { InputAccessoryView, Keyboard, Platform, Pressable, ScrollView, TextInput as NativeTextInput, TextInputProps, View } from 'react-native';
 import { KeyboardAccessoryContext, Text, TextInput } from '@/components/AppText';
 import { Card, SectionLabel } from './ui';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
@@ -35,13 +35,14 @@ export function FormPage({ children }: { children: React.ReactNode }) {
   </KeyboardAccessoryContext.Provider>;
 }
 
-export function FormField({ label, value, onChange, multiline = false, disabled = false, placeholder }: {
+export function FormField({ label, value, onChange, multiline = false, disabled = false, placeholder, keyboardType }: {
   label: string; value: string; onChange: (value: string) => void; multiline?: boolean; disabled?: boolean; placeholder?: string;
+  keyboardType?: TextInputProps['keyboardType'];
 }) {
   return <View style={{ gap: spacing.sm }}>
     <SectionLabel style={formLabelSpacing}>{label}</SectionLabel>
     <TextInput accessibilityLabel={label} value={value} onChangeText={onChange} editable={!disabled}
-      multiline={multiline} placeholder={placeholder} placeholderTextColor={colors.faint}
+      multiline={multiline} placeholder={placeholder} placeholderTextColor={colors.faint} keyboardType={keyboardType}
       style={{ minHeight: multiline ? 100 : 48, textAlignVertical: multiline ? 'top' : 'center', padding: spacing.md,
         borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text, fontSize: 16 }} />
   </View>;

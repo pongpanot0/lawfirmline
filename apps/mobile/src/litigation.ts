@@ -1,5 +1,5 @@
 import { thDate, timeAgo } from './format';
-import { CASE_STAGE_LABELS_TH, CaseStage, CourtLevel } from '@lawfirm/shared';
+import { CASE_STAGE_LABELS_TH, CaseStage, CourtLevel, courtFee, interestDays, simpleInterest } from '@lawfirm/shared';
 import type { CaseDetail, DateSuggestion, ProceedingKind, ReviewRoundSummary } from './api/types';
 import { bangkokDayToIso } from './thai-date';
 
@@ -192,4 +192,17 @@ export function queueRoute(caseIds: string[], section: 'deadlines' | 'documents'
   const unique = [...new Set(caseIds)];
   if (unique.length === 1) return `/case/${unique[0]}?section=${section}`;
   return `/notifications?filter=${section === 'deadlines' ? 'deadline' : 'document'}`;
+}
+
+/** Item 8: null until an amount is typed; interest stays null until both days and a rate are there. */
+export function litigationEstimate(input: { amount: string; rate: string; from: string | null; to: string | null }):
+  { fee: number; days: number | null; interest: number | null } | null {
+  const principal = Number(input.amount.replace(/,/g, ''));
+  if (!input.amount.trim() || !Number.isFinite(principal) || principal < 0) return null;
+  const rate = Number(input.rate);
+  const days = input.from && input.to ? interestDays(input.from, input.to) : null;
+  const interest = days != null && input.rate.trim() && Number.isFinite(rate) && rate >= 0
+    ? simpleInterest(principal, rate, days)
+    : null;
+  return { fee: courtFee(principal), days, interest };
 }

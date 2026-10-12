@@ -332,6 +332,17 @@ check('mentions: @query at the end, literal insert, case team only, and who the 
   assert.deepEqual(m.droppedMentions([], undefined), []);
 });
 
+check('court fee and interest estimate come from the shared calculators (item 8)', () => {
+  const { litigationEstimate } = lit;
+  assert.equal(litigationEstimate({ amount: '', rate: '5', from: null, to: '2026-10-12' }), null, 'กรอกทุนทรัพย์เพื่อคำนวณ');
+  assert.equal(litigationEstimate({ amount: 'abc', rate: '5', from: null, to: '2026-10-12' }), null);
+  assert.deepEqual(litigationEstimate({ amount: '1,250,000', rate: '5', from: null, to: '2026-10-12' }), { fee: 25000, days: null, interest: null });
+  assert.deepEqual(litigationEstimate({ amount: '1,250,000', rate: '5', from: '2025-08-26', to: '2026-10-12' }), { fee: 25000, days: 412, interest: 70547.95 });
+  assert.equal(litigationEstimate({ amount: '1,250,000', rate: '', from: '2025-08-26', to: '2026-10-12' }).interest, null);
+  // Above 50 million: 200,000 cap on the first band + 0.1% of the rest; an end before the start counts 0 days.
+  assert.deepEqual(litigationEstimate({ amount: '60,000,000', rate: '5', from: '2026-10-12', to: '2026-10-01' }), { fee: 210000, days: 0, interest: 0 });
+});
+
 // ── add new check(...) blocks above this line ──
 (async () => {
   for (const [name, fn] of checks) {
