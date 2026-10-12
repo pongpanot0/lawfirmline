@@ -15,6 +15,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser, Role } from '@lawfirm/shared';
 import { ClosingEmailService } from './closing-email.service';
 import {
+  ApproveClosingEmailDraftDto,
   CreateClosingEmailDraftDto,
   UpdateClosingEmailDraftDto,
 } from './dto/closing-email.dto';
@@ -53,7 +54,8 @@ export class ClosingEmailController {
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,
     @Param('draftId') draftId: string,
+    @Body() dto: ApproveClosingEmailDraftDto,
   ) {
-    return this.closingEmailService.approveDraft(user, caseId, draftId);
+    return this.closingEmailService.approveDraft(user, caseId, draftId, dto);
   }
 }

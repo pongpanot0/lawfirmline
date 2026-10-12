@@ -24,6 +24,7 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [contactIds, setContactIds] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     if (!token || !caseId) return;
@@ -108,16 +109,21 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
     }
   };
 
+  useEffect(() => {
+    setContactIds((draft?.recipientClient?.contacts ?? []).filter((c) => c.email && c.isPrimary).map((c) => c.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft?.id]);
+
   const handleApprove = async () => {
     if (!token || !caseId || !draft || busy) return;
     setError('');
     setNotice('');
     setBusy('approve');
     try {
-      const approved = await api.approveClosingEmailDraft(token, caseId, draft.id);
+      const approved = await api.approveClosingEmailDraft(token, caseId, draft.id, contactIds);
       setDraft(approved);
       setDrafts((previous) => previous.map((item) => (item.id === approved.id ? approved : item)));
-      setNotice('อนุมัติแล้ว — ยังไม่ได้ส่ง คัดลอกไปส่งเองได้เลย');
+      setNotice(`ส่งแล้วถึง ${approved.sentTo?.join(', ')}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'อนุมัติไม่สำเร็จ กรุณาลองใหม่');
     } finally {
@@ -200,9 +206,12 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
             <>
               <p className="mb-2 text-xs text-muted-foreground">
                 ร่างเมื่อ {formatDateTime(draft.createdAt)} ·{' '}
-                {approved ? 'อนุมัติแล้ว' : 'ยังเป็นร่าง'}
+                {draft.sentAt ? `ส่งแล้ว ${formatDateTime(draft.sentAt)}` : approved ? 'อนุมัติแล้ว' : 'ยังเป็นร่าง'}
                 {drafts.length > 1 && ` · มีร่างทั้งหมด ${drafts.length} ฉบับ`}
               </p>
+              {draft.sentTo?.length ? (
+                <p className="mb-2 text-xs text-muted-foreground">ส่งถึง: {draft.sentTo.join(', ')}</p>
+              ) : null}
               <p className="mb-2 text-xs text-muted-foreground">
                 ผู้รับ: {draft.recipientKind === 'CUSTOMER' ? 'ลูกค้า / ผู้ว่าจ้าง' : 'ลูกความ / ผู้เอาประกัน'}
                 {draft.recipientClient?.name ? ` · ${draft.recipientClient.name}` : ''}
@@ -234,6 +243,24 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
                   setDirty(true);
                 }}
               />
+              {!approved && (
+                <fieldset className="mt-3 space-y-1 text-sm">
+                  <legend className="text-xs text-muted-foreground">ส่งถึงผู้ติดต่อ</legend>
+                  {(draft.recipientClient?.contacts ?? []).filter((c) => c.email).map((c) => (
+                    <label key={c.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={contactIds.includes(c.id)}
+                        onChange={(e) => setContactIds((ids) => (e.target.checked ? [...ids, c.id] : ids.filter((id) => id !== c.id)))}
+                      />
+                      {c.name} · {c.email}
+                    </label>
+                  ))}
+                  {!(draft.recipientClient?.contacts ?? []).some((c) => c.email) && (
+                    <p className="text-xs text-destructive">ลูกความรายนี้ยังไม่มีผู้ติดต่อที่มีอีเมล</p>
+                  )}
+                </fieldset>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {!approved && (
                   <Button onClick={handleSaveDraft} disabled={busy !== null || !dirty}>
@@ -246,15 +273,15 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
                 <Button
                   variant="secondary"
                   onClick={handleApprove}
-                  disabled={busy !== null || approved || dirty}
+                  disabled={busy !== null || approved || dirty || contactIds.length === 0}
                 >
-                  {approved ? 'อนุมัติแล้ว' : busy === 'approve' ? 'กำลังอนุมัติ...' : 'อนุมัติ'}
+                  {draft.sentAt ? 'ส่งแล้ว' : busy === 'approve' ? 'กำลังส่ง...' : 'อนุมัติและส่ง'}
                 </Button>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
                 {dirty
                   ? 'บันทึกร่างก่อนจึงจะอนุมัติได้'
-                  : 'อนุมัติคือการยืนยันข้อความ ระบบไม่ส่งอีเมลให้ — คัดลอกไปส่งเอง'}
+                  : 'อนุมัติแล้วระบบจะส่งอีเมลถึงผู้ติดต่อที่เลือกทันที'}
               </p>
             </>
           ) : (

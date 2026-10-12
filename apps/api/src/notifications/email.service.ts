@@ -120,6 +120,20 @@ export class EmailService {
     }
   }
 
+  /** Closing report to a client contact. Plain text is the source; HTML keeps its line breaks. */
+  async sendClosingEmail(p: { to: string; subject: string; bodyText: string; firmName: string }): Promise<boolean> {
+    if (!this.isConfigured()) return false;
+    const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;max-width:640px;white-space:pre-wrap">${escapeHtml(p.bodyText)}</div><p style="font-size:12px;color:#6b7280">${escapeHtml(p.firmName)}</p>`;
+    try {
+      await this.send({ to: p.to, subject: p.subject, text: p.bodyText, html });
+      this.logger.log(`Closing email sent to ${maskEmail(p.to)}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send closing email to ${maskEmail(p.to)}: ${error instanceof Error ? error.message : 'unknown'}`);
+      return false;
+    }
+  }
+
   async sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
     if (!this.isConfigured()) return;
     const safeUrl = escapeHtml(resetUrl);

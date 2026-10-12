@@ -3139,10 +3139,11 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  approveClosingEmailDraft: (token: string, caseId: string, draftId: string) =>
+  approveClosingEmailDraft: (token: string, caseId: string, draftId: string, contactIds: string[]) =>
     request<ClosingEmailDraft>(`/cases/${caseId}/closing-email-drafts/${draftId}/approve`, {
       method: 'POST',
       token,
+      body: JSON.stringify({ contactIds }),
     }),
 
   listContactCaseAccess: (token: string, caseId: string) =>
@@ -3577,9 +3578,11 @@ export interface ClosingEmailDraft {
   bodyText: string;
   recipientKind: 'CLIENT' | 'CUSTOMER';
   recipientClientId: string | null;
-  recipientClient?: { id: string; name: string } | null;
+  recipientClient?: { id: string; name: string; contacts?: { id: string; name: string; email: string | null; isPrimary: boolean }[] } | null;
   selectedActivityIds: string[];
   missingDataNotes: string[];
   status: 'DRAFT' | 'APPROVED';
+  sentAt?: string | null;
+  sentTo?: string[];
   createdAt: string;
 }
