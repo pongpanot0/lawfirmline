@@ -64,3 +64,28 @@ Research and specs come from the Casefox / Clio walkthrough: `docs/research/2026
 - Court-fee rates were cross-checked with secondary sources; krisdika.go.th was unreachable on 2026-10-12. Re-verify.
 - The GET /cases list still returns `customers[].contact` phone/email and `assignments[].user.email`. Trim these later.
 - Smaller items are listed in `.superpowers/sdd/*/progress.md`. That folder is git-ignored scratch, so the PR body repeats the important ones.
+
+## Addendum — mobile litigation parity (same PR)
+Spec `docs/superpowers/specs/2026-10-12-mobile-litigation-parity.md` (D1–D10), design `docs/design/2026-10-12-mobile-litigation-parity.md`, plan `docs/superpowers/plans/2026-10-12-mobile-litigation-parity.md` (11 tasks).
+- **Mobile:**
+  - Court-event recording (case screen and court-day chip).
+  - Deadline-suggestion confirm/dismiss card.
+  - Limitation line and court numbers per level.
+  - Review rounds (open the pinned version, approve, return with a reason).
+  - Home "ต้องจัดการก่อน" for every reviewer, with deep links to the right card.
+  - Limitation date on create/edit using ThaiDateField.
+  - @mentions in task notes.
+  - Court-fee and interest calculator.
+  - Offline case screen shows cached data.
+- **API:**
+  - My Day `pendingDeadlineConfirms` (groupBy, exact counts).
+  - `GET /document-review/mine` and `GET /cases/:caseId/review-rounds`.
+  - Thai date-suggestion errors.
+  - `toAppRoute` section hints.
+- **Checks:**
+  - API: focused suites 9 suites / 89 tests and tsc pass.
+  - Mobile: tsc clean; `check-litigation-parity` covers 15 scenarios; 8 of 10 static checks pass. The 2 that need the e2e fixture path were not run.
+- **Review:**
+  - Tasks 1–5 had independent task reviews and fixes.
+  - Tasks 6–11 and the final review were self-reviewed only. Reviewer subagents were blocked by the auto-mode classifier.
+  - Not yet run on a device or simulator.
