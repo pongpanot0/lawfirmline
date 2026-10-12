@@ -78,6 +78,7 @@ check('legal basis comes from the default rule label; a firm-renamed rule shows 
   assert.equal(deadline.legalBasis('ครบกำหนดยื่นคำแก้อุทธรณ์'), 'ป.วิ.พ. ม.237');
   assert.equal(deadline.legalBasis('ชื่อที่สำนักงานตั้งเอง'), null);
   assert.equal(deadline.legalBasis(null), null);
+  assert.deepEqual(deadline.deadlineUrgency('not a date', new Date()), { tone: 'none', label: '', daysLeft: 0 });
 });
 
 check('actions are hidden where the API refuses; failures read in Thai', () => {
@@ -124,6 +125,7 @@ check("deadline hooks refetch on every mount, act on the row's case, and refresh
   const invalidated = [];
   const client = { invalidateQueries: ({ queryKey }) => { invalidated.push(JSON.stringify(queryKey)); } };
   const hooks = load('api/hooks.ts', {
+    react: { useRef: (value) => ({ current: value }) },
     '@tanstack/react-query': { useQuery: (o) => o, useMutation: (o) => o, useInfiniteQuery: (o) => o, useQueryClient: () => client },
     './client': { api: async (requestPath, init) => { calls.push([requestPath, init]); return { status: 'WAITING_REVIEW' }; } },
     '../format': format,
@@ -134,16 +136,27 @@ check("deadline hooks refetch on every mount, act on the row's case, and refresh
   assert.equal(list.staleTime, 0, 'a suggestion confirmed elsewhere must not show from the 7-day cache');
   await list.queryFn();
   assert.equal(calls.at(-1)[0], '/cases/case-A/date-suggestions');
-  const decide = hooks.useDecideSuggestion('case-A');
+  const decide = hooks.useDecideSuggestion();
   assert.equal(decide.retry, false);
   assert.equal(decide.onMutate, undefined, 'never optimistic on a legal deadline');
   await decide.mutationFn({ suggestion: { id: 's1', caseId: 'case-A', updatedAt: '2026-10-12T01:00:00.000Z', source: 'RULE' }, action: 'confirm' });
   assert.deepEqual(calls.at(-1), ['/cases/case-A/date-suggestions/s1/confirm', { method: 'POST', body: { expectedUpdatedAt: '2026-10-12T01:00:00.000Z' } }]);
   // onSettled runs after success AND failure, so a 409 "already handled" also refreshes the list.
-  decide.onSettled();
+  decide.onSettled(null, null, { suggestion: { caseId: 'case-A' } });
   for (const key of [['case', 'case-A'], ['date-suggestions', 'case-A'], ['my-day'], ['todos'], ['notifications'], ['actions']]) {
     assert.ok(invalidated.includes(JSON.stringify(key)), `invalidates ${key.join(':')}`);
   }
+  // A list mounted for another case still refreshes the row's own case.
+  invalidated.length = 0;
+  decide.onSettled(null, null, { suggestion: { caseId: 'case-Z' } });
+  assert.ok(invalidated.includes(JSON.stringify(['date-suggestions', 'case-Z'])));
+  // Double tap: the second call while one is in flight shares the first request.
+  const before = calls.length;
+  const vars = { suggestion: { id: 's2', caseId: 'case-A', updatedAt: 'u', source: 'RULE' }, action: 'dismiss' };
+  await Promise.all([decide.mutationFn(vars), decide.mutationFn(vars)]);
+  assert.equal(calls.length - before, 1, 'one POST for two taps');
+  await decide.mutationFn(vars);
+  assert.equal(calls.length - before, 2, 'guard clears after settle');
   const record = hooks.useRecordProceeding('case-A');
   assert.equal(record.retry, false);
   await record.mutationFn({ kind: 'judgment', body: { courtLevel: 'TRIAL' } });
@@ -152,10 +165,11 @@ check("deadline hooks refetch on every mount, act on the row's case, and refresh
   assert.deepEqual(rounds.queryKey, ['review-rounds', 'case-A']);
   assert.equal(rounds.staleTime, 0);
   assert.deepEqual(hooks.useMyReviewRounds().queryKey, ['my-review-rounds']);
-  const review = hooks.useDecideReviewRound('case-A');
+  assert.equal(hooks.useMyReviewRounds().staleTime, 0);
+  const review = hooks.useDecideReviewRound();
   assert.equal(review.retry, false);
   invalidated.length = 0;
-  review.onSettled();
+  review.onSettled(null, null, { round: { caseId: 'case-A' } });
   for (const key of [['review-rounds', 'case-A'], ['my-review-rounds'], ['notifications']]) {
     assert.ok(invalidated.includes(JSON.stringify(key)), `invalidates ${key.join(':')}`);
   }

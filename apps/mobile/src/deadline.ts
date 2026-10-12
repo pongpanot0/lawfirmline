@@ -1,11 +1,13 @@
 /** Deadline urgency on the Bangkok calendar; a legal deadline is due at 16:30 Bangkok on its day. */
-export type UrgencyTone = 'due' | 'court' | 'info';
+export type UrgencyTone = 'due' | 'court' | 'info' | 'none';
 export interface Urgency { tone: UrgencyTone; label: string; daysLeft: number }
 
 const DAY_MS = 86_400_000;
 const bangkokKey = (ms: number) => new Date(ms + 7 * 3_600_000).toISOString().slice(0, 10);
 
 export function deadlineUrgency(isoDate: string, now: Date): Urgency {
+  // An unparseable date must not throw in render; show a neutral, empty urgency.
+  if (Number.isNaN(Date.parse(isoDate))) return { tone: 'none', label: '', daysLeft: 0 };
   const due = bangkokKey(Date.parse(isoDate));
   const daysLeft = Math.round((Date.parse(`${due}T00:00:00Z`) - Date.parse(`${bangkokKey(now.getTime())}T00:00:00Z`)) / DAY_MS);
   if (now.getTime() > Date.parse(`${due}T16:30:00+07:00`)) {

@@ -314,7 +314,7 @@ export interface DateSuggestion {
   caseId: string;
   label: string;
   suggestedDate: string;
-  status: string;
+  status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
   source: 'DOCUMENT' | 'RULE';
   sourceExcerpt: string | null;
   deadlineRule: { label: string; trigger: string } | null;
@@ -335,7 +335,7 @@ export interface ReviewRoundSummary {
   version: number;
   scope: string | null;
   dueAt: string | null;
-  status: string;
+  status: 'WAITING_REVIEW' | 'RETURNED' | 'APPROVED' | 'CANCELLED';
   createdAt: string;
   createdByName: string | null;
   reviewers: Array<{ id: string; name: string | null; decision: 'APPROVED' | 'RETURNED' | null }>;

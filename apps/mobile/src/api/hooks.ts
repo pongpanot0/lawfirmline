@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import {
   useInfiniteQuery,
   useMutation,
@@ -662,6 +663,20 @@ export function useUpdateNotificationPreference() {
   });
 }
 
+/**
+ * Double-tap guard: a second call while one is in flight shares the first request instead of posting twice.
+ * The flag is a ref read synchronously, so it holds before React re-renders `isPending`.
+ */
+function useSingleFlight() {
+  const inFlight = useRef<Promise<unknown> | null>(null);
+  return <T,>(run: () => Promise<T>): Promise<T> => {
+    if (inFlight.current) return inFlight.current as Promise<T>;
+    const promise = run().finally(() => { inFlight.current = null; });
+    inFlight.current = promise;
+    return promise;
+  };
+}
+
 /** Everything a court-event record or a deadline decision can change. */
 function invalidateCaseDeadlines(client: ReturnType<typeof useQueryClient>, caseId: string) {
   for (const queryKey of [['case', caseId], ['date-suggestions', caseId], ['my-day'], ['todos'], ['case-events', caseId], ['calendar']]) {
@@ -681,15 +696,18 @@ export function useDateSuggestions(caseId: string) {
 }
 
 /** No optimistic update: a legal deadline row changes only after the server answers. */
-export function useDecideSuggestion(caseId: string) {
+export function useDecideSuggestion() {
   const client = useQueryClient();
+  const once = useSingleFlight();
   return useMutation({
-    mutationFn: ({ suggestion, action, leadLawyerId }: { suggestion: DateSuggestion; action: 'confirm' | 'dismiss'; leadLawyerId?: string | null }) => {
-      const request = suggestionRequest(suggestion, action, leadLawyerId);
-      return api<DateSuggestion>(request.path, { method: 'POST', body: request.body });
-    },
+    mutationFn: ({ suggestion, action, leadLawyerId }: { suggestion: DateSuggestion; action: 'confirm' | 'dismiss'; leadLawyerId?: string | null }) =>
+      once(() => {
+        const request = suggestionRequest(suggestion, action, leadLawyerId);
+        return api<DateSuggestion>(request.path, { method: 'POST', body: request.body });
+      }),
     retry: false,
-    onSettled: () => invalidateCaseDeadlines(client, caseId),
+    // Invalidate the suggestion's own case: the list may be mounted with another case id.
+    onSettled: (_data, _error, vars) => invalidateCaseDeadlines(client, vars.suggestion.caseId),
   });
 }
 
@@ -713,18 +731,21 @@ export function useCaseReviewRounds(caseId: string) {
 }
 
 export function useMyReviewRounds() {
-  return useQuery({ queryKey: ['my-review-rounds'], queryFn: () => api<ReviewRoundSummary[]>('/document-review/mine') });
+  return useQuery({ queryKey: ['my-review-rounds'], queryFn: () => api<ReviewRoundSummary[]>('/document-review/mine'), staleTime: 0 });
 }
 
-export function useDecideReviewRound(caseId: string) {
+export function useDecideReviewRound() {
   const client = useQueryClient();
+  const once = useSingleFlight();
   return useMutation({
-    mutationFn: ({ round, action, reason }: { round: ReviewRoundSummary; action: 'approve' | 'return'; reason?: string }) => {
-      const request = reviewDecisionRequest(round, action, reason);
-      return api<{ id: string; status: string }>(request.path, { method: 'POST', body: request.body });
-    },
+    mutationFn: ({ round, action, reason }: { round: ReviewRoundSummary; action: 'approve' | 'return'; reason?: string }) =>
+      once(() => {
+        const request = reviewDecisionRequest(round, action, reason);
+        return api<{ id: string; status: string }>(request.path, { method: 'POST', body: request.body });
+      }),
     retry: false,
-    onSettled: () => {
+    onSettled: (_data, _error, vars) => {
+      const caseId = vars.round.caseId;
       for (const queryKey of [['review-rounds', caseId], ['my-review-rounds'], ['case-documents', caseId]]) client.invalidateQueries({ queryKey });
       invalidateNotifications(client);
     },
