@@ -363,7 +363,7 @@ export interface CaseItem {
   clientId?: string | null;
   clientName?: string | null;
   /** ฝ่ายเรา — โจทก์ (PLAINTIFF) หรือจำเลย (DEFENDANT) */
-  partyRole?: 'PLAINTIFF' | 'DEFENDANT' | null;
+  partyRole?: import('@lawfirm/shared').PartyRole | null;
   courtName?: string | null;
   courtLevel?: import('@lawfirm/shared').CourtLevel | null;
   blackCaseNumber?: string | null;
@@ -380,7 +380,7 @@ export interface CaseItem {
   client?: { id: string; name: string } | null;
   customers?: CustomerShareItem[];
   additionalClients?: AdditionalClientItem[];
-  participants?: Array<{ name: string; role: string }>;
+  participants?: CaseParticipantItem[];
   cargoClaim?: { id: string } | null;
   intake?: { id: string; status: string } | null;
   relatedIntakes?: Array<{ id: string; status: string }>;
@@ -660,6 +660,8 @@ export interface CaseParticipantItem {
   opposingInsurer?: string | null;
   medicalLicenseNo?: string | null;
   notes?: string | null;
+  clientId?: string | null;
+  representedByParticipantId?: string | null;
 }
 
 export interface CaseDetail extends CaseItem {
@@ -699,7 +701,6 @@ export interface CaseDetail extends CaseItem {
     type: string;
   }>;
   activities?: CaseActivityItem[];
-  participants?: CaseParticipantItem[];
   client?: {
     id: string;
     name: string;

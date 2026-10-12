@@ -43,7 +43,10 @@ import {
   CASE_NUMBER_HINT,
   hasFirmCapability,
   isBackwardStage,
+  PARTY_ROLE_LABELS,
+  type PartyRole,
 } from '@lawfirm/shared';
+import { bangkokDayToIso } from '@/lib/case-create';
 import {
   CASE_TAB_IDS,
   CASE_TAB_LABELS,
@@ -205,9 +208,10 @@ export default function CaseDetailPage() {
     chargeSection: '',
     estimatedFee: '',
     description: '',
-    opposingParty: '',
     incidentDate: '',
     estimatedDamage: '',
+    limitationDeadline: '',
+    additionalClientIds: [] as string[],
     clientId: '',
     clientName: '',
     customers: [] as CaseOverviewCustomerValue[],
@@ -559,6 +563,7 @@ export default function CaseDetailPage() {
     for (const customer of legalCase.customers ?? []) {
       knownClients.set(customer.customerId, { ...customer.customer, contacts: [] });
     }
+    for (const ac of legalCase.additionalClients ?? []) knownClients.set(ac.clientId, { ...ac.client, contacts: [] });
     const linkedClients = [...knownClients.values()];
     setClients(linkedClients);
     setOverviewForm({
@@ -579,9 +584,10 @@ export default function CaseDetailPage() {
       estimatedFee:
         legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
       description: legalCase.description ?? '',
-      opposingParty: String(legalCase.customFields?.opposingParty ?? ''),
       incidentDate: String(legalCase.customFields?.incidentDate ?? ''),
       estimatedDamage: String(legalCase.customFields?.estimatedDamage ?? ''),
+      limitationDeadline: legalCase.limitationDeadline ? bangkokDateInputValue(legalCase.limitationDeadline) : '',
+      additionalClientIds: (legalCase.additionalClients ?? []).map((ac) => ac.clientId),
       clientId: legalCase.clientId ?? '',
       clientName: legalCase.client?.name ?? legalCase.clientName ?? '',
       customers: legalCase.customers?.length
@@ -651,18 +657,19 @@ export default function CaseDetailPage() {
         courtLevel: overviewForm.courtLevel || null,
         courtName: overviewForm.courtName.trim() || null,
         partyRole: overviewForm.partyRole || null,
+        limitationDeadline: overviewForm.limitationDeadline ? bangkokDayToIso(overviewForm.limitationDeadline) : null,
+        clients: overviewForm.additionalClientIds.filter(Boolean).map((clientId) => ({ clientId })),
         estimatedFee,
         claimedAmount: overviewForm.claimedAmount.trim() ? Number(overviewForm.claimedAmount) : null,
         customFields: {
-          ...(legalCase.customFields ?? {}),
+          ...Object.fromEntries(Object.entries(legalCase.customFields ?? {}).filter(([key]) => key !== 'opposingParty')),
           chargeSection: overviewForm.chargeSection.trim(),
-          opposingParty: overviewForm.opposingParty.trim(),
           incidentDate: overviewForm.incidentDate,
           estimatedDamage: overviewForm.estimatedDamage,
         },
         description: overviewForm.description.trim() || null,
       }) as CaseDetail;
-      setCase(updated);
+      setCase((current) => ({ ...updated, participants: updated.participants ?? current?.participants }));
       setEditingOverview(false);
     } catch (err) {
       setOverviewError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
@@ -1147,7 +1154,7 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-documents"
           className="min-w-0"
         >
-          <CaseDocumentsPanel caseId={id} />
+          <CaseDocumentsPanel caseId={id} onChanged={loadCase} />
         </div>
       )}
 
@@ -1307,8 +1314,12 @@ export default function CaseDetailPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">ฝ่ายเรา</p>
                     <p className="font-medium">
-                      {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : legalCase.partyRole === 'DEFENDANT' ? 'จำเลย' : '—'}
+                      {legalCase.partyRole ? PARTY_ROLE_LABELS[legalCase.partyRole as PartyRole] : '—'}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">วันครบอายุความ</p>
+                    <p className="font-medium">{legalCase.limitationDeadline ? formatDate(legalCase.limitationDeadline) : '—'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">ชื่อลูกความ</p>
@@ -1443,9 +1454,9 @@ export default function CaseDetailPage() {
                 <p className="text-xs text-muted-foreground">ค่าใช้จ่ายที่อนุมัติ</p>
                 <p className="font-medium text-primary">{formatCurrency(totalSpent)}</p>
               </div>
-              {customFields && Object.entries(customFields).filter(([key, value]) => key !== CASE_COSTS_KEY && key !== 'chargeSection' && value !== '').map(([k, v]) => (
+              {customFields && Object.entries(customFields).filter(([key, value]) => key !== CASE_COSTS_KEY && key !== 'chargeSection' && key !== 'opposingParty' && value !== '').map(([k, v]) => (
                 <div key={k}>
-                  <p className="text-xs text-muted-foreground">{{ opposingParty: 'คู่กรณี', incidentDate: 'วันเกิดเหตุ', estimatedDamage: 'ความเสียหายโดยประมาณ' }[k] ?? k}</p>
+                  <p className="text-xs text-muted-foreground">{{ incidentDate: 'วันเกิดเหตุ', estimatedDamage: 'ความเสียหายโดยประมาณ' }[k] ?? k}</p>
                   <p className="font-medium">{k === 'incidentDate' ? formatDate(v) : k === 'estimatedDamage' ? formatCurrency(Number(v)) : v}</p>
                 </div>
               ))}

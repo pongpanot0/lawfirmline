@@ -21,7 +21,7 @@ import { DocumentCategory, hasFirmCapability } from '@lawfirm/shared';
 
 const DOCUMENT_CATEGORY_VALUES = Object.values(DocumentCategory);
 
-export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
+export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onChanged?: () => void }) {
   const d = useDashboardT();
   const id = caseId;
   const { token, user } = useAuth();
@@ -270,6 +270,7 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
         source="DOCUMENT"
         title={d.dateSuggestions.documentTitle}
         reloadKey={suggestionsKey}
+        onChanged={onChanged}
       />
 
       <div className="mb-6 rounded-xl border bg-card p-6 shadow-soft">

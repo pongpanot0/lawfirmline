@@ -1,11 +1,12 @@
 'use client';
 
-import { CASE_NUMBER_HINT, CASE_NUMBER_HTML, CourtLevel, COURT_LEVEL_LABELS, FEE_MAX } from '@lawfirm/shared';
+import { CASE_NUMBER_HINT, CASE_NUMBER_HTML, CourtLevel, COURT_LEVEL_LABELS, FEE_MAX, PARTY_ROLE_LABELS, PartyRole } from '@lawfirm/shared';
 import type { CaseDetail, CaseTypeItem, ClientItem, CourtItem } from '@/lib/api';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { Button } from '@/components/ui/button';
 import { CourtSelect } from './CourtSelect';
 import { MoneyInput } from '@/components/ui/MoneyInput';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { Plus, X } from 'lucide-react';
 
 export interface CaseOverviewCustomerValue {
@@ -20,7 +21,7 @@ export interface CaseOverviewValues {
   title: string; ownRef: string; customerRef: string; caseTypeId: string;
   blackCaseNumber: string; redCaseNumber: string; courtLevel: string; courtName: string;
   partyRole: string; claimedAmount: string; chargeSection: string; estimatedFee: string; description: string;
-  opposingParty: string; incidentDate: string; estimatedDamage: string;
+  incidentDate: string; estimatedDamage: string; limitationDeadline: string; additionalClientIds: string[];
   clientId: string; clientName: string; customers: CaseOverviewCustomerValue[];
 }
 
@@ -37,7 +38,7 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
   onSave: () => void;
   onCancel: () => void;
 }) {
-  const set = (key: Exclude<keyof CaseOverviewValues, 'customers'>, next: string) => onChange({ ...value, [key]: next });
+  const set = (key: Exclude<keyof CaseOverviewValues, 'customers' | 'additionalClientIds'>, next: string) => onChange({ ...value, [key]: next });
   const input = 'mt-1 min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   const group = 'grid min-w-0 gap-4 border-b border-border pb-5 sm:grid-cols-2';
 
@@ -52,10 +53,10 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
           {legalCase.caseType && !caseTypes.some(t => t.id === legalCase.caseType?.id) && <option value={legalCase.caseType.id}>{legalCase.caseType.name}</option>}
           {caseTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select></label>
-        <label className="text-sm">ฝ่ายที่สำนักงานเป็นทนายให้<select value={value.partyRole} onChange={e => set('partyRole', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option><option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option><option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option></select></label>
+        <label className="text-sm">ฝ่ายที่สำนักงานเป็นทนายให้<select value={value.partyRole} onChange={e => set('partyRole', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(PartyRole).map(role => <option key={role} value={role}>{PARTY_ROLE_LABELS[role]}</option>)}</select></label>
         <label className="text-sm sm:col-span-2">ข้อหาหรือฐานความผิด<textarea rows={2} maxLength={2000} value={value.chargeSection} onChange={e => set('chargeSection', e.target.value)} placeholder="เช่น ละเมิด เรียกค่าเสียหาย / ผิดสัญญา" className={input} /><span className="mt-1 block text-xs text-muted-foreground">ระบุเรื่องที่ฟ้องหรือฐานความผิด ใช้ในคำฟ้องหน้าแรกและปกสำนวน</span></label>
         <label className="text-sm sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี<textarea rows={4} value={value.description} onChange={e => set('description', e.target.value)} placeholder="สรุปเหตุการณ์และประเด็นสำคัญของคดี" className={input} /></label>
-        <label className="text-sm">คู่กรณี<input value={value.opposingParty} onChange={e => set('opposingParty', e.target.value)} className={input} /></label>
+        <div className="text-sm">วันครบอายุความ<ThaiDateInput id="overview-limitation-deadline" className="mt-1" value={value.limitationDeadline} onChange={next => set('limitationDeadline', next)} /><span className="mt-1 block text-xs text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน · คู่ความแก้ที่ส่วน &quot;คู่ความและผู้เกี่ยวข้อง&quot;</span></div>
         <label className="text-sm">วันเกิดเหตุ<input type="date" value={value.incidentDate.slice(0, 10)} onChange={e => set('incidentDate', e.target.value)} className={input} /></label>
       </section>
       <section className={group} aria-labelledby="case-people-heading">
@@ -65,6 +66,23 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
           const match = clients.find(client => client.name.trim().toLocaleLowerCase() === clientName.trim().toLocaleLowerCase());
           onChange({ ...value, clientId: match?.id ?? '', clientName });
         }} className={input} placeholder="ค้นหาหรือพิมพ์ชื่อลูกความ" /><datalist id="case-client-options">{clients.map(client => <option key={client.id} value={client.name} />)}</datalist></label>
+        <div className="space-y-2 text-sm sm:col-span-2">
+          <p>ลูกความเพิ่มเติม</p>
+          {value.additionalClientIds.map((clientId, index) => (
+            <div key={index} className="flex min-w-0 items-center gap-2">
+              <select aria-label={`ลูกความเพิ่มเติมรายที่ ${index + 1}`} value={clientId}
+                onChange={e => onChange({ ...value, additionalClientIds: value.additionalClientIds.map((id, i) => i === index ? e.target.value : id) })} className={input}>
+                <option value="">เลือกลูกความ</option>
+                {clients.filter(client => client.id !== value.clientId).map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+              </select>
+              <Button type="button" variant="ghost" size="icon" aria-label={`ลบลูกความเพิ่มเติมรายที่ ${index + 1}`}
+                onClick={() => onChange({ ...value, additionalClientIds: value.additionalClientIds.filter((_, i) => i !== index) })}><X className="h-4 w-4" /></Button>
+            </div>
+          ))}
+          <Button type="button" variant="outline" size="sm" onClick={() => onChange({ ...value, additionalClientIds: [...value.additionalClientIds, ''] })}>
+            <Plus className="h-3.5 w-3.5" /> เพิ่มลูกความ
+          </Button>
+        </div>
         <div className="space-y-3 text-sm sm:col-span-2">
           {value.customers.map((customer, index) => {
             const contacts = clients.find(client => client.id === customer.customerId)?.contacts ?? [];
