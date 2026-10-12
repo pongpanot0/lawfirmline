@@ -293,3 +293,69 @@ describe('LeaveService approval workflow', () => {
     }));
   });
 });
+
+describe('LeaveService self-approval guard', () => {
+  const inDays = (n: number) => bangkokDayKey(addBangkokDays(new Date(), n));
+  const line = () => ({ sendText: jest.fn(async () => true), pushTo: jest.fn(async () => true) }) as any;
+  const pendingLeave = (userId: string) => ({ id: 'leave-1', firmId: 'firm-a', userId, type: LeaveType.PERSONAL, status: LeaveStatus.PENDING,
+    startDate: new Date('2026-10-05'), endDate: new Date('2026-10-05'), user: { lineUserId: null } });
+  const decidePrisma = (leave: any) => ({
+    leaveRequest: { findFirst: jest.fn(async () => leave), updateMany: jest.fn(async () => ({ count: 1 })) },
+  }) as any;
+
+  it('an OFFICE_MANAGER cannot decide their own leave', async () => {
+    const prisma = decidePrisma(pendingLeave('om-1'));
+    await expect(new LeaveService(prisma, line(), notifier, center).decide(
+      { id: 'om-1', firmId: 'firm-a', firmRole: FirmRole.OFFICE_MANAGER } as any, 'leave-1', 'APPROVED',
+    )).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.leaveRequest.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('an OFFICE_MANAGER can decide someone else\'s leave', async () => {
+    const prisma = decidePrisma(pendingLeave('alice'));
+    const decided = await new LeaveService(prisma, line(), notifier, center).decide(
+      { id: 'om-1', firmId: 'firm-a', firmRole: FirmRole.OFFICE_MANAGER } as any, 'leave-1', 'REJECTED',
+    );
+    expect(decided.status).toBe('REJECTED');
+  });
+
+  it('the LINE approval request skips the requester even when they can approve', async () => {
+    const prisma = {
+      firmMember: {
+        findUnique: jest.fn(async () => ({ userId: 'om-1' })),
+        findMany: jest.fn(async () => [
+          { userId: 'owner-1', user: { lineUserId: 'line-owner-1' } },
+          { userId: 'om-1', user: { lineUserId: 'line-om-1' } },
+        ]),
+      },
+      leaveRequest: {
+        findFirst: jest.fn(async () => null),
+        create: jest.fn(async ({ data }: any) => ({ id: 'leave-1', firmId: 'firm-a', userId: 'om-1', type: data.type, status: data.status,
+          startDate: data.startDate, endDate: data.endDate, user: { firstName: 'Om', lastName: 'M' } })),
+      },
+      calendarEvent: { findMany: jest.fn(async () => []) },
+      leaveNoticeLog: { create: jest.fn(async () => undefined), update: jest.fn(async () => undefined) },
+    } as any;
+    const l = line();
+    notifier.notifyFirmOwners.mockClear();
+    await new LeaveService(prisma, l, notifier, center).create(
+      { id: 'om-1', firmId: 'firm-a', firmRole: FirmRole.OFFICE_MANAGER } as any,
+      { type: LeaveType.VACATION, startDate: inDays(1), endDate: inDays(2) },
+    );
+    expect(l.pushTo).toHaveBeenCalledTimes(1);
+    expect(l.pushTo).toHaveBeenCalledWith('line-owner-1', expect.any(String), expect.any(Array));
+    // In-app: every approver role, the requester dropped as the actor.
+    expect(notifier.notifyFirmOwners).toHaveBeenCalledWith(expect.objectContaining({
+      actorUserId: 'om-1', roles: [FirmRole.OWNER, FirmRole.OFFICE_MANAGER],
+    }));
+  });
+
+  it.each([
+    [FirmRole.OFFICE_MANAGER, { userId: { not: 'me' } }],
+    [FirmRole.OWNER, {}],
+  ])('pending() for %s filters own leave accordingly', async (firmRole, extra) => {
+    const prisma = { leaveRequest: { findMany: jest.fn(async () => []) } } as any;
+    await new LeaveService(prisma, line(), notifier, center).pending({ id: 'me', firmId: 'firm-a', firmRole } as any);
+    expect(prisma.leaveRequest.findMany.mock.calls[0][0].where).toEqual({ firmId: 'firm-a', status: LeaveStatus.PENDING, ...extra });
+  });
+});

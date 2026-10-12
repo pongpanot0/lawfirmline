@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { formatDate, formatDateTime } from '@/lib/utils';
+import { leaveApprovalQueue } from '@/lib/leave-flags';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const dateKey = (date: Date) =>
@@ -120,7 +121,7 @@ export default function LeavesPage() {
 
   const today = dateKey(new Date());
   const myLeaves = user ? leaves.filter((leave) => leave.userId === user.id) : [];
-  const pending = canApproveLeave ? leaves.filter((leave) => leave.status === 'PENDING') : [];
+  const pending = canApproveLeave && user ? leaveApprovalQueue(leaves, user) : [];
 
   return (
     <div className="w-full space-y-6">

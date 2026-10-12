@@ -41,7 +41,8 @@ export class LeaveService {
   async pending(user: AuthUser) {
     if (!hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('Insufficient permissions');
     const leaves = await this.prisma.leaveRequest.findMany({
-      where: { firmId: user.firmId, status: LeaveStatus.PENDING },
+      // Only an owner may decide their own leave (and theirs auto-approve anyway).
+      where: { firmId: user.firmId, status: LeaveStatus.PENDING, ...(user.firmRole !== FirmRole.OWNER && { userId: { not: user.id } }) },
       include: { user: { select: { firstName: true, lastName: true } } },
       orderBy: [{ startDate: 'asc' }, { id: 'asc' }],
     });
@@ -127,6 +128,7 @@ export class LeaveService {
       catch (error) { this.logger.error(`Leave approval request ${leave.id} failed: ${(error as Error).message}`); }
       await this.notifier.notifyFirmOwners({
         firmId: leave.firmId, actorUserId: user.id, category: NotificationCategory.LEAVE, line: false,
+        roles: rolesWithCapability('approveLeave'),
         summaryText: `🗓 คำขอลา · รออนุมัติ\n${this.label(leave)}`, entityPath: '/leaves',
       });
     } else if (leave.type === LeaveType.SICK) {
@@ -146,6 +148,7 @@ export class LeaveService {
     if (!leave) throw new NotFoundException('ไม่พบรายการลา');
     if (leave.status !== LeaveStatus.PENDING) throw new BadRequestException('คำขอนี้ตัดสินไปแล้ว');
     if (!hasFirmCapability(user.firmRole, 'approveLeave')) throw new ForbiddenException('ไม่มีสิทธิ์อนุมัติการลา');
+    if (leave.userId === user.id && user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('อนุมัติการลาของตนเองไม่ได้');
     // Claim only while still PENDING so two owners deciding at once can't both win.
     const data = { status: decision, decidedById: user.id, decidedAt: new Date() };
     const claimed = await this.prisma.leaveRequest.updateMany({ where: { id: leaveId, firmId: user.firmId, status: LeaveStatus.PENDING }, data });
@@ -291,7 +294,7 @@ export class LeaveService {
     });
     const allowed = await this.lineAllowed(owners.map((owner) => owner.userId));
     for (const owner of owners) {
-      if (!owner.user.lineUserId || !allowed.has(owner.userId)) continue;
+      if (owner.userId === leave.userId || !owner.user.lineUserId || !allowed.has(owner.userId)) continue;
       try {
         await this.sendOnce(`approve-req:${leave.id}:${owner.userId}`, owner.user.lineUserId, text, quickReply);
       } catch (error) { this.logger.error(`Leave approval request failed for ${owner.userId}: ${(error as Error).message}`); }

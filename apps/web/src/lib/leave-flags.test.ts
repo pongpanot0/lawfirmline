@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leaveFlagsForDate, leaveWarning } from './leave-flags.ts';
+import { leaveApprovalQueue, leaveFlagsForDate, leaveWarning } from './leave-flags.ts';
 
 const base = { userId: 'u1', type: 'SICK' as const, startDate: '2026-10-01', endDate: '2026-10-05' };
 
@@ -47,4 +47,14 @@ test('leaveWarning for a pending leave asks for confirmation instead of stating 
     leaveWarning('สมชาย', '2026-10-03', 'PENDING'),
     '⚠ สมชาย ขอลาวันที่ 3/10/2569 (รออนุมัติ)',
   );
+});
+
+test('leaveApprovalQueue hides an approver\'s own pending leave unless they are the owner', () => {
+  const leaves = [
+    { ...base, id: 'a', userId: 'om', status: 'PENDING' as const },
+    { ...base, id: 'b', userId: 'u2', status: 'PENDING' as const },
+    { ...base, id: 'c', userId: 'u3', status: 'APPROVED' as const },
+  ] as never[];
+  assert.deepEqual(leaveApprovalQueue(leaves, { id: 'om', firmRole: 'OFFICE_MANAGER' }).map((l: { id: string }) => l.id), ['b']);
+  assert.deepEqual(leaveApprovalQueue(leaves, { id: 'om', firmRole: 'OWNER' }).map((l: { id: string }) => l.id), ['a', 'b']);
 });
