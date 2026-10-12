@@ -17,11 +17,12 @@ import { IntakeModule } from '../intake/intake.module';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
 import { CargoClaimsModule } from '../cargo-claims/cargo-claims.module';
 import { DeadlinesModule } from '../deadlines/deadlines.module';
+import { ConflictCheckModule } from '../conflict-check/conflict-check.module';
 import { CaseProceedingsService } from './case-proceedings.service';
 import { CaseProceedingsController } from './case-proceedings.controller';
 
 @Module({
-  imports: [forwardRef(() => CalendarModule), forwardRef(() => NotificationsModule), forwardRef(() => IntakeModule), forwardRef(() => CargoClaimsModule), forwardRef(() => DeadlinesModule)],
+  imports: [forwardRef(() => CalendarModule), forwardRef(() => NotificationsModule), forwardRef(() => IntakeModule), forwardRef(() => CargoClaimsModule), forwardRef(() => DeadlinesModule), ConflictCheckModule],
   controllers: [
     CasesController,
     CaseActivitiesController,

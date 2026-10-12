@@ -6,6 +6,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 /** ปิดคดีทับของค้างเงียบ ๆ คือการซ่อนของค้าง ไม่ใช่การทำให้เสร็จ */
 describe('CasesService.close — ด่านของค้าง', () => {
@@ -41,6 +42,7 @@ describe('CasesService.close — ด่านของค้าง', () => {
         },
         { provide: CaseActivitiesService, useValue: { create: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
       ],
     }).compile();
     service = module.get(CasesService);

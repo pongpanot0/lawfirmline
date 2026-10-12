@@ -122,6 +122,12 @@ export class CreateCaseDto {
   @Type(() => OpponentDto)
   opponents?: OpponentDto[];
 
+  /** เหตุผลที่เปิดคดีทั้งที่พบชื่อขัดกัน — ต้องมีเมื่อ API ตอบ 409 CONFLICT_FOUND (อย่างน้อย 10 ตัวอักษร) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  conflictOverrideReason?: string;
+
   @IsOptional()
   @IsString()
   courtName?: string;

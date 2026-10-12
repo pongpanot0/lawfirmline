@@ -20,7 +20,7 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: 'OWNER' } as any;
   let service: IntakeService;
   let prisma: any;
-  let conflictCheck: { latestForIntake: jest.Mock };
+  let conflictCheck: { latestForIntake: jest.Mock; gateNewCase: jest.Mock; recordForCase: jest.Mock };
 
   const intake = {
     id: 'intake-1',
@@ -58,7 +58,7 @@ describe('IntakeService — ด่านก่อนออกหนังสื�
       case: { findFirst: jest.fn(), findUnique: jest.fn() },
       firm: { findUnique: jest.fn().mockResolvedValue({ ownRefPrefix: 'REF' }) },
     };
-    conflictCheck = { latestForIntake: jest.fn() };
+    conflictCheck = { latestForIntake: jest.fn(), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() };
 
     const module = await Test.createTestingModule({
       providers: [

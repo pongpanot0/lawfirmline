@@ -5,6 +5,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 /** close / archive / reopen / delete keep the ครบอายุความ event in step with the case (real sync, mocked prisma). */
 describe('CasesService — limitation reminder follows case state', () => {
@@ -61,6 +62,7 @@ describe('CasesService — limitation reminder follows case state', () => {
         },
         { provide: CaseActivitiesService, useValue: { create: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
       ],
     }).compile();
     service = module.get(CasesService);

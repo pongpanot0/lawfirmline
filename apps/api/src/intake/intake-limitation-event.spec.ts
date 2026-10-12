@@ -44,7 +44,7 @@ describe('IntakeService conversion — limitation event vs legacy deadline event
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
-        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: { create: jest.fn() } },
         { provide: IntakePrecedentAnalysisService, useValue: {} },

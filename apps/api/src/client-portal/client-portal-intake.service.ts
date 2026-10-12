@@ -1,7 +1,7 @@
 import { NotificationCategory } from '../generated/prisma';
 import { randomUUID } from 'crypto';
 import { portalRequestScope } from './portal-workroom.service';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PortalIdentity } from './client-portal-jwt.strategy';
 import { SubmitPortalIntakeDto } from './dto/portal-intake.dto';
@@ -11,11 +11,16 @@ import { FileStorageService } from '../common/services/file-storage.service';
 import { CasesService } from '../cases/cases.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
-import { ActivityType } from '@lawfirm/shared';
+import { ActivityType, AuthUser } from '@lawfirm/shared';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 import { createClientKeyDateSuggestion, firstFirmOwnerId, uploadedFileBuffer } from './portal-case-helpers';
+
+const PORTAL_CONFLICT_NOTE = 'เปิดจากพอร์ทัล — ทนายต้องตรวจ';
 
 @Injectable()
 export class ClientPortalIntakeService {
+  private readonly logger = new Logger(ClientPortalIntakeService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cases: CasesService,
@@ -23,6 +28,7 @@ export class ClientPortalIntakeService {
     private readonly notifier: AssignmentNotifierService,
     private readonly caseFeed: CaseFeedService,
     private readonly fileStorage: FileStorageService,
+    private readonly conflictCheck: ConflictCheckService,
   ) {}
 
   // multer/busboy decode multipart field values (including filenames) as
@@ -139,6 +145,19 @@ export class ClientPortalIntakeService {
         await Promise.all(storedPaths.map((p) => this.fileStorage.delete(p).catch(() => undefined)));
         throw error;
       });
+
+    // A client opening their own request cannot answer a conflict prompt: record, never block.
+    // The forced reason makes a clash land as POTENTIAL_CONFLICT for the lawyer to review.
+    const actor = { id: legalCase.leadLawyerId, firmId: portalUser.firmId } as AuthUser;
+    try {
+      const gate = await this.conflictCheck.gateNewCase(actor, {
+        parties: [{ name: clientName, side: 'OURS' }],
+        overrideReason: PORTAL_CONFLICT_NOTE,
+      });
+      await this.conflictCheck.recordForCase(actor, gate, { caseId: legalCase.id });
+    } catch (err) {
+      this.logger.warn(`Conflict check for portal case ${legalCase.id} failed: ${(err as Error).message}`);
+    }
 
     try {
       await this.notifier.notifyFirmOwners({

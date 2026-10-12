@@ -60,6 +60,8 @@ const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
 /** ค่าที่หน้าจอ checklist ใช้แทน "ได้รับแล้วแต่ไม่ผูกไฟล์" และ "ไม่เกี่ยวข้อง" */
 const CHECKLIST_MANUAL = '__manual__';
 const CHECKLIST_SKIPPED = '__skipped__';
+/** Override note when a new intake opens its case straight away and names clash (create form cannot answer a 409). */
+const INTAKE_CREATE_CONFLICT_NOTE = 'เปิดพร้อมรับเรื่องใหม่ — ทนายต้องตรวจ';
 
 @Injectable()
 export class IntakeService {
@@ -623,10 +625,12 @@ export class IntakeService {
     if (created.relatedCaseId) {
       await this.attachToExistingCase(user, created, {} as ConvertToCaseDto);
     } else {
+      // The intake row is already saved and the create form cannot answer a 409, so a clash
+      // here is recorded as POTENTIAL_CONFLICT for the lawyer to review instead of blocking.
       await this.openCaseFromIntake(
         user,
         created,
-        { leadLawyerId: dto.leadLawyerId } as ConvertToCaseDto,
+        { leadLawyerId: dto.leadLawyerId, conflictOverrideReason: INTAKE_CREATE_CONFLICT_NOTE } as ConvertToCaseDto,
       );
     }
 
@@ -1087,6 +1091,20 @@ export class IntakeService {
     dto: ConvertToCaseDto,
   ) {
     const id = intake.id;
+    // Spec L6: gate before anything is created. The intake's own names are not a clash with itself.
+    const ours = [
+      intake.clientName,
+      intake.client?.name,
+      ...(intake.additionalClients ?? []).map((c) => c.client?.name),
+    ].filter((name): name is string => !!name?.trim());
+    const gate = await this.conflictCheck.gateNewCase(user, {
+      parties: [
+        ...[...new Set(ours)].map((name) => ({ name, side: 'OURS' as const })),
+        ...(intake.opposingParty ? [{ name: intake.opposingParty, side: 'OPPONENT' as const }] : []),
+      ],
+      overrideReason: dto.conflictOverrideReason,
+      excludeIntakeId: intake.id,
+    });
     // Generate ownRef like cases.service.ts
     const firm = await this.prisma.firm.findUnique({
       where: { id: user.firmId },
@@ -1189,6 +1207,7 @@ export class IntakeService {
       await addOpponents(this.prisma, newCase.id, intake.partyRole, [{ name: intake.opposingParty }]);
     }
     await ensureOurClientParticipant(this.prisma, newCase.id);
+    await this.conflictCheck.recordForCase(user, gate, { caseId: newCase.id, intakeId: intake.id });
     const limitationEventId = newCase.limitationDeadline
       ? await syncLimitationReminder(this.prisma, newCase.id)
       : null;
@@ -1248,13 +1267,13 @@ export class IntakeService {
       });
     }
 
-    if (dto.conflictOverrideReason?.trim()) {
+    if (gate.overrideReason) {
       await this.caseFeed.log({
         caseId: newCase.id,
         userId: user.id,
         type: ActivityType.NOTE,
         title: 'เปิดคดีโดยข้ามผลตรวจ conflict',
-        description: dto.conflictOverrideReason.trim(),
+        description: gate.overrideReason,
       });
     }
 
@@ -1456,7 +1475,7 @@ export class IntakeService {
     submissionId: string,
     dto: ConvertPortalSubmissionDto,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const { intake, gate } = await this.prisma.$transaction(async (tx) => {
       // Serialize conversion attempts for this submission, including retries.
       await tx.$queryRaw`SELECT "id" FROM "PortalIntakeSubmission" WHERE "id" = ${submissionId} FOR UPDATE`;
       const submission = await tx.portalIntakeSubmission.findFirst({
@@ -1476,8 +1495,17 @@ export class IntakeService {
           where: { id: submission.intakeId, firmId: user.firmId },
         });
         if (!existing) throw new NotFoundException('ไม่พบเรื่องรับที่เชื่อมไว้');
-        return existing;
+        return { intake: existing, gate: null };
       }
+
+      const portalClient = await tx.client.findFirst({
+        where: { id: submission.clientId, firmId: user.firmId },
+        select: { name: true },
+      });
+      const gate = await this.conflictCheck.gateNewCase(user, {
+        parties: portalClient ? [{ name: portalClient.name, side: 'OURS' }] : [],
+        overrideReason: dto.conflictOverrideReason,
+      });
 
       const intake = await tx.intake.create({
         data: {
@@ -1498,8 +1526,11 @@ export class IntakeService {
         where: { id: submission.id },
         data: { intakeId: intake.id },
       });
-      return intake;
+      return { intake, gate };
     });
+    // After commit: recordForCase writes through the root client, which cannot see the uncommitted intake.
+    if (gate) await this.conflictCheck.recordForCase(user, gate, { intakeId: intake.id });
+    return intake;
   }
 
   async uploadAttachment(user: AuthUser, intakeId: string, file: Express.Multer.File) {

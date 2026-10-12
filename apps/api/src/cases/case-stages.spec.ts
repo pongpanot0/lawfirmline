@@ -8,6 +8,7 @@ import { CaseFeedService } from '../common/services/case-feed.service';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CloseCaseDto } from './dto/close-case.dto';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 describe('case stages', () => {
   const user = { id: 'u1', firmId: 'firm-1', firmRole: 'OWNER' } as any;
@@ -53,6 +54,7 @@ describe('case stages', () => {
         },
         { provide: CaseActivitiesService, useValue: { create: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
       ],
     }).compile();
     service = module.get(CasesService);

@@ -5,6 +5,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 describe('CasesService assignment notifications', () => {
   let service: CasesService;
@@ -41,6 +42,7 @@ describe('CasesService assignment notifications', () => {
         },
         { provide: CaseActivitiesService, useValue: { record: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: mockNotifier },
+        { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
       ],
     }).compile();
     service = module.get(CasesService);

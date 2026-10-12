@@ -32,6 +32,7 @@ import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CLIENT_CONTACT_SELECT } from '../clients/client-contact.select';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 import { Optional } from '@nestjs/common';
 import { formatCaseNotificationReference } from '../notifications/reference-label';
 import {
@@ -59,6 +60,7 @@ export class CasesService {
     private caseFeed: CaseFeedService,
     private activitiesService: CaseActivitiesService,
     private assignmentNotifier: AssignmentNotifierService,
+    private conflictCheck: ConflictCheckService,
     @Optional() private cargoClaims?: CargoClaimsService,
   ) {}
 
@@ -395,6 +397,22 @@ export class CasesService {
       }),
     );
 
+    // Spec L6: nothing is created until our side and every opponent clear the conflict search.
+    const additionalNames = dto.clients?.length
+      ? (await this.prisma.client.findMany({
+          where: { id: { in: dto.clients.map((c) => c.clientId) }, firmId: user.firmId },
+          select: { name: true },
+        })).map((c) => c.name)
+      : [];
+    const gate = await this.conflictCheck.gateNewCase(user, {
+      parties: [
+        ...(dto.clientName ? [{ name: dto.clientName, side: 'OURS' as const }] : []),
+        ...additionalNames.map((name) => ({ name, side: 'OURS' as const })),
+        ...(dto.opponents ?? []).map((o) => ({ name: o.name, side: 'OPPONENT' as const })),
+      ],
+      overrideReason: dto.conflictOverrideReason,
+    });
+
     const created = await this.insertCase(this.prisma, user.firmId, dto.ownRef, {
       customerRef: dto.customerRef,
       title: dto.title,
@@ -432,6 +450,7 @@ export class CasesService {
     if (dto.limitationDeadline) await syncLimitationReminder(this.prisma, created.id);
     if (dto.opponents?.length) await addOpponents(this.prisma, created.id, dto.partyRole, dto.opponents);
     await ensureOurClientParticipant(this.prisma, created.id);
+    await this.conflictCheck.recordForCase(user, gate, { caseId: created.id });
     if ([dto.courtName, dto.blackCaseNumber, dto.redCaseNumber].some((v) => v?.trim())) {
       await snapshotCurrentLevel(this.prisma, created);
     }
