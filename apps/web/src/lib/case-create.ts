@@ -34,3 +34,23 @@ export function litigationPayload(input: {
     ...(input.limitationDeadline ? { limitationDeadline: bangkokDayToIso(input.limitationDeadline) } : {}),
   };
 }
+
+/**
+ * The message for the first required case-type field that is still empty, or ''.
+ * `opposingParty` has no input of its own any more: the opponent rows satisfy it.
+ */
+export function missingRequiredMessage(
+  fields: { key: string; label: string; required?: boolean }[],
+  values: { chargeSection: string; customFields: Record<string, string>; opponents: OpponentRow[] },
+): string {
+  for (const field of fields) {
+    if (!field.required) continue;
+    if (field.key === 'opposingParty') {
+      if (!values.opponents.some((row) => row.name.trim())) return 'กรุณากรอกคู่ความฝ่ายตรงข้ามอย่างน้อย 1 ราย';
+      continue;
+    }
+    const value = field.key === 'chargeSection' ? values.chargeSection : values.customFields[field.key];
+    if (!value?.trim()) return `กรุณากรอก${field.label}`;
+  }
+  return '';
+}

@@ -30,7 +30,7 @@ import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { CourtSelect } from '@/components/cases/CourtSelect';
 import { ConflictOverrideDialog } from '@/components/ConflictOverrideDialog';
 import { conflictMatchesFrom, type ConflictMatchItem } from '@/lib/conflict';
-import { litigationPayload, type OpponentRow } from '@/lib/case-create';
+import { litigationPayload, missingRequiredMessage, type OpponentRow } from '@/lib/case-create';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, X } from 'lucide-react';
@@ -220,10 +220,8 @@ function NewCaseForm() {
     if (!form.caseTypeId) return 'เลือกประเภทคดีก่อนดำเนินการต่อ';
     if (!form.title.trim()) return 'กรุณากรอกชื่อคดี';
     if (limitationIncomplete) return 'กรอกวันครบอายุความให้ครบ (วัน/เดือน/ปี พ.ศ.) หรือเว้นว่างทั้งหมด';
-    const missing = fieldSchema.find(
-      (f) => f.required && !(f.key === 'chargeSection' ? form.chargeSection : form.customFields[f.key])?.trim(),
-    );
-    if (missing) return `กรุณากรอก${missing.label}`;
+    const missing = missingRequiredMessage(fieldSchema, { chargeSection: form.chargeSection, customFields: form.customFields, opponents });
+    if (missing) return missing;
     if (!lawyers.some((l) => l.id === form.leadLawyerId))
       return 'กรุณาเลือกทนายผู้รับผิดชอบ';
     return '';

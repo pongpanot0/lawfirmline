@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bangkokDayToIso, litigationPayload } from './case-create.ts';
+import { bangkokDayToIso, litigationPayload, missingRequiredMessage } from './case-create.ts';
 
 test('blank litigation fields are left out; the court level always goes', () => {
   assert.deepEqual(
@@ -38,4 +38,12 @@ test('filled fields are trimmed; opponents keep only what was chosen', () => {
 
 test('a date-only value means that Bangkok day', () => {
   assert.equal(bangkokDayToIso('2027-03-01'), '2027-02-28T17:00:00.000Z');
+});
+
+test('a required opposingParty is satisfied by an opponent row, not by a custom field', () => {
+  const fields = [{ key: 'opposingParty', label: 'คู่กรณี', required: true }, { key: 'x', label: 'เอ็กซ์', required: true }];
+  const empty = { chargeSection: '', customFields: { x: 'v' }, opponents: [{ name: ' ', role: '', personType: '' }] };
+  assert.equal(missingRequiredMessage(fields, empty), 'กรุณากรอกคู่ความฝ่ายตรงข้ามอย่างน้อย 1 ราย');
+  assert.equal(missingRequiredMessage(fields, { ...empty, opponents: [{ name: 'ข', role: '', personType: '' }] }), '');
+  assert.equal(missingRequiredMessage(fields, { ...empty, customFields: {}, opponents: [{ name: 'ข', role: '', personType: '' }] }), 'กรุณากรอกเอ็กซ์');
 });
