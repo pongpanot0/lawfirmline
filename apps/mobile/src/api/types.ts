@@ -105,6 +105,9 @@ export interface TaskItem {
   createdById?: string;
   description?: string | null;
   requiresReview?: boolean;
+  reviewer?: { id: string; firstName: string; lastName: string } | null;
+  submittedAt?: string | null;
+  requiresAttachment?: boolean;
   recurrenceDays?: number | null;
   blockedById?: string | null;
   followUps?: Array<{ id: string; title: string; status: string; dueDate: string | null; followUpSourceCommentId: string; assignee?: { id: string; firstName: string; lastName: string } | null }>;

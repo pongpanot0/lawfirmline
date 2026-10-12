@@ -740,6 +740,9 @@ export interface TaskItem {
   scheduledFor?: string | null;
   requiresReview?: boolean;
   reviewerId?: string | null;
+  reviewer?: TaskPerson | null;
+  submittedAt?: string | null;
+  requiresAttachment?: boolean;
   assignedAt?: string | null;
   acknowledgedAt?: string | null;
   planConfirmedAt?: string | null;

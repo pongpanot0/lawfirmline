@@ -644,6 +644,7 @@ model User {
   assignments                CaseAssignment[]
   assignedTasks              Task[]                       @relation("TaskAssignee")
   createdTasks               Task[]                       @relation("TaskCreator")
+  reviewTasks                Task[]                       @relation("TaskReviewer")
   taskAttachments            TaskAttachment[]             @relation("TaskAttachmentUploader")
   taskComments               TaskComment[]                @relation("TaskCommentAuthor")
   documents                  Document[]
@@ -1408,6 +1409,10 @@ model Task {
   queuePosition           Int           @default(0)
   requiresReview          Boolean       @default(false)
   reviewerId              String?
+  /// When the worker handed the task in for review (PENDING_REVIEW). The worker stays `assigneeId`.
+  submittedAt             DateTime?
+  /// Handoff is refused until at least one attachment exists.
+  requiresAttachment      Boolean       @default(false)
   assignedAt              DateTime?
   acknowledgedAt          DateTime?
   planConfirmedAt         DateTime?
@@ -1425,6 +1430,7 @@ model Task {
   blocks         Task[]              @relation("TaskBlocks")
   assignee       User?               @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy      User                @relation("TaskCreator", fields: [createdById], references: [id])
+  reviewer       User?               @relation("TaskReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
   workflowRun    WorkflowRun?        @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
   onHold         TaskOnHold?
   assignmentLogs TaskAssignmentLog[]
@@ -1436,6 +1442,7 @@ model Task {
 
   @@index([dueDate])
   @@index([assigneeId, status, dueDate])
+  @@index([reviewerId, status])
   @@index([completedAt])
   @@index([parentId])
   @@index([intakeId])
@@ -1467,6 +1474,8 @@ model TaskComment {
   authorId  String
   body      String   @db.Text
   kind      String   @default("COMMENT")
+  /// Firm members tagged with @ in this comment (same contract as CaseComment.mentionedUserIds).
+  mentionedUserIds String[] @default([])
   createdAt DateTime @default(now())
 
   task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -2205,6 +2214,9 @@ model ClosingEmailDraft {
   status              ClosingEmailDraftStatus   @default(DRAFT)
   approvedById        String?
   approvedAt          DateTime?
+  sentAt              DateTime?
+  /// Email addresses the approved draft was actually delivered to.
+  sentTo              String[]                  @default([])
   createdAt           DateTime                  @default(now())
   updatedAt           DateTime                  @updatedAt
 
@@ -2532,6 +2544,8 @@ model ReviewRound {
   approvalRule      ReviewApprovalRule @default(ALL)
   scope             String?
   dueAt             DateTime?
+  /// Set once the "due tomorrow" reminder went out, so a restart never sends it twice.
+  dueReminderSentAt DateTime?
   status            ReviewRoundStatus  @default(WAITING_REVIEW)
   createdById       String
   createdAt         DateTime           @default(now())
