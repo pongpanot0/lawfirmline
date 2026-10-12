@@ -1,5 +1,6 @@
 import { timeAgo } from './format';
-import type { DateSuggestion, ReviewRoundSummary } from './api/types';
+import { CourtLevel } from '@lawfirm/shared';
+import type { CaseDetail, DateSuggestion, ReviewRoundSummary } from './api/types';
 
 /** Court-event records refuse a closed or archived case ('คดีปิดแล้ว'); D8 hides deadline actions there too. */
 export function canRecordProceedings(caseStatus: string | null | undefined): boolean {
@@ -66,4 +67,42 @@ export function cachedDataNote(error: unknown, updatedAt: number, now = new Date
   return isNetworkError(error)
     ? `ออฟไลน์ · ข้อมูลล่าสุด ${timeAgo(new Date(updatedAt), now)}`
     : 'โหลดข้อมูลล่าสุดไม่ได้ แสดงข้อมูลที่เก็บไว้';
+}
+
+const LEVELS = [CourtLevel.TRIAL, CourtLevel.APPEAL, CourtLevel.SUPREME];
+
+/** Mirrors api common/limitation-reminder.ts: the limitation date stops mattering once the case is filed or closed. */
+export function limitationRelevant(detail: Pick<CaseDetail, 'status' | 'blackCaseNumber' | 'proceedings'>): boolean {
+  return canRecordProceedings(detail.status) && !detail.blackCaseNumber
+    && !(detail.proceedings ?? []).some((row) => row.filedAt || row.blackCaseNumber || row.judgmentAt);
+}
+
+export interface CourtLevelRow {
+  level: CourtLevel;
+  current: boolean;
+  /** Earlier and current levels read normally; later ones are muted ("ยังไม่ถึงชั้นนี้"). */
+  reached: boolean;
+  courtName: string | null;
+  black: string | null;
+  red: string | null;
+}
+
+/** One row per court level. The case's own court and numbers mirror the current level, so they fill its gaps. */
+export function courtLevelRows(
+  detail: Pick<CaseDetail, 'courtLevel' | 'courtName' | 'blackCaseNumber' | 'redCaseNumber' | 'proceedings'>,
+): CourtLevelRow[] {
+  const currentLevel = (detail.courtLevel ?? CourtLevel.TRIAL) as CourtLevel;
+  const currentIndex = LEVELS.indexOf(currentLevel);
+  return LEVELS.map((level, index) => {
+    const row = (detail.proceedings ?? []).find((item) => item.courtLevel === level);
+    const current = level === currentLevel;
+    return {
+      level,
+      current,
+      reached: index <= currentIndex,
+      courtName: row?.courtName ?? (current ? detail.courtName : null),
+      black: row?.blackCaseNumber ?? (current ? detail.blackCaseNumber : null),
+      red: row?.redCaseNumber ?? (current ? detail.redCaseNumber : null),
+    };
+  });
 }

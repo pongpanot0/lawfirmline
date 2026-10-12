@@ -195,6 +195,29 @@ check('a failed refetch keeps the cached case and says why in Thai (D7)', () => 
     'โหลดข้อมูลล่าสุดไม่ได้ แสดงข้อมูลที่เก็บไว้');
 });
 
+check('limitation matters until filing; one court row per level, current level falls back to the case', () => {
+  const { limitationRelevant, courtLevelRows } = lit;
+  const open = { status: 'OPEN', blackCaseNumber: null, proceedings: [] };
+  assert.equal(limitationRelevant(open), true);
+  assert.equal(limitationRelevant({ status: 'OPEN', blackCaseNumber: null }), true, 'older cache without proceedings');
+  assert.equal(limitationRelevant({ ...open, status: 'CLOSED' }), false);
+  assert.equal(limitationRelevant({ ...open, blackCaseNumber: 'พ.123/2569' }), false);
+  assert.equal(limitationRelevant({ ...open, proceedings: [{ courtLevel: 'TRIAL', filedAt: '2026-10-01T00:00:00Z', blackCaseNumber: null, judgmentAt: null }] }), false);
+  const rows = courtLevelRows({
+    courtLevel: 'APPEAL', courtName: 'ศาลอุทธรณ์', blackCaseNumber: 'อ.5/2570', redCaseNumber: null,
+    proceedings: [{ courtLevel: 'TRIAL', courtName: 'ศาลแพ่งกรุงเทพใต้', blackCaseNumber: 'พ.123/2569', redCaseNumber: 'พ.900/2569', filedAt: null, judgmentAt: null }],
+  });
+  assert.deepEqual(rows.map((row) => [row.level, row.current, row.reached, row.courtName, row.black, row.red]), [
+    ['TRIAL', false, true, 'ศาลแพ่งกรุงเทพใต้', 'พ.123/2569', 'พ.900/2569'],
+    ['APPEAL', true, true, 'ศาลอุทธรณ์', 'อ.5/2570', null],
+    ['SUPREME', false, false, null, null, null],
+  ]);
+  const unset = courtLevelRows({ courtLevel: null, courtName: 'ศาลแพ่ง', blackCaseNumber: null, redCaseNumber: null });
+  assert.deepEqual(unset.map((row) => [row.level, row.current, row.reached, row.courtName]),
+    [['TRIAL', true, true, 'ศาลแพ่ง'], ['APPEAL', false, false, null], ['SUPREME', false, false, null]]);
+});
+
+
 // ── add new check(...) blocks above this line ──
 (async () => {
   for (const [name, fn] of checks) {

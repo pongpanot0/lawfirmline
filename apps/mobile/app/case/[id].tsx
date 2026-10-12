@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,7 +15,10 @@ import {
   useInsuranceClaim,
   useToggleTask,
 } from '@/api/hooks';
-import { cachedDataNote } from '@/litigation';
+import { cachedDataNote, canRecordProceedings, isNetworkError, limitationRelevant } from '@/litigation';
+import { deadlineUrgency } from '@/deadline';
+import { CourtNumbersCard } from '@/components/CourtNumbersCard';
+import { DeadlineConfirmCard } from '@/components/DeadlineConfirmCard';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { Disclosure } from '@/components/Disclosure';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
@@ -26,6 +29,7 @@ import {
   Loading,
   Button,
   Tag,
+  UrgencyTag,
   TagTone,
 } from '@/components/ui';
 import { formatMoney, thDate, thTime } from '@/format';
@@ -83,6 +87,8 @@ export default function CaseDetailScreen() {
   const [tab, setTab] = useState<TabName>(section === 'documents' ? 'เอกสาร' : 'ภาพรวม');
   const [reassigning, setReassigning] = useState<TaskItem | null>(null);
   const [openingDoc, setOpeningDoc] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const courtY = useRef(0);
 
   const caseQuery = useCase(id);
   const tasks = useCaseTasks(id);
@@ -113,11 +119,21 @@ export default function CaseDetailScreen() {
 
   const detail = caseQuery.data;
   const status = STATUS_LABEL[detail.status] ?? { label: detail.status, tone: 'plain' as TagTone };
+  const offline = caseQuery.isError && isNetworkError(caseQuery.error);
+  const limitation = detail.limitationDeadline && limitationRelevant(detail)
+    ? deadlineUrgency(detail.limitationDeadline, new Date())
+    : null;
+  const showCourtNumbers = () => {
+    setTab('ภาพรวม');
+    // ponytail: waits for the ภาพรวม tab to lay out once; use onLayout + state if 150 ms ever proves short.
+    setTimeout(() => scrollRef.current?.scrollTo({ y: courtY.current, animated: true }), 150);
+  };
 
   return (
     <>
       <Stack.Screen options={{ title: detail.ownRef }} />
       <ScrollView
+        ref={scrollRef}
         style={styles.screen}
         contentContainerStyle={pageContent}
         refreshControl={
@@ -130,6 +146,16 @@ export default function CaseDetailScreen() {
         <Text style={styles.caseTitle}>{detail.title}</Text>
         {caseQuery.isError ? (
           <ErrorNote message={cachedDataNote(caseQuery.error, caseQuery.dataUpdatedAt)} onRetry={() => caseQuery.refetch()} />
+        ) : null}
+        <DeadlineConfirmCard caseId={id} leadLawyerId={detail.leadLawyerId ?? detail.leadLawyer?.id}
+          canAct={canRecordProceedings(detail.status)} offline={offline} />
+        {limitation && detail.limitationDeadline ? (
+          <Pressable accessibilityRole="button" onPress={showCourtNumbers} style={styles.limitationLine}
+            accessibilityLabel={`อายุความ ${thDate(detail.limitationDeadline)} ${limitation.label} ดูศาลและเลขคดี`}>
+            <Text style={styles.infoLabel}>อายุความ</Text>
+            <Text style={[styles.rowStrong, { flex: 1 }]}>{thDate(detail.limitationDeadline)}</Text>
+            <UrgencyTag urgency={limitation} />
+          </Pressable>
         ) : null}
         <Disclosure title="จัดการคดีและผู้รับผิดชอบ" summary="แก้รายละเอียด เปลี่ยนทีม หรือจัดการสถานะคดี">
         <Button title="แก้ไขคดี / จัดคนหลักและคนรอง" ghost onPress={() => router.push(`/case/new?id=${id}`)} />
@@ -205,6 +231,10 @@ export default function CaseDetailScreen() {
               </>
             ) : null}
           </Card>
+          <View onLayout={(event) => { courtY.current = event.nativeEvent.layout.y; }}>
+            <CourtNumbersCard detail={detail}
+              onEditLimitation={canRecordProceedings(detail.status) ? () => router.push(`/case/new?id=${id}`) : undefined} />
+          </View>
           <Card style={{ marginTop: spacing.md }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.infoLabel}>คู่ความ</Text>
@@ -421,6 +451,7 @@ export default function CaseDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  limitationLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, marginTop: spacing.md },
   caseTitle: { fontSize: 18, fontWeight: '700', color: colors.ink, marginBottom: spacing.md },
   segment: {
     flexDirection: 'row',

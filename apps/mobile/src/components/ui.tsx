@@ -84,6 +84,11 @@ export function Tag({ tone = 'plain', children }: { tone?: TagTone; children: Re
   );
 }
 
+/** Tag for a `deadlineUrgency` result; 'none' (far away) reads as a plain tag. */
+export function UrgencyTag({ urgency }: { urgency: { tone: 'due' | 'court' | 'info' | 'none'; label: string } }) {
+  return <Tag tone={urgency.tone === 'none' ? 'plain' : urgency.tone}>{urgency.label}</Tag>;
+}
+
 export function StatCard({
   label,
   value,
