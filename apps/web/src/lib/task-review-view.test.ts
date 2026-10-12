@@ -1,0 +1,27 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { handoffNoteError, isHeld, reviewerName, submittedByMe } from './task-review-view.ts';
+
+const person = (id: string, firstName: string) => ({ id, firstName, lastName: 'ส.' });
+
+test('my submitted work is mine while it waits for review', () => {
+  assert.equal(submittedByMe({ status: 'PENDING_REVIEW', assignee: person('me', 'ก') } as any, 'me'), true);
+  assert.equal(submittedByMe({ status: 'IN_PROGRESS', assignee: person('me', 'ก') } as any, 'me'), false);
+});
+
+test('the card names the real reviewer, else the case lead', () => {
+  assert.equal(reviewerName({ reviewer: person('r', 'สมศรี') } as any, person('lead', 'หัวหน้า')), 'สมศรี ส.');
+  assert.equal(reviewerName({ reviewer: null } as any, person('lead', 'หัวหน้า')), 'หัวหน้า ส.');
+  assert.equal(reviewerName({ reviewer: null } as any), null);
+});
+
+test('held only while the hold is open', () => {
+  assert.equal(isHeld({ onHold: { reason: 'รอศาล', endedAt: null } } as any), true);
+  assert.equal(isHeld({ onHold: { reason: 'รอศาล', endedAt: '2026-10-01T00:00:00Z' } } as any), false);
+  assert.equal(isHeld({ onHold: null } as any), false);
+});
+
+test('handoff note needs at least 5 non-blank characters', () => {
+  assert.match(handoffNoteError('  ok ') ?? '', /5/);
+  assert.equal(handoffNoteError('ร่างเสร็จแล้ว'), null);
+});

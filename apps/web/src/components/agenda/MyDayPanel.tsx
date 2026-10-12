@@ -1,6 +1,7 @@
 'use client';
 
 import { ActionCenter } from './ActionCenter';
+import { ReviewQueueList } from '@/components/tasks/ReviewQueueList';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CalendarClock, Car, Check, Gavel, ListTodo, Users } from 'lucide-react';
@@ -278,6 +279,7 @@ export function MyDayPanel() {
         </Card>
       )}
 
+      {data.reviewQueue?.length > 0 && <ReviewQueueList items={data.reviewQueue} title={d.todos.reviewQueueTitle} empty={d.todos.reviewQueueEmpty} />}
       {overdue.length > 0 && (
         <Section
           title={d.myDay.overdue}

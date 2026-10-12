@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Fragment, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
-import { canAssignFirmRole, hasFirmCapability, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { awaitsReviewBy, canAssignFirmRole, hasFirmCapability, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, TaskItem, UserItem } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
@@ -26,6 +26,7 @@ import { leaveWarning } from '@/lib/leave-flags';
 import { bangkokDateInputValue } from '@/lib/bangkok';
 import { DateField, SelectField, TextField } from '@/components/ui/form-fields';
 import { formatDate } from '@/lib/utils';
+import { isHeld, submittedByMe } from '@/lib/task-review-view';
 
 function TodosPageContent() {
   const d = useDashboardT();
@@ -92,9 +93,10 @@ function TodosPageContent() {
   const loadTasks = () => {
     if (!token) return;
     setLoadError('');
-    Promise.all([api.getMyTodos(token), api.getTaskInbox(token)])
-      .then(([assignedTasks, accessibleOpenTasks]) => {
+    Promise.all([api.getMyTodos(token), api.getTaskInbox(token), api.getMyTodos(token, 'review')])
+      .then(([assignedTasks, accessibleOpenTasks, reviewTasks]) => {
         const tasksById = new Map<string, TaskItem>();
+        for (const task of reviewTasks) tasksById.set(task.id, task);
         for (const task of assignedTasks) tasksById.set(task.id, task);
         for (const task of accessibleOpenTasks) {
           const assignedTask = tasksById.get(task.id);
@@ -155,10 +157,10 @@ function TodosPageContent() {
   const handleHandoff = async (taskId: string, note: string, reviewerId?: string) => {
     if (!token) return;
     const caseId = caseIdOf(taskId);
-    if (caseId) await api.handoffTask(token, caseId, taskId, { note: note || undefined });
+    if (caseId) await api.handoffTask(token, caseId, taskId, { note });
     else {
       if (!reviewerId) return;
-      await api.handoffTodo(token, taskId, { reviewerId, note: note || undefined });
+      await api.handoffTodo(token, taskId, { reviewerId, note });
     }
     loadTasks();
   };
@@ -258,7 +260,7 @@ function TodosPageContent() {
       : scope === 'created'
         ? tasks.filter(t => t.createdById === user?.id)
       : scope === 'review'
-        ? tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW && t.assignee?.id === user?.id)
+        ? tasks.filter((t) => awaitsReviewBy(t, user?.id ?? ''))
         : tasks.filter(isMyWork);
   const scopedTasks = ownershipTasks.filter((task) =>
     taskType === 'all' || (taskType === 'case' ? Boolean(task.caseId) : !task.caseId),
@@ -279,7 +281,7 @@ function TodosPageContent() {
     { key: 'all', label: text('งานที่ยังไม่เสร็จ', 'Open tasks'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE).length },
     { key: 'overdue', label: text('เลยกำหนด', 'Overdue'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) < today).length },
     { key: 'today', label: text('ส่งวันนี้', 'Due today'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) === today).length },
-    { key: 'review', label: text('รอตรวจ', 'Awaiting review'), count: scopedTasks.filter(task => task.status === TaskStatus.PENDING_REVIEW).length },
+    { key: 'review', label: text('รอตรวจ', 'Awaiting review'), count: scopedTasks.filter(task => awaitsReviewBy(task, user?.id ?? '')).length },
   ];
   const quickView = filters.status === TaskStatus.PENDING_REVIEW ? 'review' : filters.due === 'overdue' || filters.due === 'today' ? filters.due : !filters.status && !filters.due && !includeCompleted ? 'all' : '';
   const statusLabels: Record<TaskStatus, string> = {
@@ -318,7 +320,7 @@ function TodosPageContent() {
               onClick={() => { setScope(s.key); setFilters(EMPTY_TASK_FILTERS); setTaskType('all'); setIncludeCompleted(false); }}
               className={`min-h-10 rounded-lg px-3 text-sm font-medium transition-colors ${scope === s.key ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'}`}
             >
-              {s.label} <span className="ml-1 opacity-70">{tasks.filter(task => s.key === 'team' || (s.key === 'created' ? task.createdById === user?.id : s.key === 'review' ? task.assignee?.id === user?.id && task.status === TaskStatus.PENDING_REVIEW : isMyWork(task))).length}</span>
+              {s.label} <span className="ml-1 opacity-70">{tasks.filter(task => s.key === 'team' || (s.key === 'created' ? task.createdById === user?.id : s.key === 'review' ? awaitsReviewBy(task, user?.id ?? '') : isMyWork(task))).length}</span>
             </button>
           ))}
         </div>
@@ -608,9 +610,11 @@ function TodosPageContent() {
         </div>
       ) : (
         layout === 'list' ? <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-          {[...visibleTasks].sort((a, b) => Number(a.status === TaskStatus.DONE) - Number(b.status === TaskStatus.DONE) || (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) - (b.dueDate ? new Date(b.dueDate).getTime() : Infinity)).map(task => {
+          {[...visibleTasks].sort((a, b) => Number(scope === 'mine' && submittedByMe(a, user?.id ?? '')) - Number(scope === 'mine' && submittedByMe(b, user?.id ?? '')) || Number(a.status === TaskStatus.DONE) - Number(b.status === TaskStatus.DONE) || (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) - (b.dueDate ? new Date(b.dueDate).getTime() : Infinity)).map((task, index, rows) => {
+            const submitted = scope === 'mine' && submittedByMe(task, user?.id ?? '');
+            const startsSubmitted = submitted && !(index > 0 && scope === 'mine' && submittedByMe(rows[index - 1], user?.id ?? ''));
             const overdue = task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) < today;
-            return <li key={task.id}><button type="button" onClick={() => taskParam.open(task.id)} className="flex w-full flex-wrap items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5">
+            return <Fragment key={task.id}>{startsSubmitted && <li className="bg-muted/40 px-4 py-2 text-xs font-semibold text-muted-foreground">{d.todos.submittedGroup}</li>}<li><button type="button" onClick={() => taskParam.open(task.id)} className="flex w-full flex-wrap items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5">
               <div className="min-w-0 flex-1 basis-56">
                 <p className="break-words text-sm font-semibold">{task.title}</p>
                 <p className="mt-1 break-words text-xs text-muted-foreground">{task.case ? `${task.case.ownRef} · ${task.case.title}` : text('งานทั่วไป', 'General task')} · {task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : d.taskDetail.unassigned}</p>
@@ -618,10 +622,11 @@ function TodosPageContent() {
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 {task.priority === TaskPriority.HIGH && <span className="font-medium text-destructive">{text('สำคัญมาก', 'High priority')}</span>}
                 <span className={`rounded-full px-2.5 py-1 ${task.status === TaskStatus.PENDING_REVIEW ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300' : task.status === TaskStatus.DONE ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-muted text-muted-foreground'}`}>{statusLabels[task.status]}</span>
+                {isHeld(task) && <span className="rounded-full bg-amber-500/15 px-2.5 py-1 font-medium text-amber-700 dark:text-amber-300" title={task.onHold?.reason}>{d.todos.heldBadge}</span>}
                 <span className={overdue ? 'font-medium text-destructive' : 'text-muted-foreground'}>{overdue ? text('เลยกำหนด · ', 'Overdue · ') : ''}{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>
                 <span className="ml-1 font-medium text-primary">{text('เปิดงาน →', 'Open task →')}</span>
               </div>
-            </button></li>;
+            </button></li></Fragment>;
           })}
         </ul> : <KanbanBoard
           layout={layout}

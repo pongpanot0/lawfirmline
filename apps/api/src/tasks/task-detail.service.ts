@@ -58,6 +58,7 @@ export class TaskDetailService {
       where: { id: taskId },
       include: {
         assignee: person,
+        reviewer: person,
         createdBy: person,
         observers: {
           select: {

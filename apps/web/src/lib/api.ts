@@ -746,13 +746,14 @@ export interface TaskItem {
   requiresReview?: boolean;
   reviewerId?: string | null;
   reviewer?: TaskPerson | null;
+  onHold?: { reason: string; endedAt: string | null } | null;
   submittedAt?: string | null;
   requiresAttachment?: boolean;
   assignedAt?: string | null;
   acknowledgedAt?: string | null;
   planConfirmedAt?: string | null;
   caseId?: string | null;
-  case?: { id: string; ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null } | null;
+  case?: { id: string; ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null; leadLawyerId?: string } | null;
   parentId?: string | null;
   title: string;
   description?: string | null;
@@ -867,6 +868,7 @@ export interface ActiveTask {
 }
 
 export interface DashboardStats {
+  reviewQueue?: import('@lawfirm/shared').ReviewQueueItem[];
   firmId: string;
   firmName: string;
   role: import('@lawfirm/shared').Role;
@@ -1980,7 +1982,8 @@ export const api = {
     request(`/intake/${intakeId}/tasks/${taskId}`, { method: 'DELETE', token }),
 
   getTaskInbox: (token: string) => request<Array<TaskItem & { assigneeId: string | null }>>('/dashboard/tasks', { token }),
-  getMyTodos: (token: string) => request<TaskItem[]>('/todos', { token }),
+  getMyTodos: (token: string, view: 'all' | 'review' = 'all') =>
+    request<TaskItem[]>(view === 'all' ? '/todos' : `/todos?view=${view}`, { token }),
 
   getActionQueue: (token: string) => request<import('@/components/agenda/ActionCenter').ActionQueue>('/agenda/actions', { token }),
 
@@ -2091,7 +2094,7 @@ export const api = {
   handoffTodo: (
     token: string,
     taskId: string,
-    data: { reviewerId: string; note?: string; stageDueDate?: string },
+    data: { reviewerId: string; note: string; stageDueDate?: string },
   ) =>
     request<TaskItem>(`/todos/${taskId}/handoff`, {
       method: 'PATCH',
@@ -2135,7 +2138,7 @@ export const api = {
     token: string,
     caseId: string,
     taskId: string,
-    data: { note?: string; stageDueDate?: string },
+    data: { note: string; stageDueDate?: string },
   ) =>
     request<TaskItem>(`/cases/${caseId}/tasks/${taskId}/handoff`, {
       method: 'PATCH',

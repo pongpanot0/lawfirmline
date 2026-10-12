@@ -11,6 +11,7 @@ import { bangkokDateInputValue, bangkokDayLabel, bangkokTime } from '@/lib/bangk
 import { PageLoading } from '@/components/ui/misc';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { ActionCenter } from '@/components/agenda/ActionCenter';
+import { ReviewQueueList } from '@/components/tasks/ReviewQueueList';
 import { useLocale } from '@/components/landing/LocaleProvider';
 
 type Inbox = Awaited<ReturnType<typeof api.getTaskInbox>>;
@@ -190,6 +191,7 @@ function WorkDashboardPage() {
       </div>
 
       <aside className="order-2 min-w-0 space-y-6 xl:col-start-2">
+        {(data?.reviewQueue ?? agenda?.reviewQueue)?.length ? <ReviewQueueList items={(data?.reviewQueue ?? agenda?.reviewQueue)!} title={t('รอฉันตรวจ', 'Awaiting my review')} empty={t('ไม่มีงานรอตรวจ', 'Nothing to review')} /> : null}
         <section className={panel}>
           <div className="flex items-center justify-between border-b border-border px-5 py-4"><h2 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="size-4 text-muted-foreground" />{t('นัดและกำหนดถัดไป', 'Upcoming dates')}</h2><Link href="/calendar" className={link}>{t('ปฏิทิน', 'Calendar')}</Link></div>
           {!agenda ? failed : events.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">{t('ไม่มีนัดหรือกำหนดในช่วงที่แสดง', 'No upcoming dates in this agenda window.')}</p> : <div className="divide-y divide-border/70">{events.map(item => <Link key={item.id} href={item.kind === AgendaItemKind.COURT_DATE ? `/court-day/${item.entityId}` : item.url} className="block px-5 py-4 hover:bg-muted/40"><p className="text-xs font-medium text-primary">{date(item.at)} · {item.allDay ? t('ทั้งวัน', 'All day') : bangkokTime(item.at)}</p><p className="mt-2 break-words text-sm font-semibold">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{[item.caseRef, item.location].filter(Boolean).join(' · ')}</p></Link>)}</div>}

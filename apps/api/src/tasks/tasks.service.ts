@@ -94,6 +94,7 @@ export class TasksService {
     assignee: { select: { id: true, firstName: true, lastName: true, email: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     reviewer: { select: { id: true, firstName: true, lastName: true } },
+    onHold: { select: { reason: true, endedAt: true } },
     subtasks: { select: { status: true } },
     _count: { select: { attachments: true, comments: true, observers: true } },
     assignmentLogs: { where: { action: TaskLogAction.HANDED_OFF }, orderBy: { createdAt: 'desc' as const }, take: 1, select: { fromUserId: true } },

@@ -1,16 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { awaitsReviewBy, effectiveReviewerId, isEligibleReviewer, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
 import { ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { caseNumberDisplay } from '@/lib/case-number-display';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
+import { handoffNoteError, isHeld, reviewerName as reviewerNameOf } from '@/lib/task-review-view';
 
 interface Task {
   id: string;
-  case?: { ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null } | null;
+  case?: { ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null; leadLawyerId?: string } | null;
   title: string;
   description?: string | null;
   status: TaskStatus;
@@ -19,6 +20,8 @@ interface Task {
   dueDate?: string | null;
   requiresReview?: boolean;
   reviewerId?: string | null;
+  reviewer?: { id: string; firstName: string; lastName?: string | null } | null;
+  onHold?: { reason: string; endedAt: string | null } | null;
   assignee?: { id: string; firstName: string; lastName: string } | null;
   subtaskCount?: number;
   subtaskDoneCount?: number;
@@ -30,7 +33,6 @@ interface KanbanBoardProps {
   tasks: Task[];
   onStatusChange: (taskId: string, status: TaskStatus) => void;
   currentUserId: string;
-  isReviewer?: boolean;
   /** Title click opens the task's detail drawer; omitted keeps titles inert. */
   onOpen?: (taskId: string) => void;
   /** Show case context when tasks from several cases share one board. */
@@ -44,16 +46,13 @@ interface KanbanBoardProps {
   onHandoff?: (taskId: string, note: string, reviewerId?: string) => void | Promise<void>;
   onAccept?: (taskId: string) => void | Promise<void>;
   onReject?: (taskId: string, reason: string) => void | Promise<void>;
-  /**
-   * Case-bound tasks: whether this viewer may hand tasks off at all. The
-   * case's own reviewer has nobody to hand to, so the button is not offered.
-   */
-  handoffAllowed?: boolean;
+  /** Case boards: the lead reviews reviewer-less tasks and is named on the handoff button. */
+  caseLeadId?: string | null;
   /** Case-bound tasks: who a handoff goes to, named on the button. */
   reviewerName?: string;
   /** Standalone tasks only: no fixed senior lawyer, so the sender picks a reviewer at handoff time. */
   requireReviewerOnHandoff?: boolean;
-  reviewerOptions?: { id: string; firstName: string; lastName: string }[];
+  reviewerOptions?: { id: string; firstName: string; lastName: string; firmRole?: string | null }[];
   /** Set when the reviewer list could not be loaded — distinct from "nobody to pick". */
   reviewerLoadError?: string;
   onRetryReviewers?: () => void;
@@ -82,14 +81,13 @@ export function KanbanBoard({
   tasks,
   onStatusChange,
   currentUserId,
-  isReviewer = false,
   onOpen,
   showCaseContext = false,
   enableHandoff = false,
   onHandoff,
   onAccept,
   onReject,
-  handoffAllowed = true,
+  caseLeadId,
   reviewerName,
   requireReviewerOnHandoff = false,
   reviewerOptions = [],
@@ -138,13 +136,18 @@ export function KanbanBoard({
     }
   };
 
-  const reviewerChoices = reviewerOptions.filter((u) => u.id !== currentUserId);
+  
 
   // A finished case task may still be sent for review; a finished personal
   // task may not (the server refuses it), so the button is not offered.
   const handoffSourceStatuses = requireReviewerOnHandoff
     ? HANDOFF_SOURCE_STATUSES.filter((status) => status !== TaskStatus.DONE)
     : HANDOFF_SOURCE_STATUSES;
+
+  const reviewerChoicesFor = (task: Task) =>
+    reviewerOptions.filter(
+      (u) => u.id !== currentUserId && isEligibleReviewer({ role: u.firmRole, userId: u.id, assigneeId: task.assignee?.id ?? currentUserId }),
+    );
 
   const plainStatusTargets: { status: TaskStatus; label: string }[] = [
     { status: TaskStatus.TODO, label: d.todos.columnTodo },
@@ -155,22 +158,22 @@ export function KanbanBoard({
   const renderTask = (task: Task) => {
         const isAssignee = task.assignee?.id === currentUserId;
         const canSetPlainStatus = (isAssignee || !task.assignee) && task.status !== TaskStatus.PENDING_REVIEW;
+        const reviewer = effectiveReviewerId(task, caseLeadId);
         const canHandoff =
           enableHandoff &&
-          handoffAllowed &&
           (isAssignee || !task.assignee) &&
+          reviewer !== currentUserId &&
           handoffSourceStatuses.includes(task.status);
-        const canReview =
-          enableHandoff &&
-          task.status === TaskStatus.PENDING_REVIEW &&
-          (isReviewer || isAssignee);
+        const canReview = enableHandoff && awaitsReviewBy(task, currentUserId, caseLeadId);
+        const shownLabels = visibleTaskLabels(task.labels);
+        const stageChip = taskStageChip(task.labels);
+        const handoffLabel = reviewerNameOf(task, null) ?? reviewerName;
         const priorityBar =
           task.priority === TaskPriority.HIGH
             ? 'border-l-4 border-l-rose-500'
             : task.priority === TaskPriority.LOW
               ? 'border-l-4 border-l-muted-foreground/30'
               : '';
-        const labels = task.labels ?? [];
         const counters = [
           task.subtaskCount ? `☑ ${task.subtaskDoneCount ?? 0}/${task.subtaskCount}` : null,
           task.attachmentCount ? `📎 ${task.attachmentCount}` : null,
@@ -205,15 +208,24 @@ export function KanbanBoard({
             {showCaseContext && task.case && (
               <p className="mt-1 text-xs text-muted-foreground">{caseReferenceLabel(task.case)} · {task.case.title}</p>
             )}
-            {labels.length > 0 && (
+            {(stageChip || isHeld(task)) && (
               <div className="mt-1.5 flex flex-wrap gap-1">
-                {labels.slice(0, 3).map((label) => (
+                {stageChip && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">{stageChip}</span>}
+                {isHeld(task) && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300" title={task.onHold?.reason}>{d.todos.heldBadge}</span>}
+              </div>
+            )}
+            {canReview && task.status === TaskStatus.PENDING_REVIEW && (
+              <p className="mt-1 text-xs text-muted-foreground">มีหมายเหตุ — เปิดงานเพื่ออ่าน</p>
+            )}
+            {shownLabels.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {shownLabels.slice(0, 3).map((label) => (
                   <span key={label} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
                     {label}
                   </span>
                 ))}
-                {labels.length > 3 && (
-                  <span className="text-[11px] text-muted-foreground">+{labels.length - 3}</span>
+                {shownLabels.length > 3 && (
+                  <span className="text-[11px] text-muted-foreground">+{shownLabels.length - 3}</span>
                 )}
               </div>
             )}
@@ -255,8 +267,8 @@ export function KanbanBoard({
                   }}
                   className="rounded border border-sky-400 px-2 py-0.5 text-xs text-sky-600 hover:bg-sky-50"
                 >
-                  {reviewerName
-                    ? fmt(d.todos.handoffToReviewer, { name: reviewerName })
+                  {handoffLabel
+                    ? fmt(d.todos.handoffToReviewer, { name: handoffLabel })
                     : d.todos.handoffToSenior}
                 </button>
               )}
@@ -297,10 +309,10 @@ export function KanbanBoard({
                     )}
                   </div>
                 )}
-                {requireReviewerOnHandoff && !reviewerLoadError && reviewerChoices.length === 0 && (
+                {requireReviewerOnHandoff && !reviewerLoadError && reviewerChoicesFor(task).length === 0 && (
                   <p className="text-xs text-muted-foreground">{d.todos.noReviewers}</p>
                 )}
-                {requireReviewerOnHandoff && !reviewerLoadError && reviewerChoices.length > 0 && (
+                {requireReviewerOnHandoff && !reviewerLoadError && reviewerChoicesFor(task).length > 0 && (
                   <select
                     value={handoffReviewerId}
                     disabled={!!task.reviewerId}
@@ -308,7 +320,7 @@ export function KanbanBoard({
                     className="w-full rounded border px-2 py-1 text-xs"
                   >
                     <option value="">{d.todos.handoffReviewerPlaceholder}</option>
-                    {reviewerChoices.map((u) => (
+                    {reviewerChoicesFor(task).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.firstName} {u.lastName}
                       </option>
@@ -321,16 +333,19 @@ export function KanbanBoard({
                   placeholder={d.todos.handoffNotePlaceholder}
                   className="w-full rounded border px-2 py-1 text-xs"
                 />
+                {handoffNote && handoffNoteError(handoffNote) && (
+                  <p className="text-xs text-muted-foreground">{handoffNoteError(handoffNote)}</p>
+                )}
                 <div className="flex gap-2">
                   <button
-                    disabled={requireReviewerOnHandoff && !handoffReviewerId}
+                    disabled={(requireReviewerOnHandoff && !handoffReviewerId) || !!handoffNoteError(handoffNote)}
                     onClick={() =>
                       runAction(
                         task.id,
                         () =>
                           onHandoff(
                             task.id,
-                            handoffNote,
+                            handoffNote.trim(),
                             requireReviewerOnHandoff ? handoffReviewerId : undefined,
                           ),
                         () => setHandoffTaskId(null),

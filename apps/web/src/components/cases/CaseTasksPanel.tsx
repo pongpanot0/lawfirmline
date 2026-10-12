@@ -102,7 +102,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
 
   const handleHandoff = async (taskId: string, note: string) => {
     if (!token || !caseId) return;
-    await api.handoffTask(token, caseId, taskId, { note: note || undefined });
+    await api.handoffTask(token, caseId, taskId, { note });
     loadTasks();
   };
 
@@ -152,8 +152,6 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
 
   if (loading) return <PageLoading title={d.caseTasks.loading} lines={3} />;
 
-  const isLeadLawyer = !!user && user.id === caseDetail?.leadLawyer?.id;
-  const isReviewer = !!user && (user.firmRole === FirmRole.OWNER || isLeadLawyer);
   const leadLawyer = caseDetail?.leadLawyer;
   const reviewerName = leadLawyer ? `${leadLawyer.firstName} ${leadLawyer.lastName}` : undefined;
 
@@ -357,9 +355,8 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
         tasks={visibleTasks}
         onStatusChange={handleStatusChange}
         currentUserId={user?.id ?? ''}
-        isReviewer={isReviewer}
+        caseLeadId={caseDetail?.leadLawyer?.id ?? null}
         enableHandoff
-        handoffAllowed={!isLeadLawyer}
         reviewerName={reviewerName}
         onHandoff={handleHandoff}
         onAccept={handleAccept}

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { X, Trash2, Download } from 'lucide-react';
-import { canAssignFirmRole, FirmRole, normalizeTaskLabels, TASK_WORK_TYPES, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { awaitsReviewBy, canAssignFirmRole, FirmRole, isEligibleReviewer, normalizeTaskLabels, TASK_WORK_TYPES, TaskLogAction, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
+import { handoffNoteError, reviewerName } from '@/lib/task-review-view';
 import { api, ApiError, TaskDetail, UserItem } from '@/lib/api';
 import { formatBytes, downloadTaskAttachment, priorityLabel } from '@/lib/task-detail';
 import { useAuth } from '@/lib/auth';
@@ -57,6 +58,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const [blocker, setBlocker] = useState('');
   const [reviewerId, setReviewerId] = useState('');
   const [reviewNote, setReviewNote] = useState('');
+  const [handoffNote, setHandoffNote] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [observerIds, setObserverIds] = useState<string[]>([]);
@@ -132,7 +134,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     setUploadError('');
     setDownloadingId(null);
     setObserverIds([]);
-    setCompleted(''); setRemaining(''); setBlocker(''); setReviewNote('');
+    setCompleted(''); setRemaining(''); setBlocker(''); setReviewNote(''); setHandoffNote('');
     setActiveTab('edit');
   }, [taskId, aiPanel]);
 
@@ -276,7 +278,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const manager = !!user && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole);
   const ownWork = task?.assignee?.id === user?.id;
   const pendingReview = task?.status === TaskStatus.PENDING_REVIEW;
-  const canReview = pendingReview && ownWork;
+  const canReview = !!user && awaitsReviewBy(task ?? { status: '' }, user.id, task?.case?.leadLawyerId);
   const statusOptions = task?.requiresReview ? STATUS_OPTIONS.filter((s) => s !== TaskStatus.DONE) : STATUS_OPTIONS;
 
   return (
@@ -405,11 +407,17 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                 </details>
                 {task.requiresReview && <div className="space-y-2 border-t pt-3">
                   <p className="text-xs text-muted-foreground">แนบผลงานด้านล่าง แล้วส่งให้ผู้ตรวจ</p>
-                  {!task.reviewerId && !task.caseId && <SelectField label="ผู้ตรวจ" value={reviewerId} required onChange={(e) => setReviewerId(e.target.value)}><option value="">เลือกผู้ตรวจ</option>{users.filter((u) => u.id !== user?.id && u.firmRole && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER].includes(u.firmRole)).map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}</SelectField>}
-                  <Button disabled={busy || (!task.caseId && !reviewerId)} onClick={() => void run(() => task.caseId ? api.handoffTask(token!, task.caseId, task.id, {}) : api.handoffTodo(token!, task.id, { reviewerId }), 'ส่งตรวจแล้ว')}>ส่งผลงานให้ตรวจ</Button>
+                  {!task.reviewerId && !task.caseId && <SelectField label="ผู้ตรวจ" value={reviewerId} required onChange={(e) => setReviewerId(e.target.value)}><option value="">เลือกผู้ตรวจ</option>{users.filter((u) => u.id !== user?.id && isEligibleReviewer({ role: u.firmRole, userId: u.id, assigneeId: task.assignee?.id })).map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}</SelectField>}
+                  <TextareaField label="หมายเหตุถึงผู้ตรวจ *" value={handoffNote} required maxLength={1500} rows={2} disabled={busy} onChange={(e) => setHandoffNote(e.target.value)} />
+                  {handoffNote && handoffNoteError(handoffNote) && <p className="text-xs text-muted-foreground">{handoffNoteError(handoffNote)}</p>}
+                  {task.requiresAttachment && task.attachments.length === 0 && <p className="text-xs text-destructive">งานนี้ต้องแนบไฟล์ผลงานก่อนส่งตรวจ</p>}
+                  <Button disabled={busy || (!task.caseId && !reviewerId) || !!handoffNoteError(handoffNote) || (!!task.requiresAttachment && task.attachments.length === 0)} onClick={() => void run(() => task.caseId ? api.handoffTask(token!, task.caseId, task.id, { note: handoffNote.trim() }) : api.handoffTodo(token!, task.id, { reviewerId, note: handoffNote.trim() }), 'ส่งตรวจแล้ว')}>{`ส่งให้ ${reviewerName(task) ?? 'ผู้ตรวจ'} ตรวจ`}</Button>
                 </div>}
               </>}
               {canReview && <div className="space-y-3">
+                {(() => { const sent = task.assignmentLogs?.filter((l) => l.action === TaskLogAction.HANDED_OFF).at(-1); return sent?.note
+                  ? <p className="whitespace-pre-line rounded-lg bg-muted/50 p-2 text-sm">📝 {sent.note}<span className="mt-1 block text-xs text-muted-foreground">{sent.fromUser ? `${sent.fromUser.firstName} ${sent.fromUser.lastName}` : ''} · {formatDateTime(sent.createdAt)}</span></p>
+                  : null; })()}
                 <p className="text-xs text-muted-foreground">ตรวจผลงานและประวัติด้านล่างก่อนยืนยัน</p>
                 <Button disabled={busy} onClick={() => void run(() => task.caseId ? api.acceptTask(token!, task.caseId, task.id) : api.acceptTodo(token!, task.id), 'ตรวจผ่าน งานเสร็จแล้ว')}>ตรวจผ่านและปิดงาน</Button>
                 <TextareaField label="เหตุผลที่ให้แก้ไข" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} disabled={busy} rows={2} />
@@ -512,7 +520,8 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               <div className="sm:col-span-2">
                 <label htmlFor="td-label" className={label}>{d.taskDetail.labels}</label>
                 <div className="mt-1 flex flex-wrap items-center gap-1 rounded-lg border border-input bg-background px-2 py-1.5">
-                  {task.labels.map((l) => (
+                  {taskStageChip(task.labels) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{taskStageChip(task.labels)}</span>}
+                  {visibleTaskLabels(task.labels).map((l) => (
                     <span key={l} className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
                       {l}
                       <button type="button" aria-label={`${d.taskDetail.delete} ${l}`} disabled={busy} onClick={() => patch({ labels: task.labels.filter((x) => x !== l) })} className="text-muted-foreground hover:text-foreground">×</button>
