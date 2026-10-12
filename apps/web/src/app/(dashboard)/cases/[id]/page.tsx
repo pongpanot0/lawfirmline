@@ -438,15 +438,17 @@ export default function CaseDetailPage() {
     }
   };
 
-  const applyStageChange = async (stage: string) => {
-    if (!token || !id) return;
+  /** false = the user cancelled the backward-move reason prompt; nothing was saved, so callers must stop. */
+  const applyStageChange = async (stage: string): Promise<boolean> => {
+    if (!token || !id) return false;
     let stageNote: string | undefined;
     if (isBackwardStage(legalCase?.stage, stage)) {
       stageNote = window.prompt('ย้ายขั้นตอนย้อนกลับ — ระบุเหตุผล (จะบันทึกในประวัติคดี)')?.trim();
-      if (!stageNote) return;
+      if (!stageNote) return false;
     }
     await api.updateCase(token, id, { stage, ...(stageNote ? { stageNote } : {}) });
     loadCase();
+    return true;
   };
 
   const handleStageChange = async (stage: string) => {
@@ -486,7 +488,7 @@ export default function CaseDetailPage() {
     if (!token || !id || !pendingStage) return;
     setSavingStage(true);
     try {
-      if (pendingStage !== legalCase?.stage) await applyStageChange(pendingStage);
+      if (pendingStage !== legalCase?.stage && !(await applyStageChange(pendingStage))) return;
       await api.dismissStageTasks(token!, id!, pendingStage).catch(console.error);
       loadCase();
       closeStageTaskDialog();
@@ -504,7 +506,7 @@ export default function CaseDetailPage() {
     setStageTaskError('');
     const moving = pendingStage !== legalCase?.stage;
     try {
-      if (moving) await applyStageChange(pendingStage);
+      if (moving && !(await applyStageChange(pendingStage))) return;
       try {
         await api.createStageTasks(token, id, pendingStage, tasks);
         loadCase();

@@ -269,9 +269,14 @@ export function caseStageIndex(stage: CaseStage | string | null | undefined): nu
   return CASE_STAGE_ORDER.indexOf(stage as CaseStage);
 }
 
+/** FACT_GATHERING and PRE_LITIGATION are one pre-filing band: moving between them is not backward. */
+function stageBandIndex(stage: CaseStage | string | null | undefined): number {
+  return stage === CaseStage.FACT_GATHERING ? caseStageIndex(CaseStage.PRE_LITIGATION) : caseStageIndex(stage);
+}
+
 /** Moving to an earlier stage — needs a note. */
 export function isBackwardStage(from: CaseStage | string | null | undefined, to: CaseStage | string): boolean {
-  return caseStageIndex(to) < caseStageIndex(from);
+  return stageBandIndex(to) < stageBandIndex(from);
 }
 
 export const CASE_STAGE_LABELS_TH: Record<CaseStage, string> = {

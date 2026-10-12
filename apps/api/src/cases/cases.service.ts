@@ -460,6 +460,13 @@ export class CasesService {
     if (dto.status === CaseStatus.CLOSED || dto.status === CaseStatus.ARCHIVED) {
       throw new BadRequestException('ใช้ปุ่มปิดคดี');
     }
+    if (
+      dto.status &&
+      dto.status !== before.status &&
+      (before.status === CaseStatus.CLOSED || before.status === CaseStatus.ARCHIVED)
+    ) {
+      throw new BadRequestException('ใช้ปุ่มเปิดคดีอีกครั้ง');
+    }
     const stageChanged = !!dto.stage && dto.stage !== before.stage;
     const stageNote = dto.stageNote?.trim() || null;
     if (stageChanged && isBackwardStage(before.stage, dto.stage!) && !stageNote) {
@@ -768,13 +775,15 @@ export class CasesService {
     }
 
     // The stage the case was in before it was closed; cases closed before stage logs existed
-    // (or closed from CLOSING itself) have none, so they reopen at PRE_LITIGATION.
+    // (or closed from CLOSING itself) have none: keep the stage the case sits at, or PRE_LITIGATION if that is CLOSING.
     const lastClose = await this.prisma.caseStatusLog.findFirst({
       where: { caseId: id, toStage: CaseStage.CLOSING, fromStage: { not: CaseStage.CLOSING } },
       orderBy: { createdAt: 'desc' },
       select: { fromStage: true },
     });
-    const stage = (lastClose?.fromStage as CaseStage | null) ?? CaseStage.PRE_LITIGATION;
+    const stage =
+      (lastClose?.fromStage as CaseStage | null) ??
+      (legalCase.stage !== CaseStage.CLOSING ? (legalCase.stage as CaseStage) : CaseStage.PRE_LITIGATION);
 
     const reopened = await this.prisma.case.update({
       where: { id },

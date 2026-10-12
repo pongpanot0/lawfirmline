@@ -21,3 +21,9 @@ test('backward means earlier in CASE_STAGE_ORDER; intake review sorts first', ()
   assert.equal(isBackwardStage('INTAKE_REVIEW', 'FACT_GATHERING'), false);
   assert.equal(isBackwardStage('FACT_GATHERING', 'INTAKE_REVIEW'), true);
 });
+
+test('fact gathering and pre-litigation are one band: no note either way', () => {
+  assert.equal(isBackwardStage('PRE_LITIGATION', 'FACT_GATHERING'), false);
+  assert.equal(isBackwardStage('FACT_GATHERING', 'PRE_LITIGATION'), false);
+  assert.equal(isBackwardStage('FILING', 'FACT_GATHERING'), true);
+});

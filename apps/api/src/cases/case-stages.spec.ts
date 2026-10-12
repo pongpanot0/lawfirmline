@@ -120,6 +120,29 @@ describe('case stages', () => {
     );
   });
 
+  it('reopening without a usable log row keeps the stage the case sits at, unless it is CLOSING', async () => {
+    prisma.case.findUnique.mockResolvedValue({ ...base, status: 'ARCHIVED', stage: 'APPEAL' });
+    prisma.caseStatusLog.findFirst.mockResolvedValue(null);
+
+    await service.reopen(user, 'case-1');
+
+    expect(prisma.case.update.mock.calls[0][0].data).toMatchObject({ stage: 'APPEAL' });
+  });
+
+  it.each(['CLOSED', 'ARCHIVED'])('PATCH cannot change the status of a %s case (use reopen)', async (current) => {
+    prisma.case.findUnique.mockResolvedValue({ ...base, status: current, stage: 'CLOSING' });
+    await expect(service.update(user, 'case-1', { status: 'IN_PROGRESS' } as any)).rejects.toThrow(
+      'ใช้ปุ่มเปิดคดีอีกครั้ง',
+    );
+    expect(prisma.case.update).not.toHaveBeenCalled();
+  });
+
+  it('moving between fact gathering and pre-litigation needs no note', async () => {
+    prisma.case.findUnique.mockResolvedValue({ ...base, stage: 'PRE_LITIGATION' });
+    await service.update(user, 'case-1', { stage: 'FACT_GATHERING' } as any);
+    expect(prisma.case.update).toHaveBeenCalled();
+  });
+
   it('close requires an outcome other than IN_PROGRESS', async () => {
     const errors = async (body: object) =>
       (await validate(plainToInstance(CloseCaseDto, { closingSummary: 'สรุปคดีอย่างน้อยสิบตัวอักษร', ...body }))).length;
