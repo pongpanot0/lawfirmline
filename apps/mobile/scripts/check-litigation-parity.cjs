@@ -161,6 +161,26 @@ check("deadline hooks refetch on every mount, act on the row's case, and refresh
   }
 });
 
+check('the date field holds a half-typed entry back and asks before clearing a saved date', () => {
+  const { thaiDateAction } = thaiDate;
+  assert.deepEqual(thaiDateAction({ d: '13', m: '', y: '25' }, '2026-11-13', true),
+    { emit: 'none', invalid: true, message: 'กรอกให้ครบทั้งวัน เดือน ปี หรือเว้นว่างทั้งหมด' });
+  assert.deepEqual(thaiDateAction({ d: '31', m: '4', y: '2569' }, '2026-11-13', true),
+    { emit: 'none', invalid: true, message: 'วันที่นี้ไม่มีในปฏิทิน' });
+  assert.deepEqual(thaiDateAction({ d: '', m: '', y: '' }, '2026-11-13', true), { emit: 'confirm-clear', invalid: false });
+  assert.deepEqual(thaiDateAction({ d: '', m: '', y: '' }, null, true), { emit: 'clear', invalid: false });
+  assert.deepEqual(thaiDateAction({ d: '', m: '', y: '' }, '2026-11-13', false), { emit: 'clear', invalid: false });
+  assert.deepEqual(thaiDateAction({ d: '14', m: '11', y: '2569' }, '2026-11-13', true), { emit: 'day', day: '2026-11-14', invalid: false });
+});
+
+check('a failed refetch keeps the cached case and says why in Thai (D7)', () => {
+  const now = new Date('2026-10-12T03:00:00Z');
+  assert.equal(lit.cachedDataNote(new TypeError('Network request failed'), now.getTime() - 5 * 60_000, now),
+    'ออฟไลน์ · ข้อมูลล่าสุด 5 นาทีที่แล้ว');
+  assert.equal(lit.cachedDataNote(Object.assign(new Error('HTTP 500'), { status: 500 }), now.getTime(), now),
+    'โหลดข้อมูลล่าสุดไม่ได้ แสดงข้อมูลที่เก็บไว้');
+});
+
 // ── add new check(...) blocks above this line ──
 (async () => {
   for (const [name, fn] of checks) {

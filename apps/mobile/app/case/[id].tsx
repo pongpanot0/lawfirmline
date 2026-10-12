@@ -15,6 +15,7 @@ import {
   useInsuranceClaim,
   useToggleTask,
 } from '@/api/hooks';
+import { cachedDataNote } from '@/litigation';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { Disclosure } from '@/components/Disclosure';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
@@ -102,7 +103,8 @@ export default function CaseDetailScreen() {
   });
 
   if (caseQuery.isLoading) return <Loading />;
-  if (caseQuery.isError || !caseQuery.data)
+  // React Query keeps `data` when a refetch fails (D7): only a case never loaded is an error page.
+  if (!caseQuery.data)
     return (
       <View style={{ padding: spacing.lg }}>
         <ErrorNote message="โหลดข้อมูลคดีไม่สำเร็จ" onRetry={() => caseQuery.refetch()} />
@@ -126,6 +128,9 @@ export default function CaseDetailScreen() {
         }
       >
         <Text style={styles.caseTitle}>{detail.title}</Text>
+        {caseQuery.isError ? (
+          <ErrorNote message={cachedDataNote(caseQuery.error, caseQuery.dataUpdatedAt)} onRetry={() => caseQuery.refetch()} />
+        ) : null}
         <Disclosure title="จัดการคดีและผู้รับผิดชอบ" summary="แก้รายละเอียด เปลี่ยนทีม หรือจัดการสถานะคดี">
         <Button title="แก้ไขคดี / จัดคนหลักและคนรอง" ghost onPress={() => router.push(`/case/new?id=${id}`)} />
         {(user?.firmRole === 'OWNER' || user?.role === 'ADMIN' || user?.role === 'LAWYER') && <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>

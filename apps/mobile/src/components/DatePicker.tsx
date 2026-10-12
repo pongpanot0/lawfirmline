@@ -28,9 +28,12 @@ function monthGrid(year: number, month: number): Array<Date | null> {
 export function DatePicker({
   value,
   onChange,
+  iconOnly = false,
 }: {
   value: string;
   onChange: (isoDate: string) => void;
+  /** A 44pt calendar button only (ThaiDateField shows the date itself). */
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const parsed = new Date(value);
@@ -47,16 +50,16 @@ export function DatePicker({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="เลือกวันที่"
+        accessibilityLabel={iconOnly ? 'เลือกจากปฏิทิน' : 'เลือกวันที่'}
         accessibilityValue={{ text: valid ? thDate(parsed) : 'ยังไม่ได้เลือก' }}
-        style={styles.field}
+        style={iconOnly ? styles.icon : styles.field}
         onPress={() => {
           if (valid) setCursor({ y: parsed.getFullYear(), m: parsed.getMonth() });
           setOpen(true);
         }}
       >
-        <Calendar size={17} color={colors.faint} />
-        <Text style={styles.fieldText}>{valid ? thDate(parsed) : 'เลือกวันที่'}</Text>
+        <Calendar size={iconOnly ? 20 : 17} color={iconOnly ? colors.ink : colors.faint} />
+        {iconOnly ? null : <Text style={styles.fieldText}>{valid ? thDate(parsed) : 'เลือกวันที่'}</Text>}
       </Pressable>
 
       <Modal visible={open} transparent animationType="fade" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={() => setOpen(false)}>
@@ -148,6 +151,16 @@ const styles = StyleSheet.create({
     minHeight: TOUCH,
   },
   fieldText: { fontSize: 15, color: colors.text },
+  icon: {
+    width: TOUCH,
+    height: TOUCH,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.button,
+    backgroundColor: colors.surface,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15,23,42,0.45)',

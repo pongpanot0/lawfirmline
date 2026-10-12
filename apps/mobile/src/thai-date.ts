@@ -59,3 +59,20 @@ export function limitationPatch(formDay: string | null, storedDay: string | null
   if (formDay === storedDay) return {};
   return { limitationDeadline: formDay ? bangkokDayToIso(formDay) : null };
 }
+
+export type ThaiDateAction =
+  | { emit: 'day'; day: string; invalid: false }
+  | { emit: 'clear'; invalid: false }
+  | { emit: 'confirm-clear'; invalid: false }
+  | { emit: 'none'; invalid: true; message: string };
+
+/**
+ * What the field does with newly typed parts. A half-typed or impossible entry never reaches the
+ * form (`none`), so it can never overwrite or clear a saved date; emptying a saved date asks first.
+ */
+export function thaiDateAction(next: ThaiDateParts, value: string | null, confirmClear: boolean): ThaiDateAction {
+  const result = checkThaiDate(next);
+  if (result.kind === 'ok') return { emit: 'day', day: result.day, invalid: false };
+  if (result.kind === 'empty') return value && confirmClear ? { emit: 'confirm-clear', invalid: false } : { emit: 'clear', invalid: false };
+  return { emit: 'none', invalid: true, message: result.message };
+}

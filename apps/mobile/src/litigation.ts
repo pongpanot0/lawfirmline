@@ -1,3 +1,4 @@
+import { timeAgo } from './format';
 import type { DateSuggestion, ReviewRoundSummary } from './api/types';
 
 /** Court-event records refuse a closed or archived case ('คดีปิดแล้ว'); D8 hides deadline actions there too. */
@@ -58,4 +59,11 @@ export function reviewDecisionRequest(
     // The API rejects a decision on a version that changed while the screen was open.
     body: { action, reviewedDocumentVersionId: round.documentVersionId, ...(action === 'return' && trimmed ? { reason: trimmed } : {}) },
   };
+}
+
+/** D7: the note above a case rendered from cache after its refetch failed. */
+export function cachedDataNote(error: unknown, updatedAt: number, now = new Date()): string {
+  return isNetworkError(error)
+    ? `ออฟไลน์ · ข้อมูลล่าสุด ${timeAgo(new Date(updatedAt), now)}`
+    : 'โหลดข้อมูลล่าสุดไม่ได้ แสดงข้อมูลที่เก็บไว้';
 }
