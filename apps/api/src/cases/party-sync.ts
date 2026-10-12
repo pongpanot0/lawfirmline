@@ -15,6 +15,21 @@ export interface PreviousParty {
   partyRole: string | null;
 }
 
+/** Every person-detail column of CaseParticipant left empty — the shape of a row the sync made. */
+const UNTOUCHED_DETAILS = {
+  nickname: null,
+  personType: null,
+  idNumber: null,
+  address: null,
+  phone: null,
+  email: null,
+  opposingLawyer: null,
+  opposingInsurer: null,
+  medicalLicenseNo: null,
+  notes: null,
+  representedByParticipantId: null,
+} as const;
+
 /** The role the sync itself gives our client — anything else on that row was set by a person. */
 const autoRole = (partyRole: string | null) => (partyRole ? ourParticipantRole(partyRole) : ParticipantRole.OTHER);
 
@@ -64,9 +79,16 @@ export async function ensureOurClientParticipant(db: PartyDb, caseId: string, pr
   }
 
   // Client changed A → B: move A's untouched row over, keeping its id so counsel links stay valid.
+  // A row someone filled in (phone, ID number, notes…) holds A's details — it stays A's.
   if (previous?.clientId && previous.clientId !== legalCase.clientId) {
     const oldRow = await db.caseParticipant.findFirst({
-      where: { caseId, clientId: previous.clientId, side: ParticipantSide.OURS, role: autoRole(previous.partyRole) },
+      where: {
+        caseId,
+        clientId: previous.clientId,
+        side: ParticipantSide.OURS,
+        role: autoRole(previous.partyRole),
+        ...UNTOUCHED_DETAILS,
+      },
       select: { id: true },
     });
     if (oldRow) {

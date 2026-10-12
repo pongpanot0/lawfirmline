@@ -49,7 +49,7 @@ const rowsDb = (legalCase: Record<string, unknown>, rows: Array<Record<string, u
   const db = fakeDb();
   db.case.findUnique.mockResolvedValue(legalCase);
   db.caseParticipant.findFirst.mockImplementation(({ where }) =>
-    Promise.resolve(rows.find((r) => Object.entries(where).every(([k, v]) => r[k] === v)) ?? null),
+    Promise.resolve(rows.find((r) => Object.entries(where).every(([k, v]) => (r[k] ?? null) === v)) ?? null),
   );
   return db;
 };
@@ -86,6 +86,17 @@ describe('ensureOurClientParticipant on an edit (previous values given)', () => 
     expect(db.caseParticipant.create).toHaveBeenCalledWith({
       data: { caseId: 'case-1', clientId: 'cl-b', name: 'บริษัท บี', role: 'PLAINTIFF', side: 'OURS' },
     });
+  });
+
+  it('does not carry the old client\'s personal details over to the new client', async () => {
+    const aRow = { id: 'pA', caseId: 'case-1', clientId: 'cl-a', role: 'PLAINTIFF', side: 'OURS', phone: '081-234-5678' };
+    const db = rowsDb(clientB, [aRow]);
+    await ensureOurClientParticipant(db as never, 'case-1', { clientId: 'cl-a', partyRole: 'PLAINTIFF' });
+    expect(db.caseParticipant.update).not.toHaveBeenCalled();
+    expect(db.caseParticipant.create).toHaveBeenCalledWith({
+      data: { caseId: 'case-1', clientId: 'cl-b', name: 'บริษัท บี', role: 'PLAINTIFF', side: 'OURS' },
+    });
+    expect(aRow).toEqual({ id: 'pA', caseId: 'case-1', clientId: 'cl-a', role: 'PLAINTIFF', side: 'OURS', phone: '081-234-5678' });
   });
 
   it('clearing our side sets OTHER only on the auto row', async () => {
