@@ -35,6 +35,8 @@ describe('task review helpers', () => {
     expect(isEligibleReviewer({ role: FirmRole.LAWYER, userId: 'l' })).toBe(false);
     expect(isEligibleReviewer({ role: FirmRole.OFFICE_MANAGER, userId: 'om' })).toBe(false);
     expect(isEligibleReviewer({ role: FirmRole.SENIOR_LAWYER, userId: 's', assigneeId: 's' })).toBe(false);
+    expect(isEligibleReviewer({ role: FirmRole.OFFICE_MANAGER, userId: 'om', caseLeadId: 'om' })).toBe(false);
+    expect(isEligibleReviewer({ role: FirmRole.LAWYER, userId: 'lead', caseLeadId: 'lead', assigneeId: 'lead' })).toBe(false);
   });
 
   it('a lawyer may delegate to an assistant or the office manager; nothing else changes', () => {
@@ -74,6 +76,12 @@ describe('default playbook tags', () => {
   it('tags the civil answer/default-judgment steps by side', () => {
     expect(step('ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)').side).toBe('DEFENDANT');
     expect(step('ขอให้ศาลพิพากษาโดยขาดนัดยื่นคำให้การ (ฝ่ายโจทก์)').side).toBe('PLAINTIFF');
+  });
+
+  it('tags the criminal and family steps by side', () => {
+    const steps = (key: string) => DEFAULT_PLAYBOOKS.find((p) => p.key === key)!.steps;
+    expect(steps('DEFAULT_CRIMINAL').find((s) => s.title === 'ยื่นคำร้องขอปล่อยชั่วคราว (ถ้าลูกความถูกควบคุม)')!.side).toBe('DEFENDANT');
+    expect(steps('DEFAULT_FAMILY').find((s) => s.title === 'ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)')!.side).toBe('DEFENDANT');
   });
 
   it('requires an attachment on the civil drafting steps', () => {

@@ -19,7 +19,7 @@ import {
   canDelegateTask,
   hasFirmCapability,
   effectiveReviewerId,
-  REVIEWER_FIRM_ROLES,
+  isEligibleReviewer,
   TASK_HANDOFF_NOTE_MIN,
   TaskLogAction,
   TaskPriority,
@@ -880,15 +880,14 @@ export class TasksService {
     if (!required && !reviewerId) return;
     if (!reviewerId) throw new BadRequestException('เลือกผู้ตรวจสำหรับงานที่ต้องตรวจ');
     if (ctx.assigneeId && ctx.assigneeId === reviewerId) throw new BadRequestException('ผู้ทำงานและผู้ตรวจต้องเป็นคนละคน');
-    if (ctx.caseId) {
-      const legalCase = await this.prisma.case.findUnique({ where: { id: ctx.caseId }, select: { leadLawyerId: true } });
-      if (legalCase?.leadLawyerId === reviewerId) return;
-    }
+    const legalCase = ctx.caseId
+      ? await this.prisma.case.findUnique({ where: { id: ctx.caseId }, select: { leadLawyerId: true } })
+      : null;
     const reviewer = await this.prisma.firmMember.findFirst({
-      where: { firmId: user.firmId, userId: reviewerId, role: { in: REVIEWER_FIRM_ROLES } },
+      where: { firmId: user.firmId, userId: reviewerId },
       select: { role: true },
     });
-    if (!reviewer || !REVIEWER_FIRM_ROLES.includes(reviewer.role as FirmRole)) {
+    if (!reviewer || !isEligibleReviewer({ role: reviewer.role, userId: reviewerId, caseLeadId: legalCase?.leadLawyerId, assigneeId: ctx.assigneeId })) {
       throw new BadRequestException('ผู้ตรวจต้องเป็น Owner ทนายอาวุโส หรือทนายหลักของคดีนี้');
     }
   }

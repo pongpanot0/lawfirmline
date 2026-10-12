@@ -697,17 +697,19 @@ describe('TasksService — OFFICE_MANAGER', () => {
   });
 
   it('is never offered as a reviewer', async () => {
-    mockPrisma.firmMember.findFirst.mockResolvedValue(null);
+    mockPrisma.firmMember.findFirst.mockResolvedValue({ role: FirmRole.OFFICE_MANAGER });
     await expect((service as any).validateReview(manager, true, 'om-2')).rejects.toThrow(BadRequestException);
-    expect(mockPrisma.firmMember.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ role: { in: [FirmRole.OWNER, FirmRole.SENIOR_LAWYER] } }),
-      }),
-    );
+  });
+
+  it('is refused as reviewer even when leading the case', async () => {
+    mockPrisma.case.findUnique.mockResolvedValue({ leadLawyerId: 'om-2' });
+    mockPrisma.firmMember.findFirst.mockResolvedValue({ role: FirmRole.OFFICE_MANAGER });
+    await expect((service as any).validateReview(manager, true, 'om-2', { caseId: 'case-1', assigneeId: 'a1' })).rejects.toThrow(BadRequestException);
   });
 
   it('accepts the case lead as reviewer whatever their role, never the assignee', async () => {
     mockPrisma.case.findUnique.mockResolvedValue({ leadLawyerId: 'lead-lawyer' });
+    mockPrisma.firmMember.findFirst.mockResolvedValue({ role: FirmRole.LAWYER });
     await expect((service as any).validateReview(manager, true, 'lead-lawyer', { caseId: 'case-1', assigneeId: 'a1' })).resolves.toBeUndefined();
     await expect((service as any).validateReview(manager, true, 'a1', { caseId: 'case-1', assigneeId: 'a1' })).rejects.toThrow('คนละคน');
   });

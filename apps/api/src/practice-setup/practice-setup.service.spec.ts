@@ -214,6 +214,22 @@ describe('stage-driven task proposals', () => {
     expect(caseFeed.log).toHaveBeenCalledWith(expect.objectContaining({ caseId: theCase.id, userId: user.id }));
   });
 
+  it('createStageTasks never makes an office-manager lead the routine reviewer', async () => {
+    const { service, prisma } = buildService();
+    prisma.firmMember.findMany.mockResolvedValue([
+      { userId: 'member-1', role: FirmRole.LAWYER }, { userId: 'owner-1', role: FirmRole.OFFICE_MANAGER }, { userId: 'senior-1', role: FirmRole.SENIOR_LAWYER },
+    ]);
+    (prisma.playbookRelease as any).findFirst = jest.fn().mockResolvedValue({
+      id: 'release-1', name: 'R', version: 1,
+      steps: [{ title: 'งานประจำ', stage: CaseStage.FILING, routine: DEFAULT_OFFICE_ROUTINES[0].steps[0].routine }],
+    });
+    await service.createStageTasks(user, theCase.id, CaseStage.FILING, [
+      { title: 'งานประจำ', assigneeId: 'member-1', routineSource: { releaseId: 'release-1', stepIndex: 0 } },
+    ]);
+    const sub = prisma.task.create.mock.calls.map((c: any) => c[0].data).find((d: any) => d.title === 'งานประจำ');
+    expect(sub.reviewerId).toBe('senior-1');
+  });
+
   it('skips steps that already exist as tasks for that stage', async () => {
     const { service, prisma } = buildService({
       steps: [

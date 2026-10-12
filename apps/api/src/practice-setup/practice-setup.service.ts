@@ -1,4 +1,4 @@
-import { FirmRole, hasFirmCapability, partySide, PlaybookSide } from '@lawfirm/shared';
+import { FirmRole, hasFirmCapability, isEligibleReviewer, partySide, PlaybookSide } from '@lawfirm/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   ActivityType,
@@ -270,7 +270,8 @@ export class PracticeSetupService {
       const count = (assigneeId: string) => { if (assigneeId !== user.id) perAssignee.set(assigneeId, (perAssignee.get(assigneeId) ?? 0) + 1); };
       const routineFields = (step: PlaybookStep, assigneeId: string) => {
         if (!step.routine) return {};
-        const reviewerId = (preview.ownerId !== assigneeId ? preview.ownerId : undefined)
+        const leadRole = firmMembers.find(m => m.userId === preview.ownerId)?.role;
+        const reviewerId = (preview.ownerId && isEligibleReviewer({ role: leadRole, userId: preview.ownerId, caseLeadId: preview.ownerId, assigneeId }) ? preview.ownerId : undefined)
           ?? firmMembers.find(m => m.userId !== assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId;
         if (!reviewerId) throw new BadRequestException('งานประจำต้องมี Owner หรือทนายอาวุโสอีกคนเป็นผู้ตรวจ');
         return { routine: json(taskRoutineSnapshot(preview.release, preview.steps.indexOf(step), step.routine)), requiresReview: true, reviewerId };
@@ -455,7 +456,8 @@ export class PracticeSetupService {
       const release = await this.prisma.playbookRelease.findFirst({ where: { id: task.routineSource.releaseId, firmId: user.firmId } });
       const step = (release?.steps as unknown as PlaybookStep[])?.[task.routineSource.stepIndex];
       if (!release || !step?.routine || step.stage !== stage || !task.assigneeId) throw new BadRequestException('เลือกงานประจำจาก SOP ของขั้นนี้และระบุผู้ทำงาน');
-      const reviewerId = (c.leadLawyerId !== task.assigneeId ? c.leadLawyerId : undefined)
+      const leadRole = routineMembers.find(m => m.userId === c.leadLawyerId)?.role;
+      const reviewerId = (c.leadLawyerId && isEligibleReviewer({ role: leadRole, userId: c.leadLawyerId, caseLeadId: c.leadLawyerId, assigneeId: task.assigneeId }) ? c.leadLawyerId : undefined)
         ?? routineMembers.find(m => m.userId !== task.assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId;
       if (!reviewerId) throw new BadRequestException('งานประจำต้องมีผู้ตรวจอีกคน');
       return { routine: json(taskRoutineSnapshot(release, task.routineSource.stepIndex, step.routine)), description: step.instructions, requiresReview: true, reviewerId, assignedAt: new Date() };

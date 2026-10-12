@@ -36,6 +36,7 @@ export function canActOnReview(
 
 export function isEligibleReviewer(p: { role: string | null | undefined; userId: string; caseLeadId?: string | null; assigneeId?: string | null }): boolean {
   if (p.assigneeId && p.userId === p.assigneeId) return false;
+  if (p.role === FirmRole.OFFICE_MANAGER) return false;
   if (p.caseLeadId && p.userId === p.caseLeadId) return true;
   return REVIEWER_FIRM_ROLES.includes(p.role as FirmRole);
 }
