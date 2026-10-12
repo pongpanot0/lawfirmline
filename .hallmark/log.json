@@ -1,5 +1,14 @@
 [
   {
+    "date": "2026-10-11",
+    "macrostructure": "Workbench",
+    "theme": "Editorial Juris",
+    "enrichment": "none",
+    "brief": "Office-manager onboarding: role hints on invite, guided getting-started + daily routine, setup nudge and daily/report tab split on operations",
+    "designSystem": "design.md",
+    "scope": "app"
+  },
+  {
     "date": "2026-10-05",
     "macrostructure": "Workbench",
     "theme": "Editorial Juris",

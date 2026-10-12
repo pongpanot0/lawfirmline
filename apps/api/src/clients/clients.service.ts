@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser } from '@lawfirm/shared';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { AuthUser, FirmRole, InvoiceStatus } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
@@ -142,5 +142,52 @@ export class ClientsService {
         include: this.includeForUser(user),
       });
     });
+  }
+
+  /**
+   * Hard delete (contacts and portal rows cascade). Refused while a live case or a
+   * sent invoice still points at the client: deleted cases and drafts just lose the link.
+   */
+  async remove(user: AuthUser, id: string) {
+    if (user.firmRole !== FirmRole.OWNER) {
+      throw new ForbiddenException('Only owners can delete clients');
+    }
+    const liveCase = { case: { deletedAt: null } };
+    const client = await this.prisma.client.findFirst({
+      where: { id, firmId: user.firmId },
+      select: {
+        name: true,
+        _count: {
+          select: {
+            cases: { where: { deletedAt: null } },
+            additionalCaseRoles: { where: liveCase },
+            caseCustomerRoles: { where: liveCase },
+            billedInvoices: {
+              where: { status: { not: InvoiceStatus.DRAFT }, OR: [{ caseId: null }, liveCase] },
+            },
+          },
+        },
+      },
+    });
+    if (!client) throw new NotFoundException('Client not found');
+    const { cases, additionalCaseRoles, caseCustomerRoles, billedInvoices } = client._count;
+    if (cases + additionalCaseRoles + caseCustomerRoles > 0) {
+      throw new ConflictException('ลูกความนี้ยังมีคดีอยู่ ลบคดีของลูกความนี้ก่อน');
+    }
+    if (billedInvoices > 0) {
+      throw new ConflictException('ลูกความนี้มีใบแจ้งหนี้ที่ส่งแล้ว จึงลบไม่ได้');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.client.delete({ where: { id } });
+      await tx.auditLog.create({
+        data: {
+          firmId: user.firmId,
+          userId: user.id,
+          action: 'CLIENT_DELETED',
+          metadata: { clientId: id, name: client.name },
+        },
+      });
+    });
+    return { deleted: true };
   }
 }

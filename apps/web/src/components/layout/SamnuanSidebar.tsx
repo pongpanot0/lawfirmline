@@ -23,7 +23,7 @@ import {
   CalendarOff,
   GitFork,
   type LucideIcon,
-  Sparkles, BookOpen } from 'lucide-react';
+  Sparkles, BookOpen, Flag } from 'lucide-react';
 import { AuthUser, FirmRole, hasFirmCapability, type FirmCapability } from '@lawfirm/shared';
 import { cn } from '@/lib/utils';
 import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
@@ -63,6 +63,7 @@ const NAV_ITEMS = [
   { href: '/court-schedule', labelKey: 'courtSchedule' as const, icon: CalendarDays, group: 'work', children: [] as const },
   { href: '/leaves', labelKey: 'leaves' as const, icon: CalendarOff, group: 'work', children: [] as const },
   { href: '/documents', labelKey: 'documents' as const, icon: FolderOpen, group: 'work', children: [] as const },
+  { href: '/getting-started', labelKey: 'gettingStarted' as const, icon: Flag, capability: 'manageFirmContent' as const, group: 'firm', children: [] as const },
   {
     href: '/expenses',
     labelKey: 'expenses' as const,

@@ -21,7 +21,7 @@ export default function ForgotPasswordScreen() {
       await api('/auth/forgot-password', { method: 'POST', body: { email: email.trim().toLowerCase() } });
       setSent(true);
     } catch (err) {
-      setError(err instanceof ApiError ? (err.status === 429 ? 'ขอลิงก์ถี่เกินไป รอสักครู่แล้วลองใหม่' : 'ระบบยังส่งอีเมลไม่ได้ ลองใหม่หรือติดต่อ hello@samnuan.co') : 'เชื่อมต่อไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+      setError(err instanceof ApiError ? (err.status === 429 ? 'ขอลิงก์ถี่เกินไป รอสักครู่แล้วลองใหม่' : 'ระบบยังส่งอีเมลไม่ได้ ลองใหม่หรือติดต่อ hello@samnuan.com') : 'เชื่อมต่อไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
     } finally { setBusy(false); }
   };
   return <FormPage><View style={{ gap: spacing.md, marginTop: spacing.xl }}>

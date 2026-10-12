@@ -35,6 +35,7 @@ import {
   LockOpen,
   Pencil,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import {
   ActivityType,
@@ -835,6 +836,15 @@ export default function CaseDetailPage() {
   const previewPlaybook = (releaseId: string) => {
     if (releaseId) router.push(`${caseTabHref(id, 'tasks')}&sop=${encodeURIComponent(releaseId)}`);
   };
+  const deleteCase = async () => {
+    if (!token || !window.confirm(`ลบคดี "${legalCase.title}"? คดีพร้อมงาน นัด และเอกสารจะหายจากทุกหน้า และหยุดแจ้งเตือน`)) return;
+    try {
+      await api.deleteCase(token, id);
+      router.push('/cases');
+    } catch (err) {
+      window.alert(err instanceof ApiError && err.message ? err.message : 'ลบคดีไม่สำเร็จ');
+    }
+  };
 
   return (
     <div className={styles.workbench}>
@@ -878,6 +888,11 @@ export default function CaseDetailPage() {
             <Button variant="outline" className="min-h-11" onClick={() => setRecordingOutcome(true)}>
               <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
             </Button>
+            {user?.firmRole === FirmRole.OWNER && (
+              <Button variant="outline" className="min-h-11 text-destructive hover:text-destructive" onClick={() => void deleteCase()}>
+                <Trash2 className="h-4 w-4" />ลบคดี
+              </Button>
+            )}
           </div>
         </div>
       </header>

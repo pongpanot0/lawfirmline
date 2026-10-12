@@ -4,14 +4,19 @@
     "slug": "lexflow-mobile",
     "version": "0.1.1",
     "scheme": "lexflow",
+    "icon": "./assets/icon.png",
     "orientation": "default",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "co.lexflow.mobile"
+      "bundleIdentifier": "com.samnuan.app"
     },
     "android": {
       "package": "com.samnuan.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#142E43"
+      },
       "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize"
     },

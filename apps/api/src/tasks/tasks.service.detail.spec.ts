@@ -239,18 +239,40 @@ describe('TasksService detail support', () => {
       expect(mockPrisma.task.delete).not.toHaveBeenCalled();
     });
 
+  });
+
+  describe('assertCanDelete', () => {
+    const caseTask = { id: 't1', caseId: 'c1', firmId: 'f1', createdById: 'u9' };
+    beforeEach(() => mockCaseAccess.canAccessCase.mockResolvedValue(true));
+
     it('404s when the task belongs to another case', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue(null);
-      await expect(service.remove('t1', 'other-case')).rejects.toThrow(NotFoundException);
-      expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+      mockPrisma.task.findUnique.mockResolvedValue(caseTask);
+      await expect(service.assertCanDelete('t1', senior, 'other-case')).rejects.toThrow(NotFoundException);
     });
 
-    it('deletes when the task belongs to the case in the url', async () => {
-      mockPrisma.task.findFirst.mockResolvedValue({ id: 't1' });
-      mockPrisma.task.findUnique.mockResolvedValue(withAttachments);
-      mockPrisma.task.delete.mockResolvedValue({ id: 't1' });
-      await expect(service.remove('t1', 'c1')).resolves.toEqual({ deleted: true });
-      expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
+    it('404s a case task reached through the todo route', async () => {
+      mockPrisma.task.findUnique.mockResolvedValue(caseTask);
+      await expect(service.assertCanDelete('t1', senior, null)).rejects.toThrow(NotFoundException);
+    });
+
+    it('lets a manager delete any task they can see', async () => {
+      mockPrisma.task.findUnique.mockResolvedValue(caseTask);
+      await expect(service.assertCanDelete('t1', senior, 'c1')).resolves.toBeUndefined();
+    });
+
+    it('lets the creator delete their own task', async () => {
+      mockPrisma.task.findUnique.mockResolvedValue({ ...caseTask, createdById: 'u1' });
+      await expect(service.assertCanDelete('t1', lawyer, 'c1')).resolves.toBeUndefined();
+    });
+
+    it('forbids a non-manager deleting someone else\'s task', async () => {
+      mockPrisma.task.findUnique.mockResolvedValue(caseTask);
+      await expect(service.assertCanDelete('t1', lawyer, 'c1')).rejects.toThrow(ForbiddenException);
+    });
+
+    it('hides another firm\'s task even from its owner', async () => {
+      mockPrisma.task.findUnique.mockResolvedValue(caseTask);
+      await expect(service.assertCanDelete('t1', ownerOfOtherFirm, 'c1')).rejects.toThrow(NotFoundException);
     });
   });
 });

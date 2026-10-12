@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- Google Play feature graphic. Render: see docs/release/google-play-2026-10-04.md -->
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&display=block" rel="stylesheet">
+<style>
+  :root { --navy: #142E43; --navy-soft: #2a4a63; --muted: #5b6b82; --line: #e3e8f0; }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: 1024px; height: 500px; overflow: hidden; }
+  body {
+    font-family: 'Anuphan', sans-serif; color: var(--navy);
+    background: #fff; position: relative;
+  }
+  .band {
+    position: absolute; right: 0; top: 0; width: 420px; height: 500px;
+    background: linear-gradient(160deg, #f3f6fb 0%, #e6ecf5 100%);
+    clip-path: polygon(22% 0, 100% 0, 100% 100%, 0 100%);
+  }
+  .icon { position: absolute; right: 92px; top: 100px; width: 300px; height: 300px; border-radius: 22%; box-shadow: 0 18px 40px rgba(20,46,67,.25); }
+  .copy { position: absolute; left: 72px; top: 0; height: 500px; width: 560px;
+    display: flex; flex-direction: column; justify-content: center; }
+  .eyebrow { font-size: 20px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+  .wordmark { font-family: Georgia, "Times New Roman", serif; font-size: 76px; font-weight: 500; letter-spacing: .16em; line-height: 1.15; margin-top: 6px; }
+  .rule { width: 72px; height: 3px; background: var(--navy); margin: 18px 0 22px; }
+  .tagline { font-size: 34px; font-weight: 600; line-height: 1.5; }
+  .chips { display: flex; gap: 10px; margin-top: 26px; }
+  .chip { font-size: 18px; font-weight: 500; color: var(--navy-soft);
+    border: 1.5px solid var(--line); border-radius: 999px; padding: 6px 16px; }
+</style>
+</head>
+<body>
+  <div class="band"></div>
+  <img class="icon" src="../assets/icon.png" alt="">
+  <div class="copy">
+    <div class="eyebrow">สำหรับสำนักงานกฎหมาย</div>
+    <div class="wordmark">SAMNUAN</div>
+    <div class="rule"></div>
+    <div class="tagline">คดี นัดศาล และงานทีม<br>จัดการได้จากมือถือ</div>
+    <div class="chips">
+      <span class="chip">นัดหมายวันนี้</span>
+      <span class="chip">วันขึ้นศาล</span>
+      <span class="chip">เบิกค่าใช้จ่าย</span>
+    </div>
+  </div>
+</body>
+</html>

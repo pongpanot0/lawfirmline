@@ -6,7 +6,7 @@ import { hasFirmCapability } from '@lawfirm/shared';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, Mail, Phone, Building2, Briefcase, Plus, User, Pencil, Trash2, Star, Copy, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, ClientItem, ContactCaseAccessEntry } from '@/lib/api';
+import { api, ApiError, ClientItem, ContactCaseAccessEntry } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,21 @@ export default function ClientsPage() {
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactForm, setContactForm] = useState(emptyContact);
   const [savingContact, setSavingContact] = useState(false);
+
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deleteClient = async () => {
+    if (!token || !selected) return;
+    if (!window.confirm(`ลบลูกความ "${selected.name}" ถาวร? ผู้ติดต่อและสิทธิ์พอร์ทัลจะถูกลบด้วย กู้คืนไม่ได้`)) return;
+    setDeleteError(null);
+    try {
+      await api.deleteClient(token, selected.id);
+      setSelected(null);
+      router.replace('/clients');
+      load();
+    } catch (err) {
+      setDeleteError(err instanceof ApiError && err.message ? err.message : 'ลบลูกความไม่สำเร็จ');
+    }
+  };
 
   const load = () => {
     if (!token) return;
@@ -198,6 +213,7 @@ export default function ClientsPage() {
   };
 
   useEffect(() => {
+    setDeleteError(null);
     if (!selected || !token || !hasFirmCapability(user?.firmRole, 'manageFirmContent')) return;
     (selected.cases ?? []).forEach((c) => loadCaseAccess(c.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -235,13 +251,19 @@ export default function ClientsPage() {
         </button>
         <div className="mb-6 flex items-center gap-4">
           <Avatar fallback={selected.name.slice(0, 2).toUpperCase()} className="h-14 w-14 text-base" />
-          <div>
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold">{selected.name}</h1>
             <p className="text-sm text-muted-foreground">
               {selected.type === 'COMPANY' ? d.clients.company : d.clients.individual} · คดีทุกบทบาทอยู่ในภาพรวม 360
             </p>
           </div>
+          {user?.firmRole === 'OWNER' && (
+            <Button variant="outline" size="sm" className="min-h-11 text-destructive hover:text-destructive" onClick={() => void deleteClient()}>
+              <Trash2 className="h-4 w-4" />ลบลูกความ
+            </Button>
+          )}
         </div>
+        {deleteError && <p role="alert" className="mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{deleteError}</p>}
 
         <Tabs value={tab} onValueChange={setTab}>
           <div className="max-w-full overflow-x-auto pb-1">

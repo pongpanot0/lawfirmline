@@ -47,7 +47,7 @@ export default function DeleteAccountScreen() {
       <ErrorNote message="โหลดสถานะคำขอไม่สำเร็จ กรุณาลองใหม่ก่อนส่งคำขอ" onRetry={() => deletion.refetch()} /> : deletion.data ?
       <FormSection title="รับคำขอแล้ว · รอตรวจดำเนินการ">
         <Text selectable style={{ color: colors.ink }}>หมายเลข {deletion.data.id}</Text>
-        <Text style={{ color: colors.muted }}>บัญชียังไม่ถูกลบ ติดตามคำขอได้ที่ hello@samnuan.co</Text>
+        <Text style={{ color: colors.muted }}>บัญชียังไม่ถูกลบ ติดตามคำขอได้ที่ hello@samnuan.com</Text>
       </FormSection> : <FormSection title="ยืนยันว่าเป็นบัญชีของคุณ" detail="กรอกรหัสผ่านปัจจุบันเพื่อส่งคำขอ">
         <TextInput accessibilityLabel="รหัสผ่านปัจจุบันเพื่อขอลบบัญชี" value={password} onChangeText={setPassword}
           editable={!busy} secureTextEntry autoCapitalize="none" autoComplete="current-password"

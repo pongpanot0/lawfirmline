@@ -40,7 +40,7 @@ export class ReminderScheduler {
     const now = new Date();
     const horizon = new Date(now.getTime() + MAX_REMINDER_LEAD_MINUTES * 60 * 1000);
     const events = await this.prisma.calendarEvent.findMany({
-      where: { startAt: { gt: now, lte: horizon } },
+      where: { startAt: { gt: now, lte: horizon }, case: { deletedAt: null } },
       include: { reminderLogs: true, case: true, ...eventAssigneesInclude },
     });
 

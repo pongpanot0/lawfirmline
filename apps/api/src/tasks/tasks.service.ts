@@ -1053,16 +1053,19 @@ export class TasksService {
     return updated;
   }
 
-  async remove(id: string, caseId?: string) {
+  /** Delete is permanent and takes subtasks, comments and files with it: creator or manager only. */
+  async assertCanDelete(id: string, user: AuthUser, caseId: string | null) {
+    const task = await this.assertAccess(id, user);
     // The case guard only proves the caller may touch THIS case; without
     // binding the task to it, any task id in the database would be deletable.
-    if (caseId) {
-      const inCase = await this.prisma.task.findFirst({
-        where: { id, caseId },
-        select: { id: true },
-      });
-      if (!inCase) throw new NotFoundException('ไม่พบงานนี้');
+    if (task.caseId !== caseId) throw new NotFoundException('ไม่พบงานนี้');
+    const manager = user.firmRole === FirmRole.OWNER || user.firmRole === FirmRole.SENIOR_LAWYER;
+    if (!manager && task.createdById !== user.id) {
+      throw new ForbiddenException('ลบงานได้เฉพาะผู้สร้างงาน เจ้าของสำนักงาน หรือทนายอาวุโส');
     }
+  }
+
+  async remove(id: string) {
     // The rows cascade with the task; the bytes behind them do not, so they
     // would sit in storage forever with nothing left pointing at them.
     const task = await this.prisma.task.findUnique({

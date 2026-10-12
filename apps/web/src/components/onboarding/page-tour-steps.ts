@@ -6,8 +6,8 @@ export const PAGE_TOUR_STEPS: Record<string, TourStep[]> = {
   '/dashboard': dashboardTourSteps,
 
   '/getting-started': [
-    { selector: 'main h1', title: 'เริ่มใช้งานสำนักงาน', body: 'ความคืบหน้าอ้างอิงจากข้อมูลจริง เริ่มด้วยทีม ลูกความ และคดีแรก', placement: 'right' },
-    { selector: 'text:ดาวน์โหลดตัวอย่าง CSV', title: 'นำเข้าข้อมูลเดิม', body: 'ดาวน์โหลดแบบฟอร์ม CSV กรอกรายชื่อลูกความ/คดีเดิม แล้วอัปโหลดกลับเข้าระบบได้ทีละหลายรายการ', placement: 'right' },
+    { selector: 'main h1', title: 'เริ่มต้นใช้งานสำนักงาน', body: 'ตั้งค่า 3 อย่างตามลำดับ ปุ่มที่เด่นคือขั้นที่ต้องทำต่อ ด้านล่างคืองานประจำของผู้ดูแลสำนักงาน', placement: 'right' },
+    { selector: 'text:มีรายชื่อลูกความหรือคดีเดิมใน Excel? นำเข้าจาก CSV', title: 'นำเข้าข้อมูลเดิม', body: 'กดเพื่อเปิด แล้วดาวน์โหลดแบบฟอร์ม CSV กรอกรายชื่อลูกความ/คดีเดิม แล้วอัปโหลดกลับเข้าระบบได้ทีละหลายรายการ', placement: 'right' },
   ],
   '/my-day': [
     { selector: 'main h1', title: 'วันของฉัน', body: 'สิ่งที่ต้องทำวันนี้-พรุ่งนี้ ทั้งนัดและงาน ในที่เดียว', placement: 'right' },

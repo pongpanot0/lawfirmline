@@ -1,7 +1,7 @@
 import { canCompleteFromLine, lineActions } from './line-actions';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { NotificationCategory, TaskStatus } from '../generated/prisma';
+import { NotificationCategory, Prisma, TaskStatus } from '../generated/prisma';
 import { taskAppRoute } from './app-route';
 import { PrismaService } from '../prisma/prisma.module';
 import { AssignmentNotifierService } from './assignment-notifier.service';
@@ -10,6 +10,8 @@ import { formatCaseNotificationReference } from './reference-label';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FOLLOW_UP_INTERVAL_DAYS = 7;
+/** Todos have no case; a soft-deleted case's tasks must go quiet with it. */
+const NOT_IN_DELETED_CASE: Prisma.TaskWhereInput = { OR: [{ caseId: null }, { case: { deletedAt: null } }] };
 
 /**
  * Overdue-task escalation chain (ทุกเช้า 08:30 กทม.):
@@ -43,6 +45,7 @@ export class EscalationScheduler {
         status: { not: TaskStatus.DONE },
         dueDate: { lte: tomorrowEnd },
         onHold: null,
+        ...NOT_IN_DELETED_CASE,
       },
       include: { case: { select: { id: true, firmId: true, title: true, leadLawyerId: true, ownRef: true, blackCaseNumber: true, redCaseNumber: true } } },
     });
@@ -102,7 +105,7 @@ export class EscalationScheduler {
   private async chaseOnHoldFollowUps() {
     const now = new Date();
     const holds = await this.prisma.taskOnHold.findMany({
-      where: { endedAt: null, nextFollowUpAt: { lte: now } },
+      where: { endedAt: null, nextFollowUpAt: { lte: now }, task: NOT_IN_DELETED_CASE },
       include: {
         task: { include: { case: { select: { id: true, firmId: true, title: true, ownRef: true, blackCaseNumber: true, redCaseNumber: true } } } },
       },
