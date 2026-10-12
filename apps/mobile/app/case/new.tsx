@@ -59,7 +59,7 @@ export default function CaseFormScreen() {
     setIds([...(lead ? [lead] : []), ...(data.assignments ?? []).filter(item => item.assignmentType === 'BUDDY' && item.userId !== lead).map(item => item.userId)]);
   }, [current.data]);
   // The API refuses a court-level change that also edits the court in the same save.
-  const levelSwitching = !!id && !!current.data && courtLevel !== current.data.courtLevel;
+  const levelSwitching = !!id && !!current.data && courtLevel !== (current.data.courtLevel ?? 'TRIAL');
   const save = async () => {
     if (!title.trim() || !ids[0]) return Alert.alert('กรอกไม่ครบ', 'ใส่ชื่อคดีและเลือกคนรับผิดชอบหลัก');
     setBusy(true); setError('');
