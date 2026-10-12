@@ -1006,6 +1006,7 @@ export interface PlanOption extends PlanConfig {
 export * from './validation';
 export * from './pii';
 export * from './agenda';
+export * from './litigation';
 export * from './ai-redaction';
 export * from './ai-credits';
 export * from './analysis-quality';
