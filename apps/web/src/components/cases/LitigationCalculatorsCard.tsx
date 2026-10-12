@@ -11,8 +11,8 @@ const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ban
 
 /** ค่าขึ้นศาล (ทุกชั้นศาลใช้ตารางเดียวกันกับทุนทรัพย์ที่พิพาท) และดอกเบี้ยอย่างง่าย — ตัวเลขประกอบการตัดสินใจ ไม่ใช่ใบแจ้งหนี้ของศาล */
 export function LitigationCalculatorsCard({ claimedAmount }: { claimedAmount: number | null }) {
-  const [disputed, setDisputed] = useState(claimedAmount != null ? String(claimedAmount) : '');
-  const [principal, setPrincipal] = useState(claimedAmount != null ? String(claimedAmount) : '');
+  const [disputed, setDisputed] = useState(claimedAmount ? String(claimedAmount) : '');
+  const [principal, setPrincipal] = useState(claimedAmount ? String(claimedAmount) : '');
   const [rate, setRate] = useState(String(DEFAULT_INTEREST_RATE));
   const [from, setFrom] = useState('');
   const [to, setTo] = useState(today());

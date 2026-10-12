@@ -58,6 +58,8 @@ export default function CaseFormScreen() {
     const lead = data.leadLawyerId ?? data.leadLawyer?.id;
     setIds([...(lead ? [lead] : []), ...(data.assignments ?? []).filter(item => item.assignmentType === 'BUDDY' && item.userId !== lead).map(item => item.userId)]);
   }, [current.data]);
+  // The API refuses a court-level change that also edits the court in the same save.
+  const levelSwitching = !!id && !!current.data && courtLevel !== current.data.courtLevel;
   const save = async () => {
     if (!title.trim() || !ids[0]) return Alert.alert('กรอกไม่ครบ', 'ใส่ชื่อคดีและเลือกคนรับผิดชอบหลัก');
     setBusy(true); setError('');
@@ -70,7 +72,7 @@ export default function CaseFormScreen() {
           partyRole: partyRole || (id ? null : undefined),
           ...(!id ? { opponents: opponents.map(name => name.trim()).filter(Boolean).map(name => ({ name })) } : {}),
           ...(!id && overrideReason.trim() ? { conflictOverrideReason: overrideReason.trim() } : {}),
-          description: description.trim(), courtName: courtName || undefined, courtLevel, caseTypeId: caseTypeId || undefined,
+          description: description.trim(), ...(levelSwitching ? {} : { courtName: courtName || undefined }), courtLevel, caseTypeId: caseTypeId || undefined,
           ...(id && status !== current.data?.status ? { status } : {}) };
         const saved = await api<CaseDetail>(id ? `/cases/${id}` : '/cases', { method: id ? 'PATCH' : 'POST',
           body: { ...body, ...(!id || canReassign ? { leadLawyerId: ids[0] } : {}), ...(!id ? { buddyIds: ids.slice(1) } : {}) } });
@@ -126,10 +128,11 @@ export default function CaseFormScreen() {
     </FormSection>
     <Disclosure title="ศาลและรายละเอียดเพิ่มเติม" summary="เลือกศาล ชั้นศาล และบันทึกรายละเอียด">
     <SectionLabel style={formLabelSpacing}>ศาล</SectionLabel>
-    <Dropdown label="เลือกศาล" value={courtName} onChange={setCourtName} disabled={busy || !!savedId}
+    <Dropdown label="เลือกศาล" value={courtName} onChange={setCourtName} disabled={busy || !!savedId || levelSwitching}
       options={[{ value: '', label: 'ยังไม่ระบุศาล' },
         ...(courtName && !courts.data?.some(item => item.name === courtName) ? [{ value: courtName, label: courtName }] : []),
         ...(courts.data ?? []).map(item => ({ value: item.name, label: item.name }))]} />
+    {levelSwitching && <Text style={{ color: colors.info }}>เปลี่ยนระดับศาลแล้วบันทึกก่อน แล้วจึงแก้เลขคดีของศาลชั้นนั้น</Text>}
     {courts.isError && <ErrorNote message="โหลดรายชื่อศาลไม่ได้" onRetry={() => courts.refetch()} />}
     <Dropdown label="ชั้นศาล" value={courtLevel} onChange={setCourtLevel} disabled={busy || !!savedId}
       options={Object.entries(COURT_LEVEL_LABELS).map(([value, label]) => ({ value: value as CourtLevel, label }))} />
