@@ -39,11 +39,11 @@ API ใหม่ทุกเส้นทางใช้ JWT ของผู้�
 1. Deploy API และเว็บชุดนี้ก่อนใช้ Mobile build ที่ชี้ `https://api.samnuan.com` ทดสอบสมัคร/เข้าสู่ระบบ/เปลี่ยนชื่อ/เปลี่ยนรหัสผ่าน/ขอลบบัญชีบน production ด้วยข้อมูลทดสอบ
 2. เปิด URL ต่อไปนี้จากเครือข่ายนอกสำนักงานและ browser ที่ไม่ล็อกอิน: `https://samnuan.com/privacy` และ `https://samnuan.com/delete-account` โค้ดที่เพิ่มไม่ได้พิสูจน์ว่า production URL เปิดได้แล้ว
 3. เจ้าของบริการตรวจความถูกต้องของ Privacy Policy โดยเฉพาะผู้รับผิดชอบข้อมูล ผู้ให้บริการที่ใช้งานจริง การวัดผล และประเภท/ระยะเวลาเก็บข้อมูลหลังคำขอลบ ก่อนเผยแพร่ นโยบายตอนนี้ยังไม่ได้ระบุระยะเวลาเก็บคงที่ที่เจ้าของบริการรับรอง
-4. กำหนดผู้รับผิดชอบคำขอลบ และยืนยันว่า `hello@samnuan.co` รับและติดตามคำขอจริง การบันทึกคำขอไม่ใช่การลบข้อมูลสำเร็จ และยังไม่มีระบบแจ้งเจ้าหน้าที่หรือหน้าคิวสำหรับเจ้าหน้าที่ในชุดนี้
+4. กำหนดผู้รับผิดชอบคำขอลบ และยืนยันว่า `hello@samnuan.com` รับและติดตามคำขอจริง การบันทึกคำขอไม่ใช่การลบข้อมูลสำเร็จ และยังไม่มีระบบแจ้งเจ้าหน้าที่หรือหน้าคิวสำหรับเจ้าหน้าที่ในชุดนี้
 5. เตรียมบัญชี reviewer แยกในสำนักงานทดสอบ ไม่มีข้อมูลคดีจริง เข้าถึงฟังก์ชันที่ต้องตรวจได้ และกรอก App access ด้วยคำแนะนำภาษาอังกฤษ บัญชีควรใช้ซ้ำได้และเข้าจากต่างประเทศได้ หาก reviewer ใช้ MFA ต้องมีวิธีเข้าที่ทำได้ตลอดการตรวจ; ห้ามเพิ่มรหัสผ่านข้ามการยืนยันตัวตนให้ทุกคน
 6. กรอก Data safety จากพฤติกรรม native build และ backend จริง: ข้อมูลบัญชี/อีเมล ข้อมูลเอกสารที่อัปโหลด token อุปกรณ์แจ้งเตือน และการวินิจฉัย/SDK ที่ใช้งานจริง การติดตั้ง library อย่างเดียวไม่พิสูจน์การเก็บหรือแบ่งปันข้อมูลแต่ละประเภท
-7. เตรียมชื่อแอป คำอธิบาย ไอคอน ภาพโปรโมต screenshot จากแอปจริง อีเมล support, content rating, กลุ่มอายุ, และการประกาศโฆษณาตามพฤติกรรมจริง แอปยังไม่ได้เปลี่ยน launcher icon ในชุดงานนี้; ใช้แบรนด์ Balance ที่อนุมัติแล้วทำ asset สำหรับ store/build
-8. ตรวจ native `.aab` จริงว่า target **Android 16 / API 36 ขึ้นไป** ตามข้อกำหนด new apps/updates ตั้งแต่ 31 สิงหาคม 2026 รวมถึง permission และ package `com.samnuan.app` ให้ตรงกับรายการใน Console ผู้ใช้ขอเปลี่ยน Android application ID จาก `co.lexflow.mobile` เป็น `com.samnuan.app` จึงเป็นแอปแยกจาก APK package เดิม และไม่ได้ย้ายบัญชี/ข้อมูลในเครื่องเก่าอัตโนมัติ iOS bundle identifier ยังใช้ค่าเดิม
+7. เตรียมชื่อแอป คำอธิบาย ไอคอน ภาพโปรโมต screenshot จากแอปจริง อีเมล support, content rating, กลุ่มอายุ, และการประกาศโฆษณาตามพฤติกรรมจริง launcher icon ตอนนี้ใช้ `apps/mobile/assets/icon.png` (คัดลอกจาก `apps/web/public/brand/samnuan-icon.png` 512px) ไอคอนแบรนด์ Balance มีแค่ 256px ต้องมีไฟล์ต้นฉบับ 1024px ก่อนจึงจะเปลี่ยนได้คม
+8. ตรวจ native `.aab` จริงว่า target **Android 16 / API 36 ขึ้นไป** ตามข้อกำหนด new apps/updates ตั้งแต่ 31 สิงหาคม 2026 รวมถึง permission และ package `com.samnuan.app` ให้ตรงกับรายการใน Console ผู้ใช้ขอเปลี่ยน Android application ID จาก `co.lexflow.mobile` เป็น `com.samnuan.app` จึงเป็นแอปแยกจาก APK package เดิม และไม่ได้ย้ายบัญชี/ข้อมูลในเครื่องเก่าอัตโนมัติ iOS bundle identifier เปลี่ยนเป็น `com.samnuan.app` ให้ตรงกันแล้ว (ยังไม่เคยมี iOS build ด้วย ID เดิม)
 
 อ้างอิง: [Google: Account deletion](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en), [Google: App access](https://support.google.com/googleplay/android-developer/answer/15748846?hl=en-en), [Google: Target API](https://support.google.com/googleplay/android-developer/answer/11926878?hl=en-EN)
 
@@ -70,6 +70,14 @@ ORDER BY a."createdAt" ASC;
 5. แจ้งผลและข้อมูลที่ยังเก็บต่อให้ผู้ขอ แล้วเก็บหลักฐานปิดคำขอผ่านระบบงานของทีมดูแล หน้า API ปัจจุบันไม่มีกระบวนการปิดคำขอให้เจ้าหน้าที่ และจะไม่อ้างว่าเพียงส่งคำขอแล้วบัญชีถูกลบ
 
 ควรทดสอบคำขอหนึ่งรายการจนปิดงานได้จริงก่อนประกาศว่าระบบพร้อมรับคำขอลบ การลบสำนักงานจะ cascade ลบ AuditLog ด้วย จึงต้องเก็บหลักฐานคำขอในระบบดูแลก่อนลบสำนักงานที่เกี่ยวข้อง
+
+## Feature graphic
+
+`apps/mobile/store/feature-graphic.png` (1024×500, ไม่มี alpha) สร้างจาก `feature-graphic.html` แก้ HTML แล้วรันใหม่จาก `apps/mobile/store`:
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --force-device-scale-factor=1 --window-size=1024,500 --virtual-time-budget=8000 --allow-file-access-from-files --screenshot="$PWD/feature-graphic.png" "file://$PWD/feature-graphic.html"
+```
 
 ## สร้างไฟล์และอัปโหลด
 

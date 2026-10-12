@@ -13,7 +13,7 @@ export default function DeleteAccountPage() {
       <DeleteAccountForm />
       <div className="mt-8 rounded-lg border border-border p-4 text-sm leading-relaxed">
         <h2 className="font-semibold">เข้าบัญชีไม่ได้ / Cannot sign in?</h2>
-        <p className="mt-2">ส่งคำขอลบไปที่ <a href="mailto:hello@samnuan.co?subject=Samnuan%20account%20deletion" className="underline">hello@samnuan.co</a> พร้อมอีเมลที่ใช้สมัคร ทีมดูแลจะตรวจสอบความเป็นเจ้าของ ห้ามส่งรหัสผ่านในอีเมล</p>
+        <p className="mt-2">ส่งคำขอลบไปที่ <a href="mailto:hello@samnuan.com?subject=Samnuan%20account%20deletion" className="underline">hello@samnuan.com</a> พร้อมอีเมลที่ใช้สมัคร ทีมดูแลจะตรวจสอบความเป็นเจ้าของ ห้ามส่งรหัสผ่านในอีเมล</p>
         <p className="mt-2">Email your account email address and deletion request to our support team. Do not include your password.</p>
       </div>
     </PublicAccountPage>

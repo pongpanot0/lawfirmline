@@ -14,7 +14,7 @@ export function PublicAccountPage({ children }: { children: React.ReactNode }) {
       <footer className="mx-auto flex max-w-3xl flex-wrap gap-x-6 gap-y-3 border-t border-border px-5 py-6 text-sm">
         <Link href="/privacy" className="underline underline-offset-4">นโยบายความเป็นส่วนตัว</Link>
         <Link href="/delete-account" className="underline underline-offset-4">ขอลบบัญชี Samnuan</Link>
-        <a href="mailto:hello@samnuan.co" className="underline underline-offset-4">ติดต่อทีมดูแล</a>
+        <a href="mailto:hello@samnuan.com" className="underline underline-offset-4">ติดต่อทีมดูแล</a>
       </footer>
     </div>
   );
