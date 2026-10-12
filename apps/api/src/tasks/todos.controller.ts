@@ -33,7 +33,7 @@ export class TodosController {
 
   @Delete(':taskId')
   async remove(@CurrentUser() user: AuthUser, @Param('taskId') taskId: string) {
-    await this.tasksService.assertStandaloneOwnership(taskId, user);
+    await this.tasksService.assertCanDelete(taskId, user, null);
     return this.tasksService.remove(taskId);
   }
 

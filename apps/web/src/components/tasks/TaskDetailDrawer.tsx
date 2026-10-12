@@ -202,6 +202,25 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
     }
   };
 
+  // Not through run(): reloading a deleted task would only 404.
+  const removeTask = async () => {
+    if (!token || !task || busy) return;
+    if (!window.confirm(text(
+      `ลบงาน "${task.title}" ถาวร? งานย่อย ความคิดเห็น และไฟล์แนบจะถูกลบด้วย กู้คืนไม่ได้`,
+      `Delete "${task.title}" permanently? Subtasks, comments and attachments go with it. This cannot be undone.`,
+    ))) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api.deleteAnyTask(token, { id: task.id, caseId: task.caseId });
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError && err.message ? err.message : d.taskDetail.saveFailed);
+      setBusy(false);
+    }
+  };
+
   const patch = (data: Record<string, unknown>, successNotice = '') =>
     run(() => api.updateAnyTask(token!, { id: task!.id, caseId: task!.caseId }, data), successNotice);
 
@@ -315,6 +334,11 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
             />}
             {task && <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full bg-muted px-2 py-1">{statusLabel[task.status]}</span><span className="rounded-full bg-muted px-2 py-1">{task.dueDate ? formatDate(task.dueDate) : text('ยังไม่กำหนดส่ง', 'No due date')}</span>{task.assignee && <span>{task.assignee.firstName} {task.assignee.lastName}</span>}</div>}
           </div>
+          {task && (manager || task.createdById === user?.id) && (
+            <button type="button" onClick={() => void removeTask()} disabled={busy} aria-label={text('ลบงาน', 'Delete task')} title={text('ลบงาน', 'Delete task')} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
           <button type="button" onClick={onClose} aria-label={d.taskDetail.close} className="rounded-lg p-1.5 hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
