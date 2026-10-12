@@ -24,7 +24,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
-import { ConflictCheckService } from '../conflict-check/conflict-check.service';
+import { ConflictCheckService, ConflictGate } from '../conflict-check/conflict-check.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import {
   CreateIntakeDto,
@@ -49,6 +49,9 @@ import {
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
+import { syncLimitationReminder } from '../common/limitation-reminder';
+import { addOpponents, ensureOurClientParticipant } from '../cases/party-sync';
+import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { formatIntakeNotificationReference } from '../notifications/reference-label';
 
 export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
@@ -563,6 +566,22 @@ export class IntakeService {
       });
       if (!lead) throw new BadRequestException('ไม่พบทนายหลักที่เลือกในสำนักงานนี้');
     }
+    // Spec L6: a new intake opens its case straight away, so it is gated before anything is saved.
+    let gate: ConflictGate | undefined;
+    if (!dto.relatedCaseId) {
+      const clientIds = [dto.clientId, ...(dto.clients ?? []).map((c) => c.clientId)].filter((cid): cid is string => !!cid);
+      const registered = clientIds.length
+        ? (await this.prisma.client.findMany({ where: { id: { in: clientIds }, firmId: user.firmId }, select: { name: true } })).map((c) => c.name)
+        : [];
+      const ours = [...new Set([dto.clientName, ...registered].filter((name): name is string => !!name?.trim()))];
+      gate = await this.conflictCheck.gateNewCase(user, {
+        parties: [
+          ...ours.map((name) => ({ name, side: 'OURS' as const })),
+          ...(dto.opposingParty ? [{ name: dto.opposingParty, side: 'OPPONENT' as const }] : []),
+        ],
+        overrideReason: dto.conflictOverrideReason,
+      });
+    }
     const created = await this.prisma.intake.create({
       data: {
         firmId: user.firmId,
@@ -624,6 +643,7 @@ export class IntakeService {
         user,
         created,
         { leadLawyerId: dto.leadLawyerId } as ConvertToCaseDto,
+        gate,
       );
     }
 
@@ -877,6 +897,14 @@ export class IntakeService {
     // รับดำเนินการ = เปิดคดีทันที ในเฟสก่อนฟ้อง — งานโนติส/เจรจา/เอกสาร
     // คือคดีแล้ว ไม่ใช่ lead ที่รอแปลง. conflict gate จึงย้ายมาเฝ้าที่จุดนี้.
     if (acceptedDecisions.includes(dto.decision)) {
+      if (!intake.case) {
+        if (intake.relatedCaseId) {
+          await this.attachToExistingCase(user, intake, dto);
+        } else {
+          await this.openCaseFromIntake(user, intake, dto);
+        }
+      }
+      // Saved only once the case is open: a 409 from the conflict gate leaves the intake undecided.
       await this.prisma.intake.update({
         where: { id },
         data: {
@@ -886,13 +914,6 @@ export class IntakeService {
           clientDecision: dto.clientDecision,
         },
       });
-      if (!intake.case) {
-        if (intake.relatedCaseId) {
-          await this.attachToExistingCase(user, intake, dto);
-        } else {
-          await this.openCaseFromIntake(user, intake, dto);
-        }
-      }
       // openCaseFromIntake/attachToExistingCase ตั้ง status=CONVERTED + stage=CLOSED แล้ว
       return this.findOne(user, id);
     }
@@ -1082,8 +1103,24 @@ export class IntakeService {
     user: AuthUser,
     intake: Awaited<ReturnType<IntakeService['findOne']>>,
     dto: ConvertToCaseDto,
+    /** Already gated by the caller (intake create) — reuse it instead of searching again. */
+    gated?: ConflictGate,
   ) {
     const id = intake.id;
+    // Spec L6: gate before anything is created. The intake's own names are not a clash with itself.
+    const ours = [
+      intake.clientName,
+      intake.client?.name,
+      ...(intake.additionalClients ?? []).map((c) => c.client?.name),
+    ].filter((name): name is string => !!name?.trim());
+    const gate = gated ?? await this.conflictCheck.gateNewCase(user, {
+      parties: [
+        ...[...new Set(ours)].map((name) => ({ name, side: 'OURS' as const })),
+        ...(intake.opposingParty ? [{ name: intake.opposingParty, side: 'OPPONENT' as const }] : []),
+      ],
+      overrideReason: dto.conflictOverrideReason,
+      excludeIntakeId: intake.id,
+    });
     // Generate ownRef like cases.service.ts
     const firm = await this.prisma.firm.findUnique({
       where: { id: user.firmId },
@@ -1167,6 +1204,11 @@ export class IntakeService {
         // Only what the lawyer confirmed. The intake's estimated damage is a
         // different figure and never becomes the amount claimed by itself.
         claimedAmount: dto.claimedAmount ?? undefined,
+        // Facts the intake already captured travel with the case (spec L5).
+        customFields: {
+          ...(intake.incidentDate ? { incidentDate: intake.incidentDate.toISOString().slice(0, 10) } : {}),
+          ...(intake.estimatedDamage != null ? { estimatedDamage: intake.estimatedDamage } : {}),
+        },
       },
     });
 
@@ -1177,6 +1219,14 @@ export class IntakeService {
       title: 'เปิดคดี',
       at: newCase.openedAt,
     });
+    if (intake.opposingParty?.trim()) {
+      await addOpponents(this.prisma, newCase.id, intake.partyRole, [{ name: intake.opposingParty }]);
+    }
+    await ensureOurClientParticipant(this.prisma, newCase.id);
+    await this.conflictCheck.recordForCase(user, gate, { caseId: newCase.id, intakeId: intake.id });
+    const limitationEventId = newCase.limitationDeadline
+      ? await syncLimitationReminder(this.prisma, newCase.id)
+      : null;
 
     if (this.cargoClaims && intake.preLitigationType === PreLitigationType.TRANSPORT) {
       await this.cargoClaims.attachCase(user, intake.id, newCase.id);
@@ -1233,13 +1283,13 @@ export class IntakeService {
       });
     }
 
-    if (dto.conflictOverrideReason?.trim()) {
+    if (gate.overrideReason) {
       await this.caseFeed.log({
         caseId: newCase.id,
         userId: user.id,
         type: ActivityType.NOTE,
         title: 'เปิดคดีโดยข้ามผลตรวจ conflict',
-        description: dto.conflictOverrideReason.trim(),
+        description: gate.overrideReason,
       });
     }
 
@@ -1268,7 +1318,11 @@ export class IntakeService {
       });
     }
 
-    if (intake.deadlineDate) {
+    // The ครบอายุความ event already covers the intake deadline when it falls on the same day.
+    if (
+      intake.deadlineDate &&
+      !this.limitationEventCovers(limitationEventId, newCase.limitationDeadline, intake.deadlineDate)
+    ) {
       await this.prisma.calendarEvent.create({
         data: {
           caseId: newCase.id,
@@ -1286,6 +1340,14 @@ export class IntakeService {
     });
 
     return newCase;
+  }
+
+  private limitationEventCovers(
+    eventId: string | null,
+    caseDeadline: Date | null | undefined,
+    intakeDeadline: Date,
+  ): boolean {
+    return !!eventId && !!caseDeadline && bangkokDayKey(caseDeadline) === bangkokDayKey(intakeDeadline);
   }
 
   private buildCaseDescription(intake: {
@@ -1336,6 +1398,7 @@ export class IntakeService {
         limitationDeadline: relatedCase.limitationDeadline ?? intake.deadlineDate ?? undefined,
       },
     });
+    const limitationEventId = await syncLimitationReminder(this.prisma, relatedCase.id);
 
     await this.prisma.intakePrecedentAnalysis.updateMany({
       where: { intakeId: intake.id },
@@ -1373,7 +1436,10 @@ export class IntakeService {
       });
     }
 
-    if (intake.deadlineDate) {
+    if (
+      intake.deadlineDate &&
+      !this.limitationEventCovers(limitationEventId, updatedCase.limitationDeadline, intake.deadlineDate)
+    ) {
       await this.prisma.calendarEvent.create({
         data: {
           caseId: relatedCase.id,
@@ -1448,6 +1514,15 @@ export class IntakeService {
         return existing;
       }
 
+      const portalClient = await tx.client.findFirst({
+        where: { id: submission.clientId, firmId: user.firmId },
+        select: { name: true },
+      });
+      const gate = await this.conflictCheck.gateNewCase(user, {
+        parties: portalClient ? [{ name: portalClient.name, side: 'OURS' }] : [],
+        overrideReason: dto.conflictOverrideReason,
+      });
+
       const intake = await tx.intake.create({
         data: {
           firmId: user.firmId,
@@ -1467,6 +1542,7 @@ export class IntakeService {
         where: { id: submission.id },
         data: { intakeId: intake.id },
       });
+      await this.conflictCheck.recordForCase(user, gate, { intakeId: intake.id }, tx);
       return intake;
     });
   }

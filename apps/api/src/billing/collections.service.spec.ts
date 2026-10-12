@@ -91,6 +91,18 @@ describe('CollectionsService', () => {
       expect(mockPrisma.invoice.findFirst).not.toHaveBeenCalled();
     });
 
+    it('lets an office manager record a payment', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(null);
+      const officeManager = { ...owner, id: 'om-1', firmRole: FirmRole.OFFICE_MANAGER } as AuthUser;
+      // Past the role check the invoice lookup runs (and finds nothing) — not a Forbidden.
+      await expect(service.recordPayment(officeManager, 'i1', { amount: 1, receivedAt: '2026-09-26' })).rejects.toThrow(NotFoundException);
+    });
+
+    it('still rejects a lawyer', async () => {
+      const lawyer = { ...owner, id: 'l-1', firmRole: FirmRole.LAWYER } as AuthUser;
+      await expect(service.recordPayment(lawyer, 'i1', { amount: 1, receivedAt: '2026-09-26' })).rejects.toThrow(ForbiddenException);
+    });
+
     it('keeps SENT and returns outstanding on a partial payment', async () => {
       mockPrisma.invoice.findFirst.mockResolvedValue(baseInvoice());
       mockPrisma.invoicePayment.create.mockResolvedValue({ id: 'p1', amount: 400 });

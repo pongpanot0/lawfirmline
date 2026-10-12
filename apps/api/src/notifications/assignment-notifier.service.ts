@@ -124,10 +124,11 @@ export class AssignmentNotifierService {
     }
   }
 
-  async notifyFirmOwners(params: Omit<NotifyParams, 'userIds' | 'firmId'> & { firmId: string }): Promise<void> {
+  /** Notifies the firm's owners, or every member holding one of `roles` when given. */
+  async notifyFirmOwners({ roles, ...params }: Omit<NotifyParams, 'userIds' | 'firmId'> & { firmId: string; roles?: FirmRole[] }): Promise<void> {
     try {
       const owners = await this.prisma.firmMember.findMany({
-        where: { firmId: params.firmId, role: FirmRole.OWNER },
+        where: { firmId: params.firmId, role: roles ? { in: roles } : FirmRole.OWNER },
         select: { userId: true },
       });
       await this.notifyAssigned({ ...params, userIds: owners.map((o) => o.userId) });

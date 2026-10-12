@@ -6,14 +6,14 @@ import Link from 'next/link';
 import { Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { api, CaseItem } from '@/lib/api';
+import { api, CaseListItem } from '@/lib/api';
 import { CaseWorkflowBoard } from '@/components/CaseWorkflowBoard';
 import { PageLoading } from '@/components/ui/misc';
 
 export default function CaseBoardPage() {
   const d = useDashboardT();
   const { token, user } = useAuth();
-  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [cases, setCases] = useState<CaseListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState(false);

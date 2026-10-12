@@ -1,8 +1,8 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEnum,
-  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -11,6 +11,7 @@ import {
   IsObject,
   Matches,
   Max,
+  MaxLength,
   Min,
   ValidateIf,
   ValidateNested,
@@ -26,6 +27,7 @@ import {
   FEE_MIN,
   ParticipantRole,
   ParticipantSide,
+  PartyRole,
   CaseStage,
 } from '@lawfirm/shared';
 import { CustomerShareDto, AdditionalClientDto } from '../../intake/dto/intake.dto';
@@ -48,6 +50,23 @@ export class InitialActivityDto {
   @IsOptional()
   @IsEnum(ActivityType)
   type?: ActivityType;
+}
+
+export class OpponentDto {
+  @IsString()
+  @MaxLength(200)
+  name!: string;
+
+  /** Default: the role opposite ours (โจทก์ ⇄ จำเลย, ผู้ร้อง ⇄ ผู้คัดค้าน). */
+  @IsOptional()
+  @IsEnum(ParticipantRole)
+  role?: ParticipantRole;
+
+  /** 'บุคคลธรรมดา' | 'นิติบุคคล' — same free text the participants form uses. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  personType?: string;
 }
 
 export class CreateCaseDto {
@@ -80,8 +99,8 @@ export class CreateCaseDto {
   clientName?: string;
 
   @IsOptional()
-  @IsIn(['PLAINTIFF', 'DEFENDANT'])
-  partyRole?: 'PLAINTIFF' | 'DEFENDANT';
+  @IsEnum(PartyRole)
+  partyRole?: PartyRole;
 
   @IsOptional()
   @IsArray()
@@ -94,6 +113,20 @@ export class CreateCaseDto {
   @ValidateNested({ each: true })
   @Type(() => AdditionalClientDto)
   clients?: AdditionalClientDto[];
+
+  /** คู่ความฝ่ายตรงข้าม — กลายเป็น CaseParticipant ฝั่ง OPPONENT */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => OpponentDto)
+  opponents?: OpponentDto[];
+
+  /** เหตุผลที่เปิดคดีทั้งที่พบชื่อขัดกัน — ต้องมีเมื่อ API ตอบ 409 CONFLICT_FOUND (อย่างน้อย 10 ตัวอักษร) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  conflictOverrideReason?: string;
 
   @IsOptional()
   @IsString()
@@ -151,6 +184,11 @@ export class CreateCaseDto {
   @Max(FEE_MAX)
   claimedAmount?: number;
 
+  /** วันครบอายุความ — ระบบตั้งเตือน "ครบอายุความ" ให้ 90/30/7/1 วันก่อน */
+  @IsOptional()
+  @IsDateString()
+  limitationDeadline?: string;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => InitialActivityDto)
@@ -198,8 +236,15 @@ export class UpdateCaseDto {
   customers?: CustomerShareDto[];
 
   @IsOptional()
-  @IsIn(['PLAINTIFF', 'DEFENDANT'])
-  partyRole?: 'PLAINTIFF' | 'DEFENDANT';
+  @IsEnum(PartyRole)
+  partyRole?: PartyRole | null;
+
+  /** ลูกความเพิ่มเติม — ส่งมาคือแทนที่ทั้งรายการ */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdditionalClientDto)
+  clients?: AdditionalClientDto[];
 
   @IsOptional()
   @IsString()
@@ -241,6 +286,12 @@ export class UpdateCaseDto {
   @IsEnum(CaseStage)
   stage?: CaseStage;
 
+  /** เหตุผลเมื่อย้ายขั้นตอนย้อนกลับ — บังคับในกรณีนั้น เก็บใน CaseStatusLog.note */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  stageNote?: string;
+
   @IsOptional()
   @IsDateString()
   closedAt?: string;
@@ -260,6 +311,11 @@ export class UpdateCaseDto {
   @Min(0)
   @Max(FEE_MAX)
   claimedAmount?: number | null;
+
+  /** null ล้างวันครบอายุความ (และลบการเตือน) */
+  @IsOptional()
+  @IsDateString()
+  limitationDeadline?: string | null;
 
   @IsOptional()
   @IsString()
@@ -315,6 +371,16 @@ export class CreateParticipantDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** ลูกความในทะเบียนที่เป็นคนเดียวกับคู่ความรายนี้ */
+  @IsOptional()
+  @IsUUID()
+  clientId?: string;
+
+  /** สำหรับทนาย/ผู้แทนฝ่ายตรงข้าม: คู่ความที่เขาเป็นตัวแทน */
+  @IsOptional()
+  @IsUUID()
+  representedByParticipantId?: string;
 }
 
 export class UpdateParticipantDto {
@@ -369,6 +435,16 @@ export class UpdateParticipantDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** ลูกความในทะเบียนที่เป็นคนเดียวกับคู่ความรายนี้ — null ปลดการเชื่อม */
+  @IsOptional()
+  @IsUUID()
+  clientId?: string | null;
+
+  /** สำหรับทนาย/ผู้แทนฝ่ายตรงข้าม: คู่ความที่เขาเป็นตัวแทน — null ปลดการเชื่อม */
+  @IsOptional()
+  @IsUUID()
+  representedByParticipantId?: string | null;
 }
 
 export class CaseQueryDto {

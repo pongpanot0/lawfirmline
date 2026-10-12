@@ -21,6 +21,11 @@ describe('CaseAccessService', () => {
       expect(service.getCaseFilterForUser(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
     });
 
+    it('returns only a firm filter for OFFICE_MANAGER', () => {
+      const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
+      expect(service.getCaseFilterForUser(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
+    });
+
     it('returns the staffed-or-assigned filter for LAWYER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
       expect(service.getCaseFilterForUser(user)).toEqual({
@@ -117,6 +122,11 @@ describe('CaseAccessService', () => {
       expect(service.getTaskFilterForUser(user)).toEqual(firmScope);
     });
 
+    it('returns only the firm scope for OFFICE_MANAGER', () => {
+      const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
+      expect(service.getTaskFilterForUser(user)).toEqual(firmScope);
+    });
+
     it('keeps senior handed-off work visible inside the firm scope', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.SENIOR_LAWYER } as any;
       expect(service.getTaskFilterForUser(user)).toEqual({
@@ -131,7 +141,7 @@ describe('CaseAccessService', () => {
                 },
               },
               { assigneeId: null },
-              { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'u1' } } },
+              { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'u1' } } }, { status: 'PENDING_REVIEW', reviewerId: 'u1' }, { status: 'PENDING_REVIEW', reviewerId: null, case: { leadLawyerId: 'u1' } },
             ],
           },
         ],
@@ -141,14 +151,14 @@ describe('CaseAccessService', () => {
     it('returns firm-scoped own-or-unassigned for LAWYER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
       expect(service.getTaskFilterForUser(user)).toEqual({
-        AND: [firmScope, { OR: [{ assigneeId: 'u1' }, { assigneeId: null }, { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'u1' } } }] }],
+        AND: [firmScope, { OR: [{ assigneeId: 'u1' }, { assigneeId: null }, { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'u1' } } }, { status: 'PENDING_REVIEW', reviewerId: 'u1' }, { status: 'PENDING_REVIEW', reviewerId: null, case: { leadLawyerId: 'u1' } }] }],
       });
     });
 
     it('returns firm-scoped own-or-unassigned for ASSISTANT', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.ASSISTANT } as any;
       expect(service.getTaskFilterForUser(user)).toEqual({
-        AND: [firmScope, { OR: [{ assigneeId: 'u1' }, { assigneeId: null }, { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'u1' } } }] }],
+        AND: [firmScope, { OR: [{ assigneeId: 'u1' }, { assigneeId: null }, { status: { in: ['PENDING_REVIEW', 'DONE'] }, assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'u1' } } }, { status: 'PENDING_REVIEW', reviewerId: 'u1' }, { status: 'PENDING_REVIEW', reviewerId: null, case: { leadLawyerId: 'u1' } }] }],
       });
     });
   });
@@ -156,6 +166,11 @@ describe('CaseAccessService', () => {
   describe('getCaseFilterForFinancials', () => {
     it('returns only a firm filter for OWNER', () => {
       const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
+      expect(service.getCaseFilterForFinancials(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
+    });
+
+    it('returns only a firm filter for OFFICE_MANAGER financials', () => {
+      const user = { id: 'u1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
       expect(service.getCaseFilterForFinancials(user)).toEqual({ firmId: 'firm-1', deletedAt: null });
     });
 

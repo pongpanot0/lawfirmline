@@ -7,14 +7,22 @@ import type { QuickReplyItem } from './line-messaging.service';
  * a permission.
  */
 export const lineActions = {
-  task(taskId: string, opts: { canComplete: boolean }): QuickReplyItem[] {
+  task(taskId: string, opts: { canComplete: boolean; canHandoff?: boolean }): QuickReplyItem[] {
     return [
       { label: '👍 รับทราบ', text: 'รับทราบงาน', data: `task:ack:${taskId}` },
       ...(opts.canComplete ? [{ label: '✅ เสร็จแล้ว', text: 'งานเสร็จแล้ว', data: `task:done:${taskId}` }] : []),
+      ...(opts.canHandoff ? [{ label: '📤 ส่งตรวจ', text: 'ส่งงานให้ตรวจ', data: `task:handoff:${taskId}` }] : []),
     ];
   },
   taskDone(taskId: string): QuickReplyItem[] {
     return [{ label: '✅ เสร็จแล้ว', text: 'งานเสร็จแล้ว', data: `task:done:${taskId}` }];
+  },
+  /** Sent to the reviewer with a handoff. "ส่งกลับ" asks for the reason as a follow-up message (Task 6). */
+  review(taskId: string): QuickReplyItem[] {
+    return [
+      { label: '✅ อนุมัติ', text: 'อนุมัติงาน', data: `task:accept:${taskId}` },
+      { label: '↩️ ส่งกลับ', text: 'ส่งงานกลับแก้', data: `task:reject:${taskId}` },
+    ];
   },
   claim(claimId: string): QuickReplyItem[] {
     return [
@@ -31,3 +39,7 @@ export const lineActions = {
 /** Whether a task can be closed with one tap — not when it needs review or follows an SOP routine. */
 export const canCompleteFromLine = (task: { requiresReview?: boolean | null; routine?: unknown }) =>
   !task.requiresReview && !task.routine;
+
+/** The handoff button needs somewhere to go: a case task, or a standalone task with a named reviewer. */
+export const canHandoffFromLine = (task: { requiresReview?: boolean | null; caseId?: string | null; reviewerId?: string | null }) =>
+  !!task.requiresReview && (!!task.caseId || !!task.reviewerId);

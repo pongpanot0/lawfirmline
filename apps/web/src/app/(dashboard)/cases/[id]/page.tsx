@@ -3,6 +3,8 @@
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CasePrintForms } from '@/components/cases/CasePrintForms';
 import { CaseOverviewForm, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
+import { CaseProceedingsCard } from '@/components/cases/CaseProceedingsCard';
+import { LitigationCalculatorsCard } from '@/components/cases/LitigationCalculatorsCard';
 import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
 import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
@@ -41,8 +43,13 @@ import {
   CourtLevel,
   COURT_LEVEL_LABELS,
   CASE_NUMBER_HINT,
-  FirmRole,
+  courtFee,
+  hasFirmCapability,
+  isBackwardStage,
+  PARTY_ROLE_LABELS,
+  type PartyRole,
 } from '@lawfirm/shared';
+import { additionalClientsPatch, limitationPatch } from '@/lib/case-overview';
 import {
   CASE_TAB_IDS,
   CASE_TAB_LABELS,
@@ -185,6 +192,7 @@ export default function CaseDetailPage() {
   const [showAllTimeline, setShowAllTimeline] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingOverview, setEditingOverview] = useState(false);
+  const [limitationIncomplete, setLimitationIncomplete] = useState(false);
   const [savingOverview, setSavingOverview] = useState(false);
   const [overviewError, setOverviewError] = useState('');
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
@@ -204,9 +212,10 @@ export default function CaseDetailPage() {
     chargeSection: '',
     estimatedFee: '',
     description: '',
-    opposingParty: '',
     incidentDate: '',
     estimatedDamage: '',
+    limitationDeadline: '',
+    additionalClientIds: [] as string[],
     clientId: '',
     clientName: '',
     customers: [] as CaseOverviewCustomerValue[],
@@ -424,7 +433,7 @@ export default function CaseDetailPage() {
     setCloseError('');
     try {
       await api.closeCase(token, id, closingSummary.trim(), {
-        outcome: closingOutcome || undefined,
+        outcome: closingOutcome,
         acknowledgeOutstanding: ackOutstanding || undefined,
       });
       setShowCloseForm(false);
@@ -438,10 +447,17 @@ export default function CaseDetailPage() {
     }
   };
 
-  const applyStageChange = async (stage: string) => {
-    if (!token || !id) return;
-    await api.updateCase(token, id, { stage });
+  /** false = the user cancelled the backward-move reason prompt; nothing was saved, so callers must stop. */
+  const applyStageChange = async (stage: string): Promise<boolean> => {
+    if (!token || !id) return false;
+    let stageNote: string | undefined;
+    if (isBackwardStage(legalCase?.stage, stage)) {
+      stageNote = window.prompt('ย้ายขั้นตอนย้อนกลับ — ระบุเหตุผล (จะบันทึกในประวัติคดี)')?.trim();
+      if (!stageNote) return false;
+    }
+    await api.updateCase(token, id, { stage, ...(stageNote ? { stageNote } : {}) });
     loadCase();
+    return true;
   };
 
   const handleStageChange = async (stage: string) => {
@@ -481,7 +497,7 @@ export default function CaseDetailPage() {
     if (!token || !id || !pendingStage) return;
     setSavingStage(true);
     try {
-      if (pendingStage !== legalCase?.stage) await applyStageChange(pendingStage);
+      if (pendingStage !== legalCase?.stage && !(await applyStageChange(pendingStage))) return;
       await api.dismissStageTasks(token!, id!, pendingStage).catch(console.error);
       loadCase();
       closeStageTaskDialog();
@@ -499,7 +515,7 @@ export default function CaseDetailPage() {
     setStageTaskError('');
     const moving = pendingStage !== legalCase?.stage;
     try {
-      if (moving) await applyStageChange(pendingStage);
+      if (moving && !(await applyStageChange(pendingStage))) return;
       try {
         await api.createStageTasks(token, id, pendingStage, tasks);
         loadCase();
@@ -551,6 +567,7 @@ export default function CaseDetailPage() {
     for (const customer of legalCase.customers ?? []) {
       knownClients.set(customer.customerId, { ...customer.customer, contacts: [] });
     }
+    for (const ac of legalCase.additionalClients ?? []) knownClients.set(ac.clientId, { ...ac.client, contacts: [] });
     const linkedClients = [...knownClients.values()];
     setClients(linkedClients);
     setOverviewForm({
@@ -571,9 +588,10 @@ export default function CaseDetailPage() {
       estimatedFee:
         legalCase.estimatedFee != null ? String(legalCase.estimatedFee) : '',
       description: legalCase.description ?? '',
-      opposingParty: String(legalCase.customFields?.opposingParty ?? ''),
       incidentDate: String(legalCase.customFields?.incidentDate ?? ''),
       estimatedDamage: String(legalCase.customFields?.estimatedDamage ?? ''),
+      limitationDeadline: legalCase.limitationDeadline ? bangkokDateInputValue(legalCase.limitationDeadline) : '',
+      additionalClientIds: (legalCase.additionalClients ?? []).map((ac) => ac.clientId),
       clientId: legalCase.clientId ?? '',
       clientName: legalCase.client?.name ?? legalCase.clientName ?? '',
       customers: legalCase.customers?.length
@@ -587,6 +605,7 @@ export default function CaseDetailPage() {
         : [{ customerId: '', contactId: '', sharePercent: '', isPrimary: true, note: '' }],
     });
     setOverviewError('');
+    setLimitationIncomplete(false);
     setEditingOverview(true);
     if (token) {
       Promise.all([
@@ -613,6 +632,11 @@ export default function CaseDetailPage() {
     }
     if (!overviewForm.ownRef.trim()) {
       setOverviewError('กรุณากรอกเลขอ้างอิงสำนักงาน');
+      return;
+    }
+    // A half-typed date reads as '' — saving it would clear the stored deadline and its reminders.
+    if (limitationIncomplete) {
+      setOverviewError('กรอกวันครบอายุความให้ครบ (วัน/เดือน/ปี พ.ศ.) หรือเว้นว่างทั้งหมด');
       return;
     }
     setSavingOverview(true);
@@ -643,19 +667,26 @@ export default function CaseDetailPage() {
         courtLevel: overviewForm.courtLevel || null,
         courtName: overviewForm.courtName.trim() || null,
         partyRole: overviewForm.partyRole || null,
+        // Sent only when changed: the API acts on presence (reminder re-sync, rebuilding client rows).
+        ...limitationPatch(
+          overviewForm.limitationDeadline,
+          legalCase.limitationDeadline ? bangkokDateInputValue(legalCase.limitationDeadline) : '',
+        ),
+        ...additionalClientsPatch(overviewForm.additionalClientIds, legalCase.additionalClients ?? [], overviewForm.clientId),
         estimatedFee,
         claimedAmount: overviewForm.claimedAmount.trim() ? Number(overviewForm.claimedAmount) : null,
         customFields: {
-          ...(legalCase.customFields ?? {}),
+          ...Object.fromEntries(Object.entries(legalCase.customFields ?? {}).filter(([key]) => key !== 'opposingParty')),
           chargeSection: overviewForm.chargeSection.trim(),
-          opposingParty: overviewForm.opposingParty.trim(),
           incidentDate: overviewForm.incidentDate,
           estimatedDamage: overviewForm.estimatedDamage,
         },
         description: overviewForm.description.trim() || null,
       }) as CaseDetail;
-      setCase(updated);
+      // Merge, then reload: update() returns a thinner object than getCase (calendarEvents, contacts, ...).
+      setCase((current) => (current ? { ...current, ...updated } : updated));
       setEditingOverview(false);
+      loadCase();
     } catch (err) {
       setOverviewError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
     } finally {
@@ -857,7 +888,7 @@ export default function CaseDetailPage() {
             <Button variant="outline" className="min-h-11" onClick={() => setRecordingOutcome(true)}>
               <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
             </Button>
-            {user?.firmRole === FirmRole.OWNER && (
+            {hasFirmCapability(user?.firmRole, 'deleteCase') && (
               <Button variant="outline" className="min-h-11 text-destructive hover:text-destructive" onClick={() => void deleteCase()}>
                 <Trash2 className="h-4 w-4" />ลบคดี
               </Button>
@@ -1040,9 +1071,10 @@ export default function CaseDetailPage() {
                 <select
                   value={closingOutcome}
                   onChange={(e) => setClosingOutcome(e.target.value)}
+                  required
                   className="h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
                 >
-                  <option value="">ไม่ระบุ</option>
+                  <option value="" disabled>เลือกผลคดี</option>
                   <option value="WON">ชนะคดี</option>
                   <option value="SETTLED">ตกลงกันได้</option>
                   <option value="MEDIATED">ไกล่เกลี่ยสำเร็จ</option>
@@ -1062,7 +1094,7 @@ export default function CaseDetailPage() {
               <div className="flex gap-2">
                 <Button
                   type="submit"
-                  disabled={closingCase || (!!outstanding && outstanding.total > 0 && !ackOutstanding)}
+                  disabled={!closingOutcome || closingCase || (!!outstanding && outstanding.total > 0 && !ackOutstanding)}
                 >
                   {closingCase ? 'กำลังปิดคดี...' : 'ยืนยันปิดคดี'}
                 </Button>
@@ -1141,7 +1173,7 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-calendar"
           className="min-w-0"
         >
-          <CaseCalendarPanel caseId={id} />
+          <CaseCalendarPanel caseId={id} onChanged={loadCase} />
         </div>
       )}
 
@@ -1152,7 +1184,7 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-documents"
           className="min-w-0"
         >
-          <CaseDocumentsPanel caseId={id} />
+          <CaseDocumentsPanel caseId={id} onChanged={loadCase} />
         </div>
       )}
 
@@ -1255,6 +1287,7 @@ export default function CaseDetailPage() {
                   error={overviewError}
                   onSave={handleSaveOverview}
                   onCancel={() => setEditingOverview(false)}
+                  onLimitationIncompleteChange={setLimitationIncomplete}
                 />
               ) : (
                 <>
@@ -1307,13 +1340,20 @@ export default function CaseDetailPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">ทุนทรัพย์</p>
-                    <p className="font-medium">{legalCase.claimedAmount != null ? formatCurrency(legalCase.claimedAmount) : 'ยังไม่ระบุ'}</p>
+                    <p className="font-medium">{legalCase.claimedAmount ? formatCurrency(legalCase.claimedAmount) : 'ยังไม่ระบุ'}</p>
+                    {!!legalCase.claimedAmount && (
+                      <p className="text-xs text-muted-foreground">ค่าขึ้นศาลโดยประมาณ {formatCurrency(courtFee(legalCase.claimedAmount))}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">ฝ่ายเรา</p>
                     <p className="font-medium">
-                      {legalCase.partyRole === 'PLAINTIFF' ? 'โจทก์' : legalCase.partyRole === 'DEFENDANT' ? 'จำเลย' : '—'}
+                      {legalCase.partyRole ? PARTY_ROLE_LABELS[legalCase.partyRole as PartyRole] : '—'}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">วันครบอายุความ</p>
+                    <p className="font-medium">{legalCase.limitationDeadline ? formatDate(legalCase.limitationDeadline) : '—'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">ชื่อลูกความ</p>
@@ -1340,7 +1380,7 @@ export default function CaseDetailPage() {
               <div className="col-span-full rounded-lg border border-border bg-muted/30 p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground">ทีมของคดี</p>
-                  {!editingTeam && user?.firmRole === FirmRole.OWNER && (
+                  {!editingTeam && hasFirmCapability(user?.firmRole, 'reassignCaseLead') && (
                     <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={startEditTeam}>
                       <Pencil className="h-3 w-3" />
                       แก้ไขทีม
@@ -1448,9 +1488,9 @@ export default function CaseDetailPage() {
                 <p className="text-xs text-muted-foreground">ค่าใช้จ่ายที่อนุมัติ</p>
                 <p className="font-medium text-primary">{formatCurrency(totalSpent)}</p>
               </div>
-              {customFields && Object.entries(customFields).filter(([key, value]) => key !== CASE_COSTS_KEY && key !== 'chargeSection' && value !== '').map(([k, v]) => (
+              {customFields && Object.entries(customFields).filter(([key, value]) => key !== CASE_COSTS_KEY && key !== 'chargeSection' && key !== 'opposingParty' && value !== '').map(([k, v]) => (
                 <div key={k}>
-                  <p className="text-xs text-muted-foreground">{{ opposingParty: 'คู่กรณี', incidentDate: 'วันเกิดเหตุ', estimatedDamage: 'ความเสียหายโดยประมาณ' }[k] ?? k}</p>
+                  <p className="text-xs text-muted-foreground">{{ incidentDate: 'วันเกิดเหตุ', estimatedDamage: 'ความเสียหายโดยประมาณ' }[k] ?? k}</p>
                   <p className="font-medium">{k === 'incidentDate' ? formatDate(v) : k === 'estimatedDamage' ? formatCurrency(Number(v)) : v}</p>
                 </div>
               ))}
@@ -1465,6 +1505,15 @@ export default function CaseDetailPage() {
               </div>}
             </CardContent>
           </Card>
+
+          <CaseProceedingsCard
+            caseId={legalCase.id}
+            proceedings={legalCase.proceedings ?? []}
+            currentLevel={legalCase.courtLevel ?? null}
+            onChanged={loadCase}
+          />
+
+          <LitigationCalculatorsCard key={legalCase.claimedAmount ?? 'none'} claimedAmount={legalCase.claimedAmount ?? null} />
 
           <div className="min-w-0 space-y-4">
           {legalCase.intake && preFiling && (

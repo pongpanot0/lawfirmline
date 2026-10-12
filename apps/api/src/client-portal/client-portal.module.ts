@@ -19,6 +19,7 @@ import { ClientPortalInviteService } from './client-portal-invite.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { CasesModule } from '../cases/cases.module';
+import { ConflictCheckModule } from '../conflict-check/conflict-check.module';
 import { ClientAnnualReportsService } from './client-annual-reports.service';
 import { StaffAnnualReportsController, PortalAnnualReportsController } from './client-annual-reports.controller';
 
@@ -29,6 +30,7 @@ import { StaffAnnualReportsController, PortalAnnualReportsController } from './c
     NotificationsModule,
     DocumentsModule,
     CasesModule,
+    ConflictCheckModule,
   ],
   controllers: [
     StaffWorkroomController, ClientWorkroomController,

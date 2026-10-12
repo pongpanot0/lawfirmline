@@ -83,7 +83,7 @@ export default function CourtDayScreen() {
   const done = !!workspace.completedAt;
   const busy = save.isPending || complete.isPending;
   // CourtDayService already authorizes senior lawyers through the existing case access filter.
-  const writer = ['OWNER', 'SENIOR_LAWYER', 'LAWYER'].includes(user?.firmRole ?? '');
+  const writer = ['OWNER', 'SENIOR_LAWYER', 'OFFICE_MANAGER', 'LAWYER'].includes(user?.firmRole ?? '');
   const editable = writer && !done && !busy;
   const stale = workspace.version !== draft.version || event.updatedAt !== draft.eventUpdatedAt;
   const change = (next: Partial<CourtDayState>) => setDraft({ ...draft, state: { ...state, ...next } });

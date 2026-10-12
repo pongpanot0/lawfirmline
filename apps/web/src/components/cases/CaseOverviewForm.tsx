@@ -1,10 +1,12 @@
 'use client';
 
-import { CASE_NUMBER_HINT, CASE_NUMBER_HTML, CourtLevel, COURT_LEVEL_LABELS, FEE_MAX } from '@lawfirm/shared';
+import { CASE_NUMBER_HINT, CASE_NUMBER_HTML, CourtLevel, COURT_LEVEL_LABELS, FEE_MAX, PARTY_ROLE_LABELS, PartyRole } from '@lawfirm/shared';
 import type { CaseDetail, CaseTypeItem, ClientItem, CourtItem } from '@/lib/api';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { Button } from '@/components/ui/button';
+import { CourtSelect } from './CourtSelect';
 import { MoneyInput } from '@/components/ui/MoneyInput';
+import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { Plus, X } from 'lucide-react';
 
 export interface CaseOverviewCustomerValue {
@@ -19,11 +21,11 @@ export interface CaseOverviewValues {
   title: string; ownRef: string; customerRef: string; caseTypeId: string;
   blackCaseNumber: string; redCaseNumber: string; courtLevel: string; courtName: string;
   partyRole: string; claimedAmount: string; chargeSection: string; estimatedFee: string; description: string;
-  opposingParty: string; incidentDate: string; estimatedDamage: string;
+  incidentDate: string; estimatedDamage: string; limitationDeadline: string; additionalClientIds: string[];
   clientId: string; clientName: string; customers: CaseOverviewCustomerValue[];
 }
 
-export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts, clients, onClientCreated, saving, error, onSave, onCancel }: {
+export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts, clients, onClientCreated, saving, error, onSave, onCancel, onLimitationIncompleteChange }: {
   value: CaseOverviewValues;
   onChange: (value: CaseOverviewValues) => void;
   legalCase: CaseDetail;
@@ -35,10 +37,14 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
   error: string;
   onSave: () => void;
   onCancel: () => void;
+  /** true while the limitation date is half typed or impossible — the page blocks saving then. */
+  onLimitationIncompleteChange?: (incomplete: boolean) => void;
 }) {
-  const set = (key: Exclude<keyof CaseOverviewValues, 'customers'>, next: string) => onChange({ ...value, [key]: next });
+  const set = (key: Exclude<keyof CaseOverviewValues, 'customers' | 'additionalClientIds'>, next: string) => onChange({ ...value, [key]: next });
   const input = 'mt-1 min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   const group = 'grid min-w-0 gap-4 border-b border-border pb-5 sm:grid-cols-2';
+  // Numbers typed while switching level would land on the old level — the API rejects that, so lock them.
+  const levelSwitching = (value.courtLevel || 'TRIAL') !== (legalCase.courtLevel || 'TRIAL');
 
   return <form className="col-span-full min-w-0" data-testid="case-information-edit" onSubmit={e => { e.preventDefault(); onSave(); }}>
     <p className="mb-5 text-sm text-muted-foreground">แก้ไขข้อมูลคดี ลูกความ และผู้ว่าจ้างได้จากที่นี่</p>
@@ -51,10 +57,10 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
           {legalCase.caseType && !caseTypes.some(t => t.id === legalCase.caseType?.id) && <option value={legalCase.caseType.id}>{legalCase.caseType.name}</option>}
           {caseTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select></label>
-        <label className="text-sm">ฝ่ายที่สำนักงานเป็นทนายให้<select value={value.partyRole} onChange={e => set('partyRole', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option><option value="PLAINTIFF">โจทก์ (ฝ่ายเราฟ้อง)</option><option value="DEFENDANT">จำเลย (ฝ่ายเราถูกฟ้อง)</option></select></label>
+        <label className="text-sm">ฝ่ายที่สำนักงานเป็นทนายให้<select value={value.partyRole} onChange={e => set('partyRole', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(PartyRole).map(role => <option key={role} value={role}>{PARTY_ROLE_LABELS[role]}</option>)}</select></label>
         <label className="text-sm sm:col-span-2">ข้อหาหรือฐานความผิด<textarea rows={2} maxLength={2000} value={value.chargeSection} onChange={e => set('chargeSection', e.target.value)} placeholder="เช่น ละเมิด เรียกค่าเสียหาย / ผิดสัญญา" className={input} /><span className="mt-1 block text-xs text-muted-foreground">ระบุเรื่องที่ฟ้องหรือฐานความผิด ใช้ในคำฟ้องหน้าแรกและปกสำนวน</span></label>
         <label className="text-sm sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี<textarea rows={4} value={value.description} onChange={e => set('description', e.target.value)} placeholder="สรุปเหตุการณ์และประเด็นสำคัญของคดี" className={input} /></label>
-        <label className="text-sm">คู่กรณี<input value={value.opposingParty} onChange={e => set('opposingParty', e.target.value)} className={input} /></label>
+        <div role="group" aria-labelledby="overview-limitation-label" className="text-sm"><span id="overview-limitation-label">วันครบอายุความ</span><ThaiDateInput id="overview-limitation-deadline" className="mt-1" value={value.limitationDeadline} onChange={next => set('limitationDeadline', next)} onIncompleteChange={onLimitationIncompleteChange} /><span className="mt-1 block text-xs text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน · คู่ความแก้ที่ส่วน &quot;คู่ความและผู้เกี่ยวข้อง&quot;</span></div>
         <label className="text-sm">วันเกิดเหตุ<input type="date" value={value.incidentDate.slice(0, 10)} onChange={e => set('incidentDate', e.target.value)} className={input} /></label>
       </section>
       <section className={group} aria-labelledby="case-people-heading">
@@ -64,6 +70,23 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
           const match = clients.find(client => client.name.trim().toLocaleLowerCase() === clientName.trim().toLocaleLowerCase());
           onChange({ ...value, clientId: match?.id ?? '', clientName });
         }} className={input} placeholder="ค้นหาหรือพิมพ์ชื่อลูกความ" /><datalist id="case-client-options">{clients.map(client => <option key={client.id} value={client.name} />)}</datalist></label>
+        <div className="space-y-2 text-sm sm:col-span-2">
+          <p>ลูกความเพิ่มเติม</p>
+          {value.additionalClientIds.map((clientId, index) => (
+            <div key={index} className="flex min-w-0 items-center gap-2">
+              <select aria-label={`ลูกความเพิ่มเติมรายที่ ${index + 1}`} value={clientId}
+                onChange={e => onChange({ ...value, additionalClientIds: value.additionalClientIds.map((id, i) => i === index ? e.target.value : id) })} className={input}>
+                <option value="">เลือกลูกความ</option>
+                {clients.filter(client => client.id !== value.clientId && (client.id === clientId || !value.additionalClientIds.includes(client.id))).map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+              </select>
+              <Button type="button" variant="ghost" size="icon" aria-label={`ลบลูกความเพิ่มเติมรายที่ ${index + 1}`}
+                onClick={() => onChange({ ...value, additionalClientIds: value.additionalClientIds.filter((_, i) => i !== index) })}><X className="h-4 w-4" /></Button>
+            </div>
+          ))}
+          <Button type="button" variant="outline" size="sm" onClick={() => onChange({ ...value, additionalClientIds: [...value.additionalClientIds, ''] })}>
+            <Plus className="h-3.5 w-3.5" /> เพิ่มลูกความ
+          </Button>
+        </div>
         <div className="space-y-3 text-sm sm:col-span-2">
           {value.customers.map((customer, index) => {
             const contacts = clients.find(client => client.id === customer.customerId)?.contacts ?? [];
@@ -79,10 +102,18 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
       </section>
       <section className={group} aria-labelledby="case-court-heading">
         <div className="sm:col-span-2"><h3 id="case-court-heading" className="font-semibold">ศาลและหมายเลขคดี</h3><p className="mt-1 text-xs text-muted-foreground">ยังไม่ยื่นฟ้องหรือยังไม่มีเลขคดี เว้นว่างไว้ได้</p></div>
-        <label className="text-sm">ระดับศาล<select value={value.courtLevel} onChange={e => set('courtLevel', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(CourtLevel).map(level => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label>
-        <label className="text-sm">ศาล<select value={value.courtName} onChange={e => set('courtName', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{courts.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}{value.courtName && !courts.some(c => c.name === value.courtName) && <option value={value.courtName}>{value.courtName}</option>}</select></label>
-        <label className="text-sm">หมายเลขคดีดำ<input value={value.blackCaseNumber} onChange={e => set('blackCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
-        <label className="text-sm">หมายเลขคดีแดง<input value={value.redCaseNumber} onChange={e => set('redCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
+        <label className="text-sm">ระดับศาล<select value={value.courtLevel} onChange={e => {
+          const next = e.target.value;
+          const switching = (next || 'TRIAL') !== (legalCase.courtLevel || 'TRIAL');
+          // Locked fields go back to the stored values so an earlier edit cannot make the save fail.
+          onChange({ ...value, courtLevel: next, ...(switching ? { courtName: legalCase.courtName ?? '', blackCaseNumber: legalCase.blackCaseNumber ?? '', redCaseNumber: legalCase.redCaseNumber ?? '' } : {}) });
+        }} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(CourtLevel).map(level => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label>
+        <fieldset disabled={levelSwitching} className="contents">
+          <label className="text-sm">ศาล<CourtSelect value={value.courtName} courts={courts} onChange={name => set('courtName', name)} className={input} /></label>
+          <label className="text-sm">หมายเลขคดีดำ<input value={value.blackCaseNumber} onChange={e => set('blackCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
+          <label className="text-sm">หมายเลขคดีแดง<input value={value.redCaseNumber} onChange={e => set('redCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
+        </fieldset>
+        {levelSwitching && <p className="col-span-full text-xs text-muted-foreground">เปลี่ยนระดับศาลแล้วบันทึกก่อน แล้วจึงแก้เลขคดีของศาลชั้นนั้น</p>}
       </section>
       <section className={group} aria-labelledby="case-reference-heading">
         <h3 id="case-reference-heading" className="font-semibold sm:col-span-2">เลขอ้างอิงและจำนวนเงิน</h3>

@@ -1,8 +1,9 @@
 import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
 import { taskAppRoute } from '../notifications/app-route';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AssignmentType, AuthUser, FirmRole, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
+import { AssignmentType, AuthUser, FirmRole, hasFirmCapability, PersonWorkload, TaskSize, TaskStatus, TaskWorkType, TeamRadar, taskPoints, dailyUpdateParts } from '@lawfirm/shared';
 import { NotificationCategory, Prisma } from '../generated/prisma';
+import { reviewQueueOrder, reviewQueueWhere } from '../tasks/review-queue';
 import { PrismaService } from '../prisma/prisma.module';
 import { TasksService } from '../tasks/tasks.service';
 import { bangkokDateOnly, bangkokDayKey, bangkokDayStart } from '../common/utils/bangkok-time';
@@ -39,7 +40,7 @@ export class DailyOperationsService {
   constructor(private prisma: PrismaService, private tasks: TasksService, private notifier: AssignmentNotifierService, private caseAccess: CaseAccessService) {}
 
   private owner(user: AuthUser) {
-    if (user.firmRole !== FirmRole.OWNER) throw new ForbiddenException('เฉพาะ Owner');
+    if (!hasFirmCapability(user.firmRole, 'runOperations')) throw new ForbiddenException('ไม่มีสิทธิ์ดูภาพรวมงานประจำวัน / Insufficient permissions');
   }
 
   async board(user: AuthUser, date: string) {
@@ -52,7 +53,7 @@ export class DailyOperationsService {
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { OR: [
         { status: { not: TaskStatus.DONE } }, { completedAt: { gte: start, lt: end } },
       ] }] }, include: {
-        case: { select: { id: true, ownRef: true, title: true } }, onHold: true,
+        case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true } }, onHold: true,
         blockedBy: { select: { title: true, status: true } },
         assignmentLogs: { orderBy: { createdAt: 'desc' }, take: 1 },
         comments: { where: { kind: 'DAILY_UPDATE', createdAt: { lt: end } }, orderBy: { createdAt: 'desc' }, take: 1,
@@ -70,7 +71,7 @@ export class DailyOperationsService {
         appointments: events.filter((e) => attends(e, m.userId)).map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, endAt: e.endAt })),
       })),
       tasks: rows.map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority,
-        assigneeId: t.assigneeId, workerId: (t.status === TaskStatus.PENDING_REVIEW || t.status === TaskStatus.DONE) && t.assignmentLogs[0]?.action === 'HANDED_OFF' ? t.assignmentLogs[0].fromUserId ?? t.assigneeId : t.assigneeId,
+        assigneeId: t.assigneeId, workerId: t.assigneeId,
         reviewerId: t.reviewerId, requiresReview: t.requiresReview, caseId: t.caseId, case: t.case,
         workType: t.workType, size: t.size, dueDate: t.dueDate, scheduledFor: t.scheduledFor, queuePosition: t.queuePosition,
         assignedAt: t.assignedAt, acknowledgedAt: t.acknowledgedAt, completedAt: t.completedAt,
@@ -101,7 +102,7 @@ export class DailyOperationsService {
       start: date, days,
       members: members.map((m) => {
         const mine = tasks.filter((t) => t.assigneeId === m.userId);
-        // After a hand-off the reviewer holds the task; that is review work, not queue work.
+        // Work handed in for review waits on someone else; it is not queue load.
         const open = mine.filter((t) => t.status !== TaskStatus.PENDING_REVIEW);
         const myEvents = events.filter((e) => attends(e, m.userId));
         return {
@@ -137,7 +138,7 @@ export class DailyOperationsService {
     if (!member) throw new NotFoundException('ไม่พบสมาชิกในสำนักงาน');
     const now = new Date();
     const windowStart = from ? new Date(`${from}T00:00:00+07:00`) : bangkokDayStart(now);
-    const [tasks, cases, events, leaves] = await Promise.all([
+    const [tasks, cases, events, leaves, reviewRows] = await Promise.all([
       this.prisma.task.findMany({ where: { AND: [dailyTaskScope(user.firmId), { assigneeId: userId, status: { not: TaskStatus.DONE } }] }, select: {
         id: true, title: true, status: true, dueDate: true, scheduledFor: true, size: true, caseId: true,
         case: { select: { id: true, ownRef: true, title: true } }, onHold: { select: { reason: true, endedAt: true } },
@@ -151,9 +152,10 @@ export class DailyOperationsService {
         id: true, title: true, startAt: true, endAt: true, courtName: true, caseId: true, assigneeId: true, assignees: { select: { userId: true } }, case: { select: { leadLawyerId: true } },
       }, orderBy: { startAt: 'asc' } }),
       this.prisma.leaveRequest.findMany({ where: { firmId: user.firmId, userId, status: 'APPROVED', endDate: { gte: bangkokDateOnly(windowStart < now ? windowStart : now) } }, select: { id: true, type: true, startDate: true, endDate: true }, orderBy: { startDate: 'asc' }, take: 5 }),
+      this.prisma.task.findMany({ where: reviewQueueWhere({ id: userId, firmId: user.firmId }), select: { id: true, title: true, dueDate: true, caseId: true }, orderBy: reviewQueueOrder }),
     ]);
-    const owner = user.firmRole === FirmRole.OWNER;
-    const caseIds = [...new Set([...tasks.map((t) => t.caseId), ...cases.map((c) => c.id), ...events.map((e) => e.caseId)].filter((id): id is string => !!id))];
+    const owner = hasFirmCapability(user.firmRole, 'viewAllCases');
+    const caseIds = [...new Set([...tasks.map((t) => t.caseId), ...reviewRows.map((t) => t.caseId), ...cases.map((c) => c.id), ...events.map((e) => e.caseId)].filter((id): id is string => !!id))];
     const visible = owner ? new Set(caseIds) : new Set((await this.prisma.case.findMany({
       where: { AND: [{ id: { in: caseIds } }, this.caseAccess.getCaseFilterForUser(user)] }, select: { id: true },
     })).map((c) => c.id));
@@ -171,7 +173,8 @@ export class DailyOperationsService {
           : t.blockedBy && t.blockedBy.status !== TaskStatus.DONE ? `รอ ${t.blockedBy.title}`
           : t.comments?.[0] ? dailyUpdateParts(t.comments[0].body).blocker || null : null,
       })),
-      reviews: tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW).map((t) => ({ id: t.id, title: canSee(t.caseId) ? t.title : 'งานที่คุณไม่มีสิทธิ์ดู', dueDate: t.dueDate?.toISOString() ?? null })),
+      submitted: tasks.filter((t) => t.status === TaskStatus.PENDING_REVIEW).map((t) => ({ id: t.id, title: canSee(t.caseId) ? t.title : 'งานที่คุณไม่มีสิทธิ์ดู', dueDate: t.dueDate?.toISOString() ?? null })),
+      reviews: reviewRows.map((t) => ({ id: t.id, title: canSee(t.caseId) ? t.title : 'งานที่คุณไม่มีสิทธิ์ดู', dueDate: t.dueDate?.toISOString() ?? null })),
       cases: shownCases.map((c) => ({ id: c.id, ownRef: c.ownRef, title: c.title, status: c.status, role: c.leadLawyerId === userId ? 'LEAD' : 'BUDDY' })),
       hiddenCaseCount: cases.length - shownCases.length,
       events: events.filter((e) => attends(e, userId)).map((e) => canSee(e.caseId)

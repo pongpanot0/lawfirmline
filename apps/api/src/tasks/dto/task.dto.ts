@@ -38,6 +38,9 @@ export class CreateTaskDto {
   @IsOptional() @IsBoolean()
   requiresReview?: boolean;
 
+  @IsOptional() @IsBoolean()
+  requiresAttachment?: boolean;
+
   @IsOptional() @IsUUID()
   reviewerId?: string;
 
@@ -101,6 +104,9 @@ export class UpdateTaskDto {
 
   @IsOptional() @IsBoolean()
   requiresReview?: boolean;
+
+  @IsOptional() @IsBoolean()
+  requiresAttachment?: boolean;
 
   @IsOptional() @IsUUID()
   reviewerId?: string | null;

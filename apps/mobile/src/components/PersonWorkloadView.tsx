@@ -2,13 +2,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { CalendarDays, ChevronRight, FolderOpen, LockKeyhole } from 'lucide-react-native';
-import { TASK_WORK_TYPES, type PersonWorkload } from '@lawfirm/shared';
+import { FIRM_ROLE_LABELS, TASK_WORK_TYPES, type FirmRole, type PersonWorkload } from '@lawfirm/shared';
 import { Text } from '@/components/AppText';
 import { Button, Card, EmptyNote, SectionLabel, StatCard, Tag } from '@/components/ui';
 import { initials, thDate, thTime } from '@/format';
 import { colors, fonts, spacing } from '@/theme';
 
-const ROLES: Record<string, string> = { OWNER: 'เจ้าของสำนักงาน', SENIOR_LAWYER: 'ทนายอาวุโส', LAWYER: 'ทนายความ', JUNIOR_LAWYER: 'ทนายความ', ASSISTANT: 'ผู้ช่วย', ADMIN: 'ผู้ดูแล', EXTERNAL: 'ผู้รับงานภายนอก' };
+const LEGACY_ROLES: Record<string, string> = { JUNIOR_LAWYER: 'ทนายความ', ADMIN: 'ผู้ดูแล' };
 const STATUSES: Record<string, string> = { TODO: 'รอเริ่ม', IN_PROGRESS: 'กำลังทำ', NEEDS_REVISION: 'แก้ไขงาน', ON_HOLD: 'พักไว้', PENDING_REVIEW: 'รอตรวจ' };
 
 function DetailRow({ title, subtitle, onPress, children }: { title: string; subtitle?: string; onPress?: () => void; children?: React.ReactNode }) {
@@ -34,7 +34,7 @@ export function PersonWorkloadView({ person, from, viewerId, owner, onTask, onCa
     <Card style={styles.identity}>
       <View style={styles.identityTop}>
         <View style={styles.avatar}><Text style={styles.initials}>{initials(name)}</Text></View>
-        <View style={styles.rowText}><Text style={styles.name}>{name}</Text><Text style={styles.role}>{ROLES[person.role] ?? person.role}</Text></View>
+        <View style={styles.rowText}><Text style={styles.name}>{name}</Text><Text style={styles.role}>{FIRM_ROLE_LABELS[person.role as FirmRole]?.th ?? LEGACY_ROLES[person.role] ?? person.role}</Text></View>
       </View>
       <Text style={styles.identityNote}>งานที่รับผิดชอบ · แตะรายการเพื่อดูรายละเอียด</Text>
     </Card>

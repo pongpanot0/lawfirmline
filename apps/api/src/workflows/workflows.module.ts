@@ -7,7 +7,7 @@ import { WorkflowsController, CaseWorkflowsController } from './workflows.contro
 import { ExternalController } from './external.controller';
 
 @Module({
-  imports: [forwardRef(() => NotificationsModule), DeadlinesModule, forwardRef(() => TasksModule)],
+  imports: [forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule), forwardRef(() => TasksModule)],
   controllers: [WorkflowsController, CaseWorkflowsController, ExternalController],
   providers: [WorkflowsService],
   exports: [WorkflowsService],

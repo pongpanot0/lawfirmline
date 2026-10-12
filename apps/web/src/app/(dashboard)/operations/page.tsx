@@ -1,11 +1,12 @@
 'use client';
 
+import { ON_HOLD_CATEGORY_LABEL } from '@/lib/on-hold';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { fmt, dateLocale } from '@/lib/i18n/dashboard';
 import { useAuth } from '@/lib/auth';
-import { CaseStatus, FirmRole } from '@lawfirm/shared';
+import { CaseStatus, hasFirmCapability } from '@lawfirm/shared';
 import { api, WorkloadSummary, WorkloadDetail, PairingEntry, OnHoldTaskEntry, CaseHealth, TeamPerformanceRow, WorkflowMetrics } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
 import { OnHoldResumeButton } from './onhold-actions';
@@ -38,14 +39,6 @@ const CAPACITY_BADGE: Record<
   NORMAL: { label: 'ปกติ', variant: 'secondary' },
   HIGH: { label: 'งานเยอะ', variant: 'warning' },
   OVERLOADED: { label: 'งานล้น', variant: 'destructive' },
-};
-
-const ON_HOLD_CATEGORY_LABEL: Record<string, string> = {
-  WAITING_CLIENT: 'รอลูกความ',
-  WAITING_COURT: 'รอศาล',
-  WAITING_DOCUMENT: 'รอเอกสาร',
-  WAITING_INTERNAL_REVIEW: 'รอรีวิวภายใน',
-  WAITING_EXTERNAL: 'รอบุคคลภายนอก',
 };
 
 const AVATAR_COLORS = [
@@ -96,7 +89,8 @@ export default function OperationsPage() {
   const { token, user } = useAuth();
   const d = useDashboardT();
   const { locale } = useLocale();
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const canRunOps = hasFirmCapability(user?.firmRole, 'runOperations');
+  const canSetUp = hasFirmCapability(user?.firmRole, 'manageFirmContent');
   const [tab, setTab] = useState('daily');
   const teamTab = tab === 'radar' || tab === 'daily';
   const [summary, setSummary] = useState<WorkloadSummary[]>([]);
@@ -124,39 +118,39 @@ export default function OperationsPage() {
   const [setupLeft, setSetupLeft] = useState(0);
 
   useEffect(() => {
-    if (!token || !isOwner) return;
+    if (!token || !canSetUp) return;
     setupRequest<SetupProgress>(token, '/progress', undefined, true)
       .then((p) => setSetupLeft(Object.values(setupChecks(p)).filter((done) => !done).length))
       .catch(() => setSetupLeft(0));
-  }, [token, isOwner]);
+  }, [token, canSetUp]);
 
   useEffect(() => {
-    if (!token || !isOwner || teamTab) return;
+    if (!token || !canRunOps || teamTab) return;
     api.getCaseHealth(token).then(setCaseHealth).catch(console.error);
     api.getTeamPerformance(token).then(setPerformance).catch(console.error);
     api.getWorkflowMetrics(token).then(setWorkflowMetrics).catch(console.error);
-  }, [token, isOwner, tab]);
+  }, [token, canRunOps, tab]);
 
   useEffect(() => {
-    if (!token || !isOwner || teamTab) return;
+    if (!token || !canRunOps || teamTab) return;
     setLoading(true);
     api
       .getWorkloadSummary(token, nearDeadlineDays)
       .then(setSummary)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [token, isOwner, nearDeadlineDays, tab]);
+  }, [token, canRunOps, nearDeadlineDays, tab]);
 
   useEffect(() => {
-    if (!token || !isOwner || teamTab) return;
+    if (!token || !canRunOps || teamTab) return;
     api
       .getCases(token)
       .then((cases) => setActiveCaseCount(cases.filter((c) => c.status !== CaseStatus.CLOSED).length))
       .catch(() => setActiveCaseCount(null));
-  }, [token, isOwner, tab]);
+  }, [token, canRunOps, tab]);
 
   useEffect(() => {
-    if (!token || !isOwner || !selectedUserId) {
+    if (!token || !canRunOps || !selectedUserId) {
       setDetail(null);
       return;
     }
@@ -166,16 +160,16 @@ export default function OperationsPage() {
       .then(setDetail)
       .catch(console.error)
       .finally(() => setDetailLoading(false));
-  }, [token, isOwner, selectedUserId, nearDeadlineDays]);
+  }, [token, canRunOps, selectedUserId, nearDeadlineDays]);
 
   useEffect(() => {
-    if (!token || !isOwner || teamTab) return;
+    if (!token || !canRunOps || teamTab) return;
     setPairingLoading(true);
     api.getPairing(token).then(setPairing).catch(console.error).finally(() => setPairingLoading(false));
-  }, [token, isOwner, tab]);
+  }, [token, canRunOps, tab]);
 
   const loadOnHold = () => {
-    if (!token || !isOwner || teamTab) return;
+    if (!token || !canRunOps || teamTab) return;
     setOnHoldLoading(true);
     api
       .getOnHoldTasks(token)
@@ -184,7 +178,7 @@ export default function OperationsPage() {
       .finally(() => setOnHoldLoading(false));
   };
 
-  useEffect(loadOnHold, [token, isOwner, tab]);
+  useEffect(loadOnHold, [token, canRunOps, tab]);
 
   const enriched = useMemo(
     () => summary.map((s) => ({ ...s, total: s.leadCount + s.buddyCount, score: s.weightedScore ?? s.leadCount + s.buddyCount })),
@@ -208,8 +202,8 @@ export default function OperationsPage() {
     })[0];
   }, [enriched]);
 
-  // Everyone sees the team's load so they can coordinate; the management tabs stay with the owner.
-  if (!isOwner) {
+  // Everyone sees the team's load so they can coordinate; the management tabs need the runOperations capability (owner, office manager).
+  if (!canRunOps) {
     return <div>
       <PageHeader title="ภาระงานทีม" description="ดูว่าใครถืองานอะไร และวันไหนว่าง ก่อนขอให้ช่วยหรือส่งต่องาน" />
       <TeamRadar />

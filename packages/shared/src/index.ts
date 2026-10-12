@@ -1,23 +1,19 @@
 export * from './task-operations';
 export * from './task-routine';
+export * from './firm-role';
+export * from './firm-capabilities';
+import { FirmRole } from './firm-role';
 
 export enum Role {
   ADMIN = 'ADMIN',
   LAWYER = 'LAWYER',
 }
 
-export enum FirmRole {
-  OWNER = 'OWNER',
-  SENIOR_LAWYER = 'SENIOR_LAWYER',
-  LAWYER = 'LAWYER',
-  ASSISTANT = 'ASSISTANT',
-  EXTERNAL = 'EXTERNAL',
-}
-
 /** Higher number = higher authority. Used for "assign only to roles below yours". */
 export const FIRM_ROLE_RANK: Record<FirmRole, number> = {
   [FirmRole.OWNER]: 3,
   [FirmRole.SENIOR_LAWYER]: 2,
+  [FirmRole.OFFICE_MANAGER]: 2,
   [FirmRole.LAWYER]: 1,
   [FirmRole.ASSISTANT]: 0,
   [FirmRole.EXTERNAL]: -1,
@@ -259,13 +255,32 @@ export const CASE_STAGE_ORDER: CaseStage[] = [
   CaseStage.PRE_LITIGATION,
   CaseStage.FILING,
   CaseStage.ANSWER,
-  CaseStage.CLOSING,
+  CaseStage.MEDIATION,
+  CaseStage.HEARING,
+  CaseStage.AWAITING_JUDGMENT,
   CaseStage.APPEAL,
   CaseStage.SUPREME,
+  CaseStage.ENFORCEMENT,
+  CaseStage.CLOSING,
 ];
 
+/** Position in CASE_STAGE_ORDER; INTAKE_REVIEW (hidden alias) is −1, before everything. */
+export function caseStageIndex(stage: CaseStage | string | null | undefined): number {
+  return CASE_STAGE_ORDER.indexOf(stage as CaseStage);
+}
+
+/** FACT_GATHERING and PRE_LITIGATION are one pre-filing band: moving between them is not backward. */
+function stageBandIndex(stage: CaseStage | string | null | undefined): number {
+  return stage === CaseStage.FACT_GATHERING ? caseStageIndex(CaseStage.PRE_LITIGATION) : caseStageIndex(stage);
+}
+
+/** Moving to an earlier stage — needs a note. */
+export function isBackwardStage(from: CaseStage | string | null | undefined, to: CaseStage | string): boolean {
+  return stageBandIndex(to) < stageBandIndex(from);
+}
+
 export const CASE_STAGE_LABELS_TH: Record<CaseStage, string> = {
-  [CaseStage.INTAKE_REVIEW]: 'ก่อนฟ้อง',
+  [CaseStage.INTAKE_REVIEW]: 'รับเรื่อง/ตรวจรับงาน',
   [CaseStage.FACT_GATHERING]: 'รวบรวมข้อเท็จจริง',
   [CaseStage.PRE_LITIGATION]: 'ก่อนฟ้อง',
   [CaseStage.FILING]: 'ยื่นฟ้อง',
@@ -537,6 +552,36 @@ export enum ParticipantSide {
   OURS = 'OURS',
   OPPONENT = 'OPPONENT',
   NEUTRAL = 'NEUTRAL',
+}
+
+export const PARTICIPANT_ROLE_LABELS: Record<ParticipantRole, string> = {
+  [ParticipantRole.PLAINTIFF]: 'โจทก์',
+  [ParticipantRole.JOINT_PLAINTIFF]: 'โจทก์ร่วม',
+  [ParticipantRole.DEFENDANT]: 'จำเลย',
+  [ParticipantRole.JOINT_DEFENDANT]: 'จำเลยร่วม',
+  [ParticipantRole.PETITIONER]: 'ผู้ร้อง',
+  [ParticipantRole.RESPONDENT]: 'ผู้คัดค้าน',
+  [ParticipantRole.WITNESS]: 'พยาน',
+  [ParticipantRole.EXPERT]: 'ผู้เชี่ยวชาญ',
+  [ParticipantRole.OPPOSING_LAWYER]: 'ทนายฝ่ายตรงข้าม',
+  [ParticipantRole.OPPOSING_INSURER]: 'บริษัทประกันฝ่ายตรงข้าม',
+  [ParticipantRole.OTHER]: 'อื่น ๆ',
+};
+
+export const PARTICIPANT_SIDE_LABELS: Record<ParticipantSide, string> = {
+  [ParticipantSide.OURS]: 'ฝ่ายเรา',
+  [ParticipantSide.OPPONENT]: 'ฝ่ายตรงข้าม',
+  [ParticipantSide.NEUTRAL]: 'ผู้เกี่ยวข้อง',
+};
+
+const SIDE_ORDER: ParticipantSide[] = [ParticipantSide.OURS, ParticipantSide.OPPONENT, ParticipantSide.NEUTRAL];
+
+export function groupParticipantsBySide<T extends { side: string }>(rows: T[]) {
+  return SIDE_ORDER.map((side) => ({
+    side,
+    label: PARTICIPANT_SIDE_LABELS[side],
+    items: rows.filter((row) => row.side === side),
+  })).filter((group) => group.items.length > 0);
 }
 
 export enum InsuranceClaimStage {
@@ -923,9 +968,6 @@ export const DEFAULT_CASE_TYPES: DefaultCaseTypeDefinition[] = [
     name: 'คดีความ',
     description: 'คดีความ / ฟ้องร้อง',
     // The claimed amount is a core case field (ทุนทรัพย์), not a type-specific one.
-    fieldSchema: [
-      { key: 'opposingParty', label: 'Opposing Party / คู่ความ', type: 'text' },
-    ],
   },
   {
     name: 'คดีบริษัท',
@@ -1010,9 +1052,11 @@ export interface PlanOption extends PlanConfig {
 export * from './validation';
 export * from './pii';
 export * from './agenda';
+export * from './litigation';
 export * from './ai-redaction';
 export * from './ai-credits';
 export * from './analysis-quality';
 export * from './cargo-claim';
 export * from './default-playbooks';
+export * from './task-review';
 export * from './office-routines';

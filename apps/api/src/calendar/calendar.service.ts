@@ -8,7 +8,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthUser, DeadlineTrigger, EventType } from '@lawfirm/shared';
+import { AuthUser, CourtEventKind, DeadlineTrigger, EventType } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
@@ -19,6 +19,14 @@ import { CreateEventDto, UpdateEventDto } from './dto/calendar.dto';
 import { eventAssigneesInclude } from './event-people';
 import { formatBangkokDateTime } from '../common/utils/bangkok-time';
 import { NotificationCategory, Prisma } from '../generated/prisma';
+
+/**
+ * The kind only means something on a court date; anything else stores null.
+ * Takes plain strings because Prisma rows carry string-literal enums.
+ */
+function kindFor(type: string | undefined, kind: string | null | undefined): CourtEventKind | null {
+  return type === EventType.COURT_DATE ? ((kind ?? null) as CourtEventKind | null) : null;
+}
 
 @Injectable()
 export class CalendarService {
@@ -137,14 +145,14 @@ export class CalendarService {
       const { assigneeId: _legacyAssigneeId, assigneeIds: _assigneeIds, ...eventData } = dto;
       const ids = (await this.resolveAssigneeIds(legalCase.firmId, dto)) ?? [];
       const event = await tx.calendarEvent.create({ data: {
-        ...eventData, startAt: new Date(dto.startAt), endAt: dto.endAt ? new Date(dto.endAt) : undefined,
+        ...eventData, courtEventKind: kindFor(dto.type, dto.courtEventKind), startAt: new Date(dto.startAt), endAt: dto.endAt ? new Date(dto.endAt) : undefined,
         courtName: dto.courtName ?? legalCase.courtName, reminderMinutes: dto.reminderMinutes ?? [4320, 1440, 60],
         assigneeId: ids[0] ?? null,
         assignees: { create: ids.map(userId => ({ userId })) },
       }, include: this.eventInclude });
       if (dto.type === EventType.COURT_DATE && actorId) {
         await tx.case.update({ where: { id: dto.caseId }, data: { status: 'COURT_DATE' } });
-        await this.deadlineRules.applyTrigger({ caseId: dto.caseId, firmId: legalCase.firmId, caseTypeId: legalCase.caseTypeId, trigger: DeadlineTrigger.COURT_DATE, triggerDate: event.startAt, triggerEventId: event.id, createdById: actorId }, tx);
+        await this.deadlineRules.applyTrigger({ caseId: dto.caseId, firmId: legalCase.firmId, caseTypeId: legalCase.caseTypeId, trigger: DeadlineTrigger.COURT_DATE, triggerDate: event.startAt, triggerEventId: event.id, createdById: actorId, courtEventKind: event.courtEventKind as CourtEventKind | null }, tx);
       }
       return event;
     }
@@ -189,6 +197,7 @@ export class CalendarService {
         startAt: new Date(dto.startAt),
         endAt: dto.endAt ? new Date(dto.endAt) : undefined,
         type: dto.type,
+        courtEventKind: kindFor(dto.type, dto.courtEventKind),
         reminderMinutes: dto.reminderMinutes ?? [4320, 1440, 60],
         assigneeId: ids[0] ?? null,
         assignees: { create: ids.map(userId => ({ userId })) },
@@ -228,6 +237,7 @@ export class CalendarService {
           triggerDate: event.startAt,
           triggerEventId: event.id,
           createdById: actorId,
+          courtEventKind: event.courtEventKind as CourtEventKind | null,
         });
       } catch (err) {
         this.logger.error(
@@ -240,8 +250,27 @@ export class CalendarService {
   }
 
   async update(user: AuthUser, id: string, dto: UpdateEventDto) {
-    await this.findOne(user, id);
-    return this.updateInternal(id, dto);
+    const existing = await this.findOne(user, id);
+    const updated = await this.updateInternal(id, dto);
+    if (dto.courtEventKind && updated.type === EventType.COURT_DATE) {
+      // A kind filled in later can unlock a kind-specific rule (ม.88 witness list).
+      // applyTrigger dedupes per (event, rule), so rules already raised are not repeated.
+      try {
+        await this.deadlineRules.applyTrigger({
+          caseId: updated.caseId,
+          firmId: existing.case.firmId,
+          caseTypeId: null,
+          trigger: DeadlineTrigger.COURT_DATE,
+          triggerDate: updated.startAt,
+          triggerEventId: updated.id,
+          createdById: user.id,
+          courtEventKind: updated.courtEventKind as CourtEventKind | null,
+        });
+      } catch (err) {
+        this.logger.error(`Deadline rules failed for event ${id}: ${(err as Error).message}`);
+      }
+    }
+    return updated;
   }
 
   /** Update for callers that have already authorized the case. */
@@ -251,6 +280,10 @@ export class CalendarService {
       throw new ConflictException('กรุณาใช้เลื่อนนัดเพื่อตรวจผลกระทบก่อน / Use reschedule to review affected deadlines');
     }
     const { assigneeId: _legacyAssigneeId, assigneeIds: _assigneeIds, ...eventData } = dto;
+    const nextType = dto.type ?? existing.type;
+    if (dto.type !== undefined || dto.courtEventKind !== undefined) {
+      eventData.courtEventKind = kindFor(nextType, dto.courtEventKind !== undefined ? dto.courtEventKind : existing.courtEventKind);
+    }
     const ids = await this.resolveAssigneeIds(existing.case.firmId, dto);
     if (ids !== undefined) {
       return this.prisma.$transaction(async tx => {

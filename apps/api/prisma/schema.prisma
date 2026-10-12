@@ -16,6 +16,7 @@ enum Role {
 enum FirmRole {
   OWNER
   SENIOR_LAWYER
+  OFFICE_MANAGER
   LAWYER
   ASSISTANT
   EXTERNAL
@@ -85,6 +86,8 @@ enum CaseStage {
 enum PartyRole {
   PLAINTIFF
   DEFENDANT
+  PETITIONER
+  RESPONDENT
 }
 
 enum CaseStatus {
@@ -279,11 +282,35 @@ enum DeadlineTrigger {
   JUDGMENT
   ORDER_RECEIVED
   COMPLAINT_SERVED
+  FILED
+  APPEAL_SERVED
 }
 
 enum DeadlineDayBasis {
   CALENDAR
   BUSINESS
+  MONTHS
+}
+
+enum CourtEventKind {
+  PRELIMINARY
+  MEDIATION
+  WITNESS_HEARING
+  JUDGMENT_READING
+  OTHER
+}
+
+enum ServiceMethod {
+  PERSONAL
+  POSTED
+}
+
+enum JudgmentOutcome {
+  WON
+  LOST
+  PARTIAL
+  DISMISSED
+  SETTLED
 }
 
 enum ExpenseStatus {
@@ -432,6 +459,7 @@ model Firm {
   notifications      Notification[]
   workflowTemplates  WorkflowTemplate[]
   workflowRuns       WorkflowRun[]
+  deadlineRules      DeadlineRule[]
 }
 
 model FirmMember {
@@ -616,6 +644,7 @@ model User {
   assignments                CaseAssignment[]
   assignedTasks              Task[]                       @relation("TaskAssignee")
   createdTasks               Task[]                       @relation("TaskCreator")
+  reviewTasks                Task[]                       @relation("TaskReviewer")
   taskAttachments            TaskAttachment[]             @relation("TaskAttachmentUploader")
   taskComments               TaskComment[]                @relation("TaskCommentAuthor")
   documents                  Document[]
@@ -788,6 +817,7 @@ model Client {
   billedInvoices          Invoice[]                @relation("InvoiceBillTo")
   closingDraftRecipients  ClosingEmailDraft[]      @relation("ClosingDraftRecipient")
   annualReports           ClientAnnualReport[]
+  caseParticipants        CaseParticipant[]
 
   @@index([firmId])
 }
@@ -903,6 +933,8 @@ model Case {
   estimatedFee         Float?
   actualFee            Float?
   limitationDeadline   DateTime?
+  /// event "ครบอายุความ" ที่ระบบดูแลให้ (ดู common/limitation-reminder.ts)
+  limitationEventId    String?
   referralSource       String?
   intakeId             String?     @unique
   closingSummary       String?     @db.Text
@@ -949,6 +981,8 @@ model Case {
   portalIntakeSubmission PortalIntakeSubmission?
   comments               CaseComment[]
   workflowRuns           WorkflowRun[]
+  proceedings            CaseProceeding[]
+  conflictChecks         ConflictCheck[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -1168,6 +1202,7 @@ model ConflictCheck {
   id          String         @id @default(uuid())
   firmId      String
   intakeId    String?
+  caseId      String?
   searchTerms String[]
   /// ผลที่ค้นเจอตอนนั้น (snapshot) — ข้อมูลต้นทางเปลี่ยนภายหลังได้
   matches     Json
@@ -1179,10 +1214,12 @@ model ConflictCheck {
 
   firm      Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
   intake    Intake? @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  case      Case?   @relation(fields: [caseId], references: [id], onDelete: Cascade)
   checkedBy User    @relation("ConflictChecker", fields: [checkedById], references: [id])
 
   @@index([firmId, checkedAt])
   @@index([intakeId])
+  @@index([caseId])
 }
 
 model IntakeAttachment {
@@ -1246,12 +1283,41 @@ model CaseParticipant {
   opposingInsurer  String?
   medicalLicenseNo String?
   notes            String?
+  /// ลูกความในทะเบียน (ฝ่ายเรา) ที่คู่ความรายนี้คือคนเดียวกัน
+  clientId                   String?
+  /// ทนาย/ผู้แทนฝ่ายตรงข้าม → คู่ความที่เขาเป็นตัวแทน
+  representedByParticipantId String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  client         Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  representedBy  CaseParticipant?  @relation("ParticipantRepresentation", fields: [representedByParticipantId], references: [id], onDelete: SetNull)
+  represents     CaseParticipant[] @relation("ParticipantRepresentation")
 
   @@index([caseId])
+  @@index([clientId])
+}
+
+/// ศาลแต่ละชั้นของคดี — Case.blackCaseNumber/redCaseNumber/courtName/courtLevel เป็นสำเนาของชั้นปัจจุบัน
+model CaseProceeding {
+  id              String           @id @default(uuid())
+  caseId          String
+  courtLevel      CourtLevel
+  courtName       String?
+  blackCaseNumber String?
+  redCaseNumber   String?
+  filedAt         DateTime?
+  judgmentAt      DateTime?
+  judgmentOutcome JudgmentOutcome?
+  judgmentAmount  Decimal?         @db.Decimal(15, 2)
+  judgmentNote    String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, courtLevel])
 }
 
 model CaseActivity {
@@ -1343,6 +1409,10 @@ model Task {
   queuePosition           Int           @default(0)
   requiresReview          Boolean       @default(false)
   reviewerId              String?
+  /// When the worker handed the task in for review (PENDING_REVIEW). The worker stays `assigneeId`.
+  submittedAt             DateTime?
+  /// Handoff is refused until at least one attachment exists.
+  requiresAttachment      Boolean       @default(false)
   assignedAt              DateTime?
   acknowledgedAt          DateTime?
   planConfirmedAt         DateTime?
@@ -1360,6 +1430,7 @@ model Task {
   blocks         Task[]              @relation("TaskBlocks")
   assignee       User?               @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy      User                @relation("TaskCreator", fields: [createdById], references: [id])
+  reviewer       User?               @relation("TaskReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
   workflowRun    WorkflowRun?        @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
   onHold         TaskOnHold?
   assignmentLogs TaskAssignmentLog[]
@@ -1371,6 +1442,7 @@ model Task {
 
   @@index([dueDate])
   @@index([assigneeId, status, dueDate])
+  @@index([reviewerId, status])
   @@index([completedAt])
   @@index([parentId])
   @@index([intakeId])
@@ -1402,6 +1474,8 @@ model TaskComment {
   authorId  String
   body      String   @db.Text
   kind      String   @default("COMMENT")
+  /// Firm members tagged with @ in this comment (same contract as CaseComment.mentionedUserIds).
+  mentionedUserIds String[] @default([])
   createdAt DateTime @default(now())
 
   task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -1618,6 +1692,8 @@ model CalendarEvent {
   startAt         DateTime
   endAt           DateTime?
   type            EventType @default(OTHER)
+  /// ใช้เฉพาะ type = COURT_DATE — กฎวันครบกำหนดบางข้อเลือกนัดตามชนิด
+  courtEventKind  CourtEventKind?
   reminderMinutes Int[]     @default([4320, 1440, 60])
   travelLogId     String?
   createdAt       DateTime  @default(now())
@@ -1918,20 +1994,31 @@ model DocumentDateSuggestion {
 /// DocumentDateSuggestion for a lawyer to confirm.
 /// caseTypeId is reserved for a future catalog; this pass keeps it null.
 model DeadlineRule {
-  id         String           @id @default(uuid())
-  caseTypeId String?
-  trigger    DeadlineTrigger
-  label      String
-  offsetDays Int
-  dayBasis   DeadlineDayBasis @default(CALENDAR)
-  isActive   Boolean          @default(true)
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id             String           @id @default(uuid())
+  /// null = ค่าตั้งต้นส่วนกลาง; มีค่า = กฎของสำนักงาน (ทับกฎกลางที่ trigger + label ตรงกัน)
+  firmId         String?
+  caseTypeId     String?
+  trigger        DeadlineTrigger
+  label          String
+  /// จำนวนวัน (หรือเดือนเมื่อ dayBasis = MONTHS); ติดลบ = ก่อนเหตุตั้งต้น
+  offsetDays     Int
+  dayBasis       DeadlineDayBasis @default(CALENDAR)
+  /// บวก/ลบวันตามปฏิทินหลังนับ offset แล้ว เช่น 10 ปี − 90 วัน
+  adjustDays     Int              @default(0)
+  courtEventKind CourtEventKind?
+  courtLevel     CourtLevel?
+  partySide      PartyRole?
+  serviceMethod  ServiceMethod?
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
+  firm        Firm?                    @relation(fields: [firmId], references: [id], onDelete: Cascade)
   caseType    CaseType?                @relation(fields: [caseTypeId], references: [id], onDelete: Cascade)
   suggestions DocumentDateSuggestion[]
 
   @@index([trigger, isActive])
+  @@index([firmId, trigger])
 }
 
 /// Thai public holidays, used when a rule counts business days.
@@ -2127,6 +2214,9 @@ model ClosingEmailDraft {
   status              ClosingEmailDraftStatus   @default(DRAFT)
   approvedById        String?
   approvedAt          DateTime?
+  sentAt              DateTime?
+  /// Email addresses the approved draft was actually delivered to.
+  sentTo              String[]                  @default([])
   createdAt           DateTime                  @default(now())
   updatedAt           DateTime                  @updatedAt
 
@@ -2454,6 +2544,8 @@ model ReviewRound {
   approvalRule      ReviewApprovalRule @default(ALL)
   scope             String?
   dueAt             DateTime?
+  /// Set once the "due tomorrow" reminder went out, so a restart never sends it twice.
+  dueReminderSentAt DateTime?
   status            ReviewRoundStatus  @default(WAITING_REVIEW)
   createdById       String
   createdAt         DateTime           @default(now())
@@ -2592,6 +2684,10 @@ model CaseStatusLog {
   caseId      String
   fromStatus  CaseStatus
   toStatus    CaseStatus
+  /// มีค่าเมื่อแถวนี้บันทึกการย้ายขั้นตอนคดี (fromStatus = toStatus เมื่อสถานะไม่เปลี่ยน)
+  fromStage   CaseStage?
+  toStage     CaseStage?
+  note        String?
   changedById String
   createdAt   DateTime   @default(now())
 

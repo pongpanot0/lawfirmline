@@ -3,7 +3,7 @@ import { AuthUser } from '@lawfirm/shared';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { OwnerOnly } from '../saas/decorators/saas.decorators';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { LeaveType } from '../generated/prisma';
 import { LeaveService } from './leave.service';
 import { DecideLeaveDto } from './dto/decide-leave.dto';
@@ -15,7 +15,7 @@ export class LeaveController {
 
   @Get('pending')
   @UseGuards(FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('approveLeave')
   pending(@CurrentUser() user: AuthUser) { return this.leaves.pending(user); }
 
   @Get()
@@ -35,7 +35,7 @@ export class LeaveController {
 
   @Patch(':id/decision')
   @UseGuards(FirmRoleGuard)
-  @OwnerOnly()
+  @RequireCapability('approveLeave')
   decide(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: DecideLeaveDto) {
     return this.leaves.decide(user, id, body.decision);
   }

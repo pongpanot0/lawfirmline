@@ -5,6 +5,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 describe('CasesService assignment notifications', () => {
   let service: CasesService;
@@ -16,6 +17,7 @@ describe('CasesService assignment notifications', () => {
     caseAssignment: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn() },
     caseStatusLog: { create: jest.fn() },
     auditLog: { create: jest.fn() },
+    caseProceeding: { upsert: jest.fn() },
     $transaction: jest.fn().mockResolvedValue([]),
   };
   const mockNotifier = { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() };
@@ -40,6 +42,7 @@ describe('CasesService assignment notifications', () => {
         },
         { provide: CaseActivitiesService, useValue: { record: jest.fn() } },
         { provide: AssignmentNotifierService, useValue: mockNotifier },
+        { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
       ],
     }).compile();
     service = module.get(CasesService);
@@ -72,6 +75,32 @@ describe('CasesService assignment notifications', () => {
       summaryText: '⚖️ คุณได้รับมอบหมายเข้าทีมคดี\nคดี: คดีทดสอบ\nหมายเลขคดีดำ ผบ.123/2569 · หมายเลขคดีแดง ผบ.456/2569',
       entityPath: '/cases/c1',
     });
+  });
+
+  it('a case created with numbers gets a proceeding at its court level', async () => {
+    mockPrisma.case.findUnique.mockResolvedValue(null);
+    mockPrisma.firmMember.count.mockResolvedValue(1);
+    mockPrisma.case.create.mockResolvedValue({
+      id: 'c1', title: 'คดี', courtLevel: 'TRIAL', courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569', redCaseNumber: null,
+    });
+
+    await service.create(user, { title: 'คดี', ownRef: 'A-002', leadLawyerId: 'user-1', courtLevel: 'TRIAL', courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569' } as any);
+
+    expect(mockPrisma.caseProceeding.upsert).toHaveBeenCalledWith({
+      where: { caseId_courtLevel: { caseId: 'c1', courtLevel: 'TRIAL' } },
+      create: { caseId: 'c1', courtLevel: 'TRIAL', courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569', redCaseNumber: null },
+      update: {},
+    });
+  });
+
+  it('a case created without numbers or court gets no proceeding', async () => {
+    mockPrisma.case.findUnique.mockResolvedValue(null);
+    mockPrisma.firmMember.count.mockResolvedValue(1);
+    mockPrisma.case.create.mockResolvedValue({ id: 'c1', title: 'คดี' });
+
+    await service.create(user, { title: 'คดี', ownRef: 'A-002', leadLawyerId: 'user-1', blackCaseNumber: '' } as any);
+
+    expect(mockPrisma.caseProceeding.upsert).not.toHaveBeenCalled();
   });
 
   it('records who opened the case', async () => {

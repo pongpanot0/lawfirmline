@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pencil, Trash2, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, CaseParticipantItem } from '@/lib/api';
+import { api, CaseParticipantItem, ClientItem } from '@/lib/api';
+import { COUNSEL_ROLES, participantPayload } from '@/lib/participants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -49,6 +50,8 @@ const emptyForm = {
   nickname: '',
   role: 'PLAINTIFF',
   side: 'OURS',
+  clientId: '',
+  representedByParticipantId: '',
   personType: '',
   idNumber: '',
   address: '',
@@ -77,6 +80,13 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [clients, setClients] = useState<ClientItem[]>([]);
+  useEffect(() => {
+    if (!showForm || !token || clients.length) return;
+    api.getClients(token).then(setClients).catch(() => setClients([]));
+  }, [showForm, token, clients.length]);
+  // The case page reloads after proceeding actions and stage moves; follow it unless a form is open.
+  useEffect(() => { if (!showForm && initialParticipants) setParticipants(initialParticipants); }, [initialParticipants, showForm]);
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -92,6 +102,8 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
       nickname: p.nickname ?? '',
       role: p.role,
       side: p.side,
+      clientId: p.clientId ?? '',
+      representedByParticipantId: p.representedByParticipantId ?? '',
       personType: p.personType ?? '',
       idNumber: p.idNumber ?? '',
       address: p.address ?? '',
@@ -124,10 +136,7 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
     setSubmitting(true);
     setError('');
     try {
-      const data: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(form)) {
-        data[k] = v === '' ? null : v;
-      }
+      const data = participantPayload(form);
       if (editingId) {
         const updated = await api.updateParticipant(token, caseId, editingId, data);
         const next = participants.map((p) => (p.id === editingId ? updated : p));
@@ -244,6 +253,24 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
                   ))}
                 </select>
               </div>
+              {form.side === 'OURS' && (
+                <div>
+                  <label htmlFor="participant-client" className="text-sm font-medium">ลูกความในทะเบียน (ถ้าเป็นคนเดียวกัน)</label>
+                  <select id="participant-client" value={form.clientId} onChange={e => setForm({ ...form, clientId: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
+                    <option value="">ไม่ผูก</option>
+                    {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {COUNSEL_ROLES.includes(form.role) && (
+                <div>
+                  <label htmlFor="participant-represents" className="text-sm font-medium">เป็นตัวแทนของ</label>
+                  <select id="participant-represents" value={form.representedByParticipantId} onChange={e => setForm({ ...form, representedByParticipantId: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">
+                    <option value="">ยังไม่ระบุ</option>
+                    {participants.filter(p => p.id !== editingId && !COUNSEL_ROLES.includes(p.role)).map(p => <option key={p.id} value={p.id}>{p.name} ({ROLE_LABELS[p.role] ?? p.role})</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label htmlFor="participant-phone" className="text-sm font-medium">โทรศัพท์</label>
                 <Input
@@ -388,6 +415,8 @@ export function CaseParticipantsSection({ caseId, initialParticipants, onChanged
                   <div className="min-w-0 space-y-1">
                     <p className="text-sm font-semibold text-foreground">{p.name}</p>
                     {p.nickname && <p className="text-xs text-muted-foreground">ชื่อเล่น: {p.nickname}</p>}
+                    {p.representedByParticipantId && <p className="text-xs text-muted-foreground">ตัวแทนของ {participants.find(x => x.id === p.representedByParticipantId)?.name ?? '—'}</p>}
+                    {p.clientId && <p className="text-xs text-muted-foreground">ลูกความในทะเบียน</p>}
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                       {p.phone && <span>{p.phone}</span>}
                       {p.email && <span>{p.email}</span>}

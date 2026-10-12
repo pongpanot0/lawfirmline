@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, hasFirmCapability } from '@lawfirm/shared';
 import { Prisma, TaskStatus } from '../generated/prisma';
+import { reviewQueueOrder, reviewQueueSelect, reviewQueueWhere, toReviewQueueItem } from '../tasks/review-queue';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { BillingService } from '../billing/billing.service';
@@ -84,8 +85,7 @@ export class DashboardService {
   async getStats(user: AuthUser) {
     const caseFilter = this.caseAccess.getCaseFilterForUser(user);
     const firmExpenseFilter = this.getFirmExpenseFilter(user.firmId);
-    const isOwner = user.firmRole === FirmRole.OWNER;
-    const expenseScope = isOwner
+    const expenseScope = hasFirmCapability(user.firmRole, 'approveExpenses')
       ? firmExpenseFilter
       : { userId: user.id, ...firmExpenseFilter };
     const now = new Date();
@@ -130,6 +130,7 @@ export class DashboardService {
       timeEntries,
       caseProfits,
       activeTasks,
+      reviewRows,
     ] = await Promise.all([
         this.prisma.expense.count({
           where: { ...expenseScope, status: 'PENDING' },
@@ -152,6 +153,7 @@ export class DashboardService {
         }),
         this.billingService.getCaseProfits(user),
         this.getActiveTasks(user, caseFilter),
+        this.prisma.task.findMany({ where: reviewQueueWhere(user), select: reviewQueueSelect, orderBy: reviewQueueOrder, take: 8 }),
       ]);
 
     const monthlyRevenue = timeEntries
@@ -209,6 +211,7 @@ export class DashboardService {
       },
       caseProfits: caseProfits.slice(0, 8),
       activeTasks,
+      reviewQueue: reviewRows.map(toReviewQueueItem),
       recentCases,
       upcomingHearings,
       pendingReimbursements: pendingReimbursementList,

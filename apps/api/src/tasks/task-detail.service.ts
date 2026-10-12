@@ -35,6 +35,12 @@ export const TASK_ATTACHMENT_MIME_TYPES = new Set([
 
 const person = { select: { id: true, firstName: true, lastName: true } };
 
+const NO_BLOCKER = ['', 'ไม่มี', '-', 'none'];
+const realBlocker = (text?: string | null) => {
+  const trimmed = (text ?? '').trim();
+  return NO_BLOCKER.includes(trimmed.toLowerCase()) ? '' : trimmed;
+};
+
 @Injectable()
 export class TaskDetailService {
   private readonly logger = new Logger(TaskDetailService.name);
@@ -52,6 +58,7 @@ export class TaskDetailService {
       where: { id: taskId },
       include: {
         assignee: person,
+        reviewer: person,
         createdBy: person,
         observers: {
           select: {
@@ -63,7 +70,7 @@ export class TaskDetailService {
         },
         onHold: true,
         parent: { select: { id: true, title: true } },
-        case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true } },
+        case: { select: { id: true, ownRef: true, title: true, leadLawyerId: true, leadLawyer: { select: { id: true, firstName: true, lastName: true } } } },
         subtasks: {
           orderBy: { createdAt: 'asc' },
           include: {
@@ -329,10 +336,30 @@ export class TaskDetailService {
       throw new ForbiddenException('ผู้ทำงานอัปเดตความคืบหน้าได้เฉพาะงานของตัวเองที่ยังไม่ส่งตรวจหรือเสร็จ');
     }
     if (!dto.completed.trim() || !dto.remaining.trim()) throw new BadRequestException('ระบุว่าทำถึงไหนและเหลืออะไร');
-    return this.prisma.taskComment.create({
+    const previous = await this.prisma.taskComment.findFirst({
+      where: { taskId, kind: 'DAILY_UPDATE' }, orderBy: { createdAt: 'desc' }, select: { body: true },
+    });
+    const comment = await this.prisma.taskComment.create({
       data: { taskId, authorId: user.id, kind: 'DAILY_UPDATE', body: dailyTaskUpdateText(dto) },
       include: { author: person },
     });
+    const blocker = realBlocker(dto.blocker);
+    // Only news: a blocker repeated verbatim from the last update does not page the lead again.
+    if (blocker && blocker !== realBlocker(previous && dailyUpdateParts(previous.body).blocker) && task.caseId) {
+      const legalCase = await this.prisma.case.findUnique({ where: { id: task.caseId }, select: { leadLawyerId: true } });
+      if (legalCase && legalCase.leadLawyerId !== user.id) {
+        await this.tasks.notifyViaAssignmentNotifier({
+          firmId: user.firmId,
+          userIds: [legalCase.leadLawyerId],
+          actorUserId: user.id,
+          category: NotificationCategory.TASK,
+          summaryText: `🚧 งานติดขัด: ${task.title}\nติดอะไร: ${blocker}`,
+          entityPath: `/cases/${task.caseId}`,
+          appPath: taskAppRoute(taskId),
+        });
+      }
+    }
+    return comment;
   }
 
   async addComment(taskId: string, user: AuthUser, dto: CreateTaskCommentDto) {
@@ -343,8 +370,12 @@ export class TaskDetailService {
     });
     if (!task) throw new NotFoundException('Task not found');
 
+    // Ids from the request body are never trusted: keep only people who can open this task.
+    const requested = [...new Set(dto.mentionedUserIds ?? [])].filter((id) => id !== user.id).slice(0, 20);
+    const mentioned = await this.tasks.filterUsersWhoCanSeeTask(taskId, requested, user.firmId);
+
     const comment = await this.prisma.taskComment.create({
-      data: { taskId, authorId: user.id, body: dto.body.trim() },
+      data: { taskId, authorId: user.id, body: dto.body.trim(), mentionedUserIds: mentioned },
       include: { author: person },
     });
 
@@ -353,7 +384,19 @@ export class TaskDetailService {
       task.assigneeId,
       ...(await this.tasks.getParentObserverIds(taskId)),
       ...(task.parentId ? await this.tasks.getParentObserverIds(task.parentId) : []),
-    ].filter(Boolean) as string[])].filter((id) => id !== user.id);
+    ].filter(Boolean) as string[])].filter((id) => id !== user.id && !mentioned.includes(id));
+
+    if (mentioned.length) {
+      await this.tasks.notifyViaAssignmentNotifier({
+        firmId: user.firmId,
+        userIds: mentioned,
+        actorUserId: user.id,
+        category: NotificationCategory.COMMENT,
+        summaryText: `💬 มีคนกล่าวถึงคุณในงาน "${task.title}"\n${dto.body.trim().slice(0, 200)}`,
+        entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
+        appPath: taskAppRoute(taskId),
+      });
+    }
 
     if (notifyIds.length) {
       await this.tasks.notifyViaAssignmentNotifier({

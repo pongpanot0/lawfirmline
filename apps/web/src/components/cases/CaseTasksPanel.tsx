@@ -4,9 +4,10 @@ import { CasePlaybook } from './CasePlaybook';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
-import { FirmRole, TaskPriority, TaskStatus } from '@lawfirm/shared';
+import { canDelegateTask, isEligibleReviewer, TaskPriority, TaskStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CaseDetail, TaskItem, UserItem } from '@/lib/api';
+import { api, CaseDetail, TaskItem, UserItem, WorkloadSummary } from '@/lib/api';
+import { workloadLabel } from '@/lib/workload-label';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TaskViewToggle, useTaskLayout } from '@/components/tasks/TaskViewToggle';
 import { TaskDetailDrawer } from '@/components/tasks/TaskDetailDrawer';
@@ -43,6 +44,9 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
   const [newPriority, setNewPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [newRequiresReview, setNewRequiresReview] = useState(false);
   const [newReviewerId, setNewReviewerId] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newRequiresAttachment, setNewRequiresAttachment] = useState(false);
+  const [workload, setWorkload] = useState<WorkloadSummary[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
@@ -87,6 +91,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
     if (!token) return;
     // The firm's lawyers, not the admin-only user directory.
     api.getLawyers(token).then(setUsers).catch(console.error);
+    api.getWorkloadSummary(token).then(setWorkload).catch(() => setWorkload([]));
   }, [token]);
 
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
@@ -102,7 +107,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
 
   const handleHandoff = async (taskId: string, note: string) => {
     if (!token || !caseId) return;
-    await api.handoffTask(token, caseId, taskId, { note: note || undefined });
+    await api.handoffTask(token, caseId, taskId, { note });
     loadTasks();
   };
 
@@ -118,14 +123,16 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
     loadTasks();
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreate = async (e?: React.FormEvent, keepOpen = false) => {
+    e?.preventDefault();
     if (!token || !caseId || !newTitle.trim() || creating) return;
     setCreating(true);
     setError('');
     try {
       const created = await api.createTask(token, caseId, {
         title: newTitle.trim(),
+        description: newDescription.trim() || undefined,
+        requiresAttachment: newRequiresAttachment || undefined,
         assigneeId: newAssigneeId || user?.id,
         dueDate: newDueDate || undefined,
         priority: newPriority,
@@ -139,6 +146,13 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
       setNewPriority(TaskPriority.MEDIUM);
       setNewRequiresReview(false);
       setNewReviewerId('');
+      setNewDescription('');
+      setNewRequiresAttachment(false);
+      if (keepOpen) {
+        loadTasks();
+        document.getElementById('case-task-title')?.focus();
+        return;
+      }
       setShowForm(false);
       loadTasks();
       taskParam.open(created.id);
@@ -152,8 +166,6 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
 
   if (loading) return <PageLoading title={d.caseTasks.loading} lines={3} />;
 
-  const isLeadLawyer = !!user && user.id === caseDetail?.leadLawyer?.id;
-  const isReviewer = !!user && (user.firmRole === FirmRole.OWNER || isLeadLawyer);
   const leadLawyer = caseDetail?.leadLawyer;
   const reviewerName = leadLawyer ? `${leadLawyer.firstName} ${leadLawyer.lastName}` : undefined;
 
@@ -168,10 +180,14 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
       ...(caseDetail?.assignments ?? []).map((assignment) => assignment.user.id),
     ].filter(Boolean) as string[],
   );
-  const caseTeam = users.filter((member) => caseTeamIds.has(member.id));
-  const others = users.filter((member) => !caseTeamIds.has(member.id));
+  const canGive = (member: UserItem) => member.id === user?.id || (!!user && member.firmRole != null && canDelegateTask(user.firmRole, member.firmRole));
+  const caseTeam = users.filter((member) => caseTeamIds.has(member.id) && canGive(member));
+  const others = users.filter((member) => !caseTeamIds.has(member.id) && canGive(member));
+  const assigneeName = (u: { id: string; firstName: string; lastName?: string }) => `${u.firstName} ${u.lastName ?? ''}${workloadLabel(workload.find((w) => w.userId === u.id))}`;
   const newAssigneeUser = users.find((u) => u.id === newAssigneeId);
-  const reviewers = users.filter(member => member.id !== (newAssigneeId || user?.id) && (member.firmRole === FirmRole.OWNER || member.firmRole === FirmRole.SENIOR_LAWYER));
+  const reviewers = users.filter((member) => isEligibleReviewer({
+    role: member.firmRole, userId: member.id, caseLeadId: caseDetail?.leadLawyer?.id, assigneeId: newAssigneeId || user?.id,
+  }));
 
   return (
     <div>
@@ -236,6 +252,10 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                   />
                 </div>
                 <div>
+                  <label htmlFor="case-task-description" className="text-sm font-medium">{d.taskDetail.description}</label>
+                  <textarea id="case-task-description" rows={3} maxLength={5000} value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className="mt-1 w-full rounded-lg border border-input bg-card p-2 text-sm" placeholder={d.taskDetail.descriptionPlaceholder} />
+                </div>
+                <div>
                   <label htmlFor="case-task-assignee" className="text-sm font-medium">{d.taskDetail.assignee}</label>
                   <select
                     id="case-task-assignee"
@@ -246,12 +266,12 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                     <option value="">{d.caseTasks.assignToMe}</option>
                     {caseTeam.length > 0 && (
                       <optgroup label={d.caseTasks.caseTeam}>
-                        <AssigneeOptions users={caseTeam} flags={newTaskLeaveFlags} />
+                        <AssigneeOptions users={caseTeam} flags={newTaskLeaveFlags} nameOf={assigneeName} />
                       </optgroup>
                     )}
                     {others.length > 0 && (
                       <optgroup label={d.caseTasks.otherMembers}>
-                        <AssigneeOptions users={others} flags={newTaskLeaveFlags} />
+                        <AssigneeOptions users={others} flags={newTaskLeaveFlags} nameOf={assigneeName} />
                       </optgroup>
                     )}
                   </select>
@@ -278,16 +298,21 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                 <details className="rounded-lg border border-border p-3">
                   <summary className="cursor-pointer text-sm font-medium">การตรวจงาน / ความสำคัญ / ผู้ติดตาม (ถ้ามี)</summary>
                   <label className="mt-3 flex min-h-10 items-center gap-2 text-sm">
-                    <input type="checkbox" checked={newRequiresReview} onChange={event => { setNewRequiresReview(event.target.checked); setNewReviewerId(reviewers.find(member => member.id === caseDetail?.leadLawyer?.id)?.id ?? ''); }} />
+                    <input type="checkbox" checked={newRequiresReview} onChange={event => { setNewRequiresReview(event.target.checked); if (!event.target.checked) setNewRequiresAttachment(false); setNewReviewerId(reviewers.find(member => member.id === caseDetail?.leadLawyer?.id)?.id ?? ''); }} />
                     ต้องให้ผู้ตรวจยืนยันก่อนปิดงาน
                   </label>
+                  {newRequiresReview && (
+                  <label className="mt-3 flex min-h-10 items-center gap-2 text-sm">
+                      <input type="checkbox" checked={newRequiresAttachment} onChange={(e) => setNewRequiresAttachment(e.target.checked)} />
+                      ต้องแนบไฟล์ผลงานก่อนส่งตรวจ
+                    </label>)}
                   {newRequiresReview && <div className="mt-3">
                     <label htmlFor="case-task-reviewer" className="text-sm font-medium">ผู้ตรวจ *</label>
                     <select id="case-task-reviewer" required value={newReviewerId} onChange={event => setNewReviewerId(event.target.value)} className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm">
                       <option value="">เลือกผู้ตรวจ</option>
                       {reviewers.map(member => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}
                     </select>
-                    {!reviewers.length && <p className="mt-1 text-xs text-muted-foreground">ต้องมีเจ้าของสำนักงานหรือทนายอาวุโสอีกคนเป็นผู้ตรวจ</p>}
+                    {!reviewers.length && <p className="mt-1 text-xs text-muted-foreground">ต้องมี Owner ทนายอาวุโส หรือทนายหลักของคดีเป็นผู้ตรวจ (ไม่ใช่ผู้ทำงาน)</p>}
                   </div>}
                   <div className="mt-3">
                     <label htmlFor="case-task-priority" className="text-sm font-medium">{d.todos.priority}</label>
@@ -318,6 +343,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
             </form>
             <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-4">
               <Button variant="outline" onClick={() => { if (!creating) setShowForm(false); }}>{d.common.cancel}</Button>
+              <Button variant="outline" disabled={creating || !newTitle.trim()} onClick={() => void handleCreate(undefined, true)}>บันทึกแล้วสร้างต่อ</Button>
               <Button form="create-case-task" type="submit" disabled={creating || !newTitle.trim()}>
                 {creating ? '…' : d.caseTasks.create}
               </Button>
@@ -357,9 +383,9 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
         tasks={visibleTasks}
         onStatusChange={handleStatusChange}
         currentUserId={user?.id ?? ''}
-        isReviewer={isReviewer}
+        caseLeadId={caseDetail?.leadLawyer?.id ?? null}
+        currentUserRole={user?.firmRole}
         enableHandoff
-        handoffAllowed={!isLeadLawyer}
         reviewerName={reviewerName}
         onHandoff={handleHandoff}
         onAccept={handleAccept}

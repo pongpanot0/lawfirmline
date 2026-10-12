@@ -1,6 +1,6 @@
 import { CaseAccessService } from '../common/services/case-access.service';
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IntakeService } from './intake.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
@@ -37,7 +37,7 @@ describe('IntakeService attachments', () => {
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
-        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -158,7 +158,7 @@ describe('IntakeService draftNotice with analysisId', () => {
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
-        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -241,7 +241,14 @@ describe('IntakeService convertToCase', () => {
     intake: { findFirst: jest.fn(), update: jest.fn() },
     task: { updateMany: jest.fn() },
     firm: { findUnique: jest.fn() },
-    case: { findMany: jest.fn(), create: jest.fn() },
+    case: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
+    caseParticipant: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      update: jest.fn(),
+      createMany: jest.fn().mockImplementation(({ data }) => Promise.resolve({ count: data.length })),
+    },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
@@ -270,7 +277,7 @@ describe('IntakeService convertToCase', () => {
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
-        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -387,6 +394,34 @@ describe('IntakeService convertToCase', () => {
     ]);
   });
 
+  // Spec L5: parties live only in CaseParticipant; intake facts travel with the case.
+  it('turns the opposing party into an opponent participant and puts our client on our side', async () => {
+    arrangeConvert({
+      clientId: 'client-a',
+      customers: [],
+      partyRole: 'PLAINTIFF',
+      opposingParty: '  บริษัท ข จำกัด ',
+      incidentDate: new Date('2026-01-15T00:00:00Z'),
+      estimatedDamage: 50000,
+    });
+    mockPrisma.case.findUnique.mockResolvedValueOnce({
+      partyRole: 'PLAINTIFF', clientId: 'client-a', clientName: 'นาย A', client: { name: 'นาย A' },
+    });
+
+    await service.convertToCase(user, 'intake-1', {} as any);
+
+    expect(mockPrisma.case.create.mock.calls[0][0].data.customFields).toEqual({
+      incidentDate: '2026-01-15',
+      estimatedDamage: 50000,
+    });
+    expect(mockPrisma.caseParticipant.createMany).toHaveBeenCalledWith({
+      data: [{ caseId: 'case-1', name: 'บริษัท ข จำกัด', role: 'DEFENDANT', side: 'OPPONENT', personType: null }],
+    });
+    expect(mockPrisma.caseParticipant.create).toHaveBeenCalledWith({
+      data: { caseId: 'case-1', clientId: 'client-a', name: 'นาย A', role: 'PLAINTIFF', side: 'OURS' },
+    });
+  });
+
   it('makes the client the sole customer when no customer was named at intake', async () => {
     arrangeConvert({ clientId: 'client-a', customers: [] });
 
@@ -402,7 +437,7 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
   let service: IntakeService;
   const mockPrisma = {
     intake: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-    case: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'case-new', title: 'x', leadLawyerId: 'user-1' }), update: jest.fn().mockResolvedValue({ id: 'case-1', title: 'x', leadLawyerId: 'user-1' }) },
+    case: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'case-new', title: 'x', leadLawyerId: 'user-1' }), update: jest.fn().mockResolvedValue({ id: 'case-1', title: 'x', leadLawyerId: 'user-1' }) },
     firm: { findUnique: jest.fn().mockResolvedValue({ ownRefPrefix: 'REF' }) },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
@@ -429,7 +464,7 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
-        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -526,7 +561,7 @@ describe('IntakeService.decide — CONSULTATION_ONLY', () => {
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
-        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -593,7 +628,7 @@ describe('IntakeService.convertToCase — relatedCaseId / isOngoingElsewhere', (
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
-        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -778,7 +813,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
     intake: { findFirst: jest.fn(), update: jest.fn() },
     task: { updateMany: jest.fn() },
     firm: { findUnique: jest.fn() },
-    case: { findMany: jest.fn(), create: jest.fn() },
+    case: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     document: {
@@ -805,7 +840,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
-        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
+        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
         { provide: IntakePrecedentAnalysisService, useValue: mockAnalysisService },
@@ -850,6 +885,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
     });
     (mockPrisma as any).case.findFirst = jest.fn().mockResolvedValue({ id: 'case-1', firmId: 'firm-1', title: 'คดีเดิม' });
     (mockPrisma as any).case.update = jest.fn().mockResolvedValue({ id: 'case-1', title: 'คดีเดิม' });
+    (mockPrisma as any).case.findUnique = jest.fn().mockResolvedValue(null);
     (mockPrisma as any).intakePrecedentAnalysis = { updateMany: jest.fn() };
 
     await service.convertToCase(user, 'intake-1', {});
@@ -868,8 +904,10 @@ describe('IntakeService portal conversion', () => {
     $queryRaw: jest.fn(),
     portalIntakeSubmission: { findFirst: jest.fn(), update: jest.fn() },
     intake: { create: jest.fn(), findFirst: jest.fn() },
+    client: { findFirst: jest.fn() },
   };
   const prisma = { $transaction: jest.fn() };
+  const portalConflict = { gateNewCase: jest.fn(), recordForCase: jest.fn() };
   const submission = {
     id: 'submission-1', clientId: 'client-1', title: 'Review', detail: 'Contract',
     clientRequestedDate: new Date('2026-09-20'), withdrawnByClient: false, intakeId: null,
@@ -880,12 +918,14 @@ describe('IntakeService portal conversion', () => {
     prisma.$transaction.mockImplementation((run) => run(tx));
     tx.portalIntakeSubmission.findFirst.mockResolvedValue(submission);
     tx.intake.create.mockResolvedValue({ id: 'intake-1' });
+    tx.client.findFirst.mockResolvedValue({ name: 'บริษัท ลูกความ จำกัด' });
+    portalConflict.gateNewCase.mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null });
     const module = await Test.createTestingModule({ providers: [
       IntakeService,
       { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
       { provide: PrismaService, useValue: prisma },
         { provide: CaseFeedService, useValue: { log: jest.fn() } },
-        { provide: ConflictCheckService, useValue: { latestForIntake: jest.fn().mockResolvedValue({ result: 'CLEAR' }) } },
+        { provide: ConflictCheckService, useValue: portalConflict },
       { provide: TasksService, useValue: {} },
       { provide: ConfigService, useValue: {} },
       { provide: IntakePrecedentAnalysisService, useValue: {} },
@@ -940,16 +980,38 @@ describe('IntakeService portal conversion', () => {
   it('propagates linking failure from the transaction instead of reporting a successful conversion', async () => {
     tx.portalIntakeSubmission.update.mockRejectedValue(new Error('link failed'));
     await expect(service.convertPortalSubmission(user, submission.id, {})).rejects.toThrow('link failed');
+    expect(portalConflict.recordForCase).not.toHaveBeenCalled();
+  });
+
+  it('gates the portal client before creating the intake and records the check inside the same transaction', async () => {
+    await service.convertPortalSubmission(user, submission.id, { conflictOverrideReason: 'ลูกความเดิม ตรวจแล้วไม่ขัดกัน' });
+
+    expect(tx.client.findFirst).toHaveBeenCalledWith({ where: { id: 'client-1', firmId: 'firm-1' }, select: { name: true } });
+    expect(portalConflict.gateNewCase).toHaveBeenCalledWith(user, {
+      parties: [{ name: 'บริษัท ลูกความ จำกัด', side: 'OURS' }],
+      overrideReason: 'ลูกความเดิม ตรวจแล้วไม่ขัดกัน',
+    });
+    expect(portalConflict.gateNewCase.mock.invocationCallOrder[0]).toBeLessThan(tx.intake.create.mock.invocationCallOrder[0]);
+    expect(portalConflict.recordForCase).toHaveBeenCalledWith(user, expect.objectContaining({ result: 'CLEAR' }), { intakeId: 'intake-1' }, tx);
+  });
+
+  it('creates no intake when the gate refuses', async () => {
+    portalConflict.gateNewCase.mockRejectedValue(new ConflictException({ code: 'CONFLICT_FOUND', matches: [] }));
+    await expect(service.convertPortalSubmission(user, submission.id, {})).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.intake.create).not.toHaveBeenCalled();
+    expect(portalConflict.recordForCase).not.toHaveBeenCalled();
   });
 });
 
 describe('IntakeService.decide — เปิดคดีทันทีที่รับดำเนินการ', () => {
   let service: IntakeService;
   const mockPrisma = {
-    intake: { findFirst: jest.fn(), update: jest.fn() },
+    intake: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
+    client: { findMany: jest.fn(), count: jest.fn() },
     task: { updateMany: jest.fn() },
+    caseParticipant: { findMany: jest.fn(), createMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
     firm: { findUnique: jest.fn() },
-    case: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+    case: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
@@ -957,7 +1019,8 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     document: { updateMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     intakeAttachment: { findMany: jest.fn().mockResolvedValue([]) },
   };
-  const mockConflict = { latestForIntake: jest.fn() };
+  const feed = { log: jest.fn() };
+  const mockConflict = { latestForIntake: jest.fn(), gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() };
   const mockTasksService = { create: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
@@ -990,13 +1053,16 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
   beforeEach(async () => {
     jest.clearAllMocks();
     mockConflict.latestForIntake.mockResolvedValue({ result: 'CLEAR' });
+    mockConflict.gateNewCase.mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null });
+    mockPrisma.caseParticipant.findMany.mockResolvedValue([]);
+    mockPrisma.caseParticipant.createMany.mockResolvedValue({ count: 1 });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntakeService,
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: CaseFeedService, useValue: { log: jest.fn() } },
+        { provide: CaseFeedService, useValue: feed },
         { provide: ConflictCheckService, useValue: mockConflict },
         { provide: CaseAccessService, useValue: { getIntakeFilterForUser: jest.fn().mockResolvedValue({ firmId: 'firm-1' }) } },
         { provide: TasksService, useValue: mockTasksService },
@@ -1034,6 +1100,77 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     await service.decide(user, 'intake-1', { decision: 'NEGOTIATE_FIRST' as any });
 
     expect(mockPrisma.case.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('gates our names and the opponent before the case, ignoring this intake, and records on case and intake', async () => {
+    arrange({ opposingParty: 'บริษัท ข จำกัด', client: { id: 'cl-1', name: 'นาย A' }, additionalClients: [{ client: { id: 'cl-2', name: 'นาง B' } }] });
+    mockConflict.gateNewCase.mockResolvedValue({ result: 'POTENTIAL_CONFLICT', terms: [], matches: [], overrideReason: 'ลูกความยินยอมเป็นหนังสือแล้ว' });
+
+    await service.decide(user, 'intake-1', { decision: 'FILE_SUIT' as any, conflictOverrideReason: 'ลูกความยินยอมเป็นหนังสือแล้ว' });
+
+    expect(mockConflict.gateNewCase).toHaveBeenCalledWith(user, {
+      parties: [
+        { name: 'นาย A', side: 'OURS' },
+        { name: 'นาง B', side: 'OURS' },
+        { name: 'บริษัท ข จำกัด', side: 'OPPONENT' },
+      ],
+      overrideReason: 'ลูกความยินยอมเป็นหนังสือแล้ว',
+      excludeIntakeId: 'intake-1',
+    });
+    expect(mockConflict.recordForCase).toHaveBeenCalledWith(user, expect.objectContaining({ result: 'POTENTIAL_CONFLICT' }), { caseId: 'case-1', intakeId: 'intake-1' });
+    expect(feed.log).toHaveBeenCalledWith(expect.objectContaining({ title: 'เปิดคดีโดยข้ามผลตรวจ conflict', description: 'ลูกความยินยอมเป็นหนังสือแล้ว' }));
+  });
+
+  it('a reason with no clash leaves no override activity', async () => {
+    arrange();
+    await service.decide(user, 'intake-1', { decision: 'FILE_SUIT' as any, conflictOverrideReason: 'ไม่จำเป็นต้องใช้เหตุผลนี้' });
+    expect(feed.log).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'เปิดคดีโดยข้ามผลตรวจ conflict' }));
+  });
+
+  it('opens no case and saves no decision when the gate refuses', async () => {
+    arrange({ opposingParty: 'บริษัท ข จำกัด' });
+    mockConflict.gateNewCase.mockRejectedValue(new ConflictException({ code: 'CONFLICT_FOUND', matches: [] }));
+
+    await expect(service.decide(user, 'intake-1', { decision: 'FILE_SUIT' as any })).rejects.toBeInstanceOf(ConflictException);
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+    expect(mockConflict.recordForCase).not.toHaveBeenCalled();
+    expect(mockPrisma.intake.update).not.toHaveBeenCalled();
+  });
+
+  it('a new intake is gated before it is saved: a clash without a reason saves nothing', async () => {
+    mockConflict.gateNewCase.mockRejectedValue(new ConflictException({ code: 'CONFLICT_FOUND', matches: [] }));
+
+    await expect(
+      service.create(user, { receivedDate: '2026-10-12', clientName: 'นาย A', opposingParty: 'บริษัท ข จำกัด' } as any),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(mockPrisma.intake.create).not.toHaveBeenCalled();
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+  });
+
+  it('a new intake with a reason searches our names and the opponent once, then records on case and intake', async () => {
+    mockPrisma.client.findMany.mockResolvedValue([{ name: 'บริษัท เอ จำกัด' }]);
+    mockPrisma.client.count.mockResolvedValue(1);
+    mockPrisma.intake.create.mockResolvedValue({ ...baseIntake, opposingParty: 'บริษัท ข จำกัด' });
+    const overridden = { result: 'POTENTIAL_CONFLICT', terms: [], matches: [], overrideReason: 'ลูกความยินยอมเป็นหนังสือแล้ว' };
+    mockConflict.gateNewCase.mockResolvedValue(overridden);
+    arrange();
+
+    await service.create(user, {
+      receivedDate: '2026-10-12', clientId: 'cl-1', clientName: 'นาย A', opposingParty: 'บริษัท ข จำกัด',
+      conflictOverrideReason: 'ลูกความยินยอมเป็นหนังสือแล้ว',
+    } as any);
+
+    expect(mockPrisma.client.findMany).toHaveBeenCalledWith({ where: { id: { in: ['cl-1'] }, firmId: 'firm-1' }, select: { name: true } });
+    expect(mockConflict.gateNewCase).toHaveBeenCalledTimes(1);
+    expect(mockConflict.gateNewCase).toHaveBeenCalledWith(user, {
+      parties: [
+        { name: 'นาย A', side: 'OURS' },
+        { name: 'บริษัท เอ จำกัด', side: 'OURS' },
+        { name: 'บริษัท ข จำกัด', side: 'OPPONENT' },
+      ],
+      overrideReason: 'ลูกความยินยอมเป็นหนังสือแล้ว',
+    });
+    expect(mockConflict.recordForCase).toHaveBeenCalledWith(user, overridden, { caseId: 'case-1', intakeId: 'intake-1' });
   });
 
   it('CONSULTATION_ONLY does not open a case (unchanged behavior)', async () => {

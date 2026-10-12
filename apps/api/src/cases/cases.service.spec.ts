@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseActivitiesService } from './case-activities.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 describe('CasesService.findOne', () => {
   let service: CasesService;
@@ -23,6 +24,7 @@ describe('CasesService.findOne', () => {
       providers: [
         CasesService,
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
         { provide: CaseActivitiesService, useValue: mockActivities },
@@ -75,6 +77,8 @@ describe('CasesService.findOne', () => {
               status: { in: ['PENDING_REVIEW', 'DONE'] },
               assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'user-1' } },
             },
+            { status: 'PENDING_REVIEW', reviewerId: 'user-1' },
+            { status: 'PENDING_REVIEW', reviewerId: null, case: { leadLawyerId: 'user-1' } },
           ],
         },
       ],
@@ -95,6 +99,7 @@ describe('CasesService.createForPortal', () => {
       providers: [
         CasesService,
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: PrismaService, useValue: {} },
         { provide: CaseAccessService, useValue: {} },
         { provide: CaseActivitiesService, useValue: {} },
@@ -156,6 +161,7 @@ describe('CasesService.create Own Ref allocation', () => {
       providers: [
         CasesService,
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: {} },
         { provide: CaseActivitiesService, useValue: {} },

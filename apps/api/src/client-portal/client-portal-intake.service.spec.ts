@@ -7,6 +7,7 @@ import { CaseFeedService } from '../common/services/case-feed.service';
 import { CasesService } from '../cases/cases.service';
 import { DocumentsService } from '../documents/documents.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 describe('ClientPortalIntakeService', () => {
   let service: ClientPortalIntakeService;
@@ -43,6 +44,7 @@ describe('ClientPortalIntakeService', () => {
   const mockDocuments = { createFromClientBuffer: jest.fn() };
   const mockNotifier = { notifyFirmOwners: jest.fn() };
   const mockFeed = { log: jest.fn() };
+  const mockConflict = { gateNewCase: jest.fn(), recordForCase: jest.fn() };
   const portalUser = {
     clientContactId: 'contact-1',
     clientId: 'client-1',
@@ -54,6 +56,7 @@ describe('ClientPortalIntakeService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockPrisma.document.findMany.mockResolvedValue([]);
+    mockConflict.gateNewCase.mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ClientPortalIntakeService,
@@ -62,6 +65,7 @@ describe('ClientPortalIntakeService', () => {
         { provide: CasesService, useValue: mockCases },
         { provide: DocumentsService, useValue: mockDocuments },
         { provide: AssignmentNotifierService, useValue: mockNotifier },
+        { provide: ConflictCheckService, useValue: mockConflict },
         { provide: CaseFeedService, useValue: mockFeed },
       ],
     }).compile();
@@ -96,6 +100,26 @@ describe('ClientPortalIntakeService', () => {
         id: 'doc-1',
         storagePath: './uploads/cases/case-1/doc-1_v1.pdf',
       });
+    });
+
+    it('records a conflict check on the new case as its lead lawyer, with the portal note for a clash', async () => {
+      mockCases.createForPortal.mockResolvedValue({ id: 'case-1', ownRef: 'TSBREF20260001', leadLawyerId: 'owner-1' });
+
+      await service.submit(portalUser, dto);
+
+      const actor = expect.objectContaining({ id: 'owner-1', firmId: 'firm-1' });
+      expect(mockConflict.gateNewCase).toHaveBeenCalledWith(actor, {
+        parties: [{ name: 'บริษัท ก', side: 'OURS' }],
+        overrideReason: 'เปิดจากพอร์ทัล — ทนายต้องตรวจ',
+      });
+      expect(mockConflict.recordForCase).toHaveBeenCalledWith(actor, expect.objectContaining({ result: 'CLEAR' }), { caseId: 'case-1', automatic: true });
+    });
+
+    it('a failing conflict check never fails the client request', async () => {
+      mockConflict.gateNewCase.mockRejectedValue(new Error('db down'));
+
+      await expect(service.submit(portalUser, dto)).resolves.toMatchObject({ caseId: 'case-1' });
+      expect(mockConflict.recordForCase).not.toHaveBeenCalled();
     });
 
     it('creates the submission scoped to the authenticated contact, never trusting a client-supplied clientId', async () => {

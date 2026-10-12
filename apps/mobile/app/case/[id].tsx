@@ -4,6 +4,7 @@ import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Camera, Check, FileText, ShieldCheck } from 'lucide-react-native';
+import { groupParticipantsBySide, PARTICIPANT_ROLE_LABELS, PARTY_ROLE_LABELS, type ParticipantRole, type PartyRole } from '@lawfirm/shared';
 import { api } from '@/api/client';
 import { useAuth } from '@/api/auth';
 import { canToggleTask } from '@/workflow';
@@ -152,6 +153,7 @@ export default function CaseDetailScreen() {
         </View>
 
         {tab === 'ภาพรวม' ? (
+          <>
           <Card>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={styles.infoLabel}>สถานะ</Text>
@@ -172,6 +174,7 @@ export default function CaseDetailScreen() {
                 value={`${item.user.firstName} ${item.user.lastName}`} onPress={() => router.push({ pathname: '/person/[id]', params: { id: item.userId } })} />)
               : <InfoRow label="คนรอง" value={null} />}
             <InfoRow label="ลูกความ" value={detail.clientName ?? detail.client?.name} />
+            <InfoRow label="เราเป็น" value={detail.partyRole ? PARTY_ROLE_LABELS[detail.partyRole as PartyRole] : null} />
             <InfoRow label="ศาล" value={detail.courtName} />
             <InfoRow
               label="เลขคดี"
@@ -197,6 +200,22 @@ export default function CaseDetailScreen() {
               </>
             ) : null}
           </Card>
+          <Card style={{ marginTop: spacing.md }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.infoLabel}>คู่ความ</Text>
+              <Button title="เพิ่ม" ghost onPress={() => router.push(`/case/${id}/party`)} />
+            </View>
+            {(detail.participants ?? []).length === 0
+              ? <EmptyNote>ยังไม่มีคู่ความ</EmptyNote>
+              : groupParticipantsBySide(detail.participants ?? []).map(group => <View key={group.side} style={{ marginTop: spacing.sm }}>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>{group.label}</Text>
+                  {group.items.map(p => <Pressable key={p.id} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}
+                    onPress={() => router.push(`/case/${id}/party?participantId=${p.id}`)}>
+                    <Text>{p.name} · {PARTICIPANT_ROLE_LABELS[p.role as ParticipantRole] ?? p.role}</Text>
+                  </Pressable>)}
+                </View>)}
+          </Card>
+          </>
         ) : null}
 
         {tab === 'ภาพรวม' && insurance.data ? (

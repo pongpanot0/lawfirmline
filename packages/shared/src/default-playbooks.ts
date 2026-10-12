@@ -4,6 +4,7 @@
 // Sources and unverified points: docs/research/2026-09-28-default-courts-and-playbooks.md
 import type { CaseStage, FirmRole } from './index';
 import type { TaskRoutineDefinition } from './task-routine';
+import type { PlaybookSide } from './task-review';
 
 export interface DefaultPlaybookStep {
   routine?: TaskRoutineDefinition;
@@ -14,6 +15,10 @@ export interface DefaultPlaybookStep {
   stage?: `${CaseStage}`;
   offsetDays?: number;
   dayBasis?: 'CALENDAR' | 'BUSINESS';
+  /** Only for cases where our client is on this side (Case.partyRole); both sides when unknown. */
+  side?: PlaybookSide;
+  /** The task cannot be handed in for review without at least one attachment. */
+  requiresAttachment?: boolean;
 }
 
 export interface DefaultPlaybookDefinition {
@@ -71,6 +76,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
         title: 'ร่างคำฟ้องและบัญชีท้ายฟ้อง',
         instructions: 'ร่างคำฟ้องให้มีสาระครบตาม ป.วิ.พ. ม.172 (สภาพแห่งข้อหา คำขอบังคับ ข้ออ้างที่อาศัย) พร้อมคำนวณทุนทรัพย์และดอกเบี้ย เสนอทนายอาวุโสตรวจ',
         primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER', stage: 'FILING', offsetDays: 7, dayBasis: 'BUSINESS',
+        requiresAttachment: true,
       },
       {
         title: 'ยื่นฟ้องผ่าน e-Filing และชำระค่าธรรมเนียมศาล',
@@ -86,11 +92,13 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
         title: 'ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)',
         instructions: 'ต้องยื่นภายใน 15 วันนับแต่ได้รับหมายเรียก (ป.วิ.พ. ม.177); หากส่งโดยปิดหมาย/วิธีอื่น หมายมีผลเมื่อพ้น 15 วัน (ม.79) รวมราว 30 วัน — นับจากวันรับหมายจริงเสมอ หรือยื่นคำร้องขอขยายเวลาก่อนครบกำหนด (ม.23)',
         primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER', stage: 'ANSWER', offsetDays: 10, dayBasis: 'CALENDAR',
+        side: 'DEFENDANT', requiresAttachment: true,
       },
       {
         title: 'ขอให้ศาลพิพากษาโดยขาดนัดยื่นคำให้การ (ฝ่ายโจทก์)',
         instructions: 'หากจำเลยไม่ยื่นคำให้การ โจทก์ต้องมีคำขอภายใน 15 วันนับแต่พ้นกำหนดยื่นคำให้การ (ป.วิ.พ. ม.197–198) มิฉะนั้นศาลอาจจำหน่ายคดีฐานทิ้งฟ้อง',
         primaryRole: 'LAWYER', secondaryRole: 'ASSISTANT', stage: 'ANSWER', offsetDays: 25, dayBasis: 'CALENDAR',
+        side: 'PLAINTIFF',
       },
       {
         title: 'เตรียมกรอบการไกล่เกลี่ยและขออำนาจลูกความ',
@@ -101,6 +109,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
         title: 'ยื่นบัญชีระบุพยานและสำเนาเอกสาร',
         instructions: 'ยื่นก่อนวันสืบพยานไม่น้อยกว่า 7 วัน พร้อมสำเนาสำหรับคู่ความ (ป.วิ.พ. ม.88, ม.90); ตั้งเตือนนับถอยหลังจากวันสืบพยานที่ศาลนัด',
         primaryRole: 'LAWYER', secondaryRole: 'ASSISTANT', stage: 'HEARING', offsetDays: 3, dayBasis: 'BUSINESS',
+        requiresAttachment: true,
       },
       {
         title: 'เตรียมพยานและบันทึกถ้อยคำยืนยันข้อเท็จจริง',
@@ -121,6 +130,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
         title: 'ร่างและยื่นอุทธรณ์',
         instructions: 'ยื่นภายใน 1 เดือนนับแต่วันอ่านคำพิพากษา พร้อมค่าธรรมเนียมและเงินค่าธรรมเนียมที่ต้องใช้แทน (ป.วิ.พ. ม.229); ตรวจข้อจำกัดอุทธรณ์ข้อเท็จจริงตามทุนทรัพย์ (ม.224)',
         primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER', stage: 'APPEAL', offsetDays: 21, dayBasis: 'CALENDAR',
+        requiresAttachment: true,
       },
       {
         title: 'ยื่นคำร้องขออนุญาตฎีกาพร้อมคำฟ้องฎีกา',
@@ -180,6 +190,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
         title: 'ยื่นคำร้องขอปล่อยชั่วคราว (ถ้าลูกความถูกควบคุม)',
         instructions: 'เตรียมหลักประกันและยื่นคำร้องตาม ป.วิ.อ. ม.106–108 ทันที; ผู้ถูกจับต้องถูกนำตัวไปศาลภายใน 48 ชั่วโมง (ม.87) ให้ติดตามคำร้องฝากขัง',
         primaryRole: 'LAWYER', secondaryRole: 'ASSISTANT', stage: 'PRE_LITIGATION', offsetDays: 0, dayBasis: 'CALENDAR',
+        side: 'DEFENDANT',
       },
       {
         title: 'ติดตามความคืบหน้าสำนวนสอบสวน/อัยการ',
@@ -190,16 +201,19 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
         title: 'ร่างและยื่นฟ้อง/คำร้องเข้าเป็นโจทก์ร่วม',
         instructions: 'ผู้เสียหายฟ้องเองต้องมีสาระตาม ป.วิ.อ. ม.158 และผ่านการไต่สวนมูลฟ้อง (ม.162); หรือยื่นคำร้องขอเข้าร่วมเป็นโจทก์กับอัยการก่อนศาลชั้นต้นพิพากษา (ม.30)',
         primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER', stage: 'FILING', offsetDays: 7, dayBasis: 'BUSINESS',
+        side: 'PLAINTIFF',
       },
       {
         title: 'ยื่นคำร้องขอค่าสินไหมทดแทน (ผู้เสียหาย)',
         instructions: 'ยื่นคำร้องตาม ป.วิ.อ. ม.44/1 ก่อนเริ่มสืบพยาน (หรือก่อนศาลชั้นต้นวินิจฉัยคดีหากไม่มีการสืบพยาน) พร้อมหลักฐานความเสียหาย',
         primaryRole: 'LAWYER', stage: 'FILING', offsetDays: 14, dayBasis: 'CALENDAR',
+        side: 'PLAINTIFF',
       },
       {
         title: 'เตรียมคำให้การจำเลยและนัดพร้อม/ตรวจพยานหลักฐาน',
         instructions: 'ปรึกษาแนวทางรับสารภาพหรือปฏิเสธก่อนศาลสอบคำให้การ (ป.วิ.อ. ม.172); ขอตรวจพยานหลักฐานของอีกฝ่าย (ม.173/1–173/2)',
         primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER', stage: 'ANSWER', offsetDays: 5, dayBasis: 'BUSINESS',
+        side: 'DEFENDANT',
       },
       {
         title: 'ไกล่เกลี่ย/เจรจายอมความหรือชดใช้ค่าเสียหาย',
@@ -289,6 +303,7 @@ export const DEFAULT_PLAYBOOKS: DefaultPlaybookDefinition[] = [
         title: 'ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)',
         instructions: 'ยื่นภายใน 15 วันนับแต่ได้รับหมายเรียก (ป.วิ.พ. ม.177) หรือราว 30 วันกรณีปิดหมาย (ม.79) หรือขอขยายเวลาก่อนครบกำหนด',
         primaryRole: 'LAWYER', secondaryRole: 'SENIOR_LAWYER', stage: 'ANSWER', offsetDays: 10, dayBasis: 'CALENDAR',
+        side: 'DEFENDANT',
       },
       {
         title: 'เข้าร่วมกระบวนการประนีประนอมของศาลเยาวชนและครอบครัว',

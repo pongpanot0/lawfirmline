@@ -4,7 +4,7 @@ const ID = '11111111-2222-3333-4444-555555555555';
 
 describe('LineQuickActionsService', () => {
   const leaves = { decide: jest.fn() } as any;
-  const tasks = { acknowledge: jest.fn(), assertAccess: jest.fn(), update: jest.fn() } as any;
+  const tasks = { acknowledge: jest.fn(), assertAccess: jest.fn(), update: jest.fn(), acceptById: jest.fn() } as any;
   const billing = { updateExpenseClaimStatus: jest.fn() } as any;
   const events = { acknowledge: jest.fn() } as any;
   const user = { id: 'u1', firmId: 'f1' } as any;
@@ -22,6 +22,17 @@ describe('LineQuickActionsService', () => {
   it('leave buttons decide as the tapper', async () => {
     await expect(svc.handle(user, `leave:approve:${ID}`)).resolves.toContain('อนุมัติ');
     expect(leaves.decide).toHaveBeenCalledWith(user, ID, 'APPROVED');
+  });
+
+  it('approves a task under review as the tapper', async () => {
+    tasks.acceptById.mockResolvedValue({ title: 'ร่างคำฟ้อง' });
+    await expect(svc.handle(user, `task:accept:${ID}`)).resolves.toContain('อนุมัติ');
+    expect(tasks.acceptById).toHaveBeenCalledWith(ID, user);
+  });
+
+  it('an other-firm / ineligible approval is refused with the service message and nothing else', async () => {
+    tasks.acceptById.mockRejectedValue(new Error('Task not found'));
+    await expect(svc.handle(user, `task:accept:${ID}`)).resolves.toContain('ทำรายการไม่สำเร็จ');
   });
 
   it('acknowledges a task', async () => {

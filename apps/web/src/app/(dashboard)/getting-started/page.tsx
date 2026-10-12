@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check } from 'lucide-react';
+import { FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { useLocale } from '@/components/landing/LocaleProvider';
 import { ImportPreview, parseImportCsv, setupChecks, setupRequest, SetupProgress } from '@/lib/practice-setup';
@@ -21,12 +22,12 @@ export default function GettingStarted() {
   const { user, token } = useAuth(); const { locale } = useLocale(); const th = locale === 'th';
   const [progress, setProgress] = useState<SetupProgress | null>(null); const [csv, setCsv] = useState('clientName,caseRef,caseTitle\n'); const [preview, setPreview] = useState<ImportPreview | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
   const load = async () => { if (token) setProgress(await setupRequest(token, '/progress')); };
-  useEffect(() => { if (token && user?.firmRole === 'OWNER') load().catch(e => setError(e.message)); }, [token, user?.firmRole]);
+  useEffect(() => { if (token && hasFirmCapability(user?.firmRole, 'manageFirmContent')) load().catch(e => setError(e.message)); }, [token, user?.firmRole]);
   async function run(fn: () => Promise<void>) { setBusy(true); setError(''); setNotice(''); try { await fn(); } catch(e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); } }
 
-  if (user?.firmRole !== 'OWNER') {
+  if (!hasFirmCapability(user?.firmRole, 'manageFirmContent')) {
     return <div className="mx-auto max-w-3xl">
-      <PageHeader title={th ? 'เริ่มต้นใช้งาน' : 'Getting started'} description={th ? 'หน้านี้สำหรับเจ้าของหรือผู้ดูแลสำนักงาน ถ้าคุณต้องดูแลทั้งสำนักงาน ให้เจ้าของเปลี่ยนบทบาทของคุณเป็น "เจ้าของ / ผู้ดูแลสำนักงาน" ที่หน้าจัดการทีม' : 'This page is for the owner or office manager. If you run the office, ask the owner to change your role to "Owner / office manager" on the Team page.'} />
+      <PageHeader title={th ? 'เริ่มต้นใช้งาน' : 'Getting started'} description={th ? 'หน้านี้สำหรับเจ้าของหรือผู้ดูแลสำนักงาน ถ้าคุณต้องดูแลทั้งสำนักงาน ให้เจ้าของเปลี่ยนบทบาทของคุณเป็น "ผู้จัดการสำนักงาน" ที่หน้าจัดการทีม' : 'This page is for the owner or office manager. If you run the office, ask the owner to change your role to "Office manager" on the Team page.'} />
       <Link href="/dashboard" className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11')}>{th ? 'ไปที่งานของฉัน' : 'Go to my work'}</Link>
     </div>;
   }
@@ -51,7 +52,7 @@ export default function GettingStarted() {
       { href: '/leaves', label: th ? 'การลา' : 'Leave', what: th ? 'อนุมัติใบลา ก่อนจัดคนไปนัด' : 'Approve leave before staffing hearings' },
     ] },
     { when: th ? 'ทุกสัปดาห์' : 'Every week', items: [
-      { href: '/expenses', label: th ? 'ค่าใช้จ่าย' : 'Expenses', what: th ? 'ตรวจหลักฐานและอนุมัติการเบิก' : 'Check receipts and approve claims' },
+      { href: '/expenses', label: th ? 'ค่าใช้จ่าย' : 'Expenses', what: user?.firmRole === FirmRole.OWNER ? (th ? 'ตรวจหลักฐานและอนุมัติการเบิก' : 'Check receipts and approve claims') : (th ? 'ตรวจหลักฐานการเบิก — เจ้าของเป็นผู้อนุมัติ' : 'Check receipts — the owner approves claims') },
       { href: '/invoices', label: th ? 'ใบแจ้งหนี้' : 'Invoices', what: th ? 'ติดตามใบแจ้งหนี้ที่ค้างชำระ' : 'Follow up unpaid invoices' },
       { href: '/operations', label: th ? 'ภาระงานทีม → สุขภาพคดี' : 'Operations → Case health', what: th ? 'ดูคดีที่นิ่งนานหรือติดขัด' : 'Spot quiet or stuck cases' },
     ] },

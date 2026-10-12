@@ -12,7 +12,7 @@ import { eventAssigneesInclude, eventPeopleIds } from '../calendar/event-people'
  * inside this window — without a bound it read every future event in the
  * database, with all their reminder logs, every ten minutes.
  */
-const MAX_REMINDER_LEAD_DAYS = 30;
+const MAX_REMINDER_LEAD_DAYS = 90;
 const MAX_REMINDER_LEAD_MINUTES = MAX_REMINDER_LEAD_DAYS * 24 * 60;
 
 function formatReminderLeadTime(minutesBefore: number): string {

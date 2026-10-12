@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BillingPeriod, FirmRole, planPriceThb, SubscriptionPlan } from '@lawfirm/shared';
+import { BillingPeriod, hasFirmCapability, planPriceThb, SubscriptionPlan } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,7 +22,7 @@ export function ExpiredPlanPicker() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(BillingPeriod.MONTHLY);
   const loc = dateLocale(locale);
 
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const isOwner = hasFirmCapability(user?.firmRole, 'manageSubscription');
 
   useEffect(() => {
     const token = getStoredToken();

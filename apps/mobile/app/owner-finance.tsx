@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Alert, RefreshControl, ScrollView } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { useOwnerFinance } from '@/api/hooks';
@@ -20,7 +21,7 @@ const VIEWS: Array<{ value: FinanceView; label: string }> = [
 
 export default function OwnerFinanceScreen() {
   const params = useLocalSearchParams<{ view?: string }>();
-  const { user } = useAuth(), owner = user?.firmRole === 'OWNER';
+  const { user } = useAuth(), owner = hasFirmCapability(user?.firmRole, 'manageInvoices');
   const router = useRouter(), client = useQueryClient();
   const today = bangkokDay(new Date().toISOString());
   const [view, setView] = useState<FinanceView>(VIEWS.some(item => item.value === params.view) ? params.view as FinanceView : 'receivables');
@@ -39,7 +40,7 @@ export default function OwnerFinanceScreen() {
     },
     onError: error => { void finance.refetch(); Alert.alert('สร้างร่างไม่สำเร็จ', `${error.message}\nตรวจรายการร่างล่าสุดก่อนทำอีกครั้ง`); },
   });
-  if (!owner) return <EmptyNote>ข้อมูลการเงินสำนักงานสำหรับ Owner</EmptyNote>;
+  if (!owner) return <EmptyNote>ข้อมูลการเงินสำนักงานสำหรับ Owner และผู้จัดการสำนักงาน</EmptyNote>;
   const data = finance.data;
   const rows = data?.receivables.filter(row => allDebtors || row.daysOverdue > 0 || !row.dueAt || !row.collectionOwner || (!!row.collectionNextAt && row.collectionNextAt <= today))
     .sort((a, b) => b.daysOverdue - a.daysOverdue || (a.collectionNextAt ?? '9999').localeCompare(b.collectionNextAt ?? '9999')) ?? [];

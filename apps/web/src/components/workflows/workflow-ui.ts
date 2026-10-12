@@ -1,8 +1,10 @@
+import { FIRM_ROLE_LABELS } from '@lawfirm/shared';
 import type { WorkflowRole, WorkflowStepDef } from '@/lib/api';
 
 export const ROLE_LABELS: Record<WorkflowRole, string> = {
   OWNER: 'เจ้าของสำนักงาน',
   SENIOR_LAWYER: 'ทนายอาวุโส',
+  OFFICE_MANAGER: FIRM_ROLE_LABELS.OFFICE_MANAGER.th,
   LAWYER: 'ทนาย',
   ASSISTANT: 'ผู้ช่วย',
   EXTERNAL: 'ผู้รับงานภายนอก (ฟรีแลนซ์)',

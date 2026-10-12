@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { BarChart3, PieChart, TrendingUp, Briefcase, CheckCircle2, Clock } from 'lucide-react';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import {
@@ -182,7 +183,7 @@ export default function ReportsPage() {
         }
       />
 
-      {user.firmRole === 'OWNER' && token && <OwnerKpiSection token={token} />}
+      {hasFirmCapability(user.firmRole, 'runOperations') && token && <OwnerKpiSection token={token} />}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard

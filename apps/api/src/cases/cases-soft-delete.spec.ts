@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { CaseActivitiesService } from './case-activities.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 
 const owner = { id: 'u1', firmId: 'f1', firmRole: FirmRole.OWNER } as AuthUser;
 
@@ -24,6 +25,7 @@ describe('CasesService.remove — soft delete', () => {
       providers: [
         CasesService,
         { provide: AssignmentNotifierService, useValue: { notifyAssigned: jest.fn(), notifyFirmOwners: jest.fn() } },
+        { provide: ConflictCheckService, useValue: { gateNewCase: jest.fn().mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null }), recordForCase: jest.fn() } },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: { canAccessCase: jest.fn() } },
         { provide: CaseActivitiesService, useValue: {} },

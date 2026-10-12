@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet } from 'react-native';
+import { COURT_EVENT_KIND_LABELS, CourtEventKind } from '@lawfirm/shared';
 import { Text, TextInput } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
@@ -42,6 +43,7 @@ export default function NewEventScreen() {
   const [title, setTitle] = useState('');
   const [type, setType] = useState<string>('COURT_DATE');
   const [courtName, setCourtName] = useState('');
+  const [courtEventKind, setCourtEventKind] = useState<CourtEventKind | ''>('');
   const [day, setDay] = useState(date || bangkokDay(new Date().toISOString()));
   const [time, setTime] = useState('09:00');
   const [ids, setIds] = useState<string[]>(user ? [user.id] : []);
@@ -65,6 +67,7 @@ export default function NewEventScreen() {
     seeded.current = current.data.id;
     const event = current.data;
     setTitle(event.title); setType(event.type); setCourtName(event.courtName ?? '');
+    setCourtEventKind(event.courtEventKind ?? '');
     setDay(bangkokDay(event.startAt)); setTime(thTime(event.startAt));
     setCaseRef({ id: event.caseId, label: event.case ? `${event.case.ownRef} · ${event.case.title}` : event.caseId });
     setIds([...new Set([...(event.assigneeId ? [event.assigneeId] : []), ...(event.assignees ?? []).map(person => person.userId)])]);
@@ -93,6 +96,7 @@ export default function NewEventScreen() {
         startAt: startAt.toISOString(),
         type,
         courtName: type === 'COURT_DATE' ? courtName.trim() : '',
+        courtEventKind: type === 'COURT_DATE' ? courtEventKind || null : null,
         assigneeIds: ids,
       };
     const save = async () => {
@@ -173,6 +177,9 @@ export default function NewEventScreen() {
                 options={[...(courtName && !courts.data?.some(item => item.name === courtName) ? [{ value: courtName, label: courtName }] : []),
                   ...(courts.data ?? []).map(item => ({ value: item.name, label: item.name }))]} />
               {courts.isError && <ErrorNote message="โหลดรายชื่อศาลไม่สำเร็จ" onRetry={() => courts.refetch()} />}
+              <SectionLabel>ชนิดนัด</SectionLabel>
+              <Dropdown label="ชนิดนัดศาล" value={courtEventKind} onChange={value => setCourtEventKind(value as CourtEventKind | '')} disabled={busy}
+                options={[{ value: '', label: 'ไม่ระบุ' }, ...Object.values(CourtEventKind).map(kind => ({ value: kind, label: COURT_EVENT_KIND_LABELS[kind] }))]} />
             </>
           ) : null}
           </FormSection>

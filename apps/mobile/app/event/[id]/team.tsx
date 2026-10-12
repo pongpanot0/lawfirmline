@@ -24,7 +24,7 @@ export default function EventTeamScreen() {
   const leaves = useLeaves(date, date, !!event.data);
   const flags = leaveFlagsForDate(leaves.data ?? [], date);
   // Match existing case-scoped CalendarService.update authorization, including senior lawyers.
-  const editable = ['OWNER', 'SENIOR_LAWYER', 'LAWYER'].includes(user?.firmRole ?? '');
+  const editable = ['OWNER', 'SENIOR_LAWYER', 'OFFICE_MANAGER', 'LAWYER'].includes(user?.firmRole ?? '');
   useEffect(() => {
     if (!event.data || ids) return;
     const primary = event.data.assigneeId;

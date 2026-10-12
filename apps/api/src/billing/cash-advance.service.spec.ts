@@ -28,6 +28,12 @@ describe('CashAdvanceService', () => {
       expect(mockPrisma.cashAdvance.create).not.toHaveBeenCalled();
     });
 
+    it('an office manager cannot issue an advance (money out stays owner)', async () => {
+      const officeManager = { id: 'om-1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as AuthUser;
+      await expect(service.issue(officeManager, { userId: 'user-2', amount: 1000 })).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.cashAdvance.create).not.toHaveBeenCalled();
+    });
+
     it('rejects a recipient outside the firm', async () => {
       mockPrisma.firmMember.findFirst.mockResolvedValue(null);
       await expect(service.issue(owner, { userId: 'outsider', amount: 1000 })).rejects.toThrow(NotFoundException);

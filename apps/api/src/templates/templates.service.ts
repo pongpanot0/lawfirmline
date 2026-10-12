@@ -4,8 +4,8 @@ import { PrismaService } from '../prisma/prisma.module';
 import { DocumentsService } from '../documents/documents.service';
 import { buildDocx } from './docx-builder';
 
-const PLAINTIFF_ROLES = ['PLAINTIFF', 'JOINT_PLAINTIFF'];
-const DEFENDANT_ROLES = ['DEFENDANT', 'JOINT_DEFENDANT'];
+const PLAINTIFF_ROLES = ['PLAINTIFF', 'JOINT_PLAINTIFF', 'PETITIONER'];
+const DEFENDANT_ROLES = ['DEFENDANT', 'JOINT_DEFENDANT', 'RESPONDENT'];
 
 export interface TemplateInput {
   name: string;
@@ -62,7 +62,7 @@ export class TemplatesService {
 
     const legalCase = await this.prisma.case.findUnique({
       where: { id: caseId },
-      include: { caseType: true, leadLawyer: true, participants: true, client: true },
+      include: { caseType: true, leadLawyer: true, participants: true, client: true, proceedings: true },
     });
     if (!legalCase) return null;
 
@@ -74,6 +74,11 @@ export class TemplatesService {
       .filter((p) => DEFENDANT_ROLES.includes(p.role))
       .map((p) => p.name)
       .join(', ');
+
+    const atLevel = (level: string) => legalCase.proceedings.find((p) => p.courtLevel === level);
+    const trial = atLevel('TRIAL');
+    const appeal = atLevel('APPEAL');
+    const supreme = atLevel('SUPREME');
 
     const vars: Record<string, string> = {
       ownRef: legalCase.ownRef,
@@ -89,6 +94,13 @@ export class TemplatesService {
       redCaseNumber: legalCase.redCaseNumber ?? '',
       plaintiffNames,
       defendantNames,
+      trialCourtName: trial?.courtName ?? '',
+      trialBlackCaseNumber: trial?.blackCaseNumber ?? '',
+      trialRedCaseNumber: trial?.redCaseNumber ?? '',
+      appealBlackCaseNumber: appeal?.blackCaseNumber ?? '',
+      appealRedCaseNumber: appeal?.redCaseNumber ?? '',
+      supremeBlackCaseNumber: supreme?.blackCaseNumber ?? '',
+      supremeRedCaseNumber: supreme?.redCaseNumber ?? '',
       lawyerName: `${legalCase.leadLawyer.firstName} ${legalCase.leadLawyer.lastName}`,
       // ponytail: no license-number field exists on User/FirmMember yet — leave
       // {{lawyerLicenseNo}} unfilled (reported missing) until one is added.

@@ -17,18 +17,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { PageLoading } from '@/components/ui/misc';
 
-/**
- * A court date starts its own deadlines when the event is created, but a
- * judgment being read, an order arriving or a complaint being served leaves no
- * calendar entry — so those clocks have to be started by hand.
- */
-const MANUAL_TRIGGERS = [
-  DeadlineTrigger.JUDGMENT,
-  DeadlineTrigger.ORDER_RECEIVED,
-  DeadlineTrigger.COMPLAINT_SERVED,
-];
-
-export function CaseCalendarPanel({ caseId }: { caseId: string }) {
+export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onChanged?: () => void }) {
   const d = useDashboardT();
   const requestedEvent = useSearchParams().get('eventId');
   const { token } = useAuth();
@@ -38,13 +27,15 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
   const [month, setMonth] = useState(new Date());
   const [view, setView] = useState<'timeline' | 'calendar'>('timeline');
   const [loading, setLoading] = useState(true);
+  // Full-page loader on the first load only; later reloads refresh in place so the
+  // suggestions panel (and its unsaved drafts) stays mounted.
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [dialog, setDialog] = useState<
     { event: CalendarEventItem | null; defaultDate?: Date } | null
   >(null);
 
-  const [trigger, setTrigger] = useState<DeadlineTrigger>(DeadlineTrigger.JUDGMENT);
   const [triggerDate, setTriggerDate] = useState('');
   const [applying, setApplying] = useState(false);
   const [notice, setNotice] = useState('');
@@ -82,7 +73,10 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
         setEvents(all.filter((e) => e.case?.id === caseId));
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : d.common.loadFailed))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setLoadedOnce(true);
+      });
   }, [token, caseId, month, view, reloadKey, d.common.loadFailed]);
 
   useEffect(() => {
@@ -102,7 +96,7 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
     setNotice('');
     try {
       const result = await api.applyDeadlineTrigger(token, caseId, {
-        trigger,
+        trigger: DeadlineTrigger.ORDER_RECEIVED,
         triggerDate: new Date(triggerDate).toISOString(),
       });
       setNotice(
@@ -118,7 +112,7 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
     }
   };
 
-  if (loading) return <PageLoading title={d.calendar.loading} lines={3} />;
+  if (loading && !loadedOnce) return <PageLoading title={d.calendar.loading} lines={3} />;
 
   return (
     <div>
@@ -178,21 +172,6 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
 
         <form onSubmit={handleApply} className="flex flex-wrap items-end gap-3">
           <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">{d.deadlineRules.trigger}</span>
-            <select
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={trigger}
-              onChange={(e) => setTrigger(e.target.value as DeadlineTrigger)}
-            >
-              {MANUAL_TRIGGERS.map((value) => (
-                <option key={value} value={value}>
-                  {d.deadlineRules.triggers[value]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm">
             <span className="mb-1 block text-muted-foreground">
               {d.dateSuggestions.applyTriggerDate}
             </span>
@@ -218,6 +197,7 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
         source="RULE"
         title={d.dateSuggestions.ruleTitle}
         reloadKey={suggestionsKey}
+        onChanged={() => { setReloadKey((n) => n + 1); onChanged?.(); }}
       />
 
       {dialog && (

@@ -1,3 +1,4 @@
+import { awaitsReviewBy } from './task-review';
 export enum TaskWorkType {
   TRANSCRIPTION = 'TRANSCRIPTION',
   DOCUMENTS = 'DOCUMENTS',
@@ -48,7 +49,7 @@ export function dailyTaskUpdateText(input: DailyTaskUpdateInput) {
 export interface DailyWorkTask {
   id: string; title: string; status: string; priority: string;
   assigneeId: string | null; workerId: string | null; reviewerId: string | null;
-  caseId: string | null; case: { id: string; ownRef: string; title: string } | null;
+  caseId: string | null; case: { id: string; ownRef: string; title: string; leadLawyerId?: string } | null;
   workType: TaskWorkType | null; size: TaskSize; dueDate: string | null; scheduledFor: string | null;
   queuePosition: number; requiresReview: boolean; assignedAt: string | null; acknowledgedAt: string | null;
   completedAt: string | null; holdReason: string | null; blockedBy: string | null;
@@ -84,7 +85,7 @@ export function assignmentCandidates(members: DailyWorkMember[], tasks: DailyWor
     return {
       member, queue, unknown: unknownCount > 0, unknownCount,
       points: queue.reduce((sum, t) => sum + taskPoints(t.size), 0),
-      reviews: tasks.filter(t => t.status === 'PENDING_REVIEW' && t.assigneeId === member.userId),
+      reviews: tasks.filter(t => awaitsReviewBy(t, member.userId, t.case?.leadLawyerId)),
       configured: member.workTypes.includes(workType),
       today: queue.filter(t => taskDayKey(t) === date),
       done: tasks.filter(t => t.workerId === member.userId && t.status === 'DONE' && t.completedAt && new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date(t.completedAt)) === date).length,
@@ -158,6 +159,9 @@ export interface TeamRadar { start: string; days: string[]; members: TeamRadarMe
 export interface PersonWorkload {
   userId: string; firstName: string; lastName: string; role: string; workTypes: TaskWorkType[];
   tasks: { id: string; title: string; status: string; dueDate: string | null; scheduledFor: string | null; size: TaskSize; overdue: boolean; holdReason: string | null; case: { id: string; ownRef: string; title: string } | null }[];
+  /** Work this person handed in, waiting for someone else to review. */
+  submitted: { id: string; title: string; dueDate: string | null }[];
+  /** The person's review queue ("รอฉันตรวจ"). */
   reviews: { id: string; title: string; dueDate: string | null }[];
   cases: { id: string; ownRef: string; title: string; status: string; role: 'LEAD' | 'BUDDY' }[];
   /** Cases this person works on that the viewer cannot open. */

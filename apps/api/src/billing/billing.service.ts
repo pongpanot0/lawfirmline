@@ -4,7 +4,7 @@ import { Injectable, ForbiddenException, NotFoundException, BadRequestException,
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AuthUser, ExpenseClaimStatus, ExpenseStatus, FirmRole } from '@lawfirm/shared';
+import { AuthUser, ExpenseClaimStatus, ExpenseStatus, hasFirmCapability } from '@lawfirm/shared';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { PettyCashService } from './petty-cash.service';
@@ -140,7 +140,7 @@ export class BillingService {
    */
   private getExpenseVisibilityFilter(user: AuthUser) {
     const firmFilter = this.getFirmExpenseFilter(user.firmId);
-    if (user.firmRole !== FirmRole.OWNER) {
+    if (!hasFirmCapability(user.firmRole, 'approveExpenses')) {
       return { AND: [firmFilter, { userId: user.id }] };
     }
     return {
@@ -444,7 +444,7 @@ export class BillingService {
     if (!expense?.receiptStoragePath || !expense.receiptFilename) {
       throw new NotFoundException('Receipt not found');
     }
-    if (user.firmRole !== FirmRole.OWNER && expense.userId !== user.id) {
+    if (!hasFirmCapability(user.firmRole, 'approveExpenses') && expense.userId !== user.id) {
       throw new ForbiddenException('Cannot access this receipt');
     }
     return {
@@ -460,7 +460,7 @@ export class BillingService {
   ) {
     const statusFilter = filters?.status ? { status: filters.status } : {};
     const requesterFilter =
-      user.firmRole === FirmRole.OWNER && filters?.userId
+      hasFirmCapability(user.firmRole, 'approveExpenses') && filters?.userId
         ? { userId: filters.userId }
         : {};
 
@@ -475,7 +475,8 @@ export class BillingService {
 
   async getFinanceSummary(user: AuthUser) {
     const { firmId } = user;
-    const isOwner = user.firmRole === FirmRole.OWNER;
+    const seesFirmExpenses = hasFirmCapability(user.firmRole, 'approveExpenses');
+    const canSeePettyCash = hasFirmCapability(user.firmRole, 'viewPettyCash');
     const caseFilter = this.caseAccess.getCaseFilterForFinancials(user);
     const expenseFilter = this.getExpenseVisibilityFilter(user);
 
@@ -488,7 +489,7 @@ export class BillingService {
         where: { case: caseFilter, billable: true },
         select: { hours: true, rate: true },
       }),
-      isOwner ? this.pettyCash.getBalance(firmId) : Promise.resolve({ balance: 0 }),
+      canSeePettyCash ? this.pettyCash.getBalance(firmId) : Promise.resolve({ balance: 0 }),
       this.getCaseProfits(user),
     ]);
 
@@ -514,7 +515,7 @@ export class BillingService {
     return {
       firmId,
       firmName: user.firmName,
-      scope: isOwner ? 'firm' : 'user',
+      scope: seesFirmExpenses ? 'firm' : 'user',
       revenue,
       totalExpenses,
       approvedExpenses,
@@ -607,7 +608,7 @@ export class BillingService {
     // Submitting a draft is the author's own move, not the owner's: a draft is
     // the author's note to themselves until they claim it.
     const submitting = dto.status === ExpenseStatus.PENDING;
-    if (!submitting && user.firmRole !== FirmRole.OWNER) {
+    if (!submitting && !hasFirmCapability(user.firmRole, 'approveExpenses')) {
       throw new ForbiddenException('Only owner can update expense status');
     }
 
@@ -620,7 +621,7 @@ export class BillingService {
       if (expense.status !== ExpenseStatus.DRAFT) {
         throw new BadRequestException('เบิกได้เฉพาะรายการที่ยังเป็นร่าง');
       }
-      if (expense.userId !== user.id && user.firmRole !== FirmRole.OWNER) {
+      if (expense.userId !== user.id && !hasFirmCapability(user.firmRole, 'approveExpenses')) {
         throw new ForbiddenException('ส่งเบิกได้เฉพาะรายการของตัวเอง');
       }
     }
@@ -725,7 +726,7 @@ export class BillingService {
       if (expense.claimId) {
         throw new BadRequestException('รายการนี้อยู่ในใบเบิกแล้ว');
       }
-      if (expense.userId !== user.id && user.firmRole !== FirmRole.OWNER) {
+      if (expense.userId !== user.id && !hasFirmCapability(user.firmRole, 'approveExpenses')) {
         throw new ForbiddenException('ส่งเบิกได้เฉพาะรายการของตัวเอง');
       }
     }
@@ -765,7 +766,7 @@ export class BillingService {
     const where = {
       firmId: user.firmId,
       ...(filters?.status ? { status: filters.status } : {}),
-      ...(user.firmRole === FirmRole.OWNER
+      ...(hasFirmCapability(user.firmRole, 'approveExpenses')
         ? filters?.userId
           ? { submittedById: filters.userId }
           : {}
@@ -786,7 +787,7 @@ export class BillingService {
       where: {
         id: claimId,
         firmId: user.firmId,
-        ...(user.firmRole === FirmRole.OWNER ? {} : { submittedById: user.id }),
+        ...(hasFirmCapability(user.firmRole, 'approveExpenses') ? {} : { submittedById: user.id }),
       },
       include: this.claimInclude,
     });
@@ -799,7 +800,7 @@ export class BillingService {
     claimId: string,
     dto: UpdateExpenseClaimStatusDto,
   ) {
-    if (user.firmRole !== FirmRole.OWNER) {
+    if (!hasFirmCapability(user.firmRole, 'approveExpenses')) {
       throw new ForbiddenException('Only owner can update claim status');
     }
 

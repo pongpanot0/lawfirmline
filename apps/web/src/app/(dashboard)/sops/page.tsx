@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { FirmRole } from '@lawfirm/shared';
+import { FIRM_ROLE_LABELS, FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { api, ApiError, SopItem, type WorkflowTemplate } from '@/lib/api';
 import { FirmRoleStr, latestPlaybookReleases, PlaybookRelease, setupRequest } from '@/lib/practice-setup';
 import { caseStageLabel } from '@/lib/stage-labels';
@@ -19,6 +19,7 @@ import { ArrowRightLeft, BookOpen, ChevronDown, Plus, Pencil, Trash2, Zap } from
 const ROLE_LABELS: Record<FirmRoleStr, string> = {
   OWNER: 'เจ้าของสำนักงาน',
   SENIOR_LAWYER: 'ทนายอาวุโส',
+  OFFICE_MANAGER: FIRM_ROLE_LABELS.OFFICE_MANAGER.th,
   LAWYER: 'ทนาย',
   ASSISTANT: 'ผู้ช่วย',
   EXTERNAL: 'ผู้รับงานภายนอก (ฟรีแลนซ์)',
@@ -26,8 +27,8 @@ const ROLE_LABELS: Record<FirmRoleStr, string> = {
 
 export default function SopsPage() {
   const { token, user } = useAuth();
-  const isOwner = user?.firmRole === FirmRole.OWNER;
-  const canEditFlows = isOwner || user?.firmRole === FirmRole.SENIOR_LAWYER;
+  const canManageContent = hasFirmCapability(user?.firmRole, 'manageFirmContent');
+  const canEditFlows = user?.firmRole === FirmRole.OWNER || user?.firmRole === FirmRole.SENIOR_LAWYER;
   const [sops, setSops] = useState<SopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -98,7 +99,7 @@ export default function SopsPage() {
               <Button size="sm" onClick={() => { setView('handoff'); setQ(''); setFlowEditor('new'); }}>
                 <Plus className="mr-1 h-4 w-4" />สร้าง Handoff flow
               </Button>
-              {isOwner && <>
+              {canManageContent && <>
               <Button size="sm" variant="outline" onClick={() => { setEditing({}); setError(null); setSaved(''); }}>
                 <Plus className="mr-1 h-4 w-4" /> เขียนคู่มือ
               </Button>
@@ -214,6 +215,8 @@ export default function SopsPage() {
                               {[
                                 step.primaryRole && `ผู้ทำ: ${ROLE_LABELS[step.primaryRole]}`,
                                 step.secondaryRole && `ผู้สำรอง: ${ROLE_LABELS[step.secondaryRole]}`,
+                                step.side && `ฝ่าย: ${step.side === 'PLAINTIFF' ? 'โจทก์' : 'จำเลย'}`,
+                                step.requiresAttachment && 'ต้องแนบไฟล์',
                                 step.stage && `ขั้นคดี: ${caseStageLabel(step.stage)}`,
                                 step.offsetDays != null && `กำหนด +${step.offsetDays} ${step.dayBasis === 'BUSINESS' ? 'วันทำการ' : 'วันปฏิทิน'}`,
                               ].filter(Boolean).join(' · ')}
@@ -225,7 +228,7 @@ export default function SopsPage() {
                     </ol>
                     <div className="mt-4 flex flex-wrap items-center gap-4">
                       <Link href={`/cases?sop=${encodeURIComponent(p.id)}`} className="inline-flex min-h-10 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground">ใช้กับคดี</Link>
-                      {isOwner && <Link href={`/playbooks/${p.id}`} className="text-sm font-medium text-primary hover:underline">แก้ไข SOP อัตโนมัติ</Link>}
+                      {canManageContent && <Link href={`/playbooks/${p.id}`} className="text-sm font-medium text-primary hover:underline">แก้ไข SOP อัตโนมัติ</Link>}
                     </div>
                   </div>
                 </details>
@@ -253,7 +256,7 @@ export default function SopsPage() {
                     <span className="min-w-0 break-words font-semibold">{sop.title}</span>
                     {sop.category && <Badge variant="muted" className="max-w-full break-all">{sop.category}</Badge>}
                   </button>
-                  {isOwner && (
+                  {canManageContent && (
                     <div className="flex shrink-0 gap-1">
                       <Button size="sm" variant="ghost" aria-label={`แก้ไข ${sop.title}`} onClick={() => { setEditing(sop); setError(null); setSaved(''); }}>
                         <Pencil className="h-4 w-4" />
@@ -280,7 +283,7 @@ export default function SopsPage() {
       )}
       {!loading && !loadError && (view === 'auto' ? !autoItems.length : view === 'manual' ? !manualItems.length : false) && <EmptyState
         title={search ? 'ไม่พบคู่มือที่ค้นหา' : 'ยังไม่มีคู่มือในหมวดนี้'}
-        description={search ? 'ลองค้นด้วยชื่อคู่มือ คำในขั้นตอน หรือเปลี่ยนประเภทคู่มือ' : isOwner ? 'เริ่มจากเขียนคู่มือ หรือสร้าง SOP อัตโนมัติด้านบน' : 'เจ้าของสำนักงานยังไม่ได้เพิ่มคู่มือในหมวดนี้'} />}
+        description={search ? 'ลองค้นด้วยชื่อคู่มือ คำในขั้นตอน หรือเปลี่ยนประเภทคู่มือ' : canManageContent ? 'เริ่มจากเขียนคู่มือ หรือสร้าง SOP อัตโนมัติด้านบน' : 'ยังไม่มีคู่มือในหมวดนี้'} />}
     </div>
   );
 }

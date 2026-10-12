@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, Plus, Zap } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -41,7 +42,7 @@ function PlaybooksList() {
         <h1 className="mt-2 text-2xl font-semibold">{th ? 'SOP อัตโนมัติ' : 'Automated SOPs'}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{th ? 'เลือก SOP ที่ต้องการจัดลำดับและแก้ไขขั้นตอน' : 'Choose an SOP to edit its workflow.'}</p>
       </div>
-      {user?.firmRole === 'OWNER' && <Link href="/playbooks/new" className={buttonVariants()}><Plus className="mr-2 h-4 w-4" />{th ? 'สร้าง SOP ใหม่' : 'Create SOP'}</Link>}
+      {hasFirmCapability(user?.firmRole, 'manageFirmContent') && <Link href="/playbooks/new" className={buttonVariants()}><Plus className="mr-2 h-4 w-4" />{th ? 'สร้าง SOP ใหม่' : 'Create SOP'}</Link>}
     </header>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {loading ? <p className="text-sm text-muted-foreground">{th ? 'กำลังโหลด SOP…' : 'Loading SOPs…'}</p> : items.length === 0 ?

@@ -1,14 +1,14 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AuthUser, Role } from '@lawfirm/shared';
+import { AuthUser } from '@lawfirm/shared';
 import { AuditLogService } from './audit-log.service';
 
 @Controller('admin/audit-logs')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN)
+@UseGuards(JwtAuthGuard, FirmRoleGuard)
+@RequireCapability('viewFirmReports')
 export class AuditLogController {
   constructor(private readonly auditLog: AuditLogService) {}
 

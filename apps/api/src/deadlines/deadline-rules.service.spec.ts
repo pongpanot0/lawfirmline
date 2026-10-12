@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeadlineDayBasis, DeadlineTrigger, FirmRole } from '@lawfirm/shared';
+import { CourtEventKind, DeadlineDayBasis, DeadlineTrigger, FirmRole, ServiceMethod } from '@lawfirm/shared';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { DeadlineRulesService } from './deadline-rules.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { CreateDeadlineRuleDto, UpdateDeadlineRuleDto } from './dto/deadline-rule.dto';
 
 describe('DeadlineRulesService', () => {
   let service: DeadlineRulesService;
@@ -13,20 +17,30 @@ describe('DeadlineRulesService', () => {
       count: jest.fn(),
       updateMany: jest.fn(),
       deleteMany: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
     },
     publicHoliday: { findMany: jest.fn() },
+    case: { findUnique: jest.fn() },
     documentDateSuggestion: { findMany: jest.fn(), createMany: jest.fn() },
   };
+  const mockNotifier = { notifyAssigned: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
 
   const rule = {
     id: 'rule-1',
-    firmId: 'firm-1',
+    firmId: null,
     caseTypeId: null,
     trigger: DeadlineTrigger.JUDGMENT,
     label: 'ยื่นอุทธรณ์',
     offsetDays: 30,
     dayBasis: DeadlineDayBasis.CALENDAR,
+    adjustDays: 0,
+    courtEventKind: null,
+    courtLevel: null,
+    partySide: null,
+    serviceMethod: null,
     isActive: true,
   };
 
@@ -36,11 +50,16 @@ describe('DeadlineRulesService', () => {
     mockPrisma.deadlineRule.count.mockResolvedValue(0);
     mockPrisma.deadlineRule.createMany.mockResolvedValue({ count: 0 });
     mockPrisma.publicHoliday.findMany.mockResolvedValue([]);
+    mockPrisma.case.findUnique.mockResolvedValue({ partyRole: null, courtLevel: null, leadLawyerId: 'lead-1', ownRef: 'C-001' });
     mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([]);
     mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 0 });
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DeadlineRulesService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        DeadlineRulesService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: AssignmentNotifierService, useValue: mockNotifier },
+      ],
     }).compile();
     service = module.get(DeadlineRulesService);
   });
@@ -94,6 +113,55 @@ describe('DeadlineRulesService', () => {
       expect(
         service.computeDueDate(new Date('2026-09-04T18:00:00Z'), 2, DeadlineDayBasis.CALENDAR, new Set()),
       ).toBe('2026-09-07');
+    });
+
+    it('counts MONTHS to the same day of month (11 Oct → 11 Nov)', () => {
+      expect(
+        service.computeDueDate(new Date('2026-10-11T03:00:00Z'), 1, DeadlineDayBasis.MONTHS, new Set()),
+      ).toBe('2026-11-11');
+    });
+
+    it('counts MONTHS from the Bangkok day of a late-evening trigger', () => {
+      // 18:00Z on 11 Oct is already Mon 12 Oct in Bangkok.
+      expect(
+        service.computeDueDate(new Date('2026-10-11T18:00:00Z'), 1, DeadlineDayBasis.MONTHS, new Set()),
+      ).toBe('2026-11-12');
+    });
+
+    it('clamps MONTHS to month end, then rolls a weekend forward', () => {
+      // 31 Jan 2027 + 1 month = Sun 28 Feb → Mon 1 Mar.
+      expect(
+        service.computeDueDate(new Date('2027-01-31T03:00:00Z'), 1, DeadlineDayBasis.MONTHS, new Set()),
+      ).toBe('2027-03-01');
+    });
+
+    it('rolls a before-trigger deadline BACK off a holiday', () => {
+      // Hearing Tue 20 Apr 2027 − 7 = Tue 13 Apr (Songkran) → Mon 12 Apr.
+      expect(
+        service.computeDueDate(
+          new Date('2027-04-20T03:00:00Z'),
+          -7,
+          DeadlineDayBasis.CALENDAR,
+          new Set(['2027-04-13', '2027-04-14', '2027-04-15']),
+        ),
+      ).toBe('2027-04-12');
+    });
+
+    it('rolls a before-trigger deadline BACK off a weekend', () => {
+      // Fri 11 Sep 2026 − 6 = Sat 5 Sep → Fri 4 Sep.
+      expect(
+        service.computeDueDate(new Date('2026-09-11T03:00:00Z'), -6, DeadlineDayBasis.CALENDAR, new Set()),
+      ).toBe('2026-09-04');
+    });
+
+    it('applies adjustDays after the months and rolls back (10 years − 90 days)', () => {
+      expect(
+        service.computeDueDate(new Date('2026-10-12T03:00:00Z'), 120, DeadlineDayBasis.MONTHS, new Set(), -90),
+      ).toBe('2036-07-14');
+      // 11 Oct 2036 − 90 = Sun 13 Jul → Fri 11 Jul.
+      expect(
+        service.computeDueDate(new Date('2026-10-11T03:00:00Z'), 120, DeadlineDayBasis.MONTHS, new Set(), -90),
+      ).toBe('2036-07-11');
     });
   });
 
@@ -169,20 +237,120 @@ describe('DeadlineRulesService', () => {
           sourceExcerpt: null,
         }),
       ]);
-      // 2026-10-04 is a Sunday, so the deadline rolls to Mon 5 Oct.
-      expect(data[0].suggestedDate.toISOString()).toBe('2026-10-05T00:00:00.000Z');
+      // 2026-10-04 is a Sunday, so the deadline rolls to Mon 5 Oct, due at 16:30 Bangkok.
+      expect(data[0].suggestedDate.toISOString()).toBe('2026-10-05T09:30:00.000Z');
     });
 
-    it('matches global platform rules for the trigger', async () => {
+    it('loads global rules plus the firm’s own rules for the trigger', async () => {
       await service.applyTrigger(context);
 
       expect(mockPrisma.deadlineRule.findMany).toHaveBeenCalledWith({
         where: {
           trigger: DeadlineTrigger.JUDGMENT,
-          isActive: true,
           caseTypeId: null,
+          OR: [{ firmId: null }, { firmId: 'firm-1' }],
         },
       });
+    });
+
+    it('uses the firm override instead of the global rule', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([
+        rule,
+        { ...rule, id: 'rule-firm', firmId: 'firm-1', offsetDays: 45 },
+      ]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      await service.applyTrigger(context);
+
+      const { data } = mockPrisma.documentDateSuggestion.createMany.mock.calls[0][0];
+      expect(data.map((d: { deadlineRuleId: string }) => d.deadlineRuleId)).toEqual(['rule-firm']);
+    });
+
+    it('fires the ม.88 witness-list rule only for a witness hearing', async () => {
+      const witnessList = {
+        ...rule, id: 'rule-88', trigger: DeadlineTrigger.COURT_DATE, label: 'ยื่นบัญชีระบุพยาน',
+        offsetDays: -7, courtEventKind: CourtEventKind.WITNESS_HEARING,
+      };
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([witnessList]);
+
+      const none = await service.applyTrigger({
+        ...context, trigger: DeadlineTrigger.COURT_DATE, courtEventKind: CourtEventKind.PRELIMINARY,
+      });
+      expect(none).toBe(0);
+      expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
+
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+      await service.applyTrigger({
+        ...context, trigger: DeadlineTrigger.COURT_DATE, courtEventKind: CourtEventKind.WITNESS_HEARING,
+      });
+      expect(mockPrisma.documentDateSuggestion.createMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips a plaintiff-only rule on a defendant case', async () => {
+      mockPrisma.case.findUnique.mockResolvedValue({
+        partyRole: 'DEFENDANT', courtLevel: null, leadLawyerId: 'lead-1', ownRef: 'C-001',
+      });
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([{ ...rule, partySide: 'PLAINTIFF' }]);
+
+      expect(await service.applyTrigger(context)).toBe(0);
+    });
+
+    it('uses the posted-service rule only when the summons was posted', async () => {
+      const personal = { ...rule, id: 'r15', trigger: DeadlineTrigger.COMPLAINT_SERVED, offsetDays: 15, serviceMethod: ServiceMethod.PERSONAL };
+      const posted = { ...rule, id: 'r30', trigger: DeadlineTrigger.COMPLAINT_SERVED, label: 'ครบกำหนดยื่นคำให้การ (ปิดหมาย)', offsetDays: 30, serviceMethod: ServiceMethod.POSTED };
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([personal, posted]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      await service.applyTrigger({ ...context, trigger: DeadlineTrigger.COMPLAINT_SERVED, serviceMethod: ServiceMethod.POSTED });
+
+      const { data } = mockPrisma.documentDateSuggestion.createMany.mock.calls[0][0];
+      expect(data.map((d: { deadlineRuleId: string }) => d.deadlineRuleId)).toEqual(['r30']);
+    });
+
+    it('tells the lead lawyer how many suggestions wait for confirmation', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      await service.applyTrigger(context);
+
+      expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith(
+        expect.objectContaining({
+          firmId: 'firm-1',
+          userIds: ['lead-1'],
+          actorUserId: '',
+          category: 'CALENDAR',
+          entityPath: '/cases/case-1?tab=calendar',
+          summaryText: expect.stringContaining('วันครบกำหนดรอยืนยัน 1 รายการ — คดี C-001'),
+        }),
+      );
+    });
+
+    it('does not hold a caller transaction open on the network notice', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+      mockNotifier.notifyAssigned.mockReturnValueOnce(new Promise(() => undefined));
+      const tx = { ...mockPrisma } as never; // a different client = inside the caller's tx
+
+      await expect(service.applyTrigger(context, tx)).resolves.toBe(1);
+      expect(mockNotifier.notifyAssigned).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays quiet when the caller sends its own notice (notify: false), still creating the rows', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.applyTrigger({ ...context, notify: false })).resolves.toBe(1);
+
+      expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
+    });
+
+    it('does not notify when nothing new was created', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 0 });
+
+      await service.applyTrigger(context);
+
+      expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
     });
 
     it('does nothing when the firm has no rule for the trigger', async () => {
@@ -196,9 +364,13 @@ describe('DeadlineRulesService', () => {
       expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
     });
 
-    it('skips rules that already have a PENDING suggestion for a manual trigger', async () => {
+    it('skips a manual rule only when a PENDING card is already due on the same day', async () => {
       mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
-      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([{ deadlineRuleId: 'rule-1' }]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+      await service.applyTrigger({ ...context, triggerEventId: null });
+      const due = mockPrisma.documentDateSuggestion.createMany.mock.calls[0][0].data[0].suggestedDate;
+      jest.clearAllMocks();
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([{ deadlineRuleId: 'rule-1', suggestedDate: due }]);
 
       const created = await service.applyTrigger({ ...context, triggerEventId: null });
 
@@ -211,9 +383,65 @@ describe('DeadlineRulesService', () => {
           deadlineRuleId: { in: ['rule-1'] },
           triggerEventId: null,
         },
-        select: { deadlineRuleId: true },
+        select: { deadlineRuleId: true, suggestedDate: true },
       });
       expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
+      expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
+    });
+
+    it('a calendar-backed trigger still allows one PENDING card per rule per event, whatever its date', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([
+        { deadlineRuleId: 'rule-1', suggestedDate: new Date('2020-01-01T09:30:00Z') },
+      ]);
+
+      expect(await service.applyTrigger(context)).toBe(0);
+      expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
+    });
+
+    describe('several defendants served on different days (ม.177)', () => {
+      const answerRule = {
+        ...rule, id: 'rule-answer', trigger: DeadlineTrigger.COMPLAINT_SERVED, label: 'ครบกำหนดยื่นคำให้การ',
+        offsetDays: 15, serviceMethod: ServiceMethod.PERSONAL,
+      };
+      let store: { deadlineRuleId: string; suggestedDate: Date; status: string; label: string }[];
+      const serve = (servedAt: string) =>
+        service.applyTrigger({
+          ...context, trigger: DeadlineTrigger.COMPLAINT_SERVED, triggerEventId: null,
+          triggerDate: new Date(servedAt), serviceMethod: ServiceMethod.PERSONAL,
+        });
+
+      beforeEach(() => {
+        store = [];
+        mockPrisma.deadlineRule.findMany.mockResolvedValue([answerRule]);
+        mockPrisma.documentDateSuggestion.findMany.mockImplementation(async ({ where }: any) =>
+          store.filter((r) => r.status === where.status && where.deadlineRuleId.in.includes(r.deadlineRuleId)),
+        );
+        mockPrisma.documentDateSuggestion.createMany.mockImplementation(async ({ data }: any) => {
+          store.push(...data);
+          return { count: data.length };
+        });
+      });
+
+      it('gives each served date its own answer deadline', async () => {
+        await serve('2026-10-01T03:00:00.000Z'); // D1, Thu → 16 Oct
+        await serve('2026-10-10T03:00:00.000Z'); // D2, Sat → 25 Oct is a Sunday → 26 Oct
+
+        expect(store.map((r) => [r.label, r.status, r.suggestedDate.toISOString()])).toEqual([
+          ['ครบกำหนดยื่นคำให้การ', 'PENDING', '2026-10-16T09:30:00.000Z'],
+          ['ครบกำหนดยื่นคำให้การ', 'PENDING', '2026-10-26T09:30:00.000Z'],
+        ]);
+        expect(mockNotifier.notifyAssigned).toHaveBeenCalledTimes(2);
+      });
+
+      it('a re-sent service with the same date creates nothing and sends no notice', async () => {
+        await serve('2026-10-01T03:00:00.000Z');
+        mockNotifier.notifyAssigned.mockClear();
+
+        expect(await serve('2026-10-01T03:00:00.000Z')).toBe(0);
+        expect(store).toHaveLength(1);
+        expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
+      });
     });
 
     it('still creates when a prior suggestion was dismissed', async () => {
@@ -233,10 +461,16 @@ describe('DeadlineRulesService', () => {
       await service.provisionDefaults();
 
       const { data } = mockPrisma.deadlineRule.createMany.mock.calls[0][0];
-      expect(data.length).toBeGreaterThan(0);
+      expect(data).toHaveLength(11);
       expect(data.every((r: { firmId?: string }) => r.firmId === undefined)).toBe(true);
       expect(data).toContainEqual(
-        expect.objectContaining({ trigger: DeadlineTrigger.JUDGMENT, label: 'ยื่นอุทธรณ์' }),
+        expect.objectContaining({
+          trigger: DeadlineTrigger.JUDGMENT, label: 'ครบกำหนดยื่นอุทธรณ์',
+          offsetDays: 1, dayBasis: DeadlineDayBasis.MONTHS, courtLevel: 'TRIAL',
+        }),
+      );
+      expect(data).toContainEqual(
+        expect.objectContaining({ label: 'ใกล้ครบระยะบังคับคดี 10 ปี', offsetDays: 120, adjustDays: -90 }),
       );
     });
 
@@ -250,42 +484,118 @@ describe('DeadlineRulesService', () => {
   });
 
   describe('list', () => {
-    it('provisions the starter rules when the catalog is empty', async () => {
-      await service.list(user);
+    const owner = { ...user, email: 'owner@firm.test', firmRole: FirmRole.OWNER };
+    const lawyer = { ...user, email: 'lawyer@firm.test', firmRole: FirmRole.LAWYER };
 
-      expect(mockPrisma.deadlineRule.createMany).toHaveBeenCalled();
-      expect(mockPrisma.deadlineRule.findMany).toHaveBeenCalledWith({
-        orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
-      });
+    beforeEach(() => {
+      process.env.PLATFORM_ADMIN_EMAILS = 'ops@platform.test';
+      mockPrisma.deadlineRule.count.mockResolvedValue(11);
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([
+        { ...rule, id: 'g', firmId: null },
+        { ...rule, id: 'f', firmId: 'firm-1' },
+      ]);
     });
 
-    it('does not re-seed when rules already exist', async () => {
-      mockPrisma.deadlineRule.count.mockResolvedValue(4);
+    it('returns global rows plus the caller firm rows, flagging what the caller may edit', async () => {
+      const rows = await service.list(owner);
 
-      await service.list(user);
+      expect(mockPrisma.deadlineRule.findMany).toHaveBeenCalledWith({
+        where: { OR: [{ firmId: null }, { firmId: 'firm-1' }] },
+        orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
+      });
+      expect(rows.map((r) => [r.id, r.canEdit])).toEqual([['g', false], ['f', true]]);
+      expect((await service.list(lawyer)).map((r) => r.canEdit)).toEqual([false, false]);
+      expect((await service.list({ ...owner, email: 'OPS@platform.test' })).map((r) => r.canEdit)).toEqual([true, true]);
+    });
 
-      expect(mockPrisma.deadlineRule.createMany).not.toHaveBeenCalled();
+    it('provisions the starter rules when the catalog is empty', async () => {
+      mockPrisma.deadlineRule.count.mockResolvedValue(0);
+      await service.list(owner);
+      expect(mockPrisma.deadlineRule.createMany).toHaveBeenCalled();
     });
   });
 
   describe('rule management', () => {
-    it('updates a global rule by id', async () => {
-      mockPrisma.deadlineRule.updateMany.mockResolvedValue({ count: 1 });
+    const owner = { ...user, email: 'owner@firm.test', firmRole: FirmRole.OWNER };
+    const manager = { ...user, email: 'om@firm.test', firmRole: FirmRole.OFFICE_MANAGER };
+    const lawyer = { ...user, email: 'lawyer@firm.test', firmRole: FirmRole.LAWYER };
+    const admin = { ...user, email: 'ops@platform.test', firmRole: FirmRole.OWNER };
+    const dto = { trigger: DeadlineTrigger.COURT_DATE, label: ' ยื่นบัญชีระบุพยาน ', offsetDays: -10, dayBasis: DeadlineDayBasis.CALENDAR };
 
-      await service.update(user, 'rule-1', { offsetDays: 15 });
+    beforeEach(() => {
+      process.env.PLATFORM_ADMIN_EMAILS = 'ops@platform.test';
+      mockPrisma.deadlineRule.findFirst.mockResolvedValue(null);
+      mockPrisma.deadlineRule.create.mockImplementation(({ data }) => Promise.resolve({ id: 'new', ...data }));
+    });
 
-      expect(mockPrisma.deadlineRule.updateMany).toHaveBeenCalledWith({
-        where: { id: 'rule-1' },
-        data: { offsetDays: 15, caseTypeId: null },
+    it('an office manager creates a firm rule (the override of a global rule with the same label)', async () => {
+      await service.create(manager, dto);
+      expect(mockPrisma.deadlineRule.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ firmId: 'firm-1', label: 'ยื่นบัญชีระบุพยาน', offsetDays: -10, adjustDays: 0, caseTypeId: null }),
       });
     });
 
-    it('reports a miss when the rule does not exist', async () => {
-      mockPrisma.deadlineRule.updateMany.mockResolvedValue({ count: 0 });
-
-      await expect(service.update(user, 'rule-x', { offsetDays: 15 })).rejects.toThrow(
-        'Deadline rule not found',
-      );
+    it('a lawyer cannot create firm rules', async () => {
+      await expect(service.create(lawyer, dto)).rejects.toThrow('ไม่มีสิทธิ์แก้กฎวันครบกำหนดของสำนักงาน');
     });
+
+    it('only a platform admin creates a global rule', async () => {
+      await expect(service.create(owner, { ...dto, global: true })).rejects.toThrow('ข้อมูลส่วนกลางแก้ได้เฉพาะผู้ดูแลระบบ');
+      await service.create(admin, { ...dto, global: true });
+      expect(mockPrisma.deadlineRule.create).toHaveBeenCalledWith({ data: expect.objectContaining({ firmId: null }) });
+    });
+
+    it('rejects a duplicate trigger + label in the same scope', async () => {
+      mockPrisma.deadlineRule.findFirst.mockResolvedValue({ id: 'dup' });
+      await expect(service.create(owner, dto)).rejects.toThrow('มีกฎชื่อนี้สำหรับเหตุนี้อยู่แล้ว');
+    });
+
+    it('an owner edits their firm rule but not a global one', async () => {
+      mockPrisma.deadlineRule.findFirst.mockResolvedValueOnce({ id: 'f', firmId: 'firm-1' });
+      await service.update(owner, 'f', { offsetDays: 15 });
+      expect(mockPrisma.deadlineRule.update).toHaveBeenCalledWith({ where: { id: 'f' }, data: { offsetDays: 15 } });
+
+      mockPrisma.deadlineRule.findFirst.mockResolvedValueOnce({ id: 'g', firmId: null });
+      await expect(service.update(owner, 'g', { offsetDays: 15 })).rejects.toThrow('ข้อมูลส่วนกลางแก้ได้เฉพาะผู้ดูแลระบบ');
+    });
+
+    it('rejects a blank label on create', async () => {
+      await expect(service.create(owner, { ...dto, label: '   ' })).rejects.toThrow('ต้องระบุชื่อกำหนด');
+      expect(mockPrisma.deadlineRule.create).not.toHaveBeenCalled();
+    });
+
+    it('never reaches another firm’s rule', async () => {
+      mockPrisma.deadlineRule.findFirst.mockResolvedValue(null);
+      await expect(service.update(owner, 'x', { offsetDays: 1 })).rejects.toThrow('Deadline rule not found');
+      await expect(service.remove(owner, 'x')).rejects.toThrow('Deadline rule not found');
+      expect(mockPrisma.deadlineRule.findFirst).toHaveBeenCalledWith({
+        where: { id: 'x', OR: [{ firmId: null }, { firmId: 'firm-1' }] },
+        select: { id: true, firmId: true },
+      });
+    });
+  });
+});
+
+describe('CreateDeadlineRuleDto', () => {
+  it('accepts a negative offset (N days before the trigger)', async () => {
+    const dto = plainToInstance(CreateDeadlineRuleDto, {
+      trigger: 'COURT_DATE', label: 'ยื่นบัญชีระบุพยาน', offsetDays: -7, dayBasis: 'CALENDAR',
+    });
+    expect(await validate(dto)).toEqual([]);
+  });
+
+  it('rejects a blank or whitespace-only label', async () => {
+    for (const label of ['', '   ']) {
+      const dto = plainToInstance(CreateDeadlineRuleDto, { trigger: 'COURT_DATE', label, offsetDays: 1 });
+      expect((await validate(dto)).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('UpdateDeadlineRuleDto', () => {
+  it('does not allow renaming a rule (the label is the override key)', async () => {
+    const dto = plainToInstance(UpdateDeadlineRuleDto, { label: 'ใหม่', offsetDays: 5 });
+    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    expect(errors.map((e) => e.property)).toEqual(['label']);
   });
 });

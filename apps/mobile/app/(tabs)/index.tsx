@@ -18,7 +18,7 @@ import {
 import { useAuth } from '@/api/auth';
 import { listTaskDrafts, taskDraftScope } from '@/api/drafts';
 import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange, useTodos, useDailyWorkboard, usePendingLeaves, useOwnerFinance, useUnreadNotifications } from '@/api/hooks';
-import { AgendaItemKind, AgendaUrgency, followUpReason, ownerDecisionTasks, assignmentCandidates, assignmentWarnings, canAssignFirmRole, FirmRole, TaskWorkType } from '@lawfirm/shared';
+import { AgendaItemKind, AgendaUrgency, followUpReason, ownerDecisionTasks, assignmentCandidates, assignmentWarnings, canAssignFirmRole, FirmRole, hasFirmCapability, TaskWorkType } from '@lawfirm/shared';
 import { Disclosure } from '@/components/Disclosure';
 import { OwnerFinanceSummary } from '@/components/OwnerFinanceSummary';
 import type { AgendaItem } from '@/api/types';
@@ -111,26 +111,33 @@ export default function MyDayScreen() {
   const stats = useDashboardStats();
   const actions = useActions();
   const unread = useUnreadNotifications().data ?? 0;
-  const owner = user?.firmRole === 'OWNER';
+  // One flag per API capability: office managers run operations, leave and invoices; expense approval and reviews stay with the owner.
+  const owner = hasFirmCapability(user?.firmRole, 'runOperations');
+  const canClaim = hasFirmCapability(user?.firmRole, 'approveExpenses'), canLeave = hasFirmCapability(user?.firmRole, 'approveLeave');
+  const canFinance = hasFirmCapability(user?.firmRole, 'manageInvoices'), isOwner = user?.firmRole === FirmRole.OWNER;
   const workload = useWorkload(owner);
-  const claims = useExpenseClaims(owner);
-  const pendingLeaves = usePendingLeaves(owner);
-  const finance = useOwnerFinance(owner);
+  const claims = useExpenseClaims(canClaim);
+  const pendingLeaves = usePendingLeaves(canLeave);
+  const finance = useOwnerFinance(canFinance);
   const today = bangkokDay(new Date().toISOString());
   const reviews = useTodos('review');
   const daily = useDailyWorkboard(today, owner);
   const peopleToday = daily.data && !daily.isError ? assignmentCandidates(daily.data.members, daily.data.tasks, TaskWorkType.GENERAL, today) : [];
   const decisions = daily.data && !daily.isError ? ownerDecisionTasks(daily.data.tasks, today) : [];
   // ponytail: recorded queues rank candidates; add confirmed work windows when the office records them.
-  const assignmentPeople = peopleToday.filter(person => person.member.userId !== user?.id && !person.member.onLeave && person.configured && canAssignFirmRole(FirmRole.OWNER, person.member.role as FirmRole)).slice(0, 2);
+  const assignmentPeople = peopleToday.filter(person => person.member.userId !== user?.id && !person.member.onLeave && person.configured && canAssignFirmRole(user!.firmRole as FirmRole, person.member.role as FirmRole)).slice(0, 2);
   const scope = user ? taskDraftScope(user) : null;
   const localDrafts = useQuery({ queryKey: ['local-task-drafts', scope], enabled: !!scope, networkMode: 'always',
     queryFn: () => scope ? listTaskDrafts(scope) : Promise.resolve([]) });
   const reloadDrafts = localDrafts.refetch;
   useFocusEffect(useCallback(() => { if (scope) void reloadDrafts(); }, [scope, reloadDrafts]));
   useFocusEffect(useCallback(() => {
-    if (owner) { void pendingLeaves.refetch(); void claims.refetch(); void reviews.refetch(); void daily.refetch(); void finance.refetch(); }
-  }, [owner, pendingLeaves.refetch, claims.refetch, reviews.refetch, daily.refetch, finance.refetch]));
+    if (canLeave) void pendingLeaves.refetch();
+    if (canClaim) void claims.refetch();
+    if (isOwner) void reviews.refetch();
+    if (owner) void daily.refetch();
+    if (canFinance) void finance.refetch();
+  }, [owner, canLeave, canClaim, canFinance, isOwner, pendingLeaves.refetch, claims.refetch, reviews.refetch, daily.refetch, finance.refetch]));
   const tasksToFollow = daily.data?.tasks.filter(task => task.assigneeId && followUpReason(task, today) !== null);
   const unassignedTasks = daily.data?.tasks.filter(task => !task.assigneeId && task.status !== 'DONE');
   const appointments = useCalendarRange(today, today);
@@ -171,7 +178,10 @@ export default function MyDayScreen() {
             stats.refetch();
             appointments.refetch();
             actions.refetch(); reviews.refetch();
-            if (owner) { workload.refetch(); claims.refetch(); leaves.refetch(); pendingLeaves.refetch(); daily.refetch(); finance.refetch(); }
+            if (owner) { workload.refetch(); leaves.refetch(); daily.refetch(); }
+            if (canClaim) claims.refetch();
+            if (canLeave) pendingLeaves.refetch();
+            if (canFinance) finance.refetch();
           }}
         />
       }
@@ -203,19 +213,21 @@ export default function MyDayScreen() {
         </Pressable>
       </View>
 
-      {owner && <>
+      {(isOwner || canLeave || canClaim) && <>
         <SectionLabel>คิวตัดสินใจวันนี้</SectionLabel>
         <Card style={{ gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>{[
-            { view: 'review', label: 'งานรอคุณตรวจ', count: reviews.isError ? undefined : reviews.data?.length },
-            { view: 'leave', label: 'ลารออนุมัติ', count: pendingLeaves.isError ? undefined : pendingLeaves.data?.length },
-            { view: 'claim', label: 'เบิกรออนุมัติ', count: claims.isError ? undefined : claims.data?.filter(item => item.status === 'PENDING').length },
+            ...(isOwner ? [{ view: 'review', label: 'งานรอคุณตรวจ', count: reviews.isError ? undefined : reviews.data?.length }] : []),
+            ...(canLeave ? [{ view: 'leave', label: 'ลารออนุมัติ', count: pendingLeaves.isError ? undefined : pendingLeaves.data?.length }] : []),
+            ...(canClaim ? [{ view: 'claim', label: 'เบิกรออนุมัติ', count: claims.isError ? undefined : claims.data?.filter(item => item.status === 'PENDING').length }] : []),
           ].map(item => <Pressable key={item.view} accessibilityRole="button" style={{ flexBasis: '30%', flexGrow: 1, minWidth: 92, minHeight: 64, gap: 4 }}
              onPress={() => router.push(`/owner-decisions?view=${item.view}`)}><Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text>
              <Text style={{ color: colors.ink, fontSize: 26, fontFamily: fonts.bold }}>{item.count ?? '—'}</Text><Text style={{ color: colors.info, fontSize: 12 }}>เปิดรายการ ›</Text></Pressable>)}</View>
-          {pendingLeaves.isError && <ErrorNote message="โหลดลารออนุมัติไม่ได้" onRetry={() => pendingLeaves.refetch()} />}
+          {canLeave && pendingLeaves.isError && <ErrorNote message="โหลดลารออนุมัติไม่ได้" onRetry={() => pendingLeaves.refetch()} />}
           <Pressable accessibilityRole="button" style={[styles.peopleButton, { borderTopWidth: 1, borderTopColor: colors.line }]} onPress={() => router.push('/owner-decisions')}><Text style={{ color: colors.ink }}>ดูคิวที่ต้องจัดการทั้งหมด ›</Text></Pressable>
         </Card>
+      </>}
+      {canFinance && <>
         <Disclosure title="เงินสำนักงาน" summary={finance.data ? `ลูกหนี้ ${formatMoney(finance.data.totals.receivable)} ฿ · ดูรายการ` : 'ลูกหนี้และรายการที่ต้องตาม'}>
         {finance.isError && <ErrorNote message="โหลดข้อมูลการเงินล่าสุดไม่ได้" onRetry={() => finance.refetch()} />}
         <OwnerFinanceSummary data={finance.data} onOpen={view => router.push(`/owner-finance?view=${view}`)} />
@@ -224,6 +236,8 @@ export default function MyDayScreen() {
           <Text style={{ color: colors.info }}>ดูครบกำหนด ผู้ติดตาม ปัญหา และบันทึกรับเงิน</Text>
         </Pressable></Card>
         </Disclosure>
+      </>}
+      {owner && <>
         {(decisions.length > 0 || daily.isLoading || daily.isError) && <>
         <SectionLabel>งานที่ต้องเข้าไปช่วย</SectionLabel>
         <Card style={{ gap: spacing.sm }}>
@@ -383,7 +397,7 @@ export default function MyDayScreen() {
         )}
       </Card>
 
-      {owner && <>
+      {canClaim && <>
         <SectionLabel>ชุดเบิกที่ต้องจัดการ</SectionLabel>
         <Card>
           {claims.isError ? <ErrorNote message="โหลดชุดเบิกไม่ได้" onRetry={() => claims.refetch()} /> : <View style={{ flexDirection: 'row', gap: spacing.md }}>

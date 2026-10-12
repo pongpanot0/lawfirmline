@@ -6,8 +6,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { FirmRole } from '@lawfirm/shared';
-import { FIRM_ROLES_KEY, OWNER_ONLY_KEY } from '../decorators/saas.decorators';
+import { FirmCapability, FirmRole, hasFirmCapability } from '@lawfirm/shared';
+import { FIRM_ROLES_KEY, OWNER_ONLY_KEY, REQUIRE_CAPABILITY_KEY } from '../decorators/saas.decorators';
 
 @Injectable()
 export class FirmRoleGuard implements CanActivate {
@@ -23,12 +23,21 @@ export class FirmRoleGuard implements CanActivate {
       context.getClass(),
     ]);
 
+    const capability = this.reflector.getAllAndOverride<FirmCapability>(REQUIRE_CAPABILITY_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
     const request = context.switchToHttp().getRequest();
     const user = request.user;
     if (!user) throw new UnauthorizedException();
 
     if (ownerOnly && user.firmRole !== FirmRole.OWNER) {
       throw new ForbiddenException('Owner access required');
+    }
+
+    if (capability && !hasFirmCapability(user.firmRole, capability)) {
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     if (requiredRoles?.length && !requiredRoles.includes(user.firmRole)) {

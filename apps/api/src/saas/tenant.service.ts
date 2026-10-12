@@ -8,6 +8,7 @@ import {
   AuthUser,
   DEFAULT_ROOT_DOMAIN,
   FirmRole,
+  hasFirmCapability,
   SubscriptionPlan,
   SubscriptionStatus,
   TRIAL_DAYS,
@@ -158,8 +159,8 @@ export class TenantService {
   }
 
   async listMembers(user: AuthUser) {
-    if (!this.isOwner(user)) {
-      throw new ForbiddenException('Only owners can list team members');
+    if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
+      throw new ForbiddenException('Insufficient permissions to list team members');
     }
 
     const members = await this.prisma.firmMember.findMany({
@@ -190,7 +191,7 @@ export class TenantService {
   }
 
   async removeMember(owner: AuthUser, targetUserId: string) {
-    if (!this.isOwner(owner)) {
+    if (!hasFirmCapability(owner.firmRole, 'manageMembers')) {
       throw new ForbiddenException('Only owners can remove team members');
     }
     if (targetUserId === owner.id) {
@@ -231,7 +232,7 @@ export class TenantService {
   }
 
   async updateMemberRole(owner: AuthUser, targetUserId: string, role: FirmRole) {
-    if (!this.isOwner(owner)) {
+    if (!hasFirmCapability(owner.firmRole, 'manageMembers')) {
       throw new ForbiddenException('Only owners can change member roles');
     }
 

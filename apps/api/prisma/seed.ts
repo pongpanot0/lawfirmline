@@ -7,7 +7,7 @@ import {
   AssignmentType,
   EventType,
 } from '../src/generated/prisma';
-import { DEFAULT_CASE_TYPES, DEFAULT_THAI_COURTS } from '@lawfirm/shared';
+import { DEFAULT_CASE_TYPES, DEFAULT_DEADLINE_RULES, DEFAULT_THAI_COURTS } from '@lawfirm/shared';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -109,6 +109,16 @@ async function main() {
     },
   });
 
+  const officeManager = await prisma.user.create({
+    data: {
+      email: 'office@lawfirm.com',
+      passwordHash,
+      firstName: 'Office',
+      lastName: 'Manager',
+      role: Role.LAWYER,
+    },
+  });
+
   await prisma.firmMember.createMany({
     data: [
       { firmId: firm.id, userId: admin.id, role: 'OWNER' },
@@ -116,6 +126,7 @@ async function main() {
       { firmId: firm.id, userId: lawyer1.id, role: 'LAWYER' },
       { firmId: firm.id, userId: lawyer2.id, role: 'LAWYER' },
       { firmId: firm.id, userId: assistant.id, role: 'ASSISTANT' },
+      { firmId: firm.id, userId: officeManager.id, role: 'OFFICE_MANAGER' },
     ],
   });
 
@@ -140,12 +151,7 @@ async function main() {
   const existingRules = await prisma.deadlineRule.count();
   if (existingRules === 0) {
     await prisma.deadlineRule.createMany({
-      data: [
-        { trigger: 'COMPLAINT_SERVED', label: 'ยื่นคำให้การ', offsetDays: 15, dayBasis: 'CALENDAR' },
-        { trigger: 'JUDGMENT', label: 'ยื่นอุทธรณ์', offsetDays: 30, dayBasis: 'CALENDAR' },
-        { trigger: 'ORDER_RECEIVED', label: 'โต้แย้งคำสั่งศาล', offsetDays: 15, dayBasis: 'CALENDAR' },
-        { trigger: 'COURT_DATE', label: 'สรุปผลนัดและรายงานลูกความ', offsetDays: 3, dayBasis: 'BUSINESS' },
-      ],
+      data: DEFAULT_DEADLINE_RULES.map((rule) => ({ ...rule })),
     });
   }
 

@@ -1,11 +1,14 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AiUsageService } from './ai-usage.service';
 
 @Controller('ai-usage')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, FirmRoleGuard)
+@RequireCapability('viewFirmReports')
 export class AiUsageController {
   constructor(private aiUsage: AiUsageService) {}
 

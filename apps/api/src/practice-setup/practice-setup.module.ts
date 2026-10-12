@@ -4,7 +4,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PracticeSetupController } from './practice-setup.controller';
 import { PracticeSetupService } from './practice-setup.service';
 @Module({
-  imports: [DeadlinesModule, forwardRef(() => NotificationsModule)],
+  imports: [forwardRef(() => DeadlinesModule), forwardRef(() => NotificationsModule)],
   controllers: [PracticeSetupController],
   providers: [PracticeSetupService],
   exports: [PracticeSetupService],

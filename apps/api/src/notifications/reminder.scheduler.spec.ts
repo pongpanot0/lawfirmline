@@ -37,8 +37,8 @@ describe('ReminderScheduler', () => {
 
     const where = mockPrisma.calendarEvent.findMany.mock.calls[0][0].where;
     expect(where.startAt.gt).toEqual(NOW);
-    // 30 days ahead — without an upper bound this query read the whole future.
-    expect(where.startAt.lte).toEqual(new Date('2026-10-07T03:00:00Z'));
+    // 90 days ahead — without an upper bound this query read the whole future.
+    expect(where.startAt.lte).toEqual(new Date('2026-12-06T03:00:00Z'));
     // A deleted case's hearings must stop reminding people.
     expect(where.case).toEqual({ deletedAt: null });
   });
@@ -50,7 +50,7 @@ describe('ReminderScheduler', () => {
         title: 'นัดไกล',
         startAt: new Date('2026-09-08T03:00:00Z'),
         caseId: 'case-1',
-        reminderMinutes: [60 * 24 * 45],
+        reminderMinutes: [60 * 24 * 120],
         reminderLogs: [],
         case: { ownRef: 'C-001' },
       },

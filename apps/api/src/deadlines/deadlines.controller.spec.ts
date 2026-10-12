@@ -41,11 +41,10 @@ describe('deadline controllers', () => {
     reflector = module.get(Reflector);
   });
 
-  it('lets any member read the rules but only a platform admin change them', () => {
+  it('leaves rule-write authorisation to the service (firm vs platform scope)', () => {
     expect(reflector.get(ROLES_KEY, rules.list)).toBeUndefined();
-    // Shared by every firm: a firm OWNER (who passes Role.ADMIN) must not write it.
     for (const handler of [rules.create, rules.update, rules.remove]) {
-      expect(reflector.get(GUARDS_METADATA, handler)).toContain(PlatformAdminGuard);
+      expect(reflector.get(GUARDS_METADATA, handler) ?? []).not.toContain(PlatformAdminGuard);
     }
   });
 

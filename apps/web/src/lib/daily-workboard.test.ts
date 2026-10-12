@@ -20,7 +20,7 @@ test('recommendations disclose unknown progress and review work instead of imply
     { userId: 'worker', workTypes: [TaskWorkType.TRANSCRIPTION], onLeave: false },
     { userId: 'unconfigured', workTypes: [], onLeave: false },
   ] as any;
-  const tasks = [{ workerId: 'worker', status: 'TODO', latestUpdate: null }, { workerId: 'unconfigured', assigneeId: 'worker', status: 'PENDING_REVIEW' }] as any;
+  const tasks = [{ workerId: 'worker', status: 'TODO', latestUpdate: null }, { workerId: 'unconfigured', assigneeId: 'unconfigured', reviewerId: 'worker', status: 'PENDING_REVIEW' }] as any;
   const result = assignmentCandidates(members, tasks, TaskWorkType.TRANSCRIPTION, '2026-09-27');
   assert.equal(result[0].member.userId, 'worker');
   assert.equal(result[0].unknown, true);

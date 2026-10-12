@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEnum,
   ValidateIf,
   IsInt,
   IsIn,
@@ -17,7 +18,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
+import { CourtEventKind, EXPENSE_CATEGORIES } from '@lawfirm/shared';
 const Trim = () =>
   Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
 export class CourtChecklistDto {
@@ -52,6 +53,7 @@ export class CourtDayStateDto {
   @IsDateString()
   @MaxLength(35)
   nextAt!: string;
+  @IsOptional() @IsEnum(CourtEventKind) nextKind?: CourtEventKind;
   @IsBoolean() followUp!: boolean;
   @IsString() @MaxLength(200) taskTitle!: string;
   @ValidateIf((o) => o.taskDue !== '')

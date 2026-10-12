@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { AuthUser, EventType } from '@lawfirm/shared';
+import { AuthUser, CourtEventKind, EventType } from '@lawfirm/shared';
 import { CalendarService } from './calendar.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -146,6 +146,67 @@ describe('CalendarService case authorization', () => {
 
     expect(mockCaseAccess.canAccessCase).not.toHaveBeenCalled();
     expect(mockPrisma.calendarEvent.create).toHaveBeenCalled();
+  });
+
+  it('stores the court event kind and hands it to the deadline engine', async () => {
+    mockCaseAccess.canAccessCase.mockResolvedValue(true);
+    mockPrisma.case.findUnique.mockResolvedValue({
+      id: 'case-1', firmId: 'firm-1', caseTypeId: null, ownRef: 'C-1', title: 'Case',
+      courtName: 'ศาลแพ่ง', leadLawyerId: 'lead-1', leadLawyer: { firstName: 'A', lastName: 'B' },
+    });
+    mockTravel.getOfficeAddress.mockResolvedValue('office');
+    mockTravel.calculateTravel.mockResolvedValue({});
+    mockPrisma.travelLog.findFirst.mockResolvedValue(null);
+    const startAt = new Date('2027-04-20T02:00:00.000Z');
+    mockPrisma.calendarEvent.create.mockResolvedValue({
+      id: 'event-9', startAt, assigneeId: null, updatedAt: new Date(), courtEventKind: CourtEventKind.WITNESS_HEARING,
+    });
+
+    await service.create(user, {
+      caseId: 'case-1', title: 'สืบพยานโจทก์', startAt: startAt.toISOString(),
+      type: EventType.COURT_DATE, courtEventKind: CourtEventKind.WITNESS_HEARING,
+    });
+
+    expect(mockPrisma.calendarEvent.create.mock.calls[0][0].data.courtEventKind).toBe(CourtEventKind.WITNESS_HEARING);
+    expect(mockDeadlineRules.applyTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({ triggerEventId: 'event-9', courtEventKind: CourtEventKind.WITNESS_HEARING }),
+    );
+  });
+
+  it('drops a court event kind sent with a non-court event', async () => {
+    mockCaseAccess.canAccessCase.mockResolvedValue(true);
+    mockPrisma.case.findUnique.mockResolvedValue({
+      id: 'case-1', firmId: 'firm-1', caseTypeId: null, ownRef: 'C-1', title: 'Case',
+      courtName: null, leadLawyer: { firstName: 'A', lastName: 'B' },
+    });
+    mockPrisma.calendarEvent.create.mockResolvedValue({ id: 'event-10', startAt: new Date() });
+
+    await service.create(user, {
+      caseId: 'case-1', title: 'พบลูกความ', startAt: '2026-11-02T02:00:00.000Z',
+      type: EventType.CLIENT_MEETING, courtEventKind: CourtEventKind.MEDIATION,
+    });
+
+    expect(mockPrisma.calendarEvent.create.mock.calls[0][0].data.courtEventKind).toBeNull();
+  });
+
+  it('re-runs the court-date rules when a kind is set on an existing court date', async () => {
+    mockCaseAccess.canAccessCase.mockResolvedValue(true);
+    const startAt = new Date('2027-04-20T02:00:00.000Z');
+    mockPrisma.calendarEvent.findUnique.mockResolvedValue({
+      id: 'event-1', caseId: 'case-1', type: 'COURT_DATE', startAt, case: { id: 'case-1', firmId: 'firm-1' },
+    });
+    mockPrisma.calendarEvent.update.mockResolvedValue({
+      id: 'event-1', caseId: 'case-1', type: 'COURT_DATE', startAt, courtEventKind: CourtEventKind.WITNESS_HEARING,
+    });
+
+    await service.update(user, 'event-1', { courtEventKind: CourtEventKind.WITNESS_HEARING });
+
+    expect(mockDeadlineRules.applyTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        caseId: 'case-1', firmId: 'firm-1', triggerEventId: 'event-1', triggerDate: startAt,
+        courtEventKind: CourtEventKind.WITNESS_HEARING, createdById: 'user-1',
+      }),
+    );
   });
 });
 

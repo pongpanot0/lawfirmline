@@ -3,6 +3,8 @@
  * full, so filtering is done here rather than on the server; every value a
  * task can carry (status, priority, assignee, label, due date) has a filter.
  */
+import { visibleTaskLabels } from '@lawfirm/shared';
+
 export type TaskDueFilter = '' | 'overdue' | 'today' | 'week' | 'none';
 
 export interface TaskFilters {
@@ -40,7 +42,7 @@ export function hasActiveTaskFilters(filters: TaskFilters): boolean {
 
 export function collectTaskLabels(tasks: FilterableTask[]): string[] {
   const seen = new Set<string>();
-  for (const task of tasks) for (const label of task.labels ?? []) seen.add(label);
+  for (const task of tasks) for (const label of visibleTaskLabels(task.labels)) seen.add(label);
   return [...seen].sort((a, b) => a.localeCompare(b, 'th'));
 }
 

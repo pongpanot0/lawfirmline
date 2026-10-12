@@ -14,6 +14,7 @@ describe('LineBotRouter — notification buttons and chat questions', () => {
   const agenda = { getMyDay: jest.fn() } as any;
   const config = { get: jest.fn(() => 'https://app.example.com') } as any;
   const store = { get: jest.fn(), start: jest.fn((s) => s), update: jest.fn((_id, patch) => ({ ...patch })), clear: jest.fn() } as any;
+  const reviewFlow = { begin: jest.fn(), handle: jest.fn() } as any;
   const quickActions = { handle: jest.fn() } as any;
   const query = { caseQuery: jest.fn(), openTasks: jest.fn(), findCase: jest.fn() } as any;
   const user = { id: 'u1', firmId: 'f1', firmSlug: 'acme', firmRole: 'LAWYER' };
@@ -30,7 +31,7 @@ describe('LineBotRouter — notification buttons and chat questions', () => {
     router = new LineBotRouterService(
       line, auth, store, caseFlow, flow(), flow(), flow(), flow(), agenda, config,
       new FirmLinkService({ firm: { findUnique: async () => ({ slug: 'acme' }) } } as any, config),
-      flow(), quickActions, query,
+      flow(), quickActions, query, reviewFlow,
     );
   });
 
@@ -62,5 +63,55 @@ describe('LineBotRouter — notification buttons and chat questions', () => {
     await router.route('L1', 'คดี ฟ้องผิดสัญญา', dm, false);
     expect(query.findCase).not.toHaveBeenCalled();
     expect(caseFlow.handle).toHaveBeenCalled();
+  });
+
+  it('a "ส่งกลับ"/"ส่งตรวจ" button starts the note follow-up instead of acting at once', async () => {
+    await router.route('L1', 'task:reject:11111111-1111-1111-1111-111111111111', dm, false);
+    expect(reviewFlow.begin).toHaveBeenCalledWith(expect.anything(), 'reject', '11111111-1111-1111-1111-111111111111');
+    expect(quickActions.handle).not.toHaveBeenCalled();
+  });
+
+  it('a review postback never overwrites a flow in progress', async () => {
+    store.get.mockReturnValue({ flowType: 'LEAVE', target: dm });
+    await router.route('L1', 'task:handoff:11111111-1111-1111-1111-111111111111', dm, false);
+    expect(store.start).not.toHaveBeenCalled();
+    expect(reviewFlow.begin).not.toHaveBeenCalled();
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('ยกเลิก'), undefined);
+  });
+
+  it('a group tap never overwrites a flow open in the 1:1 chat', async () => {
+    store.get.mockReturnValue({ flowType: 'LEAVE', target: dm });
+    await router.route('L1', 'task:handoff:11111111-1111-1111-1111-111111111111', group, true);
+    expect(store.start).not.toHaveBeenCalled();
+    expect(reviewFlow.begin).not.toHaveBeenCalled();
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('ยกเลิก'), undefined);
+  });
+
+  it('a new review tap restarts an active review flow for the new task', async () => {
+    store.get.mockReturnValue({ flowType: 'TASK_REVIEW', target: dm });
+    await router.route('L1', 'task:reject:22222222-2222-2222-2222-222222222222', dm, false);
+    expect(reviewFlow.begin).toHaveBeenCalledWith(expect.anything(), 'reject', '22222222-2222-2222-2222-222222222222');
+  });
+
+  it('a failed push to the 1:1 chat clears the session and tells the group to add the bot, without a title', async () => {
+    reviewFlow.begin.mockResolvedValueOnce(false);
+    await router.route('L1', 'task:reject:11111111-1111-1111-1111-111111111111', group, true);
+    expect(store.clear).toHaveBeenCalledWith('L1');
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', 'เพิ่มบอทเป็นเพื่อนก่อน แล้วกดปุ่มอีกครั้งครับ', undefined);
+    expect(line.replyWithQuickReply).not.toHaveBeenCalledWith('rt', expect.stringContaining('ส่งขั้นตอนต่อไป'), undefined);
+  });
+
+  it('from a group, the note follow-up moves to the 1:1 chat', async () => {
+    await router.route('L1', 'task:reject:11111111-1111-1111-1111-111111111111', group, true);
+    const started = store.start.mock.calls[0][0];
+    expect(started.target).toEqual({ sourceType: 'user' });
+    expect(reviewFlow.begin).toHaveBeenCalled();
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('ส่งขั้นตอนต่อไป'), undefined);
+  });
+
+  it('the next message in that flow goes to the review flow', async () => {
+    store.get.mockReturnValue({ flowType: 'TASK_REVIEW', target: dm });
+    await router.route('L1', 'แก้ทุนทรัพย์ข้อ 2', dm, false);
+    expect(reviewFlow.handle).toHaveBeenCalled();
   });
 });

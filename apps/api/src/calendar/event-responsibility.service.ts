@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
-import { bangkokDayKey, formatBangkokDateTime } from '../common/utils/bangkok-time';
+import { bangkokDayKey, courtCloseAt, formatBangkokDateTime } from '../common/utils/bangkok-time';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { formatCaseNotificationReference } from '../notifications/reference-label';
 import { eventAssigneesInclude, eventPeopleIds } from './event-people';
@@ -72,7 +72,7 @@ export class EventResponsibilityService {
     const suggestions = await db.documentDateSuggestion.findMany({ where: { triggerEventId: id, status: { not: 'DISMISSED' } }, include: { deadlineRule: true, calendarEvent: true }, orderBy: { id: 'asc' } });
     const holidayRows = await db.publicHoliday.findMany({ select: { date: true } });
     const holidays = new Set(holidayRows.map(h => bangkokDayKey(h.date)));
-    const impacts = suggestions.map(s => ({ id: s.id, title: s.label, status: s.status, eventId: s.calendarEventId, oldAt: (s.calendarEvent?.startAt ?? s.suggestedDate).toISOString(), newAt: s.deadlineRule ? `${this.deadlines.computeDueDate(next, s.deadlineRule.offsetDays, s.deadlineRule.dayBasis as DeadlineDayBasis, holidays)}T00:00:00.000Z` : null, revision: s.updatedAt.toISOString(), eventRevision: s.calendarEvent?.updatedAt.toISOString() ?? null, endAt: s.calendarEvent?.endAt?.toISOString() ?? null }));
+    const impacts = suggestions.map(s => ({ id: s.id, title: s.label, status: s.status, eventId: s.calendarEventId, oldAt: (s.calendarEvent?.startAt ?? s.suggestedDate).toISOString(), newAt: s.deadlineRule ? courtCloseAt(this.deadlines.computeDueDate(next, s.deadlineRule.offsetDays, s.deadlineRule.dayBasis as DeadlineDayBasis, holidays, s.deadlineRule.adjustDays)).toISOString() : null, revision: s.updatedAt.toISOString(), eventRevision: s.calendarEvent?.updatedAt.toISOString() ?? null, endAt: s.calendarEvent?.endAt?.toISOString() ?? null }));
     if (impacts.some(i => !i.newAt)) throw new BadRequestException('ไม่พบกฎเดิม ต้องตรวจวันที่ที่เกี่ยวข้องก่อน / A linked deadline rule is missing');
     const snapshot = { eventId: id, eventUpdatedAt: e.updatedAt.toISOString(), oldAt: e.startAt.toISOString(), newAt: next.toISOString(), impacts };
     return { ...snapshot, fingerprint: createHash('sha256').update(JSON.stringify(snapshot)).digest('hex') };

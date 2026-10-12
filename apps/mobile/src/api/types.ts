@@ -70,9 +70,20 @@ export interface CaseListItem {
   updatedAt: string;
 }
 
+export interface CaseParticipant {
+  id: string;
+  name: string;
+  role: string;
+  side: string;
+  personType: string | null;
+  phone: string | null;
+  clientId: string | null;
+  representedByParticipantId: string | null;
+}
+
 export interface CaseDetail extends CaseListItem {
   clientName: string | null;
-  courtLevel: string;
+  courtLevel: string | null;
   caseTypeId?: string | null;
   leadLawyerId?: string;
   assignments?: Array<{ userId: string; assignmentType: string; user: { id: string; firstName: string; lastName: string } }>;
@@ -81,6 +92,8 @@ export interface CaseDetail extends CaseListItem {
   redCaseNumber: string | null;
   openedAt: string;
   client?: { id: string; name: string; phone?: string | null } | null;
+  partyRole?: import('@lawfirm/shared').PartyRole | null;
+  participants?: CaseParticipant[];
 }
 
 export interface TaskItem {
@@ -92,6 +105,10 @@ export interface TaskItem {
   createdById?: string;
   description?: string | null;
   requiresReview?: boolean;
+  reviewer?: { id: string; firstName: string; lastName: string } | null;
+  submittedAt?: string | null;
+  requiresAttachment?: boolean;
+  labels?: string[];
   recurrenceDays?: number | null;
   blockedById?: string | null;
   followUps?: Array<{ id: string; title: string; status: string; dueDate: string | null; followUpSourceCommentId: string; assignee?: { id: string; firstName: string; lastName: string } | null }>;
@@ -104,7 +121,7 @@ export interface TaskItem {
   scheduledFor?: string | null;
   planConfirmedAt?: string | null;
   handedOffById?: string | null;
-  onHold?: { reason: string; endedAt: string | null } | null;
+  onHold?: { reason: string; category?: string; nextFollowUpAt?: string | null; endedAt: string | null } | null;
   assignmentLogs?: Array<{ action: string; note?: string | null; fromUserId?: string | null }>;
   reviewerId?: string | null;
   attachments?: Array<{ id: string; filename: string; size: number; mimeType?: string }>;
@@ -123,6 +140,7 @@ export interface CalendarEventItem {
   startAt: string;
   endAt: string | null;
   type: string;
+  courtEventKind?: import('@lawfirm/shared').CourtEventKind | null;
   updatedAt: string;
   assigneeId: string | null;
   assignee?: { id: string; firstName: string; lastName: string } | null;

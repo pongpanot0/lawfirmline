@@ -19,6 +19,8 @@ import { DocumentMetadataDto, DocumentQueryDto, SetDocumentConfirmedDto } from '
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { buildContentDispositionHeader } from '../common/utils/sanitize-filename';
@@ -97,8 +99,8 @@ export class DocumentsController {
   }
 
   @Patch(':documentId/visibility')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageFirmContent')
   updateVisibility(
     @CurrentUser() user: AuthUser,
     @Param('caseId') caseId: string,

@@ -42,3 +42,8 @@ export function leaveWarning(name: string, date: string, kind?: LeaveFlag['kind'
   if (kind === 'PENDING') return `⚠ ${name} ขอลาวันที่ ${thaiBEDate(date)} (รออนุมัติ)`;
   return `⚠ ${name} ลาวันที่ ${thaiBEDate(date)}`;
 }
+
+/** Pending leave an approver may decide: never their own, unless they are the owner (mirrors GET /leaves/pending). */
+export function leaveApprovalQueue<T extends Pick<LeaveItem, 'userId' | 'status'>>(leaves: T[], user: { id: string; firmRole?: string }): T[] {
+  return leaves.filter((leave) => leave.status === 'PENDING' && (user.firmRole === 'OWNER' || leave.userId !== user.id));
+}

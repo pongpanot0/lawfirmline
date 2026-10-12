@@ -87,4 +87,9 @@ describe('EmailService', () => {
       }),
     ).rejects.toThrow('Resend error 422: invalid from address');
   });
+
+  it('sendClosingEmail returns false instead of throwing when the provider refuses', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 422, json: async () => ({ message: 'bad' }), text: async () => 'bad' });
+    await expect(service.sendClosingEmail({ to: 'a@x.co', subject: 's', bodyText: 'b', firmName: 'f' })).resolves.toBe(false);
+  });
 });

@@ -17,6 +17,8 @@ describe('TaskDetailService', () => {
     taskAttachment: { create: jest.fn(), findFirst: jest.fn(), delete: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     taskObserver: { findMany: jest.fn().mockResolvedValue([]) },
     workflowRun: { findUnique: jest.fn() },
+    firmMember: { findMany: jest.fn().mockResolvedValue([]) },
+    case: { findUnique: jest.fn() },
   };
   const mockTasks = {
     assertAccess: jest.fn(),
@@ -25,6 +27,7 @@ describe('TaskDetailService', () => {
     notifyViaAssignmentNotifier: jest.fn().mockResolvedValue(undefined),
     create: jest.fn(),
     acknowledge: jest.fn(),
+    filterUsersWhoCanSeeTask: jest.fn(),
   };
   const mockStorage = { put: jest.fn(), delete: jest.fn() };
   const lawyer = { id: 'u1', firmId: 'f1', firmRole: FirmRole.LAWYER } as any;
@@ -126,7 +129,7 @@ describe('TaskDetailService', () => {
         where: { id: 't1' },
         include: expect.objectContaining({
           parent: expect.anything(),
-          case: expect.anything(),
+          case: { select: expect.objectContaining({ leadLawyer: { select: { id: true, firstName: true, lastName: true } } }) },
           subtasks: expect.anything(),
           attachments: expect.anything(),
           comments: expect.anything(),
@@ -177,5 +180,73 @@ describe('TaskDetailService', () => {
     const otherLawyer = { id: 'u2', firmId: 'f1', firmRole: FirmRole.LAWYER } as any;
     await expect(service.deleteAttachment('t1', 'a1', otherLawyer)).rejects.toThrow(ForbiddenException);
     expect(mockPrisma.taskAttachment.delete).toHaveBeenCalledTimes(2);
+  });
+
+  it('stores and notifies only mentioned people who can open the task', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1' });
+    mockPrisma.task.findUnique.mockResolvedValue({ assigneeId: 'm1', parentId: null, caseId: 'c1', title: 'ร่างคำฟ้อง', createdById: 'u1' });
+    mockTasks.filterUsersWhoCanSeeTask.mockResolvedValue(['m1']);
+    mockPrisma.taskComment.create.mockResolvedValue({ id: 'cm1' });
+    await service.addComment('t1', lawyer, { body: '@สมชาย ช่วยดูข้อ 3', mentionedUserIds: ['m1', 'noaccess'] });
+    expect(mockTasks.filterUsersWhoCanSeeTask).toHaveBeenCalledWith('t1', ['m1', 'noaccess'], 'f1');
+    expect(mockPrisma.taskComment.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ mentionedUserIds: ['m1'] }),
+    }));
+    const calls = mockTasks.notifyViaAssignmentNotifier.mock.calls.map((c) => c[0]);
+    expect(calls.filter((c) => c.userIds.includes('m1'))).toHaveLength(1);
+    expect(calls.some((c) => c.userIds.includes('noaccess'))).toBe(false);
+    expect(calls.find((c) => c.userIds.includes('m1')).summaryText).toContain('กล่าวถึงคุณ');
+  });
+
+  it('a mention of someone without access is neither stored nor notified', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1' });
+    mockPrisma.task.findUnique.mockResolvedValue({ assigneeId: null, parentId: null, caseId: 'c1', title: 'ร่างคำฟ้อง', createdById: 'u1' });
+    mockTasks.filterUsersWhoCanSeeTask.mockResolvedValue([]);
+    mockPrisma.taskComment.create.mockResolvedValue({ id: 'cm1' });
+    await service.addComment('t1', lawyer, { body: '@x', mentionedUserIds: ['noaccess'] });
+    expect(mockPrisma.taskComment.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ mentionedUserIds: [] }),
+    }));
+    expect(mockTasks.notifyViaAssignmentNotifier).not.toHaveBeenCalled();
+  });
+
+  it('a daily update with a blocker tells the case lead', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1', assigneeId: 'u1', status: 'IN_PROGRESS', caseId: 'c1', title: 'สืบทรัพย์' });
+    mockPrisma.case.findUnique.mockResolvedValue({ leadLawyerId: 'lead' });
+    mockPrisma.taskComment.findFirst.mockResolvedValue(null);
+    mockPrisma.taskComment.create.mockResolvedValue({ id: 'cm1' });
+    await service.dailyUpdate('t1', lawyer, { completed: 'ค้นโฉนดแล้ว', remaining: 'บัญชีธนาคาร', blocker: 'ธนาคารไม่ตอบ' });
+    expect(mockTasks.notifyViaAssignmentNotifier).toHaveBeenCalledWith(expect.objectContaining({
+      userIds: ['lead'], summaryText: expect.stringContaining('ธนาคารไม่ตอบ'),
+    }));
+  });
+
+  it.each([
+    ['same blocker as the previous update', 'ธนาคารไม่ตอบ', 'ธนาคารไม่ตอบ', false],
+    ['changed blocker', 'ธนาคารไม่ตอบ', 'ศาลปิด', true],
+    ['first blocker', null, 'ธนาคารไม่ตอบ', true],
+  ])('blocker notice: %s', async (_n, previous, next, sent) => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1', assigneeId: 'u1', status: 'IN_PROGRESS', caseId: 'c1', title: 'สืบทรัพย์' });
+    mockPrisma.case.findUnique.mockResolvedValue({ leadLawyerId: 'lead' });
+    mockPrisma.taskComment.findFirst.mockResolvedValue(previous === null ? null : { body: `ทำถึงไหน: a\nเหลืออะไร: b\nติดอะไร: ${previous}` });
+    mockPrisma.taskComment.create.mockResolvedValue({ id: 'cm1' });
+    await service.dailyUpdate('t1', lawyer, { completed: 'ค้นโฉนดแล้ว', remaining: 'บัญชีธนาคาร', blocker: next as string });
+    expect(mockTasks.notifyViaAssignmentNotifier).toHaveBeenCalledTimes(sent ? 1 : 0);
+  });
+
+  it.each(['ไม่มี', '-', 'None', '  '])('blocker "%s" means no blocker', async (blocker) => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1', assigneeId: 'u1', status: 'IN_PROGRESS', caseId: 'c1', title: 'สืบทรัพย์' });
+    mockPrisma.case.findUnique.mockResolvedValue({ leadLawyerId: 'lead' });
+    mockPrisma.taskComment.findFirst.mockResolvedValue(null);
+    mockPrisma.taskComment.create.mockResolvedValue({ id: 'cm1' });
+    await service.dailyUpdate('t1', lawyer, { completed: 'ค้นโฉนดแล้ว', remaining: 'บัญชีธนาคาร', blocker });
+    expect(mockTasks.notifyViaAssignmentNotifier).not.toHaveBeenCalled();
+  });
+
+  it('a daily update without a blocker notifies nobody', async () => {
+    mockTasks.assertAccess.mockResolvedValue({ id: 't1', assigneeId: 'u1', status: 'IN_PROGRESS', caseId: 'c1', title: 'สืบทรัพย์' });
+    mockPrisma.taskComment.create.mockResolvedValue({ id: 'cm1' });
+    await service.dailyUpdate('t1', lawyer, { completed: 'ค้นโฉนดแล้ว', remaining: 'บัญชีธนาคาร', blocker: '' });
+    expect(mockTasks.notifyViaAssignmentNotifier).not.toHaveBeenCalled();
   });
 });

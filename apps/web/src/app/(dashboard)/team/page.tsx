@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, Check, Mail, UserPlus, Clock, Trash2 } from 'lucide-react';
-import { FirmRole } from '@lawfirm/shared';
+import { FirmRole, canInviteFirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -21,12 +21,13 @@ type PendingInvite = Awaited<ReturnType<typeof api.listInvitations>>[number];
 
 const ROLE_OPTIONS: Array<{
   value: FirmRole;
-  labelKey: 'roleAssistant' | 'roleLawyer' | 'roleSeniorLawyer' | 'roleOwner' | 'roleExternal';
-  hintKey: 'roleAssistantHint' | 'roleLawyerHint' | 'roleSeniorLawyerHint' | 'roleOwnerHint' | 'roleExternalHint';
+  labelKey: 'roleAssistant' | 'roleLawyer' | 'roleSeniorLawyer' | 'roleOfficeManager' | 'roleOwner' | 'roleExternal';
+  hintKey: 'roleAssistantHint' | 'roleLawyerHint' | 'roleSeniorLawyerHint' | 'roleOfficeManagerHint' | 'roleOwnerHint' | 'roleExternalHint';
 }> = [
   { value: FirmRole.ASSISTANT, labelKey: 'roleAssistant', hintKey: 'roleAssistantHint' },
   { value: FirmRole.LAWYER, labelKey: 'roleLawyer', hintKey: 'roleLawyerHint' },
   { value: FirmRole.SENIOR_LAWYER, labelKey: 'roleSeniorLawyer', hintKey: 'roleSeniorLawyerHint' },
+  { value: FirmRole.OFFICE_MANAGER, labelKey: 'roleOfficeManager', hintKey: 'roleOfficeManagerHint' },
   { value: FirmRole.OWNER, labelKey: 'roleOwner', hintKey: 'roleOwnerHint' },
   { value: FirmRole.EXTERNAL, labelKey: 'roleExternal', hintKey: 'roleExternalHint' },
 ];
@@ -36,7 +37,9 @@ export default function TeamPage() {
   const { locale } = useLocale();
   const d = useDashboardT();
   const loc = dateLocale(locale);
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const canInvite = hasFirmCapability(user?.firmRole, 'inviteMembers');
+  const canManageMembers = hasFirmCapability(user?.firmRole, 'manageMembers');
+  const inviteRoleOptions = ROLE_OPTIONS.filter((o) => canInviteFirmRole(user?.firmRole ?? '', o.value));
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<PendingInvite[]>([]);
@@ -53,7 +56,7 @@ export default function TeamPage() {
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
 
   const loadTeam = useCallback(async () => {
-    if (!token || !isOwner) {
+    if (!token || !canInvite) {
       setLoading(false);
       return;
     }
@@ -71,13 +74,13 @@ export default function TeamPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, isOwner, d.common.loadFailed]);
+  }, [token, canInvite, d.common.loadFailed]);
 
   useEffect(() => {
     loadTeam();
   }, [loadTeam]);
 
-  if (!isOwner) {
+  if (!canInvite) {
     return <p className="text-destructive">{d.team.accessDenied}</p>;
   }
 
@@ -87,6 +90,8 @@ export default function TeamPage() {
         return d.team.roleOwner;
       case FirmRole.SENIOR_LAWYER:
         return d.team.roleSeniorLawyer;
+      case FirmRole.OFFICE_MANAGER:
+        return d.team.roleOfficeManager;
       case FirmRole.LAWYER:
         return d.team.roleLawyer;
       case FirmRole.EXTERNAL:
@@ -101,6 +106,7 @@ export default function TeamPage() {
       case FirmRole.OWNER:
         return 'default' as const;
       case FirmRole.SENIOR_LAWYER:
+      case FirmRole.OFFICE_MANAGER:
         return 'success' as const;
       case FirmRole.LAWYER:
         return 'secondary' as const;
@@ -110,7 +116,7 @@ export default function TeamPage() {
   };
 
   const canRemoveMember = (member: TeamMember) => {
-    if (member.id === user?.id) return false;
+    if (!canManageMembers || member.id === user?.id) return false;
     if (member.firmRole === FirmRole.OWNER) {
       const ownerCount = members.filter((m) => m.firmRole === FirmRole.OWNER).length;
       if (ownerCount <= 1) return false;
@@ -135,7 +141,7 @@ export default function TeamPage() {
   };
 
   const canChangeRole = (member: TeamMember) => {
-    if (member.id === user?.id) return false;
+    if (!canManageMembers || member.id === user?.id) return false;
     if (member.firmRole === FirmRole.OWNER) {
       const ownerCount = members.filter((m) => m.firmRole === FirmRole.OWNER).length;
       if (ownerCount <= 1) return false;
@@ -231,7 +237,7 @@ export default function TeamPage() {
                 onChange={(e) => setInviteRole(e.target.value as FirmRole)}
                 className="h-9 rounded-lg border border-input bg-card px-3 text-sm"
               >
-                {ROLE_OPTIONS.map((opt) => (
+                {inviteRoleOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{d.team[opt.labelKey]}</option>
                 ))}
               </select>

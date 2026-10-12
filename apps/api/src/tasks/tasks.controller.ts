@@ -99,17 +99,19 @@ export class TasksController {
   updateOnHold(
     @Param('caseId') caseId: string,
     @Param('taskId') taskId: string,
+    @CurrentUser() user: AuthUser,
     @Body() dto: UpdateTaskOnHoldDto,
   ) {
-    return this.tasksService.updateOnHold(caseId, taskId, dto);
+    return this.tasksService.updateOnHold(caseId, taskId, user, dto);
   }
 
   @Post(':taskId/hold/resume')
   resumeFromOnHold(
     @Param('caseId') caseId: string,
     @Param('taskId') taskId: string,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.tasksService.resumeFromOnHold(caseId, taskId);
+    return this.tasksService.resumeFromOnHold(caseId, taskId, user);
   }
 
   @Delete(':taskId')

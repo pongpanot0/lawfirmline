@@ -1,16 +1,14 @@
-import { EXPENSE_CATEGORIES, MONEY_MAX } from '@lawfirm/shared';
+import { EXPENSE_CATEGORIES, MONEY_MAX, canActOnReview, hasFirmCapability } from '@lawfirm/shared';
 import type { AgendaItem } from '@lawfirm/shared';
 import type { TaskItem } from './api/types';
 
 export function canReviewTask(task: TaskItem, user: { id: string; firmRole?: string | null }, leadLawyerId = task.case?.leadLawyerId) {
-  if (task.status !== 'PENDING_REVIEW') return false;
-  if (!task.caseId) return task.assigneeId === user.id;
-  return task.reviewerId ? task.reviewerId === user.id : user.firmRole === 'OWNER' || leadLawyerId === user.id;
+  return canActOnReview({ ...task, leadLawyerId }, user.id, user.firmRole);
 }
 
 export function canToggleTask(task: TaskItem, user: { id: string; firmRole?: string | null }) {
   if (task.status === 'PENDING_REVIEW' || task.requiresReview || task.routine) return false;
-  return task.assigneeId === user.id || (!!task.caseId && (user.firmRole === 'OWNER' || task.case?.leadLawyerId === user.id));
+  return task.assigneeId === user.id || (!!task.caseId && (hasFirmCapability(user.firmRole, 'runOperations') || task.case?.leadLawyerId === user.id));
 }
 
 export function actionAppRoute(item: { id: string; kind: string; url: string }): string | null {

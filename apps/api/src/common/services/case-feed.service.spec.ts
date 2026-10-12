@@ -69,6 +69,35 @@ describe('CaseFeedService', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('writes a stage-only move as one CaseStatusLog row with the unchanged status', async () => {
+    await service.log({
+      caseId: 'case-1', userId: 'u1', type: ActivityType.STAGE_CHANGE, title: 'ขั้นตอน',
+      stageTransition: { from: 'HEARING', to: 'FILING', note: 'แก้คำฟ้อง', status: CaseStatus.IN_PROGRESS },
+    });
+
+    expect(prisma.caseStatusLog.create).toHaveBeenCalledWith({
+      data: {
+        caseId: 'case-1', fromStatus: 'IN_PROGRESS', toStatus: 'IN_PROGRESS',
+        fromStage: 'HEARING', toStage: 'FILING', note: 'แก้คำฟ้อง', changedById: 'u1',
+      },
+    });
+  });
+
+  it('combines a status and a stage change into one row', async () => {
+    await service.log({
+      caseId: 'case-1', userId: 'u1', type: ActivityType.STATUS_CHANGE, title: 'ปิดคดี',
+      statusTransition: { from: CaseStatus.IN_PROGRESS, to: CaseStatus.CLOSED },
+      stageTransition: { from: 'HEARING', to: 'CLOSING' },
+    });
+
+    expect(prisma.caseStatusLog.create).toHaveBeenLastCalledWith({
+      data: {
+        caseId: 'case-1', fromStatus: 'IN_PROGRESS', toStatus: 'CLOSED',
+        fromStage: 'HEARING', toStage: 'CLOSING', note: null, changedById: 'u1',
+      },
+    });
+  });
+
   describe('error handling', () => {
     const params = { caseId: 'case-1', userId: 'u1', type: ActivityType.NOTE, title: 't' };
 

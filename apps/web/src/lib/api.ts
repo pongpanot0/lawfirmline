@@ -1,6 +1,14 @@
 import { withFirmSlugHeaders } from './firm-slug';
 import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { taskUpdatePath } from './task-detail';
+import type { CaseProceedingItem } from './proceedings';
+
+export type { CaseProceedingItem } from './proceedings';
+
+export interface ProceedingActionResult {
+  proceeding: CaseProceedingItem | null;
+  suggestions: number;
+}
 import { actionSuccessMessage, isActionRequest, publishActionFeedback } from './action-feedback';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -50,6 +58,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Parsed JSON error body — some errors carry data the UI acts on (e.g. CONFLICT_FOUND matches). */
+    public body?: unknown,
   ) {
     super(message);
   }
@@ -94,8 +104,9 @@ export async function request<T>(
     const body = await res.json().catch(() => ({}));
     if (res.status === 401 && refreshAuth) clearSession();
     const message = parseApiErrorMessage(body, res.statusText);
-    if (isAction) publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
-    throw new ApiError(res.status, message);
+    // A 409 CONFLICT_FOUND is a prompt for the user, not a failure.
+    if (isAction && (body as { code?: string })?.code !== 'CONFLICT_FOUND') publishActionFeedback('error', `ทำรายการไม่สำเร็จ: ${message}`);
+    throw new ApiError(res.status, message, body);
   }
 
   if (isAction) publishActionFeedback('success', actionSuccessMessage(method));
@@ -284,6 +295,7 @@ export interface CalendarEventItem {
   startAt: string;
   endAt?: string | null;
   type: string;
+  courtEventKind?: import('@lawfirm/shared').CourtEventKind | null;
   assigneeId?: string | null;
   assignees?: { userId: string; user: { id: string; firstName: string; lastName: string } }[];
   leaveId?: string;
@@ -351,11 +363,12 @@ export interface CaseItem {
   clientId?: string | null;
   clientName?: string | null;
   /** ฝ่ายเรา — โจทก์ (PLAINTIFF) หรือจำเลย (DEFENDANT) */
-  partyRole?: 'PLAINTIFF' | 'DEFENDANT' | null;
+  partyRole?: import('@lawfirm/shared').PartyRole | null;
   courtName?: string | null;
   courtLevel?: import('@lawfirm/shared').CourtLevel | null;
   blackCaseNumber?: string | null;
   redCaseNumber?: string | null;
+  proceedings?: CaseProceedingItem[];
   customFields?: Record<string, unknown> | null;
   claimedAmount?: number | null;
   estimatedFee?: number | null;
@@ -367,11 +380,16 @@ export interface CaseItem {
   client?: { id: string; name: string } | null;
   customers?: CustomerShareItem[];
   additionalClients?: AdditionalClientItem[];
-  participants?: Array<{ name: string; role: string }>;
+  participants?: CaseParticipantItem[];
   cargoClaim?: { id: string } | null;
   intake?: { id: string; status: string } | null;
   relatedIntakes?: Array<{ id: string; status: string }>;
 }
+
+/** GET /cases rows: party names and sides only (no contact data, PDPA) and no proceedings. */
+export type CaseListItem = Omit<CaseItem, 'participants' | 'proceedings'> & {
+  participants?: Pick<CaseParticipantItem, 'id' | 'name' | 'role' | 'side'>[];
+};
 
 export interface CargoDocumentRequirementItem {
   id: string;
@@ -647,6 +665,8 @@ export interface CaseParticipantItem {
   opposingInsurer?: string | null;
   medicalLicenseNo?: string | null;
   notes?: string | null;
+  clientId?: string | null;
+  representedByParticipantId?: string | null;
 }
 
 export interface CaseDetail extends CaseItem {
@@ -686,7 +706,6 @@ export interface CaseDetail extends CaseItem {
     type: string;
   }>;
   activities?: CaseActivityItem[];
-  participants?: CaseParticipantItem[];
   client?: {
     id: string;
     name: string;
@@ -726,11 +745,15 @@ export interface TaskItem {
   scheduledFor?: string | null;
   requiresReview?: boolean;
   reviewerId?: string | null;
+  reviewer?: TaskPerson | null;
+  onHold?: { reason: string; endedAt: string | null; category?: string | null; nextFollowUpAt?: string | null } | null;
+  submittedAt?: string | null;
+  requiresAttachment?: boolean;
   assignedAt?: string | null;
   acknowledgedAt?: string | null;
   planConfirmedAt?: string | null;
   caseId?: string | null;
-  case?: { id: string; ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null } | null;
+  case?: { id: string; ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null; leadLawyerId?: string; leadLawyer?: TaskPerson | null } | null;
   parentId?: string | null;
   title: string;
   description?: string | null;
@@ -845,6 +868,7 @@ export interface ActiveTask {
 }
 
 export interface DashboardStats {
+  reviewQueue?: import('@lawfirm/shared').ReviewQueueItem[];
   firmId: string;
   firmName: string;
   role: import('@lawfirm/shared').Role;
@@ -1281,7 +1305,7 @@ function announceDocumentUpload(scope: 'case' | 'intake', scopeId: string, docum
   }
 }
 
-export type WorkflowRole = 'OWNER' | 'SENIOR_LAWYER' | 'LAWYER' | 'ASSISTANT' | 'EXTERNAL';
+export type WorkflowRole = 'OWNER' | 'SENIOR_LAWYER' | 'OFFICE_MANAGER' | 'LAWYER' | 'ASSISTANT' | 'EXTERNAL';
 
 export interface WorkflowStepDef {
   title: string;
@@ -1611,7 +1635,7 @@ export const api = {
     if (params?.caseTypeId) query.set('caseTypeId', params.caseTypeId);
     if (params?.userId) query.set('userId', params.userId);
     const qs = query.toString();
-    return request<CaseItem[]>(`/cases${qs ? `?${qs}` : ''}`, { token });
+    return request<CaseListItem[]>(`/cases${qs ? `?${qs}` : ''}`, { token });
   },
 
   getCase: (token: string, id: string) =>
@@ -1961,7 +1985,8 @@ export const api = {
     request(`/intake/${intakeId}/tasks/${taskId}`, { method: 'DELETE', token }),
 
   getTaskInbox: (token: string) => request<Array<TaskItem & { assigneeId: string | null }>>('/dashboard/tasks', { token }),
-  getMyTodos: (token: string) => request<TaskItem[]>('/todos', { token }),
+  getMyTodos: (token: string, view: 'all' | 'review' = 'all') =>
+    request<TaskItem[]>(view === 'all' ? '/todos' : `/todos?view=${view}`, { token }),
 
   getActionQueue: (token: string) => request<import('@/components/agenda/ActionCenter').ActionQueue>('/agenda/actions', { token }),
 
@@ -2017,6 +2042,30 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  recordFiling: (token: string, caseId: string, data: { filedAt: string; blackCaseNumber?: string }) =>
+    request<ProceedingActionResult>(`/cases/${caseId}/proceedings/filing`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  recordService: (token: string, caseId: string, data: { servedAt: string; method: 'PERSONAL' | 'POSTED' }) =>
+    request<ProceedingActionResult>(`/cases/${caseId}/proceedings/service`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  recordJudgment: (
+    token: string,
+    caseId: string,
+    data: { courtLevel: string; judgmentAt: string; outcome: string; amount?: number; redCaseNumber?: string; note?: string },
+  ) =>
+    request<ProceedingActionResult>(`/cases/${caseId}/proceedings/judgment`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  recordAppealServed: (token: string, caseId: string, data: { servedAt: string }) =>
+    request<ProceedingActionResult>(`/cases/${caseId}/proceedings/appeal-served`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  updateProceeding: (
+    token: string,
+    caseId: string,
+    courtLevel: string,
+    data: { courtName?: string; blackCaseNumber?: string; redCaseNumber?: string },
+  ) =>
+    request<CaseProceedingItem>(`/cases/${caseId}/proceedings/${courtLevel}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+
   applyDeadlineTrigger: (
     token: string,
     caseId: string,
@@ -2048,7 +2097,7 @@ export const api = {
   handoffTodo: (
     token: string,
     taskId: string,
-    data: { reviewerId: string; note?: string; stageDueDate?: string },
+    data: { reviewerId: string; note: string; stageDueDate?: string },
   ) =>
     request<TaskItem>(`/todos/${taskId}/handoff`, {
       method: 'PATCH',
@@ -2092,7 +2141,7 @@ export const api = {
     token: string,
     caseId: string,
     taskId: string,
-    data: { note?: string; stageDueDate?: string },
+    data: { note: string; stageDueDate?: string },
   ) =>
     request<TaskItem>(`/cases/${caseId}/tasks/${taskId}/handoff`, {
       method: 'PATCH',
@@ -3034,8 +3083,8 @@ export const api = {
   deleteTaskAttachment: (token: string, taskId: string, attachmentId: string) =>
     request(`/tasks/${taskId}/attachments/${attachmentId}`, { method: 'DELETE', token }),
 
-  addTaskComment: (token: string, taskId: string, body: string) =>
-    request<TaskCommentItem>(`/tasks/${taskId}/comments`, { method: 'POST', token, body: JSON.stringify({ body }) }),
+  addTaskComment: (token: string, taskId: string, body: string, mentionedUserIds?: string[]) =>
+    request<TaskCommentItem>(`/tasks/${taskId}/comments`, { method: 'POST', token, body: JSON.stringify({ body, mentionedUserIds }) }),
 
   deleteTaskComment: (token: string, taskId: string, commentId: string) =>
     request(`/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE', token }),
@@ -3069,11 +3118,15 @@ export const api = {
   listPortalSubmissions: (token: string) =>
     request<PortalSubmissionStaffEntry[]>('/intake/portal-submissions', { token }),
 
-  convertPortalSubmission: (token: string, submissionId: string, officePlannedDate?: string) =>
+  convertPortalSubmission: (
+    token: string,
+    submissionId: string,
+    data: { officePlannedDate?: string; conflictOverrideReason?: string } = {},
+  ) =>
     request<IntakeItem>(`/intake/portal-submissions/${submissionId}/convert`, {
       method: 'POST',
       token,
-      body: JSON.stringify(officePlannedDate ? { officePlannedDate } : {}),
+      body: JSON.stringify(data),
     }),
 
   createClosingEmailDraft: (token: string, caseId: string, selectedActivityIds: string[]) =>
@@ -3098,10 +3151,11 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  approveClosingEmailDraft: (token: string, caseId: string, draftId: string) =>
+  approveClosingEmailDraft: (token: string, caseId: string, draftId: string, contactIds: string[]) =>
     request<ClosingEmailDraft>(`/cases/${caseId}/closing-email-drafts/${draftId}/approve`, {
       method: 'POST',
       token,
+      body: JSON.stringify({ contactIds }),
     }),
 
   listContactCaseAccess: (token: string, caseId: string) =>
@@ -3352,6 +3406,10 @@ export interface DateSuggestionItem {
   deadlineRule?: { label: string; trigger: DeadlineTriggerValue } | null;
   status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
   calendarEventId?: string | null;
+  /** RULE only: the due year has fewer than 19 holidays configured — check the date by hand. */
+  holidayDataIncomplete?: boolean;
+  /** Gregorian year of the due date (Bangkok). */
+  dueYear?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -3532,9 +3590,11 @@ export interface ClosingEmailDraft {
   bodyText: string;
   recipientKind: 'CLIENT' | 'CUSTOMER';
   recipientClientId: string | null;
-  recipientClient?: { id: string; name: string } | null;
+  recipientClient?: { id: string; name: string; contacts?: { id: string; name: string; email: string | null; isPrimary: boolean }[] } | null;
   selectedActivityIds: string[];
   missingDataNotes: string[];
   status: 'DRAFT' | 'APPROVED';
+  sentAt?: string | null;
+  sentTo?: string[];
   createdAt: string;
 }

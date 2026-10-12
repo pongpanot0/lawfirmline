@@ -3,6 +3,8 @@ import { DateSuggestionStatus, EventType } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { Prisma } from '../generated/prisma';
 import { CalendarService } from '../calendar/calendar.service';
+import { incompleteHolidayYears } from '../holidays/holiday-coverage';
+import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { ConfirmDateSuggestionDto } from './dto/date-suggestion.dto';
 
 @Injectable()
@@ -13,13 +15,30 @@ export class DateSuggestionsService {
   ) {}
 
   async listForCase(caseId: string, status: DateSuggestionStatus = DateSuggestionStatus.PENDING) {
-    return this.prisma.documentDateSuggestion.findMany({
+    const rows = await this.prisma.documentDateSuggestion.findMany({
       where: { caseId, status },
       // A rule-derived suggestion has no source excerpt to show; the rule it
       // came from is what tells the lawyer where the date is from.
       include: { deadlineRule: { select: { label: true, trigger: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    const yearOf = (date: Date) => Number(bangkokDayKey(date).slice(0, 4));
+    // Only computed dates depend on the holiday table; a date read from a document does not.
+    // Dates beyond next year (e.g. the 10-year enforcement reminder) are not expected to have
+    // holidays entered yet, so warning on them would be noise.
+    const lastCheckedYear = yearOf(new Date()) + 1;
+    const incomplete = await incompleteHolidayYears(
+      this.prisma,
+      rows
+        .filter((row) => row.source === 'RULE')
+        .map((row) => yearOf(row.suggestedDate))
+        .filter((year) => year <= lastCheckedYear),
+    );
+    return rows.map((row) => ({
+      ...row,
+      dueYear: yearOf(row.suggestedDate),
+      holidayDataIncomplete: row.source === 'RULE' && incomplete.has(yearOf(row.suggestedDate)),
+    }));
   }
 
   private async findPendingOrThrow(caseId: string, id: string, db: Prisma.TransactionClient) {

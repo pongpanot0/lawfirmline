@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Plus, Wallet, Receipt, Paperclip, FileText, Clock } from 'lucide-react';
-import { FirmRole } from '@lawfirm/shared';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ExpenseItem, FinanceSummary } from '@/lib/api';
 import { PageHeader, KpiCard } from '@/components/samnuan/PageHeader';
@@ -41,7 +41,9 @@ export default function ExpensesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [requesterFilter, setRequesterFilter] = useState('');
 
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const canApprove = hasFirmCapability(user?.firmRole, 'approveExpenses');
+  // /finance/summary needs manageInvoices; everyone else sees the list without the firm KPI row.
+  const canSeeFinance = hasFirmCapability(user?.firmRole, 'manageInvoices');
 
   const statusLabels: Record<string, string> = {
     DRAFT: d.expenses.statusDraft,
@@ -60,20 +62,20 @@ export default function ExpensesPage() {
     setError('');
     const expenseParams = {
       ...(statusFilter ? { status: statusFilter } : {}),
-      ...(isOwner && requesterFilter ? { userId: requesterFilter } : {}),
+      ...(canApprove && requesterFilter ? { userId: requesterFilter } : {}),
     };
     const loads: Promise<unknown>[] = [
       api.getExpenses(authToken, Object.keys(expenseParams).length ? expenseParams : undefined),
-      api.getFinanceSummary(authToken),
+      canSeeFinance ? api.getFinanceSummary(authToken) : Promise.resolve(null),
     ];
-    if (isOwner) {
+    if (canApprove) {
       loads.push(api.getTeamMembers(authToken).catch(() => []));
     }
     Promise.all(loads)
       .then(([e, f, m]) => {
         setExpenses(e as ExpenseItem[]);
         setSelectedDraftIds(prev => prev.filter(id => (e as ExpenseItem[]).some(item => item.id === id)));
-        setFinance(f as FinanceSummary);
+        setFinance(f as FinanceSummary | null);
         if (Array.isArray(m)) setMembers(m as TeamMember[]);
       })
       .catch((err) => {
@@ -81,7 +83,7 @@ export default function ExpensesPage() {
         setError(err instanceof Error ? err.message : d.expenses.loadFailed);
       })
       .finally(() => setLoading(false));
-  }, [token, reloadKey, statusFilter, requesterFilter, isOwner, d.expenses.loadFailed]);
+  }, [token, reloadKey, statusFilter, requesterFilter, canApprove, canSeeFinance, d.expenses.loadFailed]);
 
   const draftExpenses = useMemo(
     () => expenses.filter((e) => e.status === 'DRAFT'),
@@ -142,7 +144,7 @@ export default function ExpensesPage() {
 
   if (loading) return <PageLoading title={d.common.loading} lines={4} />;
 
-  if (error && !finance) {
+  if (error && !expenses.length && !finance) {
     return (
       <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
         <p className="text-destructive">{error}</p>
@@ -150,18 +152,18 @@ export default function ExpensesPage() {
     );
   }
 
-  if (!finance) return null;
-
-  const colSpan = (isOwner ? 1 : 0) + 5;
+  const colSpan = (canApprove ? 1 : 0) + 5;
 
   return (
     <div>
       <PageHeader
         title={d.expenses.title}
         description={
-          finance.scope === 'user'
-            ? `ค่าใช้จ่ายของคุณ · ${finance.firmName}`
-            : `บันทึก เบิก และติดตามค่าใช้จ่ายของ ${finance.firmName}`
+          !finance
+            ? 'ค่าใช้จ่ายของคุณ'
+            : finance.scope === 'user'
+              ? `ค่าใช้จ่ายของคุณ · ${finance.firmName}`
+              : `บันทึก เบิก และติดตามค่าใช้จ่ายของ ${finance.firmName}`
         }
         actions={
           <div className="flex items-center gap-2">
@@ -187,7 +189,7 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      {finance && <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <KpiCard
           label={d.expenses.draftKpi}
           value={formatCurrency(finance.draftTotal ?? 0)}
@@ -209,7 +211,7 @@ export default function ExpensesPage() {
           change={`${finance.expenseCount} รายการ`}
           trend="down"
         />
-      </div>
+      </div>}
 
       <div className="mb-4 flex flex-wrap gap-2">
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -230,7 +232,7 @@ export default function ExpensesPage() {
             ))}
           </select>
         </label>
-        {isOwner && (
+        {canApprove && (
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{d.expenses.filterRequester}</span>
             <select
@@ -274,7 +276,7 @@ export default function ExpensesPage() {
                   />
                 </TableHead>
                 <TableHead>{d.expenses.descriptionField}</TableHead>
-                {isOwner && <TableHead>{d.expenses.requester}</TableHead>}
+                {canApprove && <TableHead>{d.expenses.requester}</TableHead>}
                 <TableHead>{d.expenses.caseField}</TableHead>
                 <TableHead>{d.expenses.amount}</TableHead>
               </TableRow>
@@ -310,7 +312,7 @@ export default function ExpensesPage() {
                         </button>
                       )}
                     </TableCell>
-                    {isOwner && (
+                    {canApprove && (
                       <TableCell className="text-sm text-muted-foreground">
                         {e.user.firstName} {e.user.lastName}
                       </TableCell>
@@ -331,7 +333,7 @@ export default function ExpensesPage() {
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>{d.expenses.submittedList}</CardTitle>
-          {isOwner && (
+          {canApprove && (
             <Link href="/admin/reimbursements">
               <Button variant="outline" size="sm">
                 {d.expenses.approveClaims}
@@ -344,7 +346,7 @@ export default function ExpensesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10"><Checkbox aria-label="เลือกประวัติทั้งหมด" checked={submittedExpenses.length > 0 && submittedExpenses.every(e => selectedDraftIds.includes(e.id))} onChange={() => setSelectedDraftIds(prev => submittedExpenses.every(e => prev.includes(e.id)) ? prev.filter(id => !submittedExpenses.some(e => e.id === id)) : [...new Set([...prev, ...submittedExpenses.map(e => e.id)])])} /></TableHead><TableHead>{d.expenses.descriptionField}</TableHead>
-                {isOwner && <TableHead>{d.expenses.requester}</TableHead>}
+                {canApprove && <TableHead>{d.expenses.requester}</TableHead>}
                 <TableHead>{d.expenses.caseField}</TableHead>
                 <TableHead>{d.expenses.amount}</TableHead>
                 <TableHead>{d.expenses.status}</TableHead>
@@ -370,7 +372,7 @@ export default function ExpensesPage() {
                         </button>
                       )}
                     </TableCell>
-                    {isOwner && (
+                    {canApprove && (
                       <TableCell className="text-sm text-muted-foreground">
                         {e.user.firstName} {e.user.lastName}
                       </TableCell>

@@ -11,7 +11,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { EXPENSE_CATEGORIES, TaskStatus } from '@lawfirm/shared';
+import { COURT_EVENT_KIND_LABELS, CourtEventKind, EXPENSE_CATEGORIES, TaskStatus } from '@lawfirm/shared';
 import { api, ApiError, DocumentItem, TaskItem } from '@/lib/api';
 import { CourtDayResponse, CourtDayState, courtDayCopy } from '@/lib/court-day';
 import { useAuth } from '@/lib/auth';
@@ -865,6 +865,19 @@ export function CourtDayPanel({ eventId }: { eventId: string }) {
                       maxLength={200}
                       onChange={(e) => edit({ nextTitle: e.target.value })}
                     />
+                  </label>
+                  <label className="block text-sm">
+                    {t.nextKind}
+                    <select
+                      className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={state.nextKind ?? ''}
+                      onChange={(e) => edit({ nextKind: (e.target.value || undefined) as CourtEventKind | undefined })}
+                    >
+                      <option value="">—</option>
+                      {Object.values(CourtEventKind).map((kind) => (
+                        <option key={kind} value={kind}>{COURT_EVENT_KIND_LABELS[kind]}</option>
+                      ))}
+                    </select>
                   </label>
                   <label className="block min-w-0 text-sm">
                     {t.nextAt}

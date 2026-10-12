@@ -140,6 +140,21 @@ describe('AssignmentNotifierService', () => {
     expect(push.send.mock.calls[0][0][0].data.url).toBe('/expenses/claims');
   });
 
+  it('notifyFirmOwners can target other roles without passing them on', async () => {
+    prisma.firmMember.findMany.mockResolvedValue([{ userId: 'o1' }, { userId: 'm1' }]);
+    prisma.user.findMany.mockResolvedValue([{ id: 'o1', lineUserId: null, firmMembers: [] }]);
+    await svc.notifyFirmOwners({
+      firmId: 'f1', actorUserId: 'm1', category: 'LEAVE', summaryText: 'ลา', entityPath: '/leaves', line: false,
+      roles: ['OWNER', 'OFFICE_MANAGER'] as any,
+    });
+    expect(prisma.firmMember.findMany).toHaveBeenCalledWith({
+      where: { firmId: 'f1', role: { in: ['OWNER', 'OFFICE_MANAGER'] } },
+      select: { userId: true },
+    });
+    // the requester (actor) is never a recipient
+    expect(prisma.user.findMany.mock.calls[0][0].where.id).toEqual({ in: ['o1'] });
+  });
+
   it('without a firm, files each recipient under their own firm', async () => {
     prisma.user.findMany.mockResolvedValue([
       { id: 'a', lineUserId: null, firmMembers: [{ firmId: 'f-a' }] },

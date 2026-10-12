@@ -11,6 +11,8 @@ describe('TasksService.completeWorkflowStep', () => {
         findUniqueOrThrow: jest.fn().mockResolvedValue({ ...task, status: 'DONE' }),
       },
       taskAssignmentLog: { create: jest.fn() },
+      case: { findUnique: jest.fn().mockResolvedValue({ leadLawyerId: 'lead' }) },
+      caseAssignment: { upsert: jest.fn() },
     };
     const notifier: any = { notifyAssigned: jest.fn() };
     const svc = new TasksService(prisma, {} as any, {} as any, notifier, {} as any);

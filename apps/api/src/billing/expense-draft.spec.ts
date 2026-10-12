@@ -330,6 +330,26 @@ describe('BillingService — drafted expenses', () => {
     expect(JSON.stringify(where)).toContain(`"userId":"${owner.id}"`);
   });
 
+  describe('office manager', () => {
+    const officeManager = { id: 'om-1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as AuthUser;
+
+    it('cannot approve an expense (money out stays owner)', async () => {
+      await expect(
+        service.updateExpenseStatus(officeManager, 'expense-1', { status: ExpenseStatus.APPROVED }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.expense.update).not.toHaveBeenCalled();
+    });
+
+    it('lists only their own expenses', async () => {
+      mockPrisma.expense.findMany.mockResolvedValue([]);
+
+      await service.getAllExpenses(officeManager);
+
+      const where = mockPrisma.expense.findMany.mock.calls[0][0].where;
+      expect(JSON.stringify(where)).toContain(`"userId":"${officeManager.id}"`);
+    });
+  });
+
   it('lets a lawyer list their own drafts and claims only', async () => {
     mockPrisma.expense.findMany.mockResolvedValue([]);
 

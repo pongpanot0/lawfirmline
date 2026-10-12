@@ -18,6 +18,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public body?: unknown,
   ) {
     super(message);
   }
@@ -98,14 +99,16 @@ export async function api<T>(
     });
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
+    let parsed: unknown;
     try {
-      const body = await res.json();
+      parsed = await res.json();
+      const body = parsed as { message?: unknown };
       if (typeof body?.message === 'string') message = body.message;
       else if (Array.isArray(body?.message)) message = body.message.join(', ');
     } catch {
       // keep the status-line message
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, parsed);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

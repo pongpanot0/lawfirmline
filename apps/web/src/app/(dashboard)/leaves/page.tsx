@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { FirmRole } from '@lawfirm/shared';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, LeaveItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { formatDate, formatDateTime } from '@/lib/utils';
+import { leaveApprovalQueue } from '@/lib/leave-flags';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 const dateKey = (date: Date) =>
@@ -30,7 +31,7 @@ function StatusBadge({ status, d }: { status: LeaveItem['status']; d: ReturnType
 export default function LeavesPage() {
   const d = useDashboardT();
   const { token, user } = useAuth();
-  const isOwner = user?.firmRole === FirmRole.OWNER;
+  const canApproveLeave = hasFirmCapability(user?.firmRole, 'approveLeave');
   const typeLabel: Record<LeaveItem['type'], string> = {
     SICK: d.leaves.typeSick,
     PERSONAL: d.leaves.typePersonal,
@@ -120,7 +121,7 @@ export default function LeavesPage() {
 
   const today = dateKey(new Date());
   const myLeaves = user ? leaves.filter((leave) => leave.userId === user.id) : [];
-  const pending = isOwner ? leaves.filter((leave) => leave.status === 'PENDING') : [];
+  const pending = canApproveLeave && user ? leaveApprovalQueue(leaves, user) : [];
 
   return (
     <div className="w-full space-y-6">
@@ -174,7 +175,7 @@ export default function LeavesPage() {
         </CardContent>
       </Card>
 
-      {isOwner && (
+      {canApproveLeave && (
         <Card>
           <CardHeader>
             <CardTitle>{d.leaves.pendingQueue}</CardTitle>

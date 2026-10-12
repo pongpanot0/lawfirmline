@@ -1,19 +1,31 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   AuthUser,
+  CourtEventKind,
+  CourtLevel,
   DateSuggestionSource,
+  DEFAULT_DEADLINE_RULES,
   DateSuggestionStatus,
   DeadlineDayBasis,
   DeadlineTrigger,
   EventType,
+  ServiceMethod,
+  deadlineRuleApplies,
+  effectiveDeadlineRules,
+  hasFirmCapability,
 } from '@lawfirm/shared';
+import { platformAdminEmails } from '../common/guards/platform-admin.guard';
 import { PrismaService } from '../prisma/prisma.module';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CreateDeadlineRuleDto, UpdateDeadlineRuleDto } from './dto/deadline-rule.dto';
 import {
   addBangkokDays,
+  addBangkokMonths,
   bangkokDayKey,
   bangkokDayStart,
+  courtCloseAt,
+  formatBangkokDateThai,
   isBangkokWeekend,
 } from '../common/utils/bangkok-time';
 
@@ -22,35 +34,14 @@ const MAX_OFFSET_DAYS = 3650;
 /** Extra days of holiday data to load, to cover roll-forward past the offset. */
 const HOLIDAY_PADDING_DAYS = 45;
 
+/** How far from the trigger a rule can reach, in days — sizes the holiday window. */
+export function ruleSpanDays(rule: { offsetDays: number; dayBasis: string; adjustDays?: number }): number {
+  const reach = rule.dayBasis === DeadlineDayBasis.MONTHS ? Math.abs(rule.offsetDays) * 31 : Math.abs(rule.offsetDays);
+  return reach + Math.abs(rule.adjustDays ?? 0);
+}
+
 /** Accepts either the client or an open transaction, as elsewhere in the app. */
 type PrismaClientLike = PrismaService | Prisma.TransactionClient;
-
-const DEFAULT_RULES = [
-  {
-    trigger: DeadlineTrigger.COMPLAINT_SERVED,
-    label: 'ยื่นคำให้การ',
-    offsetDays: 15,
-    dayBasis: DeadlineDayBasis.CALENDAR,
-  },
-  {
-    trigger: DeadlineTrigger.JUDGMENT,
-    label: 'ยื่นอุทธรณ์',
-    offsetDays: 30,
-    dayBasis: DeadlineDayBasis.CALENDAR,
-  },
-  {
-    trigger: DeadlineTrigger.ORDER_RECEIVED,
-    label: 'โต้แย้งคำสั่งศาล',
-    offsetDays: 15,
-    dayBasis: DeadlineDayBasis.CALENDAR,
-  },
-  {
-    trigger: DeadlineTrigger.COURT_DATE,
-    label: 'สรุปผลนัดและรายงานลูกความ',
-    offsetDays: 3,
-    dayBasis: DeadlineDayBasis.BUSINESS,
-  },
-] as const;
 
 export interface DeadlineTriggerContext {
   caseId: string;
@@ -60,6 +51,14 @@ export interface DeadlineTriggerContext {
   triggerDate: Date;
   triggerEventId: string | null;
   createdById: string;
+  /** COURT_DATE: what kind of sitting the event is. */
+  courtEventKind?: CourtEventKind | null;
+  /** JUDGMENT: the level of the court that ruled; defaults to Case.courtLevel. */
+  courtLevel?: CourtLevel | null;
+  /** COMPLAINT_SERVED: รับเอง or ปิดหมาย. */
+  serviceMethod?: ServiceMethod | null;
+  /** false = the caller sends its own notice naming the deadline (default true). */
+  notify?: boolean;
 }
 
 /**
@@ -74,7 +73,11 @@ export interface DeadlineTriggerContext {
 export class DeadlineRulesService {
   private readonly logger = new Logger(DeadlineRulesService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => AssignmentNotifierService))
+    private notifier: AssignmentNotifierService,
+  ) {}
 
   /**
    * Starter platform rules. Offsets follow common Thai civil procedure;
@@ -85,50 +88,82 @@ export class DeadlineRulesService {
     if (existing > 0) return;
 
     await client.deadlineRule.createMany({
-      data: DEFAULT_RULES.map((rule) => ({ ...rule })),
+      data: DEFAULT_DEADLINE_RULES.map((rule) => ({ ...rule })),
       skipDuplicates: true,
     });
   }
 
-  async list(_user: AuthUser) {
-    await this.provisionDefaults();
-
-    return this.prisma.deadlineRule.findMany({
-      orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
-    });
+  private canEdit(user: AuthUser, firmId: string | null): boolean {
+    if (firmId === null) return platformAdminEmails().has((user.email ?? '').toLowerCase());
+    return firmId === user.firmId && hasFirmCapability(user.firmRole, 'manageFirmContent');
   }
 
-  create(_user: AuthUser, dto: CreateDeadlineRuleDto) {
-    // Platform-global rules only in this pass — ignore per-firm caseType links.
+  private assertCanEdit(user: AuthUser, firmId: string | null): void {
+    if (this.canEdit(user, firmId)) return;
+    throw new ForbiddenException(
+      firmId === null ? 'ข้อมูลส่วนกลางแก้ได้เฉพาะผู้ดูแลระบบ' : 'ไม่มีสิทธิ์แก้กฎวันครบกำหนดของสำนักงาน',
+    );
+  }
+
+  /** A rule this caller can see: global, or their own firm's. */
+  private async findVisible(user: AuthUser, id: string) {
+    const rule = await this.prisma.deadlineRule.findFirst({
+      where: { id, OR: [{ firmId: null }, { firmId: user.firmId }] },
+      select: { id: true, firmId: true },
+    });
+    if (!rule) throw new NotFoundException('Deadline rule not found');
+    return rule;
+  }
+
+  async list(user: AuthUser) {
+    await this.provisionDefaults();
+    const rows = await this.prisma.deadlineRule.findMany({
+      where: { OR: [{ firmId: null }, { firmId: user.firmId }] },
+      orderBy: [{ trigger: 'asc' }, { offsetDays: 'asc' }],
+    });
+    return rows.map((row) => ({ ...row, canEdit: this.canEdit(user, row.firmId) }));
+  }
+
+  async create(user: AuthUser, dto: CreateDeadlineRuleDto) {
+    const firmId = dto.global ? null : user.firmId;
+    this.assertCanEdit(user, firmId);
+    const label = dto.label.trim();
+    if (!label) throw new BadRequestException('ต้องระบุชื่อกำหนด');
+    const clash = await this.prisma.deadlineRule.findFirst({
+      where: { firmId, trigger: dto.trigger, label },
+      select: { id: true },
+    });
+    if (clash) throw new ConflictException('มีกฎชื่อนี้สำหรับเหตุนี้อยู่แล้ว');
     return this.prisma.deadlineRule.create({
       data: {
+        firmId,
         caseTypeId: null,
         trigger: dto.trigger,
-        label: dto.label,
+        label,
         offsetDays: dto.offsetDays,
         dayBasis: dto.dayBasis ?? DeadlineDayBasis.CALENDAR,
+        adjustDays: dto.adjustDays ?? 0,
+        courtEventKind: dto.courtEventKind ?? null,
+        courtLevel: dto.courtLevel ?? null,
+        partySide: dto.partySide ?? null,
+        serviceMethod: dto.serviceMethod ?? null,
         isActive: dto.isActive ?? true,
       },
     });
   }
 
-  async update(_user: AuthUser, id: string, dto: UpdateDeadlineRuleDto) {
-    const { caseTypeId: _ignored, ...rest } = dto as UpdateDeadlineRuleDto & {
-      caseTypeId?: string | null;
-    };
-    const result = await this.prisma.deadlineRule.updateMany({
-      where: { id },
-      data: { ...rest, caseTypeId: null },
-    });
-    if (result.count === 0) throw new NotFoundException('Deadline rule not found');
+  async update(user: AuthUser, id: string, dto: UpdateDeadlineRuleDto) {
+    const rule = await this.findVisible(user, id);
+    this.assertCanEdit(user, rule.firmId);
+    const { caseTypeId: _ignored, ...data } = dto as UpdateDeadlineRuleDto & { caseTypeId?: string | null };
+    await this.prisma.deadlineRule.update({ where: { id }, data });
     return { updated: true };
   }
 
-  async remove(_user: AuthUser, id: string) {
-    const result = await this.prisma.deadlineRule.deleteMany({
-      where: { id },
-    });
-    if (result.count === 0) throw new NotFoundException('Deadline rule not found');
+  async remove(user: AuthUser, id: string) {
+    const rule = await this.findVisible(user, id);
+    this.assertCanEdit(user, rule.firmId);
+    await this.prisma.deadlineRule.delete({ where: { id } });
     return { deleted: true };
   }
 
@@ -164,40 +199,51 @@ export class DeadlineRulesService {
   /**
    * @returns how many suggestions were created. Calendar-backed runs are
    *   deduped by `(triggerEventId, deadlineRuleId)`. Manual runs (`triggerEventId`
-   *   null) skip any rule that already has a PENDING suggestion on the case —
-   *   Postgres unique indexes do not treat NULL as equal, so `skipDuplicates`
-   *   alone cannot stop a second manual fire.
+   *   null) skip a rule only when a PENDING suggestion for it is already due on the
+   *   same Bangkok day — so each defendant served on a different day gets its own
+   *   deadline, while a double submit creates nothing. Postgres unique indexes do not
+   *   treat NULL as equal, so `skipDuplicates` alone cannot stop a second manual fire.
    */
   async applyTrigger(context: DeadlineTriggerContext, client: PrismaClientLike = this.prisma): Promise<number> {
-    const rules = await client.deadlineRule.findMany({
+    const legalCase = await client.case.findUnique({
+      where: { id: context.caseId },
+      select: { partyRole: true, courtLevel: true, leadLawyerId: true, ownRef: true },
+    });
+    const candidates = await client.deadlineRule.findMany({
       where: {
         trigger: context.trigger,
-        isActive: true,
-        // Global catalog: only null caseType rules in this pass.
+        // Case-type-specific rules are not offered in this pass.
         caseTypeId: null,
+        OR: [{ firmId: null }, { firmId: context.firmId }],
       },
     });
+    const rules = effectiveDeadlineRules(candidates, context.firmId).filter((rule) =>
+      deadlineRuleApplies(rule, {
+        courtEventKind: context.courtEventKind ?? null,
+        courtLevel: context.courtLevel ?? legalCase?.courtLevel ?? null,
+        partyRole: legalCase?.partyRole ?? null,
+        serviceMethod: context.serviceMethod ?? null,
+      }),
+    );
     if (rules.length === 0) return 0;
-
-    const openRules = await this.rulesWithoutPendingSuggestion(context.caseId, rules, context.triggerEventId, client);
-    if (openRules.length === 0) return 0;
 
     const holidays = await this.loadHolidays(
       context.triggerDate,
-      Math.max(...openRules.map((r) => r.offsetDays)),
+      Math.max(...rules.map(ruleSpanDays)),
       client,
     );
 
-    const data = openRules.map((rule) => ({
+    const computed = rules.map((rule) => ({
       caseId: context.caseId,
       label: rule.label,
-      suggestedDate: new Date(
-        `${this.computeDueDate(
+      suggestedDate: courtCloseAt(
+        this.computeDueDate(
           context.triggerDate,
           rule.offsetDays,
           rule.dayBasis as DeadlineDayBasis,
           holidays,
-        )}T00:00:00.000Z`,
+          rule.adjustDays ?? 0,
+        ),
       ),
       eventType: EventType.DEADLINE,
       sourceExcerpt: null,
@@ -207,22 +253,45 @@ export class DeadlineRulesService {
       triggerEventId: context.triggerEventId,
       createdById: context.createdById,
     }));
+    const data = await this.withoutPendingDuplicates(context.caseId, computed, context.triggerEventId, client);
+    if (data.length === 0) return 0;
 
     const result = await client.documentDateSuggestion.createMany({
       data: data as never,
       skipDuplicates: true,
     });
+
+    if (result.count > 0 && legalCase && context.notify !== false) {
+      // System notice (actor ''): the lead hears about it even when they entered the trigger.
+      // Inside a caller's transaction (client !== this.prisma) the push/LINE calls must not hold
+      // the tx open — fire and forget there (the notifier swallows its own errors).
+      // ponytail: the inbox row is written outside that tx — a rolled-back trigger can leave one
+      // stale notice; move to an outbox if that ever matters.
+      const notice = this.notifier.notifyAssigned({
+        firmId: context.firmId,
+        userIds: [legalCase.leadLawyerId],
+        actorUserId: '',
+        category: NotificationCategory.CALENDAR,
+        summaryText: [
+          `วันครบกำหนดรอยืนยัน ${result.count} รายการ — คดี ${legalCase.ownRef}`,
+          ...data.map((row) => `${row.label}: ${formatBangkokDateThai(row.suggestedDate)}`),
+        ].join('\n'),
+        entityPath: `/cases/${context.caseId}?tab=calendar`,
+      });
+      if (client === this.prisma) await notice;
+      else void notice;
+    }
     return result.count;
   }
 
   /**
-   * Drop rules that already have a PENDING suggestion for this case.
-   * Calendar-backed: only rows tied to the same trigger event count.
-   * Manual: any PENDING for the rule on the case blocks a second card.
+   * Drop rows that a PENDING suggestion on the case already covers.
+   * Calendar-backed: one card per rule per trigger event, whatever its date.
+   * Manual: one card per rule per due day (Bangkok).
    */
-  private async rulesWithoutPendingSuggestion<T extends { id: string }>(
+  private async withoutPendingDuplicates<T extends { deadlineRuleId: string; suggestedDate: Date }>(
     caseId: string,
-    rules: T[],
+    rows: T[],
     triggerEventId: string | null,
     client: PrismaClientLike = this.prisma,
   ): Promise<T[]> {
@@ -231,43 +300,52 @@ export class DeadlineRulesService {
         caseId,
         status: DateSuggestionStatus.PENDING,
         source: DateSuggestionSource.RULE,
-        deadlineRuleId: { in: rules.map((r) => r.id) },
+        deadlineRuleId: { in: rows.map((r) => r.deadlineRuleId) },
         ...(triggerEventId ? { triggerEventId } : { triggerEventId: null }),
       },
-      select: { deadlineRuleId: true },
+      select: { deadlineRuleId: true, suggestedDate: true },
     });
-    const blocked = new Set(
-      existing.map((row) => row.deadlineRuleId).filter((id): id is string => id != null),
-    );
-    return rules.filter((rule) => !blocked.has(rule.id));
+    const keyOf = (ruleId: string | null, due: Date) => (triggerEventId ? `${ruleId}` : `${ruleId}|${bangkokDayKey(due)}`);
+    const blocked = new Set(existing.map((row) => keyOf(row.deadlineRuleId, row.suggestedDate)));
+    return rows.filter((row) => !blocked.has(keyOf(row.deadlineRuleId, row.suggestedDate)));
   }
 
   /**
-   * @param holidays `YYYY-MM-DD` Bangkok days that are public holidays.
-   * @returns the due date as a `YYYY-MM-DD` Bangkok day, always a working day —
-   *   a period that would end on a weekend or holiday runs to the next one.
+   * @param offset days (CALENDAR/BUSINESS) or months (MONTHS); negative = before the trigger.
+   * @param adjustDays calendar days added after the offset (e.g. −90).
+   * @returns the due date as a `YYYY-MM-DD` Bangkok day, always a working day.
+   *   A period after the trigger that ends on a weekend/holiday runs to the next
+   *   working day (ม.193/8); a deadline *before* the trigger moves back to the
+   *   previous working day so it is never missed.
    */
   computeDueDate(
     triggerDate: Date,
-    offsetDays: number,
+    offset: number,
     dayBasis: DeadlineDayBasis,
     holidays: Set<string>,
+    adjustDays = 0,
   ): string {
-    const offset = Math.min(Math.max(offsetDays, 0), MAX_OFFSET_DAYS);
+    const amount = Math.max(-MAX_OFFSET_DAYS, Math.min(offset, MAX_OFFSET_DAYS));
+    const backward = amount < 0 || adjustDays < 0;
     let cursor = bangkokDayStart(triggerDate);
 
     if (dayBasis === DeadlineDayBasis.BUSINESS) {
-      let remaining = offset;
+      const step = amount < 0 ? -1 : 1;
+      let remaining = Math.abs(amount);
       while (remaining > 0) {
-        cursor = addBangkokDays(cursor, 1);
+        cursor = addBangkokDays(cursor, step);
         if (this.isWorkingDay(cursor, holidays)) remaining--;
       }
+    } else if (dayBasis === DeadlineDayBasis.MONTHS) {
+      cursor = addBangkokMonths(cursor, amount);
     } else {
-      cursor = addBangkokDays(cursor, offset);
+      cursor = addBangkokDays(cursor, amount);
     }
+    cursor = addBangkokDays(cursor, adjustDays);
 
+    const roll = backward ? -1 : 1;
     while (!this.isWorkingDay(cursor, holidays)) {
-      cursor = addBangkokDays(cursor, 1);
+      cursor = addBangkokDays(cursor, roll);
     }
     return bangkokDayKey(cursor);
   }
@@ -276,13 +354,14 @@ export class DeadlineRulesService {
     return !isBangkokWeekend(date) && !holidays.has(bangkokDayKey(date));
   }
 
-  async loadHolidays(from: Date, maxOffsetDays: number, client: PrismaClientLike = this.prisma): Promise<Set<string>> {
+  /** Loads holidays on both sides of `from` — rules may count backwards. */
+  async loadHolidays(from: Date, spanDays: number, client: PrismaClientLike = this.prisma): Promise<Set<string>> {
     const start = bangkokDayStart(from);
     // Business-day counting can run well past the nominal offset, so load a
     // generous window rather than risk missing a holiday mid-count.
-    const span = Math.min(maxOffsetDays, MAX_OFFSET_DAYS) * 2 + HOLIDAY_PADDING_DAYS;
+    const span = Math.min(spanDays, MAX_OFFSET_DAYS) * 2 + HOLIDAY_PADDING_DAYS;
     const rows = await client.publicHoliday.findMany({
-      where: { date: { gte: start, lte: addBangkokDays(start, span) } },
+      where: { date: { gte: addBangkokDays(start, -span), lte: addBangkokDays(start, span) } },
       select: { date: true },
     });
     return new Set(rows.map((row) => bangkokDayKey(row.date)));

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { Prisma } from '../../generated/prisma';
 import { PrismaService } from '../../prisma/prisma.module';
 
@@ -28,7 +28,7 @@ export class CaseAccessService {
       return { id: '__external_has_no_case_access__' };
     }
 
-    if (user.firmRole === FirmRole.OWNER) {
+    if (hasFirmCapability(user.firmRole, 'viewAllCases')) {
       return tenantFilter;
     }
 
@@ -65,7 +65,7 @@ export class CaseAccessService {
   }
 
   getCaseFilterForFinancials(user: AuthUser): Prisma.CaseWhereInput {
-    if (user.firmRole === FirmRole.OWNER) {
+    if (hasFirmCapability(user.firmRole, 'viewAllCases')) {
       return { firmId: user.firmId, ...CaseAccessService.NOT_DELETED };
     }
 
@@ -96,11 +96,16 @@ export class CaseAccessService {
       ],
     };
 
-    if (user.firmRole === FirmRole.OWNER) {
+    if (hasFirmCapability(user.firmRole, 'viewAllCases')) {
       return firmScope;
     }
 
     const handedOff = this.deliveredTaskFilter(user);
+    // Reviewers see what awaits them on the case board (the same rule as the review queue).
+    const awaitingMe: Prisma.TaskWhereInput[] = [
+      { status: 'PENDING_REVIEW', reviewerId: user.id },
+      { status: 'PENDING_REVIEW', reviewerId: null, case: { leadLawyerId: user.id } },
+    ];
     if (user.firmRole === FirmRole.SENIOR_LAWYER) {
       return {
         AND: [
@@ -115,6 +120,7 @@ export class CaseAccessService {
               },
               { assigneeId: null },
               handedOff,
+              ...awaitingMe,
             ],
           },
         ],
@@ -122,7 +128,7 @@ export class CaseAccessService {
     }
 
     return {
-      AND: [firmScope, { OR: [{ assigneeId: user.id }, { assigneeId: null }, handedOff] }],
+      AND: [firmScope, { OR: [{ assigneeId: user.id }, { assigneeId: null }, handedOff, ...awaitingMe] }],
     };
   }
 
@@ -135,8 +141,8 @@ export class CaseAccessService {
           { assignee: { firmMembers: { some: { firmId: user.firmId } } } },
           { createdBy: { firmMembers: { some: { firmId: user.firmId } } } },
         ] },
-        ...(user.firmRole === FirmRole.OWNER ? [] : [{ OR: [
-          { assigneeId: user.id }, { createdById: user.id }, this.getTaskFilterForUser(user),
+        ...(hasFirmCapability(user.firmRole, 'viewAllCases') ? [] : [{ OR: [
+          { assigneeId: user.id }, { createdById: user.id }, { reviewerId: user.id }, this.getTaskFilterForUser(user),
         ] }]),
       ],
     };
@@ -153,7 +159,7 @@ export class CaseAccessService {
 
   /** Clients visible when the user owns the firm or has a visible case in any client role. */
   getClientFilterForUser(user: AuthUser): Prisma.ClientWhereInput {
-    if (user.firmRole === FirmRole.OWNER) {
+    if (hasFirmCapability(user.firmRole, 'viewAllCases')) {
       return { firmId: user.firmId };
     }
 
@@ -173,7 +179,7 @@ export class CaseAccessService {
       return { id: '__external_has_no_intake_access__' };
     }
 
-    if (user.firmRole === FirmRole.OWNER) {
+    if (hasFirmCapability(user.firmRole, 'viewAllCases')) {
       return tenantFilter;
     }
 
@@ -212,7 +218,7 @@ export class CaseAccessService {
       return { id: '__external_has_no_thread_access__' };
     }
 
-    if (user.firmRole === FirmRole.OWNER || user.firmRole === FirmRole.SENIOR_LAWYER) {
+    if (hasFirmCapability(user.firmRole, 'viewAllCases') || user.firmRole === FirmRole.SENIOR_LAWYER) {
       return tenantFilter;
     }
 

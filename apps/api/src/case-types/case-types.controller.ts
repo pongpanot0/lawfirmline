@@ -12,13 +12,13 @@ import {
 import { CaseTypesService } from './case-types.service';
 import { CreateCaseTypeDto, UpdateCaseTypeDto } from './dto/case-type.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { Role, AuthUser } from '@lawfirm/shared';
+import { AuthUser } from '@lawfirm/shared';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('case-types')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 export class CaseTypesController {
   constructor(private caseTypesService: CaseTypesService) {}
 
@@ -33,19 +33,22 @@ export class CaseTypesController {
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageFirmContent')
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateCaseTypeDto) {
     return this.caseTypesService.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageFirmContent')
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateCaseTypeDto) {
     return this.caseTypesService.update(user, id, dto);
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @UseGuards(FirmRoleGuard)
+  @RequireCapability('manageFirmContent')
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.caseTypesService.remove(user, id);
   }

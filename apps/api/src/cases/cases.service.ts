@@ -1,6 +1,9 @@
 import { assertFirmRefs } from '../common/firm-refs';
+import { syncLimitationReminder } from '../common/limitation-reminder';
+import { addOpponents, ensureOurClientParticipant } from './party-sync';
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
   ForbiddenException,
@@ -13,7 +16,10 @@ import {
   CaseOutcome,
   CaseStage,
   CaseStatus,
+  CourtLevel,
   FirmRole,
+  hasFirmCapability,
+  isBackwardStage,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -26,8 +32,16 @@ import { CaseActivitiesService } from './case-activities.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CLIENT_CONTACT_SELECT } from '../clients/client-contact.select';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
+import { ConflictCheckService } from '../conflict-check/conflict-check.service';
 import { Optional } from '@nestjs/common';
 import { formatCaseNotificationReference } from '../notifications/reference-label';
+import {
+  currentLevel,
+  ensureProceeding,
+  mirrorProceeding,
+  saveCaseNumbers,
+  snapshotCurrentLevel,
+} from './proceeding-mirror';
 
 const OWN_REF_TAKEN_MESSAGE = 'เลขคดีนี้ถูกใช้กับคดีอื่นในสำนักงานแล้ว กรุณาใช้เลขอื่น';
 
@@ -36,14 +50,25 @@ function caseAssignmentSummary(prefix: string, legalCase: { title: string; ownRe
   return `${prefix}\nคดี: ${legalCase.title}${reference ? `\n${reference}` : ''}`;
 }
 
+type ProceedingsBefore = {
+  courtLevel: string | null;
+  courtName: string | null;
+  blackCaseNumber: string | null;
+  redCaseNumber: string | null;
+};
+const LEVEL_SWITCH_NUMBERS_MESSAGE = 'เปลี่ยนระดับศาลแล้วบันทึกก่อน แล้วจึงแก้เลขคดีของศาลชั้นนั้น';
+
 @Injectable()
 export class CasesService {
+  private readonly logger = new Logger(CasesService.name);
+
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
     private caseFeed: CaseFeedService,
     private activitiesService: CaseActivitiesService,
     private assignmentNotifier: AssignmentNotifierService,
+    private conflictCheck: ConflictCheckService,
     @Optional() private cargoClaims?: CargoClaimsService,
   ) {}
 
@@ -54,7 +79,9 @@ export class CasesService {
     caseType: { select: { id: true, name: true } },
     client: { select: { id: true, name: true } },
     cargoClaim: { select: { id: true } },
-    participants: { select: { name: true, role: true } },
+    participants: { orderBy: { createdAt: 'asc' as const } },
+    // CourtLevel enum is declared TRIAL, APPEAL, SUPREME, so asc = court order.
+    proceedings: { orderBy: { courtLevel: 'asc' as const } },
     // งานก่อนฟ้อง (โนติส/เจรจา) ยังบันทึกอยู่บน intake ที่ผูก 1:1 — หน้าคดีใช้แสดงสถานะ
     intake: {
       select: {
@@ -147,9 +174,18 @@ export class CasesService {
       where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), searchFilter];
     }
 
+    // The list (board, mobile caches) gets party names only — contact data and ID numbers stay
+    // on the detail response (PDPA). Proceedings are a detail-page concern too.
+    const { proceedings: _proceedings, ...listInclude } = this.caseInclude;
     return this.prisma.case.findMany({
       where,
-      include: this.caseInclude,
+      include: {
+        ...listInclude,
+        participants: {
+          select: { id: true, name: true, role: true, side: true },
+          orderBy: { createdAt: 'asc' as const },
+        },
+      },
       orderBy: { updatedAt: 'desc' },
     });
   }
@@ -346,6 +382,7 @@ export class CasesService {
       }
     }
 
+    let registeredClientName: string | undefined;
     if (dto.clientId) {
       const client = await this.prisma.client.findFirst({
         where: { id: dto.clientId, firmId: user.firmId },
@@ -353,6 +390,7 @@ export class CasesService {
       if (!client) {
         throw new BadRequestException('Invalid client');
       }
+      registeredClientName = client.name;
       if (!dto.clientName) {
         dto.clientName = client.name;
       }
@@ -378,13 +416,30 @@ export class CasesService {
       }),
     );
 
+    // Spec L6: nothing is created until our side and every opponent clear the conflict search.
+    const additionalNames = dto.clients?.length
+      ? (await this.prisma.client.findMany({
+          where: { id: { in: dto.clients.map((c) => c.clientId) }, firmId: user.firmId },
+          select: { name: true },
+        })).map((c) => c.name)
+      : [];
+    // The name typed on the case and the client's registered name can differ — search both.
+    const ourNames = [...new Set([dto.clientName, registeredClientName, ...additionalNames].filter((n): n is string => !!n))];
+    const gate = await this.conflictCheck.gateNewCase(user, {
+      parties: [
+        ...ourNames.map((name) => ({ name, side: 'OURS' as const })),
+        ...(dto.opponents ?? []).map((o) => ({ name: o.name, side: 'OPPONENT' as const })),
+      ],
+      overrideReason: dto.conflictOverrideReason,
+    });
+
     const created = await this.insertCase(this.prisma, user.firmId, dto.ownRef, {
       customerRef: dto.customerRef,
       title: dto.title,
       description: dto.description,
       clientId: dto.clientId,
       clientName: dto.clientName,
-      partyRole: dto.partyRole as any,
+      partyRole: dto.partyRole,
       courtName: dto.courtName,
       courtLevel: dto.courtLevel,
       blackCaseNumber: dto.blackCaseNumber || null,
@@ -392,6 +447,7 @@ export class CasesService {
       customFields: dto.customFields as Prisma.InputJsonValue,
       estimatedFee: dto.estimatedFee,
       claimedAmount: dto.claimedAmount,
+      limitationDeadline: dto.limitationDeadline ? new Date(dto.limitationDeadline) : undefined,
       status: dto.status,
       caseTypeId: dto.caseTypeId ?? undefined,
       leadLawyerId: dto.leadLawyerId,
@@ -411,6 +467,13 @@ export class CasesService {
       title: 'เปิดคดี',
       at: created.openedAt,
     });
+    if (dto.limitationDeadline) await syncLimitationReminder(this.prisma, created.id);
+    if (dto.opponents?.length) await addOpponents(this.prisma, created.id, dto.partyRole, dto.opponents);
+    await ensureOurClientParticipant(this.prisma, created.id);
+    await this.conflictCheck.recordForCase(user, gate, { caseId: created.id });
+    if ([dto.courtName, dto.blackCaseNumber, dto.redCaseNumber].some((v) => v?.trim())) {
+      await snapshotCurrentLevel(this.prisma, created);
+    }
 
     if (dto.initialActivity) {
       await this.activitiesService.create(
@@ -452,6 +515,22 @@ export class CasesService {
   async update(user: AuthUser, id: string, dto: UpdateCaseDto) {
     const before = await this.findOne(user, id);
 
+    if (dto.status === CaseStatus.CLOSED || dto.status === CaseStatus.ARCHIVED) {
+      throw new BadRequestException('ใช้ปุ่มปิดคดี');
+    }
+    if (
+      dto.status &&
+      dto.status !== before.status &&
+      (before.status === CaseStatus.CLOSED || before.status === CaseStatus.ARCHIVED)
+    ) {
+      throw new BadRequestException('ใช้ปุ่มเปิดคดีอีกครั้ง');
+    }
+    const stageChanged = !!dto.stage && dto.stage !== before.stage;
+    const stageNote = dto.stageNote?.trim() || null;
+    if (stageChanged && isBackwardStage(before.stage, dto.stage!) && !stageNote) {
+      throw new BadRequestException('ย้ายขั้นตอนย้อนกลับต้องระบุเหตุผล');
+    }
+
     if (dto.ownRef?.trim() && dto.ownRef.trim() !== before.ownRef) {
       const existing = await this.prisma.case.findUnique({
         where: { firmId_ownRef: { firmId: user.firmId, ownRef: dto.ownRef.trim() } },
@@ -460,7 +539,7 @@ export class CasesService {
     }
 
     if (dto.leadLawyerId) {
-      if (user.firmRole !== FirmRole.OWNER) {
+      if (!hasFirmCapability(user.firmRole, 'reassignCaseLead')) {
         throw new ForbiddenException('Only owners can reassign the case lead lawyer');
       }
       const isMember = await this.prisma.firmMember.count({
@@ -473,28 +552,56 @@ export class CasesService {
 
     // Every linked row must be this firm's — the case include returns their names and contacts.
     await assertFirmRefs(this.prisma, user.firmId, {
-      clientIds: [dto.clientId, ...((dto.customers ?? [])).map((c) => c.customerId)],
+      clientIds: [
+        dto.clientId,
+        ...(dto.customers ?? []).map((c) => c.customerId),
+        ...(dto.clients ?? []).map((c) => c.clientId),
+      ],
       contactIds: (dto.customers ?? []).map((c) => c.contactId),
       caseTypeIds: [dto.caseTypeId],
     });
 
-    const { customFields, customers, ...rest } = dto;
-    const stageChanged = !!dto.stage && dto.stage !== before.stage;
+    // Numbers typed while switching level would land on the old level (spec L3) — make the
+    // user save the switch first. Unchanged numbers re-sent by the overview are fine.
+    const plan = this.proceedingsPlan(before, dto, stageChanged);
+    if (plan.numbersChanged && plan.toLevel !== plan.fromLevel) {
+      throw new BadRequestException(LEVEL_SWITCH_NUMBERS_MESSAGE);
+    }
+
+    const { customFields, customers, clients, stageNote: _stageNote, ...rest } = dto;
     const updated = await this.prisma.case.update({
       where: { id },
       data: {
         ...rest,
+        limitationDeadline:
+          dto.limitationDeadline === undefined
+            ? undefined
+            : dto.limitationDeadline
+              ? new Date(dto.limitationDeadline)
+              : null,
         ownRef: dto.ownRef?.trim() || undefined,
         customFields: customFields as Prisma.InputJsonValue | undefined,
         customers:
           customers === undefined
             ? undefined
             : { deleteMany: {}, create: this.customerRows(customers) },
+        additionalClients:
+          clients === undefined ? undefined : { deleteMany: {}, create: this.additionalClientRows(clients) },
         closedAt: dto.closedAt ? new Date(dto.closedAt) : undefined,
         stageChangedAt: stageChanged ? new Date() : undefined,
       },
       include: this.caseInclude,
     });
+    // The overview form always sends both, so only an actual change re-syncs our client's row.
+    const clientChanged = dto.clientId !== undefined && (dto.clientId || null) !== (before.clientId ?? null);
+    const partyRoleChanged = dto.partyRole !== undefined && (dto.partyRole || null) !== (before.partyRole ?? null);
+    const partiesSynced = clientChanged || partyRoleChanged;
+    if (partiesSynced) {
+      await ensureOurClientParticipant(this.prisma, id, {
+        clientId: before.clientId ?? null,
+        partyRole: before.partyRole ?? null,
+      });
+    }
 
     // Timeline ของคดีต้องตอบได้เองว่าใครเปลี่ยนอะไรเมื่อไร ไม่ใช่รอให้คนมากรอก
     if (dto.status && dto.status !== before.status) {
@@ -512,6 +619,8 @@ export class CasesService {
         userId: user.id,
         type: ActivityType.STAGE_CHANGE,
         title: `ขั้นตอนคดี: ${before.stage} → ${dto.stage}`,
+        description: stageNote ?? undefined,
+        stageTransition: { from: before.stage, to: dto.stage!, note: stageNote, status: updated.status },
       });
     }
     if (dto.leadLawyerId && dto.leadLawyerId !== before.leadLawyerId) {
@@ -549,7 +658,58 @@ export class CasesService {
       });
     }
 
+    const proceedingsSynced = await this.syncProceedings(id, before, dto, stageChanged);
+    // A new deadline, or a black number just written (the case is filed), moves the reminder.
+    if (dto.limitationDeadline !== undefined || proceedingsSynced) {
+      await syncLimitationReminder(this.prisma, id);
+    }
+    if (proceedingsSynced || partiesSynced) {
+      // Re-read so the response carries the level, mirrored numbers, proceedings and parties.
+      return this.findOne(user, id);
+    }
     return updated;
+  }
+
+  /**
+   * Court numbers live per level (spec L3); Case only mirrors the current one.
+   * Numbers typed on the overview belong to the level the user was looking at
+   * (`before`); a level change (direct, or entering APPEAL / SUPREME — spec L2)
+   * first snapshots that level so nothing it showed is lost. Returns whether
+   * anything was written.
+   */
+  private async syncProceedings(
+    id: string,
+    before: ProceedingsBefore,
+    dto: UpdateCaseDto,
+    stageChanged: boolean,
+  ): Promise<boolean> {
+    const { fromLevel, toLevel, enteredHigherCourt, numbers, numbersChanged } = this.proceedingsPlan(before, dto, stageChanged);
+    if (!numbersChanged && !enteredHigherCourt && toLevel === fromLevel) return false;
+
+    await this.prisma.$transaction(async (tx) => {
+      await snapshotCurrentLevel(tx, { id, ...before });
+      if (numbersChanged) await saveCaseNumbers(tx, id, fromLevel, numbers);
+      if (toLevel !== fromLevel) {
+        await ensureProceeding(tx, id, toLevel);
+        await tx.case.update({ where: { id }, data: { courtLevel: toLevel } });
+      }
+      await mirrorProceeding(tx, id);
+    });
+    return true;
+  }
+
+  /** What an update does to the court levels — shared by the up-front guard and syncProceedings. */
+  private proceedingsPlan(before: ProceedingsBefore, dto: UpdateCaseDto, stageChanged: boolean) {
+    const fromLevel = currentLevel(before);
+    const enteredHigherCourt = stageChanged && (dto.stage === CaseStage.APPEAL || dto.stage === CaseStage.SUPREME);
+    const toLevel = enteredHigherCourt
+      ? dto.stage === CaseStage.APPEAL ? CourtLevel.APPEAL : CourtLevel.SUPREME
+      : dto.courtLevel !== undefined ? currentLevel(dto) : fromLevel;
+    const numbers = { courtName: dto.courtName, blackCaseNumber: dto.blackCaseNumber, redCaseNumber: dto.redCaseNumber };
+    const numbersChanged = (Object.keys(numbers) as (keyof typeof numbers)[]).some(
+      (field) => numbers[field] !== undefined && (numbers[field]?.trim() || null) !== (before[field]?.trim() || null),
+    );
+    return { fromLevel, toLevel, enteredHigherCourt, numbers, numbersChanged };
   }
 
   async updateAssignments(user: AuthUser, id: string, dto: UpdateCaseAssignmentsDto) {
@@ -686,7 +846,7 @@ export class CasesService {
         status: CaseStatus.CLOSED,
         stage: CaseStage.CLOSING,
         stageChangedAt: now,
-        outcome: dto.outcome ?? undefined,
+        outcome: dto.outcome,
         closedAt: now,
         closingSummary: dto.closingSummary.trim(),
       },
@@ -707,8 +867,10 @@ export class CasesService {
         .join('\n'),
       at: now,
       statusTransition: { from: legalCase.status, to: CaseStatus.CLOSED },
+      stageTransition: { from: legalCase.stage, to: CaseStage.CLOSING },
     });
 
+    await this.syncLimitation(id);
     return closed;
   }
 
@@ -733,6 +895,7 @@ export class CasesService {
       title: 'เก็บคดีเข้าคลัง / Archived',
       statusTransition: { from: CaseStatus.CLOSED, to: CaseStatus.ARCHIVED },
     });
+    await this.syncLimitation(id);
     return archived;
   }
 
@@ -742,10 +905,23 @@ export class CasesService {
       throw new BadRequestException('คดีนี้ยังไม่ได้ปิด');
     }
 
+    // The stage the case was in before it was closed; cases closed before stage logs existed
+    // (or closed from CLOSING itself) have none: keep the stage the case sits at, or PRE_LITIGATION if that is CLOSING.
+    const lastClose = await this.prisma.caseStatusLog.findFirst({
+      where: { caseId: id, toStage: CaseStage.CLOSING, fromStage: { not: CaseStage.CLOSING } },
+      orderBy: { createdAt: 'desc' },
+      select: { fromStage: true },
+    });
+    const stage =
+      (lastClose?.fromStage as CaseStage | null) ??
+      (legalCase.stage !== CaseStage.CLOSING ? (legalCase.stage as CaseStage) : CaseStage.PRE_LITIGATION);
+
     const reopened = await this.prisma.case.update({
       where: { id },
       data: {
         status: CaseStatus.IN_PROGRESS,
+        stage,
+        stageChangedAt: new Date(),
         closedAt: null,
         outcome: CaseOutcome.IN_PROGRESS,
       },
@@ -757,7 +933,9 @@ export class CasesService {
       type: ActivityType.STATUS_CHANGE,
       title: 'เปิดคดีขึ้นมาใหม่ / Reopened',
       statusTransition: { from: legalCase.status, to: CaseStatus.IN_PROGRESS },
+      stageTransition: { from: legalCase.stage, to: stage },
     });
+    await this.syncLimitation(id);
     return reopened;
   }
 
@@ -767,7 +945,7 @@ export class CasesService {
    * คดีที่ลบแล้วถูกกรองออกทุก query ที่ CaseAccessService
    */
   async remove(user: AuthUser, id: string) {
-    if (user.firmRole !== FirmRole.OWNER) {
+    if (!hasFirmCapability(user.firmRole, 'deleteCase')) {
       throw new ForbiddenException('Only owners can delete cases');
     }
     const legalCase = await this.findOne(user, id);
@@ -782,6 +960,16 @@ export class CasesService {
         },
       }),
     ]);
+    await this.syncLimitation(id);
     return { deleted: true };
+  }
+
+  /** Close, archive, reopen and delete change whether the ครบอายุความ reminder is wanted; a failure here never breaks them. */
+  private async syncLimitation(caseId: string) {
+    try {
+      await syncLimitationReminder(this.prisma, caseId);
+    } catch (err) {
+      this.logger.warn(`limitation reminder sync failed for case ${caseId}: ${(err as Error).message}`);
+    }
   }
 }

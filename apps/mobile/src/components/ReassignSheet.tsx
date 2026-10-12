@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/AppText';
-import { canAssignFirmRole, FirmRole, assignmentCandidates, assignmentWarnings, TaskWorkType } from '@lawfirm/shared';
+import { canAssignFirmRole, FirmRole, hasFirmCapability, assignmentCandidates, assignmentWarnings, TaskWorkType } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { useCase, useLawyers, useLeaves, useReassignTask, useDailyWorkboard } from '@/api/hooks';
 import { WorkloadSummary } from './WorkloadSummary';
@@ -28,7 +28,7 @@ export function ReassignSheet({
   const legalCase = useCase(task && caseId ? caseId : '');
   const reassign = useReassignTask();
   const date = task?.scheduledFor?.slice(0, 10) ?? (task?.dueDate ? bangkokDay(task.dueDate) : bangkokDay(new Date().toISOString()));
-  const owner = user?.firmRole === FirmRole.OWNER;
+  const owner = hasFirmCapability(user?.firmRole, 'runOperations');
   const board = useDailyWorkboard(date, owner && !!task);
   const workType = task?.workType ?? TaskWorkType.GENERAL;
   const people = board.data && !board.isError ? assignmentCandidates(board.data.members, board.data.tasks, workType, date) : [];
@@ -43,7 +43,7 @@ export function ReassignSheet({
   }, [task?.id]);
 
   const editable = !!user && (caseId
-    ? user?.firmRole === FirmRole.OWNER || legalCase.data?.leadLawyer?.id === user?.id
+    ? owner || legalCase.data?.leadLawyer?.id === user?.id
     : owner || task?.assigneeId === user.id || task?.createdById === user.id);
   const candidates = (lawyers.data ?? []).filter((person) => person.id !== task?.assigneeId && (
     !!caseId || person.id === user?.id || (!!user?.firmRole && !!person.firmRole &&
@@ -64,7 +64,7 @@ export function ReassignSheet({
           {lawyers.isError ? <ErrorNote message="โหลดรายชื่อไม่สำเร็จ" onRetry={() => lawyers.refetch()} /> : null}
           {caseId && legalCase.isError ? <ErrorNote message="ตรวจสอบสิทธิ์คดีไม่สำเร็จ" onRetry={() => legalCase.refetch()} /> : null}
           {!editable && !legalCase.isLoading ? <Text style={styles.error}>{caseId
-            ? 'งานคดีให้เจ้าของสำนักงานหรือทนายหลักเป็นผู้มอบหมาย'
+            ? 'งานคดีให้เจ้าของสำนักงาน ผู้จัดการสำนักงาน หรือทนายหลักเป็นผู้มอบหมาย'
             : 'มอบหมายได้เฉพาะงานที่คุณสร้างหรือรับผิดชอบ'}</Text> : null}
           {leaves.isError ? <ErrorNote message="ยังตรวจสอบวันลาไม่ได้" onRetry={() => leaves.refetch()} /> : null}
           {owner && board.isError && <ErrorNote message="ยังตรวจภาระงานล่าสุดไม่ได้" onRetry={() => board.refetch()} />}

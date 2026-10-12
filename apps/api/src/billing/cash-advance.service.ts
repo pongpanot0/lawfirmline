@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser, FirmRole } from '@lawfirm/shared';
+import { AuthUser, FirmRole, hasFirmCapability } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 import { IssueCashAdvanceDto } from './dto/billing.dto';
@@ -13,7 +13,7 @@ export class CashAdvanceService {
   ) {}
 
   async issue(owner: AuthUser, dto: IssueCashAdvanceDto) {
-    if (owner.firmRole !== FirmRole.OWNER) {
+    if (!hasFirmCapability(owner.firmRole, 'issueCashAdvance')) {
       throw new ForbiddenException('Only the owner can issue a cash advance');
     }
     const member = await this.prisma.firmMember.findFirst({
@@ -47,13 +47,13 @@ export class CashAdvanceService {
 
   /** Everyone sees their own advances; the owner sees the whole firm's. */
   async list(user: AuthUser, userId?: string) {
-    if (userId && userId !== user.id && user.firmRole !== FirmRole.OWNER) {
+    if (userId && userId !== user.id && !hasFirmCapability(user.firmRole, 'issueCashAdvance')) {
       throw new ForbiddenException("Cannot view another user's cash advances");
     }
     return this.prisma.cashAdvance.findMany({
       where: {
         firmId: user.firmId,
-        userId: userId ?? (user.firmRole === FirmRole.OWNER ? undefined : user.id),
+        userId: userId ?? (hasFirmCapability(user.firmRole, 'issueCashAdvance') ? undefined : user.id),
       },
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
       orderBy: { issuedAt: 'desc' },

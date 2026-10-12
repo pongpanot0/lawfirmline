@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { AuthUser, FirmRole, maskEmail } from '@lawfirm/shared';
+import { AuthUser, FirmRole, canInviteFirmRole, hasFirmCapability, maskEmail } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
 import { EmailService } from '../notifications/email.service';
@@ -22,8 +22,11 @@ export class InvitationService {
   ) {}
 
   async invite(user: AuthUser, dto: InviteUserDto) {
-    if (!this.tenant.isOwner(user)) {
-      throw new ForbiddenException('Only owners can invite users');
+    if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
+      throw new ForbiddenException('Insufficient permissions to invite users');
+    }
+    if (!canInviteFirmRole(user.firmRole, dto.role ?? FirmRole.ASSISTANT)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เชิญตำแหน่งนี้');
     }
 
     const check = await this.tenant.assertCanInvite(user.firmId, dto.email);
@@ -39,6 +42,15 @@ export class InvitationService {
       if (member) {
         throw new BadRequestException('User is already a member of this firm');
       }
+    }
+
+    // The upsert below would rewrite an existing pending invitation's role, so the
+    // caller must also be allowed to invite the role it currently carries.
+    const pending = await this.prisma.invitation.findUnique({
+      where: { firmId_email: { firmId: user.firmId, email: dto.email } },
+    });
+    if (pending && !pending.acceptedAt && pending.expiresAt > new Date() && !canInviteFirmRole(user.firmRole, pending.role as FirmRole)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขคำเชิญตำแหน่งนี้');
     }
 
     const token = crypto.randomBytes(32).toString('hex');
@@ -233,18 +245,20 @@ export class InvitationService {
   }
 
   async listPending(user: AuthUser) {
-    if (!this.tenant.isOwner(user)) {
-      throw new ForbiddenException('Only owners can view invitations');
+    if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
+      throw new ForbiddenException('Insufficient permissions to view invitations');
     }
     return this.prisma.invitation.findMany({
       where: { firmId: user.firmId, acceptedAt: null, expiresAt: { gt: new Date() } },
+      // Never return the token: holding it is enough to accept the invitation.
+      select: { id: true, email: true, role: true, expiresAt: true, createdAt: true, invitedById: true },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async cancel(user: AuthUser, invitationId: string) {
-    if (!this.tenant.isOwner(user)) {
-      throw new ForbiddenException('Only owners can cancel invitations');
+    if (!hasFirmCapability(user.firmRole, 'inviteMembers')) {
+      throw new ForbiddenException('Insufficient permissions to cancel invitations');
     }
 
     const invitation = await this.prisma.invitation.findFirst({
@@ -252,6 +266,9 @@ export class InvitationService {
     });
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
+    }
+    if (!canInviteFirmRole(user.firmRole, invitation.role as FirmRole)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์ยกเลิกคำเชิญตำแหน่งนี้');
     }
 
     await this.prisma.invitation.delete({ where: { id: invitationId } });

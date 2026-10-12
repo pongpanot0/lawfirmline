@@ -73,11 +73,13 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                   <select
                     aria-label={`สถานะคดี ${c.ownRef}`}
                     value={c.status}
+                    disabled={c.status === 'CLOSED' || c.status === 'ARCHIVED'}
                     onChange={(e) => onStatusChange(c.id, e.target.value)}
                     className="mt-2 w-full rounded border border-border px-2 py-1 text-xs"
                   >
+                    {/* closing goes through the close button, reopening through reopen; PATCH refuses both */}
                     {WORKFLOW_COLUMNS.map((w) => (
-                      <option key={w.status} value={w.status}>{getCaseStatusDisplay(w.status, d.caseStatus).label}</option>
+                      <option key={w.status} value={w.status} disabled={w.status === 'CLOSED' || w.status === 'ARCHIVED'}>{getCaseStatusDisplay(w.status, d.caseStatus).label}</option>
                     ))}
                   </select>
                 )}

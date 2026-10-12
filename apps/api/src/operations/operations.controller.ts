@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
-import { OwnerOnly } from '../saas/decorators/saas.decorators';
+import { RequireCapability } from '../saas/decorators/saas.decorators';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '@lawfirm/shared';
 import { OperationsService } from './operations.service';
@@ -9,7 +9,7 @@ import { WorkloadQueryDto } from './dto/operations.dto';
 
 @Controller('operations')
 @UseGuards(JwtAuthGuard, FirmRoleGuard)
-@OwnerOnly()
+@RequireCapability('runOperations')
 export class OperationsController {
   constructor(private operationsService: OperationsService) {}
 

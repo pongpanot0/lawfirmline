@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/samnuan/PageHeader';
 import { MfaToggle } from '@/components/settings/MfaToggle';
 import { SessionsPanel } from '@/components/settings/SessionsPanel';
 import { CaseNumberPrefixCard } from '@/components/settings/CaseNumberPrefixCard';
+import { hasFirmCapability, type FirmCapability } from '@lawfirm/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,19 +20,21 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { formatDate, formatDateTime } from '@/lib/utils';
 
-/** Office-wide master data; owner-only, so it sits under Settings instead of the sidebar. */
-const OFFICE_LINKS = [
-  { href: '/admin/reimbursements', icon: Shield, labelKey: 'reimbursements' as const },
-  { href: '/admin/case-types', icon: Tags, labelKey: 'caseTypes' as const },
-  { href: '/admin/deadline-rules', icon: Timer, labelKey: 'deadlineRules' as const },
-  { href: '/admin/holidays', icon: CalendarOff, labelKey: 'holidays' as const },
-  { href: '/admin/courts', icon: Scale, labelKey: 'courts' as const },
-  { href: '/admin/audit-log', icon: History, labelKey: 'auditLog' as const },
+/** Office-wide master data; each link is capability-gated, so it sits under Settings instead of the sidebar. */
+const OFFICE_LINKS: Array<{ href: string; icon: typeof Shield; labelKey: 'reimbursements' | 'caseTypes' | 'deadlineRules' | 'holidays' | 'courts' | 'auditLog'; capability: FirmCapability }> = [
+  { href: '/admin/reimbursements', icon: Shield, labelKey: 'reimbursements', capability: 'approveExpenses' },
+  { href: '/admin/case-types', icon: Tags, labelKey: 'caseTypes', capability: 'manageFirmContent' },
+  { href: '/admin/deadline-rules', icon: Timer, labelKey: 'deadlineRules', capability: 'manageFirmContent' },
+  // Platform-admin pages: they stay with the firm owner.
+  { href: '/admin/holidays', icon: CalendarOff, labelKey: 'holidays', capability: 'manageSubscription' },
+  { href: '/admin/courts', icon: Scale, labelKey: 'courts', capability: 'manageSubscription' },
+  { href: '/admin/audit-log', icon: History, labelKey: 'auditLog', capability: 'viewFirmReports' },
 ];
 
 export default function SettingsPage() {
   const d = useDashboardT();
   const { user } = useAuth();
+  const officeLinks = OFFICE_LINKS.filter((l) => hasFirmCapability(user?.firmRole, l.capability));
   const { theme, toggleTheme } = useTheme();
   const [lineStatus, setLineStatus] = useState<LineIntegrationStatus | null>(null);
   const [linePersonal, setLinePersonal] = useState<LinePersonalStatus | null>(null);
@@ -233,10 +236,10 @@ export default function SettingsPage() {
   return (
     <div>
       <PageHeader title={d.settings.title} description={d.settings.description} />
-      {user?.firmRole === 'OWNER' && <div className="flex flex-wrap gap-3"><Link href="/getting-started" className="inline-flex min-h-11 items-center rounded-lg border bg-card px-4 text-sm text-primary">เริ่มใช้และนำเข้าข้อมูล / Office setup</Link><Link href="/playbooks" className="inline-flex min-h-11 items-center rounded-lg border bg-card px-4 text-sm text-primary">Playbooks</Link></div>}
+      {hasFirmCapability(user?.firmRole, 'manageFirmContent') && <div className="flex flex-wrap gap-3"><Link href="/getting-started" className="inline-flex min-h-11 items-center rounded-lg border bg-card px-4 text-sm text-primary">เริ่มใช้และนำเข้าข้อมูล / Office setup</Link><Link href="/playbooks" className="inline-flex min-h-11 items-center rounded-lg border bg-card px-4 text-sm text-primary">Playbooks</Link></div>}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {user?.firmRole === 'OWNER' && (
+        {officeLinks.length > 0 && (
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>{d.settings.office}</CardTitle>
@@ -244,7 +247,7 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {OFFICE_LINKS.map(({ href, icon: Icon, labelKey }) => (
+                {officeLinks.map(({ href, icon: Icon, labelKey }) => (
                   <li key={href}>
                     <Link
                       href={href}
@@ -260,7 +263,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         )}
-        {user?.firmRole === 'OWNER' && <CaseNumberPrefixCard />}
+        {hasFirmCapability(user?.firmRole, 'manageSubscription') && <CaseNumberPrefixCard />}
 
         <Card>
           <CardHeader><CardTitle>{d.settings.profile}</CardTitle></CardHeader>
@@ -355,7 +358,7 @@ export default function SettingsPage() {
                   {lineLabel}
                 </span>
               </div>
-              {lineStatus?.configured && user?.firmRole === 'OWNER' && (
+              {lineStatus?.configured && hasFirmCapability(user?.firmRole, 'manageSubscription') && (
                 <div className="mt-3 flex items-center gap-3">
                   <Button size="sm" variant="outline" onClick={handleLineTest} disabled={lineTesting}>
                     {lineTesting ? d.settings.sending : d.settings.sendTestMessage}

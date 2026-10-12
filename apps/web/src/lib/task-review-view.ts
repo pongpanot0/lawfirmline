@@ -1,0 +1,41 @@
+import { TASK_HANDOFF_NOTE_MIN } from '@lawfirm/shared';
+
+type Person = { id: string; firstName: string; lastName?: string | null };
+type ReviewTask = {
+  status: string;
+  assignee?: Person | null;
+  reviewer?: Person | null;
+  onHold?: { reason: string; endedAt: string | null } | null;
+  case?: { leadLawyer?: Person | null } | null;
+};
+
+const fullName = (p: Person) => `${p.firstName} ${p.lastName ?? ''}`.trim();
+
+/** My own work handed in and waiting — listed under "รอตรวจ", never under "รอฉันตรวจ". */
+export function submittedByMe(task: ReviewTask, userId: string): boolean {
+  return task.status === 'PENDING_REVIEW' && task.assignee?.id === userId;
+}
+
+/** "ส่งให้ {name} ตรวจ": the named reviewer, else the case lead (given, or from the task's own case). */
+export function reviewerName(task: ReviewTask, caseLead?: Person | null): string | null {
+  const reviewer = task.reviewer ?? caseLead ?? task.case?.leadLawyer;
+  return reviewer ? fullName(reviewer) : null;
+}
+
+export function isHeld(task: ReviewTask): boolean {
+  return !!task.onHold && !task.onHold.endedAt;
+}
+
+/** The API refuses a hold on finished work or work waiting for review. */
+export function canHoldStatus(status: string): boolean {
+  return status !== 'DONE' && status !== 'PENDING_REVIEW';
+}
+
+export function handoffNoteError(note: string): string | null {
+  return note.trim().length >= TASK_HANDOFF_NOTE_MIN ? null : `เขียนหมายเหตุถึงผู้ตรวจอย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร`;
+}
+
+/** The API refuses requiresReview/requiresAttachment/reviewer changes from anyone else. */
+export function canSetReviewRequirements(role: string | null | undefined): boolean {
+  return role === 'OWNER' || role === 'SENIOR_LAWYER';
+}

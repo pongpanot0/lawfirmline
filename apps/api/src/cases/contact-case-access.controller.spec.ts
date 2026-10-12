@@ -4,7 +4,8 @@ import { ContactCaseAccessController } from './contact-case-access.controller';
 import { ContactCaseAccessService } from './contact-case-access.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
+import { FirmRoleGuard } from '../saas/guards/firm-role.guard';
+import { ForbiddenException } from '@nestjs/common';
 import { Role, FirmRole } from '@lawfirm/shared';
 
 describe('ContactCaseAccessController', () => {
@@ -26,7 +27,7 @@ describe('ContactCaseAccessController', () => {
       .useValue({ canActivate: () => true })
       .overrideGuard(CaseAccessGuard)
       .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
+      .overrideGuard(FirmRoleGuard)
       .useValue({ canActivate: () => true })
       .compile();
     controller = module.get(ContactCaseAccessController);
@@ -55,8 +56,8 @@ describe('ContactCaseAccessController', () => {
   });
 });
 
-describe('ContactCaseAccessController RolesGuard outcome', () => {
-  const guard = new RolesGuard(new Reflector());
+describe('ContactCaseAccessController FirmRoleGuard outcome', () => {
+  const guard = new FirmRoleGuard(new Reflector());
 
   function buildContext(handler: (...args: any[]) => unknown, reqUser: Record<string, unknown>) {
     return {
@@ -71,7 +72,7 @@ describe('ContactCaseAccessController RolesGuard outcome', () => {
       role: Role.LAWYER,
       firmRole: FirmRole.ASSISTANT,
     });
-    expect(guard.canActivate(context)).toBe(false);
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
   it('denies a non-owner LAWYER on revoke', () => {
@@ -79,13 +80,21 @@ describe('ContactCaseAccessController RolesGuard outcome', () => {
       role: Role.LAWYER,
       firmRole: FirmRole.ASSISTANT,
     });
-    expect(guard.canActivate(context)).toBe(false);
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('allows an ADMIN on grant', () => {
+  it('denies a legacy professional-ADMIN who is not a firm owner or office manager', () => {
     const context = buildContext(ContactCaseAccessController.prototype.grant, {
       role: Role.ADMIN,
       firmRole: FirmRole.ASSISTANT,
+    });
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+  });
+
+  it('allows an OFFICE_MANAGER on grant', () => {
+    const context = buildContext(ContactCaseAccessController.prototype.grant, {
+      role: Role.LAWYER,
+      firmRole: FirmRole.OFFICE_MANAGER,
     });
     expect(guard.canActivate(context)).toBe(true);
   });

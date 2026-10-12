@@ -17,6 +17,7 @@ describe('DateSuggestionsService', () => {
     },
     case: { findUnique: jest.fn() },
     user: { findFirst: jest.fn() },
+    publicHoliday: { findMany: jest.fn() },
   };
   const mockCalendar = { createInternal: jest.fn() };
 
@@ -42,6 +43,41 @@ describe('DateSuggestionsService', () => {
         include: { deadlineRule: { select: { label: true, trigger: true } } },
         orderBy: { createdAt: 'desc' },
       });
+    });
+
+    it('marks rule suggestions whose year has too few holidays configured', async () => {
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([
+        { id: 'a', source: 'RULE', suggestedDate: new Date('2027-11-11T09:30:00.000Z') },
+        { id: 'b', source: 'RULE', suggestedDate: new Date('2026-11-11T09:30:00.000Z') },
+        { id: 'c', source: 'DOCUMENT', suggestedDate: new Date('2028-01-05T02:00:00.000Z') },
+      ]);
+      mockPrisma.publicHoliday.findMany.mockResolvedValue(
+        Array.from({ length: 21 }, (_, i) => ({ date: new Date(Date.UTC(2026, 0, i + 1)) })),
+      );
+
+      const rows = await service.listForCase('case-1');
+
+      expect(rows.map((r) => [r.id, r.holidayDataIncomplete, r.dueYear])).toEqual([
+        ['a', true, 2027],
+        ['b', false, 2026],
+        ['c', false, 2028],
+      ]);
+    });
+
+    it('does not flag far-future rule dates (beyond next year)', async () => {
+      const thisYear = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 4));
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([
+        { id: 'next', source: 'RULE', suggestedDate: new Date(`${thisYear + 1}-06-15T09:30:00.000Z`) },
+        { id: 'far', source: 'RULE', suggestedDate: new Date(`${thisYear + 10}-06-15T09:30:00.000Z`) },
+      ]);
+      mockPrisma.publicHoliday.findMany.mockResolvedValue([]);
+
+      const rows = await service.listForCase('case-1');
+
+      expect(rows.map((r) => [r.id, r.holidayDataIncomplete])).toEqual([
+        ['next', true],
+        ['far', false],
+      ]);
     });
   });
 

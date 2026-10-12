@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { api, DateSuggestionItem, UserItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fmt } from '@/lib/i18n/dashboard';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
 
@@ -24,6 +25,7 @@ export function DateSuggestionsPanel({
   title,
   reloadKey = 0,
   hideWhenEmpty = true,
+  onChanged,
 }: {
   caseId: string;
   source: DateSuggestionItem['source'];
@@ -31,6 +33,8 @@ export function DateSuggestionsPanel({
   /** Bump to reload after something upstream created new suggestions. */
   reloadKey?: number;
   hideWhenEmpty?: boolean;
+  /** After a confirm or dismiss — the caller reloads what the new event affects (timeline). */
+  onChanged?: () => void;
 }) {
   const d = useDashboardT();
   const { token } = useAuth();
@@ -90,6 +94,7 @@ export function DateSuggestionsPanel({
         assigneeId: source === 'DOCUMENT' ? draft.assigneeId : undefined,
       });
       setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+      onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
     } finally {
@@ -103,6 +108,7 @@ export function DateSuggestionsPanel({
     try {
       await api.dismissDateSuggestion(token, caseId, s.id);
       setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+      onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
     }
@@ -197,6 +203,12 @@ export function DateSuggestionsPanel({
                         {d.caseDocuments.sourceExcerpt}: &ldquo;{s.sourceExcerpt}&rdquo;
                       </p>
                     )}
+
+                {s.holidayDataIncomplete && s.dueYear && (
+                  <p role="alert" className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                    {fmt(d.dateSuggestions.holidayIncomplete, { year: s.dueYear + 543 })}
+                  </p>
+                )}
 
                 <div className="mt-3 flex gap-2">
                   <Button

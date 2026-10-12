@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useCalendarRange, useLeaves, useWorkload } from '@/api/hooks';
 import type { WorkloadMember } from '@/api/types';
 import {
@@ -100,7 +101,7 @@ export default function TeamScreen() {
       }
     >
       <PageIntro title="ภาระงานรายคน" detail="แตะชื่อเพื่อดูงาน คดี นัดหมาย และจุดติดขัด" />
-      {(user?.firmRole === 'OWNER' || user?.firmRole === 'SENIOR_LAWYER') && <Button title="ภาระงานทีม 7 วัน" ghost onPress={() => router.push('/team-week')} />}
+      {(hasFirmCapability(user?.firmRole, 'runOperations') || user?.firmRole === 'SENIOR_LAWYER') && <Button title="ภาระงานทีม 7 วัน" ghost onPress={() => router.push('/team-week')} />}
       {workload.isError ? (
         <ErrorNote message="โหลดภาระงานทีมไม่สำเร็จ" onRetry={() => workload.refetch()} />
       ) : null}

@@ -3,7 +3,7 @@ import { Alert, Pressable, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { dailyUpdateParts, routineMissing } from '@lawfirm/shared';
+import { dailyUpdateParts, hasFirmCapability, isEligibleReviewer, routineMissing, TASK_HANDOFF_NOTE_MIN } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { taskDraftScope } from '@/api/drafts';
@@ -18,6 +18,7 @@ import { Text } from './AppText';
 import { AttachmentFile, Attachments } from './Attachments';
 import { FormField, FormPage } from './Form';
 import { Dropdown } from './Dropdown';
+import { DatePicker } from './DatePicker';
 import { Button, Card, ErrorNote, Loading, SectionLabel, Tag } from './ui';
 
 /** The task itself is the work surface; editing its metadata remains an optional action. */
@@ -33,6 +34,10 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
   const [files, setFiles] = useState<AttachmentFile[]>([]);
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
+  const [handoffNote, setHandoffNote] = useState('');
+  const [holdReason, setHoldReason] = useState('');
+  const [holdCategory, setHoldCategory] = useState('WAITING_CLIENT');
+  const [holdFollowUp, setHoldFollowUp] = useState('');
   const [showNote, setShowNote] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -44,20 +49,20 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
   const [blocker, setBlocker] = useState(previous.blocker);
   const [reviewerId, setReviewerId] = useState(task.reviewerId ?? '');
   const worker = task.assigneeId === user?.id && !['DONE', 'PENDING_REVIEW'].includes(task.status);
-  const reviewer = !!user && canReviewTask(task, user, legalCase.data?.leadLawyer?.id);
+  const reviewer = !!user && canReviewTask(task, user, task.case?.leadLawyerId ?? legalCase.data?.leadLawyer?.id);
   const targetReviewer = task.reviewerId ?? (task.caseId ? legalCase.data?.leadLawyer?.id : reviewerId);
   const reviewerName = members.data?.find(p => p.id === targetReviewer);
-  const reviewerLabel = reviewerName ? `${reviewerName.firstName} ${reviewerName.lastName}` : 'ผู้ตรวจที่กำหนด';
+  const reviewerLabel = task.reviewer ? `${task.reviewer.firstName} ${task.reviewer.lastName}` : reviewerName ? `${reviewerName.firstName} ${reviewerName.lastName}` : 'ผู้ตรวจที่กำหนด';
   const routine = task.routine;
   const ready = routineMissing(routine, task.routineCompletedChecks ?? [], task.attachments ?? [], previous.blocker);
   const rejectReason = task.status === 'NEEDS_REVISION' ? task.assignmentLogs?.filter(log => log.action === 'REJECTED').at(-1)?.note : null;
   const documents = useQuery({ queryKey: ['case-documents', task.caseId], enabled: sourcesOpen && !!task.caseId,
     queryFn: () => api<Array<{ id: string; filename: string }>>(`/cases/${task.caseId}/documents`) });
-  const draftValue = { files, reason, note, completed, remaining, blocker, reviewerId, reporting, showNote };
-  const dirty = !!(files.length || reason.trim() || note.trim() || completed !== previous.completed || remaining !== previous.remaining || blocker !== previous.blocker || reviewerId !== (task.reviewerId ?? ''));
+  const draftValue = { files, reason, note, handoffNote, completed, remaining, blocker, reviewerId, reporting, showNote };
+  const dirty = !!(files.length || reason.trim() || note.trim() || handoffNote.trim() || completed !== previous.completed || remaining !== previous.remaining || blocker !== previous.blocker || reviewerId !== (task.reviewerId ?? ''));
   const draft = useTaskDraft(user ? `${taskDraftScope(user)}work:${task.id}` : null, draftValue, value => {
     setFiles(value.files);
-    for (const [text, set] of [[value.reason, setReason], [value.note, setNote], [value.completed, setCompleted], [value.remaining, setRemaining], [value.blocker, setBlocker], [value.reviewerId, setReviewerId]] as const) if (typeof text === 'string') set(text);
+    for (const [text, set] of [[value.reason, setReason], [value.note, setNote], [value.handoffNote, setHandoffNote], [value.completed, setCompleted], [value.remaining, setRemaining], [value.blocker, setBlocker], [value.reviewerId, setReviewerId]] as const) if (typeof text === 'string') set(text);
     setReporting(!!value.reporting || !!value.blocker); setShowNote(!!value.showNote || !!value.note);
   }, dirty, { name: task.title, route: `/task/new?id=${task.id}` });
 
@@ -84,11 +89,13 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
     if (action === 'handoff') {
       if (ready.length) throw new Error(`ก่อนส่งยังขาด: ${ready.join(' · ')}`);
       if (!targetReviewer || targetReviewer === user?.id) throw new Error('เลือกผู้ตรวจอีกคนก่อนส่ง');
+      if (handoffNote.trim().length < TASK_HANDOFF_NOTE_MIN) throw new Error(`เขียนหมายเหตุถึงผู้ตรวจอย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร`);
+      if (task.requiresAttachment && !(task.attachments ?? []).length) throw new Error('งานนี้ต้องแนบไฟล์ผลงานก่อนส่งตรวจ');
     }
     const path = task.caseId ? `/cases/${task.caseId}/tasks/${task.id}/${action}` : `/todos/${task.id}/${action}`;
     await api(path, { method: action === 'handoff' ? 'PATCH' : 'POST', body: action === 'reject' ? { reason: reason.trim() }
-      : action === 'handoff' && !task.caseId ? { reviewerId: targetReviewer } : {} });
-    setReason('');
+      : action === 'handoff' ? (task.caseId ? { note: handoffNote.trim() } : { reviewerId: targetReviewer, note: handoffNote.trim() }) : {} });
+    setReason(''); setHandoffNote('');
   });
   const openFile = (action: () => Promise<void>) => action().catch(e => Alert.alert('เปิดไฟล์ไม่ได้', e.message));
   const primary = !worker ? null : task.assignedAt && !task.acknowledgedAt ? { title: 'รับงานนี้', action: () => perform(() => api(`/tasks/${task.id}/acknowledge`, { method: 'POST' })) }
@@ -98,6 +105,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         await api(task.caseId ? `/cases/${task.caseId}/tasks/${task.id}` : `/todos/${task.id}`, { method: 'PATCH', body: { status: 'DONE' } });
       }) };
 
+  if (task.status === 'PENDING_REVIEW' && task.caseId && !task.reviewerId && legalCase.isLoading) return <Loading />;
   if (!draft.ready) return draft.error ? <ErrorNote message={draft.error} onRetry={draft.retry} /> : <Loading />;
   return <View style={{ flex: 1, backgroundColor: colors.bg }}>
     <Stack.Screen options={{ title: reviewer ? 'ตรวจงาน' : 'ทำงาน' }} />
@@ -203,7 +211,26 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
       </>}
       {latest && <Card><Text style={{ color: colors.text }}>{latest.body}</Text><Text style={{ color: colors.faint, fontSize: 12 }}>อัปเดต {latest.createdAt ? `${thDate(latest.createdAt)} ${thTime(latest.createdAt)}` : 'ไม่ทราบเวลา'} · {latest.author?.firstName}</Text></Card>}
       {worker && !task.caseId && !task.reviewerId && <Dropdown label="ผู้ตรวจงาน (ถ้าจะส่งตรวจ)" value={reviewerId} onChange={setReviewerId}
-        options={(members.data ?? []).filter(p => p.id !== user?.id).map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} disabled={busy || members.isError} />}
+        options={(members.data ?? []).filter(p => isEligibleReviewer({ role: p.firmRole, userId: p.id, assigneeId: task.assigneeId })).map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} disabled={busy || members.isError} />}
+      {task.caseId && !['DONE', 'PENDING_REVIEW'].includes(task.status) && (worker || legalCase.data?.leadLawyer?.id === user?.id || hasFirmCapability(user?.firmRole, 'runOperations')) && <Card style={{ gap: spacing.sm }}>
+        <Text style={{ color: colors.ink, fontWeight: '700' }}>พักงาน</Text>
+        {task.onHold && !task.onHold.endedAt ? <>
+          <Text style={{ color: colors.text }}>⏸️ {task.onHold.reason}</Text>
+          {task.onHold.nextFollowUpAt && <Text style={{ color: colors.muted }}>ติดตามครั้งถัดไป {thDate(task.onHold.nextFollowUpAt)}</Text>}
+          <Button title="กลับมาทำต่อ" ghost disabled={busy} onPress={() => perform(() => api(`/cases/${task.caseId}/tasks/${task.id}/hold/resume`, { method: 'POST' }))} />
+        </> : <>
+          <FormField label="เหตุผลที่พัก *" value={holdReason} onChange={setHoldReason} multiline disabled={busy} />
+          <Dropdown label="ประเภท" value={holdCategory} onChange={setHoldCategory} options={[
+            { value: 'WAITING_CLIENT', label: 'รอลูกความ' }, { value: 'WAITING_COURT', label: 'รอศาล' }, { value: 'WAITING_DOCUMENT', label: 'รอเอกสาร' },
+            { value: 'WAITING_INTERNAL_REVIEW', label: 'รอรีวิวภายใน' }, { value: 'WAITING_EXTERNAL', label: 'รอบุคคลภายนอก' }, { value: 'OTHER', label: 'อื่น ๆ' },
+          ]} disabled={busy} />
+          <DatePicker value={holdFollowUp} onChange={setHoldFollowUp} />
+          <Button title="พักงาน" ghost disabled={busy || !holdReason.trim()} onPress={() => perform(async () => {
+            await api(`/cases/${task.caseId}/tasks/${task.id}/hold`, { method: 'PATCH', body: { reason: holdReason.trim(), category: holdCategory, nextFollowUpAt: holdFollowUp || undefined } });
+            setHoldReason(''); setHoldFollowUp('');
+          })} />
+        </>}
+      </Card>}
       {reviewer && <>
         <FormField label="เหตุผลส่งกลับแก้ไข" value={reason} onChange={setReason} disabled={busy} multiline />
         <Button title="ส่งกลับแก้ไข" ghost disabled={busy || !reason.trim()} onPress={() => transition('reject')} />
@@ -219,6 +246,7 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
       <View style={{ width: '100%', maxWidth: 728, alignSelf: 'center', gap: spacing.sm }}>
       {!!error && <Text accessibilityRole="alert" style={{ color: colors.warn }}>{error}</Text>}
       {worker && !!task.acknowledgedAt && <Button title="ทำงานนี้วันนี้" ghost disabled={busy} onPress={() => perform(() => api(`/tasks/${task.id}/confirm-plan`, { method: 'POST', body: { date: bangkokDay(new Date().toISOString()) } }))} />}
+      {worker && (task.requiresReview || routine || task.caseId || reviewerId) && !(task.assignedAt && !task.acknowledgedAt) && <FormField label={`หมายเหตุถึงผู้ตรวจ * (อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร)`} value={handoffNote} onChange={setHandoffNote} multiline disabled={busy} />}
       {primary && <Button title={primary.title} busy={busy} onPress={primary.action} />}
       {worker && !routine && !task.requiresReview && !task.caseId && reviewerId && <Button title="ส่งตรวจงาน" ghost disabled={busy} onPress={() => transition('handoff')} />}
       {reviewer && <Button title="ผ่านการตรวจ / ปิดงาน" busy={busy} onPress={() => Alert.alert('ยืนยันผลตรวจ', `ตรวจผลงานของ “${task.title}” ครบแล้ว?`, [
