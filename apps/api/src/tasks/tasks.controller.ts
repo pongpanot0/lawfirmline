@@ -113,7 +113,12 @@ export class TasksController {
   }
 
   @Delete(':taskId')
-  remove(@Param('caseId') caseId: string, @Param('taskId') taskId: string) {
-    return this.tasksService.remove(taskId, caseId);
+  async remove(
+    @CurrentUser() user: AuthUser,
+    @Param('caseId') caseId: string,
+    @Param('taskId') taskId: string,
+  ) {
+    await this.tasksService.assertCanDelete(taskId, user, caseId);
+    return this.tasksService.remove(taskId);
   }
 }

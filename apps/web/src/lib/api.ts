@@ -1617,6 +1617,9 @@ export const api = {
   getCase: (token: string, id: string) =>
     request<CaseDetail>(`/cases/${id}`, { token }),
 
+  deleteCase: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/cases/${id}`, { method: 'DELETE', token }),
+
 
   createCase: (token: string, data: Record<string, unknown>) =>
     request('/cases', {
@@ -2225,6 +2228,9 @@ export const api = {
 
   updateClient: (token: string, id: string, data: Record<string, unknown>) =>
     request<ClientItem>(`/clients/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  deleteClient: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/clients/${id}`, { method: 'DELETE', token }),
 
   getContactLineStatus: (token: string, contactId: string) =>
     request<{ connected: boolean; connectedAt: string | null }>(
@@ -3009,6 +3015,9 @@ export const api = {
 
   updateAnyTask: (token: string, task: { id: string; caseId?: string | null }, data: Record<string, unknown>) =>
     request<TaskItem>(taskUpdatePath(task), { method: 'PATCH', token, body: JSON.stringify(data) }),
+
+  deleteAnyTask: (token: string, task: { id: string; caseId?: string | null }) =>
+    request<{ deleted: boolean }>(taskUpdatePath(task), { method: 'DELETE', token }),
 
   createSubtask: (
     token: string,

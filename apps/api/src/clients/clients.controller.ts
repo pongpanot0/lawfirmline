@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -67,5 +68,11 @@ export class ClientsController {
     @Body() dto: UpdateClientDto,
   ) {
     return this.clientsService.update(user, id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(Role.ADMIN)
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.clientsService.remove(user, id);
   }
 }

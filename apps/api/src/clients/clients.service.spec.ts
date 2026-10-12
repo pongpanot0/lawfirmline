@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ClientsService } from './clients.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -136,5 +137,62 @@ describe('ClientsService contact round-trip shape', () => {
     for (const secret of ['passwordHash', 'lineUserId', 'lineLinkCode', 'lineLinkCodeExpiresAt']) {
       expect(select[secret]).toBeUndefined();
     }
+  });
+});
+
+describe('ClientsService.remove', () => {
+  let service: ClientsService;
+  const mockPrisma: any = {
+    client: { findFirst: jest.fn(), delete: jest.fn() },
+    auditLog: { create: jest.fn() },
+    $transaction: jest.fn((cb: any) => cb(mockPrisma)),
+  };
+  const owner = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
+  const lawyer = { ...owner, firmRole: FirmRole.LAWYER };
+  const counts = (over: Record<string, number> = {}) => ({
+    name: 'Test Co',
+    _count: { cases: 0, additionalCaseRoles: 0, caseCustomerRoles: 0, billedInvoices: 0, ...over },
+  });
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ClientsService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CaseAccessService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(ClientsService);
+  });
+
+  it('deletes a client with nothing live and logs it', async () => {
+    mockPrisma.client.findFirst.mockResolvedValue(counts());
+    await expect(service.remove(owner, 'client-1')).resolves.toEqual({ deleted: true });
+    expect(mockPrisma.client.findFirst.mock.calls[0][0].where).toEqual({ id: 'client-1', firmId: 'firm-1' });
+    expect(mockPrisma.client.delete).toHaveBeenCalledWith({ where: { id: 'client-1' } });
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data).toMatchObject({ action: 'CLIENT_DELETED', firmId: 'firm-1' });
+  });
+
+  it('only lets owners delete', async () => {
+    await expect(service.remove(lawyer, 'client-1')).rejects.toThrow(ForbiddenException);
+    expect(mockPrisma.client.delete).not.toHaveBeenCalled();
+  });
+
+  it('404s a client outside the firm', async () => {
+    mockPrisma.client.findFirst.mockResolvedValue(null);
+    await expect(service.remove(owner, 'client-1')).rejects.toThrow(NotFoundException);
+  });
+
+  it.each(['cases', 'additionalCaseRoles', 'caseCustomerRoles'])('refuses while %s still has a live case', async (key) => {
+    mockPrisma.client.findFirst.mockResolvedValue(counts({ [key]: 1 }));
+    await expect(service.remove(owner, 'client-1')).rejects.toThrow(ConflictException);
+    expect(mockPrisma.client.delete).not.toHaveBeenCalled();
+  });
+
+  it('refuses while a sent invoice is billed to the client', async () => {
+    mockPrisma.client.findFirst.mockResolvedValue(counts({ billedInvoices: 1 }));
+    await expect(service.remove(owner, 'client-1')).rejects.toThrow(ConflictException);
+    expect(mockPrisma.client.delete).not.toHaveBeenCalled();
   });
 });
