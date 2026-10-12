@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { CourtLevel, JUDGMENT_OUTCOME_LABELS, SERVICE_METHOD_LABELS } from '@lawfirm/shared';
@@ -46,6 +46,8 @@ export function RecordCourtEventSheet({ visible, caseId, currentLevel, stageBefo
   const [draft, setDraft] = useState<ProceedingDraft>(fresh);
   const [dayInvalid, setDayInvalid] = useState(false);
   const [resetKey, setResetKey] = useState(0);
+  // One record per confirmation: a fast double tap on Save must not stack two alerts and record twice.
+  const asking = useRef(false);
   const body = proceedingBody(draft);
 
   const send = async (kind: ProceedingKind, payload: Record<string, string>) => {
@@ -67,13 +69,14 @@ export function RecordCourtEventSheet({ visible, caseId, currentLevel, stageBefo
   };
 
   const save = () => {
-    if (!body || !draft.kind || !draft.day) return;
+    if (!body || !draft.kind || !draft.day || asking.current || record.isPending) return;
+    asking.current = true;
     const kind = draft.kind;
     const confirm = proceedingConfirm(kind, proceedingLevel(kind, draft.level, level), draft.day);
     Alert.alert(confirm.title, confirm.body, [
-      { text: 'กลับไปแก้', style: 'cancel' },
-      { text: 'บันทึก', onPress: () => void send(kind, body) },
-    ]);
+      { text: 'กลับไปแก้', style: 'cancel', onPress: () => { asking.current = false; } },
+      { text: 'บันทึก', onPress: () => void send(kind, body).finally(() => { asking.current = false; }) },
+    ], { cancelable: true, onDismiss: () => { asking.current = false; } });
   };
 
   // Filing and judgment record on the chosen level; the switch is noise for the other two.
