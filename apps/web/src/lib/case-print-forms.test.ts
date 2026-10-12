@@ -14,8 +14,9 @@ test('forms preserve party roles and blank unknowns, escape text, and keep priva
   assert.equal(values.jointDefendant, 'จำเลยร่วม');
   assert.equal(values.blackNumber, '');
   assert.equal(values.filedDate, '');
-  assert.equal(values.amount, '0');
-  assert.equal(values.courtFee, '0');
+  // 0 is "not entered yet" on the overview, never a ฿0 fee on paper.
+  assert.equal(values.amount, '');
+  assert.equal(values.courtFee, '');
   assert.equal(casePrintDefaults({ ...c, claimedAmount: 1_000_000 }, '').courtFee, '20,000');
   assert.equal(casePrintDefaults({ ...c, claimedAmount: null }, '').courtFee, '');
   const filled = casePrintDefaults({ ...c, blackCaseNumber: 'ผบ.407/2569', redCaseNumber: 'ผบ.500/2569', courtName: 'ศาลแพ่งกรุงเทพใต้', participants: c.participants!.map(p => ({ ...p, address: `${p.name} ที่อยู่`, phone: '021234567', email: 'test@example.com' })) }, 'สำนักงาน');

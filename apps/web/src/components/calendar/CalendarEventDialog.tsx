@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime } from '@/lib/utils';
-import { api, CalendarEventItem, CaseItem, TravelResult, UserItem } from '@/lib/api';
+import { api, CalendarEventItem, CaseListItem, TravelResult, UserItem } from '@/lib/api';
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
@@ -25,7 +25,7 @@ interface CalendarEventDialogProps {
   /** The court that case sits in, so a court date fills it in already. */
   caseCourtName?: string | null;
   /** Cases to choose between when the dialog is opened outside a case. */
-  cases?: CaseItem[];
+  cases?: CaseListItem[];
   /** Lawyers who can be named as attending. */
   users?: UserItem[];
   /** The event being edited; absent means a new one. */

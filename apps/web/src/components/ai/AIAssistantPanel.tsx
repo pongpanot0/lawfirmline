@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
-import { api, type CaseItem, type IntakeItem } from '@/lib/api';
+import { api, type CaseListItem, type IntakeItem } from '@/lib/api';
 import { CaseAiChat } from './CaseAiChat';
 import { AiTrayCards } from './AiTrayCards';
 
@@ -74,7 +74,7 @@ export function AIAssistantPanel({ caseId, intakeId }: AIAssistantPanelProps) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string | null>(null);
 
-  const [cases, setCases] = useState<CaseItem[] | null>(null);
+  const [cases, setCases] = useState<CaseListItem[] | null>(null);
   const [intakes, setIntakes] = useState<IntakeItem[] | null>(null);
   const [selectedCaseId, setSelectedCaseId] = useState(caseId ?? '');
   const [selectedIntakeId, setSelectedIntakeId] = useState('');

@@ -1325,8 +1325,8 @@ export default function CaseDetailPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">ทุนทรัพย์</p>
-                    <p className="font-medium">{legalCase.claimedAmount != null ? formatCurrency(legalCase.claimedAmount) : 'ยังไม่ระบุ'}</p>
-                    {legalCase.claimedAmount != null && (
+                    <p className="font-medium">{legalCase.claimedAmount ? formatCurrency(legalCase.claimedAmount) : 'ยังไม่ระบุ'}</p>
+                    {!!legalCase.claimedAmount && (
                       <p className="text-xs text-muted-foreground">ค่าขึ้นศาลโดยประมาณ {formatCurrency(courtFee(legalCase.claimedAmount))}</p>
                     )}
                   </div>

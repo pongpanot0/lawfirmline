@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { calendarPersonColors, eventPeopleIds, eventPersonId } from '@/lib/calendar-person-colors';
 import { Plus, Bell } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, CalendarEventItem, CaseItem, UserItem, PublicHolidayItem } from '@/lib/api';
+import { api, CalendarEventItem, CaseListItem, UserItem, PublicHolidayItem } from '@/lib/api';
 import { CalendarView } from '@/components/CalendarView';
 import { CalendarEventDialog } from '@/components/calendar/CalendarEventDialog';
 import { MyDayPanel } from '@/components/agenda/MyDayPanel';
@@ -44,7 +44,7 @@ export function CalendarWorkspace({ defaultView }: { defaultView: 'day' | 'month
   const { token, user } = useAuth();
   const [view, setView] = useState<'day' | 'month' | 'agenda'>(defaultView);
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
-  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [cases, setCases] = useState<CaseListItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [month, setMonth] = useState(new Date());
   const [holidays, setHolidays] = useState<PublicHolidayItem[]>([]);

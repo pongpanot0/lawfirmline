@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { FolderOpen, Upload, Search, FileText, Scale, Shield, Gavel, Eye } from 'lucide-react';
 import { CaseStatus } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, CaseItem, DocumentItem } from '@/lib/api';
+import { api, ApiError, CaseListItem, DocumentItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,7 +29,7 @@ export default function DocumentsPage() {
     { id: 'orders', label: d.documents.catOrders, icon: Gavel },
   ];
   const { token } = useAuth();
-  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [cases, setCases] = useState<CaseListItem[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCase, setSelectedCase] = useState('');
   const [uploading, setUploading] = useState(false);

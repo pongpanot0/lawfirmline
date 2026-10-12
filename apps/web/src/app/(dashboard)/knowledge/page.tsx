@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
-import { api, KnowledgeItem, CaseItem } from '@/lib/api';
+import { api, KnowledgeItem, CaseListItem } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { EmptyState, PageLoading } from '@/components/ui/misc';
 import { PageHeader } from '@/components/samnuan/PageHeader';
@@ -27,7 +27,7 @@ export default function KnowledgePage() {
   const d = useDashboardT();
   const { token } = useAuth();
   const [items, setItems] = useState<KnowledgeItem[]>([]);
-  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [cases, setCases] = useState<CaseListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);

@@ -12,7 +12,7 @@ import {
   MONEY_MIN,
 } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, CaseItem, CashAdvanceItem } from '@/lib/api';
+import { api, ApiError, CaseListItem, CashAdvanceItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ export default function NewExpensePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const caseIdParam = searchParams.get('caseId') ?? '';
-  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [cases, setCases] = useState<CaseListItem[]>([]);
   const [advances, setAdvances] = useState<CashAdvanceItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');

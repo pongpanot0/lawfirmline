@@ -43,6 +43,8 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
   const set = (key: Exclude<keyof CaseOverviewValues, 'customers' | 'additionalClientIds'>, next: string) => onChange({ ...value, [key]: next });
   const input = 'mt-1 min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   const group = 'grid min-w-0 gap-4 border-b border-border pb-5 sm:grid-cols-2';
+  // Numbers typed while switching level would land on the old level — the API rejects that, so lock them.
+  const levelSwitching = (value.courtLevel || 'TRIAL') !== (legalCase.courtLevel || 'TRIAL');
 
   return <form className="col-span-full min-w-0" data-testid="case-information-edit" onSubmit={e => { e.preventDefault(); onSave(); }}>
     <p className="mb-5 text-sm text-muted-foreground">แก้ไขข้อมูลคดี ลูกความ และผู้ว่าจ้างได้จากที่นี่</p>
@@ -101,9 +103,12 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
       <section className={group} aria-labelledby="case-court-heading">
         <div className="sm:col-span-2"><h3 id="case-court-heading" className="font-semibold">ศาลและหมายเลขคดี</h3><p className="mt-1 text-xs text-muted-foreground">ยังไม่ยื่นฟ้องหรือยังไม่มีเลขคดี เว้นว่างไว้ได้</p></div>
         <label className="text-sm">ระดับศาล<select value={value.courtLevel} onChange={e => set('courtLevel', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(CourtLevel).map(level => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label>
-        <label className="text-sm">ศาล<CourtSelect value={value.courtName} courts={courts} onChange={name => set('courtName', name)} className={input} /></label>
-        <label className="text-sm">หมายเลขคดีดำ<input value={value.blackCaseNumber} onChange={e => set('blackCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
-        <label className="text-sm">หมายเลขคดีแดง<input value={value.redCaseNumber} onChange={e => set('redCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
+        <fieldset disabled={levelSwitching} className="contents">
+          <label className="text-sm">ศาล<CourtSelect value={value.courtName} courts={courts} onChange={name => set('courtName', name)} className={input} /></label>
+          <label className="text-sm">หมายเลขคดีดำ<input value={value.blackCaseNumber} onChange={e => set('blackCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
+          <label className="text-sm">หมายเลขคดีแดง<input value={value.redCaseNumber} onChange={e => set('redCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
+        </fieldset>
+        {levelSwitching && <p className="col-span-full text-xs text-muted-foreground">เปลี่ยนระดับศาลแล้วบันทึกก่อน แล้วจึงแก้เลขคดีของศาลชั้นนั้น</p>}
       </section>
       <section className={group} aria-labelledby="case-reference-heading">
         <h3 id="case-reference-heading" className="font-semibold sm:col-span-2">เลขอ้างอิงและจำนวนเงิน</h3>

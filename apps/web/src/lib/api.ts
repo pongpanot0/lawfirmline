@@ -386,6 +386,11 @@ export interface CaseItem {
   relatedIntakes?: Array<{ id: string; status: string }>;
 }
 
+/** GET /cases rows: party names and sides only (no contact data, PDPA) and no proceedings. */
+export type CaseListItem = Omit<CaseItem, 'participants' | 'proceedings'> & {
+  participants?: Pick<CaseParticipantItem, 'id' | 'name' | 'role' | 'side'>[];
+};
+
 export interface CargoDocumentRequirementItem {
   id: string;
   code: string;
@@ -1628,7 +1633,7 @@ export const api = {
     if (params?.caseTypeId) query.set('caseTypeId', params.caseTypeId);
     if (params?.userId) query.set('userId', params.userId);
     const qs = query.toString();
-    return request<CaseItem[]>(`/cases${qs ? `?${qs}` : ''}`, { token });
+    return request<CaseListItem[]>(`/cases${qs ? `?${qs}` : ''}`, { token });
   },
 
   getCase: (token: string, id: string) =>

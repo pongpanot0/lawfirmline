@@ -34,7 +34,7 @@ export function LitigationCalculatorsCard({ claimedAmount }: { claimedAmount: nu
             <MoneyInput min={0} value={disputed} onValueChange={setDisputed} />
           </label>
           <p>
-            ค่าขึ้นศาล: <span className="font-semibold">{formatCurrency(courtFee(disputedValue))}</span>
+            ค่าขึ้นศาล: <span className="font-semibold">{disputedValue != null && !Number.isFinite(disputedValue) ? '—' : formatCurrency(courtFee(disputedValue))}</span>
             {disputedValue == null && <span className="text-muted-foreground"> (คดีไม่มีทุนทรัพย์)</span>}
           </p>
           <p className="text-xs text-muted-foreground">ตาราง 1 ท้าย ป.วิ.พ.: ร้อยละ 2 ไม่เกิน 200,000 บาท (ส่วนไม่เกิน 50 ล้าน) + ร้อยละ 0.1 ของส่วนที่เกิน · ไม่รวมคดีจำนอง/บังคับตามคำชี้ขาด/มโนสาเร่</p>

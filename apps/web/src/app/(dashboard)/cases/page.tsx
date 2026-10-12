@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Download, ArrowUpDown, Columns3, ClipboardList, Briefcase } from 'lucide-react';
 import { FirmRole, Role } from '@lawfirm/shared';
 import { useAuth } from '@/lib/auth';
-import { api, CaseItem, UserItem } from '@/lib/api';
+import { api, CaseListItem, UserItem } from '@/lib/api';
 import { PageHeader } from '@/components/samnuan/PageHeader';
 import { CaseStatusBadge } from '@/components/samnuan/CaseStatusBadge';
 import { caseStatusOptions, getCaseStatusDisplay } from '@/lib/case-status';
@@ -37,7 +37,7 @@ const OPTIONAL_COLUMNS = [
 type OptionalColumnKey = (typeof OPTIONAL_COLUMNS)[number]['key'];
 const HIDDEN_COLUMNS_KEY = 'samnuan.cases.hiddenColumns';
 
-function firstIntakeId(legalCase: CaseItem) {
+function firstIntakeId(legalCase: CaseListItem) {
   return legalCase.intake?.id ?? legalCase.relatedIntakes?.[0]?.id ?? null;
 }
 
@@ -59,7 +59,7 @@ function CasesPageContent() {
   const sopId = searchParams.get('sop');
   const newCaseHref = sopId ? `/cases/new?sop=${encodeURIComponent(sopId)}` : '/cases/new';
   const caseHref = (id: string) => `/cases/${id}${sopId ? `?tab=tasks&sop=${encodeURIComponent(sopId)}` : ''}`;
-  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [cases, setCases] = useState<CaseListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
