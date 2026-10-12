@@ -24,9 +24,15 @@ export class DateSuggestionsService {
     });
     const yearOf = (date: Date) => Number(bangkokDayKey(date).slice(0, 4));
     // Only computed dates depend on the holiday table; a date read from a document does not.
+    // Dates beyond next year (e.g. the 10-year enforcement reminder) are not expected to have
+    // holidays entered yet, so warning on them would be noise.
+    const lastCheckedYear = yearOf(new Date()) + 1;
     const incomplete = await incompleteHolidayYears(
       this.prisma,
-      rows.filter((row) => row.source === 'RULE').map((row) => yearOf(row.suggestedDate)),
+      rows
+        .filter((row) => row.source === 'RULE')
+        .map((row) => yearOf(row.suggestedDate))
+        .filter((year) => year <= lastCheckedYear),
     );
     return rows.map((row) => ({
       ...row,

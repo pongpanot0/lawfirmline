@@ -1,15 +1,28 @@
 -- Spec L1: platform default deadline rules and the 2570 (2027) holiday calendar.
 -- Runs after 20261011130000, so the new enum values are committed and usable.
 
--- 1. Upgrade the two old global rows in place (PENDING suggestions keep pointing at them).
+-- 1. Upgrade the two original global default rows in place (PENDING suggestions keep pointing
+-- at them). Only a row still holding the original default values, and only the oldest one: a
+-- row customised while rules were per-firm stays under its old label instead of becoming a
+-- duplicate of the new default.
 UPDATE "DeadlineRule"
    SET "label" = 'ครบกำหนดยื่นคำให้การ', "serviceMethod" = 'PERSONAL', "updatedAt" = CURRENT_TIMESTAMP
- WHERE "firmId" IS NULL AND "caseTypeId" IS NULL AND "trigger" = 'COMPLAINT_SERVED' AND "label" = 'ยื่นคำให้การ';
+ WHERE "id" = (
+   SELECT "id" FROM "DeadlineRule"
+    WHERE "firmId" IS NULL AND "caseTypeId" IS NULL AND "trigger" = 'COMPLAINT_SERVED'
+      AND "label" = 'ยื่นคำให้การ' AND "offsetDays" = 15 AND "dayBasis" = 'CALENDAR'
+    ORDER BY "createdAt", "id" LIMIT 1
+ );
 
 UPDATE "DeadlineRule"
    SET "label" = 'ครบกำหนดยื่นอุทธรณ์', "offsetDays" = 1, "dayBasis" = 'MONTHS', "courtLevel" = 'TRIAL',
        "updatedAt" = CURRENT_TIMESTAMP
- WHERE "firmId" IS NULL AND "caseTypeId" IS NULL AND "trigger" = 'JUDGMENT' AND "label" = 'ยื่นอุทธรณ์';
+ WHERE "id" = (
+   SELECT "id" FROM "DeadlineRule"
+    WHERE "firmId" IS NULL AND "caseTypeId" IS NULL AND "trigger" = 'JUDGMENT'
+      AND "label" = 'ยื่นอุทธรณ์' AND "offsetDays" = 30 AND "dayBasis" = 'CALENDAR'
+    ORDER BY "createdAt", "id" LIMIT 1
+ );
 
 -- 2. Insert every default that is not there yet (keyed by trigger + label, as firm overrides are).
 INSERT INTO "DeadlineRule" ("id", "trigger", "label", "offsetDays", "dayBasis", "adjustDays",

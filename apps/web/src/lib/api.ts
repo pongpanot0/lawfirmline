@@ -3344,7 +3344,7 @@ export interface DateSuggestionItem {
   deadlineRule?: { label: string; trigger: DeadlineTriggerValue } | null;
   status: 'PENDING' | 'CONFIRMED' | 'DISMISSED';
   calendarEventId?: string | null;
-  /** RULE only: the due year has fewer than 10 holidays configured — check the date by hand. */
+  /** RULE only: the due year has fewer than 19 holidays configured — check the date by hand. */
   holidayDataIncomplete?: boolean;
   /** Gregorian year of the due date (Bangkok). */
   dueYear?: number;

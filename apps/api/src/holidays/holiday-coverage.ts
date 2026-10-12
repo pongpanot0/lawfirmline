@@ -1,8 +1,8 @@
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 
-/** A Thai government year has ~19–24 holidays; fewer than this means the year was not entered. */
-export const MIN_HOLIDAYS_PER_YEAR = 10;
+/** A complete Thai government year has 19 or more holidays; fewer than this means the year was not fully entered. */
+export const MIN_HOLIDAYS_PER_YEAR = 19;
 
 type HolidayClient = Pick<PrismaService | Prisma.TransactionClient, 'publicHoliday'>;
 
@@ -12,7 +12,7 @@ type HolidayClient = Pick<PrismaService | Prisma.TransactionClient, 'publicHolid
  * PublicHoliday.date is a DATE column, so its UTC year is the Bangkok year.
  */
 export async function incompleteHolidayYears(client: HolidayClient, years: number[]): Promise<Set<number>> {
-  const wanted = [...new Set(years)].sort();
+  const wanted = [...new Set(years)].sort((a, b) => a - b);
   if (wanted.length === 0) return new Set();
   const rows = await client.publicHoliday.findMany({
     where: {
