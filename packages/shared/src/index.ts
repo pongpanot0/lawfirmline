@@ -255,13 +255,27 @@ export const CASE_STAGE_ORDER: CaseStage[] = [
   CaseStage.PRE_LITIGATION,
   CaseStage.FILING,
   CaseStage.ANSWER,
-  CaseStage.CLOSING,
+  CaseStage.MEDIATION,
+  CaseStage.HEARING,
+  CaseStage.AWAITING_JUDGMENT,
   CaseStage.APPEAL,
   CaseStage.SUPREME,
+  CaseStage.ENFORCEMENT,
+  CaseStage.CLOSING,
 ];
 
+/** Position in CASE_STAGE_ORDER; INTAKE_REVIEW (hidden alias) is −1, before everything. */
+export function caseStageIndex(stage: CaseStage | string | null | undefined): number {
+  return CASE_STAGE_ORDER.indexOf(stage as CaseStage);
+}
+
+/** Moving to an earlier stage — needs a note. */
+export function isBackwardStage(from: CaseStage | string | null | undefined, to: CaseStage | string): boolean {
+  return caseStageIndex(to) < caseStageIndex(from);
+}
+
 export const CASE_STAGE_LABELS_TH: Record<CaseStage, string> = {
-  [CaseStage.INTAKE_REVIEW]: 'ก่อนฟ้อง',
+  [CaseStage.INTAKE_REVIEW]: 'รับเรื่อง/ตรวจรับงาน',
   [CaseStage.FACT_GATHERING]: 'รวบรวมข้อเท็จจริง',
   [CaseStage.PRE_LITIGATION]: 'ก่อนฟ้อง',
   [CaseStage.FILING]: 'ยื่นฟ้อง',

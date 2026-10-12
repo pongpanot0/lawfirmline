@@ -11,6 +11,7 @@ import {
   IsObject,
   Matches,
   Max,
+  MaxLength,
   Min,
   ValidateIf,
   ValidateNested,
@@ -240,6 +241,12 @@ export class UpdateCaseDto {
   @IsOptional()
   @IsEnum(CaseStage)
   stage?: CaseStage;
+
+  /** เหตุผลเมื่อย้ายขั้นตอนย้อนกลับ — บังคับในกรณีนั้น เก็บใน CaseStatusLog.note */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  stageNote?: string;
 
   @IsOptional()
   @IsDateString()

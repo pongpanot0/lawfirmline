@@ -76,8 +76,9 @@ export function CaseWorkflowBoard({ cases, onStatusChange, canDrag }: CaseWorkfl
                     onChange={(e) => onStatusChange(c.id, e.target.value)}
                     className="mt-2 w-full rounded border border-border px-2 py-1 text-xs"
                   >
+                    {/* closing/archiving goes through the close button; PATCH refuses it */}
                     {WORKFLOW_COLUMNS.map((w) => (
-                      <option key={w.status} value={w.status}>{getCaseStatusDisplay(w.status, d.caseStatus).label}</option>
+                      <option key={w.status} value={w.status} disabled={w.status === 'CLOSED' || w.status === 'ARCHIVED'}>{getCaseStatusDisplay(w.status, d.caseStatus).label}</option>
                     ))}
                   </select>
                 )}

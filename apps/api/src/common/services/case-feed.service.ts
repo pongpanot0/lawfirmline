@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ActivityType, CaseStatus } from '@lawfirm/shared';
+import { ActivityType, CaseStage, CaseStatus } from '@lawfirm/shared';
 import { PrismaService } from '../../prisma/prisma.module';
 import { Prisma } from '../../generated/prisma';
 
@@ -33,6 +33,13 @@ export class CaseFeedService {
     at?: Date;
     /** สถานะที่เปลี่ยน — ระบุเมื่อไรก็ลง `CaseStatusLog` ให้ด้วย */
     statusTransition?: { from: CaseStatus | string; to: CaseStatus | string };
+    /** ขั้นตอนที่ย้าย — ลง `CaseStatusLog` (fromStage/toStage/note); status คงเดิมถ้าไม่ได้ส่ง statusTransition */
+    stageTransition?: {
+      from: CaseStage | string;
+      to: CaseStage | string;
+      note?: string | null;
+      status?: CaseStatus | string;
+    };
   },
   /**
    * ส่ง tx มาเมื่อคดียังไม่ commit (เช่นเปิดคดีจากพอร์ทัล) — ไม่งั้น FK ของคดีหาไม่เจอ.
@@ -54,12 +61,17 @@ export class CaseFeedService {
         },
       });
 
-      if (params.statusTransition) {
+      if (params.statusTransition || params.stageTransition) {
+        const stage = params.stageTransition;
+        const status = params.statusTransition;
         await db.caseStatusLog.create({
           data: {
             caseId: params.caseId,
-            fromStatus: params.statusTransition.from as never,
-            toStatus: params.statusTransition.to as never,
+            fromStatus: (status?.from ?? stage?.status) as never,
+            toStatus: (status?.to ?? stage?.status) as never,
+            ...(stage
+              ? { fromStage: stage.from as never, toStage: stage.to as never, note: stage.note ?? null }
+              : {}),
             changedById: params.userId,
           },
         });

@@ -19,7 +19,7 @@ interface Outstanding {
   unapprovedDocuments: Array<{ id: string; filename: string }>;
 }
 const outcomes = [
-  { value: '', label: 'ไม่ระบุผลคดี' }, { value: 'WON', label: 'ชนะคดี' },
+  { value: '', label: 'เลือกผลคดี' }, { value: 'WON', label: 'ชนะคดี' },
   { value: 'SETTLED', label: 'ตกลงกันได้' }, { value: 'MEDIATED', label: 'ไกล่เกลี่ยสำเร็จ' },
   { value: 'LOST', label: 'แพ้คดี' }, { value: 'WITHDRAWN', label: 'ถอนฟ้อง / ยุติ' },
 ];
@@ -51,7 +51,7 @@ export default function CaseCloseScreen() {
     setBusy(true); setError('');
     try {
       await api(`/cases/${id}/${action}`, { method: 'POST', body: action === 'close'
-        ? { closingSummary: summary.trim(), ...(outcome ? { outcome } : {}), acknowledgeOutstanding: acknowledged } : {} });
+        ? { closingSummary: summary.trim(), outcome, acknowledgeOutstanding: acknowledged } : {} });
       await Promise.all(['case', 'cases', 'my-day', 'dashboard-stats', 'owner-kpis', 'workload', 'case-outstanding'].map(key =>
         cache.invalidateQueries({ queryKey: [key] })));
       router.back();
@@ -84,7 +84,7 @@ export default function CaseCloseScreen() {
       ? 'คดีจะกลับเป็นสถานะดำเนินการ' : 'เก็บคดีที่ปิดแล้วเข้าคลัง โดยยังเปิดคดีอีกครั้งได้'}</Text>}
     {!!error && <Text accessibilityRole="alert" style={{ color: colors.warn }}>{error}</Text>}
     <View style={{ marginTop: spacing.md }}><Button title={`ยืนยัน${title}`} busy={busy}
-      disabled={action === 'close' && (summary.trim().length < 10 || !outstanding.data || outstanding.isError || outstanding.isFetching || (outstanding.data.total > 0 && !acknowledged))}
+      disabled={action === 'close' && (!outcome || summary.trim().length < 10 || !outstanding.data || outstanding.isError || outstanding.isFetching || (outstanding.data.total > 0 && !acknowledged))}
       onPress={() => Alert.alert(title, `${title} ${legalCase.data!.ownRef}?`, [
         { text: 'ยกเลิก', style: 'cancel' }, { text: 'ยืนยัน', onPress: submit },
       ])} /></View>

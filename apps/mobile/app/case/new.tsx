@@ -89,8 +89,7 @@ export default function CaseFormScreen() {
       disabled={busy || !!savedId || ['CLOSED', 'ARCHIVED'].includes(current.data?.status ?? '')}
       options={[{ value: 'OPEN', label: 'เปิดคดี' }, { value: 'DRAFTING', label: 'ร่างเอกสาร' },
         { value: 'COURT_DATE', label: 'รอนัดศาล' }, { value: 'IN_PROGRESS', label: 'กำลังดำเนินการ' },
-        { value: 'PENDING', label: 'รอดำเนินการ' },
-        ...(['CLOSED', 'ARCHIVED'].includes(status) ? [{ value: status, label: status === 'CLOSED' ? 'ปิดคดีแล้ว' : 'เก็บเข้าคลังแล้ว' }] : [])]} />}
+        { value: 'PENDING', label: 'รอดำเนินการ' }]} />}
     <SectionLabel style={formLabelSpacing}>ประเภทคดี</SectionLabel>
     <Dropdown label="เลือกประเภทคดี" value={caseTypeId} onChange={setCaseTypeId} disabled={busy || !!savedId}
       options={[{ value: '', label: 'ยังไม่ระบุ' }, ...(types.data ?? []).map(item => ({ value: item.id, label: item.name }))]} />

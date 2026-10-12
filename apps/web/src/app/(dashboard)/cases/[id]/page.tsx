@@ -41,6 +41,7 @@ import {
   COURT_LEVEL_LABELS,
   CASE_NUMBER_HINT,
   hasFirmCapability,
+  isBackwardStage,
 } from '@lawfirm/shared';
 import {
   CASE_TAB_IDS,
@@ -423,7 +424,7 @@ export default function CaseDetailPage() {
     setCloseError('');
     try {
       await api.closeCase(token, id, closingSummary.trim(), {
-        outcome: closingOutcome || undefined,
+        outcome: closingOutcome,
         acknowledgeOutstanding: ackOutstanding || undefined,
       });
       setShowCloseForm(false);
@@ -439,7 +440,12 @@ export default function CaseDetailPage() {
 
   const applyStageChange = async (stage: string) => {
     if (!token || !id) return;
-    await api.updateCase(token, id, { stage });
+    let stageNote: string | undefined;
+    if (isBackwardStage(legalCase?.stage, stage)) {
+      stageNote = window.prompt('ย้ายขั้นตอนย้อนกลับ — ระบุเหตุผล (จะบันทึกในประวัติคดี)')?.trim();
+      if (!stageNote) return;
+    }
+    await api.updateCase(token, id, { stage, ...(stageNote ? { stageNote } : {}) });
     loadCase();
   };
 
@@ -1025,9 +1031,10 @@ export default function CaseDetailPage() {
                 <select
                   value={closingOutcome}
                   onChange={(e) => setClosingOutcome(e.target.value)}
+                  required
                   className="h-9 w-full rounded-lg border border-input bg-card px-3 text-sm"
                 >
-                  <option value="">ไม่ระบุ</option>
+                  <option value="" disabled>เลือกผลคดี</option>
                   <option value="WON">ชนะคดี</option>
                   <option value="SETTLED">ตกลงกันได้</option>
                   <option value="MEDIATED">ไกล่เกลี่ยสำเร็จ</option>
@@ -1047,7 +1054,7 @@ export default function CaseDetailPage() {
               <div className="flex gap-2">
                 <Button
                   type="submit"
-                  disabled={closingCase || (!!outstanding && outstanding.total > 0 && !ackOutstanding)}
+                  disabled={!closingOutcome || closingCase || (!!outstanding && outstanding.total > 0 && !ackOutstanding)}
                 >
                   {closingCase ? 'กำลังปิดคดี...' : 'ยืนยันปิดคดี'}
                 </Button>

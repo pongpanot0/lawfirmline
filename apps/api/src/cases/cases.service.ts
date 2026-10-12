@@ -15,6 +15,7 @@ import {
   CaseStatus,
   FirmRole,
   hasFirmCapability,
+  isBackwardStage,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -453,6 +454,15 @@ export class CasesService {
   async update(user: AuthUser, id: string, dto: UpdateCaseDto) {
     const before = await this.findOne(user, id);
 
+    if (dto.status === CaseStatus.CLOSED || dto.status === CaseStatus.ARCHIVED) {
+      throw new BadRequestException('ใช้ปุ่มปิดคดี');
+    }
+    const stageChanged = !!dto.stage && dto.stage !== before.stage;
+    const stageNote = dto.stageNote?.trim() || null;
+    if (stageChanged && isBackwardStage(before.stage, dto.stage!) && !stageNote) {
+      throw new BadRequestException('ย้ายขั้นตอนย้อนกลับต้องระบุเหตุผล');
+    }
+
     if (dto.ownRef?.trim() && dto.ownRef.trim() !== before.ownRef) {
       const existing = await this.prisma.case.findUnique({
         where: { firmId_ownRef: { firmId: user.firmId, ownRef: dto.ownRef.trim() } },
@@ -479,8 +489,7 @@ export class CasesService {
       caseTypeIds: [dto.caseTypeId],
     });
 
-    const { customFields, customers, ...rest } = dto;
-    const stageChanged = !!dto.stage && dto.stage !== before.stage;
+    const { customFields, customers, stageNote: _stageNote, ...rest } = dto;
     const updated = await this.prisma.case.update({
       where: { id },
       data: {
@@ -513,6 +522,8 @@ export class CasesService {
         userId: user.id,
         type: ActivityType.STAGE_CHANGE,
         title: `ขั้นตอนคดี: ${before.stage} → ${dto.stage}`,
+        description: stageNote ?? undefined,
+        stageTransition: { from: before.stage, to: dto.stage!, note: stageNote, status: updated.status },
       });
     }
     if (dto.leadLawyerId && dto.leadLawyerId !== before.leadLawyerId) {
@@ -687,7 +698,7 @@ export class CasesService {
         status: CaseStatus.CLOSED,
         stage: CaseStage.CLOSING,
         stageChangedAt: now,
-        outcome: dto.outcome ?? undefined,
+        outcome: dto.outcome,
         closedAt: now,
         closingSummary: dto.closingSummary.trim(),
       },
@@ -708,6 +719,7 @@ export class CasesService {
         .join('\n'),
       at: now,
       statusTransition: { from: legalCase.status, to: CaseStatus.CLOSED },
+      stageTransition: { from: legalCase.stage, to: CaseStage.CLOSING },
     });
 
     return closed;
@@ -743,10 +755,21 @@ export class CasesService {
       throw new BadRequestException('คดีนี้ยังไม่ได้ปิด');
     }
 
+    // The stage the case was in before it was closed; cases closed before stage logs existed
+    // (or closed from CLOSING itself) have none, so they reopen at PRE_LITIGATION.
+    const lastClose = await this.prisma.caseStatusLog.findFirst({
+      where: { caseId: id, toStage: CaseStage.CLOSING, fromStage: { not: CaseStage.CLOSING } },
+      orderBy: { createdAt: 'desc' },
+      select: { fromStage: true },
+    });
+    const stage = (lastClose?.fromStage as CaseStage | null) ?? CaseStage.PRE_LITIGATION;
+
     const reopened = await this.prisma.case.update({
       where: { id },
       data: {
         status: CaseStatus.IN_PROGRESS,
+        stage,
+        stageChangedAt: new Date(),
         closedAt: null,
         outcome: CaseOutcome.IN_PROGRESS,
       },
@@ -758,6 +781,7 @@ export class CasesService {
       type: ActivityType.STATUS_CHANGE,
       title: 'เปิดคดีขึ้นมาใหม่ / Reopened',
       statusTransition: { from: legalCase.status, to: CaseStatus.IN_PROGRESS },
+      stageTransition: { from: legalCase.stage, to: stage },
     });
     return reopened;
   }
