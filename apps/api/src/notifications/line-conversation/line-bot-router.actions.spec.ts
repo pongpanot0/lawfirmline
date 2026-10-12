@@ -71,6 +71,21 @@ describe('LineBotRouter — notification buttons and chat questions', () => {
     expect(quickActions.handle).not.toHaveBeenCalled();
   });
 
+  it('a review postback never overwrites a flow in progress', async () => {
+    store.get.mockReturnValue({ flowType: 'LEAVE', target: dm });
+    await router.route('L1', 'task:handoff:11111111-1111-1111-1111-111111111111', dm, false);
+    expect(store.start).not.toHaveBeenCalled();
+    expect(reviewFlow.begin).not.toHaveBeenCalled();
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('ยกเลิก'), undefined);
+  });
+
+  it('from a group, the note follow-up moves to the 1:1 chat', async () => {
+    await router.route('L1', 'task:reject:11111111-1111-1111-1111-111111111111', group, true);
+    const started = store.start.mock.calls[0][0];
+    expect(started.target).toEqual({ sourceType: 'user' });
+    expect(reviewFlow.begin).toHaveBeenCalled();
+  });
+
   it('the next message in that flow goes to the review flow', async () => {
     store.get.mockReturnValue({ flowType: 'TASK_REVIEW', target: dm });
     await router.route('L1', 'แก้ทุนทรัพย์ข้อ 2', dm, false);

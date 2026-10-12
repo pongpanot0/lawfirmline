@@ -39,3 +39,7 @@ export const lineActions = {
 /** Whether a task can be closed with one tap — not when it needs review or follows an SOP routine. */
 export const canCompleteFromLine = (task: { requiresReview?: boolean | null; routine?: unknown }) =>
   !task.requiresReview && !task.routine;
+
+/** The handoff button needs somewhere to go: a case task, or a standalone task with a named reviewer. */
+export const canHandoffFromLine = (task: { requiresReview?: boolean | null; caseId?: string | null; reviewerId?: string | null }) =>
+  !!task.requiresReview && (!!task.caseId || !!task.reviewerId);

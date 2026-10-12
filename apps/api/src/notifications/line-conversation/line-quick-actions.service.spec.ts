@@ -30,6 +30,11 @@ describe('LineQuickActionsService', () => {
     expect(tasks.acceptById).toHaveBeenCalledWith(ID, user);
   });
 
+  it('an other-firm / ineligible approval is refused with the service message and nothing else', async () => {
+    tasks.acceptById.mockRejectedValue(new Error('Task not found'));
+    await expect(svc.handle(user, `task:accept:${ID}`)).resolves.toContain('ทำรายการไม่สำเร็จ');
+  });
+
   it('acknowledges a task', async () => {
     tasks.acknowledge.mockResolvedValue({ title: 'ร่างคำฟ้อง' });
     await expect(svc.handle(user, `task:ack:${ID}`)).resolves.toContain('ร่างคำฟ้อง');

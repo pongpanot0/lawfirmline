@@ -79,9 +79,19 @@ export class LineBotRouterService {
     // state and never starts or disturbs a flow.
     const reviewNote = REVIEW_NOTE_ACTION.exec(text);
     if (reviewNote) {
+      if (existing?.flowType) {
+        await this.reply(lineUserId, target, { text: 'ทำรายการเดิมให้เสร็จหรือพิมพ์ "ยกเลิก" ก่อน แล้วกดปุ่มอีกครั้งครับ' });
+        return;
+      }
+      // The note prompt and result carry the task title: keep them in the 1:1 chat.
+      const privateTarget: ConversationTarget = { sourceType: 'user' };
+      if (chatKey(target) !== 'user') {
+        await this.reply(lineUserId, target, { text: 'ส่งขั้นตอนต่อไปที่แชตส่วนตัวกับบอทแล้วครับ' });
+      }
       const session = this.store.start({
         lineUserId, userId: authUser.id, firmId: authUser.firmId,
-        flowType: FlowType.TASK_REVIEW, step: ConversationStep.SELECT_ACTION, data: {}, target,
+        flowType: FlowType.TASK_REVIEW, step: ConversationStep.SELECT_ACTION, data: {},
+        target: chatKey(target) === 'user' ? target : privateTarget,
       });
       await this.reviewFlow.begin(session, reviewNote[1].toLowerCase() as 'handoff' | 'reject', reviewNote[2]);
       return;

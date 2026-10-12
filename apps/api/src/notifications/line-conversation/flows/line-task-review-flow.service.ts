@@ -26,6 +26,15 @@ export class LineTaskReviewFlowService {
   ) {}
 
   async begin(session: ConversationSession, kind: 'handoff' | 'reject', taskId: string): Promise<void> {
+    const user = await this.auth.resolve(session.lineUserId);
+    if (!user) return;
+    try {
+      await this.tasks.assertAccess(taskId, user);
+    } catch (error) {
+      await this.reply(session, `ทำรายการไม่สำเร็จ: ${error instanceof Error ? error.message : 'กรุณาลองใหม่'}`);
+      this.store.clear(session.lineUserId);
+      return;
+    }
     const step = kind === 'handoff' ? ConversationStep.TASK_HANDOFF_NOTE : ConversationStep.TASK_REJECT_REASON;
     this.store.update(session.lineUserId, { flowType: FlowType.TASK_REVIEW, step, data: { taskId } });
     await this.reply(session, kind === 'handoff'
@@ -38,7 +47,9 @@ export class LineTaskReviewFlowService {
     const value = text.trim();
     const handoff = session.step === ConversationStep.TASK_HANDOFF_NOTE;
     if (value.length < (handoff ? TASK_HANDOFF_NOTE_MIN : 1)) {
-      await this.reply(session, `หมายเหตุสั้นไป พิมพ์อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษรครับ`);
+      await this.reply(session, handoff
+        ? `หมายเหตุสั้นไป พิมพ์อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษรครับ`
+        : 'ต้องระบุเหตุผลที่ส่งกลับ พิมพ์เหตุผลมาได้เลยครับ');
       return;
     }
     const user = await this.auth.resolve(session.lineUserId);

@@ -1,7 +1,7 @@
 import { ModuleRef } from '@nestjs/core';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { assertFirmRefs } from '../common/firm-refs';
-import { canCompleteFromLine, lineActions } from '../notifications/line-actions';
+import { canCompleteFromLine, canHandoffFromLine, lineActions } from '../notifications/line-actions';
 import {
   BadRequestException,
   ForbiddenException,
@@ -684,7 +684,7 @@ export class TasksService {
         entityPath: caseId ? `/cases/${caseId}` : '/todos',
         appPath: taskAppRoute(task.id),
         lineActions: (userId) => userId === task.assigneeId
-          ? lineActions.task(task.id, { canComplete: canCompleteFromLine(task), canHandoff: !!task.requiresReview }) : undefined,
+          ? lineActions.task(task.id, { canComplete: canCompleteFromLine(task), canHandoff: canHandoffFromLine(task) }) : undefined,
       });
     }
 
@@ -798,7 +798,7 @@ export class TasksService {
         summaryText: await this.taskAssignmentSummary(task.title, task.caseId, task.intakeId),
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
         appPath: taskAppRoute(task.id),
-        lineActions: () => lineActions.task(task.id, { canComplete: canCompleteFromLine(updated), canHandoff: !!updated.requiresReview }),
+        lineActions: () => lineActions.task(task.id, { canComplete: canCompleteFromLine(updated), canHandoff: canHandoffFromLine(updated) }),
       });
     }
     if (dto.assigneeId && dto.assigneeId !== task.assigneeId) {
@@ -1190,7 +1190,7 @@ export class TasksService {
         summaryText: await this.taskAssignmentSummary(task.title, caseId, task.intakeId),
         entityPath: `/cases/${caseId}`,
         appPath: taskAppRoute(taskId),
-        lineActions: () => lineActions.task(taskId, { canComplete: canCompleteFromLine(task), canHandoff: !!task.requiresReview }),
+        lineActions: () => lineActions.task(taskId, { canComplete: canCompleteFromLine(task), canHandoff: canHandoffFromLine(task) }),
       });
     }
     await this.notifyPreviousAssignee(task, task.assigneeId, dto.assigneeId, user);

@@ -4,7 +4,7 @@ import { ConversationStep, FlowType } from './line-conversation.types';
 const ID = '11111111-2222-3333-4444-555555555555';
 
 describe('LineTaskReviewFlowService', () => {
-  const tasks = { handoffById: jest.fn(), rejectById: jest.fn() } as any;
+  const tasks = { handoffById: jest.fn(), rejectById: jest.fn(), assertAccess: jest.fn() } as any;
   const line = { replyWithQuickReply: jest.fn(), pushTo: jest.fn() } as any;
   const store = { update: jest.fn(), clear: jest.fn() } as any;
   const auth = { resolve: jest.fn().mockResolvedValue({ id: 'u1', firmId: 'f1' }) } as any;
@@ -23,6 +23,27 @@ describe('LineTaskReviewFlowService', () => {
     await flow.begin(session(ConversationStep.SELECT_ACTION), 'handoff', ID);
     expect(store.update).toHaveBeenCalledWith('L1', { flowType: FlowType.TASK_REVIEW, step: ConversationStep.TASK_HANDOFF_NOTE, data: { taskId: ID } });
     expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('หมายเหตุ'), expect.anything());
+  });
+
+  it('refuses at once, without asking for a note, when the tapper cannot open the task', async () => {
+    tasks.assertAccess.mockRejectedValueOnce(new Error('Task not found'));
+    await flow.begin(session(ConversationStep.SELECT_ACTION), 'handoff', ID);
+    expect(store.update).not.toHaveBeenCalled();
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('Task not found'), expect.anything());
+  });
+
+  it('a blank send-back reason gets its own message, not the 5-character one', async () => {
+    await flow.handle(session(ConversationStep.TASK_REJECT_REASON), '   ');
+    expect(tasks.rejectById).not.toHaveBeenCalled();
+    const text = line.replyWithQuickReply.mock.calls[0][1] as string;
+    expect(text).toContain('เหตุผล');
+    expect(text).not.toContain('5');
+  });
+
+  it('a refused approval or send-back from the service is reported, not applied', async () => {
+    tasks.rejectById.mockRejectedValue(new Error('ผู้รับผิดชอบงานตรวจงานตัวเองไม่ได้'));
+    await flow.handle(session(ConversationStep.TASK_REJECT_REASON), 'แก้ข้อ 2');
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('ตรวจงานตัวเอง'), expect.anything());
   });
 
   it('refuses a note shorter than 5 characters and keeps waiting', async () => {
