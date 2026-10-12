@@ -14,6 +14,9 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 import { CreateWorkflowTemplateDto, UpdateWorkflowTemplateDto, CreateWorkflowRunDto, SendBackWorkflowDto, WorkflowAssigneeDto } from './dto/workflow.dto';
 import { TaskStatus, NotificationCategory } from '../generated/prisma';
 
+/** Roles a template step may be assigned to. The office manager runs operations, not casework. */
+const STEP_ROLES: FirmRole[] = [FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.LAWYER, FirmRole.ASSISTANT, FirmRole.EXTERNAL];
+
 @Injectable()
 export class WorkflowsService {
   constructor(
@@ -151,7 +154,7 @@ export class WorkflowsService {
       const title = typeof step?.title === 'string' ? step.title.trim() : '';
       if (!title || title.length > 200) throw new BadRequestException(`ขั้นที่ ${i + 1} ต้องมีชื่อ (ไม่เกิน 200 ตัวอักษร)`);
       if (!Number.isInteger(step.durationDays) || step.durationDays! < 1 || step.durationDays! > 60) throw new BadRequestException(`ขั้นที่ ${i + 1}: ระยะเวลา 1-60 วันทำการ`);
-      if (!Object.values(FirmRole).includes(step.role as FirmRole)) throw new BadRequestException(`ขั้นที่ ${i + 1}: บทบาทไม่ถูกต้อง`);
+      if (!STEP_ROLES.includes(step.role as FirmRole)) throw new BadRequestException(`ขั้นที่ ${i + 1}: บทบาทไม่ถูกต้อง`);
       if (step.instructions !== undefined && (typeof step.instructions !== 'string' || step.instructions.length > 5000)) throw new BadRequestException(`ขั้นที่ ${i + 1}: คำอธิบายไม่ถูกต้อง`);
       if (step.requiresReview !== undefined && typeof step.requiresReview !== 'boolean') throw new BadRequestException(`ขั้นที่ ${i + 1}: ค่าการตรวจไม่ถูกต้อง`);
       return { title, instructions: step.instructions?.trim() || undefined, role: step.role as FirmRole, durationDays: step.durationDays!, requiresReview: step.requiresReview ?? false };

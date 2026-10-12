@@ -99,6 +99,7 @@ describe('WorkflowsService', () => {
       [[{ title: 'x', role: 'LAWYER', durationDays: 0 }], 'ระยะเวลา'],
       [[{ title: 'x', role: 'LAWYER', durationDays: 1.5 }], 'ระยะเวลา'],
       [[{ title: 'x', role: 'JUDGE', durationDays: 1 }], 'บทบาท'],
+      [[{ title: 'x', role: 'OFFICE_MANAGER', durationDays: 1 }], 'บทบาท'],
       [[{ title: { evil: true }, role: 'LAWYER', durationDays: 1 }], 'ต้องมีชื่อ'],
     ])('rejects bad steps %#', async (bad, message) => {
       const { svc } = build();
