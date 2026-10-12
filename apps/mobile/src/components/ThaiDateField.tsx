@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useState } from 'react';
+import React, { forwardRef, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, TextInput as NativeTextInput, View } from 'react-native';
 import { X } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -29,29 +29,46 @@ export const ThaiDateField = forwardRef<NativeTextInput, {
   clearConfirm?: { title: string; body: string };
   hint?: string;
   disabled?: boolean;
-}>(function ThaiDateField({ label, value, onChange, onInvalidChange, clearable = false, clearConfirm, hint, disabled = false }, ref) {
+  /** Change it to re-seed the field from `value` and clear any invalid state (e.g. "คืนค่าเดิม"). */
+  resetKey?: string | number;
+}>(function ThaiDateField({ label, value, onChange, onInvalidChange, clearable = false, clearConfirm, hint, disabled = false, resetKey }, ref) {
   const [parts, setParts] = useState<ThaiDateParts>(() => dayToParts(value));
   const check = checkThaiDate(parts);
 
-  // Follow a value set from outside (calendar pick, "คืนค่าเดิม") without wiping a half-typed entry.
+  // The partial-date warning waits for blur so it never nags after the first keystroke.
+  const [touched, setTouched] = useState(false);
+  const lastEmitted = useRef<string | null>(value);
+  const reseed = () => { setParts(dayToParts(value)); setTouched(false); onInvalidChange?.(false); };
+
+  // Follow any value the parent sets that this field did not emit itself.
   useEffect(() => {
-    const shown = check.kind === 'ok' ? check.day : check.kind === 'empty' ? null : undefined;
-    if (shown !== undefined && shown !== value) setParts(dayToParts(value));
+    if (value === lastEmitted.current) return;
+    lastEmitted.current = value;
+    reseed();
   }, [value]);
+  // Explicit reset, also when the new value equals the old one.
+  const firstReset = useRef(true);
+  useEffect(() => {
+    if (firstReset.current) { firstReset.current = false; return; }
+    lastEmitted.current = value;
+    reseed();
+  }, [resetKey]);
+
+  const emit = (day: string | null) => { lastEmitted.current = day; onChange(day); };
 
   const apply = (next: ThaiDateParts) => {
     const action = thaiDateAction(next, value, !!clearConfirm);
     if (action.emit === 'confirm-clear' && clearConfirm) {
       Alert.alert(clearConfirm.title, clearConfirm.body, [
-        { text: 'ยกเลิก', style: 'cancel', onPress: () => setParts(dayToParts(value)) },
-        { text: 'ลบวันที่', style: 'destructive', onPress: () => { setParts(next); onInvalidChange?.(false); onChange(null); } },
+        { text: 'ยกเลิก', style: 'cancel', onPress: () => { setParts(dayToParts(value)); onInvalidChange?.(false); } },
+        { text: 'ลบวันที่', style: 'destructive', onPress: () => { setParts(next); onInvalidChange?.(false); emit(null); } },
       ]);
       return;
     }
     setParts(next);
     onInvalidChange?.(action.invalid);
-    if (action.emit === 'day') onChange(action.day);
-    if (action.emit === 'clear') onChange(null);
+    if (action.emit === 'day') emit(action.day);
+    if (action.emit === 'clear') emit(null);
   };
   const typed = !!(parts.d || parts.m || parts.y);
 
@@ -60,14 +77,14 @@ export const ThaiDateField = forwardRef<NativeTextInput, {
     {hint ? <Text style={{ color: colors.muted, fontSize: 13 }}>{hint}</Text> : null}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
       <TextInput ref={ref} accessibilityLabel={`${label} วัน`} placeholder="วัน" placeholderTextColor={colors.faint}
-        keyboardType="number-pad" maxLength={2} editable={!disabled} value={parts.d}
+        keyboardType="number-pad" onBlur={() => setTouched(true)} maxLength={2} editable={!disabled} value={parts.d}
         onChangeText={(text) => apply({ ...parts, d: digits(text) })} style={[input, { width: 64 }]} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Dropdown label="เดือน" value={parts.m} options={THAI_MONTH_OPTIONS} disabled={disabled}
-          onChange={(m) => apply({ ...parts, m })} />
+          onChange={(m) => { setTouched(true); apply({ ...parts, m }); }} />
       </View>
       <TextInput accessibilityLabel={`${label} ปี พ.ศ.`} placeholder="ปี พ.ศ." placeholderTextColor={colors.faint}
-        keyboardType="number-pad" maxLength={4} editable={!disabled} value={parts.y}
+        keyboardType="number-pad" onBlur={() => setTouched(true)} maxLength={4} editable={!disabled} value={parts.y}
         onChangeText={(text) => apply({ ...parts, y: digits(text) })} style={[input, { width: 84 }]} />
       {disabled ? null : <DatePicker iconOnly value={check.kind === 'ok' ? check.day : value ?? ''} onChange={(day) => apply(dayToParts(day))} />}
       {clearable && typed && !disabled ? <Pressable accessibilityRole="button" accessibilityLabel={`ล้าง${label}`}
@@ -76,7 +93,7 @@ export const ThaiDateField = forwardRef<NativeTextInput, {
         <X size={18} color={colors.muted} />
       </Pressable> : null}
     </View>
-    {check.kind === 'partial' || check.kind === 'invalid'
+    {check.kind === 'invalid' || (check.kind === 'partial' && touched)
       ? <Text accessibilityRole="alert" style={{ color: colors.warn, fontSize: 13 }}>{check.message}</Text>
       : check.kind === 'ok' ? <Text style={{ color: colors.muted, fontSize: 13 }}>{thDateLong(bangkokDayToIso(check.day))}</Text> : null}
   </View>;

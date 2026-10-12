@@ -19,9 +19,14 @@ export function ActionSheet({ visible, title, detail, onClose, children }: {
     supportedOrientations={['portrait', 'portrait-upside-down', 'landscape-left', 'landscape-right']} onRequestClose={onClose}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
       <Pressable accessible={false} style={[styles.backdrop, { paddingBottom: keyboardHeight }]} onPress={onClose}>
-        <Pressable accessible={false} style={[styles.sheet, { paddingBottom: spacing.lg + bottom }]} onPress={() => undefined}>
+        <Pressable accessible={false} accessibilityViewIsModal onAccessibilityEscape={onClose} style={[styles.sheet, { paddingBottom: spacing.lg + bottom }]} onPress={() => undefined}>
           <View style={styles.handle} />
-          <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+          <View style={styles.titleRow}>
+            <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="ปิด" onPress={onClose} style={styles.close}>
+              <Text style={styles.closeText}>ปิด</Text>
+            </Pressable>
+          </View>
           {detail ? <Text style={styles.detail} numberOfLines={2}>{detail}</Text> : null}
           <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.sm }}>
             {children}
@@ -33,12 +38,15 @@ export function ActionSheet({ visible, title, detail, onClose, children }: {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(14,20,32,0.45)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
   sheet: {
     width: '100%', maxWidth: 760, alignSelf: 'center', maxHeight: '90%',
     backgroundColor: colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: spacing.lg,
   },
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: spacing.md },
-  title: { fontFamily: fonts.bold, fontSize: 17, color: colors.ink },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  close: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
+  closeText: { color: colors.info, fontFamily: fonts.semibold, fontSize: 15 },
+  title: { flex: 1, fontFamily: fonts.bold, fontSize: 17, color: colors.ink },
   detail: { color: colors.muted, fontSize: 13, marginTop: 2, marginBottom: spacing.md },
 });
