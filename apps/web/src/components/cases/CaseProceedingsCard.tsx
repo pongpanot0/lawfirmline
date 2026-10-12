@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import {
+  CASE_NUMBER_HINT,
+  CASE_NUMBER_HTML,
   COURT_LEVEL_LABELS,
   CourtLevel,
   JUDGMENT_OUTCOME_LABELS,
@@ -55,6 +57,8 @@ export function CaseProceedingsCard({
   const [error, setError] = useState('');
 
   const open = (next: Action) => {
+    if (busy) return;
+    setMessage('');
     setAction(action === next ? null : next);
     setDate(''); setNumber(''); setOutcome(''); setAmount(''); setNote(''); setError('');
     setLevel(currentLevel ?? CourtLevel.TRIAL);
@@ -62,9 +66,10 @@ export function CaseProceedingsCard({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !action || !date) return;
+    if (busy || !token || !action || !date) return;
     setBusy(true);
     setError('');
+    setMessage('');
     try {
       let result: ProceedingActionResult;
       if (action === 'filing') {
@@ -143,7 +148,7 @@ export function CaseProceedingsCard({
             {action === 'filing' && (
               <label className="block">
                 <span className="mb-1 block text-muted-foreground">หมายเลขคดีดำ</span>
-                <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="เช่น พ.123/2569" />
+                <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} />
               </label>
             )}
             {action === 'service' && (
@@ -175,7 +180,7 @@ export function CaseProceedingsCard({
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-muted-foreground">หมายเลขคดีแดง</span>
-                  <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="เช่น พ.999/2570" />
+                  <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} />
                 </label>
                 <label className="block sm:col-span-2">
                   <span className="mb-1 block text-muted-foreground">สรุปคำพิพากษา</span>

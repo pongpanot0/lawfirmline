@@ -27,6 +27,9 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
   const [month, setMonth] = useState(new Date());
   const [view, setView] = useState<'timeline' | 'calendar'>('timeline');
   const [loading, setLoading] = useState(true);
+  // Full-page loader on the first load only; later reloads refresh in place so the
+  // suggestions panel (and its unsaved drafts) stays mounted.
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [dialog, setDialog] = useState<
@@ -70,7 +73,10 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
         setEvents(all.filter((e) => e.case?.id === caseId));
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : d.common.loadFailed))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setLoadedOnce(true);
+      });
   }, [token, caseId, month, view, reloadKey, d.common.loadFailed]);
 
   useEffect(() => {
@@ -106,7 +112,7 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
     }
   };
 
-  if (loading) return <PageLoading title={d.calendar.loading} lines={3} />;
+  if (loading && !loadedOnce) return <PageLoading title={d.calendar.loading} lines={3} />;
 
   return (
     <div>
