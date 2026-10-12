@@ -44,6 +44,61 @@ describe('ensureOurClientParticipant', () => {
   });
 });
 
+/** findFirst that honours its `where`, so the "auto-shaped row" filter is really exercised. */
+const rowsDb = (legalCase: Record<string, unknown>, rows: Array<Record<string, unknown>>) => {
+  const db = fakeDb();
+  db.case.findUnique.mockResolvedValue(legalCase);
+  db.caseParticipant.findFirst.mockImplementation(({ where }) =>
+    Promise.resolve(rows.find((r) => Object.entries(where).every(([k, v]) => r[k] === v)) ?? null),
+  );
+  return db;
+};
+const clientB = { partyRole: 'PLAINTIFF', clientId: 'cl-b', clientName: null, client: { name: 'บริษัท บี' } };
+
+describe('ensureOurClientParticipant on an edit (previous values given)', () => {
+  it('moves the auto row to the new role when our side changes', async () => {
+    const db = rowsDb({ ...clientB, partyRole: 'DEFENDANT' }, [{ id: 'p1', caseId: 'case-1', clientId: 'cl-b', role: 'PLAINTIFF', side: 'OURS' }]);
+    await ensureOurClientParticipant(db as never, 'case-1', { clientId: 'cl-b', partyRole: 'PLAINTIFF' });
+    expect(db.caseParticipant.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { role: 'DEFENDANT', side: 'OURS' } });
+  });
+
+  it('keeps a role the user set on purpose (JOINT_PLAINTIFF)', async () => {
+    const db = rowsDb({ ...clientB, partyRole: 'DEFENDANT' }, [{ id: 'p1', caseId: 'case-1', clientId: 'cl-b', role: 'JOINT_PLAINTIFF', side: 'OURS' }]);
+    await ensureOurClientParticipant(db as never, 'case-1', { clientId: 'cl-b', partyRole: 'PLAINTIFF' });
+    expect(db.caseParticipant.update).not.toHaveBeenCalled();
+    expect(db.caseParticipant.create).not.toHaveBeenCalled();
+  });
+
+  it('relinks the old client\'s auto row in place when the client changes A → B', async () => {
+    const db = rowsDb(clientB, [{ id: 'pA', caseId: 'case-1', clientId: 'cl-a', role: 'PLAINTIFF', side: 'OURS' }]);
+    await ensureOurClientParticipant(db as never, 'case-1', { clientId: 'cl-a', partyRole: 'PLAINTIFF' });
+    expect(db.caseParticipant.update).toHaveBeenCalledWith({
+      where: { id: 'pA' },
+      data: { clientId: 'cl-b', name: 'บริษัท บี', role: 'PLAINTIFF', side: 'OURS' },
+    });
+    expect(db.caseParticipant.create).not.toHaveBeenCalled();
+  });
+
+  it('leaves a user-modified row of the old client alone and adds the new client', async () => {
+    const db = rowsDb(clientB, [{ id: 'pA', caseId: 'case-1', clientId: 'cl-a', role: 'WITNESS', side: 'NEUTRAL' }]);
+    await ensureOurClientParticipant(db as never, 'case-1', { clientId: 'cl-a', partyRole: 'PLAINTIFF' });
+    expect(db.caseParticipant.update).not.toHaveBeenCalled();
+    expect(db.caseParticipant.create).toHaveBeenCalledWith({
+      data: { caseId: 'case-1', clientId: 'cl-b', name: 'บริษัท บี', role: 'PLAINTIFF', side: 'OURS' },
+    });
+  });
+
+  it('clearing our side sets OTHER only on the auto row', async () => {
+    const auto = rowsDb({ ...clientB, partyRole: null }, [{ id: 'p1', caseId: 'case-1', clientId: 'cl-b', role: 'PLAINTIFF', side: 'OURS' }]);
+    await ensureOurClientParticipant(auto as never, 'case-1', { clientId: 'cl-b', partyRole: 'PLAINTIFF' });
+    expect(auto.caseParticipant.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { role: 'OTHER' } });
+
+    const kept = rowsDb({ ...clientB, partyRole: null }, [{ id: 'p1', caseId: 'case-1', clientId: 'cl-b', role: 'JOINT_PLAINTIFF', side: 'OURS' }]);
+    await ensureOurClientParticipant(kept as never, 'case-1', { clientId: 'cl-b', partyRole: 'PLAINTIFF' });
+    expect(kept.caseParticipant.update).not.toHaveBeenCalled();
+  });
+});
+
 describe('addOpponents', () => {
   it('puts opponents on the opposite role, skipping blanks and names already there', async () => {
     const db = fakeDb();

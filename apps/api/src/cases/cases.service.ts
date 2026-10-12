@@ -549,8 +549,16 @@ export class CasesService {
     if (dto.limitationDeadline !== undefined) {
       await syncLimitationReminder(this.prisma, id);
     }
-    const partiesSynced = dto.partyRole !== undefined || dto.clientId !== undefined;
-    if (partiesSynced) await ensureOurClientParticipant(this.prisma, id);
+    // The overview form always sends both, so only an actual change re-syncs our client's row.
+    const clientChanged = dto.clientId !== undefined && (dto.clientId || null) !== (before.clientId ?? null);
+    const partyRoleChanged = dto.partyRole !== undefined && (dto.partyRole || null) !== (before.partyRole ?? null);
+    const partiesSynced = clientChanged || partyRoleChanged;
+    if (partiesSynced) {
+      await ensureOurClientParticipant(this.prisma, id, {
+        clientId: before.clientId ?? null,
+        partyRole: before.partyRole ?? null,
+      });
+    }
 
     // Timeline ของคดีต้องตอบได้เองว่าใครเปลี่ยนอะไรเมื่อไร ไม่ใช่รอให้คนมากรอก
     if (dto.status && dto.status !== before.status) {

@@ -277,4 +277,33 @@ describe('case stages', () => {
     await service.update(user, 'case-1', { title: 'ชื่อใหม่' } as any);
     expect(prisma.case.update.mock.calls[0][0].include.participants).toEqual({ orderBy: { createdAt: 'asc' } });
   });
+
+  it('an overview save that repeats the same client and side touches no participant', async () => {
+    prisma.case.findUnique.mockResolvedValue({ ...base, clientId: 'cl-1', partyRole: 'PLAINTIFF' });
+    prisma.client.count.mockResolvedValue(1);
+    prisma.caseParticipant = { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() };
+
+    await service.update(user, 'case-1', { title: 'ชื่อใหม่', clientId: 'cl-1', partyRole: 'PLAINTIFF' } as any);
+
+    expect(prisma.caseParticipant.findFirst).not.toHaveBeenCalled();
+    expect(prisma.caseParticipant.create).not.toHaveBeenCalled();
+    expect(prisma.caseParticipant.update).not.toHaveBeenCalled();
+  });
+
+  it('a changed side syncs our client with the previous values', async () => {
+    prisma.case.findUnique.mockResolvedValue({ ...base, clientId: 'cl-1', partyRole: 'PLAINTIFF', client: { name: 'ก' } });
+    prisma.client.count.mockResolvedValue(1);
+    prisma.caseParticipant = {
+      findFirst: jest.fn().mockResolvedValue({ id: 'p1', role: 'PLAINTIFF', side: 'OURS' }),
+      create: jest.fn(),
+      update: jest.fn(),
+    };
+    prisma.case.findUnique
+      .mockResolvedValueOnce({ ...base, clientId: 'cl-1', partyRole: 'PLAINTIFF' }) // before
+      .mockResolvedValueOnce({ partyRole: 'DEFENDANT', clientId: 'cl-1', clientName: null, client: { name: 'ก' } }); // sync
+
+    await service.update(user, 'case-1', { partyRole: 'DEFENDANT' } as any);
+
+    expect(prisma.caseParticipant.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { role: 'DEFENDANT', side: 'OURS' } });
+  });
 });
