@@ -77,6 +77,8 @@ describe('CasesService.findOne', () => {
               status: { in: ['PENDING_REVIEW', 'DONE'] },
               assignmentLogs: { some: { action: 'HANDED_OFF', fromUserId: 'user-1' } },
             },
+            { status: 'PENDING_REVIEW', reviewerId: 'user-1' },
+            { status: 'PENDING_REVIEW', reviewerId: null, case: { leadLawyerId: 'user-1' } },
           ],
         },
       ],
