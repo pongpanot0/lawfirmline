@@ -123,8 +123,8 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
     loadTasks();
   };
 
-  const handleCreate = async (e: React.FormEvent, keepOpen = false) => {
-    e.preventDefault();
+  const handleCreate = async (e?: React.FormEvent, keepOpen = false) => {
+    e?.preventDefault();
     if (!token || !caseId || !newTitle.trim() || creating) return;
     setCreating(true);
     setError('');
@@ -298,13 +298,14 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
                 <details className="rounded-lg border border-border p-3">
                   <summary className="cursor-pointer text-sm font-medium">การตรวจงาน / ความสำคัญ / ผู้ติดตาม (ถ้ามี)</summary>
                   <label className="mt-3 flex min-h-10 items-center gap-2 text-sm">
-                    <input type="checkbox" checked={newRequiresReview} onChange={event => { setNewRequiresReview(event.target.checked); setNewReviewerId(reviewers.find(member => member.id === caseDetail?.leadLawyer?.id)?.id ?? ''); }} />
+                    <input type="checkbox" checked={newRequiresReview} onChange={event => { setNewRequiresReview(event.target.checked); if (!event.target.checked) setNewRequiresAttachment(false); setNewReviewerId(reviewers.find(member => member.id === caseDetail?.leadLawyer?.id)?.id ?? ''); }} />
                     ต้องให้ผู้ตรวจยืนยันก่อนปิดงาน
                   </label>
+                  {newRequiresReview && (
                   <label className="mt-3 flex min-h-10 items-center gap-2 text-sm">
-                    <input type="checkbox" checked={newRequiresAttachment} onChange={(e) => setNewRequiresAttachment(e.target.checked)} />
-                    ต้องแนบไฟล์ผลงานก่อนส่งตรวจ
-                  </label>
+                      <input type="checkbox" checked={newRequiresAttachment} onChange={(e) => setNewRequiresAttachment(e.target.checked)} />
+                      ต้องแนบไฟล์ผลงานก่อนส่งตรวจ
+                    </label>)}
                   {newRequiresReview && <div className="mt-3">
                     <label htmlFor="case-task-reviewer" className="text-sm font-medium">ผู้ตรวจ *</label>
                     <select id="case-task-reviewer" required value={newReviewerId} onChange={event => setNewReviewerId(event.target.value)} className="mt-1 h-9 w-full rounded-lg border border-input bg-card px-3 text-sm">
@@ -342,7 +343,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
             </form>
             <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-4">
               <Button variant="outline" onClick={() => { if (!creating) setShowForm(false); }}>{d.common.cancel}</Button>
-              <Button variant="outline" disabled={creating || !newTitle.trim()} onClick={(e) => void handleCreate(e as unknown as React.FormEvent, true)}>บันทึกแล้วสร้างต่อ</Button>
+              <Button variant="outline" disabled={creating || !newTitle.trim()} onClick={() => void handleCreate(undefined, true)}>บันทึกแล้วสร้างต่อ</Button>
               <Button form="create-case-task" type="submit" disabled={creating || !newTitle.trim()}>
                 {creating ? '…' : d.caseTasks.create}
               </Button>

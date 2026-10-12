@@ -6,7 +6,7 @@ import { X, Trash2, Download } from 'lucide-react';
 import { canActOnReview, canDelegateTask, FirmRole, hasFirmCapability, isEligibleReviewer, normalizeTaskLabels, TASK_WORK_TYPES, TaskLogAction, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
 import { getMentionContext, mentionedIdsIn } from '@/lib/mentions';
 import { ON_HOLD_CATEGORY_LABEL } from '@/lib/on-hold';
-import { handoffNoteError, isHeld, reviewerName } from '@/lib/task-review-view';
+import { canSetReviewRequirements, handoffNoteError, isHeld, reviewerName } from '@/lib/task-review-view';
 import { api, ApiError, TaskDetail, UserItem } from '@/lib/api';
 import { formatBytes, downloadTaskAttachment, priorityLabel } from '@/lib/task-detail';
 import { useAuth } from '@/lib/auth';
@@ -285,6 +285,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const manager = !!user && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole);
   const ownWork = task?.assignee?.id === user?.id;
   const pendingReview = task?.status === TaskStatus.PENDING_REVIEW;
+  // ponytail: mentions match on the first name only; two people sharing a first name are both notified.
   const mentionCtx = getMentionContext(comment, commentCursor);
   const mentionMatches = mentionCtx ? users.filter((u) => `${u.firstName} ${u.lastName}`.toLowerCase().includes(mentionCtx.query)).slice(0, 6) : [];
   const canHold = !!user && !!task?.caseId && (task.assignee?.id === user.id || task.case?.leadLawyerId === user.id || hasFirmCapability(user.firmRole, 'runOperations'));
@@ -437,7 +438,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               {!ownWork && !pendingReview && <p className="text-xs text-muted-foreground">ผู้รับผิดชอบเป็นผู้ยืนยันแผนและอัปเดตความคืบหน้า</p>}
             </section>
             <section className="space-y-2 border-t pt-3">
-              {manager && (
+              {canSetReviewRequirements(user?.firmRole) && (
                 <label className="flex min-h-10 items-center gap-2 text-sm">
                   <input type="checkbox" checked={!!task.requiresAttachment} disabled={busy} onChange={(e) => void patch({ requiresAttachment: e.target.checked })} />
                   ต้องแนบไฟล์ผลงานก่อนส่งตรวจ
@@ -719,13 +720,12 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
               >
                 <textarea rows={2} value={comment} disabled={busy} onChange={(e) => { setComment(e.target.value); setCommentCursor(e.target.selectionStart); }} onSelect={(e) => setCommentCursor(e.currentTarget.selectionStart)} placeholder={d.taskDetail.commentPlaceholder} className={`${field} mt-0`} />
                 {mentionCtx && mentionMatches.length > 0 && (
-                  <ul role="listbox" aria-label="@" className="rounded-lg border bg-card text-sm shadow-sm">
+                  <ul className="rounded-lg border bg-card text-sm shadow-sm">
                     {mentionMatches.map((u) => (
                       <li key={u.id}>
                         <button
                           type="button"
-                          role="option"
-                          aria-selected={false}
+                          aria-label={`${u.firstName} ${u.lastName}`}
                           className="block min-h-10 w-full px-3 text-left hover:bg-muted"
                           onClick={() => {
                             const next = `${comment.substring(0, mentionCtx.startIdx)}${u.firstName} ${comment.substring(commentCursor)}`;
@@ -740,6 +740,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
                     ))}
                   </ul>
                 )}
+                <p className="text-xs text-muted-foreground">แจ้งเตือนเฉพาะคนที่เปิดงานนี้ได้</p>
                 <Button type="submit" size="sm" disabled={busy || !comment.trim()}>{d.taskDetail.addComment}</Button>
               </form>
             </section>

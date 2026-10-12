@@ -28,3 +28,8 @@ export function isHeld(task: ReviewTask): boolean {
 export function handoffNoteError(note: string): string | null {
   return note.trim().length >= TASK_HANDOFF_NOTE_MIN ? null : `เขียนหมายเหตุถึงผู้ตรวจอย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร`;
 }
+
+/** The API refuses requiresReview/requiresAttachment/reviewer changes from anyone else. */
+export function canSetReviewRequirements(role: string | null | undefined): boolean {
+  return role === 'OWNER' || role === 'SENIOR_LAWYER';
+}

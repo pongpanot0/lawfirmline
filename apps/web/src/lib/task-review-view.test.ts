@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { handoffNoteError, isHeld, reviewerName, submittedByMe } from './task-review-view.ts';
+import { canSetReviewRequirements, handoffNoteError, isHeld, reviewerName, submittedByMe } from './task-review-view.ts';
 
 const person = (id: string, firstName: string) => ({ id, firstName, lastName: 'ส.' });
 
@@ -24,4 +24,11 @@ test('held only while the hold is open', () => {
 test('handoff note needs at least 5 non-blank characters', () => {
   assert.match(handoffNoteError('  ok ') ?? '', /5/);
   assert.equal(handoffNoteError('ร่างเสร็จแล้ว'), null);
+});
+
+test('only owner and senior lawyer may change review requirements', () => {
+  assert.equal(canSetReviewRequirements('OWNER'), true);
+  assert.equal(canSetReviewRequirements('SENIOR_LAWYER'), true);
+  assert.equal(canSetReviewRequirements('OFFICE_MANAGER'), false);
+  assert.equal(canSetReviewRequirements(undefined), false);
 });
