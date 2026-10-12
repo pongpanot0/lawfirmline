@@ -10,6 +10,7 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
   ValidateIf,
   ValidateNested,
@@ -180,6 +181,12 @@ export class CreateIntakeDto {
   @Trim()
   @IsString()
   opposingParty?: string;
+
+  /** เหตุผลที่เปิดคดีทั้งที่พบชื่อขัดกัน — ต้องมีเมื่อ API ตอบ 409 CONFLICT_FOUND (อย่างน้อย 10 ตัวอักษร) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  conflictOverrideReason?: string;
 
   @IsOptional()
   @Trim()

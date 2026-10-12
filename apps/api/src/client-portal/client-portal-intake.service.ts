@@ -154,7 +154,7 @@ export class ClientPortalIntakeService {
         parties: [{ name: clientName, side: 'OURS' }],
         overrideReason: PORTAL_CONFLICT_NOTE,
       });
-      await this.conflictCheck.recordForCase(actor, gate, { caseId: legalCase.id });
+      await this.conflictCheck.recordForCase(actor, gate, { caseId: legalCase.id, automatic: true });
     } catch (err) {
       this.logger.warn(`Conflict check for portal case ${legalCase.id} failed: ${(err as Error).message}`);
     }

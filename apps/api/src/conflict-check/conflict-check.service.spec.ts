@@ -189,11 +189,10 @@ describe('conflict gate', () => {
   });
 
   it('ignores hits on the intake being converted', async () => {
+    const thisIntake = { id: 'intake-1', title: 'เรื่องนี้', clientName: 'x', opposingParty: 'บริษัท ก จำกัด', contactName: null };
     const service = await build(prismaMock({
       intake: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: 'intake-1', title: 'เรื่องนี้', clientName: 'x', opposingParty: 'บริษัท ก จำกัด', contactName: null, status: 'OPEN' },
-        ]),
+        findMany: jest.fn(async ({ where }) => (where.id?.not === 'intake-1' ? [] : [thisIntake])),
         findFirst: jest.fn(),
         update: jest.fn(),
       },
@@ -227,6 +226,53 @@ describe('conflict gate', () => {
     expect((prisma.intake as any).update).toHaveBeenCalledWith({
       where: { id: 'intake-1' },
       data: { stage: 'CONFLICT_CHECK', stageChangedAt: expect.any(Date) },
+    });
+  });
+
+  it('the gate is not capped: one opposing row among a hundred same-side rows is still found', async () => {
+    const row = (i: number, side: string) => ({
+      name: 'บริษัท ก จำกัด', role: 'PLAINTIFF', side, case: { id: `case-${i}`, title: 't', ownRef: `R${i}`, status: 'OPEN' },
+    });
+    const findMany = jest.fn(async ({ where, take }) => {
+      if (take !== undefined) return [];
+      return where.side === 'OPPONENT' ? [row(60, 'OPPONENT')] : Array.from({ length: 100 }, (_, i) => row(i, 'OURS'));
+    });
+    const service = await build(prismaMock({ caseParticipant: { findMany } }));
+
+    await expect(service.gateNewCase(user, { parties: [{ name: 'บริษัท ก จำกัด', side: 'OURS' }] })).rejects.toMatchObject({
+      response: { matches: [expect.objectContaining({ caseId: 'case-60' })] },
+    });
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ side: 'OPPONENT', case: { firmId: 'firm-1', deletedAt: null } }),
+    }));
+  });
+
+  // 'จำกัด' must keep its SARA AM — NFKC alone decomposes it and nothing stored would match.
+  it('normalises spacing before searching, keeping Thai SARA AM intact', async () => {
+    const prisma = prismaMock();
+    const service = await build(prisma);
+    await service.gateNewCase(user, { parties: [{ name: ' บริษัท\u00A0ก \u200B  จำกัด ', side: 'OPPONENT' }] });
+    expect((prisma.client as any).findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { firmId: 'firm-1', OR: [{ name: { contains: 'บริษัท ก จำกัด', mode: 'insensitive' } }] },
+    }));
+  });
+
+  it('a name supplied on both sides clashes with a hit on either side', () => {
+    const ours = { kind: 'CLIENT', term: 'นาย ค', name: 'นาย ค', side: 'OURS' } as any;
+    const theirs = { kind: 'CASE_PARTY', term: 'นาย ค', name: 'นาย ค', side: 'OPPONENT' } as any;
+    expect(opponentConflicts([{ name: 'นาย ค', side: 'OURS' }, { name: 'นาย ค', side: 'OPPONENT' }], [ours, theirs])).toEqual([ours, theirs]);
+  });
+
+  it('a system-forced override is audited as automatic', async () => {
+    const prisma = prismaMock();
+    const service = await build(prisma);
+    await service.recordForCase(
+      user,
+      { result: ConflictResult.POTENTIAL_CONFLICT, terms: [], matches: [], overrideReason: 'เปิดจากพอร์ทัล — ทนายต้องตรวจ' },
+      { caseId: 'case-1', automatic: true },
+    );
+    expect((prisma.auditLog as any).create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ metadata: expect.objectContaining({ automatic: true }) }),
     });
   });
 

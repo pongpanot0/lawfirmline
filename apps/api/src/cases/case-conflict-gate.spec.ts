@@ -63,6 +63,20 @@ describe('POST /cases conflict gate', () => {
     expect(gate.recordForCase).toHaveBeenCalledWith(user, expect.objectContaining({ result: 'CLEAR' }), { caseId: 'case-new' });
   });
 
+  it('searches the registered client name too when the name typed on the case differs', async () => {
+    gate.gateNewCase.mockResolvedValue({ result: 'CLEAR', terms: [], matches: [], overrideReason: null });
+
+    await service.create(user, { ...dto, clientName: 'ก จำกัด (สาขา)' });
+
+    expect(gate.gateNewCase).toHaveBeenCalledWith(user, expect.objectContaining({
+      parties: [
+        { name: 'ก จำกัด (สาขา)', side: 'OURS' },
+        { name: 'บริษัท ก จำกัด', side: 'OURS' },
+        { name: 'บริษัท ข จำกัด', side: 'OPPONENT' },
+      ],
+    }));
+  });
+
   it('creates nothing when the gate refuses', async () => {
     gate.gateNewCase.mockRejectedValue(new ConflictException({ code: 'CONFLICT_FOUND', matches: [] }));
 

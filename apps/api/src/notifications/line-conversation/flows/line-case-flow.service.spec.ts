@@ -33,3 +33,29 @@ describe('LINE create Case', () => {
     expect(line.replyWithQuickReply).toHaveBeenCalledWith('reply', expect.stringContaining('REF20260001'), expect.any(Array));
   });
 });
+
+describe('LINE create Case — conflict gate', () => {
+  it('a name clash ends the flow with a pointer to the web, without creating anything', async () => {
+    const { ConflictException } = jest.requireActual('@nestjs/common');
+    const cases = { create: jest.fn(async () => { throw new ConflictException({ code: 'CONFLICT_FOUND', matches: [] }); }) } as any;
+    const tasks = { create: jest.fn() } as any;
+    const line = { replyWithQuickReply: jest.fn(async () => true) } as any;
+    const notify = { notifyCreated: jest.fn() } as any;
+    const store = { clear: jest.fn() } as any;
+    const authUser = { id: 'author', firmId: 'firm-a', firmRole: 'OWNER' } as any;
+    const flow = new LineCaseFlowService(cases, tasks, {} as any, {} as any, line, notify, store, { resolve: jest.fn(async () => authUser) } as any);
+    const session = {
+      lineUserId: 'line-author', userId: 'author', firmId: 'firm-a',
+      flowType: FlowType.CASE, step: ConversationStep.CASE_CONFIRM,
+      data: { title: 'คดีทดสอบ', clientName: 'ลูกความ', assignedUserIds: ['lead'], deadlineDate: '2026-10-01' },
+      target: { sourceType: 'user', replyToken: 'reply' }, createdAt: 0, updatedAt: 0,
+    } as const;
+
+    await flow.handle(session, 'ยืนยัน');
+
+    expect(store.clear).toHaveBeenCalledWith('line-author');
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('reply', 'พบชื่อที่อาจขัดกัน — กรุณาเปิดคดีจากหน้าเว็บเพื่อระบุเหตุผล', expect.any(Array));
+    expect(tasks.create).not.toHaveBeenCalled();
+    expect(notify.notifyCreated).not.toHaveBeenCalled();
+  });
+});

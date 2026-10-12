@@ -365,6 +365,7 @@ export class CasesService {
       }
     }
 
+    let registeredClientName: string | undefined;
     if (dto.clientId) {
       const client = await this.prisma.client.findFirst({
         where: { id: dto.clientId, firmId: user.firmId },
@@ -372,6 +373,7 @@ export class CasesService {
       if (!client) {
         throw new BadRequestException('Invalid client');
       }
+      registeredClientName = client.name;
       if (!dto.clientName) {
         dto.clientName = client.name;
       }
@@ -404,10 +406,11 @@ export class CasesService {
           select: { name: true },
         })).map((c) => c.name)
       : [];
+    // The name typed on the case and the client's registered name can differ — search both.
+    const ourNames = [...new Set([dto.clientName, registeredClientName, ...additionalNames].filter((n): n is string => !!n))];
     const gate = await this.conflictCheck.gateNewCase(user, {
       parties: [
-        ...(dto.clientName ? [{ name: dto.clientName, side: 'OURS' as const }] : []),
-        ...additionalNames.map((name) => ({ name, side: 'OURS' as const })),
+        ...ourNames.map((name) => ({ name, side: 'OURS' as const })),
         ...(dto.opponents ?? []).map((o) => ({ name: o.name, side: 'OPPONENT' as const })),
       ],
       overrideReason: dto.conflictOverrideReason,

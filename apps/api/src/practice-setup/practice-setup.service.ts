@@ -118,6 +118,7 @@ export class PracticeSetupService {
         const nameKey = r.clientName.normalize('NFKC').toLowerCase();
         let clientId = r.existingClientId ?? newClients.get(nameKey);
         if (!clientId) { const client = await db.client.create({ data: { firmId: user.firmId, name: r.clientName } }); clientId = client.id; newClients.set(nameKey, client.id); ledger.clients.push({ id: client.id, updatedAt: client.updatedAt.toISOString() }); }
+        // Intentionally exempt from the conflict gate (spec L6): this bulk-imports matters the firm already holds.
         if (r.caseRef) { const c = await db.case.create({ data: { firmId: user.firmId, clientId, clientName: r.clientName, ownRef: r.caseRef, folderId: r.caseRef, title: r.caseTitle, leadLawyerId: user.id, stageTasksHandledFor: CaseStage.PRE_LITIGATION } }); ledger.cases.push({ id: c.id, updatedAt: c.updatedAt.toISOString() }); }
       }
       await db.dataImportBatch.update({ where: { id }, data: { status: 'COMMITTED', committedAt: new Date(), ledger: json(ledger) } });

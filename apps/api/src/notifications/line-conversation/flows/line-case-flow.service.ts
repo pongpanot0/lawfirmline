@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AuthUser, CourtLevel } from '@lawfirm/shared';
 import { TaskSource } from '../../../generated/prisma';
 import { CasesService } from '../../../cases/cases.service';
@@ -312,15 +312,25 @@ export class LineCaseFlowService {
       await this.reply(session, 'กรุณาเลือกทนายเจ้าของคดีครับ');
       return;
     }
-    const created = await this.cases.create(authUser, {
-      title: data.title,
-      clientId: data.clientId,
-      clientName: data.clientName,
-      description: data.description,
-      courtLevel: CourtLevel.TRIAL,
-      leadLawyerId,
-      buddyIds: data.assignedUserIds?.slice(1),
-    });
+    let created: Awaited<ReturnType<CasesService['create']>>;
+    try {
+      created = await this.cases.create(authUser, {
+        title: data.title,
+        clientId: data.clientId,
+        clientName: data.clientName,
+        description: data.description,
+        courtLevel: CourtLevel.TRIAL,
+        leadLawyerId,
+        buddyIds: data.assignedUserIds?.slice(1),
+      });
+    } catch (error) {
+      // LINE cannot collect an override reason; the lawyer opens it on the web instead.
+      const code = error instanceof ConflictException ? (error.getResponse() as { code?: string }).code : undefined;
+      if (code !== 'CONFLICT_FOUND') throw error;
+      this.store.clear(session.lineUserId);
+      await this.reply(session, 'พบชื่อที่อาจขัดกัน — กรุณาเปิดคดีจากหน้าเว็บเพื่อระบุเหตุผล');
+      return;
+    }
     this.store.clear(session.lineUserId);
     let deadlineNotice = '';
     if (data.deadlineDate) {

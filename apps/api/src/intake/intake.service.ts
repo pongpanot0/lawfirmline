@@ -24,7 +24,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
-import { ConflictCheckService } from '../conflict-check/conflict-check.service';
+import { ConflictCheckService, ConflictGate } from '../conflict-check/conflict-check.service';
 import { CaseFeedService } from '../common/services/case-feed.service';
 import {
   CreateIntakeDto,
@@ -60,8 +60,6 @@ const MAX_ATTACHMENT_SIZE_BYTES = AI_UPLOAD_MAX_BYTES;
 /** ค่าที่หน้าจอ checklist ใช้แทน "ได้รับแล้วแต่ไม่ผูกไฟล์" และ "ไม่เกี่ยวข้อง" */
 const CHECKLIST_MANUAL = '__manual__';
 const CHECKLIST_SKIPPED = '__skipped__';
-/** Override note when a new intake opens its case straight away and names clash (create form cannot answer a 409). */
-const INTAKE_CREATE_CONFLICT_NOTE = 'เปิดพร้อมรับเรื่องใหม่ — ทนายต้องตรวจ';
 
 @Injectable()
 export class IntakeService {
@@ -568,6 +566,22 @@ export class IntakeService {
       });
       if (!lead) throw new BadRequestException('ไม่พบทนายหลักที่เลือกในสำนักงานนี้');
     }
+    // Spec L6: a new intake opens its case straight away, so it is gated before anything is saved.
+    let gate: ConflictGate | undefined;
+    if (!dto.relatedCaseId) {
+      const clientIds = [dto.clientId, ...(dto.clients ?? []).map((c) => c.clientId)].filter((cid): cid is string => !!cid);
+      const registered = clientIds.length
+        ? (await this.prisma.client.findMany({ where: { id: { in: clientIds }, firmId: user.firmId }, select: { name: true } })).map((c) => c.name)
+        : [];
+      const ours = [...new Set([dto.clientName, ...registered].filter((name): name is string => !!name?.trim()))];
+      gate = await this.conflictCheck.gateNewCase(user, {
+        parties: [
+          ...ours.map((name) => ({ name, side: 'OURS' as const })),
+          ...(dto.opposingParty ? [{ name: dto.opposingParty, side: 'OPPONENT' as const }] : []),
+        ],
+        overrideReason: dto.conflictOverrideReason,
+      });
+    }
     const created = await this.prisma.intake.create({
       data: {
         firmId: user.firmId,
@@ -625,12 +639,11 @@ export class IntakeService {
     if (created.relatedCaseId) {
       await this.attachToExistingCase(user, created, {} as ConvertToCaseDto);
     } else {
-      // The intake row is already saved and the create form cannot answer a 409, so a clash
-      // here is recorded as POTENTIAL_CONFLICT for the lawyer to review instead of blocking.
       await this.openCaseFromIntake(
         user,
         created,
-        { leadLawyerId: dto.leadLawyerId, conflictOverrideReason: INTAKE_CREATE_CONFLICT_NOTE } as ConvertToCaseDto,
+        { leadLawyerId: dto.leadLawyerId } as ConvertToCaseDto,
+        gate,
       );
     }
 
@@ -884,6 +897,14 @@ export class IntakeService {
     // รับดำเนินการ = เปิดคดีทันที ในเฟสก่อนฟ้อง — งานโนติส/เจรจา/เอกสาร
     // คือคดีแล้ว ไม่ใช่ lead ที่รอแปลง. conflict gate จึงย้ายมาเฝ้าที่จุดนี้.
     if (acceptedDecisions.includes(dto.decision)) {
+      if (!intake.case) {
+        if (intake.relatedCaseId) {
+          await this.attachToExistingCase(user, intake, dto);
+        } else {
+          await this.openCaseFromIntake(user, intake, dto);
+        }
+      }
+      // Saved only once the case is open: a 409 from the conflict gate leaves the intake undecided.
       await this.prisma.intake.update({
         where: { id },
         data: {
@@ -893,13 +914,6 @@ export class IntakeService {
           clientDecision: dto.clientDecision,
         },
       });
-      if (!intake.case) {
-        if (intake.relatedCaseId) {
-          await this.attachToExistingCase(user, intake, dto);
-        } else {
-          await this.openCaseFromIntake(user, intake, dto);
-        }
-      }
       // openCaseFromIntake/attachToExistingCase ตั้ง status=CONVERTED + stage=CLOSED แล้ว
       return this.findOne(user, id);
     }
@@ -1089,6 +1103,8 @@ export class IntakeService {
     user: AuthUser,
     intake: Awaited<ReturnType<IntakeService['findOne']>>,
     dto: ConvertToCaseDto,
+    /** Already gated by the caller (intake create) — reuse it instead of searching again. */
+    gated?: ConflictGate,
   ) {
     const id = intake.id;
     // Spec L6: gate before anything is created. The intake's own names are not a clash with itself.
@@ -1097,7 +1113,7 @@ export class IntakeService {
       intake.client?.name,
       ...(intake.additionalClients ?? []).map((c) => c.client?.name),
     ].filter((name): name is string => !!name?.trim());
-    const gate = await this.conflictCheck.gateNewCase(user, {
+    const gate = gated ?? await this.conflictCheck.gateNewCase(user, {
       parties: [
         ...[...new Set(ours)].map((name) => ({ name, side: 'OURS' as const })),
         ...(intake.opposingParty ? [{ name: intake.opposingParty, side: 'OPPONENT' as const }] : []),
@@ -1475,7 +1491,7 @@ export class IntakeService {
     submissionId: string,
     dto: ConvertPortalSubmissionDto,
   ) {
-    const { intake, gate } = await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       // Serialize conversion attempts for this submission, including retries.
       await tx.$queryRaw`SELECT "id" FROM "PortalIntakeSubmission" WHERE "id" = ${submissionId} FOR UPDATE`;
       const submission = await tx.portalIntakeSubmission.findFirst({
@@ -1495,7 +1511,7 @@ export class IntakeService {
           where: { id: submission.intakeId, firmId: user.firmId },
         });
         if (!existing) throw new NotFoundException('ไม่พบเรื่องรับที่เชื่อมไว้');
-        return { intake: existing, gate: null };
+        return existing;
       }
 
       const portalClient = await tx.client.findFirst({
@@ -1526,11 +1542,9 @@ export class IntakeService {
         where: { id: submission.id },
         data: { intakeId: intake.id },
       });
-      return { intake, gate };
+      await this.conflictCheck.recordForCase(user, gate, { intakeId: intake.id }, tx);
+      return intake;
     });
-    // After commit: recordForCase writes through the root client, which cannot see the uncommitted intake.
-    if (gate) await this.conflictCheck.recordForCase(user, gate, { intakeId: intake.id });
-    return intake;
   }
 
   async uploadAttachment(user: AuthUser, intakeId: string, file: Express.Multer.File) {

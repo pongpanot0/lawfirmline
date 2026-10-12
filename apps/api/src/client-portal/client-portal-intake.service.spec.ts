@@ -112,7 +112,7 @@ describe('ClientPortalIntakeService', () => {
         parties: [{ name: 'บริษัท ก', side: 'OURS' }],
         overrideReason: 'เปิดจากพอร์ทัล — ทนายต้องตรวจ',
       });
-      expect(mockConflict.recordForCase).toHaveBeenCalledWith(actor, expect.objectContaining({ result: 'CLEAR' }), { caseId: 'case-1' });
+      expect(mockConflict.recordForCase).toHaveBeenCalledWith(actor, expect.objectContaining({ result: 'CLEAR' }), { caseId: 'case-1', automatic: true });
     });
 
     it('a failing conflict check never fails the client request', async () => {

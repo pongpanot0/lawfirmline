@@ -983,7 +983,7 @@ describe('IntakeService portal conversion', () => {
     expect(portalConflict.recordForCase).not.toHaveBeenCalled();
   });
 
-  it('gates the portal client before creating the intake and records the check on it after commit', async () => {
+  it('gates the portal client before creating the intake and records the check inside the same transaction', async () => {
     await service.convertPortalSubmission(user, submission.id, { conflictOverrideReason: 'ลูกความเดิม ตรวจแล้วไม่ขัดกัน' });
 
     expect(tx.client.findFirst).toHaveBeenCalledWith({ where: { id: 'client-1', firmId: 'firm-1' }, select: { name: true } });
@@ -992,7 +992,7 @@ describe('IntakeService portal conversion', () => {
       overrideReason: 'ลูกความเดิม ตรวจแล้วไม่ขัดกัน',
     });
     expect(portalConflict.gateNewCase.mock.invocationCallOrder[0]).toBeLessThan(tx.intake.create.mock.invocationCallOrder[0]);
-    expect(portalConflict.recordForCase).toHaveBeenCalledWith(user, expect.objectContaining({ result: 'CLEAR' }), { intakeId: 'intake-1' });
+    expect(portalConflict.recordForCase).toHaveBeenCalledWith(user, expect.objectContaining({ result: 'CLEAR' }), { intakeId: 'intake-1' }, tx);
   });
 
   it('creates no intake when the gate refuses', async () => {
@@ -1007,6 +1007,7 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
   let service: IntakeService;
   const mockPrisma = {
     intake: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
+    client: { findMany: jest.fn(), count: jest.fn() },
     task: { updateMany: jest.fn() },
     caseParticipant: { findMany: jest.fn(), createMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
     firm: { findUnique: jest.fn() },
@@ -1126,26 +1127,50 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     expect(feed.log).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'เปิดคดีโดยข้ามผลตรวจ conflict' }));
   });
 
-  it('opens no case when the gate refuses', async () => {
+  it('opens no case and saves no decision when the gate refuses', async () => {
     arrange({ opposingParty: 'บริษัท ข จำกัด' });
     mockConflict.gateNewCase.mockRejectedValue(new ConflictException({ code: 'CONFLICT_FOUND', matches: [] }));
 
     await expect(service.decide(user, 'intake-1', { decision: 'FILE_SUIT' as any })).rejects.toBeInstanceOf(ConflictException);
     expect(mockPrisma.case.create).not.toHaveBeenCalled();
     expect(mockConflict.recordForCase).not.toHaveBeenCalled();
+    expect(mockPrisma.intake.update).not.toHaveBeenCalled();
   });
 
-  it('a new intake opens its case without blocking: a clash is recorded for the lawyer to review', async () => {
+  it('a new intake is gated before it is saved: a clash without a reason saves nothing', async () => {
+    mockConflict.gateNewCase.mockRejectedValue(new ConflictException({ code: 'CONFLICT_FOUND', matches: [] }));
+
+    await expect(
+      service.create(user, { receivedDate: '2026-10-12', clientName: 'นาย A', opposingParty: 'บริษัท ข จำกัด' } as any),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(mockPrisma.intake.create).not.toHaveBeenCalled();
+    expect(mockPrisma.case.create).not.toHaveBeenCalled();
+  });
+
+  it('a new intake with a reason searches our names and the opponent once, then records on case and intake', async () => {
+    mockPrisma.client.findMany.mockResolvedValue([{ name: 'บริษัท เอ จำกัด' }]);
+    mockPrisma.client.count.mockResolvedValue(1);
     mockPrisma.intake.create.mockResolvedValue({ ...baseIntake, opposingParty: 'บริษัท ข จำกัด' });
+    const overridden = { result: 'POTENTIAL_CONFLICT', terms: [], matches: [], overrideReason: 'ลูกความยินยอมเป็นหนังสือแล้ว' };
+    mockConflict.gateNewCase.mockResolvedValue(overridden);
     arrange();
 
-    await service.create(user, { receivedDate: '2026-10-12', clientName: 'นาย A', opposingParty: 'บริษัท ข จำกัด' } as any);
+    await service.create(user, {
+      receivedDate: '2026-10-12', clientId: 'cl-1', clientName: 'นาย A', opposingParty: 'บริษัท ข จำกัด',
+      conflictOverrideReason: 'ลูกความยินยอมเป็นหนังสือแล้ว',
+    } as any);
 
-    expect(mockConflict.gateNewCase).toHaveBeenCalledWith(user, expect.objectContaining({
-      overrideReason: 'เปิดพร้อมรับเรื่องใหม่ — ทนายต้องตรวจ',
-      excludeIntakeId: 'intake-1',
-    }));
-    expect(mockPrisma.case.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.client.findMany).toHaveBeenCalledWith({ where: { id: { in: ['cl-1'] }, firmId: 'firm-1' }, select: { name: true } });
+    expect(mockConflict.gateNewCase).toHaveBeenCalledTimes(1);
+    expect(mockConflict.gateNewCase).toHaveBeenCalledWith(user, {
+      parties: [
+        { name: 'นาย A', side: 'OURS' },
+        { name: 'บริษัท เอ จำกัด', side: 'OURS' },
+        { name: 'บริษัท ข จำกัด', side: 'OPPONENT' },
+      ],
+      overrideReason: 'ลูกความยินยอมเป็นหนังสือแล้ว',
+    });
+    expect(mockConflict.recordForCase).toHaveBeenCalledWith(user, overridden, { caseId: 'case-1', intakeId: 'intake-1' });
   });
 
   it('CONSULTATION_ONLY does not open a case (unchanged behavior)', async () => {

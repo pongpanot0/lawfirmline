@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import { AuthUser, ConflictResult, INTAKE_STAGE_ORDER, IntakeStage, TMP_CLIENT_PLACEHOLDER } from '@lawfirm/shared';
+import { AuthUser, ConflictResult, INTAKE_STAGE_ORDER, IntakeStage, ParticipantSide, TMP_CLIENT_PLACEHOLDER } from '@lawfirm/shared';
+import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { CONFLICT_TERM_MIN_LENGTH, ConflictSearchDto, RecordConflictCheckDto } from './dto/conflict-check.dto';
 
@@ -43,12 +44,34 @@ export interface ConflictGate {
 
 const OVERRIDE_MIN_LENGTH = 10;
 
-/** Spec L6: a searched name found on the other side somewhere else. Same-side and neutral hits are not conflicts. */
+/**
+ * Gate-side name form: NFKC, any run of whitespace / NBSP / zero-width space → one space.
+ * NFKC splits Thai SARA AM (ำ) into NIKHAHIT + SARA AA, which would make "จำกัด" never match a
+ * stored name — so it is recomposed straight after.
+ * ponytail: only the searched name is normalised; stored names with irregular spacing still slip
+ * past `contains` — add a normalised name column if that shows up in practice.
+ */
+export function normalizeName(name: string): string {
+  return name
+    .normalize('NFKC')
+    .replace(/\u0E4D\u0E32/g, '\u0E33')
+    .replace(/[\s\u200B\u00A0]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Spec L6: a searched name found on the other side somewhere else. Same-side and neutral hits are
+ * not conflicts. A name supplied on both sides counts as both, so either kind of hit is a clash.
+ */
 export function opponentConflicts(searched: PartyName[], matches: ConflictMatch[]): ConflictMatch[] {
-  const sideOf = new Map(searched.map((p) => [p.name.trim().toLowerCase(), p.side]));
+  const sidesOf = new Map<string, Set<string>>();
+  for (const p of searched) {
+    const key = p.name.trim().toLowerCase();
+    sidesOf.set(key, (sidesOf.get(key) ?? new Set()).add(p.side));
+  }
   return matches.filter((m) => {
-    const side = sideOf.get(m.term.trim().toLowerCase());
-    return !!side && (m.side === 'OURS' || m.side === 'OPPONENT') && m.side !== side;
+    const sides = sidesOf.get(m.term.trim().toLowerCase());
+    return !!sides && (m.side === 'OURS' || m.side === 'OPPONENT') && [...sides].some((side) => side !== m.side);
   });
 }
 
@@ -239,17 +262,13 @@ export class ConflictCheckService {
     input: { parties: PartyName[]; overrideReason?: string | null; excludeIntakeId?: string },
   ): Promise<ConflictGate> {
     const parties = input.parties
-      .map((p) => ({ ...p, name: (p.name ?? '').trim() }))
+      .map((p) => ({ ...p, name: normalizeName(p.name ?? '') }))
       .filter((p) => p.name.length >= CONFLICT_TERM_MIN_LENGTH && p.name.toLowerCase() !== TMP_CLIENT_PLACEHOLDER);
     if (!parties.length) return { result: ConflictResult.CLEAR, terms: [], matches: [], overrideReason: null };
 
-    const found = await this.search(user, parties.map((p) => p.name));
-    const conflicts = opponentConflicts(parties, found.matches).filter(
-      (m) => !input.excludeIntakeId || m.intakeId !== input.excludeIntakeId,
-    );
-    if (!conflicts.length) {
-      return { result: ConflictResult.CLEAR, terms: found.terms, matches: found.matches, overrideReason: null };
-    }
+    const terms = [...new Set(parties.map((p) => p.name))];
+    const conflicts = opponentConflicts(parties, await this.gateHits(user, parties, input.excludeIntakeId));
+    if (!conflicts.length) return { result: ConflictResult.CLEAR, terms, matches: [], overrideReason: null };
 
     const reason = input.overrideReason?.trim() ?? '';
     if (!reason) {
@@ -262,12 +281,108 @@ export class ConflictCheckService {
     if (reason.length < OVERRIDE_MIN_LENGTH) {
       throw new BadRequestException(`เหตุผลที่ข้ามผลตรวจต้องยาวอย่างน้อย ${OVERRIDE_MIN_LENGTH} ตัวอักษร`);
     }
-    return { result: ConflictResult.POTENTIAL_CONFLICT, terms: found.terms, matches: conflicts, overrideReason: reason };
+    return { result: ConflictResult.POTENTIAL_CONFLICT, terms, matches: conflicts, overrideReason: reason };
   }
 
-  /** เก็บผลของ gate ไว้กับคดี/เรื่องรับที่เพิ่งเปิด; ข้ามผลตรวจ = มี AuditLog */
-  async recordForCase(user: AuthUser, gate: ConflictGate, link: { caseId?: string; intakeId?: string }) {
-    const check = await this.prisma.conflictCheck.create({
+  /**
+   * The gate's own lookup — never the display search, whose `take` caps could hide the one
+   * clashing row behind many same-side ones. Our names are looked up only where they would be
+   * an opponent, opponents only where they would be ours: one uncapped query per table with an
+   * OR over all names, then hits are assigned to names here.
+   */
+  private async gateHits(user: AuthUser, parties: PartyName[], excludeIntakeId?: string): Promise<ConflictMatch[]> {
+    const ours = [...new Set(parties.filter((p) => p.side === 'OURS').map((p) => p.name))];
+    const theirs = [...new Set(parties.filter((p) => p.side === 'OPPONENT').map((p) => p.name))];
+    const like = (name: string) => ({ contains: name, mode: 'insensitive' as const });
+    const liveCase = { firmId: user.firmId, deletedAt: null };
+    const otherIntakes = { firmId: user.firmId, ...(excludeIntakeId ? { id: { not: excludeIntakeId } } : {}) };
+    const caseRef = { select: { id: true, title: true, ownRef: true, status: true } };
+    const none = Promise.resolve([] as never[]);
+
+    const [oppParticipants, oppIntakes, clients, contacts, ourParticipants, casesByClientName, caseClients, ourIntakes] =
+      await Promise.all([
+        ours.length
+          ? this.prisma.caseParticipant.findMany({
+              where: { side: ParticipantSide.OPPONENT, case: liveCase, OR: ours.map((n) => ({ name: like(n) })) },
+              select: { name: true, role: true, side: true, case: caseRef },
+            })
+          : none,
+        ours.length
+          ? this.prisma.intake.findMany({
+              where: { ...otherIntakes, OR: ours.map((n) => ({ opposingParty: like(n) })) },
+              select: { id: true, title: true, opposingParty: true },
+            })
+          : none,
+        theirs.length
+          ? this.prisma.client.findMany({
+              where: { firmId: user.firmId, OR: theirs.map((n) => ({ name: like(n) })) },
+              select: { id: true, name: true },
+            })
+          : none,
+        theirs.length
+          ? this.prisma.clientContact.findMany({
+              where: { client: { firmId: user.firmId }, OR: theirs.map((n) => ({ name: like(n) })) },
+              select: { name: true, clientId: true, client: { select: { name: true } } },
+            })
+          : none,
+        theirs.length
+          ? this.prisma.caseParticipant.findMany({
+              where: { side: ParticipantSide.OURS, case: liveCase, OR: theirs.map((n) => ({ name: like(n) })) },
+              select: { name: true, role: true, side: true, case: caseRef },
+            })
+          : none,
+        theirs.length
+          ? this.prisma.case.findMany({
+              where: { ...liveCase, OR: theirs.map((n) => ({ clientName: like(n) })) },
+              select: { id: true, title: true, ownRef: true, status: true, clientName: true },
+            })
+          : none,
+        theirs.length
+          ? this.prisma.caseClient.findMany({
+              where: { case: liveCase, client: { OR: theirs.map((n) => ({ name: like(n) })) } },
+              select: { client: { select: { id: true, name: true } }, case: caseRef },
+            })
+          : none,
+        theirs.length
+          ? this.prisma.intake.findMany({
+              where: { ...otherIntakes, OR: theirs.flatMap((n) => [{ clientName: like(n) }, { contactName: like(n) }]) },
+              select: { id: true, title: true, clientName: true, contactName: true },
+            })
+          : none,
+      ]);
+
+    const hits: ConflictMatch[] = [];
+    const add = (value: string | null | undefined, names: string[], match: Omit<ConflictMatch, 'term'>) => {
+      const v = value ? normalizeName(value) : '';
+      for (const term of names) if (v && matchesTerm(v, term)) hits.push({ ...match, term });
+    };
+    const onCase = (c: { id: string; title: string; ownRef: string; status: string }) => ({
+      caseId: c.id, caseTitle: c.title, ownRef: c.ownRef, caseStatus: c.status,
+    });
+
+    for (const p of oppParticipants) add(p.name, ours, { kind: 'CASE_PARTY', name: p.name, side: p.side, role: p.role, ...onCase(p.case) });
+    for (const i of oppIntakes) add(i.opposingParty, ours, { kind: 'INTAKE_PARTY', name: i.opposingParty ?? '', side: 'OPPONENT', intakeId: i.id, intakeTitle: i.title ?? undefined });
+    for (const c of clients) add(c.name, theirs, { kind: 'CLIENT', name: c.name, side: 'OURS', clientId: c.id });
+    for (const c of contacts) add(c.name, theirs, { kind: 'CLIENT_CONTACT', name: c.name, side: 'OURS', clientId: c.clientId, role: c.client?.name });
+    for (const p of ourParticipants) add(p.name, theirs, { kind: 'CASE_PARTY', name: p.name, side: p.side, role: p.role, ...onCase(p.case) });
+    for (const k of casesByClientName) add(k.clientName, theirs, { kind: 'CASE_CLIENT_NAME', name: k.clientName ?? '', side: 'OURS', ...onCase(k) });
+    for (const k of caseClients) add(k.client.name, theirs, { kind: 'CASE_CLIENT', name: k.client.name, side: 'OURS', clientId: k.client.id, ...onCase(k.case) });
+    for (const i of ourIntakes) {
+      for (const name of [i.clientName, i.contactName]) {
+        add(name, theirs, { kind: 'INTAKE_PARTY', name: name ?? '', side: 'OURS', intakeId: i.id, intakeTitle: i.title ?? undefined });
+      }
+    }
+    return hits;
+  }
+
+  /** เก็บผลของ gate ไว้กับคดี/เรื่องรับที่เพิ่งเปิด; ข้ามผลตรวจ = มี AuditLog. `automatic` = ระบบข้ามให้เอง (พอร์ทัล) */
+  async recordForCase(
+    user: AuthUser,
+    gate: ConflictGate,
+    link: { caseId?: string; intakeId?: string; automatic?: boolean },
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const check = await db.conflictCheck.create({
       data: {
         firmId: user.firmId,
         caseId: link.caseId,
@@ -281,7 +396,7 @@ export class ConflictCheckService {
       },
     });
     if (gate.result === ConflictResult.POTENTIAL_CONFLICT) {
-      await this.prisma.auditLog.create({
+      await db.auditLog.create({
         data: {
           firmId: user.firmId,
           userId: user.id,
@@ -292,23 +407,24 @@ export class ConflictCheckService {
             intakeId: link.intakeId ?? null,
             reason: gate.overrideReason,
             matchCount: gate.matches.length,
+            automatic: !!link.automatic,
           },
         },
       });
     }
-    if (link.intakeId) await this.advanceIntakeToConflictCheck(user, link.intakeId);
+    if (link.intakeId) await this.advanceIntakeToConflictCheck(user, link.intakeId, db);
   }
 
   /** Spec L6: recording a check on an intake moves it to CONFLICT_CHECK, never backwards. */
-  private async advanceIntakeToConflictCheck(user: AuthUser, intakeId: string) {
-    const intake = await this.prisma.intake.findFirst({
+  private async advanceIntakeToConflictCheck(user: AuthUser, intakeId: string, db: Prisma.TransactionClient = this.prisma) {
+    const intake = await db.intake.findFirst({
       where: { id: intakeId, firmId: user.firmId },
       select: { id: true, stage: true },
     });
     if (!intake) return;
     const index = INTAKE_STAGE_ORDER.indexOf(intake.stage as IntakeStage);
     if (index >= INTAKE_STAGE_ORDER.indexOf(IntakeStage.CONFLICT_CHECK)) return;
-    await this.prisma.intake.update({
+    await db.intake.update({
       where: { id: intakeId },
       data: { stage: IntakeStage.CONFLICT_CHECK as never, stageChangedAt: new Date() },
     });
