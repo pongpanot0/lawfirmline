@@ -90,6 +90,7 @@ export default function OperationsPage() {
   const d = useDashboardT();
   const { locale } = useLocale();
   const canRunOps = hasFirmCapability(user?.firmRole, 'runOperations');
+  const canSetUp = hasFirmCapability(user?.firmRole, 'manageFirmContent');
   const [tab, setTab] = useState('daily');
   const teamTab = tab === 'radar' || tab === 'daily';
   const [summary, setSummary] = useState<WorkloadSummary[]>([]);
@@ -117,11 +118,11 @@ export default function OperationsPage() {
   const [setupLeft, setSetupLeft] = useState(0);
 
   useEffect(() => {
-    if (!token || !isOwner) return;
+    if (!token || !canSetUp) return;
     setupRequest<SetupProgress>(token, '/progress', undefined, true)
       .then((p) => setSetupLeft(Object.values(setupChecks(p)).filter((done) => !done).length))
       .catch(() => setSetupLeft(0));
-  }, [token, isOwner]);
+  }, [token, canSetUp]);
 
   useEffect(() => {
     if (!token || !canRunOps || teamTab) return;

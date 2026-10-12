@@ -888,7 +888,7 @@ export default function CaseDetailPage() {
             <Button variant="outline" className="min-h-11" onClick={() => setRecordingOutcome(true)}>
               <Gavel className="h-4 w-4" />บันทึกผลหลังขึ้นศาล
             </Button>
-            {user?.firmRole === FirmRole.OWNER && (
+            {hasFirmCapability(user?.firmRole, 'deleteCase') && (
               <Button variant="outline" className="min-h-11 text-destructive hover:text-destructive" onClick={() => void deleteCase()}>
                 <Trash2 className="h-4 w-4" />ลบคดี
               </Button>
