@@ -23,6 +23,11 @@ describe('courtFee (ตาราง 1 ท้าย ป.วิ.พ.)', () => {
     expect(COURT_FEE_NON_MONEY).toBe(200);
   });
 
+  it('an amount that is not a number (NaN / Infinity) yields 0, which callers show as "—"', () => {
+    expect(courtFee(Number.NaN)).toBe(0);
+    expect(courtFee(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
   it('handles satang amounts', () => {
     expect(courtFee(1_234.56)).toBe(24.7); // 24.6912 → 24.70
   });

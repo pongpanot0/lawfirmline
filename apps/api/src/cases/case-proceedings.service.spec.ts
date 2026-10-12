@@ -82,7 +82,7 @@ describe('CaseProceedingsService', () => {
       }),
     );
     expect(deadlines.applyTrigger).toHaveBeenCalledWith(
-      expect.objectContaining({ caseId: 'case-1', trigger: 'FILED', triggerEventId: null, createdById: 'u1' }),
+      expect.objectContaining({ caseId: 'case-1', trigger: 'FILED', courtLevel: 'TRIAL', triggerEventId: null, createdById: 'u1' }),
     );
     expect(prisma.case.update).toHaveBeenCalledWith({
       where: { id: 'case-1' },

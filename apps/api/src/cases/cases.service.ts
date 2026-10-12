@@ -50,6 +50,14 @@ function caseAssignmentSummary(prefix: string, legalCase: { title: string; ownRe
   return `${prefix}\nคดี: ${legalCase.title}${reference ? `\n${reference}` : ''}`;
 }
 
+type ProceedingsBefore = {
+  courtLevel: string | null;
+  courtName: string | null;
+  blackCaseNumber: string | null;
+  redCaseNumber: string | null;
+};
+const LEVEL_SWITCH_NUMBERS_MESSAGE = 'เปลี่ยนระดับศาลแล้วบันทึกก่อน แล้วจึงแก้เลขคดีของศาลชั้นนั้น';
+
 @Injectable()
 export class CasesService {
   private readonly logger = new Logger(CasesService.name);
@@ -166,9 +174,18 @@ export class CasesService {
       where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), searchFilter];
     }
 
+    // The list (board, mobile caches) gets party names only — contact data and ID numbers stay
+    // on the detail response (PDPA). Proceedings are a detail-page concern too.
+    const { proceedings: _proceedings, ...listInclude } = this.caseInclude;
     return this.prisma.case.findMany({
       where,
-      include: this.caseInclude,
+      include: {
+        ...listInclude,
+        participants: {
+          select: { id: true, name: true, role: true, side: true },
+          orderBy: { createdAt: 'asc' as const },
+        },
+      },
       orderBy: { updatedAt: 'desc' },
     });
   }
@@ -544,6 +561,13 @@ export class CasesService {
       caseTypeIds: [dto.caseTypeId],
     });
 
+    // Numbers typed while switching level would land on the old level (spec L3) — make the
+    // user save the switch first. Unchanged numbers re-sent by the overview are fine.
+    const plan = this.proceedingsPlan(before, dto, stageChanged);
+    if (plan.numbersChanged && plan.toLevel !== plan.fromLevel) {
+      throw new BadRequestException(LEVEL_SWITCH_NUMBERS_MESSAGE);
+    }
+
     const { customFields, customers, clients, stageNote: _stageNote, ...rest } = dto;
     const updated = await this.prisma.case.update({
       where: { id },
@@ -568,9 +592,6 @@ export class CasesService {
       },
       include: this.caseInclude,
     });
-    if (dto.limitationDeadline !== undefined) {
-      await syncLimitationReminder(this.prisma, id);
-    }
     // The overview form always sends both, so only an actual change re-syncs our client's row.
     const clientChanged = dto.clientId !== undefined && (dto.clientId || null) !== (before.clientId ?? null);
     const partyRoleChanged = dto.partyRole !== undefined && (dto.partyRole || null) !== (before.partyRole ?? null);
@@ -637,7 +658,12 @@ export class CasesService {
       });
     }
 
-    if ((await this.syncProceedings(id, before, dto, stageChanged)) || partiesSynced) {
+    const proceedingsSynced = await this.syncProceedings(id, before, dto, stageChanged);
+    // A new deadline, or a black number just written (the case is filed), moves the reminder.
+    if (dto.limitationDeadline !== undefined || proceedingsSynced) {
+      await syncLimitationReminder(this.prisma, id);
+    }
+    if (proceedingsSynced || partiesSynced) {
       // Re-read so the response carries the level, mirrored numbers, proceedings and parties.
       return this.findOne(user, id);
     }
@@ -653,19 +679,11 @@ export class CasesService {
    */
   private async syncProceedings(
     id: string,
-    before: { courtLevel: string | null; courtName: string | null; blackCaseNumber: string | null; redCaseNumber: string | null },
+    before: ProceedingsBefore,
     dto: UpdateCaseDto,
     stageChanged: boolean,
   ): Promise<boolean> {
-    const fromLevel = currentLevel(before);
-    const enteredHigherCourt = stageChanged && (dto.stage === CaseStage.APPEAL || dto.stage === CaseStage.SUPREME);
-    const toLevel = enteredHigherCourt
-      ? dto.stage === CaseStage.APPEAL ? CourtLevel.APPEAL : CourtLevel.SUPREME
-      : dto.courtLevel !== undefined ? currentLevel(dto) : fromLevel;
-    const numbers = { courtName: dto.courtName, blackCaseNumber: dto.blackCaseNumber, redCaseNumber: dto.redCaseNumber };
-    const numbersChanged = (Object.keys(numbers) as (keyof typeof numbers)[]).some(
-      (field) => numbers[field] !== undefined && (numbers[field]?.trim() || null) !== (before[field]?.trim() || null),
-    );
+    const { fromLevel, toLevel, enteredHigherCourt, numbers, numbersChanged } = this.proceedingsPlan(before, dto, stageChanged);
     if (!numbersChanged && !enteredHigherCourt && toLevel === fromLevel) return false;
 
     await this.prisma.$transaction(async (tx) => {
@@ -678,6 +696,20 @@ export class CasesService {
       await mirrorProceeding(tx, id);
     });
     return true;
+  }
+
+  /** What an update does to the court levels — shared by the up-front guard and syncProceedings. */
+  private proceedingsPlan(before: ProceedingsBefore, dto: UpdateCaseDto, stageChanged: boolean) {
+    const fromLevel = currentLevel(before);
+    const enteredHigherCourt = stageChanged && (dto.stage === CaseStage.APPEAL || dto.stage === CaseStage.SUPREME);
+    const toLevel = enteredHigherCourt
+      ? dto.stage === CaseStage.APPEAL ? CourtLevel.APPEAL : CourtLevel.SUPREME
+      : dto.courtLevel !== undefined ? currentLevel(dto) : fromLevel;
+    const numbers = { courtName: dto.courtName, blackCaseNumber: dto.blackCaseNumber, redCaseNumber: dto.redCaseNumber };
+    const numbersChanged = (Object.keys(numbers) as (keyof typeof numbers)[]).some(
+      (field) => numbers[field] !== undefined && (numbers[field]?.trim() || null) !== (before[field]?.trim() || null),
+    );
+    return { fromLevel, toLevel, enteredHigherCourt, numbers, numbersChanged };
   }
 
   async updateAssignments(user: AuthUser, id: string, dto: UpdateCaseAssignmentsDto) {

@@ -1,3 +1,4 @@
+import { eventPeopleIds } from '../calendar/event-people';
 import { LIMITATION_REMINDER_MINUTES, syncLimitationReminder } from './limitation-reminder';
 
 describe('syncLimitationReminder', () => {
@@ -35,8 +36,7 @@ describe('syncLimitationReminder', () => {
         type: 'DEADLINE',
         startAt: new Date('2027-03-01T09:30:00.000Z'),
         reminderMinutes: [129600, 43200, 10080, 1440],
-        assigneeId: 'lead-1',
-        assignees: { create: [{ userId: 'lead-1' }] },
+        assigneeId: null,
       },
       select: { id: true },
     });
@@ -130,5 +130,17 @@ describe('syncLimitationReminder', () => {
     expect(await syncLimitationReminder(d as never, 'case-1')).toBeNull();
     expect(d.calendarEvent.delete).toHaveBeenCalledWith({ where: { id: 'evt-1' } });
     expect(d.calendarEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('has no assignee rows, so reminders follow the case\'s current lead after a lead change', async () => {
+    const d = db();
+    d.case.findUnique.mockResolvedValue(caseRow());
+    await syncLimitationReminder(d as never, 'case-1');
+    const data = d.calendarEvent.create.mock.calls[0][0].data;
+    expect(data.assignees).toBeUndefined();
+
+    // The scheduler resolves recipients from the event's assignee rows (none) → the case's lead now.
+    const scheduled = { assignees: [], case: { leadLawyerId: 'lead-2' } };
+    expect(eventPeopleIds(scheduled)).toEqual(['lead-2']);
   });
 });

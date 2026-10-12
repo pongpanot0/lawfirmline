@@ -242,13 +242,22 @@ describe('case stages', () => {
       expect(db.legalCase).toMatchObject({ courtLevel: 'APPEAL', blackCaseNumber: null });
     });
 
-    it('numbers edited in the same save as a level switch belong to the level being edited', async () => {
+    it('rejects numbers edited in the same save as a level switch, writing nothing', async () => {
+      useDb(trialCase);
+
+      await expect(
+        service.update(user, 'case-1', overview({ courtLevel: 'APPEAL', redCaseNumber: 'พ.9/2570' })),
+      ).rejects.toThrow('เปลี่ยนระดับศาลแล้วบันทึกก่อน แล้วจึงแก้เลขคดีของศาลชั้นนั้น');
+      expect(prisma.case.update).not.toHaveBeenCalled();
+      expect(prisma.caseProceeding.upsert).not.toHaveBeenCalled();
+    });
+
+    it('a level-only switch re-sending the unchanged numbers still saves', async () => {
       const db = useDb(trialCase);
 
-      await service.update(user, 'case-1', overview({ courtLevel: 'APPEAL', redCaseNumber: 'พ.9/2570' }));
+      await service.update(user, 'case-1', overview({ courtLevel: 'APPEAL' }));
 
-      expect(db.proceedings.get('TRIAL')).toMatchObject({ redCaseNumber: 'พ.9/2570' });
-      expect(db.proceedings.get('APPEAL')).toMatchObject({ redCaseNumber: null });
+      expect(db.legalCase).toMatchObject({ courtLevel: 'APPEAL' });
     });
 
     it('switching APPEAL → TRIAL does not overwrite TRIAL with the appeal numbers', async () => {
@@ -273,6 +282,17 @@ describe('case stages', () => {
 
       expect(prisma.caseProceeding.upsert).not.toHaveBeenCalled();
     });
+  });
+
+  it('the case list carries only party names and sides, no contact data or proceedings (PDPA)', async () => {
+    prisma.case.findMany = jest.fn().mockResolvedValue([]);
+    await service.findAll(user, {} as any);
+    const include = prisma.case.findMany.mock.calls[0][0].include;
+    expect(include.participants).toEqual({
+      select: { id: true, name: true, role: true, side: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(include.proceedings).toBeUndefined();
   });
 
   it('every case response carries full participant rows', async () => {

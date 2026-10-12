@@ -248,7 +248,7 @@ const rule = (
 
 /** Platform defaults (spec L1). Every firm runs them unless it overrides one in /admin/deadline-rules. */
 export const DEFAULT_DEADLINE_RULES: ReadonlyArray<DefaultDeadlineRule> = [
-  rule(DeadlineTrigger.FILED, 'ขอให้ส่งหมายเรียกและสำเนาคำฟ้อง', 7, DeadlineDayBasis.CALENDAR), // ม.173
+  rule(DeadlineTrigger.FILED, 'ขอให้ส่งหมายเรียกและสำเนาคำฟ้อง', 7, DeadlineDayBasis.CALENDAR, { courtLevel: 'TRIAL' }), // ม.173, trial filing only
   rule(DeadlineTrigger.COMPLAINT_SERVED, 'ครบกำหนดยื่นคำให้การ', 15, DeadlineDayBasis.CALENDAR, { serviceMethod: ServiceMethod.PERSONAL }), // ม.177
   rule(DeadlineTrigger.COMPLAINT_SERVED, 'ครบกำหนดยื่นคำให้การ (ปิดหมาย)', 30, DeadlineDayBasis.CALENDAR, { serviceMethod: ServiceMethod.POSTED }), // ม.79 + ม.177
   rule(DeadlineTrigger.COMPLAINT_SERVED, 'ตรวจขาดนัดยื่นคำให้การ / ขอให้พิพากษาโดยขาดนัด', 30, DeadlineDayBasis.CALENDAR, { partySide: 'PLAINTIFF' }), // ม.197–198

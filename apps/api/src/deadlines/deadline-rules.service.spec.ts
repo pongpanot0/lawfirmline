@@ -325,6 +325,16 @@ describe('DeadlineRulesService', () => {
       );
     });
 
+    it('does not hold a caller transaction open on the network notice', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+      mockNotifier.notifyAssigned.mockReturnValueOnce(new Promise(() => undefined));
+      const tx = { ...mockPrisma } as never; // a different client = inside the caller's tx
+
+      await expect(service.applyTrigger(context, tx)).resolves.toBe(1);
+      expect(mockNotifier.notifyAssigned).toHaveBeenCalledTimes(1);
+    });
+
     it('stays quiet when the caller sends its own notice (notify: false), still creating the rows', async () => {
       mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
       mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });

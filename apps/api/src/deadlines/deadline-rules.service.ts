@@ -263,9 +263,11 @@ export class DeadlineRulesService {
 
     if (result.count > 0 && legalCase && context.notify !== false) {
       // System notice (actor ''): the lead hears about it even when they entered the trigger.
-      // ponytail: inside a caller's transaction the inbox row is written outside it — a rolled-back
-      // trigger can leave one stale notice; move to an outbox if that ever matters.
-      await this.notifier.notifyAssigned({
+      // Inside a caller's transaction (client !== this.prisma) the push/LINE calls must not hold
+      // the tx open — fire and forget there (the notifier swallows its own errors).
+      // ponytail: the inbox row is written outside that tx — a rolled-back trigger can leave one
+      // stale notice; move to an outbox if that ever matters.
+      const notice = this.notifier.notifyAssigned({
         firmId: context.firmId,
         userIds: [legalCase.leadLawyerId],
         actorUserId: '',
@@ -276,6 +278,8 @@ export class DeadlineRulesService {
         ].join('\n'),
         entityPath: `/cases/${context.caseId}?tab=calendar`,
       });
+      if (client === this.prisma) await notice;
+      else void notice;
     }
     return result.count;
   }

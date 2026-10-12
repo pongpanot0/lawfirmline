@@ -102,4 +102,11 @@ describe('CasesService — limitation reminder follows case state', () => {
       service.close(user, 'case-1', { closingSummary: 'สรุปคดีอย่างน้อยสิบตัวอักษร', outcome: 'WON' } as any),
     ).resolves.toBeDefined();
   });
+
+  it('a black number saved from the overview drops the reminder (filed) without touching the deadline', async () => {
+    jest.spyOn(service as any, 'syncProceedings').mockResolvedValue(true);
+    afterChange = { blackCaseNumber: 'พ.1/2569' };
+    await service.update(user, 'case-1', { blackCaseNumber: 'พ.1/2569' } as any);
+    expect(prisma.calendarEvent.delete).toHaveBeenCalledWith({ where: { id: 'evt-1' } });
+  });
 });

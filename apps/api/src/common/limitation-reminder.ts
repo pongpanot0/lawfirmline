@@ -32,7 +32,6 @@ export async function syncLimitationReminder(db: LimitationDb, caseId: string): 
     select: {
       limitationDeadline: true,
       limitationEventId: true,
-      leadLawyerId: true,
       blackCaseNumber: true,
       status: true,
       deletedAt: true,
@@ -91,8 +90,9 @@ export async function syncLimitationReminder(db: LimitationDb, caseId: string): 
       type: EventType.DEADLINE,
       startAt,
       reminderMinutes: LIMITATION_REMINDER_MINUTES,
-      assigneeId: legalCase.leadLawyerId,
-      assignees: { create: [{ userId: legalCase.leadLawyerId }] },
+      // No assignees on purpose: the reminder scheduler falls back to the case's
+      // current lead (eventPeopleIds), so a lead change re-routes it.
+      assigneeId: null,
     },
     select: { id: true },
   });

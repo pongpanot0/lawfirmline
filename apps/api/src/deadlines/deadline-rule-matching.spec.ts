@@ -2,6 +2,7 @@ import {
   CourtEventKind,
   DeadlineDayBasis,
   DeadlineRuleItem,
+  DEFAULT_DEADLINE_RULES,
   DeadlineTrigger,
   ServiceMethod,
   deadlineRuleApplies,
@@ -87,5 +88,12 @@ describe('deadlineRuleApplies', () => {
 
   it('an inactive rule never applies', () => {
     expect(deadlineRuleApplies(rule({ isActive: false }), {})).toBe(false);
+  });
+
+  it('the default ม.173 card (FILED) is trial-only: an appeal filing does not raise it', () => {
+    const filed = DEFAULT_DEADLINE_RULES.find((r) => r.trigger === DeadlineTrigger.FILED)!;
+    const asRow = rule({ ...filed, trigger: DeadlineTrigger.FILED } as Partial<DeadlineRuleItem>);
+    expect(deadlineRuleApplies(asRow, { courtLevel: 'TRIAL' })).toBe(true);
+    expect(deadlineRuleApplies(asRow, { courtLevel: 'APPEAL' })).toBe(false);
   });
 });

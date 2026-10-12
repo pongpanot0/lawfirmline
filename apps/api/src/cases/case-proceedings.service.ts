@@ -176,7 +176,7 @@ export class CaseProceedingsService {
     if (before?.filedAt && before.filedAt.getTime() !== filedAt.getTime()) {
       await this.clearPending(caseId, DeadlineTrigger.FILED, level);
     }
-    const suggestions = await this.fire(user, legalCase, DeadlineTrigger.FILED, filedAt);
+    const suggestions = await this.fire(user, legalCase, DeadlineTrigger.FILED, filedAt, { courtLevel: level });
     const proceeding = await this.prisma.$transaction(async (tx) => {
       await this.prepare(tx, legalCase, level);
       const row = await tx.caseProceeding.upsert({

@@ -52,7 +52,8 @@ export function opponentParticipantRole(partyRole: PartyRole | string | null | u
 
 /**
  * ค่าขึ้นศาล — ตาราง 1 ท้ายประมวลกฎหมายวิธีพิจารณาความแพ่ง
- * (แก้ไขโดย พ.ร.บ.แก้ไขเพิ่มเติม ป.วิ.พ. (ฉบับที่ 24) พ.ศ. 2551), verified 2026-10-12:
+ * (แก้ไขโดย พ.ร.บ.แก้ไขเพิ่มเติม ป.วิ.พ. (ฉบับที่ 24) พ.ศ. 2551), cross-checked with secondary sources;
+ * official krisdika.go.th unreachable 2026-10-12 — re-verify:
  *   (1) คำฟ้องที่มีทุนทรัพย์: ไม่เกิน 50,000,000 บาท ร้อยละ 2 แต่ไม่เกิน 200,000 บาท;
  *       ส่วนที่เกิน 50,000,000 บาท ร้อยละ 0.1
  *   (2) คดีไม่มีทุนทรัพย์: 200 บาท
@@ -64,9 +65,13 @@ export const COURT_FEE_NON_MONEY = 200;
 const FIRST_BAND_SATANG = 50_000_000 * 100;
 const FIRST_BAND_CAP_SATANG = 200_000 * 100;
 
-/** @param amount ทุนทรัพย์ in baht; null = a claim with no money value. @returns baht. */
+/**
+ * @param amount ทุนทรัพย์ in baht; null = a claim with no money value.
+ * @returns baht; 0 when `amount` is not a finite number (bad input — callers show "—").
+ */
 export function courtFee(amount: number | null): number {
   if (amount == null) return COURT_FEE_NON_MONEY;
+  if (!Number.isFinite(amount)) return 0;
   // Integer satang so 2% / 0.1% never pick up float noise.
   const satang = Math.max(0, Math.round(amount * 100));
   const first = Math.min(Math.ceil((Math.min(satang, FIRST_BAND_SATANG) * 2) / 100), FIRST_BAND_CAP_SATANG);
