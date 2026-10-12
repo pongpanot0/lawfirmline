@@ -57,6 +57,8 @@ export interface DeadlineTriggerContext {
   courtLevel?: CourtLevel | null;
   /** COMPLAINT_SERVED: รับเอง or ปิดหมาย. */
   serviceMethod?: ServiceMethod | null;
+  /** false = the caller sends its own notice naming the deadline (default true). */
+  notify?: boolean;
 }
 
 /**
@@ -259,7 +261,7 @@ export class DeadlineRulesService {
       skipDuplicates: true,
     });
 
-    if (result.count > 0 && legalCase) {
+    if (result.count > 0 && legalCase && context.notify !== false) {
       // System notice (actor ''): the lead hears about it even when they entered the trigger.
       // ponytail: inside a caller's transaction the inbox row is written outside it — a rolled-back
       // trigger can leave one stale notice; move to an outbox if that ever matters.

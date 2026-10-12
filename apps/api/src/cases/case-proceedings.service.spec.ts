@@ -47,6 +47,7 @@ describe('CaseProceedingsService', () => {
       reminderLog: { deleteMany: jest.fn() },
       documentDateSuggestion: {
         findFirst: jest.fn().mockResolvedValue({ suggestedDate: new Date('2026-11-12T09:30:00.000Z') }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       $transaction: jest.fn().mockImplementation(async (fn: (tx: unknown) => unknown) => {
         inTx = true;
@@ -158,13 +159,109 @@ describe('CaseProceedingsService', () => {
     );
   });
 
-  it('the engine and the lead notice run after the transaction commits', async () => {
+  it('fires the engine before the transaction (silenced) and sends the lead notice after the commit', async () => {
     await service.recordJudgment(user, 'case-1', {
       courtLevel: 'TRIAL' as any, judgmentAt: '2026-10-12T03:00:00.000Z', outcome: 'WON' as any,
     });
     expect(prisma.$transaction).toHaveBeenCalled();
     expect(calledInTx.applyTrigger).toEqual([false]);
     expect(calledInTx.notifyAssigned).toEqual([false]);
+    expect(deadlines.applyTrigger.mock.invocationCallOrder[0]).toBeLessThan(prisma.$transaction.mock.invocationCallOrder[0]);
+    expect(notifier.notifyAssigned.mock.invocationCallOrder[0]).toBeGreaterThan(prisma.$transaction.mock.invocationCallOrder[0]);
+    // The judgment notice already names the deadline; the engine's own notice would be a second ping.
+    expect(deadlines.applyTrigger).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'JUDGMENT', notify: false }));
+  });
+
+  it('filing and service keep the engine notice (no notify: false)', async () => {
+    await service.recordFiling(user, 'case-1', { filedAt: '2026-10-12T03:00:00.000Z' });
+    await service.recordService(user, 'case-1', { servedAt: '2026-10-20T03:00:00.000Z', method: 'PERSONAL' as any });
+    for (const [ctx] of deadlines.applyTrigger.mock.calls) expect(ctx.notify).toBeUndefined();
+  });
+
+  it('a corrected judgment date replaces the pending appeal deadline and the notice quotes the new date', async () => {
+    // In-memory suggestions and an engine that, like the real one, skips a rule with a PENDING row.
+    const due: Record<string, string> = {
+      '2026-10-15': '2026-11-16T09:30:00.000Z', // 15 Oct judgment → Mon 16 Nov
+      '2026-10-12': '2026-11-12T09:30:00.000Z', // 12 Oct judgment → Thu 12 Nov
+    };
+    let rows = [{ ruleId: 'r-appeal', suggestedDate: new Date(due['2026-10-15']) }];
+    prisma.caseProceeding.findUnique.mockResolvedValue({
+      id: 'p1', courtLevel: 'TRIAL', judgmentAt: new Date('2026-10-15T03:00:00.000Z'), judgmentOutcome: 'WON',
+    });
+    prisma.documentDateSuggestion.deleteMany.mockImplementation(async () => {
+      const count = rows.length;
+      rows = [];
+      return { count };
+    });
+    prisma.documentDateSuggestion.findFirst.mockImplementation(async () => rows[0] ?? null);
+    deadlines.applyTrigger.mockImplementation(async (ctx: any) => {
+      if (rows.some((r) => r.ruleId === 'r-appeal')) return 0;
+      rows.push({ ruleId: 'r-appeal', suggestedDate: new Date(due[ctx.triggerDate.toISOString().slice(0, 10)]) });
+      return 1;
+    });
+
+    const result = await service.recordJudgment(user, 'case-1', {
+      courtLevel: 'TRIAL' as any, judgmentAt: '2026-10-12T03:00:00.000Z', outcome: 'WON' as any,
+    });
+
+    expect(prisma.documentDateSuggestion.deleteMany).toHaveBeenCalledWith({
+      where: {
+        caseId: 'case-1', status: 'PENDING', source: 'RULE', triggerEventId: null,
+        deadlineRule: { trigger: 'JUDGMENT', OR: [{ courtLevel: 'TRIAL' }, { courtLevel: null }] },
+      },
+    });
+    expect(result.suggestions).toBe(1);
+    expect(rows).toEqual([{ ruleId: 'r-appeal', suggestedDate: new Date('2026-11-12T09:30:00.000Z') }]);
+    const notice = notifier.notifyAssigned.mock.calls[0][0].summaryText as string;
+    expect(notice).toContain('ครบกำหนดอุทธรณ์ พฤ. 12 พ.ย. 2569');
+    expect(notice).not.toContain('16 พ.ย.');
+  });
+
+  it('a first judgment clears nothing', async () => {
+    await service.recordJudgment(user, 'case-1', {
+      courtLevel: 'TRIAL' as any, judgmentAt: '2026-10-12T03:00:00.000Z', outcome: 'WON' as any,
+    });
+    expect(prisma.documentDateSuggestion.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('a corrected filing date clears the pending FILED deadlines before firing again', async () => {
+    prisma.caseProceeding.findUnique.mockResolvedValue({ id: 'p1', courtLevel: 'TRIAL', filedAt: new Date('2026-10-15T03:00:00.000Z') });
+
+    await service.recordFiling(user, 'case-1', { filedAt: '2026-10-12T03:00:00.000Z' });
+
+    expect(prisma.documentDateSuggestion.deleteMany).toHaveBeenCalledWith({
+      where: {
+        caseId: 'case-1', status: 'PENDING', source: 'RULE', triggerEventId: null,
+        deadlineRule: { trigger: 'FILED', OR: [{ courtLevel: 'TRIAL' }, { courtLevel: null }] },
+      },
+    });
+    expect(prisma.documentDateSuggestion.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      deadlines.applyTrigger.mock.invocationCallOrder[0],
+    );
+    expect(deadlines.applyTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({ trigger: 'FILED', triggerDate: new Date('2026-10-12T03:00:00.000Z') }),
+    );
+  });
+
+  it('a filing re-sent with the same date, or a first filing, clears nothing', async () => {
+    await service.recordFiling(user, 'case-1', { filedAt: '2026-10-12T03:00:00.000Z' });
+    prisma.caseProceeding.findUnique.mockResolvedValue({ id: 'p1', courtLevel: 'TRIAL', filedAt: new Date('2026-10-12T03:00:00.000Z') });
+    await service.recordFiling(user, 'case-1', { filedAt: '2026-10-12T03:00:00.000Z' });
+    expect(prisma.documentDateSuggestion.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('service and appeal copy re-recorded replace their pending deadlines (no stored date to compare)', async () => {
+    await service.recordService(user, 'case-1', { servedAt: '2026-10-20T03:00:00.000Z', method: 'POSTED' as any });
+    await service.recordAppealServed(user, 'case-1', { servedAt: '2026-12-01T03:00:00.000Z' });
+    const where = (trigger: string) => ({
+      where: { caseId: 'case-1', status: 'PENDING', source: 'RULE', triggerEventId: null, deadlineRule: { trigger } },
+    });
+    expect(prisma.documentDateSuggestion.deleteMany).toHaveBeenNthCalledWith(1, where('COMPLAINT_SERVED'));
+    expect(prisma.documentDateSuggestion.deleteMany).toHaveBeenNthCalledWith(2, where('APPEAL_SERVED'));
+    const [del1, del2] = prisma.documentDateSuggestion.deleteMany.mock.invocationCallOrder;
+    const [fire1, fire2] = deadlines.applyTrigger.mock.invocationCallOrder;
+    expect(del1).toBeLessThan(fire1);
+    expect(del2).toBeLessThan(fire2);
   });
 
   it('a judgment re-sent with the same date (double submit) fires, logs and notifies nothing', async () => {
@@ -198,6 +295,13 @@ describe('CaseProceedingsService', () => {
       expect.objectContaining({ update: expect.objectContaining({ judgmentOutcome: 'LOST' }) }),
     );
     expect(deadlines.applyTrigger).not.toHaveBeenCalled();
+    expect(prisma.documentDateSuggestion.deleteMany).not.toHaveBeenCalled();
+    expect(notifier.notifyAssigned).not.toHaveBeenCalled();
+    expect(feed.log).toHaveBeenCalledTimes(1);
+    expect(feed.log).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'COURT_DATE', title: expect.stringContaining('แก้ไขคำพิพากษา') }),
+      prisma,
+    );
   });
 
   it('an appeal-level judgment keeps an APPEAL stage and names ฎีกา in the notice', async () => {

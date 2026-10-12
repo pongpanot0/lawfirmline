@@ -91,7 +91,7 @@ export class CaseProceedingsService {
     legalCase: OpenCase,
     trigger: DeadlineTrigger,
     triggerDate: Date,
-    extra: { courtLevel?: CourtLevel; serviceMethod?: ServiceMethod } = {},
+    extra: { courtLevel?: CourtLevel; serviceMethod?: ServiceMethod; notify?: boolean } = {},
   ) {
     return this.deadlines.applyTrigger({
       caseId: legalCase.id,
@@ -103,6 +103,23 @@ export class CaseProceedingsService {
       triggerEventId: null,
       createdById: user.id,
       ...extra,
+    });
+  }
+
+  /**
+   * A re-recorded date must not leave the old date's PENDING cards behind: the engine
+   * skips a rule that already has one, so the stale date would win. Confirmed and
+   * dismissed cards stay. With a level, rules for that level and level-less rules go.
+   */
+  private clearPending(caseId: string, trigger: DeadlineTrigger, courtLevel?: CourtLevel) {
+    return this.prisma.documentDateSuggestion.deleteMany({
+      where: {
+        caseId,
+        status: 'PENDING',
+        source: 'RULE',
+        triggerEventId: null,
+        deadlineRule: courtLevel ? { trigger, OR: [{ courtLevel }, { courtLevel: null }] } : { trigger },
+      },
     });
   }
 
@@ -153,6 +170,10 @@ export class CaseProceedingsService {
     const level = dto.courtLevel ?? currentLevel(legalCase);
     const filedAt = new Date(dto.filedAt);
 
+    const before = await this.prisma.caseProceeding.findUnique({ where: key(caseId, level) });
+    if (before?.filedAt && before.filedAt.getTime() !== filedAt.getTime()) {
+      await this.clearPending(caseId, DeadlineTrigger.FILED, level);
+    }
     const suggestions = await this.fire(user, legalCase, DeadlineTrigger.FILED, filedAt);
     const proceeding = await this.prisma.$transaction(async (tx) => {
       await this.prepare(tx, legalCase, level);
@@ -184,6 +205,9 @@ export class CaseProceedingsService {
   async recordService(user: AuthUser, caseId: string, dto: RecordServiceDto) {
     const legalCase = await this.openCase(user, caseId);
     const servedAt = new Date(dto.servedAt);
+    // ponytail: no served date is stored to compare, so every re-record replaces the
+    // pending cards (a double submit re-creates the same ones and repeats the engine notice).
+    await this.clearPending(caseId, DeadlineTrigger.COMPLAINT_SERVED);
     const suggestions = await this.fire(user, legalCase, DeadlineTrigger.COMPLAINT_SERVED, servedAt, {
       serviceMethod: dto.method,
     });
@@ -202,15 +226,25 @@ export class CaseProceedingsService {
 
     // A double-submitted form (same level, same date) must not fire a second set of
     // deadlines, log twice or notify twice; it only re-saves the details, so a
-    // corrected outcome or amount still lands.
+    // corrected outcome or amount still lands (logged as a correction). A new date
+    // replaces the old date's pending deadlines.
     // ponytail: two truly simultaneous requests can both pass this read; the engine's
     // PENDING check still stops duplicate suggestions — add a row lock if the double notice matters.
     const before = await this.prisma.caseProceeding.findUnique({ where: key(caseId, dto.courtLevel) });
     const repeat = before?.judgmentAt?.getTime() === judgmentAt.getTime();
 
+    const corrected =
+      repeat &&
+      (before.judgmentOutcome !== dto.outcome ||
+        (before.judgmentAmount == null ? null : Number(before.judgmentAmount)) !== (dto.amount ?? null) ||
+        (blank(dto.redCaseNumber) !== undefined && blank(dto.redCaseNumber) !== before.redCaseNumber) ||
+        (dto.note?.trim() || null) !== (before.judgmentNote ?? null));
+
+    if (before?.judgmentAt && !repeat) await this.clearPending(caseId, DeadlineTrigger.JUDGMENT, dto.courtLevel);
+    // notify: false — the judgment notice below already names the deadline.
     const suggestions = repeat
       ? 0
-      : await this.fire(user, legalCase, DeadlineTrigger.JUDGMENT, judgmentAt, { courtLevel: dto.courtLevel });
+      : await this.fire(user, legalCase, DeadlineTrigger.JUDGMENT, judgmentAt, { courtLevel: dto.courtLevel, notify: false });
     const details = {
       judgmentAt,
       judgmentOutcome: dto.outcome,
@@ -237,6 +271,14 @@ export class CaseProceedingsService {
           tx,
         );
         await this.advanceStage(tx, user, legalCase, CaseStage.AWAITING_JUDGMENT);
+      } else if (corrected) {
+        await this.caseFeed.log(
+          {
+            caseId, userId: user.id, type: ActivityType.COURT_DATE,
+            title: `แก้ไขคำพิพากษา${COURT_LEVEL_LABELS[dto.courtLevel]}: ${JUDGMENT_OUTCOME_LABELS[dto.outcome]}`,
+          },
+          tx,
+        );
       }
       return row;
     });
@@ -276,6 +318,7 @@ export class CaseProceedingsService {
   async recordAppealServed(user: AuthUser, caseId: string, dto: RecordAppealServedDto) {
     const legalCase = await this.openCase(user, caseId);
     const servedAt = new Date(dto.servedAt);
+    await this.clearPending(caseId, DeadlineTrigger.APPEAL_SERVED); // same ceiling as recordService
     const suggestions = await this.fire(user, legalCase, DeadlineTrigger.APPEAL_SERVED, servedAt);
     await this.caseFeed.log({
       caseId, userId: user.id, type: ActivityType.DEADLINE, title: 'ได้รับสำเนาอุทธรณ์', at: servedAt,

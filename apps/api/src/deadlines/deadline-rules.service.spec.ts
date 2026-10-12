@@ -325,6 +325,15 @@ describe('DeadlineRulesService', () => {
       );
     });
 
+    it('stays quiet when the caller sends its own notice (notify: false), still creating the rows', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.applyTrigger({ ...context, notify: false })).resolves.toBe(1);
+
+      expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
+    });
+
     it('does not notify when nothing new was created', async () => {
       mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
       mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 0 });
