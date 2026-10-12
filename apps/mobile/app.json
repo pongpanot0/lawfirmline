@@ -14,8 +14,8 @@
     "android": {
       "package": "com.samnuan.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#FFFFFF"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#142E43"
       },
       "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize"
