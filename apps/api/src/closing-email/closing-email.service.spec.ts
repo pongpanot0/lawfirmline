@@ -219,4 +219,31 @@ describe('ClosingEmailService.approveDraft', () => {
     await expect(service.approveDraft(user, 'c1', 'd1', { contactIds: ['k1'] })).rejects.toThrow('อนุมัติไปแล้ว');
     expect(email.sendClosingEmail).not.toHaveBeenCalled();
   });
+
+  it('retries the final write once and persists sentAt/sentTo', async () => {
+    prisma.clientContact.findMany.mockResolvedValue([{ id: 'k1', email: 'a@x.co' }]);
+    email.sendClosingEmail.mockResolvedValue(true);
+    prisma.closingEmailDraft.update.mockRejectedValueOnce(new Error('db down'));
+    const result = await service.approveDraft(user, 'c1', 'd1', { contactIds: ['k1'] });
+    expect(prisma.closingEmailDraft.update).toHaveBeenCalledTimes(2);
+    expect(result).toEqual(expect.objectContaining({ sentTo: ['a@x.co'], sentAt: expect.any(Date) }));
+  });
+
+  it('still returns what was sent when the final write fails twice', async () => {
+    prisma.clientContact.findMany.mockResolvedValue([{ id: 'k1', email: 'ab@x.co' }]);
+    email.sendClosingEmail.mockResolvedValue(true);
+    prisma.closingEmailDraft.update.mockRejectedValue(new Error('db down'));
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+    const result = await service.approveDraft(user, 'c1', 'd1', { contactIds: ['k1'] });
+    expect(result.sentTo).toEqual(['ab@x.co']);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('1'));
+    expect(warn.mock.calls[0][0]).not.toContain('ab@x.co');
+  });
+
+  it('a draft of another firm case is not found', async () => {
+    prisma.closingEmailDraft.findFirst.mockResolvedValue(null);
+    await expect(service.approveDraft(user, 'c1', 'd1', { contactIds: ['k1'] })).rejects.toThrow(NotFoundException);
+    expect(prisma.closingEmailDraft.findFirst).toHaveBeenCalledWith({ where: { id: 'd1', caseId: 'c1', case: { firmId: 'f1' } } });
+    expect(email.sendClosingEmail).not.toHaveBeenCalled();
+  });
 });

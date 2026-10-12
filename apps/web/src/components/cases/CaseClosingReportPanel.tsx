@@ -123,7 +123,9 @@ export function CaseClosingReportPanel({ caseId }: { caseId: string }) {
       const approved = await api.approveClosingEmailDraft(token, caseId, draft.id, contactIds);
       setDraft(approved);
       setDrafts((previous) => previous.map((item) => (item.id === approved.id ? approved : item)));
+      const failed = contactIds.length - (approved.sentTo?.length ?? 0);
       setNotice(`ส่งแล้วถึง ${approved.sentTo?.join(', ')}`);
+      if (failed > 0) setError(`ส่งไม่สำเร็จ ${failed} ราย — ตรวจอีเมลผู้ติดต่อ`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'อนุมัติไม่สำเร็จ กรุณาลองใหม่');
     } finally {

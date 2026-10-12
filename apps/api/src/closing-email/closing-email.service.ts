@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthUser } from '@lawfirm/shared';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { AuthUser, maskEmail } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { ClosingEmailDraftStatus } from '../generated/prisma';
 import { EmailService } from '../notifications/email.service';
@@ -43,6 +43,8 @@ const draftInclude = {
 
 @Injectable()
 export class ClosingEmailService {
+  private readonly logger = new Logger(ClosingEmailService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
@@ -231,16 +233,31 @@ export class ClosingEmailService {
       throw new BadRequestException('ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่');
     }
 
-    return this.prisma.closingEmailDraft.update({
-      where: { id: draftId },
-      data: {
-        status: ClosingEmailDraftStatus.APPROVED,
-        approvedById: user.id,
-        approvedAt: new Date(),
-        sentAt: new Date(),
-        sentTo,
-      },
-      include: draftInclude,
-    });
+    const sentAt = new Date();
+    const record = () =>
+      this.prisma.closingEmailDraft.update({
+        where: { id: draftId },
+        data: {
+          status: ClosingEmailDraftStatus.APPROVED,
+          approvedById: user.id,
+          approvedAt: sentAt,
+          sentAt,
+          sentTo,
+        },
+        include: draftInclude,
+      });
+    // The emails are already out: retry the bookkeeping once, then report what was sent anyway.
+    try {
+      return await record();
+    } catch {
+      try {
+        return await record();
+      } catch (error) {
+        this.logger.warn(
+          `Closing email ${draftId} sent to ${sentTo.length} recipient(s) (${sentTo.map(maskEmail).join(', ')}) but recording sentAt/sentTo failed: ${error instanceof Error ? error.message : 'unknown'}`,
+        );
+        return { ...draft, status: ClosingEmailDraftStatus.APPROVED, sentAt, sentTo };
+      }
+    }
   }
 }
