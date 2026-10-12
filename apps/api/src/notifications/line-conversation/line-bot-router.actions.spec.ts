@@ -79,11 +79,34 @@ describe('LineBotRouter — notification buttons and chat questions', () => {
     expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('ยกเลิก'), undefined);
   });
 
+  it('a group tap never overwrites a flow open in the 1:1 chat', async () => {
+    store.get.mockReturnValue({ flowType: 'LEAVE', target: dm });
+    await router.route('L1', 'task:handoff:11111111-1111-1111-1111-111111111111', group, true);
+    expect(store.start).not.toHaveBeenCalled();
+    expect(reviewFlow.begin).not.toHaveBeenCalled();
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('ยกเลิก'), undefined);
+  });
+
+  it('a new review tap restarts an active review flow for the new task', async () => {
+    store.get.mockReturnValue({ flowType: 'TASK_REVIEW', target: dm });
+    await router.route('L1', 'task:reject:22222222-2222-2222-2222-222222222222', dm, false);
+    expect(reviewFlow.begin).toHaveBeenCalledWith(expect.anything(), 'reject', '22222222-2222-2222-2222-222222222222');
+  });
+
+  it('a failed push to the 1:1 chat clears the session and tells the group to add the bot, without a title', async () => {
+    reviewFlow.begin.mockResolvedValueOnce(false);
+    await router.route('L1', 'task:reject:11111111-1111-1111-1111-111111111111', group, true);
+    expect(store.clear).toHaveBeenCalledWith('L1');
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', 'เพิ่มบอทเป็นเพื่อนก่อน แล้วกดปุ่มอีกครั้งครับ', undefined);
+    expect(line.replyWithQuickReply).not.toHaveBeenCalledWith('rt', expect.stringContaining('ส่งขั้นตอนต่อไป'), undefined);
+  });
+
   it('from a group, the note follow-up moves to the 1:1 chat', async () => {
     await router.route('L1', 'task:reject:11111111-1111-1111-1111-111111111111', group, true);
     const started = store.start.mock.calls[0][0];
     expect(started.target).toEqual({ sourceType: 'user' });
     expect(reviewFlow.begin).toHaveBeenCalled();
+    expect(line.replyWithQuickReply).toHaveBeenCalledWith('rt', expect.stringContaining('ส่งขั้นตอนต่อไป'), undefined);
   });
 
   it('the next message in that flow goes to the review flow', async () => {

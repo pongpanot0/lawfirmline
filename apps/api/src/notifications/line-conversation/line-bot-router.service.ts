@@ -79,21 +79,28 @@ export class LineBotRouterService {
     // state and never starts or disturbs a flow.
     const reviewNote = REVIEW_NOTE_ACTION.exec(text);
     if (reviewNote) {
-      if (existing?.flowType) {
+      // Guard on the user's session in any chat; only a review flow may be replaced.
+      const active = this.store.get(lineUserId);
+      if (active?.flowType && active.flowType !== FlowType.TASK_REVIEW) {
         await this.reply(lineUserId, target, { text: 'ทำรายการเดิมให้เสร็จหรือพิมพ์ "ยกเลิก" ก่อน แล้วกดปุ่มอีกครั้งครับ' });
         return;
       }
       // The note prompt and result carry the task title: keep them in the 1:1 chat.
       const privateTarget: ConversationTarget = { sourceType: 'user' };
-      if (chatKey(target) !== 'user') {
-        await this.reply(lineUserId, target, { text: 'ส่งขั้นตอนต่อไปที่แชตส่วนตัวกับบอทแล้วครับ' });
-      }
       const session = this.store.start({
         lineUserId, userId: authUser.id, firmId: authUser.firmId,
         flowType: FlowType.TASK_REVIEW, step: ConversationStep.SELECT_ACTION, data: {},
         target: chatKey(target) === 'user' ? target : privateTarget,
       });
-      await this.reviewFlow.begin(session, reviewNote[1].toLowerCase() as 'handoff' | 'reject', reviewNote[2]);
+      const delivered = await this.reviewFlow.begin(session, reviewNote[1].toLowerCase() as 'handoff' | 'reject', reviewNote[2]);
+      if (chatKey(target) !== 'user') {
+        if (delivered === false) {
+          this.store.clear(lineUserId);
+          await this.reply(lineUserId, target, { text: 'เพิ่มบอทเป็นเพื่อนก่อน แล้วกดปุ่มอีกครั้งครับ' });
+        } else {
+          await this.reply(lineUserId, target, { text: 'ส่งขั้นตอนต่อไปที่แชตส่วนตัวกับบอทแล้วครับ' });
+        }
+      }
       return;
     }
 

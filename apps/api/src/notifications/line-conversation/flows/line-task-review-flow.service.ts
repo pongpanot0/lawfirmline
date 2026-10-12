@@ -25,19 +25,19 @@ export class LineTaskReviewFlowService {
     private auth: LineAuthContextService,
   ) {}
 
-  async begin(session: ConversationSession, kind: 'handoff' | 'reject', taskId: string): Promise<void> {
+  async begin(session: ConversationSession, kind: 'handoff' | 'reject', taskId: string): Promise<boolean> {
     const user = await this.auth.resolve(session.lineUserId);
-    if (!user) return;
+    if (!user) return true;
     try {
       await this.tasks.assertAccess(taskId, user);
     } catch (error) {
-      await this.reply(session, `ทำรายการไม่สำเร็จ: ${error instanceof Error ? error.message : 'กรุณาลองใหม่'}`);
+      const sent = await this.reply(session, `ทำรายการไม่สำเร็จ: ${error instanceof Error ? error.message : 'กรุณาลองใหม่'}`);
       this.store.clear(session.lineUserId);
-      return;
+      return sent;
     }
     const step = kind === 'handoff' ? ConversationStep.TASK_HANDOFF_NOTE : ConversationStep.TASK_REJECT_REASON;
     this.store.update(session.lineUserId, { flowType: FlowType.TASK_REVIEW, step, data: { taskId } });
-    await this.reply(session, kind === 'handoff'
+    return this.reply(session, kind === 'handoff'
       ? `พิมพ์หมายเหตุถึงผู้ตรวจ (อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร) แล้วส่งมาได้เลยครับ`
       : 'พิมพ์เหตุผลที่ส่งงานกลับให้แก้ แล้วส่งมาได้เลยครับ');
   }
@@ -65,9 +65,13 @@ export class LineTaskReviewFlowService {
     }
   }
 
-  private async reply(session: ConversationSession, text: string, quickReply?: QuickReplyItem[]) {
+  /** False only when a push to the user's 1:1 chat was rejected (e.g. the bot is not a friend). */
+  private async reply(session: ConversationSession, text: string, quickReply?: QuickReplyItem[]): Promise<boolean> {
     const items = withEscape(quickReply);
-    if (session.target.replyToken) await this.line.replyWithQuickReply(session.target.replyToken, text, items);
-    else await this.line.pushTo(session.lineUserId, text, items);
+    if (session.target.replyToken) {
+      await this.line.replyWithQuickReply(session.target.replyToken, text, items);
+      return true;
+    }
+    return (await this.line.pushTo(session.lineUserId, text, items)) !== false;
   }
 }
