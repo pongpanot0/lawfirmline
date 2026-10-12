@@ -152,6 +152,11 @@ export class CreateCaseDto {
   @Max(FEE_MAX)
   claimedAmount?: number;
 
+  /** วันครบอายุความ — ระบบตั้งเตือน "ครบอายุความ" ให้ 90/30/7/1 วันก่อน */
+  @IsOptional()
+  @IsDateString()
+  limitationDeadline?: string;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => InitialActivityDto)
@@ -267,6 +272,11 @@ export class UpdateCaseDto {
   @Min(0)
   @Max(FEE_MAX)
   claimedAmount?: number | null;
+
+  /** null ล้างวันครบอายุความ (และลบการเตือน) */
+  @IsOptional()
+  @IsDateString()
+  limitationDeadline?: string | null;
 
   @IsOptional()
   @IsString()

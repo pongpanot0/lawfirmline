@@ -49,6 +49,7 @@ import {
 } from './dto/intake.dto';
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
+import { syncLimitationReminder } from '../common/limitation-reminder';
 import { formatIntakeNotificationReference } from '../notifications/reference-label';
 
 export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
@@ -1177,6 +1178,7 @@ export class IntakeService {
       title: 'เปิดคดี',
       at: newCase.openedAt,
     });
+    if (newCase.limitationDeadline) await syncLimitationReminder(this.prisma, newCase.id);
 
     if (this.cargoClaims && intake.preLitigationType === PreLitigationType.TRANSPORT) {
       await this.cargoClaims.attachCase(user, intake.id, newCase.id);
@@ -1336,6 +1338,7 @@ export class IntakeService {
         limitationDeadline: relatedCase.limitationDeadline ?? intake.deadlineDate ?? undefined,
       },
     });
+    await syncLimitationReminder(this.prisma, relatedCase.id);
 
     await this.prisma.intakePrecedentAnalysis.updateMany({
       where: { intakeId: intake.id },

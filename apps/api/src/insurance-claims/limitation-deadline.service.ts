@@ -1,17 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { EventType } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { CalendarService } from '../calendar/calendar.service';
+import { syncLimitationReminder } from '../common/limitation-reminder';
 
 const LIMITATION_YEARS = 2;
-const REMINDER_MINUTES = [90 * 1440, 30 * 1440, 7 * 1440];
 
+/** Insurance claims: อายุความ 2 ปีนับแต่วันวินาศภัย (ป.พ.พ. ม.882); the reminder itself is the shared one. */
 @Injectable()
 export class LimitationDeadlineService {
-  constructor(
-    private prisma: PrismaService,
-    private calendarService: CalendarService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   computeDeadline(incidentDate: Date): Date {
     const deadline = new Date(incidentDate);
@@ -19,33 +15,12 @@ export class LimitationDeadlineService {
     return deadline;
   }
 
-  async applyIncidentDate(
-    caseId: string,
-    incidentDate: Date,
-    existingEventId?: string | null,
-  ): Promise<string> {
-    const deadline = this.computeDeadline(incidentDate);
-
+  /** @returns the case's "ครบอายุความ" event id, or null once the case is filed. */
+  async applyIncidentDate(caseId: string, incidentDate: Date, _existingEventId?: string | null): Promise<string | null> {
     await this.prisma.case.update({
       where: { id: caseId },
-      data: { limitationDeadline: deadline },
+      data: { limitationDeadline: this.computeDeadline(incidentDate) },
     });
-
-    if (existingEventId) {
-      const updated = await this.calendarService.updateInternal(existingEventId, {
-        startAt: deadline.toISOString(),
-      });
-      await this.prisma.reminderLog.deleteMany({ where: { eventId: existingEventId } });
-      return updated.id;
-    }
-
-    const created = await this.calendarService.createInternal({
-      caseId,
-      title: 'อายุความฟ้องคดี (ม.882)',
-      startAt: deadline.toISOString(),
-      type: EventType.DEADLINE,
-      reminderMinutes: REMINDER_MINUTES,
-    });
-    return created.id;
+    return syncLimitationReminder(this.prisma, caseId);
   }
 }

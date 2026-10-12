@@ -402,7 +402,7 @@ describe('IntakeService relatedCase / isOngoingElsewhere fields', () => {
   let service: IntakeService;
   const mockPrisma = {
     intake: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-    case: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'case-new', title: 'x', leadLawyerId: 'user-1' }), update: jest.fn().mockResolvedValue({ id: 'case-1', title: 'x', leadLawyerId: 'user-1' }) },
+    case: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'case-new', title: 'x', leadLawyerId: 'user-1' }), update: jest.fn().mockResolvedValue({ id: 'case-1', title: 'x', leadLawyerId: 'user-1' }) },
     firm: { findUnique: jest.fn().mockResolvedValue({ ownRefPrefix: 'REF' }) },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
@@ -850,6 +850,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
     });
     (mockPrisma as any).case.findFirst = jest.fn().mockResolvedValue({ id: 'case-1', firmId: 'firm-1', title: 'คดีเดิม' });
     (mockPrisma as any).case.update = jest.fn().mockResolvedValue({ id: 'case-1', title: 'คดีเดิม' });
+    (mockPrisma as any).case.findUnique = jest.fn().mockResolvedValue(null);
     (mockPrisma as any).intakePrecedentAnalysis = { updateMany: jest.fn() };
 
     await service.convertToCase(user, 'intake-1', {});
@@ -949,7 +950,7 @@ describe('IntakeService.decide — เปิดคดีทันทีที่
     intake: { findFirst: jest.fn(), update: jest.fn() },
     task: { updateMany: jest.fn() },
     firm: { findUnique: jest.fn() },
-    case: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+    case: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },

@@ -1,4 +1,5 @@
 import { assertFirmRefs } from '../common/firm-refs';
+import { syncLimitationReminder } from '../common/limitation-reminder';
 import {
   Injectable,
   NotFoundException,
@@ -394,6 +395,7 @@ export class CasesService {
       customFields: dto.customFields as Prisma.InputJsonValue,
       estimatedFee: dto.estimatedFee,
       claimedAmount: dto.claimedAmount,
+      limitationDeadline: dto.limitationDeadline ? new Date(dto.limitationDeadline) : undefined,
       status: dto.status,
       caseTypeId: dto.caseTypeId ?? undefined,
       leadLawyerId: dto.leadLawyerId,
@@ -413,6 +415,7 @@ export class CasesService {
       title: 'เปิดคดี',
       at: created.openedAt,
     });
+    if (dto.limitationDeadline) await syncLimitationReminder(this.prisma, created.id);
 
     if (dto.initialActivity) {
       await this.activitiesService.create(
@@ -494,6 +497,12 @@ export class CasesService {
       where: { id },
       data: {
         ...rest,
+        limitationDeadline:
+          dto.limitationDeadline === undefined
+            ? undefined
+            : dto.limitationDeadline
+              ? new Date(dto.limitationDeadline)
+              : null,
         ownRef: dto.ownRef?.trim() || undefined,
         customFields: customFields as Prisma.InputJsonValue | undefined,
         customers:
@@ -505,6 +514,9 @@ export class CasesService {
       },
       include: this.caseInclude,
     });
+    if (dto.limitationDeadline !== undefined) {
+      await syncLimitationReminder(this.prisma, id);
+    }
 
     // Timeline ของคดีต้องตอบได้เองว่าใครเปลี่ยนอะไรเมื่อไร ไม่ใช่รอให้คนมากรอก
     if (dto.status && dto.status !== before.status) {
