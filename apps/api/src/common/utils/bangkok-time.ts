@@ -93,17 +93,33 @@ export function formatBangkokTime(date: Date): string {
 }
 
 /**
- * The Bangkok day `months` later (negative = earlier) with the same day of
- * month; a day the target month lacks becomes its last day (ป.พ.พ. ม.193/5).
+ * The Bangkok day on which a period of `months` months from `date` ends.
+ *
+ * Positive counts follow ป.พ.พ. ม.193/3 + 193/5: counting starts the day AFTER
+ * `date`; the period ends on the day before the same day-of-month `months`
+ * later, or on the last day of that month when it has no such day. (30 Apr +1
+ * month = 31 May; 31 Jan +1 = 28 Feb.) Negative counts are a plain calendar
+ * step back: same day of month, clamped to the month's last day.
  * Returns 00:00 Bangkok of that day.
  */
 export function addBangkokMonths(date: Date, months: number): Date {
   const [year, month, day] = bangkokDayKey(date).split('-').map(Number);
-  const first = new Date(Date.UTC(year, month - 1 + months, 1));
-  const lastDay = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
-  return new Date(
-    Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), Math.min(day, lastDay)) - BANGKOK_OFFSET_MS,
-  );
+  const monthLength = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  let target: number;
+  if (months > 0) {
+    const start = new Date(Date.UTC(year, month - 1, day + 1));
+    const [sy, sm, sd] = [start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()];
+    const first = new Date(Date.UTC(sy, sm + months, 1));
+    const [ty, tm] = [first.getUTCFullYear(), first.getUTCMonth()];
+    const last = monthLength(ty, tm);
+    // Date.UTC rolls a day-0 (sd - 1) back to the previous month's last day.
+    target = sd > last ? Date.UTC(ty, tm, last) : Date.UTC(ty, tm, sd - 1);
+  } else {
+    const first = new Date(Date.UTC(year, month - 1 + months, 1));
+    const [ty, tm] = [first.getUTCFullYear(), first.getUTCMonth()];
+    target = Date.UTC(ty, tm, Math.min(day, monthLength(ty, tm)));
+  }
+  return new Date(target - BANGKOK_OFFSET_MS);
 }
 
 /** Rule deadlines fall due when the court counter closes: 16:30 Bangkok on `dayKey` (`YYYY-MM-DD`). */

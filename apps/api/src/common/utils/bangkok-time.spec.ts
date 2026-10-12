@@ -82,6 +82,26 @@ describe('addBangkokMonths', () => {
     expect(bangkokDayKey(addBangkokMonths(at('2027-03-31'), -1))).toBe('2027-02-28');
   });
 
+  it('ends a month period on the day before the next start (ม.193/3 + 193/5)', () => {
+    const cases: Array<[string, number, string]> = [
+      ['2026-10-11', 1, '2026-11-11'],
+      ['2027-04-30', 1, '2027-05-31'],
+      ['2027-02-28', 1, '2027-03-31'],
+      ['2028-02-28', 1, '2028-03-28'],
+      ['2027-01-31', 1, '2027-02-28'],
+      ['2028-01-31', 1, '2028-02-29'],
+      ['2027-01-30', 1, '2027-02-28'],
+      ['2026-12-31', 1, '2027-01-31'],
+      ['2027-02-15', 1, '2027-03-15'],
+      ['2026-10-11', 120, '2036-10-11'],
+    ];
+    for (const [from, n, expected] of cases) {
+      expect([from, n, bangkokDayKey(addBangkokMonths(at(from), n))]).toEqual([from, n, expected]);
+    }
+    // 18:00Z on 11 Oct is already 12 Oct in Bangkok.
+    expect(bangkokDayKey(addBangkokMonths(new Date('2026-10-11T18:00:00Z'), 1))).toBe('2026-11-12');
+  });
+
   it('returns 00:00 Bangkok of the target day', () => {
     expect(addBangkokMonths(at('2026-10-11'), 1).toISOString()).toBe('2026-11-10T17:00:00.000Z');
   });
