@@ -24,6 +24,11 @@ describe('case stages', () => {
         findUnique: jest.fn().mockResolvedValue(base),
         update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...base, ...data })),
       },
+      caseProceeding: {
+        upsert: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+      },
       caseStatusLog: { findFirst: jest.fn().mockResolvedValue(null) },
       task: { findMany: jest.fn().mockResolvedValue([]) },
       calendarEvent: { findMany: jest.fn().mockResolvedValue([]) },
@@ -149,5 +154,39 @@ describe('case stages', () => {
     expect(await errors({})).toBeGreaterThan(0);
     expect(await errors({ outcome: 'IN_PROGRESS' })).toBeGreaterThan(0);
     expect(await errors({ outcome: 'SETTLED' })).toBe(0);
+  });
+
+  it('entering APPEAL sets the court level and opens an appeal proceeding', async () => {
+    prisma.case.findUnique.mockResolvedValue({ ...base, stage: 'AWAITING_JUDGMENT', courtLevel: 'TRIAL' });
+
+    await service.update(user, 'case-1', { stage: 'APPEAL' } as any);
+
+    expect(prisma.caseProceeding.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { caseId_courtLevel: { caseId: 'case-1', courtLevel: 'APPEAL' } } }),
+    );
+    expect(prisma.case.update).toHaveBeenCalledWith({ where: { id: 'case-1' }, data: { courtLevel: 'APPEAL' } });
+  });
+
+  it('entering APPEAL together with a new lead lawyer still notifies the lead', async () => {
+    prisma.case.findUnique.mockResolvedValue({ ...base, stage: 'AWAITING_JUDGMENT', courtLevel: 'TRIAL' });
+    prisma.firmMember = { count: jest.fn().mockResolvedValue(1) };
+    prisma.auditLog = { create: jest.fn() };
+
+    await service.update(user, 'case-1', { stage: 'APPEAL', leadLawyerId: 'lead-2' } as any);
+
+    expect(prisma.auditLog.create).toHaveBeenCalled();
+  });
+
+  it('editing the black number on the overview writes it into the current proceeding', async () => {
+    prisma.case.findUnique.mockResolvedValue({ ...base, courtLevel: 'TRIAL', courtName: 'ศาลแพ่ง' });
+
+    await service.update(user, 'case-1', { blackCaseNumber: 'พ.9/2569' } as any);
+
+    expect(prisma.caseProceeding.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { caseId_courtLevel: { caseId: 'case-1', courtLevel: 'TRIAL' } },
+        update: { blackCaseNumber: 'พ.9/2569' },
+      }),
+    );
   });
 });

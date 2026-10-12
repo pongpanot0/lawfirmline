@@ -14,6 +14,7 @@ import {
   CaseOutcome,
   CaseStage,
   CaseStatus,
+  CourtLevel,
   FirmRole,
   hasFirmCapability,
   isBackwardStage,
@@ -31,6 +32,7 @@ import { CLIENT_CONTACT_SELECT } from '../clients/client-contact.select';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
 import { Optional } from '@nestjs/common';
 import { formatCaseNotificationReference } from '../notifications/reference-label';
+import { ensureProceeding, mirrorProceeding, saveCaseNumbers } from './proceeding-mirror';
 
 const OWN_REF_TAKEN_MESSAGE = 'เลขคดีนี้ถูกใช้กับคดีอื่นในสำนักงานแล้ว กรุณาใช้เลขอื่น';
 
@@ -58,6 +60,8 @@ export class CasesService {
     client: { select: { id: true, name: true } },
     cargoClaim: { select: { id: true } },
     participants: { select: { name: true, role: true } },
+    // CourtLevel enum is declared TRIAL, APPEAL, SUPREME, so asc = court order.
+    proceedings: { orderBy: { courtLevel: 'asc' as const } },
     // งานก่อนฟ้อง (โนติส/เจรจา) ยังบันทึกอยู่บน intake ที่ผูก 1:1 — หน้าคดีใช้แสดงสถานะ
     intake: {
       select: {
@@ -578,6 +582,26 @@ export class CasesService {
         summaryText: caseAssignmentSummary('⚖️ คุณได้รับมอบหมายเป็นทนายเจ้าของคดี', updated),
         entityPath: `/cases/${id}`,
       });
+    }
+
+    // Numbers typed on the overview belong to the proceeding the case is at.
+    if (dto.blackCaseNumber !== undefined || dto.redCaseNumber !== undefined || dto.courtName !== undefined) {
+      await saveCaseNumbers(this.prisma, id, (updated.courtLevel as CourtLevel | null) ?? CourtLevel.TRIAL, {
+        courtName: dto.courtName,
+        blackCaseNumber: dto.blackCaseNumber,
+        redCaseNumber: dto.redCaseNumber,
+      });
+    }
+    // Entering APPEAL / SUPREME moves the case to that court (spec L2).
+    if (stageChanged && (dto.stage === CaseStage.APPEAL || dto.stage === CaseStage.SUPREME)) {
+      const level = dto.stage === CaseStage.APPEAL ? CourtLevel.APPEAL : CourtLevel.SUPREME;
+      await ensureProceeding(this.prisma, id, level);
+      if (updated.courtLevel !== level) {
+        await this.prisma.case.update({ where: { id }, data: { courtLevel: level } });
+        await mirrorProceeding(this.prisma, id);
+        // Re-read so the response carries the new level and mirrored numbers.
+        return this.findOne(user, id);
+      }
     }
 
     return updated;

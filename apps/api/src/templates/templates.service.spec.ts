@@ -22,6 +22,10 @@ const legalCase = {
     { name: 'นายสาม', role: 'DEFENDANT' },
     { name: 'พยาน', role: 'WITNESS' },
   ],
+  proceedings: [
+    { courtLevel: 'TRIAL', courtName: 'ศาลแพ่ง', blackCaseNumber: 'พ.1/2569', redCaseNumber: 'พ.9/2570' },
+    { courtLevel: 'APPEAL', courtName: 'ศาลอุทธรณ์', blackCaseNumber: 'อ.5/2570', redCaseNumber: null },
+  ],
 };
 
 describe('TemplatesService', () => {
@@ -65,6 +69,36 @@ describe('TemplatesService', () => {
       expect(result?.content).toBe('นายหนึ่ง, นายสอง vs นายสาม');
       expect(result?.variables.plaintiffNames).toBe('นายหนึ่ง, นายสอง');
       expect(result?.variables.defendantNames).toBe('นายสาม');
+    });
+
+    it('counts petitioners and respondents as plaintiffs and defendants', async () => {
+      mockPrisma.documentTemplate.findFirst.mockResolvedValue({ name: 'คำร้อง', templateBody: '{{plaintiffNames}} / {{defendantNames}}' });
+      mockPrisma.case.findUnique.mockResolvedValue({
+        ...legalCase,
+        participants: [
+          { name: 'ผู้ร้อง', role: 'PETITIONER' },
+          { name: 'ผู้คัดค้าน', role: 'RESPONDENT' },
+        ],
+      });
+
+      const result = await service.render('firm-1', 'tpl-1', 'case-1');
+
+      expect(result?.content).toBe('ผู้ร้อง / ผู้คัดค้าน');
+    });
+
+    it('fills per-level case numbers from the proceedings', async () => {
+      mockPrisma.documentTemplate.findFirst.mockResolvedValue({
+        name: 'อุทธรณ์',
+        templateBody: '{{trialBlackCaseNumber}} {{trialRedCaseNumber}} {{appealBlackCaseNumber}} {{trialCourtName}}',
+      });
+      mockPrisma.case.findUnique.mockResolvedValue(legalCase);
+
+      const result = await service.render('firm-1', 'tpl-1', 'case-1');
+
+      expect(result?.content).toBe('พ.1/2569 พ.9/2570 อ.5/2570 ศาลแพ่ง');
+      expect(mockPrisma.case.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ include: expect.objectContaining({ proceedings: true }) }),
+      );
     });
 
     it('lists courtName as missing when empty, and an unknown key as missing', async () => {
