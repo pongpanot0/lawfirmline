@@ -1,4 +1,4 @@
-import { FirmRole, hasFirmCapability } from '@lawfirm/shared';
+import { FirmRole, hasFirmCapability, partySide, PlaybookSide } from '@lawfirm/shared';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   ActivityType,
@@ -23,6 +23,7 @@ import { AutomationLogService } from '../common/services/automation-log.service'
 import { CaseFeedService } from '../common/services/case-feed.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
+import { stagesToApply, stepMatchesSide, stepTaskTitle } from './stage-scope';
 export interface ImportRow { clientName: string; caseRef: string; caseTitle: string }
 export interface CheckedRow extends ImportRow { row: number; existingClientId: string | null; errors: string[] }
 export interface Ledger { cases: { id: string; updatedAt: string }[]; clients: { id: string; updatedAt: string }[] }
@@ -36,9 +37,11 @@ export interface PlaybookStep {
   stage?: CaseStage;
   offsetDays?: number;
   dayBasis?: 'CALENDAR' | 'BUSINESS';
+  side?: PlaybookSide;
+  requiresAttachment?: boolean;
 }
-export interface StageTaskProposal { title: string; description: string; dueDate: string | null; assigneeId: string | null; releaseName: string; routineSource?: { releaseId: string; stepIndex: number } }
-export interface StageTaskInput { title: string; description?: string; dueDate?: string | null; assigneeId?: string | null; routineSource?: { releaseId: string; stepIndex: number } }
+export interface StageTaskProposal { title: string; description: string; dueDate: string | null; assigneeId: string | null; releaseName: string; requiresAttachment: boolean; routineSource?: { releaseId: string; stepIndex: number } }
+export interface StageTaskInput { title: string; description?: string; dueDate?: string | null; assigneeId?: string | null; requiresAttachment?: boolean; routineSource?: { releaseId: string; stepIndex: number } }
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 
 /**
@@ -249,16 +252,25 @@ export class PracticeSetupService {
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "Case" WHERE "id" = ${caseId} FOR UPDATE`;
       const preview = await this.previewPlaybook(user, caseId, releaseId, db);
-      if (preview.existing) return preview.existing;
+      if (preview.existing) return { applied: preview.existing, perAssignee: new Map<string, number>(), ownRef: '' };
       const [team, firmMembers, theCase] = await Promise.all([
         db.caseAssignment.findMany({ where: { caseId }, select: { userId: true } }),
         db.firmMember.findMany({ where: { firmId: user.firmId }, select: { userId: true, role: true } }),
         db.case.findFirst({ where: { id: caseId } }),
       ]);
       const teamIds = new Set([preview.ownerId, ...team.map(t => t.userId)]);
+      const side = partySide(theCase?.partyRole);
+      const inScope = new Set<string>(stagesToApply(theCase?.stage));
+      const scopedSteps = preview.steps.filter((s) => (!s.stage || inScope.has(s.stage)) && stepMatchesSide(s, side));
+      const applyDay = new Date();
+      const holidays = await this.deadlineRules.loadHolidays(applyDay, Math.max(0, ...scopedSteps.map((s) => s.offsetDays ?? 0)), db);
+      const dueDateOf = (step: PlaybookStep) => step.offsetDays == null ? null
+        : new Date(`${this.deadlineRules.computeDueDate(applyDay, step.offsetDays, (step.dayBasis ?? 'CALENDAR') as DeadlineDayBasis, holidays)}T00:00:00.000Z`);
+      const perAssignee = new Map<string, number>();
+      const count = (assigneeId: string) => { if (assigneeId !== user.id) perAssignee.set(assigneeId, (perAssignee.get(assigneeId) ?? 0) + 1); };
       const routineFields = (step: PlaybookStep, assigneeId: string) => {
         if (!step.routine) return {};
-        const reviewerId = firmMembers.find(m => m.userId === preview.ownerId && m.userId !== assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId
+        const reviewerId = (preview.ownerId !== assigneeId ? preview.ownerId : undefined)
           ?? firmMembers.find(m => m.userId !== assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId;
         if (!reviewerId) throw new BadRequestException('งานประจำต้องมี Owner หรือทนายอาวุโสอีกคนเป็นผู้ตรวจ');
         return { routine: json(taskRoutineSnapshot(preview.release, preview.steps.indexOf(step), step.routine)), requiresReview: true, reviewerId };
@@ -267,7 +279,7 @@ export class PracticeSetupService {
 
       // Group steps by stage
       const stageGroups = new Map<CaseStage | undefined, PlaybookStep[]>();
-      for (const step of preview.steps) {
+      for (const step of scopedSteps) {
         if (!stageGroups.has(step.stage)) stageGroups.set(step.stage, []);
         stageGroups.get(step.stage)!.push(step);
       }
@@ -299,8 +311,10 @@ export class PracticeSetupService {
             const subtask = await db.task.create({
               data: {
                 caseId,
-                title: step.title.trim(),
+                title: stepTaskTitle(step, side),
                 description: step.instructions,
+                dueDate: dueDateOf(step),
+                requiresAttachment: step.requiresAttachment ?? false,
                 ...routineFields(step, assigneeId),
                 assignedAt: new Date(),
                 assigneeId,
@@ -310,6 +324,7 @@ export class PracticeSetupService {
               },
             });
             taskIds.push(subtask.id);
+            count(assigneeId);
           }
         } else {
           // No stage: create flat tasks
@@ -318,8 +333,10 @@ export class PracticeSetupService {
             const task = await db.task.create({
               data: {
                 caseId,
-                title: step.title.trim(),
+                title: stepTaskTitle(step, side),
                 description: step.instructions,
+                dueDate: dueDateOf(step),
+                requiresAttachment: step.requiresAttachment ?? false,
                 ...routineFields(step, assigneeId),
                 assignedAt: new Date(),
                 assigneeId,
@@ -328,14 +345,30 @@ export class PracticeSetupService {
               },
             });
             taskIds.push(task.id);
+            count(assigneeId);
           }
         }
       }
 
       const applied = await db.appliedPlaybook.create({ data: { caseId, releaseId, startDate: new Date(), taskIds, appliedById: user.id } });
-      await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PLAYBOOK_APPLIED', metadata: { caseId, releaseId, taskIds } } }); return applied;
-    }).then(async (applied) => {
+      await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'PLAYBOOK_APPLIED', metadata: { caseId, releaseId, taskIds } } });
+      return { applied, perAssignee, ownRef: theCase?.ownRef ?? '' };
+    }).then(async ({ applied, perAssignee, ownRef }) => {
       await this.automationLog.record({ firmId: user.firmId, automation: 'playbook-apply', trigger: { caseId, releaseId, by: user.id }, result: { taskIds: applied.taskIds } });
+      for (const [assigneeId, n] of perAssignee) {
+        try {
+          await this.assignmentNotifier.notifyAssigned({
+            firmId: user.firmId,
+            userIds: [assigneeId],
+            actorUserId: user.id,
+            category: NotificationCategory.TASK,
+            summaryText: `ได้รับ ${n} งานใหม่จาก SOP คดี ${ownRef}`,
+            entityPath: `/cases/${caseId}`,
+          });
+        } catch {
+          // Notices never fail the apply that triggered them.
+        }
+      }
       return applied;
     });
   }
@@ -350,6 +383,7 @@ export class PracticeSetupService {
     const c = await this.prisma.case.findFirst({ where: { id: caseId, ...this.access.getCaseFilterForUser(user) } });
     if (!c) throw new NotFoundException('Case not found');
     await this.ensureDefaultPlaybooks(user);
+    const side = partySide(c.partyRole);
 
     const [applied, byCaseType] = await Promise.all([
       this.prisma.appliedPlaybook.findMany({ where: { caseId }, include: { release: true } }),
@@ -365,8 +399,9 @@ export class PracticeSetupService {
     const stepsByTitle = new Map<string, { step: PlaybookStep; releaseName: string; routineSource?: { releaseId: string; stepIndex: number } }>();
     for (const release of releases) {
       for (const step of release.steps as unknown as PlaybookStep[]) {
-        if (step.stage !== stage || stepsByTitle.has(step.title)) continue;
-        stepsByTitle.set(step.title, { step, releaseName: release.name, ...(step.routine ? { routineSource: { releaseId: release.id, stepIndex: (release.steps as unknown as PlaybookStep[]).indexOf(step) } } : {}) });
+        const title = stepTaskTitle(step, side);
+        if (step.stage !== stage || !stepMatchesSide(step, side) || stepsByTitle.has(title)) continue;
+        stepsByTitle.set(title, { step, releaseName: release.name, ...(step.routine ? { routineSource: { releaseId: release.id, stepIndex: (release.steps as unknown as PlaybookStep[]).indexOf(step) } } : {}) });
       }
     }
     // อย่าเสนองานที่มีอยู่แล้วในคดี ไม่ว่าจะสร้างจากขั้นนี้ (stage:<STAGE>) หรือจากการใช้ playbook (playbook:<releaseId>)
@@ -382,8 +417,9 @@ export class PracticeSetupService {
 
     return Promise.all(
       [...stepsByTitle.values()].map(async ({ step, releaseName, routineSource }) => ({
-        title: step.title,
+        title: stepTaskTitle(step, side),
         description: step.instructions,
+        requiresAttachment: step.requiresAttachment ?? false,
         dueDate:
           step.offsetDays == null
             ? null
@@ -419,7 +455,7 @@ export class PracticeSetupService {
       const release = await this.prisma.playbookRelease.findFirst({ where: { id: task.routineSource.releaseId, firmId: user.firmId } });
       const step = (release?.steps as unknown as PlaybookStep[])?.[task.routineSource.stepIndex];
       if (!release || !step?.routine || step.stage !== stage || !task.assigneeId) throw new BadRequestException('เลือกงานประจำจาก SOP ของขั้นนี้และระบุผู้ทำงาน');
-      const reviewerId = routineMembers.find(m => m.userId === c.leadLawyerId && m.userId !== task.assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId
+      const reviewerId = (c.leadLawyerId !== task.assigneeId ? c.leadLawyerId : undefined)
         ?? routineMembers.find(m => m.userId !== task.assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(m.role))?.userId;
       if (!reviewerId) throw new BadRequestException('งานประจำต้องมีผู้ตรวจอีกคน');
       return { routine: json(taskRoutineSnapshot(release, task.routineSource.stepIndex, step.routine)), description: step.instructions, requiresReview: true, reviewerId, assignedAt: new Date() };
@@ -456,6 +492,7 @@ export class PracticeSetupService {
             title: t.title.trim(),
             description: t.description ?? null,
             ...requirements[index],
+            requiresAttachment: t.requiresAttachment ?? false,
             dueDate: t.dueDate ? new Date(t.dueDate) : null,
             assigneeId: t.assigneeId ?? null,
             createdById: user.id,

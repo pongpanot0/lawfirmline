@@ -304,6 +304,18 @@ describe('stage-driven task proposals', () => {
     expect(result.parentId).toBe('new-parent');
     expect(result.created).toBe(1);
   });
+
+  it('drops steps for the other side', async () => {
+    const { service, prisma } = buildService();
+    prisma.case.findFirst.mockResolvedValue({ ...theCase, partyRole: 'PLAINTIFF' });
+    prisma.appliedPlaybook.findMany.mockResolvedValue([{ release: { id: 'r1', name: 'แพ่ง', steps: [
+      { title: 'ยื่นคำให้การ', instructions: '', stage: CaseStage.ANSWER, side: 'DEFENDANT' },
+      { title: 'ขอให้พิพากษาโดยขาดนัด', instructions: '', stage: CaseStage.ANSWER, side: 'PLAINTIFF' },
+    ] } }]);
+    prisma.playbookRelease.findMany.mockResolvedValue([]);
+    const result = await service.proposeStageTasks(user, theCase.id, CaseStage.ANSWER);
+    expect(result.map((r) => r.title)).toEqual(['ขอให้พิพากษาโดยขาดนัด']);
+  });
 });
 
 describe('applyPlaybook with stage grouping', () => {
@@ -313,7 +325,7 @@ describe('applyPlaybook with stage grouping', () => {
     subscriptionStatus: SubscriptionStatus.ACTIVE, subscriptionPlan: null, trialEndAt: null,
     currentPeriodEnd: null, maxUsers: 10, mfaEnabled: false,
   };
-  const theCase = { id: 'case-1', firmId: 'firm-1', caseTypeId: 'ct-1', leadLawyerId: 'owner-1' };
+  const theCase = { id: 'case-1', firmId: 'firm-1', caseTypeId: 'ct-1', leadLawyerId: 'owner-1', ownRef: 'TSB-1', stage: CaseStage.FILING, partyRole: null };
 
   it('groups staged steps into parent+subtasks and keeps unstaged steps flat', async () => {
     const steps = [
@@ -346,8 +358,8 @@ describe('applyPlaybook with stage grouping', () => {
       prisma as never,
       { getCaseFilterForUser: jest.fn().mockReturnValue({}) } as never,
       { record: jest.fn() } as never,
-      {} as never,
-      {} as never,
+      { computeDueDate: jest.fn(() => '2026-10-20'), loadHolidays: jest.fn().mockResolvedValue(new Set()) } as never,
+      { notifyAssigned: jest.fn() } as never,
       {} as never,
     );
 
@@ -401,8 +413,8 @@ describe('applyPlaybook with stage grouping', () => {
       prisma as never,
       { getCaseFilterForUser: jest.fn().mockReturnValue({}) } as never,
       { record: jest.fn() } as never,
-      {} as never,
-      {} as never,
+      { computeDueDate: jest.fn(() => '2026-10-20'), loadHolidays: jest.fn().mockResolvedValue(new Set()) } as never,
+      { notifyAssigned: jest.fn() } as never,
       {} as never,
     );
 
@@ -445,8 +457,8 @@ describe('applyPlaybook with stage grouping', () => {
       prisma as never,
       { getCaseFilterForUser: jest.fn().mockReturnValue({}) } as never,
       { record: jest.fn() } as never,
-      {} as never,
-      {} as never,
+      { computeDueDate: jest.fn(() => '2026-10-20'), loadHolidays: jest.fn().mockResolvedValue(new Set()) } as never,
+      { notifyAssigned: jest.fn() } as never,
       {} as never,
     );
 
@@ -456,6 +468,81 @@ describe('applyPlaybook with stage grouping', () => {
     expect(result.taskIds).toEqual(createdIds);
     expect(result.taskIds).toHaveLength(3);
   });
+
+  function harness(steps: unknown[], caseOverride: Record<string, unknown> = {}) {
+    const db = {
+      $queryRaw: jest.fn(),
+      case: { findFirst: jest.fn().mockResolvedValue({ ...theCase, ...caseOverride }) },
+      appliedPlaybook: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn(({ data }) => Promise.resolve({ id: 'pb-1', ...data })) },
+      playbookRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release-1', steps }) },
+      caseAssignment: { findMany: jest.fn().mockResolvedValue([]) },
+      firmMember: { findMany: jest.fn().mockResolvedValue([{ userId: 'lawyer-2', role: 'LAWYER' }, { userId: 'asst-1', role: 'ASSISTANT' }]) },
+      task: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      auditLog: { create: jest.fn() },
+    };
+    let n = 1;
+    db.task.create.mockImplementation(({ data }) => Promise.resolve({ id: `task-${n++}`, ...data }));
+    const deadlines = { computeDueDate: jest.fn(() => '2026-10-20'), loadHolidays: jest.fn().mockResolvedValue(new Set()) };
+    const notifier = { notifyAssigned: jest.fn() };
+    const service = new PracticeSetupService({ $transaction: jest.fn((cb) => cb(db)) } as never,
+      { getCaseFilterForUser: jest.fn().mockReturnValue({}) } as never, { record: jest.fn() } as never,
+      deadlines as never, notifier as never, {} as never);
+    return { db, deadlines, notifier, service };
+  }
+
+  it('creates only the current and the next stage', async () => {
+    const { db, service } = harness([
+      { title: 'Filing', instructions: '', stage: CaseStage.FILING, primaryRole: 'LAWYER' },
+      { title: 'Answer', instructions: '', stage: CaseStage.ANSWER, primaryRole: 'LAWYER' },
+      { title: 'Hearing', instructions: '', stage: CaseStage.HEARING, primaryRole: 'LAWYER' },
+    ]);
+    await service.applyPlaybook(user, theCase.id, 'release-1');
+    const titles = db.task.create.mock.calls.map((c) => c[0].data.title);
+    expect(titles).toEqual(expect.arrayContaining(['Filing', 'Answer']));
+    expect(titles).not.toContain('Hearing');
+  });
+
+  it('dates each task from the apply day with the deadline helper and copies requiresAttachment', async () => {
+    const { db, deadlines, service } = harness([
+      { title: 'ร่างคำฟ้อง', instructions: '', stage: CaseStage.FILING, offsetDays: 7, dayBasis: 'BUSINESS', requiresAttachment: true },
+    ]);
+    await service.applyPlaybook(user, theCase.id, 'release-1');
+    expect(deadlines.computeDueDate).toHaveBeenCalledWith(expect.any(Date), 7, 'BUSINESS', expect.any(Set));
+    const sub = db.task.create.mock.calls.map((c) => c[0].data).find((d) => d.title === 'ร่างคำฟ้อง');
+    expect(sub).toEqual(expect.objectContaining({ dueDate: new Date('2026-10-20T00:00:00.000Z'), requiresAttachment: true }));
+  });
+
+  it('skips steps for the other side; marks them when our side is unknown', async () => {
+    const steps = [
+      { title: 'ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)', instructions: '', stage: CaseStage.FILING, side: 'DEFENDANT' },
+      { title: 'ขอให้พิพากษาโดยขาดนัด', instructions: '', stage: CaseStage.FILING, side: 'PLAINTIFF' },
+    ];
+    const plaintiff = harness(steps, { partyRole: 'PLAINTIFF' });
+    await plaintiff.service.applyPlaybook(user, theCase.id, 'release-1');
+    expect(plaintiff.db.task.create.mock.calls.map((c) => c[0].data.title)).not.toContain('ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)');
+
+    const unknown = harness(steps, { partyRole: null });
+    await unknown.service.applyPlaybook(user, theCase.id, 'release-1');
+    expect(unknown.db.task.create.mock.calls.map((c) => c[0].data.title)).toEqual(expect.arrayContaining([
+      'ยื่นคำให้การ (กรณีเป็นฝ่ายจำเลย)', 'ขอให้พิพากษาโดยขาดนัด (ถ้าเป็นฝ่ายโจทก์)',
+    ]));
+  });
+
+  it('sends one batched notice per assignee, never to the person applying', async () => {
+    const { notifier, service } = harness([
+      { title: 'A', instructions: '', stage: CaseStage.FILING, primaryRole: 'ASSISTANT' },
+      { title: 'B', instructions: '', stage: CaseStage.FILING, primaryRole: 'ASSISTANT' },
+      { title: 'C', instructions: '', stage: CaseStage.FILING, primaryRole: 'LAWYER' },
+    ]);
+    await service.applyPlaybook(user, theCase.id, 'release-1');
+    const sent = notifier.notifyAssigned.mock.calls.map((c) => [c[0].userIds, c[0].summaryText.split('\n')[0]]);
+    expect(sent).toEqual(expect.arrayContaining([
+      [['asst-1'], 'ได้รับ 2 งานใหม่จาก SOP คดี TSB-1'],
+      [['lawyer-2'], 'ได้รับ 1 งานใหม่จาก SOP คดี TSB-1'],
+    ]));
+    expect(sent.flatMap(([ids]) => ids)).not.toContain('owner-1'); // stage parents are containers, not work
+  });
+
 });
 
 describe('default playbooks', () => {

@@ -18,6 +18,8 @@ class StepDto {
   @IsOptional() @IsEnum(CaseStage) stage?: CaseStage;
   @IsOptional() @IsInt() @Min(0) @Max(365) offsetDays?: number;
   @IsOptional() @IsIn(['CALENDAR', 'BUSINESS']) dayBasis?: 'CALENDAR' | 'BUSINESS';
+  @IsOptional() @IsIn(['PLAINTIFF', 'DEFENDANT']) side?: 'PLAINTIFF' | 'DEFENDANT';
+  @IsOptional() @IsBoolean() requiresAttachment?: boolean;
 }
 class CargoRequirementDto {
   @IsString() @MaxLength(100) code!: string;
@@ -42,6 +44,7 @@ class StageTaskItemDto {
   @IsOptional() @IsString() @MaxLength(5000) description?: string;
   @IsOptional() @IsDateString() dueDate?: string | null;
   @IsOptional() @IsUUID() assigneeId?: string | null;
+  @IsOptional() @IsBoolean() requiresAttachment?: boolean;
 }
 class CreateStageTasksDto {
   @IsEnum(CaseStage) stage!: CaseStage;
