@@ -2,6 +2,7 @@ import { assertFirmRefs } from '../common/firm-refs';
 import { syncLimitationReminder } from '../common/limitation-reminder';
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
   ForbiddenException,
@@ -49,6 +50,8 @@ function caseAssignmentSummary(prefix: string, legalCase: { title: string; ownRe
 
 @Injectable()
 export class CasesService {
+  private readonly logger = new Logger(CasesService.name);
+
   constructor(
     private prisma: PrismaService,
     private caseAccess: CaseAccessService,
@@ -794,6 +797,7 @@ export class CasesService {
       stageTransition: { from: legalCase.stage, to: CaseStage.CLOSING },
     });
 
+    await this.syncLimitation(id);
     return closed;
   }
 
@@ -818,6 +822,7 @@ export class CasesService {
       title: 'เก็บคดีเข้าคลัง / Archived',
       statusTransition: { from: CaseStatus.CLOSED, to: CaseStatus.ARCHIVED },
     });
+    await this.syncLimitation(id);
     return archived;
   }
 
@@ -857,6 +862,7 @@ export class CasesService {
       statusTransition: { from: legalCase.status, to: CaseStatus.IN_PROGRESS },
       stageTransition: { from: legalCase.stage, to: stage },
     });
+    await this.syncLimitation(id);
     return reopened;
   }
 
@@ -881,6 +887,16 @@ export class CasesService {
         },
       }),
     ]);
+    await this.syncLimitation(id);
     return { deleted: true };
+  }
+
+  /** Close, archive, reopen and delete change whether the ครบอายุความ reminder is wanted; a failure here never breaks them. */
+  private async syncLimitation(caseId: string) {
+    try {
+      await syncLimitationReminder(this.prisma, caseId);
+    } catch (err) {
+      this.logger.warn(`limitation reminder sync failed for case ${caseId}: ${(err as Error).message}`);
+    }
   }
 }
