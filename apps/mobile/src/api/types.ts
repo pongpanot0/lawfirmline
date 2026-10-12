@@ -83,7 +83,7 @@ export interface CaseParticipant {
 
 export interface CaseDetail extends CaseListItem {
   clientName: string | null;
-  courtLevel: string;
+  courtLevel: string | null;
   caseTypeId?: string | null;
   leadLawyerId?: string;
   assignments?: Array<{ userId: string; assignmentType: string; user: { id: string; firstName: string; lastName: string } }>;

@@ -52,7 +52,7 @@ export default function CaseFormScreen() {
     const data = current.data;
     setTitle(data.title);
     setPickedClient(data.client ? { id: data.client.id, name: data.client.name } : null); setPartyRole(data.partyRole ?? '');
-    setDescription(data.description ?? ''); setCourtName(data.courtName ?? ''); setCourtLevel(data.courtLevel);
+    setDescription(data.description ?? ''); setCourtName(data.courtName ?? ''); setCourtLevel(data.courtLevel ?? 'TRIAL');
     setCaseTypeId(data.caseTypeId ?? '');
     setStatus(data.status);
     const lead = data.leadLawyerId ?? data.leadLawyer?.id;
