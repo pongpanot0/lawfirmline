@@ -10,11 +10,11 @@ import { colors, fonts, radius, spacing } from '@/theme';
 import { SectionCard } from './SectionCard';
 import { Button, ErrorNote, Loading, UrgencyTag } from './ui';
 
-type Settled = { row: DateSuggestion; text: string; confirmed: boolean; visible: boolean };
+type Settled = { row: DateSuggestion; text: string; confirmed: boolean };
 
 /**
  * "รอยืนยันวันครบกำหนด": one-tap ✓, ✕ after a confirmation. Nothing moves before the server answers;
- * a handled row then shows its result for 1.5 s and stays out of the list.
+ * a handled row then keeps its result line in place while the screen stays open, so nothing vanishes under a thumb.
  */
 export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, highlightSince }: {
   caseId: string;
@@ -31,7 +31,7 @@ export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, hig
   const [settled, setSettled] = useState<Record<string, Settled>>({});
 
   const pending = (suggestions.data ?? []).filter((row) => !settled[row.id]);
-  const rows = [...pending, ...Object.values(settled).filter((item) => item.visible).map((item) => item.row)]
+  const rows = [...pending, ...Object.values(settled).map((item) => item.row)]
     .sort((a, b) => a.suggestedDate.localeCompare(b.suggestedDate));
   // A persisted list may hold rows already decided elsewhere: no actions until the first fresh answer.
   const stale = !suggestions.isFetchedAfterMount;
@@ -50,11 +50,9 @@ export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, hig
         [row.id]: {
           row,
           confirmed: action === 'confirm',
-          visible: true,
-          text: action === 'confirm' ? `ยืนยันแล้ว · เพิ่มในปฏิทินคดี ${when}` : 'ไม่ใช้แล้ว · ไม่ได้เพิ่มวันครบกำหนด',
+          text: action === 'confirm' ? `✓ ยืนยันแล้ว · เพิ่มในปฏิทินคดี ${when}` : 'ไม่ใช้แล้ว · ไม่ได้เพิ่มวันครบกำหนด',
         },
       }));
-      setTimeout(() => setSettled((value) => ({ ...value, [row.id]: { ...value[row.id], visible: false } })), 1500);
     } catch (error) {
       // The hook refetches on settle, so a row handled elsewhere (409) disappears after this alert.
       Alert.alert('บันทึกไม่สำเร็จ', actionErrorText(error));
@@ -74,7 +72,7 @@ export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, hig
   if (suggestions.isError && !suggestions.data) return <ErrorNote message="โหลดวันรอยืนยันไม่ได้" onRetry={() => suggestions.refetch()} />;
   if (!rows.length) return null;
 
-  return <SectionCard title="รอยืนยันวันครบกำหนด" count={rows.length} tone="due">
+  return <SectionCard title="รอยืนยันวันครบกำหนด" count={pending.length || undefined} tone="due">
     {!canAct ? <Text style={styles.muted}>รอผู้รับผิดชอบคดียืนยัน</Text>
       : isOffline ? <Text style={styles.muted}>ออฟไลน์ · ต้องต่อเน็ตเพื่อยืนยันวันครบกำหนด</Text>
       : stale ? <Text style={styles.muted}>กำลังอัปเดต…</Text> : null}
@@ -97,7 +95,7 @@ export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, hig
               <Button title="✕ ไม่ใช้" ghost busy={busy[row.id] === 'dismiss'} disabled={isOffline || stale || !!busy[row.id]} onPress={() => askDismiss(row)} />
             </View>
             <View style={{ flex: 1 }}>
-              <Button title="✓ ยืนยันวันนี้" busy={busy[row.id] === 'confirm'} disabled={isOffline || stale || !!busy[row.id]} onPress={() => void run(row, 'confirm')} />
+              <Button title="✓ ยืนยันวันที่" busy={busy[row.id] === 'confirm'} disabled={isOffline || stale || !!busy[row.id]} onPress={() => void run(row, 'confirm')} />
             </View>
           </View> : null}
       </View>;

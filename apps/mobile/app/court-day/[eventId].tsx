@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { EXPENSE_CATEGORIES } from '@lawfirm/shared';
+import { CourtEventKind, EXPENSE_CATEGORIES } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { draftScope, saveDraft } from '@/api/drafts';
@@ -85,6 +85,9 @@ export default function CourtDayScreen() {
   if (readError) return <SafeAreaView style={{ padding: spacing.lg }}><ErrorNote message={readError} onRetry={() => setReadAttempt(readAttempt + 1)} /></SafeAreaView>;
   if (!draft) return <Loading />;
   const { event, workspace } = court.data;
+  const canRecordJudgment = !!legalCase.data && canRecordProceedings(legalCase.data.status);
+  // A hearing booked as ฟังคำพิพากษา: recording the judgment is the point of the day, so it leads the at-court phase.
+  const judgmentHearing = event.courtEventKind === CourtEventKind.JUDGMENT_READING;
   const state = draft.state;
   const done = !!workspace.completedAt;
   const busy = save.isPending || complete.isPending;
@@ -192,13 +195,17 @@ export default function CourtDayScreen() {
           <Button title="ดูแฟ้มคดี / เอกสารทั้งหมด" ghost onPress={() => router.push(`/case/${event.caseId}?section=documents`)} />
         </>}
         {phase !== 0 && <>
+          {canRecordJudgment && judgmentHearing ? <View style={{ gap: spacing.xs }}>
+            <Button title="ศาลอ่านคำพิพากษาวันนี้ · บันทึกผล" onPress={() => setRecordingJudgment(true)} />
+            {judgmentResult ? <Text accessibilityLiveRegion="polite" style={{ color: colors.good, fontWeight: '600' }}>{judgmentResult}</Text> : null}
+          </View> : null}
           <SectionLabel style={formLabelSpacing}>{phase === 1 ? 'จดสั้นที่ศาล' : 'บันทึกรายละเอียด'}</SectionLabel>
           <TextInput accessibilityLabel="บันทึกระหว่างนัด" style={[input, { minHeight: phase === 1 ? 100 : 160, textAlignVertical: 'top' }]} multiline editable={editable}
             placeholder="จดสิ่งสำคัญไว้ก่อน เช่น ศาลสั่งอะไร ต้องส่งเอกสารอะไร" maxLength={10000} value={state.notes} onChangeText={(notes) => change({ notes })} />
           <SectionLabel style={formLabelSpacing}>ผลนัด · เติมภายหลังได้</SectionLabel>
           <TextInput accessibilityLabel="ผลนัด" style={[input, { minHeight: 100, textAlignVertical: 'top' }]} multiline editable={editable}
             placeholder="ผลที่เกิดขึ้นในนัดนี้" maxLength={10000} value={state.outcome} onChangeText={(outcome) => change({ outcome })} />
-          {legalCase.data && canRecordProceedings(legalCase.data.status) ? <>
+          {canRecordJudgment && !judgmentHearing ? <>
             <Pressable accessibilityRole="button" accessibilityLabel="ศาลอ่านคำพิพากษาวันนี้ บันทึกเหตุการณ์ในศาล"
               onPress={() => setRecordingJudgment(true)}
               style={({ pressed }) => ({ minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: spacing.md,

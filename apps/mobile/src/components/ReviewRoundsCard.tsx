@@ -55,7 +55,7 @@ export function ReviewRoundsCard({ caseId, focusRoundId, offline, canAct }: {
         try {
           const result = await decide.mutateAsync({ round, action: 'approve' });
           // The sender is told only when the round closes; with other reviewers left it stays open.
-          setStatus(result.status === 'APPROVED' ? `อนุมัติแล้ว · แจ้ง${sender(round)}แล้ว` : 'อนุมัติแล้ว · รอผู้ตรวจคนอื่น');
+          setStatus(result.status === 'APPROVED' ? `อนุมัติแล้ว · แจ้ง ${sender(round)} แล้ว` : 'อนุมัติแล้ว · รอผู้ตรวจคนอื่น');
         } catch (error) {
           Alert.alert('บันทึกไม่สำเร็จ', actionErrorText(error));
         }
@@ -74,7 +74,7 @@ export function ReviewRoundsCard({ caseId, focusRoundId, offline, canAct }: {
     if (!returning || !reason.trim()) return;
     try {
       await decide.mutateAsync({ round: returning, action: 'return', reason: reason.trim() });
-      setStatus(`ส่งกลับแล้ว · แจ้ง${sender(returning)}พร้อมเหตุผล`);
+      setStatus(`ส่งกลับแล้ว · แจ้ง ${sender(returning)} พร้อมเหตุผล`);
       setReason('');
       setReasonFor(null);
       setReturning(null);
@@ -85,7 +85,7 @@ export function ReviewRoundsCard({ caseId, focusRoundId, offline, canAct }: {
   };
 
   return <>
-    <SectionCard title="เอกสารรอคุณตรวจ" count={mine.length} tone="court">
+    <SectionCard title="เอกสารรอคุณตรวจ" count={mine.length || undefined} tone="court">
       {status ? <Text accessibilityLiveRegion="polite" style={styles.status}>{status}</Text> : null}
       {!canAct && mine.length ? <Text style={styles.muted}>คดีปิดแล้ว · ตรวจเอกสารในคดีนี้ไม่ได้</Text> : null}
       {waiting.map((round) => {
@@ -93,6 +93,8 @@ export function ReviewRoundsCard({ caseId, focusRoundId, offline, canAct }: {
         return <View key={round.id} style={[styles.row, round.id === focusRoundId && styles.focus]}>
           <Text style={styles.title}>{round.filename} · ฉบับที่ {round.version}</Text>
           <Text style={styles.muted}>ส่งโดย {round.createdByName ?? '—'} · {thDate(round.createdAt)}</Text>
+          {round.scope ? <Text style={styles.scope}>ขอให้ตรวจ: {round.scope}</Text> : null}
+          {round.dueAt ? <Text style={styles.muted}>ขอผลภายใน {thDate(round.dueAt)}</Text> : null}
           <Button title={offline ? 'ต้องต่อเน็ตเพื่อเปิดเอกสาร' : 'เปิดเอกสาร'} ghost disabled={offline || !!opening}
             busy={opening === round.id} onPress={() => void open(round)} />
           {canAct && canDecideRound(round, user?.id) ? <View style={styles.actions}>
@@ -122,5 +124,6 @@ const styles = StyleSheet.create({
   title: { color: colors.ink, fontWeight: '600', fontSize: 15 },
   muted: { color: colors.muted, fontSize: 13 },
   status: { color: colors.good, fontWeight: '600' },
+  scope: { color: colors.ink, fontSize: 14, lineHeight: 21, backgroundColor: colors.soft, padding: spacing.sm, borderRadius: radius.card },
   actions: { flexDirection: 'row', gap: spacing.sm },
 });

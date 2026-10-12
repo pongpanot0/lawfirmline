@@ -9,7 +9,7 @@ import { api } from '@/api/client';
 import { taskDraftScope } from '@/api/drafts';
 import { useTaskDraft } from '@/hooks/useTaskDraft';
 import { useCase, useLawyers, useMembers } from '@/api/hooks';
-import { droppedMentions, mentionCandidates, mentionedIdsIn, type MentionPerson } from '@/mentions';
+import { droppedMentions, fullName, mentionCandidates, mentionedIdsIn, type MentionPerson } from '@/mentions';
 import { MentionField } from './MentionField';
 import type { TaskItem } from '@/api/types';
 import { openCaseDocument, openTaskAttachment, uploadTaskAttachment } from '@/api/files';
@@ -248,9 +248,11 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         try { requireSavedDraft(); onEdit(); } catch (e) { setError((e as Error).message); }
       }} disabled={busy} />
       <Button title={showNote ? 'ซ่อนบันทึกเพิ่มเติม' : 'บันทึกเพิ่มเติม (ถ้ามี)'} ghost onPress={() => setShowNote(!showNote)} />
-      {showNote && <MentionField label="บันทึกเพิ่มเติม" value={note} onChange={setNote} people={people} disabled={busy}
+      {showNote && <MentionField label="บันทึกเพิ่มเติม" value={note} people={people} disabled={busy}
+        onChange={(text) => { setNote(text); setMentionNotice(''); }}
+        notifying={picked.filter((person) => mentionedIdsIn(note, picked).includes(person.id)).map(fullName)}
         onPick={(person) => setPicked((list) => (list.some((item) => item.id === person.id) ? list : [...list, person]))} />}
-      {!!mentionNotice && <Text style={{ color: colors.muted }}>{mentionNotice}</Text>}
+      {!!mentionNotice && <Text accessibilityLiveRegion="polite" style={{ color: colors.good, fontWeight: '600' }}>{mentionNotice}</Text>}
       {!!note.trim() && <Button title="บันทึกข้อความ" busy={busy} onPress={() => perform(async () => {
         const body = note.trim();
         const mentionedUserIds = mentionedIdsIn(body, picked);
@@ -258,9 +260,14 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
           method: 'POST',
           body: { body, ...(mentionedUserIds.length ? { mentionedUserIds } : {}) },
         });
+        const notified = picked.filter((person) => (saved?.mentionedUserIds ?? []).includes(person.id)).map(fullName);
+        const dropped = droppedMentions(mentionedUserIds, saved?.mentionedUserIds).length > 0;
         setNote('');
         setPicked([]);
-        setMentionNotice(droppedMentions(mentionedUserIds, saved?.mentionedUserIds).length ? 'บางคนไม่ได้รับแจ้งเพราะเปิดงานนี้ไม่ได้' : '');
+        setMentionNotice([
+          notified.length ? `บันทึกแล้ว · แจ้ง ${notified.join(', ')} แล้ว` : 'บันทึกข้อความแล้ว',
+          dropped ? 'บางคนไม่ได้รับแจ้งเพราะเปิดงานนี้ไม่ได้' : '',
+        ].filter(Boolean).join(' · '));
       })} />}
     </FormPage>
     <View style={{ padding: spacing.md, paddingBottom: spacing.md + bottom, borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, gap: spacing.sm }}>

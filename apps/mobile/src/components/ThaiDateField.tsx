@@ -87,14 +87,19 @@ export const ThaiDateField = forwardRef<NativeTextInput, {
         keyboardType="number-pad" onBlur={() => setTouched(true)} maxLength={4} editable={!disabled} value={parts.y}
         onChangeText={(text) => apply({ ...parts, y: digits(text) })} style={[input, { width: 84 }]} />
       {disabled ? null : <DatePicker iconOnly value={check.kind === 'ok' ? check.day : value ?? ''} onChange={(day) => apply(dayToParts(day))} />}
-      {clearable && typed && !disabled ? <Pressable accessibilityRole="button" accessibilityLabel={`ล้าง${label}`}
+    </View>
+    {/* Clear sits under the row: a fifth control in the row squeezed the month into three lines on a phone. */}
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm }}>
+      {check.kind === 'invalid' || (check.kind === 'partial' && touched)
+        ? <Text accessibilityRole="alert" style={{ flex: 1, color: colors.warn, fontSize: 13 }}>{check.message}</Text>
+        : check.kind === 'ok' ? <Text style={{ flex: 1, color: colors.muted, fontSize: 13 }}>{thDateLong(bangkokDayToIso(check.day))}</Text>
+          : <View style={{ flex: 1 }} />}
+      {clearable && typed && !disabled ? <Pressable accessibilityRole="button" accessibilityLabel={`ล้าง${label}`} hitSlop={8}
         onPress={() => apply({ d: '', m: '', y: '' })}
-        style={{ width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' }}>
-        <X size={18} color={colors.muted} />
+        style={{ minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.xs }}>
+        <X size={16} color={colors.muted} />
+        <Text style={{ color: colors.muted, fontSize: 13 }}>ล้างวันที่</Text>
       </Pressable> : null}
     </View>
-    {check.kind === 'invalid' || (check.kind === 'partial' && touched)
-      ? <Text accessibilityRole="alert" style={{ color: colors.warn, fontSize: 13 }}>{check.message}</Text>
-      : check.kind === 'ok' ? <Text style={{ color: colors.muted, fontSize: 13 }}>{thDateLong(bangkokDayToIso(check.day))}</Text> : null}
   </View>;
 });

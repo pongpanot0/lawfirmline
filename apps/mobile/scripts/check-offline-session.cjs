@@ -79,7 +79,7 @@ async function main() {
   const downloads = [], shared = [];
   const files = load('api/files.ts', {
     './client': client, 'expo-file-system': { File: class {} },
-    'expo-file-system/legacy': { cacheDirectory: 'file:///cache/', downloadAsync: async (url, target, options) => {
+    'expo-file-system/legacy': { cacheDirectory: 'file:///cache/', makeDirectoryAsync: async () => {}, downloadAsync: async (url, target, options) => {
       downloads.push({ url, target, options }); return { status: downloads.length === 1 ? 401 : 200, uri: target };
     } },
     'expo-sharing': { isAvailableAsync: async () => true, shareAsync: async uri => { shared.push(uri); } },

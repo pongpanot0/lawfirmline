@@ -20,11 +20,12 @@ export function LitigationCalculatorCard({ claimedAmount }: { claimedAmount: num
   const estimate = litigationEstimate({ amount, rate, from, to });
   return <SectionCard title="คำนวณค่าขึ้นศาล / ดอกเบี้ย" collapsible defaultOpen={false}
     summary={`ประมาณการ · ทุนทรัพย์ ${known != null ? `${formatMoney(known)} ฿` : '—'}`}>
-    <FormField label="ทุนทรัพย์ (บาท)" value={amount} keyboardType="decimal-pad"
+    <FormField label="ทุนทรัพย์ (บาท)" value={amount} keyboardType="decimal-pad" placeholder="เช่น 1,000,000"
       onChange={(text) => { const next = formatMoneyInput(text); if (next !== null) setAmount(next); }} />
     <View style={styles.resultBox}>
       <Text style={styles.resultLabel}>ค่าขึ้นศาลโดยประมาณ</Text>
-      <Text accessibilityLiveRegion="polite" style={styles.resultValue}>{estimate ? `${formatMoney(estimate.fee)} ฿` : 'กรอกทุนทรัพย์เพื่อคำนวณ'}</Text>
+      {estimate ? <Text accessibilityLiveRegion="polite" style={styles.resultValue}>{formatMoney(estimate.fee)} ฿</Text>
+        : <Text style={styles.resultLabel}>กรอกทุนทรัพย์เพื่อคำนวณ</Text>}
     </View>
     <View style={styles.divider} />
     <FormField label="ดอกเบี้ยต่อปี (%)" value={rate} onChange={setRate} keyboardType="decimal-pad" />
@@ -34,18 +35,21 @@ export function LitigationCalculatorCard({ claimedAmount }: { claimedAmount: num
       <Text style={styles.resultLabel}>ดอกเบี้ย {estimate.days} วัน</Text>
       <Text accessibilityLiveRegion="polite" style={styles.resultValue}>{formatMoney(estimate.interest)} ฿</Text>
     </View> : <Text style={styles.note}>ใส่วันเริ่มคิดดอกเบี้ยเพื่อดูยอดดอกเบี้ย</Text>}
-    <Text style={styles.note}>ⓘ ประมาณการเท่านั้น ไม่รวมคดีจำนอง/บังคับตามคำชี้ขาด/มโนสาเร่</Text>
-    <Text style={styles.note}>ค่าเริ่มต้น 5% ต่อปี ตาม ป.พ.พ. ม.224 (แก้ไข 2564: 3% ตาม ม.7 + 2%) · ดอกเบี้ยอย่างง่าย เงินต้น × อัตรา × วัน / 365</Text>
+    <View style={styles.footnotes}>
+      <Text style={styles.note}>ⓘ ประมาณการเท่านั้น ไม่รวมคดีจำนอง/บังคับตามคำชี้ขาด/มโนสาเร่</Text>
+      <Text style={styles.note}>ค่าเริ่มต้น 5% ต่อปี ตาม ป.พ.พ. ม.224 (แก้ไข 2564: 3% ตาม ม.7 + 2%) · ดอกเบี้ยอย่างง่าย เงินต้น × อัตรา × วัน / 365</Text>
+    </View>
   </SectionCard>;
 }
 
 const styles = StyleSheet.create({
   resultBox: {
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: spacing.sm,
-    padding: spacing.sm, borderRadius: radius.card, backgroundColor: colors.accentSoft,
+    padding: spacing.sm, marginTop: spacing.xs, borderRadius: radius.card, backgroundColor: colors.accentSoft,
   },
   resultLabel: { color: colors.muted, fontSize: 13 },
   resultValue: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 18, fontVariant: ['tabular-nums'] },
   divider: { height: 1, backgroundColor: colors.line, marginVertical: spacing.xs },
   note: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  footnotes: { gap: spacing.xs, marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line },
 });

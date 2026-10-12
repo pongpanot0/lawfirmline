@@ -1,6 +1,8 @@
 /** @mentions in task notes. Mirrors the web's lib/mentions.ts, with the cursor at the end of the text. */
 export interface MentionPerson { id: string; firstName: string; lastName: string }
 
+export const fullName = (person: MentionPerson) => `${person.firstName} ${person.lastName}`.trim();
+
 /**
  * The `@query` being typed at the end of the text, or null. A space ends it (Thai names have none).
  * ponytail: reads the end of the text, which is where a phone keyboard types; track the selection if

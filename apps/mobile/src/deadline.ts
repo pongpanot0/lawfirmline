@@ -15,7 +15,9 @@ export function deadlineUrgency(isoDate: string, now: Date): Urgency {
     return { tone: 'due', daysLeft, label: daysLeft < 0 ? `เลยกำหนด ${-daysLeft} วัน` : 'เลยกำหนดวันนี้ 16:30 น.' };
   }
   if (daysLeft === 0) return { tone: 'due', daysLeft, label: 'ครบกำหนดวันนี้ 16:30 น.' };
-  return { tone: daysLeft <= 7 ? 'due' : daysLeft <= 30 ? 'court' : 'info', daysLeft, label: `เหลือ ${daysLeft} วัน` };
+  // "เหลือ 3563 วัน" is a number nobody can picture; past a year the exact date beside the tag carries the precision.
+  const label = daysLeft > 365 ? `เหลือราว ${Math.floor(daysLeft / 365)} ปี` : `เหลือ ${daysLeft} วัน`;
+  return { tone: daysLeft <= 7 ? 'due' : daysLeft <= 30 ? 'court' : 'info', daysLeft, label };
 }
 
 /**

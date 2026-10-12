@@ -74,9 +74,18 @@ export function uploadTaskAttachment(taskId: string, file: { uri: string; name: 
   return postMultipart(`/tasks/${taskId}/attachments`, form);
 }
 
+/**
+ * One cache folder per file (and per version): the share sheet shows the real file name, not an id prefix,
+ * and two files with the same name never overwrite each other.
+ */
+async function cacheTarget(folder: string, filename: string) {
+  const dir = `${FileSystem.cacheDirectory}${folder}/`;
+  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  return `${dir}${filename.replace(/[^\w.\-ก-๙ ]+/g, '_') || 'file'}`;
+}
+
 export async function openTaskAttachment(taskId: string, attachmentId: string, filename: string) {
-  const safeName = filename.replace(/[^\w.\-ก-๙ ]+/g, '_') || 'attachment';
-  const result = await downloadFile(`/tasks/${taskId}/attachments/${attachmentId}/download`, `${FileSystem.cacheDirectory}${attachmentId}-${safeName}`);
+  const result = await downloadFile(`/tasks/${taskId}/attachments/${attachmentId}/download`, await cacheTarget(`attachments/${attachmentId}`, filename));
   if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
 }
 
@@ -120,17 +129,15 @@ export async function openCaseDocument(
   /** A review round pins a version; without it the API streams the latest upload. */
   version?: number,
 ): Promise<void> {
-  const safeName = filename.replace(/[^\w.\-ก-๙ ]+/g, '_') || 'document';
-  // A pinned version gets its own cache file, so reviewing v3 never shows a cached v4 (or the reverse).
-  const target = `${FileSystem.cacheDirectory}${documentId}-${version ? `v${version}-` : ''}${safeName}`;
+  // A pinned version gets its own folder, so reviewing v3 never shows a cached v4 (or the reverse).
+  const target = await cacheTarget(`docs/${documentId}/${version ? `v${version}` : 'latest'}`, filename);
   const query = version ? `?version=${version}` : '';
   const result = await downloadFile(`/cases/${caseId}/documents/${documentId}/download${query}`, target);
   if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
 }
 
 export async function openExpenseReceipt(id: string, filename: string) {
-  const target = `${FileSystem.cacheDirectory}receipt-${id}-${filename.replace(/[^\w.\-ก-๙ ]+/g, '_')}`;
-  const result = await downloadFile(`/expenses/${id}/receipt`, target);
+  const result = await downloadFile(`/expenses/${id}/receipt`, await cacheTarget(`receipts/${id}`, filename));
   if (!(await Sharing.isAvailableAsync())) throw new Error('อุปกรณ์นี้ยังเปิดใบเสร็จไม่ได้');
   await Sharing.shareAsync(result.uri);
 }

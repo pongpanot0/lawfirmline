@@ -2,6 +2,7 @@ import { thDate, timeAgo } from './format';
 import { CASE_STAGE_LABELS_TH, CaseStage, CourtLevel, courtFee, interestDays, simpleInterest } from '@lawfirm/shared';
 import type { CaseDetail, DateSuggestion, ProceedingKind, ReviewRoundSummary } from './api/types';
 import { bangkokDayToIso } from './thai-date';
+import { deadlineUrgency } from './deadline';
 
 /** Court-event records refuse a closed or archived case ('คดีปิดแล้ว'); D8 hides deadline actions there too. */
 export function canRecordProceedings(caseStatus: string | null | undefined): boolean {
@@ -150,11 +151,24 @@ export function proceedingLevel(kind: ProceedingKind, chosen: CourtLevel, curren
   return kind === 'filing' || kind === 'judgment' ? chosen : current;
 }
 
-/** The Alert before a legal record: there is no undo route, so this is the last check. */
-export function proceedingConfirm(kind: ProceedingKind, level: CourtLevel, day: string): { title: string; body: string } {
+/** What still blocks Save, worded as the next step; null when the draft can be sent. */
+export function proceedingMissing(draft: ProceedingDraft, dayInvalid: boolean): string | null {
+  if (!draft.kind) return 'เลือกเหตุการณ์ก่อน';
+  if (draft.kind === 'service' && !draft.method) return 'เลือกวิธีส่งหมายก่อน';
+  if (draft.kind === 'judgment' && !draft.outcome) return 'เลือกผลคำพิพากษาก่อน';
+  if (!draft.day || dayInvalid) return 'ใส่วันที่ให้ครบก่อน';
+  return null;
+}
+
+/**
+ * The Alert before a legal record: there is no undo route, so this is the last check.
+ * `detail` is the chosen service method or judgment outcome — it changes the deadlines.
+ */
+export function proceedingConfirm(kind: ProceedingKind, level: CourtLevel, day: string, detail?: string): { title: string; body: string } {
   return {
     title: `ยืนยันบันทึก${PROCEEDING_LABELS[kind]}`,
-    body: `ชั้น${LEVEL_WORD[level]} · วันที่ ${thDate(bangkokDayToIso(day))}\nระบบจะปรับขั้นตอนคดีและเสนอวันครบกำหนดให้ยืนยัน`,
+    body: `ชั้น${LEVEL_WORD[level]} · วันที่ ${thDate(bangkokDayToIso(day))}${detail ? ` · ${detail}` : ''}\n`
+      + 'ระบบจะปรับขั้นตอนคดีและเสนอวันครบกำหนดให้ยืนยัน\nบันทึกแล้วยกเลิกไม่ได้',
   };
 }
 
@@ -188,6 +202,21 @@ export async function runProceeding(
 }
 
 /** Home "ต้องจัดการก่อน": a single case opens its card; several open the waiting list narrowed to that kind. */
+/** Home "วันครบกำหนดรอยืนยัน" detail: which case (or how many) and how close the nearest date is. */
+export function deadlineQueueDetail(items: Array<{ ownRef: string; nearestDate: string }>, now: Date): string {
+  if (!items.length) return '';
+  const nearest = items.reduce((min, item) => (item.nearestDate < min ? item.nearestDate : min), items[0].nearestDate);
+  const urgency = deadlineUrgency(nearest, now);
+  const which = items.length === 1 ? items[0].ownRef : `${items.length} คดี`;
+  return `${which} · ใกล้สุด ${thDate(nearest)}${urgency.label ? ` (${urgency.label})` : ''}`;
+}
+
+/** Home "เอกสารรอคุณตรวจ" detail: the one file and who sent it, or how many files. */
+export function reviewQueueDetail(rounds: Array<{ filename: string; createdByName: string | null }>): string {
+  if (rounds.length !== 1) return `${rounds.length} ฉบับ`;
+  return rounds[0].createdByName ? `${rounds[0].filename} · จาก ${rounds[0].createdByName}` : rounds[0].filename;
+}
+
 export function queueRoute(caseIds: string[], section: 'deadlines' | 'documents'): string {
   const unique = [...new Set(caseIds)];
   if (unique.length === 1) return `/case/${unique[0]}?section=${section}`;

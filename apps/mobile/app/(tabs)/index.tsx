@@ -35,7 +35,7 @@ import {
 import { bangkokDay, formatMoney, initials, thDateLong, thTime } from '@/format';
 import { agendaIncludesPerson } from '@/workflow';
 import { SectionCard } from '@/components/SectionCard';
-import { queueRoute } from '@/litigation';
+import { deadlineQueueDetail, queueRoute, reviewQueueDetail } from '@/litigation';
 import { leaveFlagsForDate } from '@/lib/leave-flags';
 import { colors, fonts, spacing, pageContent } from '@/theme';
 
@@ -223,13 +223,13 @@ export default function MyDayScreen() {
         </Pressable>
       </View>
 
-      {deadlineCount + reviewCount + documentCount > 0 && <SectionCard title="ต้องจัดการก่อน" count={deadlineCount + reviewCount + documentCount} tone="due">
+      {deadlineCount + reviewCount + documentCount > 0 && <SectionCard title="ต้องจัดการก่อน">
         {deadlineCount > 0 && <ActionRow title="วันครบกำหนดรอยืนยัน" count={deadlineCount} tone="due"
-          detail={deadlineConfirms.length === 1 ? `${deadlineConfirms[0].ownRef} · ${deadlineConfirms[0].title}` : `${deadlineConfirms.length} คดี`}
+          detail={deadlineQueueDetail(deadlineConfirms, new Date())}
           onPress={() => router.push(queueRoute(deadlineConfirms.map((item) => item.caseId), 'deadlines') as never)} />}
         {reviewCount > 0 && <ActionRow title="งานรอคุณตรวจ" count={reviewCount}
           onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { view: 'review' } })} />}
-        {documentCount > 0 && <ActionRow title="เอกสารรอคุณตรวจ" count={documentCount}
+        {documentCount > 0 && <ActionRow title="เอกสารรอคุณตรวจ" count={documentCount} detail={reviewQueueDetail(myRounds.data ?? [])}
           onPress={() => router.push(queueRoute((myRounds.data ?? []).map((round) => round.caseId), 'documents') as never)} />}
       </SectionCard>}
       {(canLeave || canClaim) && <>

@@ -97,6 +97,8 @@ export default function CaseDetailScreen() {
   const [recording, setRecording] = useState(false);
   const [recordResult, setRecordResult] = useState('');
   const [highlightSince, setHighlightSince] = useState<string | null>(null);
+  // After the sheet closes and the result card exists: scrolling inside onRecorded raced the modal and the new rows.
+  useEffect(() => { if (highlightSince) scrollRef.current?.scrollTo({ y: 0, animated: true }); }, [highlightSince]);
 
   const caseQuery = useCase(id);
   const tasks = useCaseTasks(id);
@@ -267,7 +269,8 @@ export default function CaseDetailScreen() {
           <Card style={{ marginTop: spacing.md }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.infoLabel}>คู่ความ</Text>
-              <Button title="เพิ่ม" ghost onPress={() => router.push(`/case/${id}/party`)} />
+              {/* Button is full-width by design; in a header row it needs a width or it shrinks to its text. */}
+              <View style={{ minWidth: 96 }}><Button title="เพิ่ม" ghost onPress={() => router.push(`/case/${id}/party`)} /></View>
             </View>
             {(detail.participants ?? []).length === 0
               ? <EmptyNote>ยังไม่มีคู่ความ</EmptyNote>
@@ -478,7 +481,6 @@ export default function CaseDetailScreen() {
         onRecorded={(text, since) => {
           setRecordResult(text);
           setHighlightSince(since);
-          scrollRef.current?.scrollTo({ y: 0, animated: true });
         }} />
       <ReassignSheet caseId={id} task={reassigning} onClose={() => setReassigning(null)} />
     </>

@@ -23,7 +23,7 @@ function load(file, mocks = {}) {
 const format = load('format.ts');
 const thaiDate = load('thai-date.ts');
 const deadline = load('deadline.ts');
-const lit = load('litigation.ts', { './format': format, './thai-date': thaiDate });
+const lit = load('litigation.ts', { './format': format, './thai-date': thaiDate, './deadline': deadline });
 const checks = [];
 const check = (name, fn) => checks.push([name, fn]);
 
@@ -69,6 +69,8 @@ check('deadline urgency follows the design thresholds on the Bangkok calendar, d
   assert.deepEqual(at('2026-11-12T09:30:00Z'), { tone: 'info', label: 'เหลือ 31 วัน', daysLeft: 31 });
   // A limitation date is stored as Bangkok midnight: 13 พ.ย. 2569 is 32 days away (design example).
   assert.deepEqual(at('2026-11-12T17:00:00.000Z'), { tone: 'info', label: 'เหลือ 32 วัน', daysLeft: 32 });
+  assert.deepEqual(at('2027-10-12T09:30:00Z'), { tone: 'info', label: 'เหลือ 365 วัน', daysLeft: 365 });
+  assert.equal(at('2036-07-14T09:30:00Z').label, 'เหลือราว 9 ปี', 'a 10-year enforcement window reads in years');
   // 00:30 Bangkok on 13 ต.ค. is still 12 Oct in UTC: the Bangkok day decides.
   assert.equal(at('2026-10-13T09:30:00Z', new Date('2026-10-12T17:30:00Z')).label, 'ครบกำหนดวันนี้ 16:30 น.');
 });
@@ -234,11 +236,18 @@ check('court-event body, confirmation and result say exactly what will be and wa
   assert.equal(proceedingBody({ ...base, kind: 'filing', day: null }), null);
   assert.equal(proceedingLevel('service', 'SUPREME', 'TRIAL'), 'TRIAL', 'service lands on the current level');
   assert.equal(proceedingLevel('judgment', 'APPEAL', 'TRIAL'), 'APPEAL');
-  assert.deepEqual(proceedingConfirm('judgment', 'APPEAL', '2026-10-13'), {
+  assert.deepEqual(proceedingConfirm('judgment', 'APPEAL', '2026-10-13', 'ชนะคดี'), {
     title: 'ยืนยันบันทึกอ่านคำพิพากษา',
-    body: 'ชั้นอุทธรณ์ · วันที่ 13 ต.ค. 2569\nระบบจะปรับขั้นตอนคดีและเสนอวันครบกำหนดให้ยืนยัน',
+    body: 'ชั้นอุทธรณ์ · วันที่ 13 ต.ค. 2569 · ชนะคดี\nระบบจะปรับขั้นตอนคดีและเสนอวันครบกำหนดให้ยืนยัน\nบันทึกแล้วยกเลิกไม่ได้',
   });
-  assert.equal(proceedingConfirm('filing', 'TRIAL', '2026-10-13').body.split(' · ')[0], 'ชั้นต้น');
+  assert.equal(proceedingConfirm('filing', 'TRIAL', '2026-10-13').body.split('\n')[0], 'ชั้นต้น · วันที่ 13 ต.ค. 2569');
+  // Save says what is still missing instead of sitting grey.
+  const { proceedingMissing } = lit;
+  assert.equal(proceedingMissing({ ...base, kind: null }, false), 'เลือกเหตุการณ์ก่อน');
+  assert.equal(proceedingMissing({ ...base, kind: 'service' }, false), 'เลือกวิธีส่งหมายก่อน');
+  assert.equal(proceedingMissing({ ...base, kind: 'judgment' }, false), 'เลือกผลคำพิพากษาก่อน');
+  assert.equal(proceedingMissing({ ...base, kind: 'filing' }, true), 'ใส่วันที่ให้ครบก่อน');
+  assert.equal(proceedingMissing({ ...base, kind: 'service', method: 'POSTED' }, false), null);
   assert.equal(proceedingResultText(0, 'FILING', 'FILING'), 'บันทึกแล้ว · ไม่มีวันครบกำหนดที่ต้องยืนยัน');
   assert.equal(proceedingResultText(2, 'FILING', 'AWAITING_JUDGMENT'),
     'บันทึกแล้ว · ขั้นตอนคดีเป็น "รอคำพิพากษา" · ระบบเสนอวันครบกำหนด 2 รายการ รอยืนยัน');
@@ -259,6 +268,14 @@ check('home queue rows open the one case, or the filtered waiting list for sever
   assert.equal(lit.queueRoute(['c1', 'c2'], 'deadlines'), '/notifications?filter=deadline');
   assert.equal(lit.queueRoute(['c9'], 'documents'), '/case/c9?section=documents');
   assert.equal(lit.queueRoute(['c1', 'c2'], 'documents'), '/notifications?filter=document');
+  // The row says which case and how close, so nobody opens it just to find out.
+  const now = new Date('2026-10-12T03:00:00Z');
+  assert.equal(lit.deadlineQueueDetail([{ ownRef: 'TSB1', nearestDate: '2026-10-20T09:30:00Z' }], now), 'TSB1 · ใกล้สุด 20 ต.ค. 2569 (เหลือ 8 วัน)');
+  assert.equal(lit.deadlineQueueDetail([
+    { ownRef: 'TSB1', nearestDate: '2026-11-11T09:30:00Z' }, { ownRef: 'TSB2', nearestDate: '2026-10-20T09:30:00Z' },
+  ], now), '2 คดี · ใกล้สุด 20 ต.ค. 2569 (เหลือ 8 วัน)');
+  assert.equal(lit.reviewQueueDetail([{ filename: 'คำฟ้อง.pdf', createdByName: 'Nattapong' }]), 'คำฟ้อง.pdf · จาก Nattapong');
+  assert.equal(lit.reviewQueueDetail([{ filename: 'a', createdByName: null }, { filename: 'b', createdByName: null }]), '2 ฉบับ');
 });
 
 check('a half-typed limitation never reaches the save; only a confirmed clear sends null', () => {
@@ -292,6 +309,7 @@ check('a review opens the exact version under review, cached apart from the late
   const files = load('api/files.ts', {
     'expo-file-system/legacy': {
       cacheDirectory: 'file:///cache/',
+      makeDirectoryAsync: async () => {},
       downloadAsync: async (url, target) => { downloads.push([url, target]); return { status: 200, uri: target }; },
     },
     'expo-file-system': { File: class {} },
@@ -304,8 +322,8 @@ check('a review opens the exact version under review, cached apart from the late
   await files.openCaseDocument('case-1', 'doc-1', 'สัญญา.pdf', 3);
   await files.openCaseDocument('case-1', 'doc-1', 'สัญญา.pdf');
   assert.deepEqual(downloads, [
-    ['https://api.test/cases/case-1/documents/doc-1/download?version=3', 'file:///cache/doc-1-v3-สัญญา.pdf'],
-    ['https://api.test/cases/case-1/documents/doc-1/download', 'file:///cache/doc-1-สัญญา.pdf'],
+    ['https://api.test/cases/case-1/documents/doc-1/download?version=3', 'file:///cache/docs/doc-1/v3/สัญญา.pdf'],
+    ['https://api.test/cases/case-1/documents/doc-1/download', 'file:///cache/docs/doc-1/latest/สัญญา.pdf'],
   ]);
 });
 
