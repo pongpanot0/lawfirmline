@@ -26,6 +26,11 @@ async function main() {
   }
   assert.equal(actionAppRoute({ id: 'task:invalid', kind: 'WAITING', url: '/todos' }), null);
   assert.equal(actionAppRoute({ id: 'x', kind: 'UNKNOWN', url: 'https://external.example/cases/' + taskId }), null);
+  const reviewCaseId = '22222222-2222-4222-8222-222222222222';
+  assert.equal(actionAppRoute({ id: 'date:s1', kind: 'DATE_REVIEW', url: `/cases/${reviewCaseId}/calendar` }), `/case/${reviewCaseId}?section=deadlines`);
+  assert.equal(actionAppRoute({ id: `review:${taskId}`, kind: 'DOCUMENT_REVIEW', url: `/cases/${reviewCaseId}/documents` }),
+    `/case/${reviewCaseId}?section=documents&round=${taskId}`);
+  assert.equal(actionAppRoute({ id: 'draft:d1', kind: 'CLIENT_DRAFT', url: `/cases/${reviewCaseId}?tab=closing-report&draftId=d1` }), `/case/${reviewCaseId}`);
   const review = { status: 'PENDING_REVIEW', assigneeId: 'worker', reviewerId: 'reviewer', caseId: 'case' };
   assert.equal(canReviewTask(review, { id: 'reviewer', firmRole: 'LAWYER' }), true);
   assert.equal(canReviewTask(review, { id: 'owner', firmRole: 'OWNER' }), false);

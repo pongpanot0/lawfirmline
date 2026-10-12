@@ -26,15 +26,16 @@ export function PageIntro({ title, detail }: { title: string; detail?: string })
   </View>;
 }
 
-export function ActionRow({ title, detail, onPress, destructive = false }: {
-  title: string; detail?: string; onPress: () => void; destructive?: boolean;
+export function ActionRow({ title, detail, onPress, destructive = false, count, tone = 'court' }: {
+  title: string; detail?: string; onPress: () => void; destructive?: boolean; count?: number; tone?: TagTone;
 }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityLabel={count != null ? `${title} ${count} รายการ` : title} onPress={onPress}
     style={({ pressed }) => [styles.actionRow, pressed && { backgroundColor: colors.soft }]}>
     <View style={{ flex: 1, minWidth: 0 }}>
       <Text style={[styles.actionTitle, destructive && { color: colors.warn }]}>{title}</Text>
       {detail ? <Text style={styles.actionDetail}>{detail}</Text> : null}
     </View>
+    {count != null ? <Tag tone={tone}>{count}</Tag> : null}
     <ChevronRight size={18} color={destructive ? colors.warn : colors.faint} />
   </Pressable>;
 }

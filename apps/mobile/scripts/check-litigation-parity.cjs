@@ -254,6 +254,13 @@ check('court-event body, confirmation and result say exactly what will be and wa
     { ok: true, text: 'บันทึกแล้ว · ขั้นตอนคดีเป็น "ยื่นฟ้อง" · ระบบเสนอวันครบกำหนด 1 รายการ รอยืนยัน' });
 });
 
+check('home queue rows open the one case, or the filtered waiting list for several', () => {
+  assert.equal(lit.queueRoute(['c1', 'c1'], 'deadlines'), '/case/c1?section=deadlines');
+  assert.equal(lit.queueRoute(['c1', 'c2'], 'deadlines'), '/notifications?filter=deadline');
+  assert.equal(lit.queueRoute(['c9'], 'documents'), '/case/c9?section=documents');
+  assert.equal(lit.queueRoute(['c1', 'c2'], 'documents'), '/notifications?filter=document');
+});
+
 // ── add new check(...) blocks above this line ──
 (async () => {
   for (const [name, fn] of checks) {

@@ -17,12 +17,13 @@ import {
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { listTaskDrafts, taskDraftScope } from '@/api/drafts';
-import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange, useTodos, useDailyWorkboard, usePendingLeaves, useOwnerFinance, useUnreadNotifications } from '@/api/hooks';
+import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange, useTodos, useDailyWorkboard, usePendingLeaves, useOwnerFinance, useUnreadNotifications, useMyReviewRounds } from '@/api/hooks';
 import { AgendaItemKind, AgendaUrgency, followUpReason, ownerDecisionTasks, assignmentCandidates, assignmentWarnings, canAssignFirmRole, FirmRole, hasFirmCapability, TaskWorkType } from '@lawfirm/shared';
 import { Disclosure } from '@/components/Disclosure';
 import { OwnerFinanceSummary } from '@/components/OwnerFinanceSummary';
 import type { AgendaItem } from '@/api/types';
 import {
+  ActionRow,
   Card,
   EmptyNote,
   ErrorNote,
@@ -33,6 +34,8 @@ import {
 } from '@/components/ui';
 import { bangkokDay, formatMoney, initials, thDateLong, thTime } from '@/format';
 import { agendaIncludesPerson } from '@/workflow';
+import { SectionCard } from '@/components/SectionCard';
+import { queueRoute } from '@/litigation';
 import { leaveFlagsForDate } from '@/lib/leave-flags';
 import { colors, fonts, spacing, pageContent } from '@/theme';
 
@@ -114,13 +117,15 @@ export default function MyDayScreen() {
   // One flag per API capability: office managers run operations, leave and invoices; expense approval and reviews stay with the owner.
   const owner = hasFirmCapability(user?.firmRole, 'runOperations');
   const canClaim = hasFirmCapability(user?.firmRole, 'approveExpenses'), canLeave = hasFirmCapability(user?.firmRole, 'approveLeave');
-  const canFinance = hasFirmCapability(user?.firmRole, 'manageInvoices'), isOwner = user?.firmRole === FirmRole.OWNER;
+  const canFinance = hasFirmCapability(user?.firmRole, 'manageInvoices');
   const workload = useWorkload(owner);
   const claims = useExpenseClaims(canClaim);
   const pendingLeaves = usePendingLeaves(canLeave);
   const finance = useOwnerFinance(canFinance);
   const today = bangkokDay(new Date().toISOString());
+  // The API's view=review already applies the reviewer rule (named reviewer, else case lead), so everyone asks.
   const reviews = useTodos('review');
+  const myRounds = useMyReviewRounds();
   const daily = useDailyWorkboard(today, owner);
   const peopleToday = daily.data && !daily.isError ? assignmentCandidates(daily.data.members, daily.data.tasks, TaskWorkType.GENERAL, today) : [];
   const decisions = daily.data && !daily.isError ? ownerDecisionTasks(daily.data.tasks, today) : [];
@@ -134,10 +139,11 @@ export default function MyDayScreen() {
   useFocusEffect(useCallback(() => {
     if (canLeave) void pendingLeaves.refetch();
     if (canClaim) void claims.refetch();
-    if (isOwner) void reviews.refetch();
+    void reviews.refetch();
+    void myRounds.refetch();
     if (owner) void daily.refetch();
     if (canFinance) void finance.refetch();
-  }, [owner, canLeave, canClaim, canFinance, isOwner, pendingLeaves.refetch, claims.refetch, reviews.refetch, daily.refetch, finance.refetch]));
+  }, [owner, canLeave, canClaim, canFinance, pendingLeaves.refetch, claims.refetch, reviews.refetch, myRounds.refetch, daily.refetch, finance.refetch]));
   const tasksToFollow = daily.data?.tasks.filter(task => task.assigneeId && followUpReason(task, today) !== null);
   const unassignedTasks = daily.data?.tasks.filter(task => !task.assigneeId && task.status !== 'DONE');
   const appointments = useCalendarRange(today, today);
@@ -145,6 +151,10 @@ export default function MyDayScreen() {
   const [showAllPeople, setShowAllPeople] = useState(false);
   const leaveFlags = leaveFlagsForDate(leaves.data ?? [], today);
   const pendingActions = new Set([...(actions.data?.items ?? []).map(item => item.id), ...(reviews.data ?? []).map(task => `task:${task.id}`)]).size;
+  const deadlineConfirms = myDay.data?.pendingDeadlineConfirms ?? []; // `?? []`: a cache from before D1 lacks the field
+  const deadlineCount = deadlineConfirms.reduce((sum, item) => sum + item.count, 0);
+  const reviewCount = reviews.data?.length ?? 0;
+  const documentCount = myRounds.data?.length ?? 0;
 
   const openItem = (item: AgendaItem) => {
     if (item.kind === 'COURT_DATE') router.push(`/court-day/${item.entityId}`);
@@ -177,7 +187,7 @@ export default function MyDayScreen() {
             myDay.refetch();
             stats.refetch();
             appointments.refetch();
-            actions.refetch(); reviews.refetch();
+            actions.refetch(); reviews.refetch(); myRounds.refetch();
             if (owner) { workload.refetch(); leaves.refetch(); daily.refetch(); }
             if (canClaim) claims.refetch();
             if (canLeave) pendingLeaves.refetch();
@@ -213,11 +223,19 @@ export default function MyDayScreen() {
         </Pressable>
       </View>
 
-      {(isOwner || canLeave || canClaim) && <>
+      {deadlineCount + reviewCount + documentCount > 0 && <SectionCard title="ต้องจัดการก่อน" count={deadlineCount + reviewCount + documentCount} tone="due">
+        {deadlineCount > 0 && <ActionRow title="วันครบกำหนดรอยืนยัน" count={deadlineCount} tone="due"
+          detail={deadlineConfirms.length === 1 ? `${deadlineConfirms[0].ownRef} · ${deadlineConfirms[0].title}` : `${deadlineConfirms.length} คดี`}
+          onPress={() => router.push(queueRoute(deadlineConfirms.map((item) => item.caseId), 'deadlines') as never)} />}
+        {reviewCount > 0 && <ActionRow title="งานรอคุณตรวจ" count={reviewCount}
+          onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { view: 'review' } })} />}
+        {documentCount > 0 && <ActionRow title="เอกสารรอคุณตรวจ" count={documentCount}
+          onPress={() => router.push(queueRoute((myRounds.data ?? []).map((round) => round.caseId), 'documents') as never)} />}
+      </SectionCard>}
+      {(canLeave || canClaim) && <>
         <SectionLabel>คิวตัดสินใจวันนี้</SectionLabel>
         <Card style={{ gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>{[
-            ...(isOwner ? [{ view: 'review', label: 'งานรอคุณตรวจ', count: reviews.isError ? undefined : reviews.data?.length }] : []),
             ...(canLeave ? [{ view: 'leave', label: 'ลารออนุมัติ', count: pendingLeaves.isError ? undefined : pendingLeaves.data?.length }] : []),
             ...(canClaim ? [{ view: 'claim', label: 'เบิกรออนุมัติ', count: claims.isError ? undefined : claims.data?.filter(item => item.status === 'PENDING').length }] : []),
           ].map(item => <Pressable key={item.view} accessibilityRole="button" style={{ flexBasis: '30%', flexGrow: 1, minWidth: 92, minHeight: 64, gap: 4 }}

@@ -15,7 +15,12 @@ export function actionAppRoute(item: { id: string; kind: string; url: string }):
   const task = item.id.match(/^task:([0-9a-f-]{36})$/i);
   if (task && ['WAITING', 'UNASSIGNED', 'TASK_REVIEW'].includes(item.kind)) return `/task/new?id=${task[1]}`;
   const match = item.url.match(/^\/cases\/([0-9a-f-]{36})(?:[/?#]|$)/i);
-  return match ? `/case/${match[1]}` : null;
+  if (!match) return null;
+  // Open the case at the card the row is about (D6).
+  if (item.kind === 'DATE_REVIEW') return `/case/${match[1]}?section=deadlines`;
+  const round = item.id.match(/^review:([0-9a-f-]{36})$/i);
+  if (item.kind === 'DOCUMENT_REVIEW') return `/case/${match[1]}?section=documents${round ? `&round=${round[1]}` : ''}`;
+  return `/case/${match[1]}`;
 }
 
 export function agendaCompanionNames(item: Pick<AgendaItem, 'assignees' | 'assigneeId'>) {

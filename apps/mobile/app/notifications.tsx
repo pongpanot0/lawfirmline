@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   BellRing,
   CalendarClock,
@@ -43,12 +43,15 @@ type Tab = 'inbox' | 'pending';
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const [view, setView] = useState<Tab>('inbox');
+  const { filter } = useLocalSearchParams<{ filter?: string }>();
+  // Home "ต้องจัดการก่อน" opens the waiting list narrowed to deadline dates or documents.
+  const kind = filter === 'deadline' ? 'DATE_REVIEW' : filter === 'document' ? 'DOCUMENT_REVIEW' : null;
+  const [view, setView] = useState<Tab>(kind ? 'pending' : 'inbox');
   const unread = useUnreadNotifications();
   const markAll = useMarkAllNotificationsRead();
   const actions = useActions();
   const reviews = useTodos('review');
-  const pending = pendingItems(actions.data?.items ?? [], reviews.data ?? []);
+  const pending = pendingItems(actions.data?.items ?? [], reviews.data ?? []).filter((item) => !kind || item.kind === kind);
 
   return (
     <View style={styles.screen}>

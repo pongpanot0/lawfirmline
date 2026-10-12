@@ -186,3 +186,10 @@ export async function runProceeding(
   const after = await stageAfter().catch(() => stageBefore);
   return { ok: true, text: proceedingResultText(result.suggestions, stageBefore, after) };
 }
+
+/** Home "ต้องจัดการก่อน": a single case opens its card; several open the waiting list narrowed to that kind. */
+export function queueRoute(caseIds: string[], section: 'deadlines' | 'documents'): string {
+  const unique = [...new Set(caseIds)];
+  if (unique.length === 1) return `/case/${unique[0]}?section=${section}`;
+  return `/notifications?filter=${section === 'deadlines' ? 'deadline' : 'document'}`;
+}
