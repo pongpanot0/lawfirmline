@@ -3,7 +3,7 @@ import { Alert, Pressable, Switch, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { canAssignFirmRole, FirmRole, hasFirmCapability, assignmentCandidates, assignmentWarnings, TaskWorkType, TaskRoutineDefinition } from '@lawfirm/shared';
+import { canDelegateTask, isEligibleReviewer, TASK_HANDOFF_NOTE_MIN, FirmRole, hasFirmCapability, assignmentCandidates, assignmentWarnings, TaskWorkType, TaskRoutineDefinition } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api, ApiError } from '@/api/client';
 import { taskDraftScope } from '@/api/drafts';
@@ -54,6 +54,10 @@ export default function TaskFormScreen() {
   const [error, setError] = useState('');
   const [reassigning, setReassigning] = useState(false);
   const [reviewerId, setReviewerId] = useState('');
+  const [priority, setPriority] = useState<'HIGH' | 'MEDIUM' | 'LOW'>('MEDIUM');
+  const [observerIds, setObserverIds] = useState<string[]>([]);
+  const [requiresAttachment, setRequiresAttachment] = useState(false);
+  const [handoffNote, setHandoffNote] = useState('');
   const [reason, setReason] = useState('');
   const [comment, setComment] = useState('');
   const assignmentDate = hasDue ? dueDate : bangkokDay(new Date().toISOString());
@@ -76,9 +80,10 @@ export default function TaskFormScreen() {
   const canStatus = task.data?.status !== 'PENDING_REVIEW' && (!id || task.data?.assigneeId === user?.id || (!!caseId &&
     (owner || legalCase.data?.leadLawyer?.id === user?.id)));
   const canReview = !!task.data && !!user && canReviewTask(task.data, user, legalCase.data?.leadLawyer?.id);
-  const reviewers = (members.data ?? []).filter(person => person.id !== assigneeId && ['OWNER', 'SENIOR_LAWYER'].includes(person.firmRole ?? ''));
-  const candidates = (members.data ?? []).filter(person => !!caseId || person.id === user?.id ||
-    (!!user?.firmRole && !!person.firmRole && canAssignFirmRole(user.firmRole as FirmRole, person.firmRole)));
+  const reviewers = (members.data ?? []).filter(person => isEligibleReviewer({ role: person.firmRole, userId: person.id,
+    caseLeadId: legalCase.data?.leadLawyer?.id, assigneeId: assigneeId || user?.id }));
+  const candidates = (members.data ?? []).filter(person => person.id === user?.id ||
+    (!!user?.firmRole && !!person.firmRole && canDelegateTask(user.firmRole as FirmRole, person.firmRole as FirmRole)));
   const options = candidates.map(person => ({ value: person.id,
     label: `${person.firstName} ${person.lastName}${flags.get(person.id) ? ` · ${flags.get(person.id)!.label}` : ''}` }));
   if (task.data?.assignee && !options.some(person => person.value === task.data!.assigneeId)) options.push({
@@ -93,16 +98,19 @@ export default function TaskFormScreen() {
     setAssigneeId(task.data.assigneeId ?? ''); setStatus(task.data.status);
     setHasDue(!!task.data.dueDate); if (task.data.dueDate) setDueDate(bangkokDay(task.data.dueDate));
   }, [task.data]);
-  const draftValue = { files, title, description, assigneeId, dueDate, hasDue, selectedCase, requiresReview, recurrenceDays, routineChoice, reviewerId, status, savedId, requestSnapshot: requestSnapshot.current, reason, comment, showDetails };
+  const draftValue = { files, title, description, assigneeId, dueDate, hasDue, selectedCase, requiresReview, recurrenceDays, routineChoice, reviewerId, priority, observerIds, requiresAttachment, handoffNote, status, savedId, requestSnapshot: requestSnapshot.current, reason, comment, showDetails };
   const draftRoute = id ? `/task/new?id=${id}&edit=1` : `/task/new?${new URLSearchParams({ ...(requestedCaseId ? { caseId: requestedCaseId } : {}), ...(requestedAssignee ? { assigneeId: requestedAssignee } : {}) })}`;
   const dirty = id ? !!(files.length || reason.trim() || comment.trim() || (task.data && (title !== task.data.title || description !== (task.data.description ?? '') || (Number(recurrenceDays) || null) !== (task.data.recurrenceDays ?? null) || assigneeId !== (task.data.assigneeId ?? '') || status !== task.data.status || hasDue !== !!task.data.dueDate || (hasDue && task.data.dueDate && dueDate !== bangkokDay(task.data.dueDate)))))
     : !!(title.trim() || description.trim() || recurrenceDays || files.length || savedId || requestSnapshot.current);
   const draft = useTaskDraft(user && (!id || (!!task.data && editing)) ? `${taskDraftScope(user)}form:${id ?? `new:${requestedCaseId ?? ''}:${requestedAssignee ?? ''}`}` : null, draftValue, value => {
     setFiles(value.files);
     if (typeof value.recurrenceDays === 'string') setRecurrenceDays(value.recurrenceDays);
-    for (const [text, set] of [[value.title, setTitle], [value.description, setDescription], [value.assigneeId, setAssigneeId], [value.reviewerId, setReviewerId], [value.routineChoice, setRoutineChoice], [value.reason, setReason], [value.comment, setComment]] as const) if (typeof text === 'string') set(text);
+    for (const [text, set] of [[value.title, setTitle], [value.description, setDescription], [value.assigneeId, setAssigneeId], [value.reviewerId, setReviewerId], [value.handoffNote, setHandoffNote], [value.routineChoice, setRoutineChoice], [value.reason, setReason], [value.comment, setComment]] as const) if (typeof text === 'string') set(text);
     if (typeof value.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.dueDate)) setDueDate(value.dueDate);
     if (['TODO', 'IN_PROGRESS', 'NEEDS_REVISION', 'PENDING_REVIEW', 'DONE'].includes(value.status)) setStatus(value.status);
+    if (['HIGH', 'MEDIUM', 'LOW'].includes(value.priority)) setPriority(value.priority);
+    if (Array.isArray(value.observerIds)) setObserverIds(value.observerIds.filter((x: unknown) => typeof x === 'string'));
+    if (typeof value.requiresAttachment === 'boolean') setRequiresAttachment(value.requiresAttachment);
     setHasDue(!!value.hasDue); setRequiresReview(!!value.requiresReview); setShowDetails(!!value.showDetails || value.files.length > 0);
     if (value.selectedCase && typeof value.selectedCase.id === 'string' && typeof value.selectedCase.label === 'string') setSelectedCase(value.selectedCase);
     else setSelectedCase(null);
@@ -125,7 +133,7 @@ export default function TaskFormScreen() {
         }
       }
       if (!id && !savedId && !requestSnapshot.current && !candidates.some(person => person.id === assigneeId)) throw new Error('เลือกผู้รับผิดชอบในสำนักงานตามสิทธิ์ของคุณ');
-      if (!id && !savedId && !requestSnapshot.current && (requiresReview || routineChoice) && !reviewers.some(person => person.id === reviewerId)) throw new Error('เลือก Owner หรือทนายอาวุโสอีกคนเป็นผู้ตรวจ');
+      if (!id && !savedId && !requestSnapshot.current && (requiresReview || routineChoice) && !reviewers.some(person => person.id === reviewerId)) throw new Error('เลือก Owner ทนายอาวุโส หรือทนายหลักของคดีเป็นผู้ตรวจ');
       let target = savedId;
       if (!target) {
         const path = id ? caseId ? `/cases/${caseId}/tasks/${id}` : `/todos/${id}`
@@ -135,7 +143,8 @@ export default function TaskFormScreen() {
           ...(!id || ((isOwner || task.data?.assigneeId === user?.id) && (Number(recurrenceDays) || null) !== task.data?.recurrenceDays) ? { recurrenceDays: recurrenceDays ? Number(recurrenceDays) : null } : {}),
           ...(!id || (canAssign && assigneeId !== task.data?.assigneeId) ? { assigneeId } : {}),
           ...(canStatus && (!id || status !== task.data?.status) ? { status } : {}),
-          ...(!id ? { requiresReview: requiresReview || !!routineChoice, ...((requiresReview || routineChoice) ? { reviewerId } : {}) } : {}),
+          ...(!id ? { requiresReview: requiresReview || !!routineChoice, ...((requiresReview || routineChoice) ? { reviewerId } : {}),
+            priority, ...(observerIds.length ? { observerIds } : {}), ...(requiresAttachment ? { requiresAttachment: true } : {}) } : {}),
           ...(!id && routineChoice ? { routineSource: (() => { const choice = routines.find(r => r.value === routineChoice); if (!choice) throw new Error('โหลดวิธีทำงานประจำใหม่ก่อนบันทึก'); return { releaseId: choice.releaseId, stepIndex: choice.stepIndex }; })() } : {}),
         };
         if (!id && !requestSnapshot.current) {
@@ -248,6 +257,19 @@ export default function TaskFormScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><Text style={{ flex: 1 }}>ต้องตรวจผลงานก่อนปิด</Text><Switch accessibilityLabel="ต้องตรวจผลงานก่อนปิด" trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface} value={requiresReview} onValueChange={setRequiresReview} disabled={busy || checkingPreviousSave} /></View>
       {requiresReview && <Dropdown label="ผู้ตรวจผลงาน" value={reviewerId} onChange={setReviewerId} options={reviewers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))} disabled={busy || checkingPreviousSave} />}
     </>}
+    {!id && <>
+      <Dropdown label="ความสำคัญ" value={priority} onChange={value => setPriority(value as typeof priority)} disabled={busy || checkingPreviousSave}
+        options={[{ value: 'HIGH', label: 'สำคัญมาก' }, { value: 'MEDIUM', label: 'ปกติ' }, { value: 'LOW', label: 'ไม่เร่ง' }]} />
+      <SectionLabel>ผู้ติดตาม (ถ้ามี)</SectionLabel>
+      {(members.data ?? []).filter(p => p.id !== user?.id && p.firmRole !== 'EXTERNAL').map(p => (
+        <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <Text style={{ flex: 1, color: colors.text }}>{p.firstName} {p.lastName}</Text>
+          <Switch accessibilityLabel={`ติดตามงานโดย ${p.firstName}`} trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface}
+            value={observerIds.includes(p.id)} onValueChange={on => setObserverIds(ids => on ? [...ids, p.id] : ids.filter(x => x !== p.id))} disabled={busy || checkingPreviousSave} />
+        </View>
+      ))}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><Text style={{ flex: 1 }}>ต้องแนบไฟล์ก่อนส่งตรวจ</Text><Switch accessibilityLabel="ต้องแนบไฟล์ก่อนส่งตรวจ" trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface} value={requiresAttachment} onValueChange={setRequiresAttachment} disabled={busy || checkingPreviousSave} /></View>
+    </>}
     <FormField label="รายละเอียด · เติมทีหลังได้" value={description} onChange={setDescription} multiline disabled={busy || checkingPreviousSave || !!savedId || !!routineChoice || !!task.data?.routine} />
     {(!id || isOwner || task.data?.assigneeId === user?.id) && <>
       <SectionLabel>ทำซ้ำหลังปิดรอบนี้</SectionLabel>
@@ -272,8 +294,9 @@ export default function TaskFormScreen() {
       <SectionLabel>ส่งให้ตรวจงาน</SectionLabel>
       {!caseId && <Dropdown label="เลือกผู้ตรวจงาน" value={reviewerId} onChange={setReviewerId} disabled={busy}
         options={reviewers.map(person => ({ value: person.id, label: `${person.firstName} ${person.lastName}` }))} />}
-      <Button title="ส่งตรวจงาน" ghost disabled={busy || (!caseId && !reviewerId)}
-        onPress={() => handoff('handoff', caseId ? {} : { reviewerId })} />
+      <FormField label={`หมายเหตุถึงผู้ตรวจ * (อย่างน้อย ${TASK_HANDOFF_NOTE_MIN} ตัวอักษร)`} value={handoffNote} onChange={setHandoffNote} multiline disabled={busy} />
+      <Button title="ส่งตรวจงาน" ghost disabled={busy || (!caseId && !reviewerId) || handoffNote.trim().length < TASK_HANDOFF_NOTE_MIN}
+        onPress={() => handoff('handoff', caseId ? { note: handoffNote.trim() } : { reviewerId, note: handoffNote.trim() })} />
     </>}
     {task.data?.status === 'PENDING_REVIEW' && canReview && <>
       <Text style={{ color: colors.text, fontWeight: '700', fontSize: 18 }}>{task.data.title}</Text>

@@ -3,7 +3,7 @@ import { FlatList, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-
 import { Text } from '@/components/AppText';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
-import { followUpReason, hasFirmCapability } from '@lawfirm/shared';
+import { followUpReason, hasFirmCapability, taskStageChip } from '@lawfirm/shared';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,7 +18,7 @@ import { colors, spacing, TOUCH, pageContent } from '@/theme';
 const VIEWS = [
   { value: 'mine', label: 'งานของฉัน' },
   { value: 'created', label: 'งานที่ฉันสร้าง' },
-  { value: 'review', label: 'รอตรวจ' },
+  { value: 'review', label: 'รอฉันตรวจ' },
   { value: 'follow-up', label: 'ต้องตาม', owner: true },
   { value: 'unassigned', label: 'ยังไม่มีคนรับ', owner: true },
 ] as const;
@@ -51,7 +51,8 @@ export default function TasksScreen() {
     return { ...task, assignee: member ? { id: member.userId, firstName: member.firstName, lastName: member.lastName } : null };
   }) : (todos.data ?? []).filter(task => !memberId || task.assigneeId === memberId);
   const queueById = new Map(queue.map(task => [task.id, task]));
-  rows.sort((a, b) => Number(a.status === 'DONE') - Number(b.status === 'DONE') ||
+  const submitted = (t: TaskItem) => view === 'mine' && t.status === 'PENDING_REVIEW' && t.assigneeId === user?.id;
+  rows.sort((a, b) => Number(a.status === 'DONE') - Number(b.status === 'DONE') || Number(submitted(a)) - Number(submitted(b)) ||
     (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || a.id.localeCompare(b.id));
 
   const followUp = (task: TaskItem) => Alert.alert('ตามงาน', `ขอความคืบหน้างาน “${task.title}” จาก ${task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : 'ผู้รับผิดชอบปัจจุบัน'}?`, [
@@ -88,12 +89,14 @@ export default function TasksScreen() {
         <Text style={styles.meta}>{query.isLoading ? 'กำลังโหลด…' : query.isError ? 'ยังโหลดรายการไม่ได้' : `${rows.length} งาน`}</Text>
         {toggle.isError && <ErrorNote message="เปลี่ยนสถานะไม่สำเร็จ กรุณาเปิดงานแล้วลองใหม่" />}
       </View>}
-      renderItem={({ item }) => {
+      renderItem={({ item, index }) => {
         const dailyTask = officeQueue ? queueById.get(item.id) : undefined;
         const reason = dailyTask && followUpReason(dailyTask, today);
         const done = item.status === 'DONE';
         const late = !done && item.status !== 'PENDING_REVIEW' && item.dueDate && bangkokDay(item.dueDate) < today;
-        return <Card style={{ marginBottom: spacing.md }}>
+        const header = submitted(item) && (index === 0 || !submitted(rows[index - 1]))
+          ? <Text style={[styles.meta, { fontWeight: '700', marginBottom: spacing.xs }]}>รอตรวจ</Text> : null;
+        return <>{header}<Card style={{ marginBottom: spacing.md }}>
           <View style={styles.row}>
             {!officeQueue && user && canToggleTask(item, user) && <Pressable accessibilityRole="checkbox"
               accessibilityLabel={`ทำงาน ${item.title} เสร็จแล้ว`} accessibilityState={{ checked: done, disabled: toggle.isPending }}
@@ -105,6 +108,11 @@ export default function TasksScreen() {
               onPress={() => router.push(`/task/new?id=${item.id}`)}>
               <Text style={[styles.title, done && styles.titleDone]}>{item.title}</Text>
               <Tag tone={done ? 'ok' : item.status === 'PENDING_REVIEW' ? 'info' : 'plain'}>{STATUS_LABEL[item.status] ?? item.status}</Tag>
+              {(taskStageChip(item.labels) || (item.onHold && !item.onHold.endedAt)) && <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
+                {taskStageChip(item.labels) && <Tag tone="plain">{taskStageChip(item.labels)!}</Tag>}
+                {item.onHold && !item.onHold.endedAt && <Tag tone="due">พักอยู่</Tag>}
+              </View>}
+              {item.status === 'PENDING_REVIEW' && item.reviewer && <Text style={styles.meta}>ผู้ตรวจ: {item.reviewer.firstName} {item.reviewer.lastName}</Text>}
               {item.case && <Text style={styles.meta} numberOfLines={1}>{item.case.ownRef} · {item.case.title}</Text>}
               <Text style={styles.meta}>ผู้รับผิดชอบ: {item.assignee ? `${item.assignee.firstName} ${item.assignee.lastName}` : item.assigneeId ? 'สมาชิกเดิม / โหลดชื่อไม่ได้' : 'ยังไม่ระบุ'}</Text>
               {reason && <Text style={{ color: colors.warn }}>{reason}</Text>}
@@ -127,7 +135,7 @@ export default function TasksScreen() {
             {owner && item.assigneeId && !['DONE', 'PENDING_REVIEW'].includes(item.status) &&
               <Button title="ตามงาน" ghost busy={following === item.id} disabled={!!following} onPress={() => followUp(item)} />}
           </View>
-        </Card>;
+        </Card></>;
       }}
       ListEmptyComponent={query.isLoading ? <Loading /> : query.isError
         ? <ErrorNote message="โหลดงานไม่สำเร็จ" onRetry={() => query.refetch()} />

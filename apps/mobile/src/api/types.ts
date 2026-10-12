@@ -108,6 +108,7 @@ export interface TaskItem {
   reviewer?: { id: string; firstName: string; lastName: string } | null;
   submittedAt?: string | null;
   requiresAttachment?: boolean;
+  labels?: string[];
   recurrenceDays?: number | null;
   blockedById?: string | null;
   followUps?: Array<{ id: string; title: string; status: string; dueDate: string | null; followUpSourceCommentId: string; assignee?: { id: string; firstName: string; lastName: string } | null }>;
@@ -120,7 +121,7 @@ export interface TaskItem {
   scheduledFor?: string | null;
   planConfirmedAt?: string | null;
   handedOffById?: string | null;
-  onHold?: { reason: string; endedAt: string | null } | null;
+  onHold?: { reason: string; category?: string; nextFollowUpAt?: string | null; endedAt: string | null } | null;
   assignmentLogs?: Array<{ action: string; note?: string | null; fromUserId?: string | null }>;
   reviewerId?: string | null;
   attachments?: Array<{ id: string; filename: string; size: number; mimeType?: string }>;
