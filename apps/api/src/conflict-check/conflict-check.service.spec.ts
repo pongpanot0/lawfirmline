@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { AuthUser, ConflictResult, FirmRole, Role } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { ConflictCheckService, opponentConflicts, suggestResult } from './conflict-check.service';
+import { ConflictCheckService, normalizeName, opponentConflicts, suggestResult } from './conflict-check.service';
 
 const user = {
   id: 'u1',
@@ -253,8 +253,42 @@ describe('conflict gate', () => {
     const service = await build(prisma);
     await service.gateNewCase(user, { parties: [{ name: ' บริษัท\u00A0ก \u200B  จำกัด ', side: 'OPPONENT' }] });
     expect((prisma.client as any).findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { firmId: 'firm-1', OR: [{ name: { contains: 'บริษัท ก จำกัด', mode: 'insensitive' } }] },
+      where: {
+        firmId: 'firm-1',
+        OR: [
+          { name: { contains: 'บริษัท\u00A0ก \u200B  จำกัด', mode: 'insensitive' } },
+          { name: { contains: 'บริษัท ก จำกัด', mode: 'insensitive' } },
+        ],
+      },
     }));
+  });
+
+  /** A client table that behaves like Postgres `contains` (case-insensitive) on the stored name. */
+  const storedClient = (stored: string) => ({
+    findMany: jest.fn(async ({ where }) =>
+      where.OR.some((c: { name: { contains: string } }) => stored.toLowerCase().includes(c.name.contains.toLowerCase()))
+        ? [{ id: 'cl-9', name: stored }]
+        : []),
+  });
+
+  it('a zero-width space in the typed name is dropped, not turned into a space', async () => {
+    expect(normalizeName('บริษัท\u200Bกรุงเทพ\uFEFF จำกัด')).toBe('บริษัทกรุงเทพ จำกัด');
+    const service = await build(prismaMock({ client: storedClient('บริษัทกรุงเทพ จำกัด') }));
+
+    await expect(
+      service.gateNewCase(user, { parties: [{ name: 'บริษัท\u200Bกรุงเทพ จำกัด', side: 'OPPONENT' }] }),
+    ).rejects.toMatchObject({ response: { code: 'CONFLICT_FOUND', matches: [expect.objectContaining({ clientId: 'cl-9' })] } });
+  });
+
+  it('a stored name in non-canonical mark order is still found by an identically typed term', async () => {
+    // tone mark (U+0E48) typed before the below-vowel (U+0E38): NFKC reorders it, the raw form does not
+    const typed = 'บริษัท ต\u0E48\u0E38ม จำกัด';
+    expect(normalizeName(typed)).not.toBe(typed);
+    const service = await build(prismaMock({ client: storedClient(typed) }));
+
+    await expect(service.gateNewCase(user, { parties: [{ name: typed, side: 'OPPONENT' }] })).rejects.toMatchObject({
+      response: { code: 'CONFLICT_FOUND', matches: [expect.objectContaining({ clientId: 'cl-9', term: normalizeName(typed) })] },
+    });
   });
 
   it('a name supplied on both sides clashes with a hit on either side', () => {

@@ -45,19 +45,26 @@ export interface ConflictGate {
 const OVERRIDE_MIN_LENGTH = 10;
 
 /**
- * Gate-side name form: NFKC, any run of whitespace / NBSP / zero-width space → one space.
+ * Gate-side name form: NFKC, zero-width characters (ZWSP/ZWNJ/ZWJ/BOM) dropped — they are
+ * invisible, so they must not become a space — then any run of whitespace / NBSP → one space.
  * NFKC splits Thai SARA AM (ำ) into NIKHAHIT + SARA AA, which would make "จำกัด" never match a
  * stored name — so it is recomposed straight after.
- * ponytail: only the searched name is normalised; stored names with irregular spacing still slip
- * past `contains` — add a normalised name column if that shows up in practice.
+ * The gate searches this form AND the raw trimmed name, so normalising only ever adds matches.
+ * ponytail: stored names are not normalised — a stored name whose mark order (e.g. tone before a
+ * below-vowel) or spacing differs from BOTH searched forms is still missed; upgrade path is a
+ * normalised name column (or SQL normalize() in the query).
  */
 export function normalizeName(name: string): string {
   return name
     .normalize('NFKC')
     .replace(/\u0E4D\u0E32/g, '\u0E33')
-    .replace(/[\s\u200B\u00A0]+/g, ' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\s\u00A0]+/g, ' ')
     .trim();
 }
+
+/** A gate party: `name` is the normalised term reported back; `forms` are every spelling searched. */
+type GateParty = PartyName & { forms: string[] };
 
 /**
  * Spec L6: a searched name found on the other side somewhere else. Same-side and neutral hits are
@@ -261,8 +268,12 @@ export class ConflictCheckService {
     user: AuthUser,
     input: { parties: PartyName[]; overrideReason?: string | null; excludeIntakeId?: string },
   ): Promise<ConflictGate> {
-    const parties = input.parties
-      .map((p) => ({ ...p, name: normalizeName(p.name ?? '') }))
+    const parties: GateParty[] = input.parties
+      .map((p) => {
+        const raw = (p.name ?? '').trim();
+        const name = normalizeName(raw);
+        return { side: p.side, name, forms: [...new Set([raw, name])] };
+      })
       .filter((p) => p.name.length >= CONFLICT_TERM_MIN_LENGTH && p.name.toLowerCase() !== TMP_CLIENT_PLACEHOLDER);
     if (!parties.length) return { result: ConflictResult.CLEAR, terms: [], matches: [], overrideReason: null };
 
@@ -290,9 +301,19 @@ export class ConflictCheckService {
    * an opponent, opponents only where they would be ours: one uncapped query per table with an
    * OR over all names, then hits are assigned to names here.
    */
-  private async gateHits(user: AuthUser, parties: PartyName[], excludeIntakeId?: string): Promise<ConflictMatch[]> {
-    const ours = [...new Set(parties.filter((p) => p.side === 'OURS').map((p) => p.name))];
-    const theirs = [...new Set(parties.filter((p) => p.side === 'OPPONENT').map((p) => p.name))];
+  private async gateHits(user: AuthUser, parties: GateParty[], excludeIntakeId?: string): Promise<ConflictMatch[]> {
+    // term → every form searched for it; queries OR over all forms of all terms on that side.
+    const byTerm = (side: PartyName['side']) => {
+      const map = new Map<string, Set<string>>();
+      for (const p of parties.filter((x) => x.side === side)) {
+        p.forms.forEach((f) => map.set(p.name, (map.get(p.name) ?? new Set()).add(f)));
+      }
+      return map;
+    };
+    const oursByTerm = byTerm('OURS');
+    const theirsByTerm = byTerm('OPPONENT');
+    const ours = [...new Set([...oursByTerm.values()].flatMap((f) => [...f]))];
+    const theirs = [...new Set([...theirsByTerm.values()].flatMap((f) => [...f]))];
     const like = (name: string) => ({ contains: name, mode: 'insensitive' as const });
     const liveCase = { firmId: user.firmId, deletedAt: null };
     const otherIntakes = { firmId: user.firmId, ...(excludeIntakeId ? { id: { not: excludeIntakeId } } : {}) };
@@ -352,24 +373,27 @@ export class ConflictCheckService {
       ]);
 
     const hits: ConflictMatch[] = [];
-    const add = (value: string | null | undefined, names: string[], match: Omit<ConflictMatch, 'term'>) => {
-      const v = value ? normalizeName(value) : '';
-      for (const term of names) if (v && matchesTerm(v, term)) hits.push({ ...match, term });
+    const add = (value: string | null | undefined, names: Map<string, Set<string>>, match: Omit<ConflictMatch, 'term'>) => {
+      if (!value) return;
+      const values = [value, normalizeName(value)];
+      for (const [term, forms] of names) {
+        if ([...forms].some((f) => values.some((v) => matchesTerm(v, f)))) hits.push({ ...match, term });
+      }
     };
     const onCase = (c: { id: string; title: string; ownRef: string; status: string }) => ({
       caseId: c.id, caseTitle: c.title, ownRef: c.ownRef, caseStatus: c.status,
     });
 
-    for (const p of oppParticipants) add(p.name, ours, { kind: 'CASE_PARTY', name: p.name, side: p.side, role: p.role, ...onCase(p.case) });
-    for (const i of oppIntakes) add(i.opposingParty, ours, { kind: 'INTAKE_PARTY', name: i.opposingParty ?? '', side: 'OPPONENT', intakeId: i.id, intakeTitle: i.title ?? undefined });
-    for (const c of clients) add(c.name, theirs, { kind: 'CLIENT', name: c.name, side: 'OURS', clientId: c.id });
-    for (const c of contacts) add(c.name, theirs, { kind: 'CLIENT_CONTACT', name: c.name, side: 'OURS', clientId: c.clientId, role: c.client?.name });
-    for (const p of ourParticipants) add(p.name, theirs, { kind: 'CASE_PARTY', name: p.name, side: p.side, role: p.role, ...onCase(p.case) });
-    for (const k of casesByClientName) add(k.clientName, theirs, { kind: 'CASE_CLIENT_NAME', name: k.clientName ?? '', side: 'OURS', ...onCase(k) });
-    for (const k of caseClients) add(k.client.name, theirs, { kind: 'CASE_CLIENT', name: k.client.name, side: 'OURS', clientId: k.client.id, ...onCase(k.case) });
+    for (const p of oppParticipants) add(p.name, oursByTerm, { kind: 'CASE_PARTY', name: p.name, side: p.side, role: p.role, ...onCase(p.case) });
+    for (const i of oppIntakes) add(i.opposingParty, oursByTerm, { kind: 'INTAKE_PARTY', name: i.opposingParty ?? '', side: 'OPPONENT', intakeId: i.id, intakeTitle: i.title ?? undefined });
+    for (const c of clients) add(c.name, theirsByTerm, { kind: 'CLIENT', name: c.name, side: 'OURS', clientId: c.id });
+    for (const c of contacts) add(c.name, theirsByTerm, { kind: 'CLIENT_CONTACT', name: c.name, side: 'OURS', clientId: c.clientId, role: c.client?.name });
+    for (const p of ourParticipants) add(p.name, theirsByTerm, { kind: 'CASE_PARTY', name: p.name, side: p.side, role: p.role, ...onCase(p.case) });
+    for (const k of casesByClientName) add(k.clientName, theirsByTerm, { kind: 'CASE_CLIENT_NAME', name: k.clientName ?? '', side: 'OURS', ...onCase(k) });
+    for (const k of caseClients) add(k.client.name, theirsByTerm, { kind: 'CASE_CLIENT', name: k.client.name, side: 'OURS', clientId: k.client.id, ...onCase(k.case) });
     for (const i of ourIntakes) {
       for (const name of [i.clientName, i.contactName]) {
-        add(name, theirs, { kind: 'INTAKE_PARTY', name: name ?? '', side: 'OURS', intakeId: i.id, intakeTitle: i.title ?? undefined });
+        add(name, theirsByTerm, { kind: 'INTAKE_PARTY', name: name ?? '', side: 'OURS', intakeId: i.id, intakeTitle: i.title ?? undefined });
       }
     }
     return hits;
