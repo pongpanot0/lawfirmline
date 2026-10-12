@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/misc';
@@ -24,11 +24,23 @@ export function ConflictOverrideDialog({
   const [reason, setReason] = useState('');
   const ok = reason.trim().length >= OVERRIDE_MIN_LENGTH;
 
+  // Escape belongs to this dialog alone: swallow it before a modal underneath sees it,
+  // and ignore it while the case is being opened.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      if (!busy) onCancel();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [busy, onCancel]);
+
   return (
     <Modal open onClose={onCancel} closeOnBackdrop={!busy} className="max-w-xl" ariaLabel="พบชื่อที่อาจขัดกัน">
       <form
         className="space-y-4"
-        onSubmit={(e) => { e.preventDefault(); if (ok) onConfirm(reason.trim()); }}
+        onSubmit={(e) => { e.preventDefault(); if (ok && !busy) onConfirm(reason.trim()); }}
       >
         <div>
           <h2 className="text-lg font-semibold">พบชื่อที่อาจขัดกัน (conflict of interest)</h2>
@@ -46,6 +58,7 @@ export function ConflictOverrideDialog({
           <textarea
             required
             rows={3}
+            maxLength={2000}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"

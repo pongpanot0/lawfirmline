@@ -4,6 +4,7 @@ import { CASE_NUMBER_HINT, CASE_NUMBER_HTML, CourtLevel, COURT_LEVEL_LABELS, FEE
 import type { CaseDetail, CaseTypeItem, ClientItem, CourtItem } from '@/lib/api';
 import { CustomerSelect } from '@/components/billing/CustomerSelect';
 import { Button } from '@/components/ui/button';
+import { CourtSelect } from './CourtSelect';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { Plus, X } from 'lucide-react';
 
@@ -80,7 +81,7 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
       <section className={group} aria-labelledby="case-court-heading">
         <div className="sm:col-span-2"><h3 id="case-court-heading" className="font-semibold">ศาลและหมายเลขคดี</h3><p className="mt-1 text-xs text-muted-foreground">ยังไม่ยื่นฟ้องหรือยังไม่มีเลขคดี เว้นว่างไว้ได้</p></div>
         <label className="text-sm">ระดับศาล<select value={value.courtLevel} onChange={e => set('courtLevel', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(CourtLevel).map(level => <option key={level} value={level}>{COURT_LEVEL_LABELS[level]}</option>)}</select></label>
-        <label className="text-sm">ศาล<select value={value.courtName} onChange={e => set('courtName', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{courts.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}{value.courtName && !courts.some(c => c.name === value.courtName) && <option value={value.courtName}>{value.courtName}</option>}</select></label>
+        <label className="text-sm">ศาล<CourtSelect value={value.courtName} courts={courts} onChange={name => set('courtName', name)} className={input} /></label>
         <label className="text-sm">หมายเลขคดีดำ<input value={value.blackCaseNumber} onChange={e => set('blackCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
         <label className="text-sm">หมายเลขคดีแดง<input value={value.redCaseNumber} onChange={e => set('redCaseNumber', e.target.value)} placeholder={CASE_NUMBER_HINT} pattern={CASE_NUMBER_HTML} title={CASE_NUMBER_HINT} className={input} /></label>
       </section>
