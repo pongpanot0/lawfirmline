@@ -50,7 +50,9 @@ assert.ok(rows.includes('ไม่มีงานค้างในคิวท�
 
 const configs = [], apiCalls = [];
 const hooks = load('src/api/hooks.ts', { '@tanstack/react-query': { useQuery: config => { configs.push(config); return config; } },
-  './client': { api: url => { apiCalls.push(url); } }, '../format': common['@/format'] });
+  './client': { api: url => { apiCalls.push(url); } }, '../format': common['@/format'],
+  // hooks.ts builds deadline/review requests with these; the person screen never calls them.
+  '../litigation': { reviewDecisionRequest: () => null, suggestionRequest: () => null } });
 hooks.usePersonWorkload('person/a?b', '2026-10-04'); configs.at(-1).queryFn();
 assert.deepEqual(configs.at(-1).queryKey, ['person-workload', 'person/a?b', '2026-10-04']);
 assert.equal(apiCalls.at(-1), '/operations/people/person%2Fa%3Fb?from=2026-10-04');
