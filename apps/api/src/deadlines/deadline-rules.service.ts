@@ -1,14 +1,20 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   AuthUser,
+  CourtEventKind,
+  CourtLevel,
   DateSuggestionSource,
   DateSuggestionStatus,
   DeadlineDayBasis,
   DeadlineTrigger,
   EventType,
+  ServiceMethod,
+  deadlineRuleApplies,
+  effectiveDeadlineRules,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { Prisma } from '../generated/prisma';
+import { NotificationCategory, Prisma } from '../generated/prisma';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CreateDeadlineRuleDto, UpdateDeadlineRuleDto } from './dto/deadline-rule.dto';
 import {
   addBangkokDays,
@@ -16,6 +22,7 @@ import {
   bangkokDayKey,
   bangkokDayStart,
   courtCloseAt,
+  formatBangkokDateThai,
   isBangkokWeekend,
 } from '../common/utils/bangkok-time';
 
@@ -68,6 +75,12 @@ export interface DeadlineTriggerContext {
   triggerDate: Date;
   triggerEventId: string | null;
   createdById: string;
+  /** COURT_DATE: what kind of sitting the event is. */
+  courtEventKind?: CourtEventKind | null;
+  /** JUDGMENT: the level of the court that ruled; defaults to Case.courtLevel. */
+  courtLevel?: CourtLevel | null;
+  /** COMPLAINT_SERVED: รับเอง or ปิดหมาย. */
+  serviceMethod?: ServiceMethod | null;
 }
 
 /**
@@ -82,7 +95,11 @@ export interface DeadlineTriggerContext {
 export class DeadlineRulesService {
   private readonly logger = new Logger(DeadlineRulesService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => AssignmentNotifierService))
+    private notifier: AssignmentNotifierService,
+  ) {}
 
   /**
    * Starter platform rules. Offsets follow common Thai civil procedure;
@@ -177,14 +194,26 @@ export class DeadlineRulesService {
    *   alone cannot stop a second manual fire.
    */
   async applyTrigger(context: DeadlineTriggerContext, client: PrismaClientLike = this.prisma): Promise<number> {
-    const rules = await client.deadlineRule.findMany({
+    const legalCase = await client.case.findUnique({
+      where: { id: context.caseId },
+      select: { partyRole: true, courtLevel: true, leadLawyerId: true, ownRef: true },
+    });
+    const candidates = await client.deadlineRule.findMany({
       where: {
         trigger: context.trigger,
-        isActive: true,
-        // Global catalog: only null caseType rules in this pass.
+        // Case-type-specific rules are not offered in this pass.
         caseTypeId: null,
+        OR: [{ firmId: null }, { firmId: context.firmId }],
       },
     });
+    const rules = effectiveDeadlineRules(candidates, context.firmId).filter((rule) =>
+      deadlineRuleApplies(rule, {
+        courtEventKind: context.courtEventKind ?? null,
+        courtLevel: context.courtLevel ?? legalCase?.courtLevel ?? null,
+        partyRole: legalCase?.partyRole ?? null,
+        serviceMethod: context.serviceMethod ?? null,
+      }),
+    );
     if (rules.length === 0) return 0;
 
     const openRules = await this.rulesWithoutPendingSuggestion(context.caseId, rules, context.triggerEventId, client);
@@ -221,6 +250,23 @@ export class DeadlineRulesService {
       data: data as never,
       skipDuplicates: true,
     });
+
+    if (result.count > 0 && legalCase) {
+      // System notice (actor ''): the lead hears about it even when they entered the trigger.
+      // ponytail: inside a caller's transaction the inbox row is written outside it — a rolled-back
+      // trigger can leave one stale notice; move to an outbox if that ever matters.
+      await this.notifier.notifyAssigned({
+        firmId: context.firmId,
+        userIds: [legalCase.leadLawyerId],
+        actorUserId: '',
+        category: NotificationCategory.CALENDAR,
+        summaryText: [
+          `วันครบกำหนดรอยืนยัน ${result.count} รายการ — คดี ${legalCase.ownRef}`,
+          ...data.map((row) => `${row.label}: ${formatBangkokDateThai(row.suggestedDate)}`),
+        ].join('\n'),
+        entityPath: `/cases/${context.caseId}?tab=calendar`,
+      });
+    }
     return result.count;
   }
 

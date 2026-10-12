@@ -173,3 +173,61 @@ export interface DeadlineRuleItem {
   /** Set by GET /deadline-rules: may the caller edit this row in place. */
   canEdit?: boolean;
 }
+
+/** What the engine knows about the case and the event when a trigger fires. */
+export interface DeadlineRuleContext {
+  courtEventKind?: CourtEventKind | null;
+  /** The court level that ruled (JUDGMENT) or the case's level; unknown = TRIAL. */
+  courtLevel?: 'TRIAL' | 'APPEAL' | 'SUPREME' | null;
+  /** Case.partyRole — the side we act for; unknown = every side's rules apply. */
+  partyRole?: string | null;
+  /** How the summons was served; unknown = PERSONAL (รับเอง). */
+  serviceMethod?: ServiceMethod | null;
+}
+
+/**
+ * Structural (string-typed) so both DeadlineRuleItem and raw Prisma rows fit —
+ * Prisma's enum columns are string-literal unions, which TS will not assign to these TS enums.
+ */
+export interface DeadlineRuleKey {
+  firmId: string | null;
+  trigger: string;
+  label: string;
+}
+export interface DeadlineRuleFilter {
+  isActive: boolean;
+  courtEventKind: string | null;
+  courtLevel: string | null;
+  partySide: string | null;
+  serviceMethod: string | null;
+}
+
+/** A firm rule overrides the global rule with the same trigger + label. */
+export function deadlineRuleKey(rule: { trigger: string; label: string }): string {
+  return `${rule.trigger}|${rule.label.trim()}`;
+}
+
+/**
+ * The rules one firm runs: its own rules, plus every global rule it has not
+ * overridden. Inactive rows are kept — an inactive override is how a firm
+ * switches a global rule off — so filter with {@link deadlineRuleApplies}.
+ */
+export function effectiveDeadlineRules<T extends DeadlineRuleKey>(rules: T[], firmId: string): T[] {
+  const own = rules.filter((rule) => rule.firmId === firmId);
+  const overridden = new Set(own.map(deadlineRuleKey));
+  return [
+    ...rules.filter((rule) => rule.firmId === null && !overridden.has(deadlineRuleKey(rule))),
+    ...own,
+  ];
+}
+
+export function deadlineRuleApplies(rule: DeadlineRuleFilter, ctx: DeadlineRuleContext): boolean {
+  if (!rule.isActive) return false;
+  if (rule.courtEventKind && rule.courtEventKind !== ctx.courtEventKind) return false;
+  if (rule.courtLevel && rule.courtLevel !== (ctx.courtLevel ?? 'TRIAL')) return false;
+  if (rule.partySide && ctx.partyRole && rule.partySide !== ctx.partyRole) return false;
+  if (rule.serviceMethod && rule.serviceMethod !== (ctx.serviceMethod ?? ServiceMethod.PERSONAL)) {
+    return false;
+  }
+  return true;
+}

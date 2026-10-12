@@ -15,7 +15,7 @@ import { DeadlinesModule } from '../deadlines/deadlines.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [forwardRef(() => AuthModule), CaseTypesModule, forwardRef(() => NotificationsModule), DeadlinesModule],
+  imports: [forwardRef(() => AuthModule), CaseTypesModule, forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule)],
   controllers: [SaasController, PublicInviteController, PublicFirmController],
   providers: [
     TenantService,

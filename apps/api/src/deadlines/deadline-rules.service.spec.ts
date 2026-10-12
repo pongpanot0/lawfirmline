@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeadlineDayBasis, DeadlineTrigger, FirmRole } from '@lawfirm/shared';
+import { CourtEventKind, DeadlineDayBasis, DeadlineTrigger, FirmRole, ServiceMethod } from '@lawfirm/shared';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { DeadlineRulesService } from './deadline-rules.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
@@ -18,18 +19,25 @@ describe('DeadlineRulesService', () => {
       deleteMany: jest.fn(),
     },
     publicHoliday: { findMany: jest.fn() },
+    case: { findUnique: jest.fn() },
     documentDateSuggestion: { findMany: jest.fn(), createMany: jest.fn() },
   };
+  const mockNotifier = { notifyAssigned: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.OWNER } as any;
 
   const rule = {
     id: 'rule-1',
-    firmId: 'firm-1',
+    firmId: null,
     caseTypeId: null,
     trigger: DeadlineTrigger.JUDGMENT,
     label: 'ยื่นอุทธรณ์',
     offsetDays: 30,
     dayBasis: DeadlineDayBasis.CALENDAR,
+    adjustDays: 0,
+    courtEventKind: null,
+    courtLevel: null,
+    partySide: null,
+    serviceMethod: null,
     isActive: true,
   };
 
@@ -39,11 +47,16 @@ describe('DeadlineRulesService', () => {
     mockPrisma.deadlineRule.count.mockResolvedValue(0);
     mockPrisma.deadlineRule.createMany.mockResolvedValue({ count: 0 });
     mockPrisma.publicHoliday.findMany.mockResolvedValue([]);
+    mockPrisma.case.findUnique.mockResolvedValue({ partyRole: null, courtLevel: null, leadLawyerId: 'lead-1', ownRef: 'C-001' });
     mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([]);
     mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 0 });
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DeadlineRulesService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        DeadlineRulesService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: AssignmentNotifierService, useValue: mockNotifier },
+      ],
     }).compile();
     service = module.get(DeadlineRulesService);
   });
@@ -225,16 +238,97 @@ describe('DeadlineRulesService', () => {
       expect(data[0].suggestedDate.toISOString()).toBe('2026-10-05T09:30:00.000Z');
     });
 
-    it('matches global platform rules for the trigger', async () => {
+    it('loads global rules plus the firm’s own rules for the trigger', async () => {
       await service.applyTrigger(context);
 
       expect(mockPrisma.deadlineRule.findMany).toHaveBeenCalledWith({
         where: {
           trigger: DeadlineTrigger.JUDGMENT,
-          isActive: true,
           caseTypeId: null,
+          OR: [{ firmId: null }, { firmId: 'firm-1' }],
         },
       });
+    });
+
+    it('uses the firm override instead of the global rule', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([
+        rule,
+        { ...rule, id: 'rule-firm', firmId: 'firm-1', offsetDays: 45 },
+      ]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      await service.applyTrigger(context);
+
+      const { data } = mockPrisma.documentDateSuggestion.createMany.mock.calls[0][0];
+      expect(data.map((d: { deadlineRuleId: string }) => d.deadlineRuleId)).toEqual(['rule-firm']);
+    });
+
+    it('fires the ม.88 witness-list rule only for a witness hearing', async () => {
+      const witnessList = {
+        ...rule, id: 'rule-88', trigger: DeadlineTrigger.COURT_DATE, label: 'ยื่นบัญชีระบุพยาน',
+        offsetDays: -7, courtEventKind: CourtEventKind.WITNESS_HEARING,
+      };
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([witnessList]);
+
+      const none = await service.applyTrigger({
+        ...context, trigger: DeadlineTrigger.COURT_DATE, courtEventKind: CourtEventKind.PRELIMINARY,
+      });
+      expect(none).toBe(0);
+      expect(mockPrisma.documentDateSuggestion.createMany).not.toHaveBeenCalled();
+
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+      await service.applyTrigger({
+        ...context, trigger: DeadlineTrigger.COURT_DATE, courtEventKind: CourtEventKind.WITNESS_HEARING,
+      });
+      expect(mockPrisma.documentDateSuggestion.createMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips a plaintiff-only rule on a defendant case', async () => {
+      mockPrisma.case.findUnique.mockResolvedValue({
+        partyRole: 'DEFENDANT', courtLevel: null, leadLawyerId: 'lead-1', ownRef: 'C-001',
+      });
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([{ ...rule, partySide: 'PLAINTIFF' }]);
+
+      expect(await service.applyTrigger(context)).toBe(0);
+    });
+
+    it('uses the posted-service rule only when the summons was posted', async () => {
+      const personal = { ...rule, id: 'r15', trigger: DeadlineTrigger.COMPLAINT_SERVED, offsetDays: 15, serviceMethod: ServiceMethod.PERSONAL };
+      const posted = { ...rule, id: 'r30', trigger: DeadlineTrigger.COMPLAINT_SERVED, label: 'ครบกำหนดยื่นคำให้การ (ปิดหมาย)', offsetDays: 30, serviceMethod: ServiceMethod.POSTED };
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([personal, posted]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      await service.applyTrigger({ ...context, trigger: DeadlineTrigger.COMPLAINT_SERVED, serviceMethod: ServiceMethod.POSTED });
+
+      const { data } = mockPrisma.documentDateSuggestion.createMany.mock.calls[0][0];
+      expect(data.map((d: { deadlineRuleId: string }) => d.deadlineRuleId)).toEqual(['r30']);
+    });
+
+    it('tells the lead lawyer how many suggestions wait for confirmation', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 1 });
+
+      await service.applyTrigger(context);
+
+      expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith(
+        expect.objectContaining({
+          firmId: 'firm-1',
+          userIds: ['lead-1'],
+          actorUserId: '',
+          category: 'CALENDAR',
+          entityPath: '/cases/case-1?tab=calendar',
+          summaryText: expect.stringContaining('วันครบกำหนดรอยืนยัน 1 รายการ — คดี C-001'),
+        }),
+      );
+    });
+
+    it('does not notify when nothing new was created', async () => {
+      mockPrisma.deadlineRule.findMany.mockResolvedValue([rule]);
+      mockPrisma.documentDateSuggestion.createMany.mockResolvedValue({ count: 0 });
+
+      await service.applyTrigger(context);
+
+      expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
     });
 
     it('does nothing when the firm has no rule for the trigger', async () => {

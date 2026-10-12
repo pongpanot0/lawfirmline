@@ -10,7 +10,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { DeadlinesModule } from '../deadlines/deadlines.module';
 
 @Module({
-  imports: [TravelModule, forwardRef(() => NotificationsModule), DeadlinesModule],
+  imports: [TravelModule, forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule)],
   controllers: [CalendarController, CourtDayController, EventResponsibilityController],
   providers: [CalendarService, CourtDayService, EventResponsibilityService],
   exports: [CalendarService, EventResponsibilityService],
