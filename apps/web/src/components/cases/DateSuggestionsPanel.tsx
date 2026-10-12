@@ -25,6 +25,7 @@ export function DateSuggestionsPanel({
   title,
   reloadKey = 0,
   hideWhenEmpty = true,
+  onChanged,
 }: {
   caseId: string;
   source: DateSuggestionItem['source'];
@@ -32,6 +33,8 @@ export function DateSuggestionsPanel({
   /** Bump to reload after something upstream created new suggestions. */
   reloadKey?: number;
   hideWhenEmpty?: boolean;
+  /** After a confirm or dismiss — the caller reloads what the new event affects (timeline). */
+  onChanged?: () => void;
 }) {
   const d = useDashboardT();
   const { token } = useAuth();
@@ -91,6 +94,7 @@ export function DateSuggestionsPanel({
         assigneeId: source === 'DOCUMENT' ? draft.assigneeId : undefined,
       });
       setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+      onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
     } finally {
@@ -104,6 +108,7 @@ export function DateSuggestionsPanel({
     try {
       await api.dismissDateSuggestion(token, caseId, s.id);
       setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+      onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : d.caseDocuments.extractDatesFailed);
     }

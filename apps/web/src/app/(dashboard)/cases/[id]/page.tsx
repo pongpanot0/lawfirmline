@@ -3,6 +3,7 @@
 import { SavedCaseCostCalculator } from '@/components/cases/CaseCostCalculator';
 import { CasePrintForms } from '@/components/cases/CasePrintForms';
 import { CaseOverviewForm, type CaseOverviewCustomerValue } from '@/components/cases/CaseOverviewForm';
+import { CaseProceedingsCard } from '@/components/cases/CaseProceedingsCard';
 import { CaseSummaryPanel } from '@/components/cases/CaseSummaryPanel';
 import { RelatedStatutes } from '@/components/intake/RelatedStatutes';
 import { AnalysisFactsTimeline } from '@/components/intake/AnalysisFactsTimeline';
@@ -1459,6 +1460,13 @@ export default function CaseDetailPage() {
               </div>}
             </CardContent>
           </Card>
+
+          <CaseProceedingsCard
+            caseId={legalCase.id}
+            proceedings={legalCase.proceedings ?? []}
+            currentLevel={legalCase.courtLevel ?? null}
+            onChanged={loadCase}
+          />
 
           <div className="min-w-0 space-y-4">
           {legalCase.intake && preFiling && (

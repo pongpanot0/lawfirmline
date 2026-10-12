@@ -1,6 +1,14 @@
 import { withFirmSlugHeaders } from './firm-slug';
 import type { AnnualReportListItem, AnnualReportSnapshot } from './annual-report';
 import { taskUpdatePath } from './task-detail';
+import type { CaseProceedingItem } from './proceedings';
+
+export type { CaseProceedingItem } from './proceedings';
+
+export interface ProceedingActionResult {
+  proceeding: CaseProceedingItem | null;
+  suggestions: number;
+}
 import { actionSuccessMessage, isActionRequest, publishActionFeedback } from './action-feedback';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -357,6 +365,7 @@ export interface CaseItem {
   courtLevel?: import('@lawfirm/shared').CourtLevel | null;
   blackCaseNumber?: string | null;
   redCaseNumber?: string | null;
+  proceedings?: CaseProceedingItem[];
   customFields?: Record<string, unknown> | null;
   claimedAmount?: number | null;
   estimatedFee?: number | null;
@@ -2014,6 +2023,30 @@ export const api = {
       token,
       body: JSON.stringify(data),
     }),
+
+  recordFiling: (token: string, caseId: string, data: { filedAt: string; blackCaseNumber?: string }) =>
+    request<ProceedingActionResult>(`/cases/${caseId}/proceedings/filing`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  recordService: (token: string, caseId: string, data: { servedAt: string; method: 'PERSONAL' | 'POSTED' }) =>
+    request<ProceedingActionResult>(`/cases/${caseId}/proceedings/service`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  recordJudgment: (
+    token: string,
+    caseId: string,
+    data: { courtLevel: string; judgmentAt: string; outcome: string; amount?: number; redCaseNumber?: string; note?: string },
+  ) =>
+    request<ProceedingActionResult>(`/cases/${caseId}/proceedings/judgment`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  recordAppealServed: (token: string, caseId: string, data: { servedAt: string }) =>
+    request<ProceedingActionResult>(`/cases/${caseId}/proceedings/appeal-served`, { method: 'POST', token, body: JSON.stringify(data) }),
+
+  updateProceeding: (
+    token: string,
+    caseId: string,
+    courtLevel: string,
+    data: { courtName?: string; blackCaseNumber?: string; redCaseNumber?: string },
+  ) =>
+    request<CaseProceedingItem>(`/cases/${caseId}/proceedings/${courtLevel}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
 
   applyDeadlineTrigger: (
     token: string,
