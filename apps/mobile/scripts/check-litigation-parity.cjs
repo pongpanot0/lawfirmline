@@ -309,6 +309,29 @@ check('a review opens the exact version under review, cached apart from the late
   ]);
 });
 
+check('mentions: @query at the end, literal insert, case team only, and who the API dropped', () => {
+  const m = load('mentions.ts');
+  assert.equal(m.mentionQuery('ขอให้ @สม'), 'สม');
+  assert.equal(m.mentionQuery('ขอให้ @'), '');
+  assert.equal(m.mentionQuery('ขอให้ @สมชาย '), null, 'a space closes the list');
+  assert.equal(m.mentionQuery('ไม่มีการกล่าวถึง'), null);
+  assert.equal(m.insertMention('ขอให้ @สม', 'สมชาย'), 'ขอให้ @สมชาย ');
+  assert.equal(m.insertMention('@', 'A$&B'), '@A$&B ', 'names are inserted literally');
+  const lead = { id: 'lead', firstName: 'สมชาย', lastName: 'ใจดี' };
+  const team = { leadLawyer: lead, assignments: [{ user: { id: 'author', firstName: 'สมหญิง', lastName: 'ขยัน' } }, { user: lead }] };
+  const people = m.mentionCandidates(team, [{ id: 'outsider', firstName: 'มานะ', lastName: 'อดทน' }], 'author',
+    [{ id: 'worker', firstName: 'วิชัย', lastName: 'ทำงาน' }, null]);
+  assert.deepEqual(people.map((p) => p.id), ['lead', 'worker'], 'case team + assignee; no author, duplicates or outsiders');
+  assert.deepEqual(m.mentionCandidates(null, [{ id: 'a', firstName: 'ก', lastName: 'ข' }, { id: 'me', firstName: 'ค', lastName: 'ง' }], 'me')
+    .map((p) => p.id), ['a'], 'a task without a case offers firm members');
+  assert.deepEqual(m.matchPeople(people, 'สม').map((p) => p.id), ['lead']);
+  assert.equal(m.matchPeople(Array.from({ length: 9 }, (_, i) => ({ id: String(i), firstName: `สม${i}`, lastName: '' })), 'สม').length, 5);
+  assert.deepEqual(m.mentionedIdsIn('ฝาก @สมชาย ดู', [lead, { id: 'x', firstName: 'มานะ', lastName: '' }]), ['lead'],
+    'a picked name deleted from the text is not notified');
+  assert.deepEqual(m.droppedMentions(['lead', 'x'], ['lead']), ['x']);
+  assert.deepEqual(m.droppedMentions([], undefined), []);
+});
+
 // ── add new check(...) blocks above this line ──
 (async () => {
   for (const [name, fn] of checks) {

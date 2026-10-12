@@ -8,7 +8,9 @@ import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { taskDraftScope } from '@/api/drafts';
 import { useTaskDraft } from '@/hooks/useTaskDraft';
-import { useCase, useLawyers } from '@/api/hooks';
+import { useCase, useLawyers, useMembers } from '@/api/hooks';
+import { droppedMentions, mentionCandidates, mentionedIdsIn, type MentionPerson } from '@/mentions';
+import { MentionField } from './MentionField';
 import type { TaskItem } from '@/api/types';
 import { openCaseDocument, openTaskAttachment, uploadTaskAttachment } from '@/api/files';
 import { bangkokDay, thDate, thTime } from '@/format';
@@ -39,6 +41,13 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
   const [holdCategory, setHoldCategory] = useState('WAITING_CLIENT');
   const [holdFollowUp, setHoldFollowUp] = useState('');
   const [showNote, setShowNote] = useState(false);
+  // ponytail: picks are not part of the task draft, so a restored draft sends no mentions; persist them if that bites.
+  const [picked, setPicked] = useState<MentionPerson[]>([]);
+  const [mentionNotice, setMentionNotice] = useState('');
+  const allMembers = useMembers();
+  const people = task.caseId
+    ? mentionCandidates(legalCase.data, undefined, user?.id, [task.assignee])
+    : mentionCandidates(null, allMembers.data, user?.id);
   const [reporting, setReporting] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [exampleOpen, setExampleOpen] = useState(false);
@@ -239,8 +248,20 @@ export function TaskWorkView({ task, onEdit }: { task: TaskItem; onEdit: () => v
         try { requireSavedDraft(); onEdit(); } catch (e) { setError((e as Error).message); }
       }} disabled={busy} />
       <Button title={showNote ? 'ซ่อนบันทึกเพิ่มเติม' : 'บันทึกเพิ่มเติม (ถ้ามี)'} ghost onPress={() => setShowNote(!showNote)} />
-      {showNote && <FormField label="บันทึกเพิ่มเติม" value={note} onChange={setNote} disabled={busy} multiline />}
-      {!!note.trim() && <Button title="บันทึกข้อความ" busy={busy} onPress={() => perform(async () => { await api(`/tasks/${task.id}/comments`, { method: 'POST', body: { body: note.trim() } }); setNote(''); })} />}
+      {showNote && <MentionField label="บันทึกเพิ่มเติม" value={note} onChange={setNote} people={people} disabled={busy}
+        onPick={(person) => setPicked((list) => (list.some((item) => item.id === person.id) ? list : [...list, person]))} />}
+      {!!mentionNotice && <Text style={{ color: colors.muted }}>{mentionNotice}</Text>}
+      {!!note.trim() && <Button title="บันทึกข้อความ" busy={busy} onPress={() => perform(async () => {
+        const body = note.trim();
+        const mentionedUserIds = mentionedIdsIn(body, picked);
+        const saved = await api<{ mentionedUserIds?: string[] }>(`/tasks/${task.id}/comments`, {
+          method: 'POST',
+          body: { body, ...(mentionedUserIds.length ? { mentionedUserIds } : {}) },
+        });
+        setNote('');
+        setPicked([]);
+        setMentionNotice(droppedMentions(mentionedUserIds, saved?.mentionedUserIds).length ? 'บางคนไม่ได้รับแจ้งเพราะเปิดงานนี้ไม่ได้' : '');
+      })} />}
     </FormPage>
     <View style={{ padding: spacing.md, paddingBottom: spacing.md + bottom, borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, gap: spacing.sm }}>
       <View style={{ width: '100%', maxWidth: 728, alignSelf: 'center', gap: spacing.sm }}>
