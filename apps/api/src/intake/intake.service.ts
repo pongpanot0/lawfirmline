@@ -50,6 +50,7 @@ import {
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
 import { syncLimitationReminder } from '../common/limitation-reminder';
+import { addOpponents, ensureOurClientParticipant } from '../cases/party-sync';
 import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { formatIntakeNotificationReference } from '../notifications/reference-label';
 
@@ -1169,6 +1170,11 @@ export class IntakeService {
         // Only what the lawyer confirmed. The intake's estimated damage is a
         // different figure and never becomes the amount claimed by itself.
         claimedAmount: dto.claimedAmount ?? undefined,
+        // Facts the intake already captured travel with the case (spec L5).
+        customFields: {
+          ...(intake.incidentDate ? { incidentDate: intake.incidentDate.toISOString().slice(0, 10) } : {}),
+          ...(intake.estimatedDamage != null ? { estimatedDamage: intake.estimatedDamage } : {}),
+        },
       },
     });
 
@@ -1179,6 +1185,10 @@ export class IntakeService {
       title: 'เปิดคดี',
       at: newCase.openedAt,
     });
+    if (intake.opposingParty?.trim()) {
+      await addOpponents(this.prisma, newCase.id, intake.partyRole, [{ name: intake.opposingParty }]);
+    }
+    await ensureOurClientParticipant(this.prisma, newCase.id);
     const limitationEventId = newCase.limitationDeadline
       ? await syncLimitationReminder(this.prisma, newCase.id)
       : null;

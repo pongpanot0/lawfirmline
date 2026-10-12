@@ -1,5 +1,6 @@
 import { assertFirmRefs } from '../common/firm-refs';
 import { syncLimitationReminder } from '../common/limitation-reminder';
+import { addOpponents, ensureOurClientParticipant } from './party-sync';
 import {
   Injectable,
   Logger,
@@ -68,7 +69,7 @@ export class CasesService {
     caseType: { select: { id: true, name: true } },
     client: { select: { id: true, name: true } },
     cargoClaim: { select: { id: true } },
-    participants: { select: { name: true, role: true } },
+    participants: { orderBy: { createdAt: 'asc' as const } },
     // CourtLevel enum is declared TRIAL, APPEAL, SUPREME, so asc = court order.
     proceedings: { orderBy: { courtLevel: 'asc' as const } },
     // งานก่อนฟ้อง (โนติส/เจรจา) ยังบันทึกอยู่บน intake ที่ผูก 1:1 — หน้าคดีใช้แสดงสถานะ
@@ -400,7 +401,7 @@ export class CasesService {
       description: dto.description,
       clientId: dto.clientId,
       clientName: dto.clientName,
-      partyRole: dto.partyRole as any,
+      partyRole: dto.partyRole,
       courtName: dto.courtName,
       courtLevel: dto.courtLevel,
       blackCaseNumber: dto.blackCaseNumber || null,
@@ -429,6 +430,8 @@ export class CasesService {
       at: created.openedAt,
     });
     if (dto.limitationDeadline) await syncLimitationReminder(this.prisma, created.id);
+    if (dto.opponents?.length) await addOpponents(this.prisma, created.id, dto.partyRole, dto.opponents);
+    await ensureOurClientParticipant(this.prisma, created.id);
     if ([dto.courtName, dto.blackCaseNumber, dto.redCaseNumber].some((v) => v?.trim())) {
       await snapshotCurrentLevel(this.prisma, created);
     }
@@ -510,12 +513,16 @@ export class CasesService {
 
     // Every linked row must be this firm's — the case include returns their names and contacts.
     await assertFirmRefs(this.prisma, user.firmId, {
-      clientIds: [dto.clientId, ...((dto.customers ?? [])).map((c) => c.customerId)],
+      clientIds: [
+        dto.clientId,
+        ...(dto.customers ?? []).map((c) => c.customerId),
+        ...(dto.clients ?? []).map((c) => c.clientId),
+      ],
       contactIds: (dto.customers ?? []).map((c) => c.contactId),
       caseTypeIds: [dto.caseTypeId],
     });
 
-    const { customFields, customers, stageNote: _stageNote, ...rest } = dto;
+    const { customFields, customers, clients, stageNote: _stageNote, ...rest } = dto;
     const updated = await this.prisma.case.update({
       where: { id },
       data: {
@@ -532,6 +539,8 @@ export class CasesService {
           customers === undefined
             ? undefined
             : { deleteMany: {}, create: this.customerRows(customers) },
+        additionalClients:
+          clients === undefined ? undefined : { deleteMany: {}, create: this.additionalClientRows(clients) },
         closedAt: dto.closedAt ? new Date(dto.closedAt) : undefined,
         stageChangedAt: stageChanged ? new Date() : undefined,
       },
@@ -540,6 +549,8 @@ export class CasesService {
     if (dto.limitationDeadline !== undefined) {
       await syncLimitationReminder(this.prisma, id);
     }
+    const partiesSynced = dto.partyRole !== undefined || dto.clientId !== undefined;
+    if (partiesSynced) await ensureOurClientParticipant(this.prisma, id);
 
     // Timeline ของคดีต้องตอบได้เองว่าใครเปลี่ยนอะไรเมื่อไร ไม่ใช่รอให้คนมากรอก
     if (dto.status && dto.status !== before.status) {
@@ -596,8 +607,8 @@ export class CasesService {
       });
     }
 
-    if (await this.syncProceedings(id, before, dto, stageChanged)) {
-      // Re-read so the response carries the level, mirrored numbers and proceedings.
+    if ((await this.syncProceedings(id, before, dto, stageChanged)) || partiesSynced) {
+      // Re-read so the response carries the level, mirrored numbers, proceedings and parties.
       return this.findOne(user, id);
     }
     return updated;

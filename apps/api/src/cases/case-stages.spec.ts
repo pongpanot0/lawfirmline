@@ -272,4 +272,9 @@ describe('case stages', () => {
       expect(prisma.caseProceeding.upsert).not.toHaveBeenCalled();
     });
   });
+
+  it('every case response carries full participant rows', async () => {
+    await service.update(user, 'case-1', { title: 'ชื่อใหม่' } as any);
+    expect(prisma.case.update.mock.calls[0][0].include.participants).toEqual({ orderBy: { createdAt: 'asc' } });
+  });
 });

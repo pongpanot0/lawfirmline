@@ -15,7 +15,7 @@ describe('IntakeService assignment notifications', () => {
   let service: IntakeService;
   const mockPrisma = {
     intake: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-    case: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'case-new', title: 'x', leadLawyerId: 'user-1' }), update: jest.fn().mockResolvedValue({ id: 'case-1', title: 'x', leadLawyerId: 'user-1' }) },
+    case: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'case-new', title: 'x', leadLawyerId: 'user-1' }), update: jest.fn().mockResolvedValue({ id: 'case-1', title: 'x', leadLawyerId: 'user-1' }) },
     firm: { findUnique: jest.fn().mockResolvedValue({ ownRefPrefix: 'REF' }) },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },

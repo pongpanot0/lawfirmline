@@ -241,7 +241,14 @@ describe('IntakeService convertToCase', () => {
     intake: { findFirst: jest.fn(), update: jest.fn() },
     task: { updateMany: jest.fn() },
     firm: { findUnique: jest.fn() },
-    case: { findMany: jest.fn(), create: jest.fn() },
+    case: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
+    caseParticipant: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      update: jest.fn(),
+      createMany: jest.fn().mockImplementation(({ data }) => Promise.resolve({ count: data.length })),
+    },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     intakePrecedentAnalysis: { updateMany: jest.fn() },
@@ -385,6 +392,34 @@ describe('IntakeService convertToCase', () => {
       { customerId: 'viriyah', sharePercent: 60, isPrimary: true, note: null },
       { customerId: 'insurer-b', sharePercent: 40, isPrimary: false, note: null },
     ]);
+  });
+
+  // Spec L5: parties live only in CaseParticipant; intake facts travel with the case.
+  it('turns the opposing party into an opponent participant and puts our client on our side', async () => {
+    arrangeConvert({
+      clientId: 'client-a',
+      customers: [],
+      partyRole: 'PLAINTIFF',
+      opposingParty: '  บริษัท ข จำกัด ',
+      incidentDate: new Date('2026-01-15T00:00:00Z'),
+      estimatedDamage: 50000,
+    });
+    mockPrisma.case.findUnique.mockResolvedValueOnce({
+      partyRole: 'PLAINTIFF', clientId: 'client-a', clientName: 'นาย A', client: { name: 'นาย A' },
+    });
+
+    await service.convertToCase(user, 'intake-1', {} as any);
+
+    expect(mockPrisma.case.create.mock.calls[0][0].data.customFields).toEqual({
+      incidentDate: '2026-01-15',
+      estimatedDamage: 50000,
+    });
+    expect(mockPrisma.caseParticipant.createMany).toHaveBeenCalledWith({
+      data: [{ caseId: 'case-1', name: 'บริษัท ข จำกัด', role: 'DEFENDANT', side: 'OPPONENT', personType: null }],
+    });
+    expect(mockPrisma.caseParticipant.create).toHaveBeenCalledWith({
+      data: { caseId: 'case-1', clientId: 'client-a', name: 'นาย A', role: 'PLAINTIFF', side: 'OURS' },
+    });
   });
 
   it('makes the client the sole customer when no customer was named at intake', async () => {
@@ -778,7 +813,7 @@ describe('IntakeService.convertToCase — re-points intake documents', () => {
     intake: { findFirst: jest.fn(), update: jest.fn() },
     task: { updateMany: jest.fn() },
     firm: { findUnique: jest.fn() },
-    case: { findMany: jest.fn(), create: jest.fn() },
+    case: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
     caseAssignment: { createMany: jest.fn() },
     calendarEvent: { create: jest.fn() },
     document: {
