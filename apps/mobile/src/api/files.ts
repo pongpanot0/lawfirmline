@@ -117,10 +117,14 @@ export async function openCaseDocument(
   caseId: string,
   documentId: string,
   filename: string,
+  /** A review round pins a version; without it the API streams the latest upload. */
+  version?: number,
 ): Promise<void> {
   const safeName = filename.replace(/[^\w.\-ก-๙ ]+/g, '_') || 'document';
-  const target = `${FileSystem.cacheDirectory}${documentId}-${safeName}`;
-  const result = await downloadFile(`/cases/${caseId}/documents/${documentId}/download`, target);
+  // A pinned version gets its own cache file, so reviewing v3 never shows a cached v4 (or the reverse).
+  const target = `${FileSystem.cacheDirectory}${documentId}-${version ? `v${version}-` : ''}${safeName}`;
+  const query = version ? `?version=${version}` : '';
+  const result = await downloadFile(`/cases/${caseId}/documents/${documentId}/download${query}`, target);
   if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
 }
 

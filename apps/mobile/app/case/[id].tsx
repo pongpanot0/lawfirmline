@@ -20,6 +20,7 @@ import { deadlineUrgency } from '@/deadline';
 import { CourtNumbersCard } from '@/components/CourtNumbersCard';
 import { DeadlineConfirmCard } from '@/components/DeadlineConfirmCard';
 import { RecordCourtEventSheet } from '@/components/RecordCourtEventSheet';
+import { ReviewRoundsCard } from '@/components/ReviewRoundsCard';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { Disclosure } from '@/components/Disclosure';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
@@ -82,7 +83,7 @@ function InfoRow({ label, value, onPress }: { label: string; value: string | nul
 }
 
 export default function CaseDetailScreen() {
-  const { id, section } = useLocalSearchParams<{ id: string; section?: string }>();
+  const { id, section, round } = useLocalSearchParams<{ id: string; section?: string; round?: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const [tab, setTab] = useState<TabName>(section === 'documents' ? 'เอกสาร' : 'ภาพรวม');
@@ -161,6 +162,7 @@ export default function CaseDetailScreen() {
         ) : null}
         <DeadlineConfirmCard caseId={id} leadLawyerId={detail.leadLawyerId ?? detail.leadLawyer?.id}
           canAct={canRecordProceedings(detail.status)} offline={offline} highlightSince={highlightSince} />
+        <ReviewRoundsCard caseId={id} focusRoundId={round} offline={offline} canAct={canRecordProceedings(detail.status)} />
         {limitation && detail.limitationDeadline ? (
           <Pressable accessibilityRole="button" onPress={showCourtNumbers} style={styles.limitationLine}
             accessibilityLabel={`อายุความ ${thDate(detail.limitationDeadline)} ${limitation.label} ดูศาลและเลขคดี`}>

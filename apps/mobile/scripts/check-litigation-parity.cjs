@@ -287,6 +287,28 @@ check('a half-typed limitation never reaches the save; only a confirmed clear se
   assert.deepEqual(limitationBody(true, form, stored), { limitationDeadline: '2026-11-13T17:00:00.000Z' });
 });
 
+check('a review opens the exact version under review, cached apart from the latest', async () => {
+  const downloads = [];
+  const files = load('api/files.ts', {
+    'expo-file-system/legacy': {
+      cacheDirectory: 'file:///cache/',
+      downloadAsync: async (url, target) => { downloads.push([url, target]); return { status: 200, uri: target }; },
+    },
+    'expo-file-system': { File: class {} },
+    'expo-sharing': { isAvailableAsync: async () => false },
+    './client': {
+      API_URL: 'https://api.test', api: async () => ({}), ApiError: class extends Error {},
+      authenticatedFetch: async () => ({}), getTokens: async () => ({ accessToken: 't' }),
+    },
+  });
+  await files.openCaseDocument('case-1', 'doc-1', 'สัญญา.pdf', 3);
+  await files.openCaseDocument('case-1', 'doc-1', 'สัญญา.pdf');
+  assert.deepEqual(downloads, [
+    ['https://api.test/cases/case-1/documents/doc-1/download?version=3', 'file:///cache/doc-1-v3-สัญญา.pdf'],
+    ['https://api.test/cases/case-1/documents/doc-1/download', 'file:///cache/doc-1-สัญญา.pdf'],
+  ]);
+});
+
 // ── add new check(...) blocks above this line ──
 (async () => {
   for (const [name, fn] of checks) {
