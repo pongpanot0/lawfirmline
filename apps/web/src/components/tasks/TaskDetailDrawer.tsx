@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { X, Trash2, Download } from 'lucide-react';
-import { awaitsReviewBy, canAssignFirmRole, FirmRole, isEligibleReviewer, normalizeTaskLabels, TASK_WORK_TYPES, TaskLogAction, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
+import { canActOnReview, canAssignFirmRole, FirmRole, isEligibleReviewer, normalizeTaskLabels, TASK_WORK_TYPES, TaskLogAction, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
 import { handoffNoteError, reviewerName } from '@/lib/task-review-view';
 import { api, ApiError, TaskDetail, UserItem } from '@/lib/api';
 import { formatBytes, downloadTaskAttachment, priorityLabel } from '@/lib/task-detail';
@@ -278,7 +278,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   const manager = !!user && [FirmRole.OWNER, FirmRole.SENIOR_LAWYER, FirmRole.OFFICE_MANAGER].includes(user.firmRole);
   const ownWork = task?.assignee?.id === user?.id;
   const pendingReview = task?.status === TaskStatus.PENDING_REVIEW;
-  const canReview = !!user && awaitsReviewBy(task ?? { status: '' }, user.id, task?.case?.leadLawyerId);
+  const canReview = !!user && !!task && canActOnReview({ status: task.status, reviewerId: task.reviewerId, assigneeId: task.assignee?.id, caseId: task.caseId, leadLawyerId: task.case?.leadLawyerId }, user.id, user.firmRole);
   const statusOptions = task?.requiresReview ? STATUS_OPTIONS.filter((s) => s !== TaskStatus.DONE) : STATUS_OPTIONS;
 
   return (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { awaitsReviewBy, effectiveReviewerId, isEligibleReviewer, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
+import { canActOnReview, effectiveReviewerId, isEligibleReviewer, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
 import { ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { caseNumberDisplay } from '@/lib/case-number-display';
@@ -48,6 +48,8 @@ interface KanbanBoardProps {
   onReject?: (taskId: string, reason: string) => void | Promise<void>;
   /** Case boards: the lead reviews reviewer-less tasks and is named on the handoff button. */
   caseLeadId?: string | null;
+  /** The viewer's firm role — the owner backstop and the office-manager exclusion depend on it. */
+  currentUserRole?: string | null;
   /** Case-bound tasks: who a handoff goes to, named on the button. */
   reviewerName?: string;
   /** Standalone tasks only: no fixed senior lawyer, so the sender picks a reviewer at handoff time. */
@@ -88,6 +90,7 @@ export function KanbanBoard({
   onAccept,
   onReject,
   caseLeadId,
+  currentUserRole,
   reviewerName,
   requireReviewerOnHandoff = false,
   reviewerOptions = [],
@@ -164,7 +167,13 @@ export function KanbanBoard({
           (isAssignee || !task.assignee) &&
           reviewer !== currentUserId &&
           handoffSourceStatuses.includes(task.status);
-        const canReview = enableHandoff && awaitsReviewBy(task, currentUserId, caseLeadId);
+        const canReview =
+          enableHandoff &&
+          canActOnReview(
+            { status: task.status, reviewerId: task.reviewerId, assigneeId: task.assignee?.id, caseId: task.case ? 'case' : null, leadLawyerId: task.case?.leadLawyerId ?? caseLeadId },
+            currentUserId,
+            currentUserRole,
+          );
         const shownLabels = visibleTaskLabels(task.labels);
         const stageChip = taskStageChip(task.labels);
         const handoffLabel = reviewerNameOf(task, null) ?? reviewerName;
@@ -215,7 +224,7 @@ export function KanbanBoard({
               </div>
             )}
             {canReview && task.status === TaskStatus.PENDING_REVIEW && (
-              <p className="mt-1 text-xs text-muted-foreground">มีหมายเหตุ — เปิดงานเพื่ออ่าน</p>
+              <p className="mt-1 text-xs text-muted-foreground">{d.todos.openToReview}</p>
             )}
             {shownLabels.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">

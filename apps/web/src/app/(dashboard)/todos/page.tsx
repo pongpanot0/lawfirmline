@@ -66,6 +66,7 @@ function TodosPageContent() {
   const fmtUploadFailed = (n: number) => `สร้างงานแล้ว แต่แนบไฟล์ไม่สำเร็จ ${n} ไฟล์ — แนบใหม่ได้ในหน้ารายละเอียดงาน`;
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [reviewLoadError, setReviewLoadError] = useState('');
   const [usersLoadError, setUsersLoadError] = useState('');
   const [creating, setCreating] = useState(false);
   const [createdTask, setCreatedTask] = useState<{ id: string; title: string; assignee: string } | null>(null);
@@ -93,7 +94,8 @@ function TodosPageContent() {
   const loadTasks = () => {
     if (!token) return;
     setLoadError('');
-    Promise.all([api.getMyTodos(token), api.getTaskInbox(token), api.getMyTodos(token, 'review')])
+    setReviewLoadError('');
+    Promise.all([api.getMyTodos(token), api.getTaskInbox(token), api.getMyTodos(token, 'review').catch(() => { setReviewLoadError(d.todos.reviewQueueLoadFailed); return [] as TaskItem[]; })])
       .then(([assignedTasks, accessibleOpenTasks, reviewTasks]) => {
         const tasksById = new Map<string, TaskItem>();
         for (const task of reviewTasks) tasksById.set(task.id, task);
@@ -590,6 +592,7 @@ function TodosPageContent() {
         </div>
       )}
 
+      {reviewLoadError && !loadError && <p role="alert" className="mb-2 text-xs text-destructive">{reviewLoadError}</p>}
       {loadError ? (
         <div className="rounded-xl border bg-card p-6 shadow-soft">
           <p role="alert" className="text-sm text-destructive">{loadError}</p>

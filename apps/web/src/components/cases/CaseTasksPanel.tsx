@@ -356,6 +356,7 @@ export function CaseTasksPanel({ caseId, onTasksChanged }: { caseId: string; onT
         onStatusChange={handleStatusChange}
         currentUserId={user?.id ?? ''}
         caseLeadId={caseDetail?.leadLawyer?.id ?? null}
+        currentUserRole={user?.firmRole}
         enableHandoff
         reviewerName={reviewerName}
         onHandoff={handleHandoff}

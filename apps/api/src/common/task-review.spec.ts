@@ -4,6 +4,7 @@ import {
   FirmRole,
   TASK_HANDOFF_NOTE_MIN,
   awaitsReviewBy,
+  canActOnReview,
   canDelegateTask,
   effectiveReviewerId,
   isEligibleReviewer,
@@ -92,5 +93,29 @@ describe('assignmentCandidates reviews', () => {
     const result = assignmentCandidates(members, tasks, 'OTHER' as any, '2026-10-12');
     expect(result.find((r) => r.member.userId === 'lead')!.reviews.map((t) => t.id)).toEqual(['a']);
     expect(result.find((r) => r.member.userId === 'worker')!.reviews).toEqual([]);
+  });
+});
+
+describe('canActOnReview mirrors assertReviewer', () => {
+  const base = { status: 'PENDING_REVIEW', reviewerId: null as string | null, assigneeId: 'w', caseId: 'c' as string | null, leadLawyerId: 'lead' as string | null };
+  it('assignee is never the reviewer', () => {
+    expect(canActOnReview({ ...base, reviewerId: 'w' }, 'w', FirmRole.SENIOR_LAWYER)).toBe(false);
+    expect(awaitsReviewBy({ status: 'PENDING_REVIEW', reviewerId: 'w', assigneeId: 'w' } as any, 'w')).toBe(false);
+  });
+  it('office manager cannot review even when named', () => {
+    expect(canActOnReview({ ...base, reviewerId: 'om' }, 'om', FirmRole.OFFICE_MANAGER)).toBe(false);
+  });
+  it('owner is the backstop only on reviewer-less case tasks', () => {
+    expect(canActOnReview(base, 'o', FirmRole.OWNER)).toBe(true);
+    expect(canActOnReview({ ...base, reviewerId: 'r' }, 'o', FirmRole.OWNER)).toBe(false);
+  });
+  it('standalone with a reviewer: only that reviewer', () => {
+    const t = { ...base, caseId: null, leadLawyerId: null, reviewerId: 'r' };
+    expect(canActOnReview(t, 'r', FirmRole.SENIOR_LAWYER)).toBe(true);
+    expect(canActOnReview(t, 'o', FirmRole.OWNER)).toBe(false);
+  });
+  it('case lead reviews reviewer-less work; nothing outside PENDING_REVIEW', () => {
+    expect(canActOnReview(base, 'lead', FirmRole.LAWYER)).toBe(true);
+    expect(canActOnReview({ ...base, status: 'DONE' }, 'lead', FirmRole.LAWYER)).toBe(false);
   });
 });
