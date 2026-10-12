@@ -76,7 +76,7 @@ export function ConvertToCaseDialog({
     intake.assignedUserIds?.length
       ? `ทีมที่มอบหมายไว้ ${intake.assignedUserIds.length} คน`
       : null,
-    intake.deadlineDate ? 'วันครบกำหนด → นัดในปฏิทินคดี' : null,
+    intake.deadlineDate ? 'วันครบกำหนด → เตือน "ครบอายุความ" ในปฏิทินคดี' : null,
   ].filter(Boolean) as string[];
 
   return (

@@ -1,4 +1,4 @@
-import { EventType } from '@lawfirm/shared';
+import { CaseStatus, EventType } from '@lawfirm/shared';
 import { Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
 import { bangkokDayKey, courtCloseAt } from './utils/bangkok-time';
@@ -23,12 +23,20 @@ export type LimitationDb = Pick<
  * when the case needs one, link cleared when it does not) and never throws.
  *
  * @returns the linked event id, or null when the case needs no reminder —
- *   no deadline, or already filed (a proceeding with a filing date, a black number or a judgment).
+ *   no deadline, case closed/archived/deleted, or already filed (the case has a black number,
+ *   or a proceeding with a filing date, a black number or a judgment).
  */
 export async function syncLimitationReminder(db: LimitationDb, caseId: string): Promise<string | null> {
   const legalCase = await db.case.findUnique({
     where: { id: caseId },
-    select: { limitationDeadline: true, limitationEventId: true, leadLawyerId: true },
+    select: {
+      limitationDeadline: true,
+      limitationEventId: true,
+      leadLawyerId: true,
+      blackCaseNumber: true,
+      status: true,
+      deletedAt: true,
+    },
   });
   if (!legalCase) return null;
 
@@ -45,7 +53,16 @@ export async function syncLimitationReminder(db: LimitationDb, caseId: string): 
       })
     : null;
 
-  if (!legalCase.limitationDeadline || filed > 0) {
+  // Nothing left to remind about: no deadline, closed/archived/deleted, or already filed
+  // (the case's own black number counts as well as a proceeding's).
+  const needsReminder =
+    !!legalCase.limitationDeadline &&
+    !legalCase.deletedAt &&
+    legalCase.status !== CaseStatus.CLOSED &&
+    legalCase.status !== CaseStatus.ARCHIVED &&
+    !legalCase.blackCaseNumber &&
+    filed === 0;
+  if (!legalCase.limitationDeadline || !needsReminder) {
     if (existing) await db.calendarEvent.delete({ where: { id: existing.id } });
     if (legalCase.limitationEventId) {
       await db.case.update({ where: { id: caseId }, data: { limitationEventId: null } });

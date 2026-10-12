@@ -82,11 +82,7 @@ export class InsuranceClaimsService {
     let incidentDate = claim.incidentDate;
     if (dto.incidentDate) {
       incidentDate = new Date(dto.incidentDate);
-      limitationEventId = await this.limitationDeadlineService.applyIncidentDate(
-        caseId,
-        incidentDate,
-        limitationEventId,
-      );
+      limitationEventId = await this.limitationDeadlineService.applyIncidentDate(caseId, incidentDate);
     }
 
     const updated = await this.prisma.insuranceClaim.update({

@@ -16,6 +16,9 @@ describe('syncLimitationReminder', () => {
     limitationDeadline: new Date('2027-03-01T00:00:00.000Z'),
     limitationEventId: null,
     leadLawyerId: 'lead-1',
+    blackCaseNumber: null,
+    status: 'OPEN',
+    deletedAt: null,
     ...over,
   });
 
@@ -112,5 +115,20 @@ describe('syncLimitationReminder', () => {
     expect(await syncLimitationReminder(d as never, 'case-1')).toBeNull();
     expect(d.calendarEvent.delete).not.toHaveBeenCalled();
     expect(d.case.update).toHaveBeenCalledWith({ where: { id: 'case-1' }, data: { limitationEventId: null } });
+  });
+
+  it.each([
+    ['closed', { status: 'CLOSED' }],
+    ['archived', { status: 'ARCHIVED' }],
+    ['soft-deleted', { deletedAt: new Date() }],
+    ['carrying its own black case number', { blackCaseNumber: 'ผบ.1/2570' }],
+  ])('removes the event for a case that is %s', async (_label, over) => {
+    const d = db();
+    d.case.findUnique.mockResolvedValue(caseRow({ limitationEventId: 'evt-1', ...over }));
+    d.calendarEvent.findUnique.mockResolvedValue({ id: 'evt-1', startAt: new Date() });
+
+    expect(await syncLimitationReminder(d as never, 'case-1')).toBeNull();
+    expect(d.calendarEvent.delete).toHaveBeenCalledWith({ where: { id: 'evt-1' } });
+    expect(d.calendarEvent.create).not.toHaveBeenCalled();
   });
 });

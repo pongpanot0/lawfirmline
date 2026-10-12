@@ -50,6 +50,7 @@ import {
 import { ConvertPortalSubmissionDto } from './dto/portal-submission.dto';
 import { CargoClaimsService } from '../cargo-claims/cargo-claims.service';
 import { syncLimitationReminder } from '../common/limitation-reminder';
+import { bangkokDayKey } from '../common/utils/bangkok-time';
 import { formatIntakeNotificationReference } from '../notifications/reference-label';
 
 export const DRAFT_NOTICE_COST = AI_CREDIT_COST.DRAFT_NOTICE;
@@ -1178,7 +1179,9 @@ export class IntakeService {
       title: 'เปิดคดี',
       at: newCase.openedAt,
     });
-    if (newCase.limitationDeadline) await syncLimitationReminder(this.prisma, newCase.id);
+    const limitationEventId = newCase.limitationDeadline
+      ? await syncLimitationReminder(this.prisma, newCase.id)
+      : null;
 
     if (this.cargoClaims && intake.preLitigationType === PreLitigationType.TRANSPORT) {
       await this.cargoClaims.attachCase(user, intake.id, newCase.id);
@@ -1270,7 +1273,11 @@ export class IntakeService {
       });
     }
 
-    if (intake.deadlineDate) {
+    // The ครบอายุความ event already covers the intake deadline when it falls on the same day.
+    if (
+      intake.deadlineDate &&
+      !this.limitationEventCovers(limitationEventId, newCase.limitationDeadline, intake.deadlineDate)
+    ) {
       await this.prisma.calendarEvent.create({
         data: {
           caseId: newCase.id,
@@ -1288,6 +1295,14 @@ export class IntakeService {
     });
 
     return newCase;
+  }
+
+  private limitationEventCovers(
+    eventId: string | null,
+    caseDeadline: Date | null | undefined,
+    intakeDeadline: Date,
+  ): boolean {
+    return !!eventId && !!caseDeadline && bangkokDayKey(caseDeadline) === bangkokDayKey(intakeDeadline);
   }
 
   private buildCaseDescription(intake: {
@@ -1338,7 +1353,7 @@ export class IntakeService {
         limitationDeadline: relatedCase.limitationDeadline ?? intake.deadlineDate ?? undefined,
       },
     });
-    await syncLimitationReminder(this.prisma, relatedCase.id);
+    const limitationEventId = await syncLimitationReminder(this.prisma, relatedCase.id);
 
     await this.prisma.intakePrecedentAnalysis.updateMany({
       where: { intakeId: intake.id },
@@ -1376,7 +1391,10 @@ export class IntakeService {
       });
     }
 
-    if (intake.deadlineDate) {
+    if (
+      intake.deadlineDate &&
+      !this.limitationEventCovers(limitationEventId, updatedCase.limitationDeadline, intake.deadlineDate)
+    ) {
       await this.prisma.calendarEvent.create({
         data: {
           caseId: relatedCase.id,
