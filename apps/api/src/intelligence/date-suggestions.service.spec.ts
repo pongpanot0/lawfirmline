@@ -225,6 +225,33 @@ describe('DateSuggestionsService', () => {
         ConflictException,
       );
     });
+
+    it('refuses in Thai so the phone can show the message as it is (D5)', async () => {
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue(null);
+      await expect(service.dismiss('case-1', 'sug-1', 'user-1')).rejects.toThrow('ไม่พบวันที่ที่ระบบเสนอนี้');
+
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue({ ...pending, status: DateSuggestionStatus.CONFIRMED });
+      await expect(service.dismiss('case-1', 'sug-1', 'user-1')).rejects.toThrow('วันที่นี้ถูกยืนยันหรือไม่ใช้ไปแล้ว');
+
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue({ ...pending, triggerEventId: 'trigger-1' });
+      await expect(service.confirm('case-1', 'sug-1', 'user-1', {})).rejects.toThrow('วันที่ที่ระบบเสนอเปลี่ยนแล้ว กรุณาตรวจอีกครั้ง');
+
+      const revision = new Date('2026-09-12T00:00:00.000Z');
+      mockPrisma.documentDateSuggestion.findUnique
+        .mockResolvedValueOnce({ ...pending, triggerEventId: 'trigger-1', updatedAt: revision })
+        .mockResolvedValueOnce({ ...pending, triggerEventId: 'trigger-2', updatedAt: revision });
+      await expect(service.confirm('case-1', 'sug-1', 'user-1', { expectedUpdatedAt: revision.toISOString() }))
+        .rejects.toThrow('นัดที่เป็นต้นเรื่องของวันนี้เปลี่ยนแล้ว กรุณาตรวจอีกครั้ง');
+
+      mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue({ ...pending, source: 'DOCUMENT' });
+      await expect(service.confirm('case-1', 'sug-1', 'user-1', {})).rejects.toThrow('เลือกทนายผู้รับผิดชอบวันนี้ก่อนยืนยัน');
+
+      mockPrisma.case.findUnique.mockResolvedValue({ firmId: 'firm-1' });
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      await expect(service.confirm('case-1', 'sug-1', 'user-1', { assigneeId: 'lawyer-2' }))
+        .rejects.toThrow('ทนายผู้รับผิดชอบไม่ได้อยู่ในสำนักงานนี้');
+      expect(mockCalendar.createInternal).not.toHaveBeenCalled();
+    });
   });
 
   describe('dismiss', () => {

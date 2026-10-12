@@ -3,10 +3,20 @@
  * Resolved on the server so a route change ships with the API instead of
  * waiting for an app-store release.
  */
+/** Web case tabs that have a matching section on the app's case screen (D6). */
+const CASE_SECTIONS = new Map([
+  ['calendar', 'deadlines'],
+  ['documents', 'documents'],
+  ['comments', 'comments'],
+]);
+
 export function toAppRoute(webPath: string): string | null {
-  const [path] = webPath.split(/[?#]/);
+  const [path, query = ''] = webPath.split('#')[0].split('?');
   const caseId = path.match(/^\/cases\/([0-9a-f-]{36})$/i)?.[1];
-  if (caseId) return `/case/${caseId}`;
+  if (caseId) {
+    const section = CASE_SECTIONS.get(new URLSearchParams(query).get('tab') ?? '');
+    return section ? `/case/${caseId}?section=${section}` : `/case/${caseId}`;
+  }
   const claimId = path.match(/^\/expenses\/claims?\/([0-9a-f-]{36})$/i)?.[1];
   if (claimId) return `/expenses/claim/${claimId}`;
   const eventId = path.match(/^\/court-day\/([0-9a-f-]{36})$/i)?.[1];

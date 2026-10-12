@@ -92,6 +92,18 @@ export interface MyDayResponse {
   upcoming: AgendaDay[];
   warnings: AgendaWarning[];
   reviewQueue: ReviewQueueItem[];
+  /** PENDING deadline suggestions on live cases the caller leads, one row per case (D1). */
+  pendingDeadlineConfirms: PendingDeadlineConfirm[];
+}
+
+/** One case's deadline suggestions waiting for the lead lawyer ("วันครบกำหนดรอยืนยัน"). */
+export interface PendingDeadlineConfirm {
+  caseId: string;
+  ownRef: string;
+  title: string;
+  count: number;
+  /** Earliest suggested date among the case's pending rows (ISO instant). */
+  nearestDate: string;
 }
 
 /** A task waiting for the caller's review ("รอฉันตรวจ"). */

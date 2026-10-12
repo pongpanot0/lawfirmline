@@ -44,10 +44,10 @@ export class DateSuggestionsService {
   private async findPendingOrThrow(caseId: string, id: string, db: Prisma.TransactionClient) {
     const suggestion = await db.documentDateSuggestion.findUnique({ where: { id } });
     if (!suggestion || suggestion.caseId !== caseId) {
-      throw new NotFoundException('Date suggestion not found');
+      throw new NotFoundException('ไม่พบวันที่ที่ระบบเสนอนี้');
     }
     if (suggestion.status !== DateSuggestionStatus.PENDING) {
-      throw new ConflictException('Date suggestion is no longer pending');
+      throw new ConflictException('วันที่นี้ถูกยืนยันหรือไม่ใช้ไปแล้ว');
     }
     return suggestion;
   }
@@ -62,10 +62,10 @@ export class DateSuggestionsService {
       const suggestion = await this.lockPending(caseId, id, db);
       if ((suggestion.triggerEventId && !overrides.expectedUpdatedAt) ||
           (overrides.expectedUpdatedAt && suggestion.updatedAt.toISOString() !== overrides.expectedUpdatedAt)) {
-        throw new ConflictException('Date suggestion changed; review it again');
+        throw new ConflictException('วันที่ที่ระบบเสนอเปลี่ยนแล้ว กรุณาตรวจอีกครั้ง');
       }
       if (suggestion.source === 'DOCUMENT' && !overrides.assigneeId) {
-        throw new BadRequestException('Select a responsible lawyer for this date');
+        throw new BadRequestException('เลือกทนายผู้รับผิดชอบวันนี้ก่อนยืนยัน');
       }
       if (overrides.assigneeId) {
         const legalCase = await db.case.findUnique({ where: { id: caseId }, select: { firmId: true } });
@@ -77,7 +77,7 @@ export class DateSuggestionsService {
           },
           select: { id: true },
         });
-        if (!assignee) throw new BadRequestException('Responsible lawyer is not in this firm');
+        if (!assignee) throw new BadRequestException('ทนายผู้รับผิดชอบไม่ได้อยู่ในสำนักงานนี้');
       }
       const event = await this.calendarService.createInternal({
         caseId,
@@ -108,7 +108,7 @@ export class DateSuggestionsService {
     await db.$queryRaw`SELECT "id" FROM "DocumentDateSuggestion" WHERE "id" = ${id} FOR UPDATE`;
     const current = await this.findPendingOrThrow(caseId, id, db);
     if (current.triggerEventId !== initial.triggerEventId) {
-      throw new ConflictException('Date suggestion source changed; review it again');
+      throw new ConflictException('นัดที่เป็นต้นเรื่องของวันนี้เปลี่ยนแล้ว กรุณาตรวจอีกครั้ง');
     }
     return current;
   }

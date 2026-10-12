@@ -9,6 +9,7 @@ import {
   AuthUser,
   EventType,
   MyDayResponse,
+  PendingDeadlineConfirm,
   TaskStatus,
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
@@ -94,10 +95,21 @@ export class AgendaService {
     const todayStart = bangkokDayStart(now);
     const horizonEnd = addBangkokDays(todayStart, UPCOMING_DAYS + 2);
 
-    const [overdueItems, aheadItems, reviewRows] = await Promise.all([
+    const [overdueItems, aheadItems, reviewRows, pendingDateRows] = await Promise.all([
       this.getOverdue(user, todayStart),
       this.getAgenda(user, todayStart, horizonEnd),
       this.prisma.task.findMany({ where: reviewQueueWhere(user), select: reviewQueueSelect, orderBy: reviewQueueOrder, take: 20 }),
+      // The push "วันครบกำหนดรอยืนยัน" goes to the case lead, so the home count is theirs too (D1).
+      this.prisma.documentDateSuggestion.findMany({
+        where: {
+          status: 'PENDING',
+          case: { AND: [this.caseAccess.getCaseFilterForUser(user), { leadLawyerId: user.id, status: { notIn: ['CLOSED', 'ARCHIVED'] } }] },
+        },
+        select: { caseId: true, suggestedDate: true, case: { select: { ownRef: true, title: true } } },
+        orderBy: [{ suggestedDate: 'asc' }, { id: 'asc' }],
+        // ponytail: a lead with more than 200 waiting dates sees a capped count; group in SQL if that ever happens.
+        take: 200,
+      }),
     ]);
 
     const todayKey = bangkokDayKey(now);
@@ -116,7 +128,26 @@ export class AgendaService {
     // the calls — a conflict five days out is not actionable this morning.
     const warnings = await this.buildWarnings(user, [...todayItems, ...tomorrow]);
 
-    return { today: todayKey, overdue: overdueItems, todayItems, tomorrow, upcoming, warnings, reviewQueue: reviewRows.map(toReviewQueueItem) };
+    return {
+      today: todayKey, overdue: overdueItems, todayItems, tomorrow, upcoming, warnings,
+      reviewQueue: reviewRows.map(toReviewQueueItem),
+      pendingDeadlineConfirms: this.groupPendingConfirms(pendingDateRows),
+    };
+  }
+
+  /** Rows arrive nearest date first, so the first row seen for a case carries its nearest date. */
+  private groupPendingConfirms(
+    rows: { caseId: string; suggestedDate: Date; case: { ownRef: string; title: string } }[],
+  ): PendingDeadlineConfirm[] {
+    const byCase = new Map<string, PendingDeadlineConfirm>();
+    for (const row of rows) {
+      const entry = byCase.get(row.caseId);
+      if (entry) entry.count += 1;
+      else byCase.set(row.caseId, {
+        caseId: row.caseId, ownRef: row.case.ownRef, title: row.case.title, count: 1, nearestDate: row.suggestedDate.toISOString(),
+      });
+    }
+    return [...byCase.values()];
   }
 
   /**
