@@ -44,6 +44,10 @@ export class LineQuickActionsService {
         const task = await this.tasks.acknowledge(id, user);
         return `รับทราบงาน "${task.title}" แล้วครับ`;
       }
+      case 'task:accept': {
+        const task = await this.tasks.acceptById(id, user);
+        return `✅ อนุมัติงาน "${task.title}" แล้วครับ`;
+      }
       case 'task:done': {
         const task = await this.tasks.assertAccess(id, user);
         if (task.assigneeId !== user.id) throw new ForbiddenException('ปิดงานจาก LINE ได้เฉพาะผู้รับผิดชอบ');

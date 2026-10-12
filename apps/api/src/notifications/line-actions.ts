@@ -7,10 +7,11 @@ import type { QuickReplyItem } from './line-messaging.service';
  * a permission.
  */
 export const lineActions = {
-  task(taskId: string, opts: { canComplete: boolean }): QuickReplyItem[] {
+  task(taskId: string, opts: { canComplete: boolean; canHandoff?: boolean }): QuickReplyItem[] {
     return [
       { label: '👍 รับทราบ', text: 'รับทราบงาน', data: `task:ack:${taskId}` },
       ...(opts.canComplete ? [{ label: '✅ เสร็จแล้ว', text: 'งานเสร็จแล้ว', data: `task:done:${taskId}` }] : []),
+      ...(opts.canHandoff ? [{ label: '📤 ส่งตรวจ', text: 'ส่งงานให้ตรวจ', data: `task:handoff:${taskId}` }] : []),
     ];
   },
   taskDone(taskId: string): QuickReplyItem[] {

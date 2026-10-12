@@ -23,6 +23,7 @@ import { LineQuickActionsService } from './line-conversation/line-quick-actions.
 import { LineQueryService } from './line-conversation/line-query.service';
 import { LineCaseFlowService } from './line-conversation/flows/line-case-flow.service';
 import { LineTaskFlowService } from './line-conversation/flows/line-task-flow.service';
+import { LineTaskReviewFlowService } from './line-conversation/flows/line-task-review-flow.service';
 import { LineTodoFlowService } from './line-conversation/flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './line-conversation/flows/line-expense-flow.service';
 import { LineAdvanceFlowService } from './line-conversation/flows/line-advance-flow.service';
@@ -75,6 +76,7 @@ import { CalendarModule } from '../calendar/calendar.module';
     LineCaseFlowService,
     LineTaskFlowService,
     LineTodoFlowService,
+    LineTaskReviewFlowService,
     LineExpenseFlowService,
     LineAdvanceFlowService,
     LineLeaveFlowService,

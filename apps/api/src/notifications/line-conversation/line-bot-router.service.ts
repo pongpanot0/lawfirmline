@@ -11,6 +11,7 @@ import { LineTaskFlowService } from './flows/line-task-flow.service';
 import { LineTodoFlowService } from './flows/line-todo-flow.service';
 import { LineExpenseFlowService } from './flows/line-expense-flow.service';
 import { LineAdvanceFlowService } from './flows/line-advance-flow.service';
+import { LineTaskReviewFlowService, REVIEW_NOTE_ACTION } from './flows/line-task-review-flow.service';
 import { LineLeaveFlowService } from './flows/line-leave-flow.service';
 import { LineQuickActionsService } from './line-quick-actions.service';
 import { CASE_SEARCH_COMMAND, LineQueryService, OPEN_TASKS_COMMAND, QueryReply } from './line-query.service';
@@ -50,6 +51,7 @@ export class LineBotRouterService {
     private leaveFlow: LineLeaveFlowService,
     private quickActions: LineQuickActionsService,
     private query: LineQueryService,
+    private reviewFlow: LineTaskReviewFlowService,
   ) {}
 
   async route(
@@ -75,6 +77,16 @@ export class LineBotRouterService {
 
     // A notification button (approve, acknowledge, done…) works from any chat
     // state and never starts or disturbs a flow.
+    const reviewNote = REVIEW_NOTE_ACTION.exec(text);
+    if (reviewNote) {
+      const session = this.store.start({
+        lineUserId, userId: authUser.id, firmId: authUser.firmId,
+        flowType: FlowType.TASK_REVIEW, step: ConversationStep.SELECT_ACTION, data: {}, target,
+      });
+      await this.reviewFlow.begin(session, reviewNote[1].toLowerCase() as 'handoff' | 'reject', reviewNote[2]);
+      return;
+    }
+
     const actionReply = await this.quickActions.handle(authUser, text);
     if (actionReply !== null) {
       await this.reply(lineUserId, target, { text: actionReply });
@@ -178,6 +190,7 @@ export class LineBotRouterService {
     if (existing.flowType === FlowType.TODO) return this.todoFlow.handle(updated, text);
     if (existing.flowType === FlowType.EXPENSE) return this.expenseFlow.handle(updated, text);
     if (existing.flowType === FlowType.ADVANCE) return this.advanceFlow.handle(updated, text);
+    if (existing.flowType === FlowType.TASK_REVIEW) return this.reviewFlow.handle(updated, text);
     if (existing.flowType === FlowType.LEAVE) return this.leaveFlow.handle(updated, text);
   }
 
@@ -240,6 +253,8 @@ export class LineBotRouterService {
         return this.advanceFlow.start(session);
       case FlowType.LEAVE:
         return this.leaveFlow.start(session, command);
+      case FlowType.TASK_REVIEW:
+        throw new Error('TASK_REVIEW starts from a postback, not a menu command');
     }
   }
 

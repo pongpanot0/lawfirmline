@@ -166,6 +166,24 @@ export class TasksService {
     return seen.filter((id): id is string => !!id);
   }
 
+  /** LINE knows only a task id; route to the case or standalone review action the web uses. */
+  async handoffById(taskId: string, user: AuthUser, note: string) {
+    const task = await this.assertAccess(taskId, user);
+    if (task.caseId) return this.handoff(task.caseId, taskId, user, { note });
+    if (!task.reviewerId) throw new BadRequestException('งานนี้ยังไม่ได้เลือกผู้ตรวจ ส่งตรวจจากแอปหรือเว็บแทน');
+    return this.handoffStandalone(taskId, user, { reviewerId: task.reviewerId, note });
+  }
+
+  async acceptById(taskId: string, user: AuthUser) {
+    const task = await this.assertAccess(taskId, user);
+    return task.caseId ? this.accept(task.caseId, taskId, user) : this.acceptStandalone(taskId, user);
+  }
+
+  async rejectById(taskId: string, user: AuthUser, reason: string) {
+    const task = await this.assertAccess(taskId, user);
+    return task.caseId ? this.reject(task.caseId, taskId, user, { reason }) : this.rejectStandalone(taskId, user, { reason });
+  }
+
   async assertAccess(taskId: string, user: AuthUser) {
     const task = await this.prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundException('Task not found');
@@ -666,7 +684,7 @@ export class TasksService {
         entityPath: caseId ? `/cases/${caseId}` : '/todos',
         appPath: taskAppRoute(task.id),
         lineActions: (userId) => userId === task.assigneeId
-          ? lineActions.task(task.id, { canComplete: canCompleteFromLine(task) }) : undefined,
+          ? lineActions.task(task.id, { canComplete: canCompleteFromLine(task), canHandoff: !!task.requiresReview }) : undefined,
       });
     }
 
@@ -780,7 +798,7 @@ export class TasksService {
         summaryText: await this.taskAssignmentSummary(task.title, task.caseId, task.intakeId),
         entityPath: task.caseId ? `/cases/${task.caseId}` : '/todos',
         appPath: taskAppRoute(task.id),
-        lineActions: () => lineActions.task(task.id, { canComplete: canCompleteFromLine(updated) }),
+        lineActions: () => lineActions.task(task.id, { canComplete: canCompleteFromLine(updated), canHandoff: !!updated.requiresReview }),
       });
     }
     if (dto.assigneeId && dto.assigneeId !== task.assigneeId) {
@@ -1172,7 +1190,7 @@ export class TasksService {
         summaryText: await this.taskAssignmentSummary(task.title, caseId, task.intakeId),
         entityPath: `/cases/${caseId}`,
         appPath: taskAppRoute(taskId),
-        lineActions: () => lineActions.task(taskId, { canComplete: canCompleteFromLine(task) }),
+        lineActions: () => lineActions.task(taskId, { canComplete: canCompleteFromLine(task), canHandoff: !!task.requiresReview }),
       });
     }
     await this.notifyPreviousAssignee(task, task.assigneeId, dto.assigneeId, user);

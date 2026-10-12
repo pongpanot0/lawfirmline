@@ -58,6 +58,7 @@ describe('LineBotRouter — menu commands never get eaten by a flow', () => {
       { start: jest.fn(), handle: jest.fn() } as any,
       { handle: jest.fn().mockResolvedValue(null) } as any,
       { caseQuery: jest.fn().mockReturnValue(null), openTasks: jest.fn(), findCase: jest.fn() } as any,
+      { begin: jest.fn(), handle: jest.fn() } as any,
     );
   });
 
