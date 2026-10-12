@@ -395,6 +395,12 @@ export function CaseDocumentsPanel({ caseId }: { caseId: string }) {
                   <CalendarSearch className="h-3.5 w-3.5" />
                   {extractingId === doc.id ? d.caseDocuments.extracting : d.caseDocuments.extractDates}
                 </button>
+                {/* Everyone sees whether the client can see it; only content managers change it. */}
+                {!canManageContent && doc.visibleToClient && (
+                  <span className="inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                    {d.caseDocuments.visibleToClient}
+                  </span>
+                )}
                 {canManageContent && <>
                 <button
                   type="button"
