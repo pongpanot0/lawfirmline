@@ -25,7 +25,7 @@ export interface CaseOverviewValues {
   clientId: string; clientName: string; customers: CaseOverviewCustomerValue[];
 }
 
-export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts, clients, onClientCreated, saving, error, onSave, onCancel }: {
+export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts, clients, onClientCreated, saving, error, onSave, onCancel, onLimitationIncompleteChange }: {
   value: CaseOverviewValues;
   onChange: (value: CaseOverviewValues) => void;
   legalCase: CaseDetail;
@@ -37,6 +37,8 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
   error: string;
   onSave: () => void;
   onCancel: () => void;
+  /** true while the limitation date is half typed or impossible — the page blocks saving then. */
+  onLimitationIncompleteChange?: (incomplete: boolean) => void;
 }) {
   const set = (key: Exclude<keyof CaseOverviewValues, 'customers' | 'additionalClientIds'>, next: string) => onChange({ ...value, [key]: next });
   const input = 'mt-1 min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -56,7 +58,7 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
         <label className="text-sm">ฝ่ายที่สำนักงานเป็นทนายให้<select value={value.partyRole} onChange={e => set('partyRole', e.target.value)} className={input}><option value="">ยังไม่ระบุ</option>{Object.values(PartyRole).map(role => <option key={role} value={role}>{PARTY_ROLE_LABELS[role]}</option>)}</select></label>
         <label className="text-sm sm:col-span-2">ข้อหาหรือฐานความผิด<textarea rows={2} maxLength={2000} value={value.chargeSection} onChange={e => set('chargeSection', e.target.value)} placeholder="เช่น ละเมิด เรียกค่าเสียหาย / ผิดสัญญา" className={input} /><span className="mt-1 block text-xs text-muted-foreground">ระบุเรื่องที่ฟ้องหรือฐานความผิด ใช้ในคำฟ้องหน้าแรกและปกสำนวน</span></label>
         <label className="text-sm sm:col-span-2">รายละเอียดและข้อเท็จจริงคดี<textarea rows={4} value={value.description} onChange={e => set('description', e.target.value)} placeholder="สรุปเหตุการณ์และประเด็นสำคัญของคดี" className={input} /></label>
-        <div className="text-sm">วันครบอายุความ<ThaiDateInput id="overview-limitation-deadline" className="mt-1" value={value.limitationDeadline} onChange={next => set('limitationDeadline', next)} /><span className="mt-1 block text-xs text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน · คู่ความแก้ที่ส่วน &quot;คู่ความและผู้เกี่ยวข้อง&quot;</span></div>
+        <div role="group" aria-labelledby="overview-limitation-label" className="text-sm"><span id="overview-limitation-label">วันครบอายุความ</span><ThaiDateInput id="overview-limitation-deadline" className="mt-1" value={value.limitationDeadline} onChange={next => set('limitationDeadline', next)} onIncompleteChange={onLimitationIncompleteChange} /><span className="mt-1 block text-xs text-muted-foreground">ระบบเตือนก่อนครบ 90 / 30 / 7 / 1 วัน · คู่ความแก้ที่ส่วน &quot;คู่ความและผู้เกี่ยวข้อง&quot;</span></div>
         <label className="text-sm">วันเกิดเหตุ<input type="date" value={value.incidentDate.slice(0, 10)} onChange={e => set('incidentDate', e.target.value)} className={input} /></label>
       </section>
       <section className={group} aria-labelledby="case-people-heading">
@@ -73,7 +75,7 @@ export function CaseOverviewForm({ value, onChange, legalCase, caseTypes, courts
               <select aria-label={`ลูกความเพิ่มเติมรายที่ ${index + 1}`} value={clientId}
                 onChange={e => onChange({ ...value, additionalClientIds: value.additionalClientIds.map((id, i) => i === index ? e.target.value : id) })} className={input}>
                 <option value="">เลือกลูกความ</option>
-                {clients.filter(client => client.id !== value.clientId).map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                {clients.filter(client => client.id !== value.clientId && (client.id === clientId || !value.additionalClientIds.includes(client.id))).map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
               </select>
               <Button type="button" variant="ghost" size="icon" aria-label={`ลบลูกความเพิ่มเติมรายที่ ${index + 1}`}
                 onClick={() => onChange({ ...value, additionalClientIds: value.additionalClientIds.filter((_, i) => i !== index) })}><X className="h-4 w-4" /></Button>

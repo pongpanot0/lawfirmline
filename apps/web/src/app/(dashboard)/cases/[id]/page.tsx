@@ -48,7 +48,7 @@ import {
   PARTY_ROLE_LABELS,
   type PartyRole,
 } from '@lawfirm/shared';
-import { bangkokDayToIso } from '@/lib/case-create';
+import { additionalClientsPatch, limitationPatch } from '@/lib/case-overview';
 import {
   CASE_TAB_IDS,
   CASE_TAB_LABELS,
@@ -191,6 +191,7 @@ export default function CaseDetailPage() {
   const [showAllTimeline, setShowAllTimeline] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingOverview, setEditingOverview] = useState(false);
+  const [limitationIncomplete, setLimitationIncomplete] = useState(false);
   const [savingOverview, setSavingOverview] = useState(false);
   const [overviewError, setOverviewError] = useState('');
   const [caseTypes, setCaseTypes] = useState<CaseTypeItem[]>([]);
@@ -603,6 +604,7 @@ export default function CaseDetailPage() {
         : [{ customerId: '', contactId: '', sharePercent: '', isPrimary: true, note: '' }],
     });
     setOverviewError('');
+    setLimitationIncomplete(false);
     setEditingOverview(true);
     if (token) {
       Promise.all([
@@ -629,6 +631,11 @@ export default function CaseDetailPage() {
     }
     if (!overviewForm.ownRef.trim()) {
       setOverviewError('กรุณากรอกเลขอ้างอิงสำนักงาน');
+      return;
+    }
+    // A half-typed date reads as '' — saving it would clear the stored deadline and its reminders.
+    if (limitationIncomplete) {
+      setOverviewError('กรอกวันครบอายุความให้ครบ (วัน/เดือน/ปี พ.ศ.) หรือเว้นว่างทั้งหมด');
       return;
     }
     setSavingOverview(true);
@@ -659,8 +666,12 @@ export default function CaseDetailPage() {
         courtLevel: overviewForm.courtLevel || null,
         courtName: overviewForm.courtName.trim() || null,
         partyRole: overviewForm.partyRole || null,
-        limitationDeadline: overviewForm.limitationDeadline ? bangkokDayToIso(overviewForm.limitationDeadline) : null,
-        clients: overviewForm.additionalClientIds.filter(Boolean).map((clientId) => ({ clientId })),
+        // Sent only when changed: the API acts on presence (reminder re-sync, rebuilding client rows).
+        ...limitationPatch(
+          overviewForm.limitationDeadline,
+          legalCase.limitationDeadline ? bangkokDateInputValue(legalCase.limitationDeadline) : '',
+        ),
+        ...additionalClientsPatch(overviewForm.additionalClientIds, legalCase.additionalClients ?? [], overviewForm.clientId),
         estimatedFee,
         claimedAmount: overviewForm.claimedAmount.trim() ? Number(overviewForm.claimedAmount) : null,
         customFields: {
@@ -671,8 +682,10 @@ export default function CaseDetailPage() {
         },
         description: overviewForm.description.trim() || null,
       }) as CaseDetail;
-      setCase((current) => ({ ...updated, participants: updated.participants ?? current?.participants }));
+      // Merge, then reload: update() returns a thinner object than getCase (calendarEvents, contacts, ...).
+      setCase((current) => (current ? { ...current, ...updated } : updated));
       setEditingOverview(false);
+      loadCase();
     } catch (err) {
       setOverviewError(err instanceof ApiError ? err.message : 'บันทึกไม่สำเร็จ');
     } finally {
@@ -1145,7 +1158,7 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-calendar"
           className="min-w-0"
         >
-          <CaseCalendarPanel caseId={id} />
+          <CaseCalendarPanel caseId={id} onChanged={loadCase} />
         </div>
       )}
 
@@ -1259,6 +1272,7 @@ export default function CaseDetailPage() {
                   error={overviewError}
                   onSave={handleSaveOverview}
                   onCancel={() => setEditingOverview(false)}
+                  onLimitationIncompleteChange={setLimitationIncomplete}
                 />
               ) : (
                 <>

@@ -17,7 +17,7 @@ import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
 import { PageLoading } from '@/components/ui/misc';
 
-export function CaseCalendarPanel({ caseId }: { caseId: string }) {
+export function CaseCalendarPanel({ caseId, onChanged }: { caseId: string; onChanged?: () => void }) {
   const d = useDashboardT();
   const requestedEvent = useSearchParams().get('eventId');
   const { token } = useAuth();
@@ -197,7 +197,7 @@ export function CaseCalendarPanel({ caseId }: { caseId: string }) {
         source="RULE"
         title={d.dateSuggestions.ruleTitle}
         reloadKey={suggestionsKey}
-        onChanged={() => setReloadKey((n) => n + 1)}
+        onChanged={() => { setReloadKey((n) => n + 1); onChanged?.(); }}
       />
 
       {dialog && (
