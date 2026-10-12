@@ -231,7 +231,7 @@ describe('DateSuggestionsService', () => {
       await expect(service.dismiss('case-1', 'sug-1', 'user-1')).rejects.toThrow('ไม่พบวันที่ที่ระบบเสนอนี้');
 
       mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue({ ...pending, status: DateSuggestionStatus.CONFIRMED });
-      await expect(service.dismiss('case-1', 'sug-1', 'user-1')).rejects.toThrow('วันที่นี้ถูกยืนยันหรือไม่ใช้ไปแล้ว');
+      await expect(service.dismiss('case-1', 'sug-1', 'user-1')).rejects.toThrow('วันที่นี้ถูกยืนยันหรือเลิกใช้แล้ว');
 
       mockPrisma.documentDateSuggestion.findUnique.mockResolvedValue({ ...pending, triggerEventId: 'trigger-1' });
       await expect(service.confirm('case-1', 'sug-1', 'user-1', {})).rejects.toThrow('วันที่ที่ระบบเสนอเปลี่ยนแล้ว กรุณาตรวจอีกครั้ง');

@@ -95,22 +95,25 @@ export class AgendaService {
     const todayStart = bangkokDayStart(now);
     const horizonEnd = addBangkokDays(todayStart, UPCOMING_DAYS + 2);
 
-    const [overdueItems, aheadItems, reviewRows, pendingDateRows] = await Promise.all([
+    const [overdueItems, aheadItems, reviewRows, pendingDateGroups] = await Promise.all([
       this.getOverdue(user, todayStart),
       this.getAgenda(user, todayStart, horizonEnd),
       this.prisma.task.findMany({ where: reviewQueueWhere(user), select: reviewQueueSelect, orderBy: reviewQueueOrder, take: 20 }),
       // The push "วันครบกำหนดรอยืนยัน" goes to the case lead, so the home count is theirs too (D1).
-      this.prisma.documentDateSuggestion.findMany({
+      // Counted in SQL: an exact number however many dates wait.
+      this.prisma.documentDateSuggestion.groupBy({
+        by: ['caseId'],
         where: {
           status: 'PENDING',
           case: { AND: [this.caseAccess.getCaseFilterForUser(user), { leadLawyerId: user.id, status: { notIn: ['CLOSED', 'ARCHIVED'] } }] },
         },
-        select: { caseId: true, suggestedDate: true, case: { select: { ownRef: true, title: true } } },
-        orderBy: [{ suggestedDate: 'asc' }, { id: 'asc' }],
-        // ponytail: a lead with more than 200 waiting dates sees a capped count; group in SQL if that ever happens.
-        take: 200,
+        _count: { _all: true },
+        _min: { suggestedDate: true },
       }),
     ]);
+    const pendingCases = pendingDateGroups.length
+      ? await this.prisma.case.findMany({ where: { id: { in: pendingDateGroups.map((group) => group.caseId) } }, select: { id: true, ownRef: true, title: true } })
+      : [];
 
     const todayKey = bangkokDayKey(now);
     const tomorrowKey = bangkokDayKey(addBangkokDays(todayStart, 1));
@@ -131,23 +134,26 @@ export class AgendaService {
     return {
       today: todayKey, overdue: overdueItems, todayItems, tomorrow, upcoming, warnings,
       reviewQueue: reviewRows.map(toReviewQueueItem),
-      pendingDeadlineConfirms: this.groupPendingConfirms(pendingDateRows),
+      pendingDeadlineConfirms: this.groupPendingConfirms(pendingDateGroups, pendingCases),
     };
   }
 
-  /** Rows arrive nearest date first, so the first row seen for a case carries its nearest date. */
+  /** One entry per case, nearest waiting date first. */
   private groupPendingConfirms(
-    rows: { caseId: string; suggestedDate: Date; case: { ownRef: string; title: string } }[],
+    groups: { caseId: string; _count: { _all: number }; _min: { suggestedDate: Date | null } }[],
+    cases: { id: string; ownRef: string; title: string }[],
   ): PendingDeadlineConfirm[] {
-    const byCase = new Map<string, PendingDeadlineConfirm>();
-    for (const row of rows) {
-      const entry = byCase.get(row.caseId);
-      if (entry) entry.count += 1;
-      else byCase.set(row.caseId, {
-        caseId: row.caseId, ownRef: row.case.ownRef, title: row.case.title, count: 1, nearestDate: row.suggestedDate.toISOString(),
-      });
-    }
-    return [...byCase.values()];
+    const byId = new Map(cases.map((item) => [item.id, item]));
+    return groups
+      .filter((group) => byId.has(group.caseId) && group._min.suggestedDate)
+      .map((group) => {
+        const legalCase = byId.get(group.caseId)!;
+        return {
+          caseId: group.caseId, ownRef: legalCase.ownRef, title: legalCase.title,
+          count: group._count._all, nearestDate: group._min.suggestedDate!.toISOString(),
+        };
+      })
+      .sort((a, b) => a.nearestDate.localeCompare(b.nearestDate));
   }
 
   /**

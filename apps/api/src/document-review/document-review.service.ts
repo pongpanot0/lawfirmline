@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, FirmRole } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { DocumentVersionStatus, NotificationCategory, Prisma, ReviewDecisionType, ReviewRoundStatus } from '../generated/prisma';
+import { CaseStatus, DocumentVersionStatus, NotificationCategory, Prisma, ReviewDecisionType, ReviewRoundStatus } from '../generated/prisma';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { formatBangkokDateThai } from '../common/utils/bangkok-time';
@@ -99,7 +99,7 @@ export class DocumentReviewService {
         reviewerIds: { has: user.id },
         decisions: { none: { reviewerId: user.id } },
         documentVersion: {
-          document: { case: { AND: [this.caseAccess.getCaseFilterForUser(user), { status: { notIn: ['CLOSED', 'ARCHIVED'] } }] } },
+          document: { case: { AND: [this.caseAccess.getCaseFilterForUser(user), { status: { notIn: [CaseStatus.CLOSED, CaseStatus.ARCHIVED] } }] } },
         },
       },
       include: summaryInclude,

@@ -47,7 +47,7 @@ export class DateSuggestionsService {
       throw new NotFoundException('ไม่พบวันที่ที่ระบบเสนอนี้');
     }
     if (suggestion.status !== DateSuggestionStatus.PENDING) {
-      throw new ConflictException('วันที่นี้ถูกยืนยันหรือไม่ใช้ไปแล้ว');
+      throw new ConflictException('วันที่นี้ถูกยืนยันหรือเลิกใช้แล้ว');
     }
     return suggestion;
   }

@@ -40,7 +40,8 @@ describe('AgendaService', () => {
   const mockPrisma = {
     calendarEvent: { findMany: jest.fn() },
     task: { findMany: jest.fn() },
-    documentDateSuggestion: { findMany: jest.fn() },
+    documentDateSuggestion: { groupBy: jest.fn() },
+    case: { findMany: jest.fn() },
   };
 
   /**
@@ -87,7 +88,8 @@ describe('AgendaService', () => {
     jest.useFakeTimers().setSystemTime(NOW);
     setEvents([]);
     setTasks([]);
-    mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([]);
+    mockPrisma.documentDateSuggestion.groupBy.mockResolvedValue([]);
+    mockPrisma.case.findMany.mockResolvedValue([]);
     mockCaseAccess.getCaseFilterForUser.mockReturnValue({ firmId: 'firm-1' });
     mockCaseAccess.getTaskFilterForUser.mockReturnValue({ assigneeId: 'user-1' });
     mockTravel.getOfficeAddress.mockResolvedValue('สำนักงาน');
@@ -336,27 +338,31 @@ describe('AgendaService', () => {
   it('my-day counts PENDING deadline suggestions per live case the caller leads, nearest date first (D1)', async () => {
     mockPrisma.calendarEvent.findMany.mockResolvedValue([]);
     mockPrisma.task.findMany.mockResolvedValue([]);
-    // Prisma returns them nearest first (orderBy suggestedDate asc).
-    mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([
-      { caseId: 'case-1', suggestedDate: new Date('2026-09-20T09:30:00Z'), case: { ownRef: 'C-001', title: 'คดีหนึ่ง' } },
-      { caseId: 'case-2', suggestedDate: new Date('2026-09-25T09:30:00Z'), case: { ownRef: 'C-002', title: 'คดีสอง' } },
-      { caseId: 'case-1', suggestedDate: new Date('2026-10-01T09:30:00Z'), case: { ownRef: 'C-001', title: 'คดีหนึ่ง' } },
+    // Counted in SQL, so a lead with hundreds of waiting dates still gets the exact number.
+    mockPrisma.documentDateSuggestion.groupBy.mockResolvedValue([
+      { caseId: 'case-2', _count: { _all: 1 }, _min: { suggestedDate: new Date('2026-09-25T09:30:00Z') } },
+      { caseId: 'case-1', _count: { _all: 250 }, _min: { suggestedDate: new Date('2026-09-20T09:30:00Z') } },
+    ]);
+    mockPrisma.case.findMany.mockResolvedValue([
+      { id: 'case-1', ownRef: 'C-001', title: 'คดีหนึ่ง' },
+      { id: 'case-2', ownRef: 'C-002', title: 'คดีสอง' },
     ]);
 
     const day = await service.getMyDay(user);
 
     expect(day.pendingDeadlineConfirms).toEqual([
-      { caseId: 'case-1', ownRef: 'C-001', title: 'คดีหนึ่ง', count: 2, nearestDate: '2026-09-20T09:30:00.000Z' },
+      { caseId: 'case-1', ownRef: 'C-001', title: 'คดีหนึ่ง', count: 250, nearestDate: '2026-09-20T09:30:00.000Z' },
       { caseId: 'case-2', ownRef: 'C-002', title: 'คดีสอง', count: 1, nearestDate: '2026-09-25T09:30:00.000Z' },
     ]);
-    const query = mockPrisma.documentDateSuggestion.findMany.mock.calls[0][0];
+    const query = mockPrisma.documentDateSuggestion.groupBy.mock.calls[0][0];
     // Only rows still waiting (a confirmed one must never be counted), only live cases the caller leads,
     // and never outside the caller's case filter (firm + soft-delete).
+    expect(query.by).toEqual(['caseId']);
     expect(query.where).toEqual({
       status: 'PENDING',
       case: { AND: [{ firmId: 'firm-1' }, { leadLawyerId: 'user-1', status: { notIn: ['CLOSED', 'ARCHIVED'] } }] },
     });
-    expect(query.orderBy).toEqual([{ suggestedDate: 'asc' }, { id: 'asc' }]);
+    expect(mockPrisma.case.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['case-2', 'case-1'] } });
   });
 
   it('my-day returns an empty deadline list when nothing waits', async () => {

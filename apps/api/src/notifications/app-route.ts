@@ -1,8 +1,3 @@
-/**
- * The mobile route for a web path, or null when the app has no screen for it.
- * Resolved on the server so a route change ships with the API instead of
- * waiting for an app-store release.
- */
 /** Web case tabs that have a matching section on the app's case screen (D6). */
 const CASE_SECTIONS = new Map([
   ['calendar', 'deadlines'],
@@ -10,6 +5,11 @@ const CASE_SECTIONS = new Map([
   ['comments', 'comments'],
 ]);
 
+/**
+ * The mobile route for a web path, or null when the app has no screen for it.
+ * Resolved on the server so a route change ships with the API instead of
+ * waiting for an app-store release.
+ */
 export function toAppRoute(webPath: string): string | null {
   const [path, query = ''] = webPath.split('#')[0].split('?');
   const caseId = path.match(/^\/cases\/([0-9a-f-]{36})$/i)?.[1];
