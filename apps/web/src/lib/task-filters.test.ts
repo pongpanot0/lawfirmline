@@ -50,3 +50,7 @@ test('filters combine with AND', () => {
 test('collectTaskLabels returns unique labels sorted', () => {
   assert.deepEqual(collectTaskLabels(tasks), ['ศาล', 'เอกสาร']);
 });
+
+test('collectTaskLabels hides internal stage/playbook labels', () => {
+  assert.deepEqual(collectTaskLabels([{ title: 't', status: 'TODO', labels: ['stage:FILING', 'playbook:abc', 'ด่วน'] }]), ['ด่วน']);
+});

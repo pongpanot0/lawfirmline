@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canSetReviewRequirements, handoffNoteError, isHeld, reviewerName, submittedByMe } from './task-review-view.ts';
+import { canHoldStatus, canSetReviewRequirements, handoffNoteError, isHeld, reviewerName, submittedByMe } from './task-review-view.ts';
 
 const person = (id: string, firstName: string) => ({ id, firstName, lastName: 'ส.' });
 
@@ -31,4 +31,15 @@ test('only owner and senior lawyer may change review requirements', () => {
   assert.equal(canSetReviewRequirements('SENIOR_LAWYER'), true);
   assert.equal(canSetReviewRequirements('OFFICE_MANAGER'), false);
   assert.equal(canSetReviewRequirements(undefined), false);
+});
+
+test('a case task with no named reviewer names the lead from its own case', () => {
+  assert.equal(reviewerName({ reviewer: null, case: { leadLawyer: person('lead', 'หัวหน้า') } } as any, null), 'หัวหน้า ส.');
+  assert.equal(reviewerName({ reviewer: person('r', 'สมศรี'), case: { leadLawyer: person('lead', 'หัวหน้า') } } as any), 'สมศรี ส.');
+});
+
+test('done or pending-review work cannot be put on hold', () => {
+  assert.equal(canHoldStatus('IN_PROGRESS'), true);
+  assert.equal(canHoldStatus('DONE'), false);
+  assert.equal(canHoldStatus('PENDING_REVIEW'), false);
 });

@@ -283,7 +283,7 @@ function TodosPageContent() {
     { key: 'all', label: text('งานที่ยังไม่เสร็จ', 'Open tasks'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE).length },
     { key: 'overdue', label: text('เลยกำหนด', 'Overdue'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) < today).length },
     { key: 'today', label: text('ส่งวันนี้', 'Due today'), count: scopedTasks.filter(task => task.status !== TaskStatus.DONE && task.dueDate && bangkokDateInputValue(task.dueDate) === today).length },
-    { key: 'review', label: text('รอตรวจ', 'Awaiting review'), count: scopedTasks.filter(task => awaitsReviewBy(task, user?.id ?? '')).length },
+    { key: 'review', label: text('รอตรวจ', 'Awaiting review'), count: scopedTasks.filter(task => task.status === TaskStatus.PENDING_REVIEW).length },
   ];
   const quickView = filters.status === TaskStatus.PENDING_REVIEW ? 'review' : filters.due === 'overdue' || filters.due === 'today' ? filters.due : !filters.status && !filters.due && !includeCompleted ? 'all' : '';
   const statusLabels: Record<TaskStatus, string> = {

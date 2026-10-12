@@ -753,7 +753,7 @@ export interface TaskItem {
   acknowledgedAt?: string | null;
   planConfirmedAt?: string | null;
   caseId?: string | null;
-  case?: { id: string; ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null; leadLawyerId?: string } | null;
+  case?: { id: string; ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null; leadLawyerId?: string; leadLawyer?: TaskPerson | null } | null;
   parentId?: string | null;
   title: string;
   description?: string | null;

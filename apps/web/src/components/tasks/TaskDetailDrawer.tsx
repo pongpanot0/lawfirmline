@@ -6,7 +6,7 @@ import { X, Trash2, Download } from 'lucide-react';
 import { canActOnReview, canDelegateTask, FirmRole, hasFirmCapability, isEligibleReviewer, normalizeTaskLabels, TASK_WORK_TYPES, TaskLogAction, TaskPriority, TaskStatus, taskStageChip, visibleTaskLabels } from '@lawfirm/shared';
 import { getMentionContext, mentionedIdsIn } from '@/lib/mentions';
 import { ON_HOLD_CATEGORY_LABEL } from '@/lib/on-hold';
-import { canSetReviewRequirements, handoffNoteError, isHeld, reviewerName } from '@/lib/task-review-view';
+import { canHoldStatus, canSetReviewRequirements, handoffNoteError, isHeld, reviewerName } from '@/lib/task-review-view';
 import { api, ApiError, TaskDetail, UserItem } from '@/lib/api';
 import { formatBytes, downloadTaskAttachment, priorityLabel } from '@/lib/task-detail';
 import { useAuth } from '@/lib/auth';
@@ -288,7 +288,7 @@ export function TaskDetailDrawer({ taskId, users, onClose, onChanged, onNavigate
   // ponytail: mentions match on the first name only; two people sharing a first name are both notified.
   const mentionCtx = getMentionContext(comment, commentCursor);
   const mentionMatches = mentionCtx ? users.filter((u) => `${u.firstName} ${u.lastName}`.toLowerCase().includes(mentionCtx.query)).slice(0, 6) : [];
-  const canHold = !!user && !!task?.caseId && (task.assignee?.id === user.id || task.case?.leadLawyerId === user.id || hasFirmCapability(user.firmRole, 'runOperations'));
+  const canHold = !!user && !!task?.caseId && canHoldStatus(task.status) && (task.assignee?.id === user.id || task.case?.leadLawyerId === user.id || hasFirmCapability(user.firmRole, 'runOperations'));
   const canReview = !!user && !!task && canActOnReview({ status: task.status, reviewerId: task.reviewerId, assigneeId: task.assignee?.id, caseId: task.caseId, leadLawyerId: task.case?.leadLawyerId }, user.id, user.firmRole);
   const statusOptions = task?.requiresReview ? STATUS_OPTIONS.filter((s) => s !== TaskStatus.DONE) : STATUS_OPTIONS;
 

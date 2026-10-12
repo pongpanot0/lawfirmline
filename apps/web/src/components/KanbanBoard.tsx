@@ -11,7 +11,8 @@ import { handoffNoteError, isHeld, reviewerName as reviewerNameOf } from '@/lib/
 
 interface Task {
   id: string;
-  case?: { ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null; leadLawyerId?: string } | null;
+  caseId?: string | null;
+  case?: { ownRef: string; title: string; blackCaseNumber?: string | null; redCaseNumber?: string | null; leadLawyerId?: string; leadLawyer?: { id: string; firstName: string; lastName?: string | null } | null } | null;
   title: string;
   description?: string | null;
   status: TaskStatus;
@@ -170,13 +171,15 @@ export function KanbanBoard({
         const canReview =
           enableHandoff &&
           canActOnReview(
-            { status: task.status, reviewerId: task.reviewerId, assigneeId: task.assignee?.id, caseId: task.case ? 'case' : null, leadLawyerId: task.case?.leadLawyerId ?? caseLeadId },
+            { status: task.status, reviewerId: task.reviewerId, assigneeId: task.assignee?.id, caseId: task.caseId ?? null, leadLawyerId: task.case?.leadLawyerId ?? caseLeadId },
             currentUserId,
             currentUserRole,
           );
         const shownLabels = visibleTaskLabels(task.labels);
         const stageChip = taskStageChip(task.labels);
         const handoffLabel = reviewerNameOf(task, null) ?? reviewerName;
+        // Case tasks go to the named reviewer or the case lead; only standalone work needs a pick.
+        const pickReviewer = requireReviewerOnHandoff && !task.caseId;
         const priorityBar =
           task.priority === TaskPriority.HIGH
             ? 'border-l-4 border-l-rose-500'
@@ -304,7 +307,7 @@ export function KanbanBoard({
 
             {handoffTaskId === task.id && onHandoff && (
               <div className="mt-3 space-y-2 border-t pt-2">
-                {requireReviewerOnHandoff && reviewerLoadError && (
+                {pickReviewer && reviewerLoadError && (
                   <div className="flex items-center justify-between gap-2">
                     <p role="alert" className="text-xs text-destructive">{reviewerLoadError}</p>
                     {onRetryReviewers && (
@@ -318,10 +321,10 @@ export function KanbanBoard({
                     )}
                   </div>
                 )}
-                {requireReviewerOnHandoff && !reviewerLoadError && reviewerChoicesFor(task).length === 0 && (
+                {pickReviewer && !reviewerLoadError && reviewerChoicesFor(task).length === 0 && (
                   <p className="text-xs text-muted-foreground">{d.todos.noReviewers}</p>
                 )}
-                {requireReviewerOnHandoff && !reviewerLoadError && reviewerChoicesFor(task).length > 0 && (
+                {pickReviewer && !reviewerLoadError && reviewerChoicesFor(task).length > 0 && (
                   <select
                     value={handoffReviewerId}
                     disabled={!!task.reviewerId}
@@ -347,7 +350,7 @@ export function KanbanBoard({
                 )}
                 <div className="flex gap-2">
                   <button
-                    disabled={(requireReviewerOnHandoff && !handoffReviewerId) || !!handoffNoteError(handoffNote)}
+                    disabled={(pickReviewer && !handoffReviewerId) || !!handoffNoteError(handoffNote)}
                     onClick={() =>
                       runAction(
                         task.id,
@@ -355,7 +358,7 @@ export function KanbanBoard({
                           onHandoff(
                             task.id,
                             handoffNote.trim(),
-                            requireReviewerOnHandoff ? handoffReviewerId : undefined,
+                            pickReviewer ? handoffReviewerId : undefined,
                           ),
                         () => setHandoffTaskId(null),
                       )
