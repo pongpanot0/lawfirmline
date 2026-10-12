@@ -30,7 +30,7 @@ export function CourtNumbersCard({ detail, onEditLimitation }: { detail: CaseDet
     </View>
     {courtLevelRows(detail).map((row) => <View key={row.level} style={[styles.level, row.current && styles.current]}>
       <View style={styles.line}>
-        <Text style={[styles.levelTitle, !row.reached && styles.muted]}>{COURT_LEVEL_LABELS[row.level]}</Text>
+        <Text style={[styles.levelTitle, !row.reached && styles.muted]}>{COURT_LEVEL_LABELS[row.level]}{row.current ? ' · กำลังพิจารณา' : ''}</Text>
         {row.current ? <Tag tone="court">ชั้นปัจจุบัน</Tag> : null}
       </View>
       {row.reached ? <>

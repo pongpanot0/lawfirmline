@@ -16,30 +16,30 @@ type Settled = { row: DateSuggestion; text: string; confirmed: boolean; visible:
  * "รอยืนยันวันครบกำหนด": one-tap ✓, ✕ after a confirmation. Nothing moves before the server answers;
  * a handled row then shows its result for 1.5 s and stays out of the list.
  */
-export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, highlightSince }: {
+export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline }: {
   caseId: string;
   leadLawyerId?: string | null;
   canAct: boolean;
   offline: boolean;
-  /** Rows created at or after this ISO instant were just suggested by a court-event record (D3). */
-  highlightSince?: string | null;
 }) {
   const suggestions = useDateSuggestions(caseId);
   const decide = useDecideSuggestion();
   const inFlight = useRef(new Set<string>());
-  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState<Record<string, 'confirm' | 'dismiss'>>({});
   const [settled, setSettled] = useState<Record<string, Settled>>({});
 
   const pending = (suggestions.data ?? []).filter((row) => !settled[row.id]);
   const rows = [...pending, ...Object.values(settled).filter((item) => item.visible).map((item) => item.row)]
     .sort((a, b) => a.suggestedDate.localeCompare(b.suggestedDate));
+  // A persisted list may hold rows already decided elsewhere: no actions until the first fresh answer.
+  const stale = !suggestions.isFetchedAfterMount;
   const isOffline = offline || (suggestions.isError && isNetworkError(suggestions.error));
 
   const run = async (row: DateSuggestion, action: 'confirm' | 'dismiss') => {
     // A second tap while the first request is on its way must not send another one.
     if (inFlight.current.has(row.id)) return;
     inFlight.current.add(row.id);
-    setBusy((value) => ({ ...value, [row.id]: true }));
+    setBusy((value) => ({ ...value, [row.id]: action }));
     try {
       await decide.mutateAsync({ suggestion: row, action, leadLawyerId });
       const when = `${thDate(row.suggestedDate)} ${thTime(row.suggestedDate)} น.`;
@@ -72,16 +72,15 @@ export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, hig
   if (suggestions.isError && !suggestions.data) return <ErrorNote message="โหลดวันรอยืนยันไม่ได้" onRetry={() => suggestions.refetch()} />;
   if (!rows.length) return null;
 
-  return <SectionCard title="รอยืนยันวันครบกำหนด" count={pending.length} tone="due">
+  return <SectionCard title="รอยืนยันวันครบกำหนด" count={rows.length} tone="due">
     {!canAct ? <Text style={styles.muted}>รอผู้รับผิดชอบคดียืนยัน</Text>
-      : isOffline ? <Text style={styles.muted}>ออฟไลน์ · ต้องต่อเน็ตเพื่อยืนยันวันครบกำหนด</Text> : null}
+      : isOffline ? <Text style={styles.muted}>ออฟไลน์ · ต้องต่อเน็ตเพื่อยืนยันวันครบกำหนด</Text>
+      : stale ? <Text style={styles.muted}>กำลังอัปเดต…</Text> : null}
     {rows.map((row) => {
       const done = settled[row.id];
       const urgency = deadlineUrgency(row.suggestedDate, new Date());
       const basis = legalBasis(row.deadlineRule?.label ?? row.label);
-      // ponytail: compares the phone clock with server createdAt; a skewed clock only skips the highlight.
-      const fresh = !!highlightSince && row.createdAt >= highlightSince;
-      return <View key={row.id} style={[styles.row, fresh && styles.fresh, done && (done.confirmed ? styles.confirmed : styles.dismissed)]}>
+      return <View key={row.id} style={[styles.row, done && (done.confirmed ? styles.confirmed : styles.dismissed)]}>
         <View style={styles.head}>
           <Text style={styles.label}>{row.label}</Text>
           <UrgencyTag urgency={urgency} />
@@ -92,10 +91,10 @@ export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, hig
         {done ? <Text style={{ color: done.confirmed ? colors.good : colors.muted, fontWeight: '600' }}>{done.text}</Text>
           : canAct ? <View style={styles.actions}>
             <View style={{ flex: 1 }}>
-              <Button title="✕ ไม่ใช้" ghost disabled={isOffline || !!busy[row.id]} onPress={() => askDismiss(row)} />
+              <Button title="✕ ไม่ใช้" ghost busy={busy[row.id] === 'dismiss'} disabled={isOffline || stale || !!busy[row.id]} onPress={() => askDismiss(row)} />
             </View>
             <View style={{ flex: 1 }}>
-              <Button title="✓ ยืนยันวันนี้" busy={!!busy[row.id]} disabled={isOffline} onPress={() => void run(row, 'confirm')} />
+              <Button title="✓ ยืนยันวันนี้" busy={busy[row.id] === 'confirm'} disabled={isOffline || stale || !!busy[row.id]} onPress={() => void run(row, 'confirm')} />
             </View>
           </View> : null}
       </View>;
@@ -105,7 +104,6 @@ export function DeadlineConfirmCard({ caseId, leadLawyerId, canAct, offline, hig
 
 const styles = StyleSheet.create({
   row: { gap: spacing.xs, padding: spacing.sm, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line },
-  fresh: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   confirmed: { borderColor: colors.good, backgroundColor: colors.goodSoft },
   dismissed: { backgroundColor: colors.soft },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },

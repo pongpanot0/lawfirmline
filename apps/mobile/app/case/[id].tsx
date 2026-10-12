@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -89,6 +89,8 @@ export default function CaseDetailScreen() {
   const [openingDoc, setOpeningDoc] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const courtY = useRef(0);
+  const pendingScroll = useRef(false);
+  useEffect(() => () => { pendingScroll.current = false; }, []);
 
   const caseQuery = useCase(id);
   const tasks = useCaseTasks(id);
@@ -124,9 +126,10 @@ export default function CaseDetailScreen() {
     ? deadlineUrgency(detail.limitationDeadline, new Date())
     : null;
   const showCourtNumbers = () => {
+    if (tab === 'ภาพรวม') return scrollRef.current?.scrollTo({ y: courtY.current, animated: true });
+    // The court card mounts with the tab: its onLayout performs the scroll.
+    pendingScroll.current = true;
     setTab('ภาพรวม');
-    // ponytail: waits for the ภาพรวม tab to lay out once; use onLayout + state if 150 ms ever proves short.
-    setTimeout(() => scrollRef.current?.scrollTo({ y: courtY.current, animated: true }), 150);
   };
 
   return (
@@ -231,7 +234,13 @@ export default function CaseDetailScreen() {
               </>
             ) : null}
           </Card>
-          <View onLayout={(event) => { courtY.current = event.nativeEvent.layout.y; }}>
+          <View onLayout={(event) => {
+            courtY.current = event.nativeEvent.layout.y;
+            if (pendingScroll.current) {
+              pendingScroll.current = false;
+              scrollRef.current?.scrollTo({ y: courtY.current, animated: true });
+            }
+          }}>
             <CourtNumbersCard detail={detail}
               onEditLimitation={canRecordProceedings(detail.status) ? () => router.push(`/case/new?id=${id}`) : undefined} />
           </View>
