@@ -7,7 +7,7 @@ import {
   AssignmentType,
   EventType,
 } from '../src/generated/prisma';
-import { DEFAULT_CASE_TYPES, DEFAULT_THAI_COURTS } from '@lawfirm/shared';
+import { DEFAULT_CASE_TYPES, DEFAULT_DEADLINE_RULES, DEFAULT_THAI_COURTS } from '@lawfirm/shared';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -151,12 +151,7 @@ async function main() {
   const existingRules = await prisma.deadlineRule.count();
   if (existingRules === 0) {
     await prisma.deadlineRule.createMany({
-      data: [
-        { trigger: 'COMPLAINT_SERVED', label: 'ยื่นคำให้การ', offsetDays: 15, dayBasis: 'CALENDAR' },
-        { trigger: 'JUDGMENT', label: 'ยื่นอุทธรณ์', offsetDays: 30, dayBasis: 'CALENDAR' },
-        { trigger: 'ORDER_RECEIVED', label: 'โต้แย้งคำสั่งศาล', offsetDays: 15, dayBasis: 'CALENDAR' },
-        { trigger: 'COURT_DATE', label: 'สรุปผลนัดและรายงานลูกความ', offsetDays: 3, dayBasis: 'BUSINESS' },
-      ],
+      data: DEFAULT_DEADLINE_RULES.map((rule) => ({ ...rule })),
     });
   }
 

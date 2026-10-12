@@ -157,6 +157,7 @@ export const dashboardCopy = {
       applied: 'เสนอวันครบกำหนด {count} รายการ',
       appliedNone: 'ไม่มีกฎที่ตรงกับเหตุนี้',
       applyFailed: 'บันทึกไม่สำเร็จ',
+      holidayIncomplete: 'ยังไม่มีข้อมูลวันหยุดครบสำหรับปี {year} — ตรวจวันครบกำหนดด้วยตนเอง',
     },
     topbar: {
       searchPlaceholder: 'ค้นหาคดี ลูกค้า...',
@@ -1253,6 +1254,7 @@ export const dashboardCopy = {
       applied: '{count} deadline(s) proposed',
       appliedNone: 'No rule matches this trigger',
       applyFailed: 'Could not save',
+      holidayIncomplete: 'Holiday data for {year} is incomplete — check this deadline by hand',
     },
     topbar: {
       searchPlaceholder: 'Search cases, clients...',

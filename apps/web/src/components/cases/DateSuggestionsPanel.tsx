@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { api, DateSuggestionItem, UserItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
+import { fmt } from '@/lib/i18n/dashboard';
 import { ThaiDateInput } from '@/components/ui/ThaiDateInput';
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
 
@@ -197,6 +198,12 @@ export function DateSuggestionsPanel({
                         {d.caseDocuments.sourceExcerpt}: &ldquo;{s.sourceExcerpt}&rdquo;
                       </p>
                     )}
+
+                {s.holidayDataIncomplete && s.dueYear && (
+                  <p role="alert" className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                    {fmt(d.dateSuggestions.holidayIncomplete, { year: s.dueYear + 543 })}
+                  </p>
+                )}
 
                 <div className="mt-3 flex gap-2">
                   <Button

@@ -379,10 +379,16 @@ describe('DeadlineRulesService', () => {
       await service.provisionDefaults();
 
       const { data } = mockPrisma.deadlineRule.createMany.mock.calls[0][0];
-      expect(data.length).toBeGreaterThan(0);
+      expect(data).toHaveLength(11);
       expect(data.every((r: { firmId?: string }) => r.firmId === undefined)).toBe(true);
       expect(data).toContainEqual(
-        expect.objectContaining({ trigger: DeadlineTrigger.JUDGMENT, label: 'ยื่นอุทธรณ์' }),
+        expect.objectContaining({
+          trigger: DeadlineTrigger.JUDGMENT, label: 'ครบกำหนดยื่นอุทธรณ์',
+          offsetDays: 1, dayBasis: DeadlineDayBasis.MONTHS, courtLevel: 'TRIAL',
+        }),
+      );
+      expect(data).toContainEqual(
+        expect.objectContaining({ label: 'ใกล้ครบระยะบังคับคดี 10 ปี', offsetDays: 120, adjustDays: -90 }),
       );
     });
 

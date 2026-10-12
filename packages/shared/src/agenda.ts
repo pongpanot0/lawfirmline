@@ -231,3 +231,32 @@ export function deadlineRuleApplies(rule: DeadlineRuleFilter, ctx: DeadlineRuleC
   }
   return true;
 }
+
+export type DefaultDeadlineRule = Omit<DeadlineRuleItem, 'id' | 'firmId' | 'caseTypeId' | 'isActive' | 'canEdit'>;
+
+const rule = (
+  trigger: DeadlineTrigger,
+  label: string,
+  offsetDays: number,
+  dayBasis: DeadlineDayBasis,
+  filters: Partial<Pick<DefaultDeadlineRule, 'adjustDays' | 'courtEventKind' | 'courtLevel' | 'partySide' | 'serviceMethod'>> = {},
+): DefaultDeadlineRule => ({
+  trigger, label, offsetDays, dayBasis,
+  adjustDays: 0, courtEventKind: null, courtLevel: null, partySide: null, serviceMethod: null,
+  ...filters,
+});
+
+/** Platform defaults (spec L1). Every firm runs them unless it overrides one in /admin/deadline-rules. */
+export const DEFAULT_DEADLINE_RULES: ReadonlyArray<DefaultDeadlineRule> = [
+  rule(DeadlineTrigger.FILED, 'ขอให้ส่งหมายเรียกและสำเนาคำฟ้อง', 7, DeadlineDayBasis.CALENDAR), // ม.173
+  rule(DeadlineTrigger.COMPLAINT_SERVED, 'ครบกำหนดยื่นคำให้การ', 15, DeadlineDayBasis.CALENDAR, { serviceMethod: ServiceMethod.PERSONAL }), // ม.177
+  rule(DeadlineTrigger.COMPLAINT_SERVED, 'ครบกำหนดยื่นคำให้การ (ปิดหมาย)', 30, DeadlineDayBasis.CALENDAR, { serviceMethod: ServiceMethod.POSTED }), // ม.79 + ม.177
+  rule(DeadlineTrigger.COMPLAINT_SERVED, 'ตรวจขาดนัดยื่นคำให้การ / ขอให้พิพากษาโดยขาดนัด', 30, DeadlineDayBasis.CALENDAR, { partySide: 'PLAINTIFF' }), // ม.197–198
+  rule(DeadlineTrigger.COURT_DATE, 'ยื่นบัญชีระบุพยาน', -7, DeadlineDayBasis.CALENDAR, { courtEventKind: CourtEventKind.WITNESS_HEARING }), // ม.88
+  rule(DeadlineTrigger.COURT_DATE, 'สรุปผลนัดและรายงานลูกความ', 3, DeadlineDayBasis.BUSINESS),
+  rule(DeadlineTrigger.JUDGMENT, 'ครบกำหนดยื่นอุทธรณ์', 1, DeadlineDayBasis.MONTHS, { courtLevel: 'TRIAL' }), // ม.229
+  rule(DeadlineTrigger.JUDGMENT, 'ครบกำหนดยื่นคำร้องขออนุญาตฎีกาและฎีกา', 1, DeadlineDayBasis.MONTHS, { courtLevel: 'APPEAL' }), // ม.247
+  rule(DeadlineTrigger.APPEAL_SERVED, 'ครบกำหนดยื่นคำแก้อุทธรณ์', 15, DeadlineDayBasis.CALENDAR), // ม.237
+  rule(DeadlineTrigger.ORDER_RECEIVED, 'โต้แย้งคำสั่งศาล', 15, DeadlineDayBasis.CALENDAR),
+  rule(DeadlineTrigger.JUDGMENT, 'ใกล้ครบระยะบังคับคดี 10 ปี', 120, DeadlineDayBasis.MONTHS, { adjustDays: -90 }), // ม.274
+];

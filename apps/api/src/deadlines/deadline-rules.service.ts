@@ -4,6 +4,7 @@ import {
   CourtEventKind,
   CourtLevel,
   DateSuggestionSource,
+  DEFAULT_DEADLINE_RULES,
   DateSuggestionStatus,
   DeadlineDayBasis,
   DeadlineTrigger,
@@ -39,33 +40,6 @@ export function ruleSpanDays(rule: { offsetDays: number; dayBasis: string; adjus
 
 /** Accepts either the client or an open transaction, as elsewhere in the app. */
 type PrismaClientLike = PrismaService | Prisma.TransactionClient;
-
-const DEFAULT_RULES = [
-  {
-    trigger: DeadlineTrigger.COMPLAINT_SERVED,
-    label: 'ยื่นคำให้การ',
-    offsetDays: 15,
-    dayBasis: DeadlineDayBasis.CALENDAR,
-  },
-  {
-    trigger: DeadlineTrigger.JUDGMENT,
-    label: 'ยื่นอุทธรณ์',
-    offsetDays: 30,
-    dayBasis: DeadlineDayBasis.CALENDAR,
-  },
-  {
-    trigger: DeadlineTrigger.ORDER_RECEIVED,
-    label: 'โต้แย้งคำสั่งศาล',
-    offsetDays: 15,
-    dayBasis: DeadlineDayBasis.CALENDAR,
-  },
-  {
-    trigger: DeadlineTrigger.COURT_DATE,
-    label: 'สรุปผลนัดและรายงานลูกความ',
-    offsetDays: 3,
-    dayBasis: DeadlineDayBasis.BUSINESS,
-  },
-] as const;
 
 export interface DeadlineTriggerContext {
   caseId: string;
@@ -110,7 +84,7 @@ export class DeadlineRulesService {
     if (existing > 0) return;
 
     await client.deadlineRule.createMany({
-      data: DEFAULT_RULES.map((rule) => ({ ...rule })),
+      data: DEFAULT_DEADLINE_RULES.map((rule) => ({ ...rule })),
       skipDuplicates: true,
     });
   }

@@ -17,6 +17,7 @@ describe('DateSuggestionsService', () => {
     },
     case: { findUnique: jest.fn() },
     user: { findFirst: jest.fn() },
+    publicHoliday: { findMany: jest.fn() },
   };
   const mockCalendar = { createInternal: jest.fn() };
 
@@ -42,6 +43,25 @@ describe('DateSuggestionsService', () => {
         include: { deadlineRule: { select: { label: true, trigger: true } } },
         orderBy: { createdAt: 'desc' },
       });
+    });
+
+    it('marks rule suggestions whose year has too few holidays configured', async () => {
+      mockPrisma.documentDateSuggestion.findMany.mockResolvedValue([
+        { id: 'a', source: 'RULE', suggestedDate: new Date('2027-11-11T09:30:00.000Z') },
+        { id: 'b', source: 'RULE', suggestedDate: new Date('2026-11-11T09:30:00.000Z') },
+        { id: 'c', source: 'DOCUMENT', suggestedDate: new Date('2028-01-05T02:00:00.000Z') },
+      ]);
+      mockPrisma.publicHoliday.findMany.mockResolvedValue(
+        Array.from({ length: 21 }, (_, i) => ({ date: new Date(Date.UTC(2026, 0, i + 1)) })),
+      );
+
+      const rows = await service.listForCase('case-1');
+
+      expect(rows.map((r) => [r.id, r.holidayDataIncomplete, r.dueYear])).toEqual([
+        ['a', true, 2027],
+        ['b', false, 2026],
+        ['c', false, 2028],
+      ]);
     });
   });
 
