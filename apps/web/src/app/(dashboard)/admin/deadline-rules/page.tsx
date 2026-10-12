@@ -82,6 +82,7 @@ export default function DeadlineRulesPage() {
   const [rules, setRules] = useState<DeadlineRuleItem[]>([]);
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const load = () => {
     if (token) api.getDeadlineRules(token).then(setRules).catch(console.error);
@@ -95,23 +96,26 @@ export default function DeadlineRulesPage() {
   const rows = firmRuleRows(rules, user!.firmId);
 
   const run = async (action: () => Promise<unknown>) => {
-    if (!token) return;
+    if (!token || busy) return;
     setError('');
+    setBusy(true);
     try {
       await action();
       setForm(null);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : t.saveFailed);
+    } finally {
+      setBusy(false);
     }
   };
 
-  const toggle = (rule: DeadlineRuleItem) =>
+  /** `viaOverride`: a global rule seen from the firm table is switched by an override, never edited in place. */
+  const toggle = (rule: DeadlineRuleItem, viaOverride: boolean) =>
     run(() =>
-      rule.canEdit
-        ? api.updateDeadlineRule(token!, rule.id, { isActive: !rule.isActive })
-        // A global rule this firm cannot edit is switched by an override carrying the opposite state.
-        : api.createDeadlineRule(token!, payload(fromRule(rule, { isActive: !rule.isActive }))),
+      viaOverride
+        ? api.createDeadlineRule(token!, payload(fromRule(rule, { isActive: !rule.isActive })))
+        : api.updateDeadlineRule(token!, rule.id, { isActive: !rule.isActive }),
     );
 
   const remove = (rule: DeadlineRuleItem) => {
@@ -127,7 +131,10 @@ export default function DeadlineRulesPage() {
       rule.serviceMethod && SERVICE_METHOD_LABELS[rule.serviceMethod],
     ].filter(Boolean).join(' · ');
 
-  const row = (rule: DeadlineRuleItem, origin: RuleOrigin | null) => (
+  // origin null = the platform-admin section, the only place a global rule is edited or deleted.
+  const row = (rule: DeadlineRuleItem, origin: RuleOrigin | null) => {
+    const fromGlobal = origin === 'GLOBAL';
+    return (
     <li key={rule.id} className="flex flex-wrap items-center gap-2 py-3">
       <div className="min-w-0 flex-1">
         <p className="font-medium text-foreground">
@@ -136,19 +143,20 @@ export default function DeadlineRulesPage() {
         </p>
         <p className="text-xs text-muted-foreground">{describe(rule)}</p>
       </div>
-      {origin === 'GLOBAL' && (
-        <Button type="button" size="sm" variant="outline" onClick={() => setForm(fromRule(rule))}>{t.customize}</Button>
+      {fromGlobal && (
+        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setForm(fromRule(rule))}>{t.customize}</Button>
       )}
-      <Button type="button" size="sm" variant={rule.isActive ? 'secondary' : 'outline'} onClick={() => toggle(rule)}>
-        {rule.isActive ? (rule.canEdit ? t.active : t.disableForFirm) : t.inactive}
+      <Button type="button" size="sm" variant={rule.isActive ? 'secondary' : 'outline'} disabled={busy} onClick={() => toggle(rule, fromGlobal)}>
+        {fromGlobal ? (rule.isActive ? t.disableForFirm : t.enableForFirm) : rule.isActive ? t.active : t.inactive}
       </Button>
-      {rule.canEdit && (
-        <Button type="button" size="sm" variant="ghost" aria-label={origin === 'OVERRIDE' ? t.revert : t.confirmDelete} onClick={() => remove(rule)}>
+      {rule.canEdit && !fromGlobal && (
+        <Button type="button" size="sm" variant="ghost" disabled={busy} aria-label={origin === 'OVERRIDE' ? t.revert : t.confirmDelete} onClick={() => remove(rule)}>
           {origin === 'OVERRIDE' ? t.revert : <Trash2 className="size-4" />}
         </Button>
       )}
     </li>
-  );
+    );
+  };
 
   const field = (label: string, input: React.ReactNode, wide = false) => (
     <label className={`text-sm ${wide ? 'sm:col-span-2' : ''}`}>
@@ -228,7 +236,7 @@ export default function DeadlineRulesPage() {
                 </label>
               )}
               <div className="sm:col-span-2">
-                <Button type="submit" size="sm">{t.save}</Button>
+                <Button type="submit" size="sm" disabled={busy}>{t.save}</Button>
               </div>
             </form>
           </CardContent>

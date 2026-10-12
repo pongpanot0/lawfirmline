@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   AuthUser,
   CourtEventKind,
@@ -126,6 +126,7 @@ export class DeadlineRulesService {
     const firmId = dto.global ? null : user.firmId;
     this.assertCanEdit(user, firmId);
     const label = dto.label.trim();
+    if (!label) throw new BadRequestException('ต้องระบุชื่อกำหนด');
     const clash = await this.prisma.deadlineRule.findFirst({
       where: { firmId, trigger: dto.trigger, label },
       select: { id: true },
@@ -153,7 +154,6 @@ export class DeadlineRulesService {
     const rule = await this.findVisible(user, id);
     this.assertCanEdit(user, rule.firmId);
     const { caseTypeId: _ignored, ...data } = dto as UpdateDeadlineRuleDto & { caseTypeId?: string | null };
-    if (data.label !== undefined) data.label = data.label.trim();
     await this.prisma.deadlineRule.update({ where: { id }, data });
     return { updated: true };
   }

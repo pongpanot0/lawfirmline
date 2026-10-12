@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, Matches, MaxLength, Min } from 'class-validator';
 import { CourtEventKind, CourtLevel, DeadlineDayBasis, DeadlineTrigger, PartyRole, ServiceMethod } from '@lawfirm/shared';
 
 class DeadlineRuleFilterFields {
@@ -27,7 +27,7 @@ export class CreateDeadlineRuleDto extends DeadlineRuleFilterFields {
   @IsEnum(DeadlineTrigger)
   trigger!: DeadlineTrigger;
 
-  @IsString() @MaxLength(200)
+  @IsString() @IsNotEmpty() @Matches(/\S/) @MaxLength(200)
   label!: string;
 
   /** Days, or months for MONTHS; negative = before the trigger. */
@@ -46,9 +46,8 @@ export class CreateDeadlineRuleDto extends DeadlineRuleFilterFields {
 }
 
 export class UpdateDeadlineRuleDto extends DeadlineRuleFilterFields {
-  @IsOptional() @IsString() @MaxLength(200)
-  label?: string;
-
+  // No `label`: trigger + label is the key a firm override matches a global rule on,
+  // so a rename would detach an override or shadow a statutory default.
   @IsOptional() @IsInt() @Min(-3650) @Max(3650)
   offsetDays?: number;
 

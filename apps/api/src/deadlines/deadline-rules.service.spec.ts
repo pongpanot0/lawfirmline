@@ -5,7 +5,7 @@ import { DeadlineRulesService } from './deadline-rules.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { CreateDeadlineRuleDto } from './dto/deadline-rule.dto';
+import { CreateDeadlineRuleDto, UpdateDeadlineRuleDto } from './dto/deadline-rule.dto';
 
 describe('DeadlineRulesService', () => {
   let service: DeadlineRulesService;
@@ -480,6 +480,11 @@ describe('DeadlineRulesService', () => {
       await expect(service.update(owner, 'g', { offsetDays: 15 })).rejects.toThrow('ข้อมูลส่วนกลางแก้ได้เฉพาะผู้ดูแลระบบ');
     });
 
+    it('rejects a blank label on create', async () => {
+      await expect(service.create(owner, { ...dto, label: '   ' })).rejects.toThrow('ต้องระบุชื่อกำหนด');
+      expect(mockPrisma.deadlineRule.create).not.toHaveBeenCalled();
+    });
+
     it('never reaches another firm’s rule', async () => {
       mockPrisma.deadlineRule.findFirst.mockResolvedValue(null);
       await expect(service.update(owner, 'x', { offsetDays: 1 })).rejects.toThrow('Deadline rule not found');
@@ -498,5 +503,20 @@ describe('CreateDeadlineRuleDto', () => {
       trigger: 'COURT_DATE', label: 'ยื่นบัญชีระบุพยาน', offsetDays: -7, dayBasis: 'CALENDAR',
     });
     expect(await validate(dto)).toEqual([]);
+  });
+
+  it('rejects a blank or whitespace-only label', async () => {
+    for (const label of ['', '   ']) {
+      const dto = plainToInstance(CreateDeadlineRuleDto, { trigger: 'COURT_DATE', label, offsetDays: 1 });
+      expect((await validate(dto)).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('UpdateDeadlineRuleDto', () => {
+  it('does not allow renaming a rule (the label is the override key)', async () => {
+    const dto = plainToInstance(UpdateDeadlineRuleDto, { label: 'ใหม่', offsetDays: 5 });
+    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    expect(errors.map((e) => e.property)).toEqual(['label']);
   });
 });
