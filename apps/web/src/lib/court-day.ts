@@ -1,3 +1,4 @@
+import type { CourtEventKind } from '@lawfirm/shared';
 import type { CalendarEventItem } from './api';
 export interface CourtDayState {
   checklist: { id: string; title: string; done: boolean }[];
@@ -8,6 +9,7 @@ export interface CourtDayState {
   nextHearing: boolean;
   nextTitle: string;
   nextAt: string;
+  nextKind?: CourtEventKind;
   followUp: boolean;
   taskTitle: string;
   taskDue: string;
@@ -106,6 +108,7 @@ export const courtDayCopy = {
     nextHearing: 'มีนัดครั้งหน้า',
     nextTitle: 'ชื่อนัดครั้งหน้า',
     nextAt: 'วันและเวลานัดครั้งหน้า',
+    nextKind: 'ชนิดนัดครั้งหน้า',
     followUp: 'สร้างงานติดตาม',
     taskTitle: 'งานที่ต้องทำต่อ',
     taskDue: 'วันครบกำหนด (ไม่บังคับ)',
@@ -202,6 +205,7 @@ export const courtDayCopy = {
     nextHearing: 'Add the next appointment',
     nextTitle: 'Next appointment title',
     nextAt: 'Next appointment date and time',
+    nextKind: 'Next sitting',
     followUp: 'Create a follow-up task',
     taskTitle: 'What needs to happen next',
     taskDue: 'Due date (optional)',

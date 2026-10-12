@@ -114,10 +114,13 @@ export const dashboardCopy = {
         JUDGMENT: 'วันอ่านคำพิพากษา',
         ORDER_RECEIVED: 'วันได้รับคำสั่ง',
         COMPLAINT_SERVED: 'วันได้รับหมาย',
+        FILED: 'วันยื่นฟ้อง',
+        APPEAL_SERVED: 'วันได้รับสำเนาอุทธรณ์',
       },
       bases: {
         CALENDAR: 'วันตามปฏิทิน',
         BUSINESS: 'วันทำการ',
+        MONTHS: 'เดือน (วันที่เดียวกัน)',
       },
     },
     holidays: {
@@ -470,6 +473,8 @@ export const dashboardCopy = {
       cancelFailed: 'ยกเลิกคำเชิญไม่สำเร็จ',
     },
     calendar: {
+      courtEventKind: 'ชนิดนัดศาล',
+      courtEventKindNone: 'ไม่ระบุ',
       title: 'ตารางศาล',
       description: 'ปฏิทินรายเดือนของทั้งสำนักงาน — เพิ่มและจัดการนัดศาล ไกล่เกลี่ย และการประชุม',
       addEvent: 'เพิ่มนัด',
@@ -1205,10 +1210,13 @@ export const dashboardCopy = {
         JUDGMENT: 'Judgment read',
         ORDER_RECEIVED: 'Order received',
         COMPLAINT_SERVED: 'Complaint served',
+        FILED: 'Complaint filed',
+        APPEAL_SERVED: 'Appeal copy received',
       },
       bases: {
         CALENDAR: 'Calendar days',
         BUSINESS: 'Business days',
+        MONTHS: 'Months (same day)',
       },
     },
     holidays: {
@@ -1561,6 +1569,8 @@ export const dashboardCopy = {
       cancelFailed: 'Failed to cancel invitation',
     },
     calendar: {
+      courtEventKind: 'Court sitting',
+      courtEventKindNone: 'Not specified',
       title: 'Court Schedule',
       description: 'The whole firm\'s month calendar — add and manage hearings, mediations, and meetings',
       addEvent: 'Add Event',

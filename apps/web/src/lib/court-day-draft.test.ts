@@ -43,3 +43,11 @@ test('court drafts reject expired, malformed and invalid-date browser data', () 
   );
   assert.equal(parseCourtDayDraft('broken', now), null);
 });
+
+test('court drafts keep a valid next-hearing kind and reject an unknown one', () => {
+  const now = 100000000;
+  const encode = (patch = {}) =>
+    JSON.stringify({ version: 2, savedAt: now, state: { ...state, ...patch } });
+  assert.equal(parseCourtDayDraft(encode({ nextKind: 'WITNESS_HEARING' }), now)?.state.nextKind, 'WITNESS_HEARING');
+  assert.equal(parseCourtDayDraft(encode({ nextKind: 'PICNIC' }), now), null);
+});

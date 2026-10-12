@@ -9,7 +9,7 @@ import {
   ArrayMaxSize,
   ArrayUnique,
 } from 'class-validator';
-import { EventType } from '@lawfirm/shared';
+import { CourtEventKind, EventType } from '@lawfirm/shared';
 
 export class CreateEventDto {
   @IsUUID()
@@ -36,6 +36,11 @@ export class CreateEventDto {
   @IsOptional()
   @IsEnum(EventType)
   type?: EventType;
+
+  /** COURT_DATE only: นัดพร้อม / ไกล่เกลี่ย / สืบพยาน / ฟังคำพิพากษา — some deadline rules depend on it. */
+  @IsOptional()
+  @IsEnum(CourtEventKind)
+  courtEventKind?: CourtEventKind | null;
 
   @IsOptional()
   @IsArray()
@@ -80,6 +85,11 @@ export class UpdateEventDto {
   @IsOptional()
   @IsEnum(EventType)
   type?: EventType;
+
+  /** COURT_DATE only: นัดพร้อม / ไกล่เกลี่ย / สืบพยาน / ฟังคำพิพากษา — some deadline rules depend on it. */
+  @IsOptional()
+  @IsEnum(CourtEventKind)
+  courtEventKind?: CourtEventKind | null;
 
   @IsOptional()
   @IsArray()

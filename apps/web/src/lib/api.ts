@@ -284,6 +284,7 @@ export interface CalendarEventItem {
   startAt: string;
   endAt?: string | null;
   type: string;
+  courtEventKind?: import('@lawfirm/shared').CourtEventKind | null;
   assigneeId?: string | null;
   assignees?: { userId: string; user: { id: string; firstName: string; lastName: string } }[];
   leaveId?: string;

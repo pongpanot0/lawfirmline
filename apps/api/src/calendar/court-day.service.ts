@@ -281,6 +281,7 @@ export class CourtDayService {
               startAt: nextAt!,
               courtName: currentEvent.courtName,
               type: 'COURT_DATE',
+              courtEventKind: state.nextKind ?? null,
               assigneeId: currentEvent.assigneeId,
               assignees: {
                 create: currentEvent.assignees.map(a => ({ userId: a.userId })),
@@ -301,6 +302,7 @@ export class CourtDayService {
               triggerDate: next.startAt,
               triggerEventId: next.id,
               createdById: user.id,
+              courtEventKind: state.nextKind ?? null,
             },
             db,
           );

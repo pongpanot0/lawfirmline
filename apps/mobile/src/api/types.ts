@@ -123,6 +123,7 @@ export interface CalendarEventItem {
   startAt: string;
   endAt: string | null;
   type: string;
+  courtEventKind?: import('@lawfirm/shared').CourtEventKind | null;
   updatedAt: string;
   assigneeId: string | null;
   assignee?: { id: string; firstName: string; lastName: string } | null;

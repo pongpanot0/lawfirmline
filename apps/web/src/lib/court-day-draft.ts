@@ -1,3 +1,4 @@
+import { CourtEventKind } from '@lawfirm/shared';
 import type { CourtDayState } from './court-day';
 export const COURT_DRAFT_PREFIX = 'samnuan:court-draft:';
 export interface CourtDayLocalDraft {
@@ -40,6 +41,8 @@ export function parseCourtDayDraft(
         (key) => typeof s[key] === 'boolean',
       )
     )
+      return null;
+    if (s.nextKind !== undefined && !(Object.values(CourtEventKind) as string[]).includes(s.nextKind))
       return null;
     if (
       (s.draftRecipientKind !== undefined && !['CLIENT', 'CUSTOMER'].includes(s.draftRecipientKind)) ||

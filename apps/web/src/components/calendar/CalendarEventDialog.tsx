@@ -1,5 +1,6 @@
 'use client';
 
+import { COURT_EVENT_KIND_LABELS, CourtEventKind } from '@lawfirm/shared';
 import { EventResponsibility } from './EventResponsibility';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -109,6 +110,7 @@ export function CalendarEventDialog({
       courtName: form.type === 'COURT_DATE' ? form.courtName || undefined : undefined,
       startAt: bangkokInputToIso(form.startAt),
       type: form.type,
+      courtEventKind: form.type === 'COURT_DATE' ? form.courtEventKind || null : null,
       // An empty list means "nobody named", which the API reads as the lead lawyer.
       assigneeIds: form.assigneeIds,
     };
@@ -191,6 +193,7 @@ export function CalendarEventDialog({
     const courtName = event.type === 'COURT_DATE' ? event.courtName || event.case?.courtName : null;
     const rows: { label: string; value: React.ReactNode }[] = [
       { label: d.calendar.eventType, value: typeLabels[event.type] ?? event.type },
+      ...(event.type === 'COURT_DATE' && event.courtEventKind ? [{ label: d.calendar.courtEventKind, value: COURT_EVENT_KIND_LABELS[event.courtEventKind] }] : []),
       { label: d.calendar.timeHint, value: formatDateTime(event.startAt) },
       ...(courtName ? [{ label: d.calendar.courtName, value: courtName }] : []),
       ...(event.case
@@ -294,13 +297,28 @@ export function CalendarEventDialog({
           </label>
 
           {form.type === 'COURT_DATE' && (
-            <label className="block text-sm">
-              <span className="mb-1 block text-muted-foreground">{d.calendar.courtName}</span>
-              <Input
-                value={form.courtName}
-                onChange={(e) => setForm({ ...form, courtName: e.target.value })}
-              />
-            </label>
+            <>
+              <label className="block text-sm">
+                <span className="mb-1 block text-muted-foreground">{d.calendar.courtName}</span>
+                <Input
+                  value={form.courtName}
+                  onChange={(e) => setForm({ ...form, courtName: e.target.value })}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-muted-foreground">{d.calendar.courtEventKind}</span>
+                <select
+                  value={form.courtEventKind}
+                  onChange={(e) => setForm({ ...form, courtEventKind: e.target.value as CourtEventKind | '' })}
+                  className={SELECT_CLASS}
+                >
+                  <option value="">{d.calendar.courtEventKindNone}</option>
+                  {Object.values(CourtEventKind).map((kind) => (
+                    <option key={kind} value={kind}>{COURT_EVENT_KIND_LABELS[kind]}</option>
+                  ))}
+                </select>
+              </label>
+            </>
           )}
 
           <label className="block text-sm">
@@ -431,6 +449,7 @@ function initialForm(
       courtName: event.courtName ?? event.case?.courtName ?? '',
       startAt: bangkokInputValue(event.startAt),
       type: event.type,
+      courtEventKind: (event.courtEventKind ?? '') as CourtEventKind | '',
       assigneeIds,
     };
   }
@@ -444,6 +463,7 @@ function initialForm(
     courtName: caseCourtName ?? '',
     startAt: `${day}T09:00`,
     type: 'COURT_DATE',
+    courtEventKind: '' as CourtEventKind | '',
     // คนสร้างนัดมักสร้างให้ตัวเอง — ตั้งตัวเองเป็นผู้รับผิดชอบไว้ก่อน เปลี่ยนได้
     assigneeIds: currentUserId ? [currentUserId] : [],
   };
