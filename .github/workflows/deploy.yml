@@ -81,6 +81,8 @@ jobs:
             done
             grep -qE "^ +PLATFORM_ADMIN_EMAILS: [\"']?[^\"' ]" <<<"$resolved" \
               || echo "::warning::PLATFORM_ADMIN_EMAILS not reaching the api; courts/holidays/deadline-rule admin pages stay locked"
+            grep -qE "^ +MS_CLIENT_ID: [\"']?[^\"' ]" <<<"$resolved" \
+              || echo "::warning::MS_CLIENT_ID not set in .env; Outlook connect stays disabled"
             unset resolved
             # Free disk before pulling — old tagged images accumulate and the
             # t4g volume fills up (deploys were failing with ENOSPC). -a removes
