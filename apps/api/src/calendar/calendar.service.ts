@@ -18,12 +18,12 @@ import { LineLinkService } from '../notifications/line-link.service';
 import { TravelService } from '../travel/travel.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { CreateEventDto, UpdateEventDto } from './dto/calendar.dto';
-import { eventAssigneesInclude } from './event-people';
+import { eventAssigneesInclude, eventPeopleIds } from './event-people';
 import { formatBangkokDateTime } from '../common/utils/bangkok-time';
 import { NotificationCategory, Prisma } from '../generated/prisma';
 
 /** Server-resolved Teams fields that never come straight from a request body. */
-type MeetingFields = { meetingOrganizerId?: string | null; onlineMeetingUrl?: string | null };
+type MeetingFields = { meetingOrganizerId?: string | null; onlineMeetingUrl?: string | null; inviteeEmails?: string[] };
 
 /**
  * The kind only means something on a court date; anything else stores null.
@@ -155,12 +155,19 @@ export class CalendarService {
    */
   async create(user: AuthUser, dto: CreateEventDto) {
     await this.assertCaseAccess(user, dto.caseId);
-    let meetingOrganizerId: string | undefined;
+    let meetingFields: MeetingFields = {};
     if (dto.onlineMeeting) {
       this.assertTeamsAllowed(dto.type);
-      meetingOrganizerId = await this.resolveMeetingOrganizer(user.id, [...(dto.assigneeIds ?? (dto.assigneeId ? [dto.assigneeId] : []))]);
+      const legalCase = await this.prisma.case.findUnique({ where: { id: dto.caseId }, select: { firmId: true, leadLawyerId: true } });
+      if (!legalCase) throw new NotFoundException('Case not found');
+      // Members are validated before any connection is probed.
+      const ids = (await this.resolveAssigneeIds(legalCase.firmId, dto)) ?? [];
+      const people = ids.length ? ids : legalCase.leadLawyerId ? [legalCase.leadLawyerId] : [];
+      meetingFields = { meetingOrganizerId: await this.resolveMeetingOrganizer(user.id, people), inviteeEmails: dto.inviteeEmails ?? [] };
+    } else {
+      meetingFields = { inviteeEmails: [] };
     }
-    const event = await this.createInternal({ ...dto, meetingOrganizerId } as CreateEventDto, user.id);
+    const event = await this.createInternal({ ...dto, ...meetingFields } as CreateEventDto & MeetingFields, user.id);
     this.outlookCalendar.syncEventSoon(event.id);
     return event;
   }
@@ -231,7 +238,7 @@ export class CalendarService {
         assignees: { create: ids.map(userId => ({ userId })) },
         travelLogId,
         onlineMeeting: dto.onlineMeeting,
-        inviteeEmails: dto.inviteeEmails,
+        inviteeEmails: dto.inviteeEmails ?? [],
         meetingOrganizerId: dto.meetingOrganizerId,
       },
       include: this.eventInclude,
@@ -283,12 +290,20 @@ export class CalendarService {
   async update(user: AuthUser, id: string, dto: UpdateEventDto) {
     const existing = await this.findOne(user, id);
     const meeting: MeetingFields = {};
-    if (dto.onlineMeeting === false) {
-      Object.assign(meeting, { onlineMeetingUrl: null, meetingOrganizerId: null });
-    } else if (dto.onlineMeeting === true || existing.onlineMeeting) {
-      this.assertTeamsAllowed(dto.type ?? existing.type);
-      if (!existing.meetingOrganizerId) {
-        meeting.meetingOrganizerId = await this.resolveMeetingOrganizer(user.id, existing.assignees.map(a => a.userId));
+    const nextOnline = dto.onlineMeeting ?? existing.onlineMeeting;
+    const nextType = dto.type ?? existing.type;
+    const withdrawFrom = dto.onlineMeeting === false && existing.onlineMeeting ? existing.meetingOrganizerId : null;
+    if (!nextOnline) {
+      if (existing.onlineMeeting || dto.inviteeEmails) Object.assign(meeting, { onlineMeetingUrl: null, meetingOrganizerId: null, inviteeEmails: [] });
+    } else {
+      this.assertTeamsAllowed(nextType);
+      if (dto.onlineMeeting === true && !(existing.onlineMeeting && existing.meetingOrganizerId)) {
+        const requested = await this.resolveAssigneeIds(existing.case.firmId, dto);
+        const lead = existing.case.leadLawyer?.id;
+        const people = requested === undefined
+          ? eventPeopleIds({ assignees: existing.assignees, case: { leadLawyerId: lead ?? null } })
+          : requested.length ? requested : lead ? [lead] : [];
+        meeting.meetingOrganizerId = await this.resolveMeetingOrganizer(user.id, people);
       }
     }
     const updated = await this.updateInternal(id, { ...dto, ...meeting });
@@ -310,7 +325,8 @@ export class CalendarService {
         this.logger.error(`Deadline rules failed for event ${id}: ${(err as Error).message}`);
       }
     }
-    this.outlookCalendar.syncEventSoon(id);
+    if (withdrawFrom) this.outlookCalendar.withdrawOrganizerCopySoon(id, withdrawFrom);
+    else this.outlookCalendar.syncEventSoon(id);
     return updated;
   }
 

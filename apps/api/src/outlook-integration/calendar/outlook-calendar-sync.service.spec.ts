@@ -20,7 +20,7 @@ const conn = (userId: string, over: Record<string, unknown> = {}) => ({ id: `con
 describe('OutlookCalendarSyncService', () => {
   let svc: OutlookCalendarSyncService;
   const prisma = {
-    calendarEvent: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    calendarEvent: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     calendarEventOutlookCopy: { findMany: jest.fn(), upsert: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn(), deleteMany: jest.fn() },
     mailboxConnection: { findMany: jest.fn(), findUnique: jest.fn() },
   };
@@ -35,6 +35,7 @@ describe('OutlookCalendarSyncService', () => {
     Object.values(prisma).forEach((m) => Object.values(m).forEach((f) => f.mockReset()));
     jest.clearAllMocks();
     prisma.mailboxConnection.findUnique.mockResolvedValue({ status: 'ACTIVE' });
+    prisma.calendarEvent.findMany.mockResolvedValue([]); // reconcile's Teams-organizer lookup
     connections.getValidAccessToken.mockResolvedValue('tok');
     const mod = await Test.createTestingModule({
       providers: [
@@ -175,37 +176,94 @@ describe('OutlookCalendarSyncService', () => {
   });
 
   describe('Teams meetings', () => {
+    const teams = (over: Record<string, unknown> = {}) =>
+      event({ type: 'CLIENT_MEETING', onlineMeeting: true, meetingOrganizerId: 'u1', inviteeEmails: ['c@x.com'], ...over });
+
     it('stores the Teams join URL from the organizer copy without re-patching it', async () => {
-      const e = event({ type: 'CLIENT_MEETING', onlineMeeting: true, meetingOrganizerId: 'u1', inviteeEmails: ['c@x.com'] });
-      prisma.calendarEvent.findUnique.mockResolvedValue(e);
+      prisma.calendarEvent.findUnique.mockResolvedValue(teams());
       prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
       activeFor((id) => [conn(id)]);
       calendar.createEvent.mockResolvedValue({ id: 'g1', onlineMeeting: { joinUrl: 'https://teams/x' } });
       const bumped = new Date('2026-10-13T10:05:00Z');
-      prisma.calendarEvent.update.mockResolvedValue({ updatedAt: bumped });
+      prisma.calendarEvent.updateMany.mockResolvedValue({ count: 1 });
+      prisma.calendarEvent.findUnique.mockResolvedValueOnce(teams()).mockResolvedValueOnce({ updatedAt: bumped });
       await svc.syncEvent('e1');
-      expect(calendar.createEvent.mock.calls[0][1]).toMatchObject({ isOnlineMeeting: true });
-      expect(prisma.calendarEvent.update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: { onlineMeetingUrl: 'https://teams/x' }, select: { updatedAt: true } });
+      expect(calendar.createEvent.mock.calls[0][1]).toMatchObject({ isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness' });
+      expect(prisma.calendarEvent.updateMany).toHaveBeenCalledWith({ where: { id: 'e1', updatedAt: new Date('2026-10-13T10:00:00Z') }, data: { onlineMeetingUrl: 'https://teams/x' } });
       expect(prisma.calendarEventOutlookCopy.update).toHaveBeenCalledWith({ where: { eventId_userId: { eventId: 'e1', userId: 'u1' } }, data: { syncedAt: bumped } });
     });
 
-    it('does not overwrite an existing join URL', async () => {
-      prisma.calendarEvent.findUnique.mockResolvedValue(event({ type: 'CLIENT_MEETING', onlineMeeting: true, meetingOrganizerId: 'u1', onlineMeetingUrl: 'https://teams/old' }));
+    it('when the event was edited meanwhile it stores the URL but leaves the copy stale', async () => {
+      prisma.calendarEvent.findUnique.mockResolvedValue(teams());
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
+      activeFor((id) => [conn(id)]);
+      calendar.createEvent.mockResolvedValue({ id: 'g1', onlineMeeting: { joinUrl: 'https://teams/x' } });
+      prisma.calendarEvent.updateMany.mockResolvedValue({ count: 0 });
+      await svc.syncEvent('e1');
+      expect(prisma.calendarEvent.update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: { onlineMeetingUrl: 'https://teams/x' } });
+      expect(prisma.calendarEventOutlookCopy.update).not.toHaveBeenCalled();
+    });
+
+    it('overwrites a different stored join URL and ignores an equal one', async () => {
       prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
       activeFor((id) => [conn(id)]);
       calendar.createEvent.mockResolvedValue({ id: 'g1', onlineMeeting: { joinUrl: 'https://teams/new' } });
+      prisma.calendarEvent.updateMany.mockResolvedValue({ count: 1 });
+      prisma.calendarEvent.findUnique.mockResolvedValueOnce(teams({ onlineMeetingUrl: 'https://teams/old' })).mockResolvedValueOnce({ updatedAt: new Date() });
       await svc.syncEvent('e1');
-      expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
+      expect(prisma.calendarEvent.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { onlineMeetingUrl: 'https://teams/new' } }));
+
+      prisma.calendarEvent.updateMany.mockClear();
+      prisma.calendarEvent.findUnique.mockResolvedValue(teams({ onlineMeetingUrl: 'https://teams/new' }));
+      await svc.syncEvent('e1');
+      expect(prisma.calendarEvent.updateMany).not.toHaveBeenCalled();
     });
 
     it('the organizer gets the meeting even with calendar sync off', async () => {
-      prisma.calendarEvent.findUnique.mockResolvedValue(event({ type: 'CLIENT_MEETING', onlineMeeting: true, meetingOrganizerId: 'org', assignees: [{ userId: 'u1' }] }));
+      prisma.calendarEvent.findUnique.mockResolvedValue(teams({ meetingOrganizerId: 'org', assignees: [{ userId: 'u1' }] }));
       prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
       activeFor((id) => [conn(id, { syncCalendar: false })]);
       calendar.createEvent.mockResolvedValue({ id: 'g1' });
       await svc.syncEvent('e1');
       expect(calendar.createEvent).toHaveBeenCalledTimes(1); // org only; u1 has sync off
+      expect(calendar.createEvent.mock.calls[0][1]).toMatchObject({ isOnlineMeeting: true });
       expect(prisma.calendarEventOutlookCopy.upsert.mock.calls[0][0].where).toEqual({ eventId_userId: { eventId: 'e1', userId: 'org' } });
+    });
+
+    describe('withdrawing the organizer copy', () => {
+      const copyRow = { id: 'cp', eventId: 'e1', userId: 'u1', connectionId: 'conn-u1', graphEventId: 'g1', syncedAt: new Date() };
+      const settle = () => new Promise((r) => setTimeout(r, 20));
+
+      it('an organizer who still attends gets a plain copy back', async () => {
+        prisma.calendarEvent.findUnique.mockResolvedValue(event({ type: 'CLIENT_MEETING', onlineMeeting: false, assignees: [{ userId: 'u1' }] }));
+        prisma.calendarEventOutlookCopy.findMany.mockResolvedValueOnce([copyRow]).mockResolvedValue([]);
+        activeFor((id) => [conn(id)]);
+        calendar.createEvent.mockResolvedValue({ id: 'g2' });
+        svc.withdrawOrganizerCopySoon('e1', 'u1');
+        await settle();
+        expect(calendar.deleteEvent).toHaveBeenCalledWith('tok', 'g1');
+        expect(calendar.createEvent).toHaveBeenCalledTimes(1);
+        const payload = calendar.createEvent.mock.calls[0][1];
+        expect(payload.isOnlineMeeting).toBeUndefined();
+        expect(payload.attendees).toBeUndefined();
+        expect(calendar.deleteEvent.mock.invocationCallOrder[0]).toBeLessThan(calendar.createEvent.mock.invocationCallOrder[0]);
+      });
+
+      it('an organizer who does not attend only loses the copy', async () => {
+        prisma.calendarEvent.findUnique.mockResolvedValue(event({ type: 'CLIENT_MEETING', onlineMeeting: false, assignees: [{ userId: 'u2' }] }));
+        prisma.calendarEventOutlookCopy.findMany.mockResolvedValueOnce([copyRow]).mockResolvedValue([]);
+        activeFor((id) => (id === 'u2' ? [conn('u2', { syncCalendar: false })] : [conn(id)]));
+        svc.withdrawOrganizerCopySoon('e1', 'u1');
+        await settle();
+        expect(calendar.deleteEvent).toHaveBeenCalledWith('tok', 'g1');
+        expect(calendar.createEvent).not.toHaveBeenCalled();
+      });
+
+      it('never throws', async () => {
+        prisma.calendarEventOutlookCopy.findMany.mockRejectedValue(new Error('db down'));
+        expect(() => svc.withdrawOrganizerCopySoon('e1', 'u1')).not.toThrow();
+        await settle();
+      });
     });
   });
 
@@ -357,6 +415,18 @@ describe('OutlookCalendarSyncService', () => {
     const spy = jest.spyOn(svc, 'syncEvent').mockResolvedValue(undefined);
     await svc.reconcileAll();
     expect(spy.mock.calls.map((c) => c[0])).toEqual(['future']);
+  });
+
+  it('reconcileAll queues a Teams meeting whose sync-off organizer has no copy yet', async () => {
+    reconcileConns([conn('org', { syncCalendar: false })], [{ id: 'conn-org' }]);
+    prisma.calendarEvent.findMany.mockResolvedValue([
+      { id: 'meet', updatedAt: new Date('2026-10-13'), meetingOrganizerId: 'org' },
+      { id: 'other', updatedAt: new Date('2026-10-13'), meetingOrganizerId: 'nobody' }, // no active connection
+    ]);
+    prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
+    const spy = jest.spyOn(svc, 'syncEvent').mockResolvedValue(undefined);
+    await svc.reconcileAll();
+    expect(spy.mock.calls.map((c) => c[0])).toEqual(['meet']);
   });
 
   it('reconcileAll only forgets copies of REVOKED / missing connections (EXPIRED may recover)', async () => {

@@ -36,9 +36,29 @@ export class OutlookCalendarSyncService {
   syncEvent(eventId: string): Promise<void> {
     const running = this.inFlight.get(eventId);
     if (running) return running;
-    const job = this.doSync(eventId).finally(() => this.inFlight.delete(eventId));
+    return this.locked(eventId, () => this.doSync(eventId));
+  }
+
+  /** Runs after any sync already in flight for the event, and holds the per-event lock while it runs. */
+  private locked(eventId: string, fn: () => Promise<void>): Promise<void> {
+    const previous = this.inFlight.get(eventId) ?? Promise.resolve();
+    const job: Promise<void> = previous.catch(() => undefined).then(fn).finally(() => {
+      if (this.inFlight.get(eventId) === job) this.inFlight.delete(eventId);
+    });
     this.inFlight.set(eventId, job);
     return job;
+  }
+
+  /**
+   * Teams was switched off: delete the previous organizer's copy (Outlook cancels the online
+   * meeting with its invitees), then re-sync so a plain copy comes back if that user still attends.
+   */
+  withdrawOrganizerCopySoon(eventId: string, previousOrganizerId: string): void {
+    this.locked(eventId, async () => {
+      const [copy] = (await this.prisma.calendarEventOutlookCopy.findMany({ where: { eventId, userId: previousOrganizerId } })) as Copy[];
+      if (copy) await this.deleteCopy(copy);
+      await this.doSync(eventId);
+    }).catch((error) => this.logger.warn(`Withdrawing Teams copy of ${eventId} failed: ${error}`));
   }
 
   private async doSync(eventId: string): Promise<void> {
@@ -84,10 +104,15 @@ export class OutlookCalendarSyncService {
         const token = await this.connections.getValidAccessToken(connection.id);
         const payload = this.payloadFor(event, userId, organizerId, origin);
         const { joinUrl } = await this.writeCopy(token, payload, event.id, userId, connection.id, event.updatedAt, copy);
-        if (userId === organizerId && joinUrl && !event.onlineMeetingUrl) {
-          // Keep the link, then mark the organizer's copy as already in sync with the bumped row so it is not re-patched.
-          const { updatedAt } = await this.prisma.calendarEvent.update({ where: { id: event.id }, data: { onlineMeetingUrl: joinUrl }, select: { updatedAt: true } });
-          await this.prisma.calendarEventOutlookCopy.update({ where: { eventId_userId: { eventId: event.id, userId } }, data: { syncedAt: updatedAt } });
+        if (userId === organizerId && joinUrl && joinUrl !== event.onlineMeetingUrl) {
+          // Only claim "in sync" when nobody edited the event meanwhile; otherwise the copy stays stale and is re-patched next run.
+          const res = await this.prisma.calendarEvent.updateMany({ where: { id: event.id, updatedAt: event.updatedAt }, data: { onlineMeetingUrl: joinUrl } });
+          if (res.count === 1) {
+            const row = await this.prisma.calendarEvent.findUnique({ where: { id: event.id }, select: { updatedAt: true } });
+            if (row) await this.prisma.calendarEventOutlookCopy.update({ where: { eventId_userId: { eventId: event.id, userId } }, data: { syncedAt: row.updatedAt } });
+          } else {
+            await this.prisma.calendarEvent.update({ where: { id: event.id }, data: { onlineMeetingUrl: joinUrl } });
+          }
         }
       } catch (error) {
         this.logger.warn(`Outlook copy of event ${event.id} for user ${userId} failed: ${error}`);
@@ -219,6 +244,21 @@ export class OutlookCalendarSyncService {
       });
       const past = new Set(found.filter((f) => f.startAt < since).map((f) => f.id));
       leftovers.forEach((id) => { if (!past.has(id)) ids.add(id); });
+    }
+
+    // The Teams organizer always gets the meeting, even with calendar sync off.
+    const activeUserIds = new Set(connections.map((c) => c.userId));
+    const meetings = await this.prisma.calendarEvent.findMany({
+      where: { onlineMeeting: true, meetingOrganizerId: { not: null }, startAt: { gte: since } },
+      select: { id: true, updatedAt: true, meetingOrganizerId: true },
+    });
+    if (meetings.length) {
+      const meetingCopies = (await this.prisma.calendarEventOutlookCopy.findMany({ where: { eventId: { in: meetings.map((m) => m.id) } } })) as Copy[];
+      for (const m of meetings) {
+        if (!activeUserIds.has(m.meetingOrganizerId)) continue;
+        const copy = meetingCopies.find((c) => c.eventId === m.id && c.userId === m.meetingOrganizerId);
+        if (!copy || copy.syncedAt < m.updatedAt) ids.add(m.id);
+      }
     }
 
     // Copies of revoked/removed connections: no token left to call Graph — forget them. (EXPIRED may recover.)

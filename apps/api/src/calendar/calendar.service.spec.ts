@@ -11,7 +11,7 @@ import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { OutlookConnectionsService } from '../outlook-integration/outlook-connections.service';
 import { OutlookCalendarSyncService } from '../outlook-integration/calendar/outlook-calendar-sync.service';
 
-const mockOutlookCalendar = { syncEventSoon: jest.fn() };
+const mockOutlookCalendar = { syncEventSoon: jest.fn(), withdrawOrganizerCopySoon: jest.fn() };
 const mockOutlookConnections = { findActiveForUser: jest.fn() };
 
 /**
@@ -225,7 +225,7 @@ describe('CalendarService case authorization', () => {
       mockCaseAccess.canAccessCase.mockResolvedValue(true);
       mockPrisma.case.findUnique.mockResolvedValue({
         id: 'case-1', firmId: 'firm-1', caseTypeId: null, ownRef: 'C-1', title: 'Case',
-        courtName: null, leadLawyer: { firstName: 'A', lastName: 'B' },
+        courtName: null, leadLawyerId: 'lead-1', leadLawyer: { firstName: 'A', lastName: 'B' },
       });
       mockPrisma.firmMember.findMany.mockImplementation(async (args: any) => args.where.userId.in.map((userId: string) => ({ userId })));
       mockPrisma.calendarEvent.create.mockResolvedValue({ id: 'event-11', startAt: new Date() });
@@ -254,14 +254,74 @@ describe('CalendarService case authorization', () => {
       expect(mockPrisma.calendarEvent.create.mock.calls.at(-1)[0].data.meetingOrganizerId).toBe('u2');
     });
 
-    it('turning Teams off on update clears the link and organizer', async () => {
-      mockPrisma.calendarEvent.findUnique.mockResolvedValue({
-        id: 'event-1', caseId: 'case-1', type: 'CLIENT_MEETING', startAt: new Date(), onlineMeeting: true, meetingOrganizerId: 'user-1',
-        case: { id: 'case-1', firmId: 'firm-1' },
+    it('with no assignees the connected lead lawyer becomes the organizer', async () => {
+      mockOutlookConnections.findActiveForUser.mockImplementation(async (id: string) => (id === 'lead-1' ? { id: 'c' } : null));
+      await service.create(user, { ...createDto, type: EventType.CLIENT_MEETING, onlineMeeting: true });
+      expect(mockPrisma.calendarEvent.create.mock.calls.at(-1)[0].data.meetingOrganizerId).toBe('lead-1');
+    });
+
+    it('validates assignee membership before probing connections', async () => {
+      mockPrisma.firmMember.findMany.mockResolvedValue([]);
+      await expect(service.create(user, { ...createDto, type: EventType.CLIENT_MEETING, onlineMeeting: true, assigneeIds: ['outsider'] }))
+        .rejects.toThrow('สมาชิกในสำนักงาน');
+      expect(mockOutlookConnections.findActiveForUser).not.toHaveBeenCalled();
+    });
+
+    it('stores no invitees unless the event is a Teams meeting', async () => {
+      await service.create(user, { ...createDto, type: EventType.CLIENT_MEETING, inviteeEmails: ['c@x.com'] });
+      expect(mockPrisma.calendarEvent.create.mock.calls.at(-1)[0].data.inviteeEmails).toEqual([]);
+    });
+
+    describe('updating', () => {
+      const existing = (over: Record<string, unknown> = {}) => ({
+        id: 'event-1', caseId: 'case-1', type: 'CLIENT_MEETING', startAt: new Date(), onlineMeeting: false, meetingOrganizerId: null,
+        assignees: [], case: { id: 'case-1', firmId: 'firm-1', leadLawyer: { id: 'lead-1' } }, ...over,
       });
-      mockPrisma.calendarEvent.update.mockResolvedValue({ id: 'event-1', caseId: 'case-1', type: 'CLIENT_MEETING', startAt: new Date() });
-      await service.update(user, 'event-1', { onlineMeeting: false });
-      expect(mockPrisma.calendarEvent.update.mock.calls.at(-1)[0].data).toMatchObject({ onlineMeeting: false, onlineMeetingUrl: null, meetingOrganizerId: null });
+      const lastData = () => mockPrisma.calendarEvent.update.mock.calls.at(-1)[0].data;
+      beforeEach(() => {
+        mockPrisma.calendarEvent.update.mockResolvedValue({ id: 'event-1', caseId: 'case-1', type: 'CLIENT_MEETING', startAt: new Date() });
+      });
+
+      it('turning Teams off clears the link and organizer and withdraws the organizer copy', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ onlineMeeting: true, meetingOrganizerId: 'user-1' }));
+        await service.update(user, 'event-1', { onlineMeeting: false, inviteeEmails: ['c@x.com'] });
+        expect(lastData()).toMatchObject({ onlineMeeting: false, onlineMeetingUrl: null, meetingOrganizerId: null, inviteeEmails: [] });
+        expect(mockOutlookCalendar.withdrawOrganizerCopySoon).toHaveBeenCalledWith('event-1', 'user-1');
+      });
+
+      it('turning Teams off while changing the type away from a client meeting works', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ onlineMeeting: true, meetingOrganizerId: 'user-1' }));
+        await service.update(user, 'event-1', { onlineMeeting: false, type: EventType.OTHER });
+        expect(mockOutlookCalendar.withdrawOrganizerCopySoon).toHaveBeenCalledWith('event-1', 'user-1');
+      });
+
+      it('a title-only edit on a Teams event with no organizer does not 400', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ onlineMeeting: true, meetingOrganizerId: null }));
+        mockOutlookConnections.findActiveForUser.mockResolvedValue(null);
+        await expect(service.update(user, 'event-1', { title: 'ใหม่' })).resolves.toBeDefined();
+        expect(mockOutlookConnections.findActiveForUser).not.toHaveBeenCalled();
+      });
+
+      it('turning Teams on uses the request\'s new assignees', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ assignees: [{ userId: 'old' }] }));
+        mockPrisma.firmMember.findMany.mockImplementation(async (args: any) => args.where.userId.in.map((userId: string) => ({ userId })));
+        mockOutlookConnections.findActiveForUser.mockImplementation(async (id: string) => (id === 'new-1' ? { id: 'c' } : null));
+        await service.update(user, 'event-1', { onlineMeeting: true, assigneeIds: ['new-1'] });
+        expect(lastData().meetingOrganizerId).toBe('new-1');
+        expect(mockOutlookConnections.findActiveForUser).not.toHaveBeenCalledWith('old');
+      });
+
+      it('turning Teams on falls back to the existing people, then the lead lawyer', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing());
+        mockOutlookConnections.findActiveForUser.mockImplementation(async (id: string) => (id === 'lead-1' ? { id: 'c' } : null));
+        await service.update(user, 'event-1', { onlineMeeting: true, inviteeEmails: ['c@x.com'] });
+        expect(lastData()).toMatchObject({ meetingOrganizerId: 'lead-1', inviteeEmails: ['c@x.com'] });
+      });
+
+      it('rejects turning Teams on for a non-client meeting', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ type: 'COURT_DATE' }));
+        await expect(service.update(user, 'event-1', { onlineMeeting: true })).rejects.toThrow('นัดลูกความ');
+      });
     });
   });
 
