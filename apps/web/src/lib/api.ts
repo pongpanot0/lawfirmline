@@ -1160,6 +1160,11 @@ export interface MailboxConnectionItem {
   id: string;
   mailboxAddress: string;
   connectedByUserId: string;
+  userId: string | null;
+  user: { id: string; firstName: string; lastName: string } | null;
+  isMine: boolean;
+  syncInboxToIntake: boolean;
+  syncCalendar: boolean;
   status: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'ERROR';
   lastError: string | null;
   lastSyncedAt: string | null;
@@ -2833,6 +2838,9 @@ export const api = {
 
   getOutlookConnectUrl: (token: string) =>
     request<{ url: string }>('/outlook/connect', { token, credentials: 'include' }),
+
+  updateOutlookConnection: (token: string, id: string, body: { syncInboxToIntake?: boolean; syncCalendar?: boolean }) =>
+    request<MailboxConnectionItem>(`/outlook/connections/${id}`, { method: 'PATCH', token, body: JSON.stringify(body) }),
 
   disconnectOutlook: (token: string, id: string) =>
     request<{ revoked: boolean }>(`/outlook/connections/${id}`, { method: 'DELETE', token }),
