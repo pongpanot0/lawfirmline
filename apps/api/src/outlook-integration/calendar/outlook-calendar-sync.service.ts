@@ -65,12 +65,15 @@ export class OutlookCalendarSyncService {
     if (organizerId) people.add(organizerId);
 
     const desired = new Map<string, { id: string }>();
+    const skipped = new Set<string>(); // copy lives on an EXPIRED/ERROR connection: leave it alone until it recovers
     for (const userId of people) {
       const connection = await this.pickConnection(userId, organizerId, copies.find((c) => c.userId === userId));
-      if (connection) desired.set(userId, connection);
+      if (connection === 'skip') skipped.add(userId);
+      else if (connection) desired.set(userId, connection);
     }
 
     for (const copy of copies) {
+      if (skipped.has(copy.userId)) continue;
       if (desired.get(copy.userId)?.id !== copy.connectionId) await this.deleteCopy(copy);
     }
 
@@ -99,6 +102,10 @@ export class OutlookCalendarSyncService {
       where: { userId, status: 'ACTIVE' },
       orderBy: { createdAt: 'asc' },
     });
+    if (existing && !rows.some((c) => c.id === existing.connectionId)) {
+      const current = await this.prisma.mailboxConnection.findUnique({ where: { id: existing.connectionId }, select: { status: true } });
+      if (current && current.status !== 'REVOKED') return 'skip';
+    }
     const eligible = rows.filter((c) => c.syncCalendar || userId === organizerId);
     return eligible.find((c) => c.id === existing?.connectionId) ?? eligible[0] ?? null;
   }
@@ -128,13 +135,24 @@ export class OutlookCalendarSyncService {
     return graphEventId;
   }
 
+  /** Removes the Outlook event and the row. On a retryable failure the row is kept (with lastError) so a later run retries. */
   private async deleteCopy(copy: Copy) {
-    try {
-      const token = await this.connections.getValidAccessToken(copy.connectionId);
-      await this.calendar.deleteEvent(token, copy.graphEventId);
-    } catch (error) {
-      if (!(error instanceof GraphApiError && error.status === 404)) {
-        this.logger.warn(`Could not delete Outlook copy ${copy.graphEventId}: ${error}`);
+    // A revoked/removed connection can never produce a token again — nothing left to retry.
+    const connection = await this.prisma.mailboxConnection.findUnique({ where: { id: copy.connectionId }, select: { status: true } });
+    if (connection && connection.status !== 'REVOKED') {
+      try {
+        const token = await this.connections.getValidAccessToken(copy.connectionId);
+        await this.calendar.deleteEvent(token, copy.graphEventId);
+      } catch (error) {
+        if (!(error instanceof GraphApiError && error.status === 404)) {
+          this.logger.warn(`Could not delete Outlook copy ${copy.graphEventId}: ${error}`);
+          try {
+            await this.prisma.calendarEventOutlookCopy.updateMany({ where: { id: copy.id }, data: { lastError: String(error).slice(0, 2000) } });
+          } catch (e) {
+            this.logger.warn(`Could not record lastError for copy ${copy.id}: ${e}`);
+          }
+          return;
+        }
       }
     }
     await this.prisma.calendarEventOutlookCopy.deleteMany({ where: { id: copy.id } });

@@ -22,7 +22,7 @@ describe('OutlookCalendarSyncService', () => {
   const prisma = {
     calendarEvent: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     calendarEventOutlookCopy: { findMany: jest.fn(), upsert: jest.fn(), update: jest.fn(), updateMany: jest.fn(), delete: jest.fn(), deleteMany: jest.fn() },
-    mailboxConnection: { findMany: jest.fn() },
+    mailboxConnection: { findMany: jest.fn(), findUnique: jest.fn() },
   };
   // doSync loads each user's ACTIVE connections (where.userId); reconcileAll loads by status.
   const activeFor = (byUser: (id: string) => unknown[]) =>
@@ -34,6 +34,7 @@ describe('OutlookCalendarSyncService', () => {
   beforeEach(async () => {
     Object.values(prisma).forEach((m) => Object.values(m).forEach((f) => f.mockReset()));
     jest.clearAllMocks();
+    prisma.mailboxConnection.findUnique.mockResolvedValue({ status: 'ACTIVE' });
     connections.getValidAccessToken.mockResolvedValue('tok');
     const mod = await Test.createTestingModule({
       providers: [
@@ -80,6 +81,7 @@ describe('OutlookCalendarSyncService', () => {
 
     Object.values(prisma).forEach((m) => Object.values(m).forEach((f) => f.mockReset()));
     jest.clearAllMocks();
+    prisma.mailboxConnection.findUnique.mockResolvedValue({ status: 'ACTIVE' });
     connections.getValidAccessToken.mockResolvedValue('tok');
     prisma.calendarEvent.findUnique.mockResolvedValue(e);
     activeFor((id) => [conn(id)]);
@@ -175,17 +177,92 @@ describe('OutlookCalendarSyncService', () => {
   describe('connection choice', () => {
     const two = [conn('u1', { id: 'old', createdAt: new Date('2026-01-01') }), conn('u1', { id: 'new', createdAt: new Date('2026-06-01') })];
 
-    it('keeps the copy on its existing eligible connection even if it is the older one', async () => {
-      const e = event();
-      prisma.calendarEvent.findUnique.mockResolvedValue(e);
+    it('keeps a stale copy on its existing (newer) connection: update only, no delete/recreate', async () => {
+      prisma.calendarEvent.findUnique.mockResolvedValue(event());
       activeFor(() => two);
-      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([{ id: 'cp', eventId: 'e1', userId: 'u1', connectionId: 'old', graphEventId: 'g1', syncedAt: e.updatedAt }]);
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([{ id: 'cp', eventId: 'e1', userId: 'u1', connectionId: 'new', graphEventId: 'g1', syncedAt: new Date('2026-01-01') }]);
+      calendar.updateEvent.mockResolvedValue({ id: 'g1' });
       await svc.syncEvent('e1');
+      expect(connections.getValidAccessToken).toHaveBeenCalledWith('new');
+      expect(calendar.updateEvent).toHaveBeenCalledWith('tok', 'g1', expect.any(Object));
       expect(calendar.deleteEvent).not.toHaveBeenCalled();
       expect(calendar.createEvent).not.toHaveBeenCalled();
       expect(prisma.calendarEventOutlookCopy.deleteMany).not.toHaveBeenCalled();
     });
 
+    it('leaves a fresh copy on the newer connection completely alone', async () => {
+      const e = event();
+      prisma.calendarEvent.findUnique.mockResolvedValue(e);
+      activeFor(() => two);
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([{ id: 'cp', eventId: 'e1', userId: 'u1', connectionId: 'new', graphEventId: 'g1', syncedAt: e.updatedAt }]);
+      await svc.syncEvent('e1');
+      expect(calendar.updateEvent).not.toHaveBeenCalled();
+      expect(calendar.deleteEvent).not.toHaveBeenCalled();
+      expect(calendar.createEvent).not.toHaveBeenCalled();
+      expect(prisma.calendarEventOutlookCopy.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('skips a user whose copy sits on an EXPIRED connection (no update, create or delete)', async () => {
+      prisma.calendarEvent.findUnique.mockResolvedValue(event());
+      activeFor(() => [conn('u1', { id: 'other' })]);
+      prisma.mailboxConnection.findUnique.mockResolvedValue({ status: 'EXPIRED' });
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([{ id: 'cp', eventId: 'e1', userId: 'u1', connectionId: 'conn-x', graphEventId: 'g1', syncedAt: new Date('2026-01-01') }]);
+      await svc.syncEvent('e1');
+      expect(calendar.updateEvent).not.toHaveBeenCalled();
+      expect(calendar.createEvent).not.toHaveBeenCalled();
+      expect(calendar.deleteEvent).not.toHaveBeenCalled();
+      expect(prisma.calendarEventOutlookCopy.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleting copies', () => {
+    const gone = () => {
+      prisma.calendarEvent.findUnique.mockResolvedValue(null);
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([{ id: 'cp', eventId: 'e1', userId: 'u1', connectionId: 'conn-u1', graphEventId: 'g1', syncedAt: new Date() }]);
+    };
+
+    it('keeps the row (with lastError) when the connection is EXPIRED and no token is available', async () => {
+      gone();
+      prisma.mailboxConnection.findUnique.mockResolvedValue({ status: 'EXPIRED' });
+      connections.getValidAccessToken.mockRejectedValue(new Error('expired'));
+      await svc.syncEvent('e1');
+      expect(prisma.calendarEventOutlookCopy.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.calendarEventOutlookCopy.updateMany).toHaveBeenCalledWith({ where: { id: 'cp' }, data: { lastError: expect.stringContaining('expired') } });
+    });
+
+    it('keeps the row on a non-404 Graph failure', async () => {
+      gone();
+      calendar.deleteEvent.mockRejectedValue(new GraphApiError(500, 'boom'));
+      await svc.syncEvent('e1');
+      expect(prisma.calendarEventOutlookCopy.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('drops the row without calling Graph when the connection is REVOKED', async () => {
+      gone();
+      prisma.mailboxConnection.findUnique.mockResolvedValue({ status: 'REVOKED' });
+      await svc.syncEvent('e1');
+      expect(connections.getValidAccessToken).not.toHaveBeenCalled();
+      expect(calendar.deleteEvent).not.toHaveBeenCalled();
+      expect(prisma.calendarEventOutlookCopy.deleteMany).toHaveBeenCalledWith({ where: { id: 'cp' } });
+    });
+
+    it('drops the row when the connection no longer exists', async () => {
+      gone();
+      prisma.mailboxConnection.findUnique.mockResolvedValue(null);
+      await svc.syncEvent('e1');
+      expect(calendar.deleteEvent).not.toHaveBeenCalled();
+      expect(prisma.calendarEventOutlookCopy.deleteMany).toHaveBeenCalledWith({ where: { id: 'cp' } });
+    });
+
+    it('drops the row when Graph says 404', async () => {
+      gone();
+      calendar.deleteEvent.mockRejectedValue(new GraphApiError(404, 'gone'));
+      await svc.syncEvent('e1');
+      expect(prisma.calendarEventOutlookCopy.deleteMany).toHaveBeenCalledWith({ where: { id: 'cp' } });
+    });
+  });
+
+  describe('connection choice without a copy', () => {
     it('with no copy yet, uses the oldest eligible connection (asks for createdAt asc)', async () => {
       prisma.calendarEvent.findUnique.mockResolvedValue(event());
       activeFor(() => [conn('u1', { id: 'old' }), conn('u1', { id: 'new' })]);
