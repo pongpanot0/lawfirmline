@@ -3,7 +3,20 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { GraphTokens } from './outlook-graph.client';
 
-const SCOPES = ['offline_access', 'Mail.Read', 'Mail.ReadWrite', 'Mail.ReadWrite.Shared', 'User.Read'].join(' ');
+// Must match the delegated permissions on the Entra app registration — tenant
+// admins consent once via `.default`, so adding a scope here without adding it
+// there (or vice versa) forces every connected firm to re-consent.
+const SCOPES = [
+  'offline_access',
+  'User.Read',
+  'Mail.Read',
+  'Mail.ReadWrite',
+  'Mail.ReadWrite.Shared',
+  'Mail.Send',
+  'Calendars.ReadWrite',
+  'Files.ReadWrite.All',
+  'Sites.Read.All',
+].join(' ');
 
 interface OAuthState {
   firmId: string;
