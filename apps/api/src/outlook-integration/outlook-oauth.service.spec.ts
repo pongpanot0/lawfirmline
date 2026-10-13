@@ -70,7 +70,16 @@ describe('OutlookOAuthService state signing', () => {
     expect(url.searchParams.get('client_id')).toBe('client-123');
     expect(url.searchParams.get('redirect_uri')).toBe('https://api.example.com/outlook/callback');
     expect(url.searchParams.get('scope')).toContain('offline_access');
-    expect(url.searchParams.get('scope')).toContain('Mail.ReadWrite.Shared');
+    const scopes = url.searchParams.get('scope')!.split(' ');
+    expect(scopes).toEqual(
+      expect.arrayContaining([
+        'Mail.ReadWrite.Shared',
+        'Mail.Send',
+        'Calendars.ReadWrite',
+        'Files.ReadWrite.All',
+        'Sites.Read.All',
+      ]),
+    );
     expect(url.searchParams.get('state')).toBe('state-abc');
   });
 });

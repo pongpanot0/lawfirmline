@@ -45,7 +45,7 @@ export class OutlookOAuthController {
     // the user lands on a page with no tenant.
     let origin = this.firmLink.rootOrigin();
     const redirectTo = (status: 'connected' | 'error', message?: string) => {
-      const url = new URL(`${origin.replace(/\/$/, '')}/settings/integrations`);
+      const url = new URL(`${origin.replace(/\/$/, '')}/settings`);
       url.searchParams.set('outlook', status);
       if (message) url.searchParams.set('message', message);
       return res.redirect(url.toString());
