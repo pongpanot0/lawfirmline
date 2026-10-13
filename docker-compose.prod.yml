@@ -54,6 +54,14 @@ services:
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       # Who may edit data shared by every firm (courts, holidays, deadline rules).
       PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
+      # Outlook (Microsoft Graph). One multi-tenant Entra app shared by every firm;
+      # redirect URI registered there = https://api.${DOMAIN}/outlook/callback
+      API_PUBLIC_URL: https://api.${DOMAIN}
+      OUTLOOK_WEBHOOK_URL: https://api.${DOMAIN}/outlook/webhook
+      MS_CLIENT_ID: ${MS_CLIENT_ID:-}
+      MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
+      MS_TENANT_ID: ${MS_TENANT_ID:-common}
+      MAILBOX_TOKEN_ENCRYPTION_KEY: ${MAILBOX_TOKEN_ENCRYPTION_KEY:-}
     volumes:
       - uploads:/data/uploads
     networks: [internal]
