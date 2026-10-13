@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
+const GRAPH_HOST = 'https://graph.microsoft.com/';
 const MAX_RETRIES = 3;
-const RETRYABLE = new Set([429, 503, 504]);
 
 /** Non-2xx from Graph. Callers branch on `.status` (401 revoked, 404 gone). */
 export class GraphApiError extends Error {
@@ -30,19 +30,23 @@ export class GraphHttp {
   }
 
   private async send(token: string, path: string, init: RequestInit = {}): Promise<Response> {
+    const url = this.url(path);
+    const method = (init.method ?? 'GET').toUpperCase();
+    const callerHeaders = (init.headers as Record<string, string>) ?? {};
+    // The bearer token only goes to Graph itself; absolute URLs elsewhere (e.g. upload sessions) are pre-authorised.
+    const headers = url.startsWith(GRAPH_HOST) ? { ...callerHeaders, Authorization: `Bearer ${token}` } : callerHeaders;
     for (let attempt = 0; ; attempt++) {
-      const res = await fetch(this.url(path), {
-        ...init,
-        headers: { Authorization: `Bearer ${token}`, ...((init.headers as Record<string, string>) ?? {}) },
-      });
+      const res = await fetch(url, { ...init, headers });
       if (res.ok) return res;
-      if (RETRYABLE.has(res.status) && attempt < MAX_RETRIES) {
+      // 503/504 on a POST may already have executed (send mail, create event) — retrying would duplicate it.
+      const retryable = res.status === 429 || ((res.status === 503 || res.status === 504) && method !== 'POST');
+      if (retryable && attempt < MAX_RETRIES) {
         const retryAfter = Number(res.headers.get('retry-after'));
         await this.sleep(Math.min(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 2 ** attempt, 30) * 1000);
         continue;
       }
       const body = await res.text().catch(() => '');
-      throw new GraphApiError(res.status, `Graph ${init.method ?? 'GET'} ${path} failed: ${res.status} ${body.slice(0, 500)}`);
+      throw new GraphApiError(res.status, `Graph ${method} ${path} failed: ${res.status} ${body.slice(0, 500)}`);
     }
   }
 

@@ -19,6 +19,7 @@ describe('GraphHttp', () => {
     (global as any).fetch = fetchMock;
     jest.spyOn(GraphHttp.prototype as any, 'sleep').mockResolvedValue(undefined);
   });
+  afterEach(() => jest.restoreAllMocks());
 
   it('prefixes relative paths and sends the bearer token', async () => {
     fetchMock.mockResolvedValue(res(200, { ok: 1 }));
@@ -64,5 +65,29 @@ describe('GraphHttp', () => {
     fetchMock.mockResolvedValue(res(200, 'abc'));
     const buf = await http.requestBuffer('tok', '/me/drive/items/1/content');
     expect(buf.toString()).toBe('abc');
+  });
+
+  it('does not retry a 503 on POST (may have already executed)', async () => {
+    fetchMock.mockResolvedValue(res(503, 'down'));
+    await expect(http.request('tok', '/me/sendMail', { method: 'POST', body: '{}' })).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a 429 on POST', async () => {
+    fetchMock.mockResolvedValueOnce(res(429, 'slow', { 'retry-after': '1' })).mockResolvedValueOnce(res(200, { ok: 3 }));
+    await expect(http.request('tok', '/me/sendMail', { method: 'POST', body: '{}' })).resolves.toEqual({ ok: 3 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends no Authorization to an absolute non-Graph URL', async () => {
+    fetchMock.mockResolvedValue(res(200, { ok: 1 }));
+    await http.request('tok', 'https://upload.example.com/session/1', { method: 'PUT' });
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+  });
+
+  it('caller-supplied Authorization cannot override the token on a Graph URL', async () => {
+    fetchMock.mockResolvedValue(res(200, { ok: 1 }));
+    await http.request('tok', '/me', { headers: { Authorization: 'Bearer evil' } });
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer tok');
   });
 });
