@@ -1,9 +1,10 @@
-import { Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
+import { UpdateConnectionSettingsDto } from './dto/update-connection-settings.dto';
 
 @Controller('outlook/connections')
 @UseGuards(JwtAuthGuard)
@@ -15,7 +16,15 @@ export class OutlookConnectionsController {
 
   @Get()
   list(@CurrentUser() user: AuthUser) {
-    return this.connections.listForFirm(user.firmId);
+    return this.connections.listForFirm(user);
+  }
+
+  @Patch(':id')
+  async updateSettings(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateConnectionSettingsDto) {
+    await this.connections.updateSettings(user, id, dto);
+    // Side effects (webhook subscription, calendar cleanup) are wired in later tasks.
+    const rows = await this.connections.listForFirm(user);
+    return rows.find((r) => r.id === id);
   }
 
   @Delete(':id')

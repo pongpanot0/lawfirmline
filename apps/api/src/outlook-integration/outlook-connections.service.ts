@@ -8,17 +8,22 @@ import { MailboxConnectionStatus } from '../generated/prisma';
 import { decryptToken, encryptToken } from '../common/utils/token-encryption.util';
 import { GraphApiError, GraphTokens, OutlookGraphClient } from './outlook-graph.client';
 import { OutlookOAuthService } from './outlook-oauth.service';
+import { UpdateConnectionSettingsDto } from './dto/update-connection-settings.dto';
 
 const SAFE_SELECT = {
   id: true,
   firmId: true,
   mailboxAddress: true,
   connectedByUserId: true,
+  userId: true,
   status: true,
   lastError: true,
   lastSyncedAt: true,
   subscriptionExpiresAt: true,
   createdAt: true,
+  syncInboxToIntake: true,
+  syncCalendar: true,
+  user: { select: { id: true, firstName: true, lastName: true } },
 } as const;
 
 @Injectable()
@@ -31,12 +36,31 @@ export class OutlookConnectionsService {
     private graph: OutlookGraphClient,
   ) {}
 
-  listForFirm(firmId: string) {
-    return this.prisma.mailboxConnection.findMany({
-      where: { firmId },
+  async listForFirm(user: AuthUser) {
+    const rows = await this.prisma.mailboxConnection.findMany({
+      where: { firmId: user.firmId },
       select: SAFE_SELECT,
       orderBy: { createdAt: 'desc' },
     });
+    return rows.map((r) => ({ ...r, isMine: (r.userId ?? r.connectedByUserId) === user.id }));
+  }
+
+  /** The user's own Microsoft account — used for calendar, sending and files. */
+  findActiveForUser(userId: string) {
+    return this.prisma.mailboxConnection.findFirst({
+      where: { userId, status: MailboxConnectionStatus.ACTIVE },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async updateSettings(user: AuthUser, id: string, dto: UpdateConnectionSettingsDto) {
+    await this.assertCanManage(user, id);
+    const before = await this.getRaw(user.firmId, id);
+    const data: { syncInboxToIntake?: boolean; syncCalendar?: boolean } = {};
+    if (dto.syncInboxToIntake !== undefined) data.syncInboxToIntake = dto.syncInboxToIntake;
+    if (dto.syncCalendar !== undefined) data.syncCalendar = dto.syncCalendar;
+    const after = await this.prisma.mailboxConnection.update({ where: { id }, data });
+    return { before, after };
   }
 
   private async getRaw(firmId: string, id: string) {
@@ -53,7 +77,7 @@ export class OutlookConnectionsService {
   /** A mailbox is managed by whoever connected it, or the firm owner — not by every colleague. */
   async assertCanManage(user: AuthUser, id: string): Promise<void> {
     const connection = await this.getRaw(user.firmId, id);
-    if (connection.connectedByUserId !== user.id && user.firmRole !== FirmRole.OWNER) {
+    if ((connection.userId ?? connection.connectedByUserId) !== user.id && user.firmRole !== FirmRole.OWNER) {
       throw new ForbiddenException('จัดการกล่องอีเมลนี้ได้เฉพาะผู้เชื่อมต่อหรือเจ้าของสำนักงาน');
     }
   }
@@ -71,6 +95,7 @@ export class OutlookConnectionsService {
         firmId: user.firmId,
         mailboxAddress,
         connectedByUserId: user.id,
+        userId: user.id,
         accessTokenEnc: encryptToken(tokens.accessToken),
         refreshTokenEnc: encryptToken(tokens.refreshToken),
         tokenExpiresAt: new Date(Date.now() + tokens.expiresIn * 1000),
@@ -79,6 +104,7 @@ export class OutlookConnectionsService {
       },
       update: {
         connectedByUserId: user.id,
+        userId: user.id,
         accessTokenEnc: encryptToken(tokens.accessToken),
         refreshTokenEnc: encryptToken(tokens.refreshToken),
         tokenExpiresAt: new Date(Date.now() + tokens.expiresIn * 1000),

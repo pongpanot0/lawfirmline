@@ -128,4 +128,51 @@ describe('OutlookConnectionsService', () => {
       await expect(service.assertOwnership('firm-1', 'conn-1')).resolves.toBeUndefined();
     });
   });
+
+  describe('ownership and settings', () => {
+    const owner = { id: 'u1', firmId: 'f1', firmRole: 'LAWYER' } as any;
+    const other = { id: 'u2', firmId: 'f1', firmRole: 'LAWYER' } as any;
+    const firmOwner = { id: 'u3', firmId: 'f1', firmRole: 'OWNER' } as any;
+    const row = { id: 'c1', firmId: 'f1', userId: 'u1', connectedByUserId: 'u1', syncInboxToIntake: false, syncCalendar: true };
+
+    it('findActiveForUser returns the newest ACTIVE connection of that user', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValue(row);
+      await expect(service.findActiveForUser('u1')).resolves.toBe(row);
+      expect(mockPrisma.mailboxConnection.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'u1', status: 'ACTIVE' },
+        orderBy: { updatedAt: 'desc' },
+      });
+    });
+
+    it('listForFirm flags the caller’s own rows', async () => {
+      mockPrisma.mailboxConnection.findMany.mockResolvedValue([{ ...row, user: { id: 'u1', firstName: 'A', lastName: 'B' } }]);
+      const [item] = await service.listForFirm(owner);
+      expect(item.isMine).toBe(true);
+      expect(item).not.toHaveProperty('accessTokenEnc');
+    });
+
+    it('updateSettings is allowed for the owner of the connection', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValue(row);
+      mockPrisma.mailboxConnection.update.mockResolvedValue({ ...row, syncInboxToIntake: true });
+      const { before, after } = await service.updateSettings(owner, 'c1', { syncInboxToIntake: true });
+      expect(before.syncInboxToIntake).toBe(false);
+      expect(after.syncInboxToIntake).toBe(true);
+      expect(mockPrisma.mailboxConnection.update).toHaveBeenCalledWith({ where: { id: 'c1' }, data: { syncInboxToIntake: true } });
+    });
+
+    it('updateSettings refuses a colleague but allows the firm owner', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValue(row);
+      mockPrisma.mailboxConnection.update.mockResolvedValue(row);
+      await expect(service.updateSettings(other, 'c1', { syncCalendar: false })).rejects.toThrow(/เฉพาะผู้เชื่อมต่อ/);
+      await expect(service.updateSettings(firmOwner, 'c1', { syncCalendar: false })).resolves.toBeDefined();
+    });
+
+    it('upsertFromOAuth records the owner', async () => {
+      mockPrisma.mailboxConnection.upsert.mockResolvedValue(row);
+      await service.upsertFromOAuth(owner, { accessToken: 'a', refreshToken: 'r', expiresIn: 3600 }, 'a@x.com');
+      const call = mockPrisma.mailboxConnection.upsert.mock.calls[0][0];
+      expect(call.create.userId).toBe('u1');
+      expect(call.update.userId).toBe('u1');
+    });
+  });
 });

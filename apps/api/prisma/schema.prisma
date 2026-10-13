@@ -701,6 +701,7 @@ model User {
   caseComments               CaseComment[]
   notifications              Notification[]
   notificationPreferences    UserNotificationPreference[]
+  mailboxConnections         MailboxConnection[]          @relation("MailboxConnectionOwner")
 }
 
 /// What a staff notification is about — the unit a user mutes per channel.
@@ -983,6 +984,7 @@ model Case {
   workflowRuns           WorkflowRun[]
   proceedings            CaseProceeding[]
   conflictChecks         ConflictCheck[]
+  emailThreads           EmailThread[]    @relation("CaseEmailThreads")
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -2452,13 +2454,20 @@ model EmailThread {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  firm     Firm           @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  intake   Intake?        @relation(fields: [intakeId], references: [id], onDelete: SetNull)
-  messages EmailMessage[]
+  mailboxConnectionId String?
+  caseId              String?
+
+  firm              Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  intake            Intake?            @relation(fields: [intakeId], references: [id], onDelete: SetNull)
+  messages          EmailMessage[]
+  mailboxConnection MailboxConnection? @relation(fields: [mailboxConnectionId], references: [id], onDelete: SetNull)
+  case              Case?              @relation("CaseEmailThreads", fields: [caseId], references: [id], onDelete: SetNull)
 
   @@unique([firmId, provider, threadKey])
   @@index([firmId])
   @@index([intakeId])
+  @@index([mailboxConnectionId])
+  @@index([caseId])
 }
 
 model EmailMessage {
@@ -2472,6 +2481,11 @@ model EmailMessage {
   bodyText    String?        @db.Text
   receivedAt  DateTime       @default(now())
   createdAt   DateTime       @default(now())
+
+  graphMessageId String?
+  toAddresses    String[] @default([])
+  ccAddresses    String[] @default([])
+  bodyHtml       String?  @db.Text
 
   thread         EmailThread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
   attachments    EmailAttachment[]
@@ -2598,12 +2612,19 @@ model MailboxConnection {
   lastSyncedAt          DateTime?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
+  userId                String?
+  syncInboxToIntake     Boolean                 @default(false)
+  syncCalendar          Boolean                 @default(true)
+  sentDeltaLink         String?                 @db.Text
 
-  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  firm    Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user    User?         @relation("MailboxConnectionOwner", fields: [userId], references: [id], onDelete: SetNull)
+  threads EmailThread[]
 
   @@unique([firmId, mailboxAddress])
   @@index([firmId])
   @@index([graphSubscriptionId])
+  @@index([userId])
 }
 
 /// Shared preparation and a single, retry-safe outcome for one court appointment.
