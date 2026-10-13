@@ -92,7 +92,7 @@ export class OutlookConnectionsService {
    * Returns a valid access token, refreshing it first if it is expiring
    * within 5 minutes. On a refresh failure (revoked consent, deleted app
    * registration, ...) the connection is marked EXPIRED so it stops being
-   * used silently — the firm sees it on /settings/integrations and has to
+   * used silently — the firm sees it on /settings and has to
    * reconnect, rather than sync failing invisibly forever.
    */
   async getValidAccessToken(connectionId: string): Promise<string> {
