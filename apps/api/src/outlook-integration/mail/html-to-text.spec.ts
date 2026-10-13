@@ -11,4 +11,15 @@ describe('htmlToText', () => {
   it('collapses runs of blank lines', () => {
     expect(htmlToText('<div>a</div><div></div><div></div><div>b</div>')).toBe('a\n\nb');
   });
+  it('decodes numeric entities', () => {
+    expect(htmlToText('&#x41;&#66;')).toBe('AB');
+  });
+  it('leaves invalid numeric entities untouched instead of throwing', () => {
+    for (const bad of ['&#99999999;', '&#x110000;', '&#xD800;']) {
+      expect(htmlToText(bad)).toBe(bad);
+    }
+  });
+  it('does not resolve prototype property names as entities', () => {
+    expect(htmlToText('&constructor; &__proto__;')).toBe('&constructor; &__proto__;');
+  });
 });

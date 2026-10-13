@@ -7,8 +7,8 @@ import { CaseAccessService } from '../common/services/case-access.service';
 describe('EmailIntakeService', () => {
   let service: EmailIntakeService;
   const mockPrisma = {
-    emailThread: { findFirst: jest.fn(), update: jest.fn() },
-    emailMessage: { create: jest.fn(), findUnique: jest.fn() },
+    emailThread: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    emailMessage: { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     intake: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
     intakeFieldProposal: {
       findFirst: jest.fn(),
@@ -56,6 +56,50 @@ describe('EmailIntakeService', () => {
     it('throws when the thread does not exist for this firm', async () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue(null);
       await expect(service.acceptIntakeFromThread(user, 'missing', {})).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('newest message is OUTBOUND', () => {
+    it('intake description and proposals come from the latest INBOUND message', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({
+        id: 'thread-1', intake: null, fromName: 'S', subject: 'x', lastMessageAt: new Date(),
+        messages: [
+          { id: 'out', direction: 'OUTBOUND', bodyText: 'ตอบกลับจากทนาย', attachments: [] },
+          { id: 'in', direction: 'INBOUND', bodyText: 'ข้อความจากลูกความ', attachments: [] },
+        ],
+      });
+      mockPrisma.client.findMany.mockResolvedValue([]);
+      mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
+      mockPrisma.intake.findUnique.mockResolvedValue({ id: 'intake-1' });
+      await service.acceptIntakeFromThread(user, 'thread-1', {});
+      expect(mockPrisma.intake.create.mock.calls[0][0].data.description).toBe('ข้อความจากลูกความ');
+    });
+
+    it('falls back to the latest message when a thread has no INBOUND message', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({
+        id: 'thread-1', intake: null, fromName: 'S', subject: 'x', lastMessageAt: new Date(),
+        messages: [{ id: 'out', direction: 'OUTBOUND', bodyText: 'ตอบกลับจากทนาย', attachments: [] }],
+      });
+      mockPrisma.client.findMany.mockResolvedValue([]);
+      mockPrisma.intake.create.mockResolvedValue({ id: 'intake-1' });
+      mockPrisma.intake.findUnique.mockResolvedValue({ id: 'intake-1' });
+      await service.acceptIntakeFromThread(user, 'thread-1', {});
+      expect(mockPrisma.intake.create.mock.calls[0][0].data.description).toBe('ตอบกลับจากทนาย');
+    });
+
+    it('list excerpt uses the latest INBOUND message, else the newest', async () => {
+      mockPrisma.emailThread.findMany.mockResolvedValue([
+        { id: 't1', subject: 'a', lastMessageAt: new Date(), status: 'NEW', _count: { messages: 2 }, intake: null,
+          messages: [{ id: 'out', bodyText: 'ทนายตอบ', attachments: [] }] },
+        { id: 't2', subject: 'b', lastMessageAt: new Date(), status: 'NEW', _count: { messages: 1 }, intake: null,
+          messages: [{ id: 'o2', bodyText: 'ส่งออกอย่างเดียว', attachments: [] }] },
+      ]);
+      mockPrisma.emailMessage.findMany.mockResolvedValue([
+        { id: 'in', threadId: 't1', bodyText: 'ลูกความถาม', attachments: [{ id: 'a1' }] },
+      ]);
+      const list = await service.listThreads(user);
+      expect(list[0]).toMatchObject({ bodyExcerpt: 'ลูกความถาม', attachmentCount: 1 });
+      expect(list[1].bodyExcerpt).toBe('ส่งออกอย่างเดียว');
     });
   });
 

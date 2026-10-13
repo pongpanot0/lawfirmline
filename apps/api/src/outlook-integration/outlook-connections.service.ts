@@ -154,6 +154,12 @@ export class OutlookConnectionsService {
     });
   }
 
+  /** Records a non-fatal problem without changing the connection's status. */
+  async recordError(connectionId: string, message: string) {
+    this.logger.warn(`MailboxConnection ${connectionId}: ${message}`);
+    await this.prisma.mailboxConnection.update({ where: { id: connectionId }, data: { lastError: message.slice(0, 2000) } });
+  }
+
   async disconnect(firmId: string, id: string) {
     const connection = await this.getRaw(firmId, id);
     if (connection.graphSubscriptionId) {

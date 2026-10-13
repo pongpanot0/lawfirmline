@@ -4,6 +4,7 @@ import { OutlookSyncService } from './outlook-sync.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookGraphClient } from './outlook-graph.client';
+import { Prisma } from '../generated/prisma';
 import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('OutlookSyncService', () => {
@@ -199,5 +200,45 @@ describe('OutlookSyncService', () => {
       where: { id: 't1' },
       data: expect.objectContaining({ caseId: 'case-1', status: 'LINKED' }),
     });
+  });
+
+  it('survives a concurrent thread create (P2002) by re-reading the winner', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 't-win', caseId: null });
+    mockPrisma.emailThread.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }),
+    );
+    mockPrisma.emailMessage.findFirst.mockResolvedValue(null);
+    mockPrisma.emailMessage.create.mockResolvedValue({ id: 'm1' });
+    const out = await service.upsertGraphMessage({
+      firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
+      direction: 'INBOUND', createThreadIfMissing: true,
+    });
+    expect(out).toEqual({ threadId: 't-win', messageId: 'm1' });
+  });
+
+  it('survives a concurrent message create (P2002) by returning the existing row', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
+    mockPrisma.emailMessage.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'm-win' });
+    mockPrisma.emailMessage.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }),
+    );
+    const out = await service.upsertGraphMessage({
+      firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
+      direction: 'INBOUND', createThreadIfMissing: true,
+    });
+    expect(out).toEqual({ threadId: 't1', messageId: 'm-win' });
+    expect(mockPrisma.emailThread.update).not.toHaveBeenCalled(); // nothing changed on the thread
+  });
+
+  it('rethrows non-unique errors from message create', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
+    mockPrisma.emailMessage.findFirst.mockResolvedValue(null);
+    mockPrisma.emailMessage.create.mockRejectedValue(new Error('boom'));
+    await expect(
+      service.upsertGraphMessage({
+        firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
+        direction: 'INBOUND', createThreadIfMissing: true,
+      }),
+    ).rejects.toThrow('boom');
   });
 });

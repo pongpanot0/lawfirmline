@@ -9,10 +9,11 @@ export function htmlToText(html: string): string {
     .replace(/<[^>]+>/g, '')
     .replace(/&(#\d+|#x[0-9a-f]+|\w+);/gi, (m, e: string) => {
       const key = e.toLowerCase();
-      if (ENTITIES[key] !== undefined) return ENTITIES[key];
-      if (key.startsWith('#x')) return String.fromCodePoint(parseInt(key.slice(2), 16));
-      if (key.startsWith('#')) return String.fromCodePoint(Number(key.slice(1)));
-      return m;
+      if (Object.prototype.hasOwnProperty.call(ENTITIES, key)) return ENTITIES[key];
+      const code = key.startsWith('#x') ? parseInt(key.slice(2), 16) : key.startsWith('#') ? Number(key.slice(1)) : NaN;
+      // Out-of-range / surrogate code points would throw — leave them as written.
+      if (!Number.isFinite(code) || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return m;
+      return String.fromCodePoint(code);
     })
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')

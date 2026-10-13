@@ -30,7 +30,10 @@ export class OutlookConnectionsController {
       if (!before.syncInboxToIntake && after.syncInboxToIntake) await this.subscriptions.ensureSubscription(id);
       if (before.syncInboxToIntake && !after.syncInboxToIntake) await this.subscriptions.removeSubscription(id);
     } catch (error) {
-      this.logger.warn(`Subscription change for ${id} failed: ${error}`); // setting is saved; renew cron retries
+      // The setting is saved. Nothing retries a subscription that was never created;
+      // the user can toggle again. Surface the failure on the connection.
+      this.logger.warn(`Subscription change for ${id} failed: ${error}`);
+      await this.connections.recordError(id, `Subscription change failed: ${error}`).catch(() => undefined);
     }
     // Calendar cleanup is wired in a later task.
     const rows = await this.connections.listForFirm(user);

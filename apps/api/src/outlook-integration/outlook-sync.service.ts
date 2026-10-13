@@ -11,6 +11,8 @@ type Direction = 'INBOUND' | 'OUTBOUND';
 const addresses = (list?: GraphRecipient[]) =>
   (list ?? []).map((r) => r.emailAddress?.address?.toLowerCase()).filter((a): a is string => !!a);
 
+const isUniqueViolation = (e: unknown) => (e as { code?: string } | null)?.code === 'P2002';
+
 /**
  * Pulls new inbox messages via Graph delta query and writes them into the
  * SAME EmailThread/EmailMessage/EmailAttachment tables the mock email-intake
@@ -95,28 +97,34 @@ export class OutlookSyncService {
     let thread = await this.prisma.emailThread.findUnique({ where: key });
     if (!thread) {
       if (!p.createThreadIfMissing) return null;
-      thread = await this.prisma.emailThread.create({
-        data: {
-          firmId: p.firmId,
-          provider: 'microsoft',
-          threadKey: message.conversationId,
-          subject,
-          fromName: message.from?.emailAddress?.name ?? null,
-          fromAddress: message.from?.emailAddress?.address ?? null,
-          lastMessageAt: at,
-          mailboxConnectionId: p.connectionId,
-          caseId: p.caseId ?? null,
-          ...(p.caseId ? { status: EmailThreadStatus.LINKED } : {}),
-        },
-      });
+      try {
+        thread = await this.prisma.emailThread.create({
+          data: {
+            firmId: p.firmId,
+            provider: 'microsoft',
+            threadKey: message.conversationId,
+            subject,
+            fromName: message.from?.emailAddress?.name ?? null,
+            fromAddress: message.from?.emailAddress?.address ?? null,
+            lastMessageAt: at,
+            mailboxConnectionId: p.connectionId,
+            caseId: p.caseId ?? null,
+            ...(p.caseId ? { status: EmailThreadStatus.LINKED } : {}),
+          },
+        });
+      } catch (error) {
+        // A concurrent sync (webhook + poll) created it first — carry on with that row.
+        if (!isUniqueViolation(error)) throw error;
+        thread = await this.prisma.emailThread.findUnique({ where: key });
+        if (!thread) throw error;
+      }
     } else {
-      thread = await this.prisma.emailThread.update({
-        where: { id: thread.id },
-        data: {
-          lastMessageAt: thread.lastMessageAt && at <= thread.lastMessageAt ? undefined : at,
-          ...(p.caseId && !thread.caseId ? { caseId: p.caseId, status: EmailThreadStatus.LINKED } : {}),
-        },
-      });
+      const data = {
+        ...(thread.subject === subject ? {} : { subject }),
+        ...(thread.lastMessageAt && at <= thread.lastMessageAt ? {} : { lastMessageAt: at }),
+        ...(p.caseId && !thread.caseId ? { caseId: p.caseId, status: EmailThreadStatus.LINKED } : {}),
+      };
+      if (Object.keys(data).length) thread = await this.prisma.emailThread.update({ where: { id: thread.id }, data });
     }
 
     const existing = await this.prisma.emailMessage.findFirst({ where: { threadId: thread.id, messageKey: message.internetMessageId } });
@@ -124,22 +132,31 @@ export class OutlookSyncService {
 
     const html = message.body?.contentType?.toLowerCase() === 'html' ? message.body.content : null;
     const bodyText = html ? htmlToText(html) : (message.body?.content ?? message.bodyPreview ?? null);
-    const emailMessage = await this.prisma.emailMessage.create({
-      data: {
-        threadId: thread.id,
-        provider: 'microsoft',
-        messageKey: message.internetMessageId,
-        graphMessageId: message.id,
-        direction: p.direction === 'OUTBOUND' ? EmailDirection.OUTBOUND : EmailDirection.INBOUND,
-        fromName: message.from?.emailAddress?.name ?? null,
-        fromAddress: message.from?.emailAddress?.address ?? null,
-        toAddresses: addresses(message.toRecipients),
-        ccAddresses: addresses(message.ccRecipients),
-        bodyHtml: html,
-        bodyText,
-        receivedAt: at,
-      },
-    });
+    let emailMessage: { id: string };
+    try {
+      emailMessage = await this.prisma.emailMessage.create({
+        data: {
+          threadId: thread.id,
+          provider: 'microsoft',
+          messageKey: message.internetMessageId,
+          graphMessageId: message.id,
+          direction: p.direction === 'OUTBOUND' ? EmailDirection.OUTBOUND : EmailDirection.INBOUND,
+          fromName: message.from?.emailAddress?.name ?? null,
+          fromAddress: message.from?.emailAddress?.address ?? null,
+          toAddresses: addresses(message.toRecipients),
+          ccAddresses: addresses(message.ccRecipients),
+          bodyHtml: html,
+          bodyText,
+          receivedAt: at,
+        },
+      });
+    } catch (error) {
+      // Concurrent sync stored the same message first (unique [threadId, messageKey]).
+      if (!isUniqueViolation(error)) throw error;
+      const dup = await this.prisma.emailMessage.findFirst({ where: { threadId: thread.id, messageKey: message.internetMessageId } });
+      if (!dup) throw error;
+      return { threadId: thread.id, messageId: dup.id };
+    }
     if (message.hasAttachments) await this.syncAttachments(p.firmId, p.accessToken, message.id, emailMessage.id);
     return { threadId: thread.id, messageId: emailMessage.id };
   }

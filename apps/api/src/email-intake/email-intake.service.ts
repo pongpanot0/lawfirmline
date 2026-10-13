@@ -62,7 +62,19 @@ export class EmailIntakeService {
       orderBy: { lastMessageAt: 'desc' },
     });
 
-    return threads.map((thread) => ({
+    // The excerpt is the client's words, not our own outgoing reply: newest INBOUND per thread,
+    // falling back to the newest message when a thread has none.
+    const inbound = await this.prisma.emailMessage.findMany({
+      where: { threadId: { in: threads.map((t) => t.id) }, direction: EmailDirection.INBOUND },
+      orderBy: { receivedAt: 'desc' },
+      distinct: ['threadId'],
+      select: { id: true, threadId: true, bodyText: true, attachments: { select: { id: true } } },
+    });
+    const inboundByThread = new Map(inbound.map((m) => [m.threadId, m]));
+
+    return threads.map((thread) => {
+      const excerptMessage = inboundByThread.get(thread.id) ?? thread.messages[0];
+      return {
       id: thread.id,
       subject: thread.subject,
       fromName: thread.fromName,
@@ -70,10 +82,11 @@ export class EmailIntakeService {
       lastMessageAt: thread.lastMessageAt,
       status: thread.status,
       messageCount: thread._count.messages,
-      attachmentCount: thread.messages[0]?.attachments.length ?? 0,
-      bodyExcerpt: thread.messages[0]?.bodyText?.slice(0, 200) ?? '',
+      attachmentCount: excerptMessage?.attachments.length ?? 0,
+      bodyExcerpt: excerptMessage?.bodyText?.slice(0, 200) ?? '',
       linkedIntake: thread.intake,
-    }));
+      };
+    });
   }
 
   private async getThreadOrThrow(user: AuthUser, threadId: string) {
@@ -136,7 +149,8 @@ export class EmailIntakeService {
       if (!related) throw new NotFoundException('ไม่พบคดีที่อ้างถึง');
     }
 
-    const latestMessage = thread.messages[0];
+    // Newest INBOUND message (the client's words); fall back to the newest of any direction.
+    const latestMessage = thread.messages.find((m) => m.direction === EmailDirection.INBOUND) ?? thread.messages[0];
     const clientMatch = dto.clientId
       ? await this.prisma.client.findFirst({ where: { id: dto.clientId, firmId: user.firmId } })
       : await this.suggestClientMatch(user, thread.fromName);
