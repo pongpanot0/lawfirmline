@@ -1,11 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { GRAPH_BASE, GraphApiError, GraphHttp } from './graph/graph-http';
 
-const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
+export { GraphApiError };
 
 export interface GraphTokens {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+}
+
+export interface GraphRecipient {
+  emailAddress?: { name?: string; address?: string };
 }
 
 export interface GraphMessage {
@@ -14,10 +19,14 @@ export interface GraphMessage {
   subject: string | null;
   bodyPreview: string | null;
   body?: { content: string; contentType: string };
-  from?: { emailAddress?: { name?: string; address?: string } };
+  from?: GraphRecipient;
+  toRecipients?: GraphRecipient[];
+  ccRecipients?: GraphRecipient[];
   receivedDateTime: string;
+  sentDateTime?: string;
   hasAttachments: boolean;
   internetMessageId: string;
+  '@removed'?: { reason: string };
 }
 
 export interface GraphAttachment {
@@ -34,70 +43,50 @@ export interface GraphDeltaResult {
   nextSkipLink: string | null;
 }
 
-/**
- * Thin wrapper over the Microsoft Graph REST API (no SDK dependency — the
- * calls this integration needs are few enough that raw `fetch` keeps the
- * dependency surface small). Every method throws GraphApiError on a non-2xx
- * response so callers can branch on `.status` (401 → token expired/revoked).
- */
-export class GraphApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+const MESSAGE_SELECT =
+  'subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,conversationId,internetMessageId';
 
+/**
+ * Mail + subscription calls over Microsoft Graph (no SDK dependency). The
+ * transport — auth, throttling retries, GraphApiError on non-2xx — lives in
+ * GraphHttp.
+ */
 @Injectable()
 export class OutlookGraphClient {
   private readonly logger = new Logger(OutlookGraphClient.name);
 
-  private async request<T>(accessToken: string, path: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(path.startsWith('http') ? path : `${GRAPH_BASE}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        ...(init?.headers ?? {}),
-      },
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new GraphApiError(res.status, `Graph API ${path} failed: ${res.status} ${body.slice(0, 500)}`);
-    }
-    if (res.status === 204) return undefined as T;
-    return res.json() as Promise<T>;
-  }
+  constructor(private http: GraphHttp) {}
 
   async getMailboxAddress(accessToken: string): Promise<string> {
-    const me = await this.request<{ mail?: string; userPrincipalName: string }>(accessToken, '/me?$select=mail,userPrincipalName');
+    const me = await this.http.request<{ mail?: string; userPrincipalName: string }>(accessToken, '/me?$select=mail,userPrincipalName');
     return me.mail ?? me.userPrincipalName;
   }
 
   /**
-   * Delta query on the inbox — the correct way to sync incrementally.
-   * Pass the previous `nextDeltaLink` to resume from where we left off;
-   * omit it to do a full initial sync.
+   * Delta query over one mail folder ('inbox', 'sentitems' or a folder id) —
+   * the correct way to sync incrementally. Pass the previous delta/skip link
+   * to resume; omit it to do a full initial sync.
    */
-  async getInboxDelta(accessToken: string, deltaLink?: string | null): Promise<GraphDeltaResult> {
-    const url =
-      deltaLink ??
-      `${GRAPH_BASE}/me/mailFolders/inbox/messages/delta?$select=subject,bodyPreview,body,from,receivedDateTime,hasAttachments,conversationId,internetMessageId`;
-    const page = await this.request<{
+  async getFolderDelta(accessToken: string, folder: string, deltaLink?: string | null): Promise<GraphDeltaResult> {
+    const url = deltaLink ?? `${GRAPH_BASE}/me/mailFolders/${encodeURIComponent(folder)}/messages/delta?$select=${MESSAGE_SELECT}`;
+    const page = await this.http.request<{
       value: GraphMessage[];
       '@odata.nextLink'?: string;
       '@odata.deltaLink'?: string;
-    }>(accessToken, url);
+    }>(accessToken, url, { headers: { Prefer: 'outlook.body-content-type="html"' } });
     return {
-      messages: page.value,
+      messages: page.value.filter((m) => !m['@removed']),
       nextDeltaLink: page['@odata.deltaLink'] ?? null,
       nextSkipLink: page['@odata.nextLink'] ?? null,
     };
   }
 
+  getInboxDelta(accessToken: string, deltaLink?: string | null): Promise<GraphDeltaResult> {
+    return this.getFolderDelta(accessToken, 'inbox', deltaLink);
+  }
+
   async getAttachments(accessToken: string, messageId: string): Promise<GraphAttachment[]> {
-    const res = await this.request<{ value: GraphAttachment[] }>(
+    const res = await this.http.request<{ value: GraphAttachment[] }>(
       accessToken,
       `/me/messages/${encodeURIComponent(messageId)}/attachments`,
     );
@@ -115,7 +104,7 @@ export class OutlookGraphClient {
     clientState: string,
     expirationMinutes = 60 * 24 * 2, // Graph caps mail subscriptions at ~3 days; renew well before that.
   ): Promise<{ id: string; expirationDateTime: string }> {
-    return this.request(accessToken, '/subscriptions', {
+    return this.http.request(accessToken, '/subscriptions', {
       method: 'POST',
       body: JSON.stringify({
         changeType: 'created',
@@ -132,7 +121,7 @@ export class OutlookGraphClient {
     subscriptionId: string,
     expirationMinutes = 60 * 24 * 2,
   ): Promise<{ id: string; expirationDateTime: string }> {
-    return this.request(accessToken, `/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    return this.http.request(accessToken, `/subscriptions/${encodeURIComponent(subscriptionId)}`, {
       method: 'PATCH',
       body: JSON.stringify({
         expirationDateTime: new Date(Date.now() + expirationMinutes * 60_000).toISOString(),
@@ -142,7 +131,7 @@ export class OutlookGraphClient {
 
   async deleteSubscription(accessToken: string, subscriptionId: string): Promise<void> {
     try {
-      await this.request(accessToken, `/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' });
+      await this.http.request(accessToken, `/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' });
     } catch (error) {
       // Already gone (expired, or Graph cleaned it up) — disconnecting locally still succeeds.
       this.logger.warn(`Failed to delete Graph subscription ${subscriptionId}: ${error}`);
