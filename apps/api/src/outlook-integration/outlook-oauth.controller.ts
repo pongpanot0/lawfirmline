@@ -36,32 +36,25 @@ export class OutlookOAuthController {
     private firmLink: FirmLinkService,
   ) {}
 
-  /** Settings page calls this with its JWT; the browser then navigates to the returned /start URL. */
+  /**
+   * Settings page calls this with its JWT (an XHR), and the response sets the
+   * nonce cookie in that browser. The callback only accepts a state whose nonce
+   * matches the cookie, so a Microsoft consent URL forwarded to someone else
+   * fails the check, and an attacker cannot make a victim's browser call this
+   * endpoint with the victim's JWT to obtain a state bound to the attacker's firm.
+   */
   @Get('connect')
   @UseGuards(JwtAuthGuard)
-  connect(@CurrentUser() user: AuthUser) {
-    const ticket = this.oauth.signTicket(user.firmId, user.id);
-    return { url: `${this.oauth.apiPublicUrl}/outlook/start?ticket=${encodeURIComponent(ticket)}` };
-  }
-
-  /**
-   * Top-level navigation on the API origin, so the nonce cookie is first-party.
-   * The callback only accepts a state whose nonce matches this browser's cookie —
-   * a consent link forwarded to someone else cannot land their mailbox in our firm.
-   */
-  @Get('start')
-  @SkipSubscription()
-  start(@Query('ticket') ticket: string, @Res() res: Response) {
-    const { firmId, userId } = this.oauth.verifyTicket(ticket);
+  connect(@CurrentUser() user: AuthUser, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const nonce = crypto.randomBytes(16).toString('hex');
     res.cookie(NONCE_COOKIE, nonce, {
       httpOnly: true,
-      secure: this.config.get('NODE_ENV') === 'production',
+      secure: req.secure,
       sameSite: 'lax',
       path: '/outlook',
       maxAge: 10 * 60_000,
     });
-    return res.redirect(this.oauth.buildAuthorizationUrl(this.oauth.signState(firmId, userId, nonce)));
+    return { url: this.oauth.buildAuthorizationUrl(this.oauth.signState(user.firmId, user.id, nonce)) };
   }
 
   /**
@@ -75,6 +68,7 @@ export class OutlookOAuthController {
     // The firm is only known once `state` verifies, so start at the root origin
     // and narrow to the firm's own subdomain as soon as we have it — otherwise
     // the user lands on a page with no tenant.
+    res.clearCookie(NONCE_COOKIE, { path: '/outlook' });
     let origin = this.firmLink.rootOrigin();
     const redirectTo = (status: 'connected' | 'error', message?: string) => {
       const url = new URL(`${origin.replace(/\/$/, '')}/settings`);
@@ -90,7 +84,6 @@ export class OutlookOAuthController {
     try {
       const { firmId, userId, nonce } = this.oauth.verifyState(state);
       const cookieNonce = readCookie(req, NONCE_COOKIE);
-      res.clearCookie(NONCE_COOKIE, { path: '/outlook' });
       if (!cookieNonce || cookieNonce !== nonce) {
         throw new BadRequestException('กรุณาเริ่มเชื่อมต่อจากหน้าตั้งค่าในเบราว์เซอร์เดียวกัน');
       }

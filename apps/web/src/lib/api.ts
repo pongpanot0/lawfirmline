@@ -2830,7 +2830,7 @@ export const api = {
     request<MailboxConnectionItem[]>('/outlook/connections', { token }),
 
   getOutlookConnectUrl: (token: string) =>
-    request<{ url: string }>('/outlook/connect', { token }),
+    request<{ url: string }>('/outlook/connect', { token, credentials: 'include' }),
 
   disconnectOutlook: (token: string, id: string) =>
     request<{ revoked: boolean }>(`/outlook/connections/${id}`, { method: 'DELETE', token }),

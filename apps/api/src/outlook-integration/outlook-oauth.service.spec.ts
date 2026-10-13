@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -31,19 +32,10 @@ describe('OutlookOAuthService state signing', () => {
     expect(decoded.nonce).toBe('nonce-1');
   });
 
-  it('ticket round-trips and expires after 2 minutes', () => {
-    const now = Date.now();
-    jest.spyOn(Date, 'now').mockReturnValue(now);
-    const ticket = service.signTicket('firm-1', 'user-1');
-    expect(service.verifyTicket(ticket)).toEqual({ firmId: 'firm-1', userId: 'user-1' });
-    (Date.now as jest.Mock).mockReturnValue(now + 121_000);
-    expect(() => service.verifyTicket(ticket)).toThrow(BadRequestException);
-    (Date.now as jest.Mock).mockRestore();
-  });
-
-  it('a state cannot be used as a ticket', () => {
-    const state = service.signState('firm-1', 'user-1', 'n');
-    expect(() => service.verifyTicket(state)).toThrow(BadRequestException);
+  it('rejects a signed token of another kind', () => {
+    const json = Buffer.from(JSON.stringify({ kind: 'ticket', firmId: 'f', userId: 'u', issuedAt: Date.now() })).toString('base64url');
+    const sig = crypto.createHmac('sha256', 'test-secret').update(json).digest('base64url');
+    expect(() => service.verifyState(`${json}.${sig}`)).toThrow(BadRequestException);
   });
 
   it('rejects a tampered state (signature mismatch)', () => {

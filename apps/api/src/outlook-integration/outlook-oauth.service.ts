@@ -18,9 +18,9 @@ const SCOPES = [
   'Sites.Read.All',
 ].join(' ');
 
-// `kind` keeps a state and a ticket from being interchangeable.
+// `kind` rejects tokens minted for any other purpose.
 interface Signed {
-  kind: 'state' | 'ticket';
+  kind: 'state';
   firmId: string;
   userId: string;
   nonce?: string;
@@ -108,15 +108,6 @@ export class OutlookOAuthService {
   verifyState(state: string) {
     const p = this.verify(state, 'state', 10 * 60_000);
     return { firmId: p.firmId, userId: p.userId, nonce: p.nonce ?? '', issuedAt: p.issuedAt };
-  }
-
-  signTicket(firmId: string, userId: string): string {
-    return this.sign({ kind: 'ticket', firmId, userId, issuedAt: Date.now() });
-  }
-
-  verifyTicket(ticket: string) {
-    const p = this.verify(ticket, 'ticket', 2 * 60_000);
-    return { firmId: p.firmId, userId: p.userId };
   }
 
   buildAuthorizationUrl(state: string): string {
