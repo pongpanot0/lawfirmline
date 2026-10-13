@@ -237,7 +237,8 @@ export class EmailIntakeService {
     proposalId: string,
     dto: ResolveFieldProposalDto,
   ) {
-    const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, firmId: user.firmId } });
+    const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
+    const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, ...intakeFilter } });
     if (!intake) throw new NotFoundException('ไม่พบเรื่องนี้');
 
     const proposal = await this.prisma.intakeFieldProposal.findFirst({
@@ -289,8 +290,9 @@ export class EmailIntakeService {
    * `resolveFieldProposal`.
    */
   async recordReply(user: AuthUser, threadId: string, dto: SeedMockReplyDto) {
+    const accessWhere = await this.caseAccess.getEmailThreadFilterForUser(user);
     const thread = await this.prisma.emailThread.findFirst({
-      where: { id: threadId, firmId: user.firmId },
+      where: { id: threadId, ...accessWhere },
     });
     if (!thread) throw new NotFoundException('ไม่พบอีเมลนี้');
 

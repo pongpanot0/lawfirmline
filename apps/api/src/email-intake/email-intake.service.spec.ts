@@ -23,12 +23,14 @@ describe('EmailIntakeService', () => {
     getEmailThreadFilterForUser: jest.fn(async (user: { firmId: string }): Promise<any> => ({
       firmId: user.firmId,
     })),
+    getIntakeFilterForUser: jest.fn(),
   };
   const user = { id: 'user-1', firmId: 'firm-1' } as any;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     mockCaseAccess.getEmailThreadFilterForUser.mockResolvedValue({ firmId: 'firm-1' });
+    mockCaseAccess.getIntakeFilterForUser.mockResolvedValue({ firmId: 'firm-1' });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailIntakeService,
@@ -47,6 +49,12 @@ describe('EmailIntakeService', () => {
       where: { id: 'a1', message: { thread: { firmId: 'f1', marker: 1 } } },
       select: { filename: true, mimeType: true, storagePath: true },
     });
+  });
+
+  it('getAttachmentForDownload returns the file info when the thread is accessible', async () => {
+    const file = { filename: 'สัญญา.pdf', mimeType: 'application/pdf', storagePath: 'email/a1.pdf' };
+    mockPrisma.emailAttachment.findFirst.mockResolvedValue(file);
+    await expect(service.getAttachmentForDownload(user, 'a1')).resolves.toEqual(file);
   });
 
   describe('acceptIntakeFromThread', () => {
@@ -142,6 +150,22 @@ describe('EmailIntakeService', () => {
       );
     });
 
+    it('scopes the intake lookup by the intake access filter; no access -> NotFound and no write', async () => {
+      mockCaseAccess.getIntakeFilterForUser.mockResolvedValue({ firmId: 'firm-1', marker: 'intake' });
+      mockPrisma.intake.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.resolveFieldProposal(user, 'intake-1', 'proposal-1', { action: 'confirm' }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockPrisma.intake.findFirst).toHaveBeenCalledWith({
+        where: { id: 'intake-1', firmId: 'firm-1', marker: 'intake' },
+      });
+      expect(mockPrisma.intakeFieldProposal.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.intakeFieldProposal.update).not.toHaveBeenCalled();
+      expect(mockPrisma.intake.update).not.toHaveBeenCalled();
+    });
+
     it('is a no-op on a proposal already resolved (prevents duplicate confirmation)', async () => {
       mockPrisma.intake.findFirst.mockResolvedValue(intake);
       mockPrisma.intakeFieldProposal.findFirst.mockResolvedValue({
@@ -172,6 +196,18 @@ describe('EmailIntakeService', () => {
   });
 
   describe('recordReply', () => {
+    it('thread outside the access filter -> NotFound and no message created', async () => {
+      mockCaseAccess.getEmailThreadFilterForUser.mockResolvedValue({ firmId: 'firm-1', marker: 'thread' });
+      mockPrisma.emailThread.findFirst.mockResolvedValue(null);
+
+      await expect(service.recordReply(user, 'thread-1', { bodyText: 'x' })).rejects.toThrow(NotFoundException);
+
+      expect(mockPrisma.emailThread.findFirst).toHaveBeenCalledWith({
+        where: { id: 'thread-1', firmId: 'firm-1', marker: 'thread' },
+      });
+      expect(mockPrisma.emailMessage.create).not.toHaveBeenCalled();
+    });
+
     it('proposes new values instead of writing directly, so a confirmed field is never silently overwritten', async () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue({
         id: 'thread-1',
