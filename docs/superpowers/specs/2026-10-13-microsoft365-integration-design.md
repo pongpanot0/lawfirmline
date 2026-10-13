@@ -92,7 +92,7 @@ model CalendarEventOutlookCopy {
 
 - `CalendarEvent` เพิ่ม `onlineMeeting Boolean @default(false)`, `onlineMeetingUrl String?`, `meetingOrganizerId String?`, `inviteeEmails String[] @default([])`
 - ฟอร์มนัด (เฉพาะ CLIENT_MEETING): ติ๊ก "ประชุมออนไลน์ (Teams)" + เลือกผู้รับเชิญจากผู้ติดต่อของลูกความในคดี (`ClientContact.email`) หรือพิมพ์อีเมล
-- ผู้จัด (organizer) = คนสร้างนัดถ้ามี connection ไม่งั้นผู้รับผิดชอบคนแรกที่มี; ไม่มีใครเชื่อม → บันทึกนัดได้ แต่ขึ้นข้อความ "ต้องเชื่อม Microsoft ก่อนจึงสร้างลิงก์ Teams ได้"
+- ผู้จัด (organizer) = คนสร้างนัดถ้ามี connection ไม่งั้นผู้รับผิดชอบคนแรกที่มี; ไม่มีใครเชื่อม → ไม่ให้บันทึกแบบ Teams (400 "ต้องเชื่อม Microsoft 365 ในหน้าตั้งค่าก่อนจึงสร้างลิงก์ Teams ได้") — เอาติ๊กออกแล้วบันทึกเป็นนัดปกติได้
 - สำเนาของผู้จัดสร้างด้วย `isOnlineMeeting: true, onlineMeetingProvider: "teamsForBusiness"`, `attendees` = ผู้รับเชิญ → Outlook ส่งคำเชิญถึงลูกความเอง (มาจากอีเมลทนาย); ระบบอ่าน `onlineMeeting.joinUrl` กลับมาเก็บที่ `onlineMeetingUrl`
 - สำเนาของคนอื่นในทีมใส่ลิงก์ Teams ในเนื้อหา
 - ระบบแสดงปุ่ม "เข้าร่วม Teams" + คัดลอกลิงก์ ในรายละเอียดนัด (web) และส่งลิงก์ในข้อความแจ้งเตือนนัดของทีม

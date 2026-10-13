@@ -59,8 +59,7 @@ export class OutlookCalendarSyncService {
     }
     if (event.startAt.getTime() < Date.now() - DAY) return;
 
-    const e = event as typeof event & { onlineMeeting?: boolean; meetingOrganizerId?: string | null };
-    const organizerId = e.onlineMeeting ? e.meetingOrganizerId ?? null : null;
+    const organizerId = event.onlineMeeting ? event.meetingOrganizerId : null;
     const people = new Set(eventPeopleIds(event));
     if (organizerId) people.add(organizerId);
 
@@ -84,7 +83,12 @@ export class OutlookCalendarSyncService {
       try {
         const token = await this.connections.getValidAccessToken(connection.id);
         const payload = this.payloadFor(event, userId, organizerId, origin);
-        await this.writeCopy(token, payload, event.id, userId, connection.id, event.updatedAt, copy);
+        const { joinUrl } = await this.writeCopy(token, payload, event.id, userId, connection.id, event.updatedAt, copy);
+        if (userId === organizerId && joinUrl && !event.onlineMeetingUrl) {
+          // Keep the link, then mark the organizer's copy as already in sync with the bumped row so it is not re-patched.
+          const { updatedAt } = await this.prisma.calendarEvent.update({ where: { id: event.id }, data: { onlineMeetingUrl: joinUrl }, select: { updatedAt: true } });
+          await this.prisma.calendarEventOutlookCopy.update({ where: { eventId_userId: { eventId: event.id, userId } }, data: { syncedAt: updatedAt } });
+        }
       } catch (error) {
         this.logger.warn(`Outlook copy of event ${event.id} for user ${userId} failed: ${error}`);
         try {
@@ -110,29 +114,33 @@ export class OutlookCalendarSyncService {
     return eligible.find((c) => c.id === existing?.connectionId) ?? eligible[0] ?? null;
   }
 
-  /** Teams fields are added in plan Task 10; this hook keeps the non-Teams path unchanged. */
-  protected payloadFor(event: any, userId: string, _organizerId: string | null, origin: string): GraphEventInput {
-    return buildOutlookEvent(event, { caseUrl: `${origin}/cases/${event.caseId}`, transactionId: `${event.id}:${userId}` });
+  private payloadFor(event: any, userId: string, organizerId: string | null, origin: string): GraphEventInput {
+    return buildOutlookEvent(event, {
+      caseUrl: `${origin}/cases/${event.caseId}`,
+      transactionId: `${event.id}:${userId}`,
+      asOrganizer: userId === organizerId,
+    });
   }
 
   private async writeCopy(token: string, payload: GraphEventInput, eventId: string, userId: string, connectionId: string, version: Date, copy?: Copy) {
-    let graphEventId: string;
+    let result;
     if (copy) {
       try {
-        graphEventId = (await this.calendar.updateEvent(token, copy.graphEventId, payload)).id;
+        result = await this.calendar.updateEvent(token, copy.graphEventId, payload);
       } catch (error) {
         if (!(error instanceof GraphApiError && error.status === 404)) throw error;
-        graphEventId = (await this.calendar.createEvent(token, payload)).id; // user deleted it in Outlook; upsert below overwrites the row
+        result = await this.calendar.createEvent(token, payload); // user deleted it in Outlook; upsert below overwrites the row
       }
     } else {
-      graphEventId = (await this.calendar.createEvent(token, payload)).id;
+      result = await this.calendar.createEvent(token, payload);
     }
+    const graphEventId = result.id;
     await this.prisma.calendarEventOutlookCopy.upsert({
       where: { eventId_userId: { eventId, userId } },
       create: { eventId, userId, connectionId, graphEventId, syncedAt: version },
       update: { connectionId, graphEventId, syncedAt: version, lastError: null },
     });
-    return graphEventId;
+    return { id: graphEventId, joinUrl: result.onlineMeeting?.joinUrl };
   }
 
   /** Removes the Outlook event and the row. On a retryable failure the row is kept (with lastError) so a later run retries. */

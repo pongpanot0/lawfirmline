@@ -75,7 +75,7 @@ export class ReminderScheduler {
             userIds: eventPeopleIds(event),
             actorUserId: '',
             category: NotificationCategory.CALENDAR,
-            summaryText: `⏰ ${event.title} (${leadTime}ก่อน)\n${reference ?? `คดี: ${event.case.title}`}\nเวลา: ${formatBangkokDateTime(event.startAt)}`,
+            summaryText: `⏰ ${event.title} (${leadTime}ก่อน)\n${reference ?? `คดี: ${event.case.title}`}\nเวลา: ${formatBangkokDateTime(event.startAt)}${event.onlineMeetingUrl ? `\nTeams: ${event.onlineMeetingUrl}` : ''}`,
             entityPath: `/court-day/${event.id}`,
           });
 

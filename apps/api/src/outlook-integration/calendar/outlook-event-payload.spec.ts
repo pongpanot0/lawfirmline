@@ -44,4 +44,17 @@ describe('buildOutlookEvent', () => {
     expect(g.subject).toBe('[นัดลูกความ] สืบพยานโจทก์');
     expect(g.body.content).toContain('https://teams.microsoft.com/l/x');
   });
+  it('organizer copy carries the Teams flags and invitees; others do not', () => {
+    const e = { ...base, type: 'CLIENT_MEETING', onlineMeeting: true, inviteeEmails: ['client@x.com'], onlineMeetingUrl: 'https://teams/x' };
+    const organizer = buildOutlookEvent(e, { ...opts, asOrganizer: true });
+    expect(organizer).toMatchObject({
+      isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness',
+      attendees: [{ emailAddress: { address: 'client@x.com' }, type: 'required' }],
+    });
+    expect(organizer.body.content).not.toContain('เข้าร่วม Teams');
+    const colleague = buildOutlookEvent(e, { ...opts, asOrganizer: false });
+    expect(colleague.isOnlineMeeting).toBeUndefined();
+    expect(colleague.attendees).toBeUndefined();
+    expect(colleague.body.content).toContain('https://teams/x');
+  });
 });

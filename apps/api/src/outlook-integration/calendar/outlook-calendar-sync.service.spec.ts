@@ -174,6 +174,41 @@ describe('OutlookCalendarSyncService', () => {
     });
   });
 
+  describe('Teams meetings', () => {
+    it('stores the Teams join URL from the organizer copy without re-patching it', async () => {
+      const e = event({ type: 'CLIENT_MEETING', onlineMeeting: true, meetingOrganizerId: 'u1', inviteeEmails: ['c@x.com'] });
+      prisma.calendarEvent.findUnique.mockResolvedValue(e);
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
+      activeFor((id) => [conn(id)]);
+      calendar.createEvent.mockResolvedValue({ id: 'g1', onlineMeeting: { joinUrl: 'https://teams/x' } });
+      const bumped = new Date('2026-10-13T10:05:00Z');
+      prisma.calendarEvent.update.mockResolvedValue({ updatedAt: bumped });
+      await svc.syncEvent('e1');
+      expect(calendar.createEvent.mock.calls[0][1]).toMatchObject({ isOnlineMeeting: true });
+      expect(prisma.calendarEvent.update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: { onlineMeetingUrl: 'https://teams/x' }, select: { updatedAt: true } });
+      expect(prisma.calendarEventOutlookCopy.update).toHaveBeenCalledWith({ where: { eventId_userId: { eventId: 'e1', userId: 'u1' } }, data: { syncedAt: bumped } });
+    });
+
+    it('does not overwrite an existing join URL', async () => {
+      prisma.calendarEvent.findUnique.mockResolvedValue(event({ type: 'CLIENT_MEETING', onlineMeeting: true, meetingOrganizerId: 'u1', onlineMeetingUrl: 'https://teams/old' }));
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
+      activeFor((id) => [conn(id)]);
+      calendar.createEvent.mockResolvedValue({ id: 'g1', onlineMeeting: { joinUrl: 'https://teams/new' } });
+      await svc.syncEvent('e1');
+      expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
+    });
+
+    it('the organizer gets the meeting even with calendar sync off', async () => {
+      prisma.calendarEvent.findUnique.mockResolvedValue(event({ type: 'CLIENT_MEETING', onlineMeeting: true, meetingOrganizerId: 'org', assignees: [{ userId: 'u1' }] }));
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
+      activeFor((id) => [conn(id, { syncCalendar: false })]);
+      calendar.createEvent.mockResolvedValue({ id: 'g1' });
+      await svc.syncEvent('e1');
+      expect(calendar.createEvent).toHaveBeenCalledTimes(1); // org only; u1 has sync off
+      expect(prisma.calendarEventOutlookCopy.upsert.mock.calls[0][0].where).toEqual({ eventId_userId: { eventId: 'e1', userId: 'org' } });
+    });
+  });
+
   describe('connection choice', () => {
     const two = [conn('u1', { id: 'old', createdAt: new Date('2026-01-01') }), conn('u1', { id: 'new', createdAt: new Date('2026-06-01') })];
 
