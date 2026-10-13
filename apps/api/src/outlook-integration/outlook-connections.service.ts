@@ -49,7 +49,7 @@ export class OutlookConnectionsService {
   findActiveForUser(userId: string) {
     return this.prisma.mailboxConnection.findFirst({
       where: { userId, status: MailboxConnectionStatus.ACTIVE },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

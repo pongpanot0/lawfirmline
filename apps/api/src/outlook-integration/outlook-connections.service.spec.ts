@@ -140,7 +140,7 @@ describe('OutlookConnectionsService', () => {
       await expect(service.findActiveForUser('u1')).resolves.toBe(row);
       expect(mockPrisma.mailboxConnection.findFirst).toHaveBeenCalledWith({
         where: { userId: 'u1', status: 'ACTIVE' },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
       });
     });
 

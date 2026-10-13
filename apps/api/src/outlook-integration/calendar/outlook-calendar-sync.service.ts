@@ -66,8 +66,8 @@ export class OutlookCalendarSyncService {
 
     const desired = new Map<string, { id: string }>();
     for (const userId of people) {
-      const connection = await this.connections.findActiveForUser(userId);
-      if (connection && (connection.syncCalendar || userId === organizerId)) desired.set(userId, connection);
+      const connection = await this.pickConnection(userId, organizerId, copies.find((c) => c.userId === userId));
+      if (connection) desired.set(userId, connection);
     }
 
     for (const copy of copies) {
@@ -84,11 +84,23 @@ export class OutlookCalendarSyncService {
         await this.writeCopy(token, payload, event.id, userId, connection.id, event.updatedAt, copy);
       } catch (error) {
         this.logger.warn(`Outlook copy of event ${event.id} for user ${userId} failed: ${error}`);
-        if (copy) {
-          await this.prisma.calendarEventOutlookCopy.update({ where: { id: copy.id }, data: { lastError: String(error).slice(0, 2000) } });
+        try {
+          await this.prisma.calendarEventOutlookCopy.updateMany({ where: { eventId: event.id, userId }, data: { lastError: String(error).slice(0, 2000) } });
+        } catch (e) {
+          this.logger.warn(`Could not record lastError for event ${event.id}/${userId}: ${e}`);
         }
       }
     }
+  }
+
+  /** Deterministic choice: keep the connection the user's existing copy lives on, else the oldest eligible one. */
+  private async pickConnection(userId: string, organizerId: string | null, existing?: Copy) {
+    const rows = await this.prisma.mailboxConnection.findMany({
+      where: { userId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'asc' },
+    });
+    const eligible = rows.filter((c) => c.syncCalendar || userId === organizerId);
+    return eligible.find((c) => c.id === existing?.connectionId) ?? eligible[0] ?? null;
   }
 
   /** Teams fields are added in plan Task 10; this hook keeps the non-Teams path unchanged. */
@@ -103,8 +115,7 @@ export class OutlookCalendarSyncService {
         graphEventId = (await this.calendar.updateEvent(token, copy.graphEventId, payload)).id;
       } catch (error) {
         if (!(error instanceof GraphApiError && error.status === 404)) throw error;
-        await this.prisma.calendarEventOutlookCopy.delete({ where: { id: copy.id } });
-        graphEventId = (await this.calendar.createEvent(token, payload)).id; // user deleted it in Outlook
+        graphEventId = (await this.calendar.createEvent(token, payload)).id; // user deleted it in Outlook; upsert below overwrites the row
       }
     } else {
       graphEventId = (await this.calendar.createEvent(token, payload)).id;
@@ -126,7 +137,7 @@ export class OutlookCalendarSyncService {
         this.logger.warn(`Could not delete Outlook copy ${copy.graphEventId}: ${error}`);
       }
     }
-    await this.prisma.calendarEventOutlookCopy.delete({ where: { id: copy.id } });
+    await this.prisma.calendarEventOutlookCopy.deleteMany({ where: { id: copy.id } });
   }
 
   async removeAllForConnection(connectionId: string): Promise<void> {
@@ -134,18 +145,31 @@ export class OutlookCalendarSyncService {
     for (const copy of copies) await this.deleteCopy(copy);
   }
 
+  private running = false;
+
   @Cron('*/2 * * * *')
   async reconcileAll(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+    try {
+      await this.reconcile();
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async reconcile(): Promise<void> {
     const since = new Date(Date.now() - DAY);
     const connections = await this.prisma.mailboxConnection.findMany({ where: { status: 'ACTIVE', userId: { not: null } } });
-    const activeIds = new Set(connections.map((c) => c.id));
     const ids = new Set<string>();
+    // Copies whose event may be deleted, reassigned or merely past — sorted out after one lookup.
+    const leftovers = new Set<string>();
 
     for (const connection of connections) {
       const userId = connection.userId!;
       const copies = (await this.prisma.calendarEventOutlookCopy.findMany({ where: { userId } })) as Copy[];
       if (!connection.syncCalendar) {
-        copies.forEach((c) => ids.add(c.eventId));
+        copies.forEach((c) => leftovers.add(c.eventId));
         continue;
       }
       const events = await this.prisma.calendarEvent.findMany({
@@ -158,20 +182,22 @@ export class OutlookCalendarSyncService {
         if (!copy || copy.syncedAt < event.updatedAt) ids.add(event.id);
         byEvent.delete(event.id);
       }
-      // Leftover copies: event deleted, reassigned or out of the window. Skip ones whose event is
-      // merely in the past — doSync leaves those alone, so re-queuing them would repeat every 2 minutes.
-      if (byEvent.size) {
-        const leftovers = await this.prisma.calendarEvent.findMany({
-          where: { id: { in: [...byEvent.keys()] } },
-          select: { id: true, startAt: true },
-        });
-        const past = new Set(leftovers.filter((l) => l.startAt < since).map((l) => l.id));
-        byEvent.forEach((c) => { if (!past.has(c.eventId)) ids.add(c.eventId); });
-      }
+      byEvent.forEach((c) => leftovers.add(c.eventId));
     }
 
-    // Copies whose account was disconnected: no token left to call Graph — forget them.
-    await this.prisma.calendarEventOutlookCopy.deleteMany({ where: { connectionId: { notIn: [...activeIds] } } });
+    // Skip events that merely slipped into the past: doSync leaves them alone, so re-queuing repeats every 2 minutes.
+    if (leftovers.size) {
+      const found = await this.prisma.calendarEvent.findMany({
+        where: { id: { in: [...leftovers] } },
+        select: { id: true, startAt: true },
+      });
+      const past = new Set(found.filter((f) => f.startAt < since).map((f) => f.id));
+      leftovers.forEach((id) => { if (!past.has(id)) ids.add(id); });
+    }
+
+    // Copies of revoked/removed connections: no token left to call Graph — forget them. (EXPIRED may recover.)
+    const live = await this.prisma.mailboxConnection.findMany({ where: { status: { not: 'REVOKED' } }, select: { id: true } });
+    await this.prisma.calendarEventOutlookCopy.deleteMany({ where: { connectionId: { notIn: live.map((c) => c.id) } } });
 
     for (const id of ids) {
       try {
