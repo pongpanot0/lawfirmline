@@ -1,6 +1,7 @@
-import { Controller, Get, Logger, Query, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Logger, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
+import * as crypto from 'crypto';
+import { Request, Response } from 'express';
 import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -10,6 +11,17 @@ import { OutlookOAuthService } from './outlook-oauth.service';
 import { OutlookGraphClient } from './outlook-graph.client';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSubscriptionService } from './outlook-subscription.service';
+
+const NONCE_COOKIE = 'm365_oauth_nonce';
+
+function readCookie(req: Request, name: string): string | undefined {
+  const header = req.headers.cookie ?? '';
+  for (const part of header.split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === name) return decodeURIComponent(v.join('='));
+  }
+  return undefined;
+}
 
 @Controller('outlook')
 export class OutlookOAuthController {
@@ -24,12 +36,32 @@ export class OutlookOAuthController {
     private firmLink: FirmLinkService,
   ) {}
 
-  /** Called by the settings page — returns the Microsoft consent URL to redirect the browser to. */
+  /** Settings page calls this with its JWT; the browser then navigates to the returned /start URL. */
   @Get('connect')
   @UseGuards(JwtAuthGuard)
   connect(@CurrentUser() user: AuthUser) {
-    const state = this.oauth.signState(user.firmId, user.id);
-    return { url: this.oauth.buildAuthorizationUrl(state) };
+    const ticket = this.oauth.signTicket(user.firmId, user.id);
+    return { url: `${this.oauth.apiPublicUrl}/outlook/start?ticket=${encodeURIComponent(ticket)}` };
+  }
+
+  /**
+   * Top-level navigation on the API origin, so the nonce cookie is first-party.
+   * The callback only accepts a state whose nonce matches this browser's cookie —
+   * a consent link forwarded to someone else cannot land their mailbox in our firm.
+   */
+  @Get('start')
+  @SkipSubscription()
+  start(@Query('ticket') ticket: string, @Res() res: Response) {
+    const { firmId, userId } = this.oauth.verifyTicket(ticket);
+    const nonce = crypto.randomBytes(16).toString('hex');
+    res.cookie(NONCE_COOKIE, nonce, {
+      httpOnly: true,
+      secure: this.config.get('NODE_ENV') === 'production',
+      sameSite: 'lax',
+      path: '/outlook',
+      maxAge: 10 * 60_000,
+    });
+    return res.redirect(this.oauth.buildAuthorizationUrl(this.oauth.signState(firmId, userId, nonce)));
   }
 
   /**
@@ -39,7 +71,7 @@ export class OutlookOAuthController {
    */
   @Get('callback')
   @SkipSubscription()
-  async callback(@Query('code') code: string, @Query('state') state: string, @Query('error_description') errorDescription: string, @Res() res: Response) {
+  async callback(@Query('code') code: string, @Query('state') state: string, @Query('error_description') errorDescription: string, @Req() req: Request, @Res() res: Response) {
     // The firm is only known once `state` verifies, so start at the root origin
     // and narrow to the firm's own subdomain as soon as we have it — otherwise
     // the user lands on a page with no tenant.
@@ -56,7 +88,12 @@ export class OutlookOAuthController {
     }
 
     try {
-      const { firmId, userId } = this.oauth.verifyState(state);
+      const { firmId, userId, nonce } = this.oauth.verifyState(state);
+      const cookieNonce = readCookie(req, NONCE_COOKIE);
+      res.clearCookie(NONCE_COOKIE, { path: '/outlook' });
+      if (!cookieNonce || cookieNonce !== nonce) {
+        throw new BadRequestException('กรุณาเริ่มเชื่อมต่อจากหน้าตั้งค่าในเบราว์เซอร์เดียวกัน');
+      }
       origin = await this.firmLink.originForFirm(firmId);
       const tokens = await this.oauth.exchangeCodeForTokens(code);
       const mailboxAddress = await this.graph.getMailboxAddress(tokens.accessToken);

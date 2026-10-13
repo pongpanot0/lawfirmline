@@ -20,21 +20,41 @@ describe('OutlookOAuthService state signing', () => {
   });
 
   it('signs and verifies a state round-trip', () => {
-    const state = service.signState('firm-1', 'user-1');
+    const state = service.signState('firm-1', 'user-1', 'n1');
     const decoded = service.verifyState(state);
     expect(decoded.firmId).toBe('firm-1');
     expect(decoded.userId).toBe('user-1');
   });
 
+  it('state round-trips the nonce', () => {
+    const decoded = service.verifyState(service.signState('firm-1', 'user-1', 'nonce-1'));
+    expect(decoded.nonce).toBe('nonce-1');
+  });
+
+  it('ticket round-trips and expires after 2 minutes', () => {
+    const now = Date.now();
+    jest.spyOn(Date, 'now').mockReturnValue(now);
+    const ticket = service.signTicket('firm-1', 'user-1');
+    expect(service.verifyTicket(ticket)).toEqual({ firmId: 'firm-1', userId: 'user-1' });
+    (Date.now as jest.Mock).mockReturnValue(now + 121_000);
+    expect(() => service.verifyTicket(ticket)).toThrow(BadRequestException);
+    (Date.now as jest.Mock).mockRestore();
+  });
+
+  it('a state cannot be used as a ticket', () => {
+    const state = service.signState('firm-1', 'user-1', 'n');
+    expect(() => service.verifyTicket(state)).toThrow(BadRequestException);
+  });
+
   it('rejects a tampered state (signature mismatch)', () => {
-    const state = service.signState('firm-1', 'user-1');
+    const state = service.signState('firm-1', 'user-1', 'n1');
     const [json] = state.split('.');
     const tampered = `${json}.wrongsignature000000000000000000000000000000000000000000000000`;
     expect(() => service.verifyState(tampered)).toThrow(BadRequestException);
   });
 
   it('rejects a state signed with a different secret', () => {
-    const state = service.signState('firm-1', 'user-1');
+    const state = service.signState('firm-1', 'user-1', 'n1');
     mockConfig.get.mockImplementation((key: string) => (key === 'JWT_SECRET' ? 'different-secret' : undefined));
     expect(() => service.verifyState(state)).toThrow(BadRequestException);
   });
@@ -45,7 +65,7 @@ describe('OutlookOAuthService state signing', () => {
 
   it('rejects an expired state', () => {
     const realNow = Date.now;
-    const state = service.signState('firm-1', 'user-1');
+    const state = service.signState('firm-1', 'user-1', 'n1');
     Date.now = () => realNow() + 11 * 60_000;
     expect(() => service.verifyState(state)).toThrow(/หมดอายุ/);
     Date.now = realNow;

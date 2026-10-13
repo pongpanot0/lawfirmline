@@ -18,10 +18,12 @@ const SCOPES = [
   'Sites.Read.All',
 ].join(' ');
 
-interface OAuthState {
+// `kind` keeps a state and a ticket from being interchangeable.
+interface Signed {
+  kind: 'state' | 'ticket';
   firmId: string;
   userId: string;
-  nonce: string;
+  nonce?: string;
   issuedAt: number;
 }
 
@@ -48,12 +50,16 @@ export class OutlookOAuthService {
     return this.config.get<string>('MS_TENANT_ID') ?? 'common';
   }
 
+  /**
+   * The API's own public URL (where /outlook/* is routed), NOT APP_URL — that
+   * env var is the web frontend's URL used elsewhere for portal/invite links.
+   */
+  get apiPublicUrl() {
+    return this.required('API_PUBLIC_URL').replace(/\/$/, '');
+  }
+
   private get redirectUri() {
-    // This must be the API's own public URL (where /outlook/callback is
-    // routed), NOT APP_URL — that env var is the web frontend's URL used
-    // elsewhere for portal/invite links. They are different origins.
-    const apiUrl = this.required('API_PUBLIC_URL');
-    return `${apiUrl.replace(/\/$/, '')}/outlook/callback`;
+    return `${this.apiPublicUrl}/outlook/callback`;
   }
 
   private required(key: string): string {
@@ -72,30 +78,45 @@ export class OutlookOAuthService {
     return this.config.get<string>('JWT_SECRET') ?? 'dev-jwt-secret-change-in-production';
   }
 
-  signState(firmId: string, userId: string): string {
-    const payload: OAuthState = { firmId, userId, nonce: crypto.randomBytes(8).toString('hex'), issuedAt: Date.now() };
+  private sign(payload: Signed): string {
     const json = Buffer.from(JSON.stringify(payload)).toString('base64url');
     const sig = crypto.createHmac('sha256', this.stateSecret()).update(json).digest('base64url');
     return `${json}.${sig}`;
   }
 
-  verifyState(state: string): OAuthState {
-    const [json, sig] = state.split('.');
+  private verify(token: string, kind: Signed['kind'], maxAgeMs: number): Signed {
+    const [json, sig] = (token ?? '').split('.');
     if (!json || !sig) throw new BadRequestException('state ไม่ถูกต้อง');
-    const expectedSig = crypto.createHmac('sha256', this.stateSecret()).update(json).digest('base64url');
-    const sigBuf = Buffer.from(sig);
-    const expectedBuf = Buffer.from(expectedSig);
+    const expected = Buffer.from(crypto.createHmac('sha256', this.stateSecret()).update(json).digest('base64url'));
+    const given = Buffer.from(sig);
     // timingSafeEqual throws on mismatched lengths rather than returning
-    // false, so a forged state of the "wrong" length must be rejected
+    // false, so a forged token of the "wrong" length must be rejected
     // before reaching it — not fall through as an unhandled 500.
-    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
       throw new BadRequestException('state ไม่ถูกต้อง');
     }
-    const payload = JSON.parse(Buffer.from(json, 'base64url').toString('utf8')) as OAuthState;
-    if (Date.now() - payload.issuedAt > 10 * 60_000) {
-      throw new BadRequestException('ลิงก์เชื่อมต่อหมดอายุ กรุณาลองใหม่');
-    }
+    const payload = JSON.parse(Buffer.from(json, 'base64url').toString('utf8')) as Signed;
+    if (payload.kind !== kind) throw new BadRequestException('state ไม่ถูกต้อง');
+    if (Date.now() - payload.issuedAt > maxAgeMs) throw new BadRequestException('ลิงก์เชื่อมต่อหมดอายุ กรุณาลองใหม่');
     return payload;
+  }
+
+  signState(firmId: string, userId: string, nonce: string): string {
+    return this.sign({ kind: 'state', firmId, userId, nonce, issuedAt: Date.now() });
+  }
+
+  verifyState(state: string) {
+    const p = this.verify(state, 'state', 10 * 60_000);
+    return { firmId: p.firmId, userId: p.userId, nonce: p.nonce ?? '', issuedAt: p.issuedAt };
+  }
+
+  signTicket(firmId: string, userId: string): string {
+    return this.sign({ kind: 'ticket', firmId, userId, issuedAt: Date.now() });
+  }
+
+  verifyTicket(ticket: string) {
+    const p = this.verify(ticket, 'ticket', 2 * 60_000);
+    return { firmId: p.firmId, userId: p.userId };
   }
 
   buildAuthorizationUrl(state: string): string {
