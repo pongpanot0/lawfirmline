@@ -10,6 +10,7 @@ import { OutlookSyncService } from './outlook-sync.service';
 import { GraphHttp } from './graph/graph-http';
 import { GraphCalendarClient } from './graph/graph-calendar.client';
 import { OutlookSubscriptionService } from './outlook-subscription.service';
+import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
 
 @Module({
   controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController],
@@ -21,8 +22,9 @@ import { OutlookSubscriptionService } from './outlook-subscription.service';
     OutlookConnectionsService,
     OutlookSyncService,
     OutlookSubscriptionService,
+    OutlookCalendarSyncService,
     FirmLinkService,
   ],
-  exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService],
+  exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService],
 })
 export class OutlookIntegrationModule {}
