@@ -17,9 +17,10 @@ describe('EmailIntakeService', () => {
       createMany: jest.fn(),
     },
     client: { findMany: jest.fn(), findFirst: jest.fn() },
+    emailAttachment: { findFirst: jest.fn() },
   };
   const mockCaseAccess = {
-    getEmailThreadFilterForUser: jest.fn(async (user: { firmId: string }) => ({
+    getEmailThreadFilterForUser: jest.fn(async (user: { firmId: string }): Promise<any> => ({
       firmId: user.firmId,
     })),
   };
@@ -36,6 +37,16 @@ describe('EmailIntakeService', () => {
       ],
     }).compile();
     service = module.get(EmailIntakeService);
+  });
+
+  it('getAttachmentForDownload checks the parent thread against the access filter', async () => {
+    mockCaseAccess.getEmailThreadFilterForUser.mockResolvedValue({ firmId: 'f1', marker: 1 });
+    mockPrisma.emailAttachment.findFirst.mockResolvedValue(null);
+    await expect(service.getAttachmentForDownload(user, 'a1')).rejects.toThrow(NotFoundException);
+    expect(mockPrisma.emailAttachment.findFirst).toHaveBeenCalledWith({
+      where: { id: 'a1', message: { thread: { firmId: 'f1', marker: 1 } } },
+      select: { filename: true, mimeType: true, storagePath: true },
+    });
   });
 
   describe('acceptIntakeFromThread', () => {

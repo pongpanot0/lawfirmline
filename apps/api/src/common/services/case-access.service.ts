@@ -213,19 +213,21 @@ export class CaseAccessService {
   }
 
   async getEmailThreadFilterForUser(user: AuthUser): Promise<Prisma.EmailThreadWhereInput> {
-    const tenantFilter = { firmId: user.firmId };
     if (user.firmRole === FirmRole.EXTERNAL) {
       return { id: '__external_has_no_thread_access__' };
     }
 
-    if (hasFirmCapability(user.firmRole, 'viewAllCases') || user.firmRole === FirmRole.SENIOR_LAWYER) {
-      return tenantFilter;
-    }
-
-    const intakeFilter = await this.getIntakeFilterForUser(user);
-    return {
-      ...tenantFilter,
-      intake: intakeFilter,
-    };
+    const [caseFilter, intakeFilter] = await Promise.all([
+      this.getCaseFilterForUser(user),
+      this.getIntakeFilterForUser(user),
+    ]);
+    const or: Prisma.EmailThreadWhereInput[] = [
+      { caseId: { not: null }, case: caseFilter },
+      { intakeId: { not: null }, intake: intakeFilter },
+      // Unlinked mail is private to the mailbox owner; triage roles see the whole queue.
+      { caseId: null, intakeId: null, mailboxConnection: { userId: user.id } },
+    ];
+    if (hasFirmCapability(user.firmRole, 'viewAllCases')) or.push({ caseId: null, intakeId: null });
+    return { firmId: user.firmId, OR: or };
   }
 }

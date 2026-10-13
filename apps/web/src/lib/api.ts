@@ -1130,6 +1130,8 @@ export interface EmailThreadListItem {
   attachmentCount: number;
   bodyExcerpt: string;
   linkedIntake: { id: string; status: string } | null;
+  caseId?: string | null;
+  mailboxAddress?: string | null;
 }
 
 export interface EmailAttachmentItem {
@@ -2973,6 +2975,9 @@ export const api = {
 
   getEmailThread: (token: string, threadId: string) =>
     request<EmailThreadDetail>(`/email-intake/threads/${threadId}`, { token }),
+
+  downloadEmailAttachment: (token: string, attachmentId: string) =>
+    fetchBlob(`/email-intake/attachments/${attachmentId}/download`, { token }),
 
   acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
     request<IntakeItem>(`/email-intake/threads/${threadId}/accept`, {

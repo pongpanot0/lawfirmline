@@ -52,6 +52,7 @@ export class EmailIntakeService {
       where: accessWhere,
       include: {
         intake: { select: { id: true, status: true } },
+        mailboxConnection: { select: { mailboxAddress: true } },
         messages: {
           orderBy: { receivedAt: 'desc' },
           take: 1,
@@ -85,8 +86,20 @@ export class EmailIntakeService {
       attachmentCount: excerptMessage?.attachments.length ?? 0,
       bodyExcerpt: excerptMessage?.bodyText?.slice(0, 200) ?? '',
       linkedIntake: thread.intake,
+      caseId: thread.caseId,
+      mailboxAddress: thread.mailboxConnection?.mailboxAddress ?? null,
       };
     });
+  }
+
+  async getAttachmentForDownload(user: AuthUser, attachmentId: string) {
+    const thread = await this.caseAccess.getEmailThreadFilterForUser(user);
+    const attachment = await this.prisma.emailAttachment.findFirst({
+      where: { id: attachmentId, message: { thread } },
+      select: { filename: true, mimeType: true, storagePath: true },
+    });
+    if (!attachment) throw new NotFoundException('ไม่พบไฟล์แนบ');
+    return attachment;
   }
 
   private async getThreadOrThrow(user: AuthUser, threadId: string) {
