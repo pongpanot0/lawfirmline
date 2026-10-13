@@ -1,17 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, Logger } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
+import { OutlookSubscriptionService } from './outlook-subscription.service';
 import { UpdateConnectionSettingsDto } from './dto/update-connection-settings.dto';
 
 @Controller('outlook/connections')
 @UseGuards(JwtAuthGuard)
 export class OutlookConnectionsController {
+  private readonly logger = new Logger(OutlookConnectionsController.name);
+
   constructor(
     private connections: OutlookConnectionsService,
     private syncService: OutlookSyncService,
+    private subscriptions: OutlookSubscriptionService,
   ) {}
 
   @Get()
@@ -21,8 +25,14 @@ export class OutlookConnectionsController {
 
   @Patch(':id')
   async updateSettings(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateConnectionSettingsDto) {
-    await this.connections.updateSettings(user, id, dto);
-    // Side effects (webhook subscription, calendar cleanup) are wired in later tasks.
+    const { before, after } = await this.connections.updateSettings(user, id, dto);
+    try {
+      if (!before.syncInboxToIntake && after.syncInboxToIntake) await this.subscriptions.ensureSubscription(id);
+      if (before.syncInboxToIntake && !after.syncInboxToIntake) await this.subscriptions.removeSubscription(id);
+    } catch (error) {
+      this.logger.warn(`Subscription change for ${id} failed: ${error}`); // setting is saved; renew cron retries
+    }
+    // Calendar cleanup is wired in a later task.
     const rows = await this.connections.listForFirm(user);
     return rows.find((r) => r.id === id);
   }
