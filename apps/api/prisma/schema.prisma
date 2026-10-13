@@ -1728,6 +1728,23 @@ model CalendarEventAssignee {
   @@index([userId])
 }
 
+/// Our event mirrored into one person's Outlook calendar. eventId has no FK on
+/// purpose: after the event (or its case) is deleted we still need graphEventId
+/// to remove the Outlook copy.
+model CalendarEventOutlookCopy {
+  id           String   @id @default(uuid())
+  eventId      String
+  userId       String
+  connectionId String
+  graphEventId String
+  syncedAt     DateTime
+  lastError    String?  @db.Text
+
+  @@unique([eventId, userId])
+  @@index([connectionId])
+  @@index([userId])
+}
+
 model LeaveRequest {
   id          String      @id @default(uuid())
   firmId      String
