@@ -9,6 +9,7 @@ import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { bangkokDayKey, courtCloseAt, formatBangkokDateTime } from '../common/utils/bangkok-time';
 import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { formatCaseNotificationReference } from '../notifications/reference-label';
+import { OutlookCalendarSyncService } from '../outlook-integration/calendar/outlook-calendar-sync.service';
 import { eventAssigneesInclude, eventPeopleIds } from './event-people';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class EventResponsibilityService {
     private access: CaseAccessService,
     private deadlines: DeadlineRulesService,
     private notifier: AssignmentNotifierService,
+    private outlookCalendar: OutlookCalendarSyncService,
   ) {}
 
   private async event(user: AuthUser, id: string, db: Prisma.TransactionClient = this.prisma) {
@@ -99,8 +101,11 @@ export class EventResponsibilityService {
       }
       await db.reminderLog.deleteMany({ where: { eventId: id } });
       await db.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'EVENT_RESCHEDULED', metadata: { ...preview, reason: dto.reason.trim(), previousReminders: e.reminderLogs.map(r => ({ sentAt: r.sentAt.toISOString(), channel: r.channel })) } } });
-      return { updated: true, impacted: preview.impacts.length, oldAt: e.startAt };
+      return { updated: true, impacted: preview.impacts.length, oldAt: e.startAt, movedEventIds: preview.impacts.flatMap((i) => (i.eventId ? [i.eventId] : [])) };
     }, { timeout: 15000 });
+    // Already committed: push the moved event and its moved deadline events to Outlook.
+    this.outlookCalendar.syncEventSoon(id);
+    result.movedEventIds.forEach((eventId) => this.outlookCalendar.syncEventSoon(eventId));
     // Already committed: a failed notice must not turn a saved reschedule into a 500 the client retries into a 409.
     await this.notifyRescheduled(user, id, result.oldAt, dto.reason.trim())
       .catch((err) => this.logger.error(`Reschedule notice for event ${id} failed: ${(err as Error).message}`));

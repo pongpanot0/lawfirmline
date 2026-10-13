@@ -1,4 +1,5 @@
 import { FirmRole } from '@lawfirm/shared';
+import { OutlookCalendarSyncService } from '../outlook-integration/calendar/outlook-calendar-sync.service';
 import { lineActions } from '../notifications/line-actions';
 import {
   BadRequestException,
@@ -39,6 +40,7 @@ export class CalendarService {
     private lineLink: LineLinkService,
     private travelService: TravelService,
     private deadlineRules: DeadlineRulesService,
+    private outlookCalendar: OutlookCalendarSyncService,
   ) {}
 
   private eventInclude = {
@@ -134,7 +136,9 @@ export class CalendarService {
    */
   async create(user: AuthUser, dto: CreateEventDto) {
     await this.assertCaseAccess(user, dto.caseId);
-    return this.createInternal(dto, user.id);
+    const event = await this.createInternal(dto, user.id);
+    this.outlookCalendar.syncEventSoon(event.id);
+    return event;
   }
 
   /** Creation for callers that have already authorized the case. */
@@ -270,6 +274,7 @@ export class CalendarService {
         this.logger.error(`Deadline rules failed for event ${id}: ${(err as Error).message}`);
       }
     }
+    this.outlookCalendar.syncEventSoon(id);
     return updated;
   }
 
@@ -315,6 +320,7 @@ export class CalendarService {
   async remove(user: AuthUser, id: string) {
     await this.findOne(user, id);
     await this.prisma.calendarEvent.delete({ where: { id } });
+    this.outlookCalendar.syncEventSoon(id);
     return { deleted: true };
   }
 }

@@ -5,6 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
 import { OutlookSubscriptionService } from './outlook-subscription.service';
+import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
 import { UpdateConnectionSettingsDto } from './dto/update-connection-settings.dto';
 
 @Controller('outlook/connections')
@@ -16,6 +17,7 @@ export class OutlookConnectionsController {
     private connections: OutlookConnectionsService,
     private syncService: OutlookSyncService,
     private subscriptions: OutlookSubscriptionService,
+    private calendarSync: OutlookCalendarSyncService,
   ) {}
 
   @Get()
@@ -29,13 +31,13 @@ export class OutlookConnectionsController {
     try {
       if (!before.syncInboxToIntake && after.syncInboxToIntake) await this.subscriptions.ensureSubscription(id);
       if (before.syncInboxToIntake && !after.syncInboxToIntake) await this.subscriptions.removeSubscription(id);
+      if (before.syncCalendar && !after.syncCalendar) await this.calendarSync.removeAllForConnection(id);
     } catch (error) {
       // The setting is saved. Nothing retries a subscription that was never created;
       // the user can toggle again. Surface the failure on the connection.
-      this.logger.warn(`Subscription change for ${id} failed: ${error}`);
-      await this.connections.recordError(id, `Subscription change failed: ${error}`).catch(() => undefined);
+      this.logger.warn(`Subscription/calendar change for ${id} failed: ${error}`);
+      await this.connections.recordError(id, `Settings follow-up failed: ${error}`).catch(() => undefined);
     }
-    // Calendar cleanup is wired in a later task.
     const rows = await this.connections.listForFirm(user);
     return rows.find((r) => r.id === id);
   }
@@ -43,6 +45,8 @@ export class OutlookConnectionsController {
   @Delete(':id')
   async disconnect(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     await this.connections.assertCanManage(user, id);
+    // Remove the Outlook copies while the tokens still work; never block the disconnect.
+    await this.calendarSync.removeAllForConnection(id).catch((error) => this.logger.warn(`Calendar cleanup for ${id} failed: ${error}`));
     return this.connections.disconnect(user.firmId, id);
   }
 

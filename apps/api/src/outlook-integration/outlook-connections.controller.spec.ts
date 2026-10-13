@@ -3,10 +3,12 @@ import { OutlookConnectionsController } from './outlook-connections.controller';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
 import { OutlookSubscriptionService } from './outlook-subscription.service';
+import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 describe('OutlookConnectionsController settings', () => {
-  const connections = { updateSettings: jest.fn(), recordError: jest.fn().mockResolvedValue(undefined), listForFirm: jest.fn().mockResolvedValue([{ id: 'c1' }]) };
+  const connections = { updateSettings: jest.fn(), recordError: jest.fn().mockResolvedValue(undefined), listForFirm: jest.fn().mockResolvedValue([{ id: 'c1' }]), assertCanManage: jest.fn().mockResolvedValue(undefined), disconnect: jest.fn().mockResolvedValue({ ok: true }) };
+  const calendarSync = { removeAllForConnection: jest.fn().mockResolvedValue(undefined) };
   const subscriptions = { ensureSubscription: jest.fn(), removeSubscription: jest.fn() };
   let controller: OutlookConnectionsController;
   const user = { id: 'u1', firmId: 'f1' } as any;
@@ -19,6 +21,7 @@ describe('OutlookConnectionsController settings', () => {
         { provide: OutlookConnectionsService, useValue: connections },
         { provide: OutlookSyncService, useValue: {} },
         { provide: OutlookSubscriptionService, useValue: subscriptions },
+        { provide: OutlookCalendarSyncService, useValue: calendarSync },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -52,5 +55,29 @@ describe('OutlookConnectionsController settings', () => {
     await controller.updateSettings(user, 'c1', { syncCalendar: true });
     expect(subscriptions.ensureSubscription).not.toHaveBeenCalled();
     expect(subscriptions.removeSubscription).not.toHaveBeenCalled();
+  });
+
+  it('turning calendar sync off removes that account’s Outlook copies', async () => {
+    connections.updateSettings.mockResolvedValue({ before: { syncCalendar: true, syncInboxToIntake: false }, after: { syncCalendar: false, syncInboxToIntake: false } });
+    await controller.updateSettings(user, 'c1', { syncCalendar: false });
+    expect(calendarSync.removeAllForConnection).toHaveBeenCalledWith('c1');
+  });
+
+  it('turning calendar sync on removes nothing', async () => {
+    connections.updateSettings.mockResolvedValue({ before: { syncCalendar: false }, after: { syncCalendar: true } });
+    await controller.updateSettings(user, 'c1', { syncCalendar: true });
+    expect(calendarSync.removeAllForConnection).not.toHaveBeenCalled();
+  });
+
+  it('disconnect removes the Outlook copies before the tokens are wiped', async () => {
+    await controller.disconnect(user, 'c1');
+    expect(calendarSync.removeAllForConnection.mock.invocationCallOrder[0]).toBeLessThan(connections.disconnect.mock.invocationCallOrder[0]);
+    expect(connections.disconnect).toHaveBeenCalledWith('f1', 'c1');
+  });
+
+  it('disconnect still disconnects when the cleanup fails', async () => {
+    calendarSync.removeAllForConnection.mockRejectedValue(new Error('graph down'));
+    await expect(controller.disconnect(user, 'c1')).resolves.toEqual({ ok: true });
+    expect(connections.disconnect).toHaveBeenCalledWith('f1', 'c1');
   });
 });

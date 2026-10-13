@@ -8,6 +8,9 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 import { LineLinkService } from '../notifications/line-link.service';
 import { TravelService } from '../travel/travel.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
+import { OutlookCalendarSyncService } from '../outlook-integration/calendar/outlook-calendar-sync.service';
+
+const mockOutlookCalendar = { syncEventSoon: jest.fn() };
 
 /**
  * An event is addressable by id, so every single-event path has to re-apply the
@@ -52,6 +55,7 @@ describe('CalendarService case authorization', () => {
         { provide: LineLinkService, useValue: mockLineLink },
         { provide: TravelService, useValue: mockTravel },
         { provide: DeadlineRulesService, useValue: mockDeadlineRules },
+        { provide: OutlookCalendarSyncService, useValue: mockOutlookCalendar },
       ],
     }).compile();
     service = module.get(CalendarService);
@@ -123,6 +127,29 @@ describe('CalendarService case authorization', () => {
     });
 
     expect(mockPrisma.calendarEvent.create).toHaveBeenCalled();
+  });
+
+  it('queues an Outlook sync after create, update and remove', async () => {
+    mockCaseAccess.canAccessCase.mockResolvedValue(true);
+    mockPrisma.case.findUnique.mockResolvedValue({
+      id: 'case-1', firmId: 'firm-1', caseTypeId: 'type-1', ownRef: 'C-1', title: 'Case', courtName: null,
+      leadLawyer: { firstName: 'A', lastName: 'B' },
+    });
+    mockPrisma.calendarEvent.create.mockResolvedValue({ id: 'event-9', startAt: new Date() });
+    await service.create(user, { caseId: 'case-1', title: 'Meeting', startAt: '2026-09-07T02:00:00.000Z', type: EventType.CLIENT_MEETING });
+    expect(mockOutlookCalendar.syncEventSoon).toHaveBeenLastCalledWith('event-9');
+
+    const startAt = new Date('2027-04-20T02:00:00.000Z');
+    mockPrisma.calendarEvent.findUnique.mockResolvedValue({
+      id: 'event-1', caseId: 'case-1', type: 'MEETING', startAt, case: { id: 'case-1', firmId: 'firm-1' },
+    });
+    mockPrisma.calendarEvent.update.mockResolvedValue({ id: 'event-1', caseId: 'case-1', type: 'MEETING', startAt });
+    await service.update(user, 'event-1', { title: 'ใหม่' });
+    expect(mockOutlookCalendar.syncEventSoon).toHaveBeenLastCalledWith('event-1');
+
+    await service.remove(user, 'event-1');
+    expect(mockPrisma.calendarEvent.delete).toHaveBeenCalled();
+    expect(mockOutlookCalendar.syncEventSoon).toHaveBeenCalledTimes(3);
   });
 
   it('keeps the internal path open for services that already authorized the case', async () => {
@@ -261,6 +288,7 @@ describe('CalendarService multiple assignees', () => {
         { provide: LineLinkService, useValue: mockLineLink },
         { provide: TravelService, useValue: mockTravel },
         { provide: DeadlineRulesService, useValue: mockDeadlineRules },
+        { provide: OutlookCalendarSyncService, useValue: mockOutlookCalendar },
       ],
     }).compile();
     service = module.get(CalendarService);
