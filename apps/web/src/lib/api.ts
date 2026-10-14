@@ -1155,8 +1155,78 @@ export interface EmailMessageItem {
 }
 
 export interface EmailThreadDetail {
-  thread: EmailThreadListItem & { messages: EmailMessageItem[]; intake: { id: string; status: string; title: string | null } | null };
+  thread: EmailThreadListItem & {
+    messages: EmailMessageItem[];
+    intake: { id: string; status: string; title: string | null } | null;
+    case?: { id: string; ownRef: string; title: string } | null;
+  };
   proposals: IntakeFieldProposalItem[];
+}
+
+export type CaseMatchReason = 'OWN_REF' | 'CASE_NUMBER' | 'CLIENT_NAME';
+
+export interface CaseMatchSuggestionItem {
+  caseId: string;
+  ownRef: string;
+  title: string;
+  reason: CaseMatchReason;
+  matchedText: string;
+}
+
+export interface OutlookFolderRow {
+  folderId: string;
+  displayPath: string;
+  link: { id: string; caseId: string; ownRef: string; title: string } | null;
+  suggestions: CaseMatchSuggestionItem[];
+}
+
+export interface CaseFolderLinkItem {
+  id: string;
+  displayPath: string;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  linkedById: string;
+  connection: { mailboxAddress: string; status: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'ERROR' };
+}
+
+export interface CaseEmailThreadItem {
+  id: string;
+  subject: string;
+  fromName: string | null;
+  fromAddress: string | null;
+  lastMessageAt: string;
+  messageCount: number;
+  attachmentCount: number;
+}
+
+export interface CaseEmailMessageItem {
+  id: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  fromName: string | null;
+  fromAddress: string | null;
+  toAddresses: string[];
+  ccAddresses: string[];
+  bodyText: string | null;
+  bodyHtml: string | null;
+  receivedAt: string;
+  attachments: EmailAttachmentItem[];
+}
+
+export interface CaseEmailThreadDetail {
+  id: string;
+  subject: string;
+  caseId: string;
+  lastMessageAt: string;
+  messages: CaseEmailMessageItem[];
+}
+
+export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER';
+
+export interface ThreadCaseSuggestion {
+  caseId: string;
+  ownRef: string;
+  title: string;
+  reasons: ThreadMatchReason[];
 }
 
 export interface MailboxConnectionItem {
@@ -2989,6 +3059,50 @@ export const api = {
 
   downloadEmailAttachment: (token: string, attachmentId: string) =>
     fetchBlob(`/email-intake/attachments/${attachmentId}/download`, { token }),
+
+  getThreadCaseSuggestions: (token: string, threadId: string) =>
+    request<ThreadCaseSuggestion[]>(`/email-intake/threads/${threadId}/case-suggestions`, { token }),
+
+  linkThreadToCase: (token: string, threadId: string, caseId: string) =>
+    request<{ threadId: string; caseId: string }>(`/email-intake/threads/${threadId}/case-link`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ caseId }),
+    }),
+
+  unlinkThreadFromCase: (token: string, threadId: string) =>
+    request<{ unlinked: boolean }>(`/email-intake/threads/${threadId}/case-link`, { method: 'DELETE', token }),
+
+  // --- Case email (Microsoft 365 part B) ---
+  getOutlookFolders: (token: string) => request<OutlookFolderRow[]>('/outlook/folders', { token }),
+
+  linkOutlookFolders: (token: string, links: { folderId: string; caseId: string }[]) =>
+    request<{ linked: { id: string; caseId: string; externalId: string; displayPath: string }[] }>('/outlook/folder-links', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ links }),
+    }),
+
+  unlinkOutlookFolder: (token: string, linkId: string) =>
+    request<{ unlinked: boolean }>(`/outlook/folder-links/${linkId}`, { method: 'DELETE', token }),
+
+  getCaseFolderLinks: (token: string, caseId: string) =>
+    request<CaseFolderLinkItem[]>(`/cases/${caseId}/email/folder-links`, { token }),
+
+  syncCaseEmail: (token: string, caseId: string) =>
+    request<{ messagesSynced: number; errors: string[] }>(`/cases/${caseId}/email/sync`, { method: 'POST', token }),
+
+  getCaseEmailThreads: (token: string, caseId: string) =>
+    request<CaseEmailThreadItem[]>(`/cases/${caseId}/email/threads`, { token }),
+
+  getCaseEmailThread: (token: string, caseId: string, threadId: string) =>
+    request<CaseEmailThreadDetail>(`/cases/${caseId}/email/threads/${threadId}`, { token }),
+
+  saveEmailAttachmentToCase: (token: string, caseId: string, attachmentId: string) =>
+    request<{ document: { id: string; filename: string }; alreadySaved: boolean }>(
+      `/cases/${caseId}/email/attachments/${attachmentId}/save-to-documents`,
+      { method: 'POST', token },
+    ),
 
   acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
     request<IntakeItem>(`/email-intake/threads/${threadId}/accept`, {
