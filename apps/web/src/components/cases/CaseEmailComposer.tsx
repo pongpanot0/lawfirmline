@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/lib/auth';
 import { publishActionFeedback } from '@/lib/action-feedback';
-import { api, type CaseEmailComposeOptions, type DocumentItem, type SendCaseEmailResult } from '@/lib/api';
+import { api, type CaseEmailComposeOptions, type DocumentItem, type EmailTemplate, type SendCaseEmailResult } from '@/lib/api';
 import {
   appendAddress,
   composeError,
+  mergeTemplateBody,
   newSubject,
   parseAddressList,
   replyRecipients,
@@ -48,6 +49,10 @@ export function CaseEmailComposer({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [documentIds, setDocumentIds] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [pendingTemplate, setPendingTemplate] = useState<{ subject: string; body: string } | null>(null);
+  const [templateMissing, setTemplateMissing] = useState<string[]>([]);
+  const [templateLoading, setTemplateLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -74,11 +79,14 @@ export function CaseEmailComposer({
     setBody('');
     setDocumentIds([]);
     setConfirming(false);
+    setPendingTemplate(null);
+    setTemplateMissing([]);
     requestKey.current = '';
     // A failed document list only hides the attach section; it must not block writing the email.
-    Promise.all([api.getCaseEmailComposeOptions(token, caseId), api.getDocuments(token, caseId).catch(() => [] as DocumentItem[])])
-      .then(([loaded, docs]) => {
+    Promise.all([api.getCaseEmailComposeOptions(token, caseId), api.getDocuments(token, caseId).catch(() => [] as DocumentItem[]), api.getEmailTemplates(token).catch(() => [] as EmailTemplate[])])
+      .then(([loaded, docs, tpls]) => {
         if (cancelled) return;
+        setTemplates(tpls);
         setOptions(loaded);
         setDocuments(docs);
         if (mode.kind === 'reply') {
@@ -103,6 +111,29 @@ export function CaseEmailComposer({
   const to = parseAddressList(toText);
   const cc = parseAddressList(ccText);
   const attached = documents.filter((d) => documentIds.includes(d.id));
+
+  const applyTemplate = (rendered: { subject: string; body: string }, how: 'replace' | 'append') => {
+    setBody((prev) => mergeTemplateBody(prev, rendered.body, how));
+    if (mode?.kind === 'new') setSubject(rendered.subject);
+    setPendingTemplate(null);
+  };
+
+  const chooseTemplate = async (id: string) => {
+    if (!token || !id) return;
+    setTemplateLoading(true);
+    setError('');
+    setPendingTemplate(null);
+    try {
+      const rendered = await api.renderEmailTemplate(token, caseId, id);
+      setTemplateMissing(rendered.missing.map((m) => m.label));
+      if (body.trim()) setPendingTemplate(rendered);
+      else applyTemplate(rendered, 'replace');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ใช้เทมเพลตไม่สำเร็จ');
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
 
   const review = () => {
     const problem = composeError({ to, cc, subject, body });
@@ -211,6 +242,46 @@ export function CaseEmailComposer({
       {options?.mailboxAddress && !confirming && (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">ส่งจาก: {options.mailboxAddress}</p>
+
+          {templates.length > 0 && (
+            <div className="space-y-2 text-sm">
+              <label className="block space-y-1">
+                <span className="font-medium">ใช้เทมเพลต</span>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value=""
+                  disabled={templateLoading}
+                  onChange={(e) => void chooseTemplate(e.target.value)}
+                >
+                  <option value="">{templateLoading ? 'กำลังโหลด…' : 'เลือกเทมเพลต (ไม่บังคับ)'}</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {pendingTemplate && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-2">
+                  <span>แทนที่ข้อความเดิม?</span>
+                  <Button type="button" size="sm" onClick={() => applyTemplate(pendingTemplate, 'replace')}>
+                    แทนที่
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => applyTemplate(pendingTemplate, 'append')}>
+                    ต่อท้าย
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setPendingTemplate(null)}>
+                    ยกเลิก
+                  </Button>
+                </div>
+              )}
+              {templateMissing.length > 0 && (
+                <p className="rounded-lg bg-amber-50 p-2 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  ยังไม่มีข้อมูล: {templateMissing.join(', ')} — กรอกแทน {'{{…}}'} ในข้อความก่อนส่ง
+                </p>
+              )}
+            </div>
+          )}
 
           <label className="block space-y-1 text-sm">
             <span className="font-medium">ถึง</span>

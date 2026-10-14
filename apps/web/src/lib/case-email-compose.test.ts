@@ -4,6 +4,9 @@ import {
   MAX_EMAIL_RECIPIENTS,
   appendAddress,
   composeError,
+  insertAtCursor,
+  mergeTemplateBody,
+  previewTemplate,
   newSubject,
   parseAddressList,
   replyRecipients,
@@ -50,4 +53,26 @@ test('replyRecipients: replying to my own sent message goes back to its recipien
   assert.deepEqual(replyRecipients(sent, false, 'me@firm.com'), { to: ['client@c.com'], cc: [] });
   assert.deepEqual(replyRecipients(sent, true, 'me@firm.com'), { to: ['client@c.com'], cc: ['aud@c.com'] });
   assert.deepEqual(replyRecipients({ id: 'm3', fromAddress: null }, false, null), { to: [], cc: [] });
+});
+
+test('composeError blocks unfilled {{placeholders}} in subject or body', () => {
+  const ok = { to: ['a@x.com'], cc: [], subject: 'เรื่อง', body: 'เนื้อหา' };
+  const msg = 'ยังมีช่องข้อมูลที่ไม่ได้กรอก {{...}}';
+  assert.equal(composeError({ ...ok, subject: '[A] {{nextHearingDate}}' }), msg);
+  assert.equal(composeError({ ...ok, body: 'วันที่ {{x}}' }), msg);
+});
+
+test('mergeTemplateBody: replace swaps, append keeps typed text first', () => {
+  assert.equal(mergeTemplateBody('', 'T', 'append'), 'T');
+  assert.equal(mergeTemplateBody('เดิม', 'T', 'replace'), 'T');
+  assert.equal(mergeTemplateBody('เดิม', 'T', 'append'), 'เดิม\n\nT');
+});
+
+test('insertAtCursor inserts at the selection and reports the new caret', () => {
+  assert.deepEqual(insertAtCursor('abcd', 1, 3, '{{k}}'), { text: 'a{{k}}d', caret: 6 });
+  assert.deepEqual(insertAtCursor('ab', 2, 2, 'X'), { text: 'abX', caret: 3 });
+});
+
+test('previewTemplate fills known keys, leaves unknown as-is', () => {
+  assert.equal(previewTemplate('เรียน {{clientName}} {{zzz}}', [{ key: 'clientName', example: 'สมชาย' }]), 'เรียน สมชาย {{zzz}}');
 });

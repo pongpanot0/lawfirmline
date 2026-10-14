@@ -3046,6 +3046,17 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getEmailTemplates: (token: string) => request<EmailTemplate[]>('/email-templates', { token }),
+  getEmailTemplateVariables: (token: string) => request<EmailTemplateVariable[]>('/email-templates/variables', { token }),
+  createEmailTemplate: (token: string, data: EmailTemplateInput) =>
+    request<EmailTemplate>('/email-templates', { method: 'POST', token, body: JSON.stringify(data) }),
+  updateEmailTemplate: (token: string, id: string, data: Partial<EmailTemplateInput>) =>
+    request<EmailTemplate>(`/email-templates/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+  deleteEmailTemplate: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/email-templates/${id}`, { method: 'DELETE', token }),
+  renderEmailTemplate: (token: string, caseId: string, id: string) =>
+    request<RenderedEmailTemplate>(`/cases/${caseId}/email-templates/${encodeURIComponent(id)}/render`, { token }),
+
   getLineStatus: (token: string) =>
     request<LineIntegrationStatus>('/integrations/line/status', { token }),
 
@@ -3685,6 +3696,26 @@ export interface DocumentVersionItem {
   notes: string | null;
   createdById: string | null;
   createdAt: string;
+}
+
+export interface EmailTemplateInput {
+  name: string;
+  subject: string;
+  body: string;
+}
+export interface EmailTemplate extends EmailTemplateInput {
+  id: string;
+  builtIn: boolean;
+}
+export interface EmailTemplateVariable {
+  key: string;
+  label: string;
+  example: string;
+}
+export interface RenderedEmailTemplate {
+  subject: string;
+  body: string;
+  missing: Array<{ key: string; label: string }>;
 }
 
 export interface DocumentItem {
