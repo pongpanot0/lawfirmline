@@ -1,4 +1,6 @@
 import { FirmRole } from '@lawfirm/shared';
+import { OutlookConnectionsService } from '../outlook-integration/outlook-connections.service';
+import { OutlookCalendarSyncService } from '../outlook-integration/calendar/outlook-calendar-sync.service';
 import { lineActions } from '../notifications/line-actions';
 import {
   BadRequestException,
@@ -16,9 +18,12 @@ import { LineLinkService } from '../notifications/line-link.service';
 import { TravelService } from '../travel/travel.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
 import { CreateEventDto, UpdateEventDto } from './dto/calendar.dto';
-import { eventAssigneesInclude } from './event-people';
+import { eventAssigneesInclude, eventPeopleIds } from './event-people';
 import { formatBangkokDateTime } from '../common/utils/bangkok-time';
 import { NotificationCategory, Prisma } from '../generated/prisma';
+
+/** Server-resolved Teams fields that never come straight from a request body. */
+type MeetingFields = { meetingOrganizerId?: string | null; onlineMeetingUrl?: string | null; inviteeEmails?: string[] };
 
 /**
  * The kind only means something on a court date; anything else stores null.
@@ -39,6 +44,8 @@ export class CalendarService {
     private lineLink: LineLinkService,
     private travelService: TravelService,
     private deadlineRules: DeadlineRulesService,
+    private outlookCalendar: OutlookCalendarSyncService,
+    private outlookConnections: OutlookConnectionsService,
   ) {}
 
   private eventInclude = {
@@ -80,6 +87,20 @@ export class CalendarService {
       throw new BadRequestException('ผู้รับผิดชอบต้องเป็นสมาชิกในสำนักงาน');
     }
     return ids;
+  }
+
+  private assertTeamsAllowed(type: string | undefined) {
+    if ((type ?? EventType.OTHER) !== EventType.CLIENT_MEETING) {
+      throw new BadRequestException('ประชุม Teams ใช้ได้กับนัดลูกความเท่านั้น');
+    }
+  }
+
+  /** The actor if they have connected Microsoft 365, else the first attendee who has. */
+  private async resolveMeetingOrganizer(actorId: string, attendeeIds: string[]): Promise<string> {
+    for (const id of [actorId, ...attendeeIds]) {
+      if (await this.outlookConnections.findActiveForUser(id)) return id;
+    }
+    throw new BadRequestException('ต้องเชื่อม Microsoft 365 ในหน้าตั้งค่าก่อนจึงสร้างลิงก์ Teams ได้');
   }
 
   async findAll(user: AuthUser, from?: string, to?: string) {
@@ -134,11 +155,25 @@ export class CalendarService {
    */
   async create(user: AuthUser, dto: CreateEventDto) {
     await this.assertCaseAccess(user, dto.caseId);
-    return this.createInternal(dto, user.id);
+    let meetingFields: MeetingFields = {};
+    if (dto.onlineMeeting) {
+      this.assertTeamsAllowed(dto.type);
+      const legalCase = await this.prisma.case.findUnique({ where: { id: dto.caseId }, select: { firmId: true, leadLawyerId: true } });
+      if (!legalCase) throw new NotFoundException('Case not found');
+      // Members are validated before any connection is probed.
+      const ids = (await this.resolveAssigneeIds(legalCase.firmId, dto)) ?? [];
+      const people = ids.length ? ids : legalCase.leadLawyerId ? [legalCase.leadLawyerId] : [];
+      meetingFields = { meetingOrganizerId: await this.resolveMeetingOrganizer(user.id, people), inviteeEmails: dto.inviteeEmails ?? [] };
+    } else {
+      meetingFields = { inviteeEmails: [] };
+    }
+    const event = await this.createInternal({ ...dto, ...meetingFields } as CreateEventDto & MeetingFields, user.id);
+    this.outlookCalendar.syncEventSoon(event.id);
+    return event;
   }
 
   /** Creation for callers that have already authorized the case. */
-  async createInternal(dto: CreateEventDto, actorId?: string, tx?: Prisma.TransactionClient) {
+  async createInternal(dto: CreateEventDto & MeetingFields, actorId?: string, tx?: Prisma.TransactionClient) {
     if (tx) {
       const legalCase = await tx.case.findUnique({ where: { id: dto.caseId } });
       if (!legalCase) throw new NotFoundException('Case not found');
@@ -202,6 +237,9 @@ export class CalendarService {
         assigneeId: ids[0] ?? null,
         assignees: { create: ids.map(userId => ({ userId })) },
         travelLogId,
+        onlineMeeting: dto.onlineMeeting,
+        inviteeEmails: dto.inviteeEmails ?? [],
+        meetingOrganizerId: dto.meetingOrganizerId,
       },
       include: this.eventInclude,
     });
@@ -251,7 +289,24 @@ export class CalendarService {
 
   async update(user: AuthUser, id: string, dto: UpdateEventDto) {
     const existing = await this.findOne(user, id);
-    const updated = await this.updateInternal(id, dto);
+    const meeting: MeetingFields = {};
+    const nextOnline = dto.onlineMeeting ?? existing.onlineMeeting;
+    const nextType = dto.type ?? existing.type;
+    const withdrawFrom = dto.onlineMeeting === false && existing.onlineMeeting ? existing.meetingOrganizerId : null;
+    if (!nextOnline) {
+      if (existing.onlineMeeting || dto.inviteeEmails) Object.assign(meeting, { onlineMeetingUrl: null, meetingOrganizerId: null, inviteeEmails: [] });
+    } else {
+      this.assertTeamsAllowed(nextType);
+      if (dto.onlineMeeting === true && !(existing.onlineMeeting && existing.meetingOrganizerId)) {
+        const requested = await this.resolveAssigneeIds(existing.case.firmId, dto);
+        const lead = existing.case.leadLawyer?.id;
+        const people = requested === undefined
+          ? eventPeopleIds({ assignees: existing.assignees, case: { leadLawyerId: lead ?? null } })
+          : requested.length ? requested : lead ? [lead] : [];
+        meeting.meetingOrganizerId = await this.resolveMeetingOrganizer(user.id, people);
+      }
+    }
+    const updated = await this.updateInternal(id, { ...dto, ...meeting });
     if (dto.courtEventKind && updated.type === EventType.COURT_DATE) {
       // A kind filled in later can unlock a kind-specific rule (ม.88 witness list).
       // applyTrigger dedupes per (event, rule), so rules already raised are not repeated.
@@ -270,11 +325,13 @@ export class CalendarService {
         this.logger.error(`Deadline rules failed for event ${id}: ${(err as Error).message}`);
       }
     }
+    if (withdrawFrom) this.outlookCalendar.withdrawOrganizerCopySoon(id, withdrawFrom);
+    else this.outlookCalendar.syncEventSoon(id);
     return updated;
   }
 
   /** Update for callers that have already authorized the case. */
-  async updateInternal(id: string, dto: UpdateEventDto) {
+  async updateInternal(id: string, dto: UpdateEventDto & MeetingFields) {
     const existing = await this.findOneInternal(id);
     if (dto.startAt && new Date(dto.startAt).getTime() !== existing.startAt.getTime()) {
       throw new ConflictException('กรุณาใช้เลื่อนนัดเพื่อตรวจผลกระทบก่อน / Use reschedule to review affected deadlines');
@@ -315,6 +372,7 @@ export class CalendarService {
   async remove(user: AuthUser, id: string) {
     await this.findOne(user, id);
     await this.prisma.calendarEvent.delete({ where: { id } });
+    this.outlookCalendar.syncEventSoon(id);
     return { deleted: true };
   }
 }

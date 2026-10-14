@@ -4,7 +4,7 @@ import { maskEmail } from '@lawfirm/shared';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

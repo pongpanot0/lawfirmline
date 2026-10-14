@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { OutlookCalendarSyncService } from '../outlook-integration/calendar/outlook-calendar-sync.service';
 import { AuthUser, DeadlineTrigger, MONEY_MAX } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
@@ -46,6 +47,7 @@ export class CourtDayService {
     private prisma: PrismaService,
     private access: CaseAccessService,
     private deadlines: DeadlineRulesService,
+    private outlookCalendar: OutlookCalendarSyncService,
   ) {}
 
   private async event(
@@ -177,7 +179,8 @@ export class CourtDayService {
   }
 
   async complete(user: AuthUser, id: string, dto: CompleteCourtDayDto) {
-    return this.prisma.$transaction(
+    let nextEventId: string | undefined;
+    const done = await this.prisma.$transaction(
       async (db) => {
         const event = await this.event(user, id, db);
         // Lock the parent as well: a simultaneous calendar edit must finish
@@ -289,6 +292,7 @@ export class CourtDayService {
             },
           });
           result.nextEventId = next.id;
+          nextEventId = next.id;
           await db.case.update({
             where: { id: event.caseId },
             data: { status: 'COURT_DATE' },
@@ -395,5 +399,7 @@ export class CourtDayService {
       },
       { timeout: 15000 },
     );
+    if (nextEventId) this.outlookCalendar.syncEventSoon(nextEventId);
+    return done;
   }
 }

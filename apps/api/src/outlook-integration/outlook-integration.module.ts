@@ -7,17 +7,36 @@ import { OutlookOAuthService } from './outlook-oauth.service';
 import { OutlookGraphClient } from './outlook-graph.client';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
+import { GraphHttp } from './graph/graph-http';
+import { GraphCalendarClient } from './graph/graph-calendar.client';
 import { OutlookSubscriptionService } from './outlook-subscription.service';
+import { CaseFolderSyncService } from './case-folder-sync.service';
+import { CaseFolderLinksController } from './case-folder-links.controller';
+import { CaseFolderLinksService } from './case-folder-links.service';
+import { GraphMailFoldersClient } from './graph/graph-mail-folders.client';
+import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
+import { CaseEmailSendController } from './case-email-send.controller';
+import { GraphDriveClient } from './graph/graph-drive.client';
+import { OutlookSendService } from './outlook-send.service';
 
 @Module({
-  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController],
+  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController, CaseFolderLinksController, CaseEmailSendController],
   providers: [
+    GraphHttp,
+    GraphCalendarClient,
     OutlookOAuthService,
     OutlookGraphClient,
     OutlookConnectionsService,
     OutlookSyncService,
     OutlookSubscriptionService,
+    OutlookCalendarSyncService,
+    GraphMailFoldersClient,
+    CaseFolderSyncService,
+    CaseFolderLinksService,
     FirmLinkService,
+    OutlookSendService,
+    GraphDriveClient,
   ],
+  exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService, GraphDriveClient],
 })
 export class OutlookIntegrationModule {}

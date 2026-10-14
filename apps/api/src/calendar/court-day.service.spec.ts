@@ -4,6 +4,7 @@ import { CourtDayService } from './court-day.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
+import { OutlookCalendarSyncService } from '../outlook-integration/calendar/outlook-calendar-sync.service';
 
 /**
  * Recording "next hearing" on a court day creates a follow-up calendar event.
@@ -68,6 +69,7 @@ describe('CourtDayService next-hearing assignee copy', () => {
   };
   const mockCaseAccess = { getCaseFilterForUser: jest.fn().mockReturnValue({}) };
   const mockDeadlines = { applyTrigger: jest.fn() };
+  const mockOutlookCalendar = { syncEventSoon: jest.fn() };
 
   const user = { id: 'user-1', firmId: 'firm-1' } as AuthUser;
 
@@ -92,6 +94,7 @@ describe('CourtDayService next-hearing assignee copy', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CaseAccessService, useValue: mockCaseAccess },
         { provide: DeadlineRulesService, useValue: mockDeadlines },
+        { provide: OutlookCalendarSyncService, useValue: mockOutlookCalendar },
       ],
     }).compile();
     service = module.get(CourtDayService);
@@ -111,5 +114,14 @@ describe('CourtDayService next-hearing assignee copy', () => {
         }),
       }),
     );
+  });
+
+  it('queues an Outlook sync for the newly created hearing', async () => {
+    await service.complete(user, 'event-1', {
+      version: 0,
+      eventUpdatedAt: currentEvent.updatedAt.toISOString(),
+    });
+
+    expect(mockOutlookCalendar.syncEventSoon).toHaveBeenCalledWith('event-2');
   });
 });

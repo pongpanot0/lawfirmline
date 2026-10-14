@@ -31,6 +31,9 @@ const threadInclude = {
   intake: {
     select: { id: true, status: true, title: true, clientName: true },
   },
+  case: {
+    select: { id: true, ownRef: true, title: true },
+  },
   messages: {
     orderBy: { receivedAt: 'desc' as const },
     include: {
@@ -52,6 +55,7 @@ export class EmailIntakeService {
       where: accessWhere,
       include: {
         intake: { select: { id: true, status: true } },
+        mailboxConnection: { select: { mailboxAddress: true } },
         messages: {
           orderBy: { receivedAt: 'desc' },
           take: 1,
@@ -62,7 +66,19 @@ export class EmailIntakeService {
       orderBy: { lastMessageAt: 'desc' },
     });
 
-    return threads.map((thread) => ({
+    // The excerpt is the client's words, not our own outgoing reply: newest INBOUND per thread,
+    // falling back to the newest message when a thread has none.
+    const inbound = await this.prisma.emailMessage.findMany({
+      where: { threadId: { in: threads.map((t) => t.id) }, direction: EmailDirection.INBOUND },
+      orderBy: { receivedAt: 'desc' },
+      distinct: ['threadId'],
+      select: { id: true, threadId: true, bodyText: true, attachments: { select: { id: true } } },
+    });
+    const inboundByThread = new Map(inbound.map((m) => [m.threadId, m]));
+
+    return threads.map((thread) => {
+      const excerptMessage = inboundByThread.get(thread.id) ?? thread.messages[0];
+      return {
       id: thread.id,
       subject: thread.subject,
       fromName: thread.fromName,
@@ -70,10 +86,23 @@ export class EmailIntakeService {
       lastMessageAt: thread.lastMessageAt,
       status: thread.status,
       messageCount: thread._count.messages,
-      attachmentCount: thread.messages[0]?.attachments.length ?? 0,
-      bodyExcerpt: thread.messages[0]?.bodyText?.slice(0, 200) ?? '',
+      attachmentCount: excerptMessage?.attachments.length ?? 0,
+      bodyExcerpt: excerptMessage?.bodyText?.slice(0, 200) ?? '',
       linkedIntake: thread.intake,
-    }));
+      caseId: thread.caseId,
+      mailboxAddress: thread.mailboxConnection?.mailboxAddress ?? null,
+      };
+    });
+  }
+
+  async getAttachmentForDownload(user: AuthUser, attachmentId: string) {
+    const thread = await this.caseAccess.getEmailThreadFilterForUser(user);
+    const attachment = await this.prisma.emailAttachment.findFirst({
+      where: { id: attachmentId, message: { thread } },
+      select: { filename: true, mimeType: true, storagePath: true },
+    });
+    if (!attachment) throw new NotFoundException('ไม่พบไฟล์แนบ');
+    return attachment;
   }
 
   private async getThreadOrThrow(user: AuthUser, threadId: string) {
@@ -136,7 +165,8 @@ export class EmailIntakeService {
       if (!related) throw new NotFoundException('ไม่พบคดีที่อ้างถึง');
     }
 
-    const latestMessage = thread.messages[0];
+    // Newest INBOUND message (the client's words); fall back to the newest of any direction.
+    const latestMessage = thread.messages.find((m) => m.direction === EmailDirection.INBOUND) ?? thread.messages[0];
     const clientMatch = dto.clientId
       ? await this.prisma.client.findFirst({ where: { id: dto.clientId, firmId: user.firmId } })
       : await this.suggestClientMatch(user, thread.fromName);
@@ -210,7 +240,8 @@ export class EmailIntakeService {
     proposalId: string,
     dto: ResolveFieldProposalDto,
   ) {
-    const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, firmId: user.firmId } });
+    const intakeFilter = await this.caseAccess.getIntakeFilterForUser(user);
+    const intake = await this.prisma.intake.findFirst({ where: { id: intakeId, ...intakeFilter } });
     if (!intake) throw new NotFoundException('ไม่พบเรื่องนี้');
 
     const proposal = await this.prisma.intakeFieldProposal.findFirst({
@@ -262,8 +293,9 @@ export class EmailIntakeService {
    * `resolveFieldProposal`.
    */
   async recordReply(user: AuthUser, threadId: string, dto: SeedMockReplyDto) {
+    const accessWhere = await this.caseAccess.getEmailThreadFilterForUser(user);
     const thread = await this.prisma.emailThread.findFirst({
-      where: { id: threadId, firmId: user.firmId },
+      where: { id: threadId, ...accessWhere },
     });
     if (!thread) throw new NotFoundException('ไม่พบอีเมลนี้');
 

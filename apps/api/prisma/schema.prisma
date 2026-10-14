@@ -692,6 +692,7 @@ model User {
   decidedLeaveRequests       LeaveRequest[]               @relation("LeaveDecider")
   assignedEvents             CalendarEvent[]              @relation("EventAssignee")
   eventAssignments           CalendarEventAssignee[]      @relation("EventCoAssignee")
+  organizedMeetings          CalendarEvent[]              @relation("EventMeetingOrganizer")
   deviceTokens               DeviceToken[]
   caseStatusLogs             CaseStatusLog[]
   sops                       Sop[]
@@ -701,6 +702,7 @@ model User {
   caseComments               CaseComment[]
   notifications              Notification[]
   notificationPreferences    UserNotificationPreference[]
+  mailboxConnections         MailboxConnection[]          @relation("MailboxConnectionOwner")
 }
 
 /// What a staff notification is about — the unit a user mutes per channel.
@@ -983,6 +985,8 @@ model Case {
   workflowRuns           WorkflowRun[]
   proceedings            CaseProceeding[]
   conflictChecks         ConflictCheck[]
+  emailThreads           EmailThread[]    @relation("CaseEmailThreads")
+  externalLinks          CaseExternalLink[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -1549,6 +1553,7 @@ model Document {
   knowledgeCitations KnowledgeCitation[]
   dateSuggestions    DocumentDateSuggestion[]
   publications       DocumentPublication[]
+  officeLink         DocumentOfficeLink?
   chunks             DocumentChunk[]
   intakeRequests     IntakeDocumentRequest[]
   cargoRequirements  CargoDocumentRequirement[]
@@ -1630,6 +1635,26 @@ model CargoDocumentRequirement {
   @@index([documentId])
 }
 
+/// A system Document copied to OneDrive for editing in Word/Excel/PowerPoint online (M365 ส่วน D).
+model DocumentOfficeLink {
+  id              String   @id @default(uuid())
+  documentId      String   @unique
+  /// MailboxConnection whose token uploaded the copy and reads it back (no FK: connections are never deleted, only revoked).
+  connectionId    String
+  driveId         String
+  itemId          String
+  webUrl          String   @db.Text
+  /// Document.version last uploaded to or pulled from OneDrive.
+  uploadedVersion Int
+  createdAt       DateTime @default(now())
+  /// Last upload/pull; an item lastModifiedDateTime after this = Office edits not pulled back yet.
+  updatedAt       DateTime @updatedAt
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId])
+}
+
 model DocumentVersion {
   id          String                @id @default(uuid())
   documentId  String
@@ -1696,9 +1721,15 @@ model CalendarEvent {
   courtEventKind  CourtEventKind?
   reminderMinutes Int[]     @default([4320, 1440, 60])
   travelLogId     String?
+  /// Client meetings only: a Teams link is created through the organizer's Outlook.
+  onlineMeeting      Boolean  @default(false)
+  onlineMeetingUrl   String?
+  meetingOrganizerId String?
+  inviteeEmails      String[] @default([])
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  meetingOrganizer   User?                    @relation("EventMeetingOrganizer", fields: [meetingOrganizerId], references: [id], onDelete: SetNull)
   case               Case                     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   assignee           User?                    @relation("EventAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   travelLog          TravelLog?               @relation(fields: [travelLogId], references: [id])
@@ -1723,6 +1754,23 @@ model CalendarEventAssignee {
   user  User          @relation("EventCoAssignee", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([eventId, userId])
+  @@index([userId])
+}
+
+/// Our event mirrored into one person's Outlook calendar. eventId has no FK on
+/// purpose: after the event (or its case) is deleted we still need graphEventId
+/// to remove the Outlook copy.
+model CalendarEventOutlookCopy {
+  id           String   @id @default(uuid())
+  eventId      String
+  userId       String
+  connectionId String
+  graphEventId String
+  syncedAt     DateTime
+  lastError    String?  @db.Text
+
+  @@unique([eventId, userId])
+  @@index([connectionId])
   @@index([userId])
 }
 
@@ -2452,13 +2500,22 @@ model EmailThread {
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  firm     Firm           @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  intake   Intake?        @relation(fields: [intakeId], references: [id], onDelete: SetNull)
-  messages EmailMessage[]
+  mailboxConnectionId String?
+  caseId              String?
+  /// Set when a person manually unlinks the thread from a case; sync must not re-link it.
+  caseUnlinkedAt      DateTime?
+
+  firm              Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  intake            Intake?            @relation(fields: [intakeId], references: [id], onDelete: SetNull)
+  messages          EmailMessage[]
+  mailboxConnection MailboxConnection? @relation(fields: [mailboxConnectionId], references: [id], onDelete: SetNull)
+  case              Case?              @relation("CaseEmailThreads", fields: [caseId], references: [id], onDelete: SetNull)
 
   @@unique([firmId, provider, threadKey])
   @@index([firmId])
   @@index([intakeId])
+  @@index([mailboxConnectionId])
+  @@index([caseId])
 }
 
 model EmailMessage {
@@ -2472,6 +2529,11 @@ model EmailMessage {
   bodyText    String?        @db.Text
   receivedAt  DateTime       @default(now())
   createdAt   DateTime       @default(now())
+
+  graphMessageId String?
+  toAddresses    String[] @default([])
+  ccAddresses    String[] @default([])
+  bodyHtml       String?  @db.Text
 
   thread         EmailThread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
   attachments    EmailAttachment[]
@@ -2598,12 +2660,49 @@ model MailboxConnection {
   lastSyncedAt          DateTime?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
+  userId                String?
+  syncInboxToIntake     Boolean                 @default(false)
+  syncCalendar          Boolean                 @default(true)
+  sentDeltaLink         String?                 @db.Text
 
-  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  caseExternalLinks CaseExternalLink[]
+  firm    Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user    User?         @relation("MailboxConnectionOwner", fields: [userId], references: [id], onDelete: SetNull)
+  threads EmailThread[]
 
   @@unique([firmId, mailboxAddress])
   @@index([firmId])
   @@index([graphSubscriptionId])
+  @@index([userId])
+}
+
+enum CaseExternalLinkKind {
+  OUTLOOK_FOLDER
+  DRIVE_FOLDER
+}
+
+/// folder ภายนอก (Outlook mail folder / OneDrive-SharePoint folder) ที่ผูกกับคดี — ซิงก์ด้วย token ของ connection ที่ผูก
+model CaseExternalLink {
+  id           String               @id @default(uuid())
+  firmId       String
+  caseId       String
+  connectionId String
+  kind         CaseExternalLinkKind
+  /// mailFolder id | driveItem id
+  externalId   String
+  driveId      String?
+  displayPath  String
+  deltaLink    String?              @db.Text
+  linkedById   String
+  lastSyncedAt DateTime?
+  lastError    String?              @db.Text
+  createdAt    DateTime             @default(now())
+
+  case       Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  connection MailboxConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, kind, externalId])
+  @@index([caseId])
 }
 
 /// Shared preparation and a single, retry-safe outcome for one court appointment.

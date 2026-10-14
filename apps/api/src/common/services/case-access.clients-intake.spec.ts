@@ -32,7 +32,12 @@ describe('CaseAccessService client and intake filters', () => {
     const user = { id: 'om1', firmId: 'firm-1', firmRole: FirmRole.OFFICE_MANAGER } as any;
     expect(service.getClientFilterForUser(user)).toEqual({ firmId: 'firm-1' });
     expect(await service.getIntakeFilterForUser(user)).toEqual({ firmId: 'firm-1' });
-    expect(await service.getEmailThreadFilterForUser(user)).toEqual({ firmId: 'firm-1' });
+    expect(await service.getEmailThreadFilterForUser(user)).toEqual(
+      expect.objectContaining({
+        firmId: 'firm-1',
+        OR: expect.arrayContaining([{ caseId: null, intakeId: null }]),
+      }),
+    );
   });
 
   it('LAWYER sees clients in any role only through visible cases', () => {
@@ -85,7 +90,7 @@ describe('CaseAccessService client and intake filters', () => {
     );
   });
 
-  it('email threads for LAWYER require a visible linked intake', async () => {
+  it('email threads for LAWYER: visible case/intake or own unlinked mail', async () => {
     const filter = await service.getEmailThreadFilterForUser({
       id: 'u1',
       firmId: 'firm-1',
@@ -94,7 +99,11 @@ describe('CaseAccessService client and intake filters', () => {
     expect(filter).toEqual(
       expect.objectContaining({
         firmId: 'firm-1',
-        intake: expect.objectContaining({ firmId: 'firm-1' }),
+        OR: [
+          { caseId: { not: null }, case: expect.objectContaining({ firmId: 'firm-1' }) },
+          { intakeId: { not: null }, intake: expect.objectContaining({ firmId: 'firm-1' }) },
+          { caseId: null, intakeId: null, mailboxConnection: { userId: 'u1' } },
+        ],
       }),
     );
   });

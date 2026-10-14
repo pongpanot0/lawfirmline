@@ -27,7 +27,7 @@ describe('EventResponsibilityService reschedule notice', () => {
     };
     prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
     const access = { getCaseFilterForUser: jest.fn().mockReturnValue({}) } as any;
-    return new EventResponsibilityService(prisma, access, {} as any, notifier);
+    return new EventResponsibilityService(prisma, access, {} as any, notifier, { syncEventSoon: jest.fn() } as any);
   };
 
   it('tells the attendees and the lead lawyer, with old and new time', async () => {

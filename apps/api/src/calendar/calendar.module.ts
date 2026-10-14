@@ -8,9 +8,10 @@ import { CalendarController } from './calendar.controller';
 import { TravelModule } from '../travel/travel.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DeadlinesModule } from '../deadlines/deadlines.module';
+import { OutlookIntegrationModule } from '../outlook-integration/outlook-integration.module';
 
 @Module({
-  imports: [TravelModule, forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule)],
+  imports: [TravelModule, forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule), OutlookIntegrationModule],
   controllers: [CalendarController, CourtDayController, EventResponsibilityController],
   providers: [CalendarService, CourtDayService, EventResponsibilityService],
   exports: [CalendarService, EventResponsibilityService],

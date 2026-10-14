@@ -303,6 +303,9 @@ export interface CalendarEventItem {
   leaveOwnerId?: string;
   leaveStartDate?: string;
   leaveEndDate?: string;
+  onlineMeeting?: boolean;
+  onlineMeetingUrl?: string | null;
+  inviteeEmails?: string[];
   case?: { id: string; ownRef: string; title: string; courtName?: string | null; leadLawyer?: { id: string; firstName: string; lastName: string } };
 }
 
@@ -1130,6 +1133,8 @@ export interface EmailThreadListItem {
   attachmentCount: number;
   bodyExcerpt: string;
   linkedIntake: { id: string; status: string } | null;
+  caseId?: string | null;
+  mailboxAddress?: string | null;
 }
 
 export interface EmailAttachmentItem {
@@ -1144,25 +1149,134 @@ export interface EmailMessageItem {
   direction: 'INBOUND' | 'OUTBOUND';
   fromName: string | null;
   fromAddress: string | null;
+  toAddresses?: string[];
+  ccAddresses?: string[];
   bodyText: string | null;
   receivedAt: string;
   attachments: EmailAttachmentItem[];
 }
 
 export interface EmailThreadDetail {
-  thread: EmailThreadListItem & { messages: EmailMessageItem[]; intake: { id: string; status: string; title: string | null } | null };
+  thread: EmailThreadListItem & {
+    messages: EmailMessageItem[];
+    intake: { id: string; status: string; title: string | null } | null;
+    case?: { id: string; ownRef: string; title: string } | null;
+  };
   proposals: IntakeFieldProposalItem[];
+}
+
+export type CaseMatchReason = 'OWN_REF' | 'CASE_NUMBER' | 'CLIENT_NAME';
+
+export interface CaseMatchSuggestionItem {
+  caseId: string;
+  ownRef: string;
+  title: string;
+  reason: CaseMatchReason;
+  matchedText: string;
+}
+
+export interface OutlookFolderRow {
+  folderId: string;
+  displayPath: string;
+  link: { id: string; caseId: string; ownRef: string; title: string } | null;
+  suggestions: CaseMatchSuggestionItem[];
+}
+
+export interface CaseFolderLinkItem {
+  id: string;
+  displayPath: string;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  linkedById: string;
+  connection: { mailboxAddress: string; status: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'ERROR' };
+}
+
+export interface CaseEmailThreadItem {
+  id: string;
+  subject: string;
+  fromName: string | null;
+  fromAddress: string | null;
+  lastMessageAt: string;
+  messageCount: number;
+  attachmentCount: number;
+}
+
+export interface CaseEmailMessageItem {
+  id: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  fromName: string | null;
+  fromAddress: string | null;
+  toAddresses: string[];
+  ccAddresses: string[];
+  bodyText: string | null;
+  bodyHtml: string | null;
+  receivedAt: string;
+  attachments: EmailAttachmentItem[];
+}
+
+export interface CaseEmailThreadDetail {
+  id: string;
+  subject: string;
+  caseId: string;
+  lastMessageAt: string;
+  messages: CaseEmailMessageItem[];
+}
+
+export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER';
+
+export interface ThreadCaseSuggestion {
+  caseId: string;
+  ownRef: string;
+  title: string;
+  reasons: ThreadMatchReason[];
 }
 
 export interface MailboxConnectionItem {
   id: string;
   mailboxAddress: string;
   connectedByUserId: string;
+  userId: string | null;
+  user: { id: string; firstName: string; lastName: string } | null;
+  isMine: boolean;
+  syncInboxToIntake: boolean;
+  syncCalendar: boolean;
   status: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'ERROR';
   lastError: string | null;
   lastSyncedAt: string | null;
   subscriptionExpiresAt: string | null;
   createdAt: string;
+}
+
+export interface CaseEmailRecipientOption {
+  name: string;
+  email: string;
+  source: 'CLIENT_CONTACT' | 'PARTICIPANT';
+  group: string;
+}
+
+export interface CaseEmailComposeOptions {
+  /** null = this user has not connected their own Microsoft 365 mailbox */
+  mailboxAddress: string | null;
+  ownRef: string;
+  recipients: CaseEmailRecipientOption[];
+}
+
+export interface SendCaseEmailInput {
+  to: string[];
+  cc?: string[];
+  subject: string;
+  body: string;
+  documentIds?: string[];
+  replyToMessageId?: string;
+  replyAll?: boolean;
+  clientRequestId?: string;
+}
+
+export interface SendCaseEmailResult {
+  mode: 'NEW' | 'REPLY' | 'REPLY_AS_NEW';
+  threadId: string | null;
+  /** false = sent by Microsoft but not yet in the case email tab */
+  recorded: boolean;
 }
 
 export interface ReviewDecisionItem {
@@ -2830,13 +2944,105 @@ export const api = {
     request<MailboxConnectionItem[]>('/outlook/connections', { token }),
 
   getOutlookConnectUrl: (token: string) =>
-    request<{ url: string }>('/outlook/connect', { token }),
+    request<{ url: string }>('/outlook/connect', { token, credentials: 'include' }),
+
+  updateOutlookConnection: (token: string, id: string, body: { syncInboxToIntake?: boolean; syncCalendar?: boolean }) =>
+    request<MailboxConnectionItem>(`/outlook/connections/${id}`, { method: 'PATCH', token, body: JSON.stringify(body) }),
 
   disconnectOutlook: (token: string, id: string) =>
-    request<{ revoked: boolean }>(`/outlook/connections/${id}`, { method: 'DELETE', token }),
+    request<{ revoked: boolean; caseLinks: number }>(`/outlook/connections/${id}`, { method: 'DELETE', token }),
 
   syncOutlookNow: (token: string, id: string) =>
     request<{ messagesSynced: number }>(`/outlook/connections/${id}/sync`, { method: 'POST', token }),
+
+  getOutlookConnectionCaseLinks: (token: string, id: string) =>
+    request<ConnectionCaseLinkSummary>(`/outlook/connections/${id}/case-links`, { token }),
+
+  // --- OneDrive / SharePoint (M365 ส่วน D) ---
+  getCaseDrive: (token: string, caseId: string) =>
+    request<CaseDriveListing>(`/cases/${caseId}/drive`, { token }),
+
+  linkCaseDriveFolder: (token: string, caseId: string, driveId: string, itemId: string) =>
+    request<{ id: string }>(`/cases/${caseId}/drive-link`, {
+      method: 'PUT',
+      token,
+      body: JSON.stringify({ driveId, itemId }),
+    }),
+
+  unlinkCaseDriveFolder: (token: string, caseId: string) =>
+    request<{ unlinked: boolean }>(`/cases/${caseId}/drive-link`, { method: 'DELETE', token }),
+
+  openCaseDriveItem: (token: string, caseId: string, itemId: string) =>
+    request<{ webUrl: string }>(`/cases/${caseId}/drive/items/${encodeURIComponent(itemId)}/open`, {
+      method: 'POST',
+      token,
+      silent: true,
+    }),
+
+  importCaseDriveItem: (token: string, caseId: string, itemId: string) =>
+    request<DocumentItem>(`/cases/${caseId}/drive/items/${encodeURIComponent(itemId)}/import`, {
+      method: 'POST',
+      token,
+      silent: true,
+    }),
+
+  importCaseDriveFolder: (token: string, caseId: string) =>
+    request<{ imported: number; skipped: string[] }>(`/cases/${caseId}/drive/import-all`, {
+      method: 'POST',
+      token,
+      silent: true,
+    }),
+
+  getDriveChildren: (token: string, driveId = 'me', itemId = 'root') =>
+    request<DrivePickerItem[]>(
+      `/outlook/drive/children?driveId=${encodeURIComponent(driveId)}&itemId=${encodeURIComponent(itemId)}`,
+      { token },
+    ),
+
+  getDriveFolderSuggestions: (token: string, driveId: string, itemId: string) =>
+    request<
+      Array<{
+        folder: DrivePickerItem;
+        link: { id: string; caseId: string; ownRef: string; title: string } | null;
+        suggestions: CaseMatchSuggestionItem[];
+      }>
+    >(
+      `/outlook/drive/folder-suggestions?driveId=${encodeURIComponent(driveId)}&itemId=${encodeURIComponent(itemId)}`,
+      { token },
+    ),
+
+  getDriveShared: (token: string) => request<DrivePickerItem[]>('/outlook/drive/shared', { token }),
+
+  searchDriveSites: (token: string, q: string) =>
+    request<DriveSiteItem[]>(`/outlook/drive/sites?q=${encodeURIComponent(q)}`, { token }),
+
+  getSiteLibraries: (token: string, siteId: string) =>
+    request<DriveLibraryItem[]>(`/outlook/drive/sites/${encodeURIComponent(siteId)}/drives`, { token }),
+
+  getOfficeLinks: (token: string, caseId: string) =>
+    request<DocumentOfficeLinkView[]>(`/cases/${caseId}/office-links`, { token }),
+
+  openDocumentInOffice: (token: string, caseId: string, documentId: string) =>
+    request<{ webUrl: string }>(`/cases/${caseId}/office-links/${documentId}/open`, { method: 'POST', token, silent: true }),
+
+  pullDocumentFromOffice: (token: string, caseId: string, documentId: string) =>
+    request<{ updated: boolean; version: number }>(`/cases/${caseId}/office-links/${documentId}/pull`, {
+      method: 'POST',
+      token,
+      silent: true,
+    }),
+
+  getCaseEmailComposeOptions: (token: string, caseId: string) =>
+    request<CaseEmailComposeOptions>(`/cases/${caseId}/outbound-email/compose-options`, { token }),
+
+  // silent: the composer shows its own success/error text (the generic "บันทึกรายการแล้ว" would be wrong here).
+  sendCaseEmail: (token: string, caseId: string, data: SendCaseEmailInput) =>
+    request<SendCaseEmailResult>(`/cases/${caseId}/outbound-email/send`, {
+      method: 'POST',
+      token,
+      silent: true,
+      body: JSON.stringify(data),
+    }),
 
   getLineStatus: (token: string) =>
     request<LineIntegrationStatus>('/integrations/line/status', { token }),
@@ -2973,6 +3179,53 @@ export const api = {
 
   getEmailThread: (token: string, threadId: string) =>
     request<EmailThreadDetail>(`/email-intake/threads/${threadId}`, { token }),
+
+  downloadEmailAttachment: (token: string, attachmentId: string) =>
+    fetchBlob(`/email-intake/attachments/${attachmentId}/download`, { token }),
+
+  getThreadCaseSuggestions: (token: string, threadId: string) =>
+    request<ThreadCaseSuggestion[]>(`/email-intake/threads/${threadId}/case-suggestions`, { token }),
+
+  linkThreadToCase: (token: string, threadId: string, caseId: string) =>
+    request<{ threadId: string; caseId: string }>(`/email-intake/threads/${threadId}/case-link`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ caseId }),
+    }),
+
+  unlinkThreadFromCase: (token: string, threadId: string) =>
+    request<{ unlinked: boolean }>(`/email-intake/threads/${threadId}/case-link`, { method: 'DELETE', token }),
+
+  // --- Case email (Microsoft 365 part B) ---
+  getOutlookFolders: (token: string) => request<OutlookFolderRow[]>('/outlook/folders', { token }),
+
+  linkOutlookFolders: (token: string, links: { folderId: string; caseId: string }[]) =>
+    request<{ linked: { id: string; caseId: string; externalId: string; displayPath: string }[] }>('/outlook/folder-links', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ links }),
+    }),
+
+  unlinkOutlookFolder: (token: string, linkId: string) =>
+    request<{ unlinked: boolean }>(`/outlook/folder-links/${linkId}`, { method: 'DELETE', token }),
+
+  getCaseFolderLinks: (token: string, caseId: string) =>
+    request<CaseFolderLinkItem[]>(`/cases/${caseId}/email/folder-links`, { token }),
+
+  syncCaseEmail: (token: string, caseId: string) =>
+    request<{ messagesSynced: number; errors: string[] }>(`/cases/${caseId}/email/sync`, { method: 'POST', token }),
+
+  getCaseEmailThreads: (token: string, caseId: string) =>
+    request<CaseEmailThreadItem[]>(`/cases/${caseId}/email/threads`, { token }),
+
+  getCaseEmailThread: (token: string, caseId: string, threadId: string) =>
+    request<CaseEmailThreadDetail>(`/cases/${caseId}/email/threads/${threadId}`, { token }),
+
+  saveEmailAttachmentToCase: (token: string, caseId: string, attachmentId: string) =>
+    request<{ document: { id: string; filename: string }; alreadySaved: boolean }>(
+      `/cases/${caseId}/email/attachments/${attachmentId}/save-to-documents`,
+      { method: 'POST', token },
+    ),
 
   acceptEmailThread: (token: string, threadId: string, data?: { clientId?: string; relatedCaseId?: string }) =>
     request<IntakeItem>(`/email-intake/threads/${threadId}/accept`, {
@@ -3446,6 +3699,60 @@ export interface DocumentItem {
   uploadedBy?: { firstName: string; lastName: string } | null;
   uploadedByContact?: { name: string } | null;
   versions?: DocumentVersionItem[];
+}
+
+export interface DriveItemView {
+  id: string;
+  name: string;
+  isFolder: boolean;
+  size: number | null;
+  webUrl: string;
+  lastModifiedDateTime: string;
+  lastModifiedBy: string | null;
+  mimeType: string | null;
+}
+
+export interface CaseDriveListing {
+  state: 'NO_LINK' | 'OK' | 'DISCONNECTED' | 'ERROR';
+  message: string | null;
+  link: { id: string; displayPath: string; linkedBy: string | null; isMine: boolean } | null;
+  items: DriveItemView[];
+}
+
+export interface DrivePickerItem {
+  id: string;
+  driveId: string;
+  name: string;
+  webUrl: string;
+}
+
+export interface DriveSiteItem {
+  id: string;
+  displayName: string;
+  webUrl: string;
+}
+
+export interface DriveLibraryItem {
+  id: string;
+  name: string;
+  driveType: string;
+  webUrl: string;
+}
+
+export interface DocumentOfficeLinkView {
+  documentId: string;
+  webUrl: string;
+  uploadedVersion: number;
+  lastModifiedDateTime: string | null;
+  hasNewerEdits: boolean;
+  error: string | null;
+}
+
+export interface ConnectionCaseLinkSummary {
+  caseLinks: number;
+  caseCount: number;
+  officeDocuments: number;
+  driveFolders: Array<{ linkId: string; caseId: string; ownRef: string; caseTitle: string; displayPath: string }>;
 }
 
 /** AI suggestion that an intake file matches an expected-document checklist label. */

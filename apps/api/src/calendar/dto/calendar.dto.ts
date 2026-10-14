@@ -1,4 +1,6 @@
 import {
+  IsBoolean,
+  IsEmail,
   IsEnum,
   IsOptional,
   IsString,
@@ -59,6 +61,18 @@ export class CreateEventDto {
   @ArrayUnique()
   @IsUUID('all', { each: true })
   assigneeIds?: string[];
+
+  /** Client meetings only: create a Teams link through the organizer's Outlook. */
+  @IsOptional()
+  @IsBoolean()
+  onlineMeeting?: boolean;
+
+  /** Outside guests (the client) invited to the Teams meeting. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsEmail({}, { each: true })
+  inviteeEmails?: string[];
 }
 
 export class UpdateEventDto {
@@ -107,4 +121,16 @@ export class UpdateEventDto {
   @ArrayUnique()
   @IsUUID('all', { each: true })
   assigneeIds?: string[];
+
+  /** Client meetings only: create a Teams link through the organizer's Outlook. */
+  @IsOptional()
+  @IsBoolean()
+  onlineMeeting?: boolean;
+
+  /** Outside guests (the client) invited to the Teams meeting. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsEmail({}, { each: true })
+  inviteeEmails?: string[];
 }

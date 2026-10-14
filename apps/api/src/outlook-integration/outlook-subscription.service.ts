@@ -18,12 +18,13 @@ export class OutlookSubscriptionService {
   ) {}
 
   async ensureSubscription(connectionId: string) {
+    const connection = await this.prisma.mailboxConnection.findUniqueOrThrow({ where: { id: connectionId } });
+    if (!connection.syncInboxToIntake) return; // calendar-only accounts get no mail webhook
     const webhookUrl = this.config.get<string>('OUTLOOK_WEBHOOK_URL');
     if (!webhookUrl) {
       this.logger.warn('OUTLOOK_WEBHOOK_URL not set — skipping subscription, falling back to polling only.');
       return;
     }
-    const connection = await this.prisma.mailboxConnection.findUniqueOrThrow({ where: { id: connectionId } });
     const accessToken = await this.connections.getValidAccessToken(connectionId);
     const subscription = await this.graph.createSubscription(accessToken, webhookUrl, connection.webhookSecret);
     await this.prisma.mailboxConnection.update({
@@ -33,6 +34,20 @@ export class OutlookSubscriptionService {
         subscriptionExpiresAt: new Date(subscription.expirationDateTime),
       },
     });
+  }
+
+  async removeSubscription(connectionId: string) {
+    const connection = await this.prisma.mailboxConnection.findUniqueOrThrow({ where: { id: connectionId } });
+    if (!connection.graphSubscriptionId) return;
+    try {
+      const token = await this.connections.getValidAccessToken(connectionId);
+      await this.graph.deleteSubscription(token, connection.graphSubscriptionId);
+    } finally {
+      await this.prisma.mailboxConnection.update({
+        where: { id: connectionId },
+        data: { graphSubscriptionId: null, subscriptionExpiresAt: null },
+      });
+    }
   }
 
   /**
@@ -46,6 +61,7 @@ export class OutlookSubscriptionService {
     const expiring = await this.prisma.mailboxConnection.findMany({
       where: {
         status: MailboxConnectionStatus.ACTIVE,
+        syncInboxToIntake: true,
         graphSubscriptionId: { not: null },
         subscriptionExpiresAt: { lt: threshold },
       },

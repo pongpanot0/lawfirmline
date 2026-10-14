@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -20,21 +21,32 @@ describe('OutlookOAuthService state signing', () => {
   });
 
   it('signs and verifies a state round-trip', () => {
-    const state = service.signState('firm-1', 'user-1');
+    const state = service.signState('firm-1', 'user-1', 'n1');
     const decoded = service.verifyState(state);
     expect(decoded.firmId).toBe('firm-1');
     expect(decoded.userId).toBe('user-1');
   });
 
+  it('state round-trips the nonce', () => {
+    const decoded = service.verifyState(service.signState('firm-1', 'user-1', 'nonce-1'));
+    expect(decoded.nonce).toBe('nonce-1');
+  });
+
+  it('rejects a signed token of another kind', () => {
+    const json = Buffer.from(JSON.stringify({ kind: 'ticket', firmId: 'f', userId: 'u', issuedAt: Date.now() })).toString('base64url');
+    const sig = crypto.createHmac('sha256', 'test-secret').update(json).digest('base64url');
+    expect(() => service.verifyState(`${json}.${sig}`)).toThrow(BadRequestException);
+  });
+
   it('rejects a tampered state (signature mismatch)', () => {
-    const state = service.signState('firm-1', 'user-1');
+    const state = service.signState('firm-1', 'user-1', 'n1');
     const [json] = state.split('.');
     const tampered = `${json}.wrongsignature000000000000000000000000000000000000000000000000`;
     expect(() => service.verifyState(tampered)).toThrow(BadRequestException);
   });
 
   it('rejects a state signed with a different secret', () => {
-    const state = service.signState('firm-1', 'user-1');
+    const state = service.signState('firm-1', 'user-1', 'n1');
     mockConfig.get.mockImplementation((key: string) => (key === 'JWT_SECRET' ? 'different-secret' : undefined));
     expect(() => service.verifyState(state)).toThrow(BadRequestException);
   });
@@ -45,7 +57,7 @@ describe('OutlookOAuthService state signing', () => {
 
   it('rejects an expired state', () => {
     const realNow = Date.now;
-    const state = service.signState('firm-1', 'user-1');
+    const state = service.signState('firm-1', 'user-1', 'n1');
     Date.now = () => realNow() + 11 * 60_000;
     expect(() => service.verifyState(state)).toThrow(/หมดอายุ/);
     Date.now = realNow;

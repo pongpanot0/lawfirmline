@@ -8,6 +8,11 @@ import { AssignmentNotifierService } from '../notifications/assignment-notifier.
 import { LineLinkService } from '../notifications/line-link.service';
 import { TravelService } from '../travel/travel.service';
 import { DeadlineRulesService } from '../deadlines/deadline-rules.service';
+import { OutlookConnectionsService } from '../outlook-integration/outlook-connections.service';
+import { OutlookCalendarSyncService } from '../outlook-integration/calendar/outlook-calendar-sync.service';
+
+const mockOutlookCalendar = { syncEventSoon: jest.fn(), withdrawOrganizerCopySoon: jest.fn() };
+const mockOutlookConnections = { findActiveForUser: jest.fn() };
 
 /**
  * An event is addressable by id, so every single-event path has to re-apply the
@@ -52,6 +57,8 @@ describe('CalendarService case authorization', () => {
         { provide: LineLinkService, useValue: mockLineLink },
         { provide: TravelService, useValue: mockTravel },
         { provide: DeadlineRulesService, useValue: mockDeadlineRules },
+        { provide: OutlookCalendarSyncService, useValue: mockOutlookCalendar },
+        { provide: OutlookConnectionsService, useValue: mockOutlookConnections },
       ],
     }).compile();
     service = module.get(CalendarService);
@@ -125,6 +132,29 @@ describe('CalendarService case authorization', () => {
     expect(mockPrisma.calendarEvent.create).toHaveBeenCalled();
   });
 
+  it('queues an Outlook sync after create, update and remove', async () => {
+    mockCaseAccess.canAccessCase.mockResolvedValue(true);
+    mockPrisma.case.findUnique.mockResolvedValue({
+      id: 'case-1', firmId: 'firm-1', caseTypeId: 'type-1', ownRef: 'C-1', title: 'Case', courtName: null,
+      leadLawyer: { firstName: 'A', lastName: 'B' },
+    });
+    mockPrisma.calendarEvent.create.mockResolvedValue({ id: 'event-9', startAt: new Date() });
+    await service.create(user, { caseId: 'case-1', title: 'Meeting', startAt: '2026-09-07T02:00:00.000Z', type: EventType.CLIENT_MEETING });
+    expect(mockOutlookCalendar.syncEventSoon).toHaveBeenLastCalledWith('event-9');
+
+    const startAt = new Date('2027-04-20T02:00:00.000Z');
+    mockPrisma.calendarEvent.findUnique.mockResolvedValue({
+      id: 'event-1', caseId: 'case-1', type: 'MEETING', startAt, case: { id: 'case-1', firmId: 'firm-1' },
+    });
+    mockPrisma.calendarEvent.update.mockResolvedValue({ id: 'event-1', caseId: 'case-1', type: 'MEETING', startAt });
+    await service.update(user, 'event-1', { title: 'ใหม่' });
+    expect(mockOutlookCalendar.syncEventSoon).toHaveBeenLastCalledWith('event-1');
+
+    await service.remove(user, 'event-1');
+    expect(mockPrisma.calendarEvent.delete).toHaveBeenCalled();
+    expect(mockOutlookCalendar.syncEventSoon).toHaveBeenCalledTimes(3);
+  });
+
   it('keeps the internal path open for services that already authorized the case', async () => {
     mockPrisma.case.findUnique.mockResolvedValue({
       id: 'case-1',
@@ -187,6 +217,112 @@ describe('CalendarService case authorization', () => {
     });
 
     expect(mockPrisma.calendarEvent.create.mock.calls[0][0].data.courtEventKind).toBeNull();
+  });
+
+  describe('Teams meetings', () => {
+    const createDto = { caseId: 'case-1', title: 'พบลูกความ', startAt: '2026-11-02T02:00:00.000Z' };
+    beforeEach(() => {
+      mockCaseAccess.canAccessCase.mockResolvedValue(true);
+      mockPrisma.case.findUnique.mockResolvedValue({
+        id: 'case-1', firmId: 'firm-1', caseTypeId: null, ownRef: 'C-1', title: 'Case',
+        courtName: null, leadLawyerId: 'lead-1', leadLawyer: { firstName: 'A', lastName: 'B' },
+      });
+      mockPrisma.firmMember.findMany.mockImplementation(async (args: any) => args.where.userId.in.map((userId: string) => ({ userId })));
+      mockPrisma.calendarEvent.create.mockResolvedValue({ id: 'event-11', startAt: new Date() });
+    });
+
+    it('rejects Teams on anything but a client meeting', async () => {
+      await expect(service.create(user, { ...createDto, type: EventType.COURT_DATE, onlineMeeting: true })).rejects.toThrow('นัดลูกความ');
+    });
+
+    it('rejects when nobody involved has connected Microsoft 365', async () => {
+      mockOutlookConnections.findActiveForUser.mockResolvedValue(null);
+      await expect(service.create(user, { ...createDto, type: EventType.CLIENT_MEETING, onlineMeeting: true })).rejects.toThrow('เชื่อม Microsoft 365');
+      expect(mockPrisma.calendarEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('makes the creator the organizer when connected', async () => {
+      mockOutlookConnections.findActiveForUser.mockImplementation(async (id: string) => (id === user.id ? { id: 'c' } : null));
+      await service.create(user, { ...createDto, type: EventType.CLIENT_MEETING, onlineMeeting: true, inviteeEmails: ['c@x.com'] });
+      const data = mockPrisma.calendarEvent.create.mock.calls.at(-1)[0].data;
+      expect(data).toMatchObject({ onlineMeeting: true, meetingOrganizerId: user.id, inviteeEmails: ['c@x.com'] });
+    });
+
+    it('falls back to a connected assignee when the creator has not connected', async () => {
+      mockOutlookConnections.findActiveForUser.mockImplementation(async (id: string) => (id === 'u2' ? { id: 'c' } : null));
+      await service.create(user, { ...createDto, type: EventType.CLIENT_MEETING, onlineMeeting: true, assigneeIds: ['u1', 'u2'] });
+      expect(mockPrisma.calendarEvent.create.mock.calls.at(-1)[0].data.meetingOrganizerId).toBe('u2');
+    });
+
+    it('with no assignees the connected lead lawyer becomes the organizer', async () => {
+      mockOutlookConnections.findActiveForUser.mockImplementation(async (id: string) => (id === 'lead-1' ? { id: 'c' } : null));
+      await service.create(user, { ...createDto, type: EventType.CLIENT_MEETING, onlineMeeting: true });
+      expect(mockPrisma.calendarEvent.create.mock.calls.at(-1)[0].data.meetingOrganizerId).toBe('lead-1');
+    });
+
+    it('validates assignee membership before probing connections', async () => {
+      mockPrisma.firmMember.findMany.mockResolvedValue([]);
+      await expect(service.create(user, { ...createDto, type: EventType.CLIENT_MEETING, onlineMeeting: true, assigneeIds: ['outsider'] }))
+        .rejects.toThrow('สมาชิกในสำนักงาน');
+      expect(mockOutlookConnections.findActiveForUser).not.toHaveBeenCalled();
+    });
+
+    it('stores no invitees unless the event is a Teams meeting', async () => {
+      await service.create(user, { ...createDto, type: EventType.CLIENT_MEETING, inviteeEmails: ['c@x.com'] });
+      expect(mockPrisma.calendarEvent.create.mock.calls.at(-1)[0].data.inviteeEmails).toEqual([]);
+    });
+
+    describe('updating', () => {
+      const existing = (over: Record<string, unknown> = {}) => ({
+        id: 'event-1', caseId: 'case-1', type: 'CLIENT_MEETING', startAt: new Date(), onlineMeeting: false, meetingOrganizerId: null,
+        assignees: [], case: { id: 'case-1', firmId: 'firm-1', leadLawyer: { id: 'lead-1' } }, ...over,
+      });
+      const lastData = () => mockPrisma.calendarEvent.update.mock.calls.at(-1)[0].data;
+      beforeEach(() => {
+        mockPrisma.calendarEvent.update.mockResolvedValue({ id: 'event-1', caseId: 'case-1', type: 'CLIENT_MEETING', startAt: new Date() });
+      });
+
+      it('turning Teams off clears the link and organizer and withdraws the organizer copy', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ onlineMeeting: true, meetingOrganizerId: 'user-1' }));
+        await service.update(user, 'event-1', { onlineMeeting: false, inviteeEmails: ['c@x.com'] });
+        expect(lastData()).toMatchObject({ onlineMeeting: false, onlineMeetingUrl: null, meetingOrganizerId: null, inviteeEmails: [] });
+        expect(mockOutlookCalendar.withdrawOrganizerCopySoon).toHaveBeenCalledWith('event-1', 'user-1');
+      });
+
+      it('turning Teams off while changing the type away from a client meeting works', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ onlineMeeting: true, meetingOrganizerId: 'user-1' }));
+        await service.update(user, 'event-1', { onlineMeeting: false, type: EventType.OTHER });
+        expect(mockOutlookCalendar.withdrawOrganizerCopySoon).toHaveBeenCalledWith('event-1', 'user-1');
+      });
+
+      it('a title-only edit on a Teams event with no organizer does not 400', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ onlineMeeting: true, meetingOrganizerId: null }));
+        mockOutlookConnections.findActiveForUser.mockResolvedValue(null);
+        await expect(service.update(user, 'event-1', { title: 'ใหม่' })).resolves.toBeDefined();
+        expect(mockOutlookConnections.findActiveForUser).not.toHaveBeenCalled();
+      });
+
+      it('turning Teams on uses the request\'s new assignees', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ assignees: [{ userId: 'old' }] }));
+        mockPrisma.firmMember.findMany.mockImplementation(async (args: any) => args.where.userId.in.map((userId: string) => ({ userId })));
+        mockOutlookConnections.findActiveForUser.mockImplementation(async (id: string) => (id === 'new-1' ? { id: 'c' } : null));
+        await service.update(user, 'event-1', { onlineMeeting: true, assigneeIds: ['new-1'] });
+        expect(lastData().meetingOrganizerId).toBe('new-1');
+        expect(mockOutlookConnections.findActiveForUser).not.toHaveBeenCalledWith('old');
+      });
+
+      it('turning Teams on falls back to the existing people, then the lead lawyer', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing());
+        mockOutlookConnections.findActiveForUser.mockImplementation(async (id: string) => (id === 'lead-1' ? { id: 'c' } : null));
+        await service.update(user, 'event-1', { onlineMeeting: true, inviteeEmails: ['c@x.com'] });
+        expect(lastData()).toMatchObject({ meetingOrganizerId: 'lead-1', inviteeEmails: ['c@x.com'] });
+      });
+
+      it('rejects turning Teams on for a non-client meeting', async () => {
+        mockPrisma.calendarEvent.findUnique.mockResolvedValue(existing({ type: 'COURT_DATE' }));
+        await expect(service.update(user, 'event-1', { onlineMeeting: true })).rejects.toThrow('นัดลูกความ');
+      });
+    });
   });
 
   it('re-runs the court-date rules when a kind is set on an existing court date', async () => {
@@ -261,6 +397,8 @@ describe('CalendarService multiple assignees', () => {
         { provide: LineLinkService, useValue: mockLineLink },
         { provide: TravelService, useValue: mockTravel },
         { provide: DeadlineRulesService, useValue: mockDeadlineRules },
+        { provide: OutlookCalendarSyncService, useValue: mockOutlookCalendar },
+        { provide: OutlookConnectionsService, useValue: mockOutlookConnections },
       ],
     }).compile();
     service = module.get(CalendarService);

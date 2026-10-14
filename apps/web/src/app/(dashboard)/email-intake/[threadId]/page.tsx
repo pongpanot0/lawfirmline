@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, EmailThreadDetail, IntakeFieldProposalItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { CaseEmailComposer, type CaseEmailComposerMode } from '@/components/cases/CaseEmailComposer';
+import { LinkThreadToCaseCard } from '@/components/email/LinkThreadToCaseCard';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageLoading } from '@/components/ui/misc';
 
@@ -151,27 +153,17 @@ export default function EmailThreadDetailPage() {
   const [error, setError] = useState('');
   const [replyBody, setReplyBody] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [composer, setComposer] = useState<CaseEmailComposerMode | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !threadId) return;
     setLoading(true);
     setLoadError(false);
     try {
-      const detail = await api.getEmailThread(token, threadId);
-      setData(detail);
-      if (!detail.thread.intake) {
-        // The queue already shows items with data prepared — materialize the
-        // intake + field proposals as soon as the lawyer opens it, rather
-        // than asking for an extra manual "link" step.
-        setLinking(true);
-        await api.acceptEmailThread(token, threadId);
-        const refreshed = await api.getEmailThread(token, threadId);
-        setData(refreshed);
-      }
+      setData(await api.getEmailThread(token, threadId));
     } catch {
       setLoadError(true);
     } finally {
-      setLinking(false);
       setLoading(false);
     }
   }, [token, threadId]);
@@ -179,6 +171,46 @@ export default function EmailThreadDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Refetch without the skeleton: keeps unsaved edits, and a failure leaves the current data in place.
+  const refresh = useCallback(async () => {
+    if (!token || !threadId) return;
+    try {
+      setData(await api.getEmailThread(token, threadId));
+    } catch {
+      setError('รีเฟรชข้อมูลไม่สำเร็จ — แสดงข้อมูลล่าสุดที่โหลดได้');
+    }
+  }, [token, threadId]);
+
+  const handleCreateIntake = async () => {
+    if (!token) return;
+    setLinking(true);
+    setError('');
+    try {
+      await api.acceptEmailThread(token, threadId);
+      setData(await api.getEmailThread(token, threadId));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'สร้างเรื่องใหม่ไม่สำเร็จ');
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const handleDownload = async (attachmentId: string, filename: string) => {
+    if (!token) return;
+    setError('');
+    try {
+      const blob = await api.downloadEmailAttachment(token, attachmentId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'ดาวน์โหลดไฟล์ไม่สำเร็จ');
+    }
+  };
 
   const handleResolve = async (proposalId: string, action: 'confirm' | 'reject', overrideValue?: string) => {
     if (!token || !data?.thread.intake) return;
@@ -233,8 +265,8 @@ export default function EmailThreadDetailPage() {
   if (loadError) {
     return <LoadFailed onRetry={load} />;
   }
-  if (loading || linking || !data) {
-    return <PageLoading title={linking ? 'กำลังเตรียมข้อมูลรับเรื่อง' : 'กำลังโหลดอีเมล'} lines={3} />;
+  if (loading || !data) {
+    return <PageLoading title="กำลังโหลดอีเมล" lines={3} />;
   }
 
   const { thread, proposals } = data;
@@ -248,11 +280,21 @@ export default function EmailThreadDetailPage() {
 
       {error && <p className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
+      <LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} />
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Source email */}
         <Card>
           <CardContent className="p-4">
             <h2 className="mb-3 font-semibold">อีเมลต้นทาง</h2>
+            {!thread.intake && !thread.caseId && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
+                <p className="text-sm">อีเมลนี้ยังไม่ได้รับเป็นเรื่องใหม่</p>
+                <Button size="sm" disabled={linking} onClick={handleCreateIntake}>
+                  {linking ? 'กำลังสร้าง...' : 'รับเป็นเรื่องใหม่'}
+                </Button>
+              </div>
+            )}
             <p className="text-sm text-muted-foreground">
               จาก: {thread.fromName ?? '—'} {thread.fromAddress ? `<${thread.fromAddress}>` : ''}
             </p>
@@ -267,16 +309,40 @@ export default function EmailThreadDetailPage() {
                   {message.attachments.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {message.attachments.map((att) => (
-                        <span key={att.id} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
+                        <button
+                          key={att.id}
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:underline"
+                          onClick={() => handleDownload(att.id, att.filename)}
+                        >
                           <Paperclip className="h-3 w-3" /> {att.filename}
-                        </span>
+                        </button>
                       ))}
+                    </div>
+                  )}
+                  {thread.caseId && (
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setComposer({ kind: 'reply', replyAll: false, threadSubject: thread.subject, message })}
+                      >
+                        ตอบกลับ
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setComposer({ kind: 'reply', replyAll: true, threadSubject: thread.subject, message })}
+                      >
+                        ตอบทั้งหมด
+                      </Button>
                     </div>
                   )}
                 </div>
               ))}
             </div>
 
+            {process.env.NODE_ENV !== 'production' && (
             <div className="mt-4 rounded-lg border border-dashed p-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">
                 จำลองอีเมลตอบกลับ (สำหรับทดสอบ — ยังไม่เชื่อมกล่องเมลจริง)
@@ -292,6 +358,7 @@ export default function EmailThreadDetailPage() {
                 {sendingReply ? 'กำลังส่ง...' : 'จำลองว่ามีอีเมลตอบกลับ'}
               </Button>
             </div>
+            )}
           </CardContent>
         </Card>
 
@@ -317,7 +384,7 @@ export default function EmailThreadDetailPage() {
                   ยังมี {outstandingCount} รายการที่ระบบเสนอไว้ (ยืนยันได้ภายหลัง — ไม่บังคับก่อนรับเข้าพิจารณา)
                 </p>
               )}
-              <Button className="w-full" disabled={accepting} onClick={handleAccept}>
+              <Button className="w-full" disabled={accepting || !thread.intake} onClick={handleAccept}>
                 {accepting ? 'กำลังบันทึก...' : 'ยืนยันข้อมูลและรับเข้าพิจารณา'}
               </Button>
               <p className="mt-2 text-xs text-muted-foreground">
@@ -327,6 +394,9 @@ export default function EmailThreadDetailPage() {
           </CardContent>
         </Card>
       </div>
+      {thread.caseId && (
+        <CaseEmailComposer caseId={thread.caseId} mode={composer} onClose={() => setComposer(null)} onSent={() => void refresh()} />
+      )}
     </div>
   );
 }

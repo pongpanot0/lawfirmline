@@ -12,6 +12,7 @@ describe('parseCaseTab', () => {
 
   it('accepts each known tab id', () => {
     assert.equal(parseCaseTab('tasks'), 'tasks');
+    assert.equal(parseCaseTab('email'), 'email');
     assert.equal(parseCaseTab('cargo-claim'), 'cargo-claim');
     assert.equal(parseCaseTab('closing-report'), 'closing-report');
   });
@@ -24,5 +25,9 @@ describe('caseTabHref', () => {
 
   it('uses query for other tabs', () => {
     assert.equal(caseTabHref('abc', 'documents'), '/cases/abc?tab=documents');
+  });
+
+  it('links to the email tab', () => {
+    assert.equal(caseTabHref('abc', 'email'), '/cases/abc?tab=email');
   });
 });

@@ -213,4 +213,38 @@ describe('CaseAccessService', () => {
       });
     });
   });
+
+  describe('getEmailThreadFilterForUser', () => {
+    beforeEach(() => {
+      jest.spyOn(service, 'getCaseFilterForUser').mockReturnValue({ marker: 'case' } as any);
+      jest.spyOn(service, 'getIntakeFilterForUser').mockResolvedValue({ marker: 'intake' } as any);
+    });
+
+    it('a lawyer sees case/intake threads they can access and their own unlinked mail', async () => {
+      const where = await service.getEmailThreadFilterForUser({ id: 'u1', firmId: 'f1', firmRole: 'LAWYER' } as any);
+      expect(where).toEqual({
+        firmId: 'f1',
+        OR: [
+          { caseId: { not: null }, case: { marker: 'case' } },
+          { intakeId: { not: null }, intake: { marker: 'intake' } },
+          { caseId: null, intakeId: null, mailboxConnection: { userId: 'u1' } },
+        ],
+      });
+    });
+
+    it('a senior lawyer no longer sees other people’s unlinked mail', async () => {
+      const where: any = await service.getEmailThreadFilterForUser({ id: 'u2', firmId: 'f1', firmRole: 'SENIOR_LAWYER' } as any);
+      expect(where.OR).not.toContainEqual({ caseId: null, intakeId: null });
+    });
+
+    it('owner / office manager see every unlinked thread', async () => {
+      const where: any = await service.getEmailThreadFilterForUser({ id: 'u3', firmId: 'f1', firmRole: 'OWNER' } as any);
+      expect(where.OR).toContainEqual({ caseId: null, intakeId: null });
+    });
+
+    it('external users see nothing', async () => {
+      await expect(service.getEmailThreadFilterForUser({ id: 'x', firmId: 'f1', firmRole: 'EXTERNAL' } as any))
+        .resolves.toEqual({ id: '__external_has_no_thread_access__' });
+    });
+  });
 });
