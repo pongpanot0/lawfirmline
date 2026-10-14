@@ -80,6 +80,9 @@ const DRIVE_FOLDER = CaseExternalLinkKind.DRIVE_FOLDER;
 
 @Injectable()
 export class CaseDriveService {
+  // ponytail: per-process guard so a repeated "นำเข้าทั้ง folder" can't stack 100 MB downloads; multiple api instances would need a DB lock.
+  private readonly importingCases = new Set<string>();
+
   constructor(
     private prisma: PrismaService,
     private connections: OutlookConnectionsService,
@@ -238,6 +241,16 @@ export class CaseDriveService {
 
   /** "นำเข้าไฟล์ทั้ง folder" — offered before a disconnect so the files outlive the link. */
   async importAll(user: AuthUser, caseId: string): Promise<{ imported: number; skipped: string[] }> {
+    if (this.importingCases.has(caseId)) throw new ConflictException('กำลังนำเข้าไฟล์ของคดีนี้อยู่ — รอให้เสร็จก่อน');
+    this.importingCases.add(caseId);
+    try {
+      return await this.importAllOnce(user, caseId);
+    } finally {
+      this.importingCases.delete(caseId);
+    }
+  }
+
+  private async importAllOnce(user: AuthUser, caseId: string): Promise<{ imported: number; skipped: string[] }> {
     const { link, token, driveId } = await this.activeLink(caseId);
     const items = await this.drive.listChildren(token, driveId, link.externalId).catch(rethrowDriveError);
     let imported = 0;

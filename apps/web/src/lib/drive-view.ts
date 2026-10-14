@@ -46,6 +46,7 @@ export async function openInNewTab(load: () => Promise<string>): Promise<void> {
   if (tab) tab.opener = null;
   try {
     const url = await load();
+    if (!url.startsWith('https://')) throw new Error('ลิงก์ไฟล์ไม่ถูกต้อง');
     if (tab) tab.location.href = url;
     else window.location.href = url;
   } catch (error) {

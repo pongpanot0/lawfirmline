@@ -20,6 +20,10 @@ describe('FileStorageService local paths', () => {
     rmSync(directory, { recursive: true, force: true });
   });
 
+  it('refuses a key that climbs out with ..', async () => {
+    await expect(service.put('outlook/f/m/../../../../etc/x', Buffer.from('x'), 'text/plain')).rejects.toThrow("'..'");
+  });
+
   it('put returns a relative key and getBuffer reads it back', async () => {
     const key = await service.put('intake/a/documents/f.txt', Buffer.from('hello'), 'text/plain');
     expect(key).toBe('intake/a/documents/f.txt');

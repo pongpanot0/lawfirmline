@@ -181,7 +181,9 @@ export class OutlookSyncService {
 
     for (const attachment of attachments) {
       if (!attachment.contentBytes) continue; // Large/reference attachments — skip for now, not core path.
-      const key = path.posix.join('outlook', firmId, emailMessageId, attachment.name);
+      // Sender-chosen name: keep only the last segment so it can never climb out of this message's folder.
+      const safeName = path.posix.basename(attachment.name.replace(/\\/g, '/'));
+      const key = path.posix.join('outlook', firmId, emailMessageId, safeName && safeName !== '..' && safeName !== '.' ? safeName : 'attachment');
       const storagePath = await this.fileStorage.put(
         key,
         Buffer.from(attachment.contentBytes, 'base64'),

@@ -146,7 +146,10 @@ export class FileStorageService {
   }
 
   private normalizeKey(relativeKey: string): string {
-    return relativeKey.replace(/\\/g, '/').replace(/^\/+/, '');
+    const key = relativeKey.replace(/\\/g, '/').replace(/^\/+/, '');
+    // Keys can carry user/sender-chosen names (e.g. email attachment filenames); a `..` segment must never climb out.
+    if (key.split('/').includes('..')) throw new Error(`Refusing storage key with a '..' segment: ${relativeKey}`);
+    return key;
   }
 
   private uploadDirPrefixes(): string[] {

@@ -242,6 +242,16 @@ describe('CaseDriveService', () => {
     });
   });
 
+  it('importAll refuses a second run for the same case while one is in flight', async () => {
+    activeLink();
+    let release!: (items: unknown[]) => void;
+    mockDrive.listChildren.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+    const first = service.importAll(user, 'c1');
+    await expect(service.importAll(user, 'c1')).rejects.toThrow('กำลังนำเข้า');
+    release([]);
+    await expect(first).resolves.toEqual({ imported: 0, skipped: [] });
+  });
+
   it('importAll skips folders and oversize files', async () => {
     activeLink();
     mockDrive.listChildren.mockResolvedValue([

@@ -246,6 +246,22 @@ describe('OutlookSyncService', () => {
     });
   });
 
+  it('stores a sender-chosen attachment name inside the message folder (no path climbing)', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: null, subject: 'x', lastMessageAt: new Date('2026-10-14') });
+    mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'm-existing' });
+    mockPrisma.emailAttachment.count.mockResolvedValue(0);
+    mockGraph.getAttachments.mockResolvedValue([
+      { name: '../../../../etc/cron.d/x', contentType: 'text/plain', contentBytes: Buffer.from('x').toString('base64') },
+      { name: '..', contentType: 'text/plain', contentBytes: Buffer.from('y').toString('base64') },
+    ]);
+    await service.upsertGraphMessage({
+      firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: { ...htmlMessage, hasAttachments: true } as any,
+      direction: 'INBOUND', createThreadIfMissing: true,
+    });
+    expect(mockFileStorage.put).toHaveBeenCalledWith('outlook/f1/m-existing/x', expect.any(Buffer), 'text/plain');
+    expect(mockFileStorage.put).toHaveBeenCalledWith('outlook/f1/m-existing/attachment', expect.any(Buffer), 'text/plain');
+  });
+
   it('re-syncs attachments of an already stored message that has none saved', async () => {
     mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
     mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'm-existing' });
