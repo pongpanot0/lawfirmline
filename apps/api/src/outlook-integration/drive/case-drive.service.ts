@@ -148,6 +148,9 @@ export class CaseDriveService {
           linkedById: user.id,
         },
       });
+    }).catch((error) => {
+      if ((error as { code?: string } | null)?.code === 'P2002') throw new ConflictException('folder นี้ผูกกับคดีอื่นอยู่แล้ว');
+      throw error;
     });
     await this.audit(user, 'DRIVE_FOLDER_LINKED', { caseId, linkId: link.id, displayPath: link.displayPath });
     return link;

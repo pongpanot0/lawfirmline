@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GraphHttp } from './graph-http';
+import { GraphApiError, GraphHttp } from './graph-http';
 
 interface GraphMailFolder {
   id: string;
@@ -48,7 +48,11 @@ export class GraphMailFoldersClient {
         this.http
           .request<{ id: string }>(accessToken, `/me/mailFolders/${name}?$select=id`)
           .then((folder) => folder.id)
-          .catch(() => null),
+          .catch((error) => {
+            // Only a genuinely absent alias is skippable; anything else must fail closed so a system folder is never linkable.
+            if (error instanceof GraphApiError && error.status === 404) return null;
+            throw error;
+          }),
       ),
     );
     return new Set(ids.filter((id): id is string => !!id));

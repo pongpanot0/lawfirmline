@@ -50,6 +50,14 @@ describe('OutlookConnectionsController settings', () => {
     expect(connections.recordError).toHaveBeenCalledWith('c1', expect.stringContaining('graph down'));
   });
 
+  it('a failed subscription change does not skip the calendar cleanup', async () => {
+    connections.updateSettings.mockResolvedValue({ before: { syncInboxToIntake: false, syncCalendar: true }, after: { syncInboxToIntake: true, syncCalendar: false } });
+    subscriptions.ensureSubscription.mockRejectedValue(new Error('graph down'));
+    await controller.updateSettings(user, 'c1', { syncInboxToIntake: true, syncCalendar: false });
+    expect(calendarSync.removeAllForConnection).toHaveBeenCalledWith('c1');
+    expect(connections.recordError).toHaveBeenCalledWith('c1', expect.stringContaining('Subscription follow-up failed'));
+  });
+
   it('an unchanged flag triggers neither ensure nor remove', async () => {
     connections.updateSettings.mockResolvedValue({ before: { syncInboxToIntake: true }, after: { syncInboxToIntake: true } });
     await controller.updateSettings(user, 'c1', { syncCalendar: true });

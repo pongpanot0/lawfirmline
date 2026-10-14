@@ -193,6 +193,16 @@ describe('OutlookCalendarSyncService', () => {
       expect(prisma.calendarEventOutlookCopy.update).toHaveBeenCalledWith({ where: { eventId_userId: { eventId: 'e1', userId: 'u1' } }, data: { syncedAt: bumped } });
     });
 
+    it('never stores a non-https join URL', async () => {
+      prisma.calendarEvent.findUnique.mockResolvedValue(teams());
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);
+      activeFor((id) => [conn(id)]);
+      calendar.createEvent.mockResolvedValue({ id: 'g1', onlineMeeting: { joinUrl: 'javascript:alert(1)' } });
+      await svc.syncEvent('e1');
+      expect(prisma.calendarEvent.updateMany).not.toHaveBeenCalled();
+      expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
+    });
+
     it('when the event was edited meanwhile it stores the URL but leaves the copy stale', async () => {
       prisma.calendarEvent.findUnique.mockResolvedValue(teams());
       prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([]);

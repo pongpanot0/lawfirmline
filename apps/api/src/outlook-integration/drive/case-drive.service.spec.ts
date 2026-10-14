@@ -93,6 +93,13 @@ describe('CaseDriveService', () => {
       expect(mockPrisma.caseExternalLink.deleteMany).not.toHaveBeenCalled();
     });
 
+    it('turns a concurrent duplicate (P2002) into a 409', async () => {
+      mockDrive.getItem.mockResolvedValue({ id: 'F1', name: 'ACME', folder: {}, parentReference: { driveId: 'b!me', path: '/drive/root:/Cases' } });
+      mockPrisma.caseExternalLink.findUnique.mockResolvedValue(null);
+      mockPrisma.caseExternalLink.create.mockRejectedValue({ code: 'P2002' });
+      await expect(service.linkFolder(user, 'c1', { driveId: 'me', itemId: 'F1' })).rejects.toBeInstanceOf(ConflictException);
+    });
+
     it('replaces the case’s previous drive folder and stores the real drive id', async () => {
       mockDrive.getItem.mockResolvedValue({
         id: 'F1',

@@ -165,7 +165,12 @@ export class OutlookCalendarSyncService {
       create: { eventId, userId, connectionId, graphEventId, syncedAt: version },
       update: { connectionId, graphEventId, syncedAt: version, lastError: null },
     });
-    return { id: graphEventId, joinUrl: result.onlineMeeting?.joinUrl };
+    const joinUrl = result.onlineMeeting?.joinUrl;
+    if (joinUrl && !joinUrl.startsWith('https://')) {
+      this.logger.warn(`Ignoring non-https Teams join URL for event ${eventId}`);
+      return { id: graphEventId, joinUrl: undefined };
+    }
+    return { id: graphEventId, joinUrl };
   }
 
   /** Removes the Outlook event and the row. On a retryable failure the row is kept (with lastError) so a later run retries. */

@@ -39,4 +39,9 @@ describe('GraphMailFoldersClient', () => {
       { id: 'arch', displayName: 'Archive 2024', displayPath: 'Archive 2024', isSystem: false },
     ]);
   });
+
+  it('fails closed when an alias lookup fails for any reason other than 404', async () => {
+    http.request.mockRejectedValue(new GraphApiError(503, 'unavailable'));
+    await expect(client.listMailFolders('token')).rejects.toBeInstanceOf(GraphApiError);
+  });
 });

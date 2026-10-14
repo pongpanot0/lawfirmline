@@ -18,7 +18,7 @@ describe('CaseFolderLinksService', () => {
   };
   const mockConnections = { findActiveForUser: jest.fn(), getValidAccessToken: jest.fn() };
   const mockFolders = { listMailFolders: jest.fn() };
-  const mockCaseAccess = { getCaseFilterForUser: jest.fn(() => ({ firmId: 'firm-1' })) };
+  const mockCaseAccess = { getCaseFilterForUser: jest.fn(() => ({ firmId: 'firm-1' })), canAccessCase: jest.fn() };
   const mockSync = { syncLink: jest.fn() };
   const user = { id: 'user-1', firmId: 'firm-1', firmRole: FirmRole.LAWYER } as any;
   const folders = [
@@ -37,6 +37,7 @@ describe('CaseFolderLinksService', () => {
     mockConnections.getValidAccessToken.mockResolvedValue('token');
     mockFolders.listMailFolders.mockResolvedValue(folders);
     mockSync.syncLink.mockResolvedValue({ messagesSynced: 0 });
+    mockCaseAccess.canAccessCase.mockResolvedValue(true);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CaseFolderLinksService,
@@ -103,6 +104,13 @@ describe('CaseFolderLinksService', () => {
       expect(mockPrisma.caseExternalLink.create).not.toHaveBeenCalled();
     });
 
+    it('turns a concurrent duplicate (P2002) into a 409', async () => {
+      mockPrisma.case.findMany.mockResolvedValue([{ id: 'case-1' }]);
+      mockPrisma.caseExternalLink.findMany.mockResolvedValue([]);
+      mockPrisma.caseExternalLink.create.mockRejectedValue({ code: 'P2002' });
+      await expect(service.linkFolders(user, [{ folderId: 'f1', caseId: 'case-1' }])).rejects.toBeInstanceOf(ConflictException);
+    });
+
     it('creates the link, audits it, and starts the backfill without waiting for it', async () => {
       mockPrisma.case.findMany.mockResolvedValue([{ id: 'case-1' }]);
       mockPrisma.caseExternalLink.findMany.mockResolvedValue([]);
@@ -139,6 +147,13 @@ describe('CaseFolderLinksService', () => {
 
     it('forbids a colleague who neither linked it nor owns the mailbox', async () => {
       mockPrisma.caseExternalLink.findFirst.mockResolvedValue(link);
+      await expect(service.unlink(user, 'link-1')).rejects.toBeInstanceOf(ForbiddenException);
+      expect(mockPrisma.caseExternalLink.delete).not.toHaveBeenCalled();
+    });
+
+    it('forbids the linker once they can no longer access the case', async () => {
+      mockPrisma.caseExternalLink.findFirst.mockResolvedValue({ ...link, linkedById: 'user-1' });
+      mockCaseAccess.canAccessCase.mockResolvedValue(false);
       await expect(service.unlink(user, 'link-1')).rejects.toBeInstanceOf(ForbiddenException);
       expect(mockPrisma.caseExternalLink.delete).not.toHaveBeenCalled();
     });

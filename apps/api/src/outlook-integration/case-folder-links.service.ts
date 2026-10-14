@@ -22,6 +22,7 @@ export interface OutlookFolderRow {
   suggestions: CaseMatchSuggestion[];
 }
 
+const isUniqueViolation = (e: unknown) => (e as { code?: string } | null)?.code === 'P2002';
 const OUTLOOK_FOLDER = CaseExternalLinkKind.OUTLOOK_FOLDER;
 const MAX_SUGGESTIONS_PER_FOLDER = 5;
 
@@ -111,7 +112,8 @@ export class CaseFolderLinksService {
     const fresh = items.filter((item) => !existingByFolder.has(item.folderId));
     if (fresh.length === 0) return { linked: [] };
 
-    const created = await this.prisma.$transaction(
+    const created = await this.prisma
+      .$transaction(
       fresh.map((item) =>
         this.prisma.caseExternalLink.create({
           data: {
@@ -125,7 +127,11 @@ export class CaseFolderLinksService {
           },
         }),
       ),
-    );
+      )
+      .catch((error) => {
+        if (isUniqueViolation(error)) throw new ConflictException('folder นี้ผูกกับคดีอยู่แล้ว — ลองรีเฟรชแล้วทำใหม่');
+        throw error;
+      });
     await this.prisma.auditLog.createMany({
       data: created.map((link) => ({
         firmId: user.firmId,
@@ -178,6 +184,9 @@ export class CaseFolderLinksService {
       hasFirmCapability(user.firmRole, 'viewAllCases');
     if (!canManage) {
       throw new ForbiddenException('ยกเลิกการผูกได้เฉพาะผู้ที่ผูก เจ้าของกล่องอีเมล หรือผู้ดูแลสำนักงาน');
+    }
+    if (!(await this.caseAccess.canAccessCase(user, link.caseId))) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงคดีนี้');
     }
     await this.prisma.caseExternalLink.delete({ where: { id: link.id } });
     await this.prisma.auditLog.create({

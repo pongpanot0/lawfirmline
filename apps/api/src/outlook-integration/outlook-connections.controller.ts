@@ -28,15 +28,20 @@ export class OutlookConnectionsController {
   @Patch(':id')
   async updateSettings(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateConnectionSettingsDto) {
     const { before, after } = await this.connections.updateSettings(user, id, dto);
+    // The setting is saved. Nothing retries a failed follow-up; the user can toggle again.
+    // Each step is independent so one failure never skips the other, and records its own error.
     try {
       if (!before.syncInboxToIntake && after.syncInboxToIntake) await this.subscriptions.ensureSubscription(id);
       if (before.syncInboxToIntake && !after.syncInboxToIntake) await this.subscriptions.removeSubscription(id);
+    } catch (error) {
+      this.logger.warn(`Subscription change for ${id} failed: ${error}`);
+      await this.connections.recordError(id, `Subscription follow-up failed: ${error}`).catch(() => undefined);
+    }
+    try {
       if (before.syncCalendar && !after.syncCalendar) await this.calendarSync.removeAllForConnection(id);
     } catch (error) {
-      // The setting is saved. Nothing retries a subscription that was never created;
-      // the user can toggle again. Surface the failure on the connection.
-      this.logger.warn(`Subscription/calendar change for ${id} failed: ${error}`);
-      await this.connections.recordError(id, `Settings follow-up failed: ${error}`).catch(() => undefined);
+      this.logger.warn(`Calendar cleanup for ${id} failed: ${error}`);
+      await this.connections.recordError(id, `Calendar cleanup failed: ${error}`).catch(() => undefined);
     }
     const rows = await this.connections.listForFirm(user);
     return rows.find((r) => r.id === id);

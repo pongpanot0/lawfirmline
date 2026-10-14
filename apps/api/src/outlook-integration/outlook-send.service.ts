@@ -216,7 +216,7 @@ export class OutlookSendService {
       if (error instanceof GraphApiError && (error.status === 401 || error.status === 403)) {
         throw new BadRequestException('Microsoft ไม่อนุญาตให้ส่งอีเมลจากบัญชีนี้ — กรุณาเชื่อมต่อ Microsoft 365 ใหม่ในหน้าตั้งค่า');
       }
-      throw new BadRequestException('ส่งอีเมลไม่สำเร็จ — ถ้ามีร่างค้างในโฟลเดอร์ Drafts ของ Outlook ลบหรือส่งจาก Outlook ได้');
+      throw new BadRequestException('ส่งอีเมลไม่สำเร็จ — ถ้ามีร่างค้างในโฟลเดอร์ Drafts ของ Outlook ลบหรือส่งจาก Outlook ได้ และตรวจสอบโฟลเดอร์ Sent Items ก่อนส่งซ้ำ เพราะอีเมลอาจถูกส่งไปแล้ว');
     }
 
     // Microsoft has the mail now. Nothing below may turn this into an error — a 500 here invites a second send.
