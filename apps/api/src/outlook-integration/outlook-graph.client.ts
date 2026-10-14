@@ -37,6 +37,27 @@ export interface GraphAttachment {
   contentBytes?: string;
 }
 
+/** The writable subset of a Graph message that sending needs. */
+export interface GraphOutgoingMessage {
+  subject?: string;
+  body?: { contentType: 'HTML' | 'Text'; content: string };
+  toRecipients?: GraphRecipient[];
+  ccRecipients?: GraphRecipient[];
+}
+
+export interface GraphFileAttachmentInput {
+  name: string;
+  contentType: string;
+  /** base64 — Graph accepts inline file attachments up to 3 MB. */
+  contentBytes: string;
+}
+
+/**
+ * Immutable ids survive the Drafts → Sent Items move, so the id stored on the
+ * EmailMessage still works for a later createReply.
+ */
+const IMMUTABLE_ID_HEADERS = { Prefer: 'IdType="ImmutableId"' };
+
 export interface GraphDeltaResult {
   messages: GraphMessage[];
   nextDeltaLink: string | null;
@@ -73,7 +94,7 @@ export class OutlookGraphClient {
       value: GraphMessage[];
       '@odata.nextLink'?: string;
       '@odata.deltaLink'?: string;
-    }>(accessToken, url, { headers: { Prefer: 'outlook.body-content-type="html"' } });
+    }>(accessToken, url, { headers: { Prefer: 'outlook.body-content-type="html", IdType="ImmutableId"' } });
     return {
       messages: page.value.filter((m) => !m['@removed']),
       nextDeltaLink: page['@odata.deltaLink'] ?? null,
@@ -89,8 +110,48 @@ export class OutlookGraphClient {
     const res = await this.http.request<{ value: GraphAttachment[] }>(
       accessToken,
       `/me/messages/${encodeURIComponent(messageId)}/attachments`,
+      { headers: IMMUTABLE_ID_HEADERS },
     );
     return res.value;
+  }
+
+  /** New draft in the signed-in user's Drafts folder — the first step of every send. */
+  createDraftMessage(accessToken: string, message: GraphOutgoingMessage): Promise<GraphMessage> {
+    return this.http.request<GraphMessage>(accessToken, '/me/messages', {
+      method: 'POST',
+      headers: IMMUTABLE_ID_HEADERS,
+      body: JSON.stringify(message),
+    });
+  }
+
+  /** Reply draft that stays in the original Outlook conversation (quoted history included by Graph). */
+  createReplyDraft(accessToken: string, messageId: string, replyAll: boolean): Promise<GraphMessage> {
+    const action = replyAll ? 'createReplyAll' : 'createReply';
+    return this.http.request<GraphMessage>(accessToken, `/me/messages/${encodeURIComponent(messageId)}/${action}`, {
+      method: 'POST',
+      headers: IMMUTABLE_ID_HEADERS,
+      body: '{}',
+    });
+  }
+
+  updateDraft(accessToken: string, messageId: string, patch: GraphOutgoingMessage): Promise<GraphMessage> {
+    return this.http.request<GraphMessage>(accessToken, `/me/messages/${encodeURIComponent(messageId)}`, {
+      method: 'PATCH',
+      headers: IMMUTABLE_ID_HEADERS,
+      body: JSON.stringify(patch),
+    });
+  }
+
+  async addFileAttachment(accessToken: string, messageId: string, file: GraphFileAttachmentInput): Promise<void> {
+    await this.http.request(accessToken, `/me/messages/${encodeURIComponent(messageId)}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify({ '@odata.type': '#microsoft.graph.fileAttachment', ...file }),
+    });
+  }
+
+  /** Graph answers 202 with no body; the message moves to Sent Items. */
+  async sendDraft(accessToken: string, messageId: string): Promise<void> {
+    await this.http.request(accessToken, `/me/messages/${encodeURIComponent(messageId)}/send`, { method: 'POST' });
   }
 
   /**
