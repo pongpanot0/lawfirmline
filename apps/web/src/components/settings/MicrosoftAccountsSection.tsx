@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Mail } from 'lucide-react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { hasFirmCapability } from '@lawfirm/shared';
 import { useAuth, getStoredToken } from '@/lib/auth';
 import { api, ApiError, ConnectionCaseLinkSummary, MailboxConnectionItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -223,6 +225,11 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
           </p>
         </div>
       </div>
+      {hasFirmCapability(user?.firmRole, 'runOperations') && (
+        <Link href="/settings/microsoft-status" className="mt-2 inline-block text-xs text-primary underline">
+          ดูสถานะ Microsoft 365 ของทั้งสำนักงาน
+        </Link>
+      )}
 
       {notice && (
         <p className={`mt-3 rounded-lg p-2 text-xs ${notice.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-destructive/10 text-destructive'}`}>
