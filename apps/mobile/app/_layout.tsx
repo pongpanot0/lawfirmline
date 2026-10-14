@@ -190,6 +190,7 @@ function AppStack() {
               <Stack.Screen name="case/new" options={{ title: 'รับเคสใหม่' }} />
               <Stack.Screen name="task/new" options={{ title: 'เพิ่มงาน' }} />
               <Stack.Screen name="search" options={{ title: 'ค้นหาไฟล์' }} />
+              <Stack.Screen name="email-search" options={{ title: 'ค้นหาอีเมล' }} />
               <Stack.Screen name="settings" options={{ title: 'ตั้งค่า' }} />
               <Stack.Screen name="event/new" options={{ title: 'นัดหมายใหม่' }} />
               <Stack.Screen name="event/[id]/team" options={{ title: 'ทีมที่ไปด้วย' }} />
