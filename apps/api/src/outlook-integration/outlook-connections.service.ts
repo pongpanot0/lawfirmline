@@ -26,6 +26,13 @@ const SAFE_SELECT = {
   user: { select: { id: true, firstName: true, lastName: true } },
 } as const;
 
+export interface ConnectionCaseLinkSummary {
+  caseLinks: number;
+  caseCount: number;
+  officeDocuments: number;
+  driveFolders: Array<{ linkId: string; caseId: string; ownRef: string; caseTitle: string; displayPath: string }>;
+}
+
 @Injectable()
 export class OutlookConnectionsService {
   private readonly logger = new Logger(OutlookConnectionsService.name);
@@ -184,7 +191,39 @@ export class OutlookConnectionsService {
         subscriptionExpiresAt: null,
       },
     });
-    return { revoked: true };
+    // Links stay (the case page explains the folder owner disconnected); reconnecting revives them.
+    const caseLinks = await this.prisma.caseExternalLink.count({ where: { connectionId: connection.id } });
+    return { revoked: true as const, caseLinks };
+  }
+
+  /**
+   * What stops working when this connection goes away: case folder links (their live OneDrive list
+   * and Outlook folder sync) and Office copies whose edits could no longer be pulled back. Shown
+   * before disconnecting, with "นำเข้าไฟล์ทั้ง folder" offered per drive folder.
+   */
+  async caseLinkSummary(firmId: string, id: string): Promise<ConnectionCaseLinkSummary> {
+    await this.getRaw(firmId, id);
+    const [links, officeDocuments] = await Promise.all([
+      this.prisma.caseExternalLink.findMany({
+        where: { firmId, connectionId: id, case: { deletedAt: null } },
+        select: { id: true, caseId: true, kind: true, displayPath: true, case: { select: { ownRef: true, title: true } } },
+      }),
+      this.prisma.documentOfficeLink.count({ where: { connectionId: id } }),
+    ]);
+    return {
+      caseLinks: links.length,
+      caseCount: new Set(links.map((link) => link.caseId)).size,
+      officeDocuments,
+      driveFolders: links
+        .filter((link) => link.kind === 'DRIVE_FOLDER')
+        .map((link) => ({
+          linkId: link.id,
+          caseId: link.caseId,
+          ownRef: link.case.ownRef,
+          caseTitle: link.case.title,
+          displayPath: link.displayPath,
+        })),
+    };
   }
 
   isRevocationError(error: unknown): boolean {

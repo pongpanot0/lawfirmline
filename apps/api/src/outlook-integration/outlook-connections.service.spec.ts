@@ -16,6 +16,8 @@ describe('OutlookConnectionsService', () => {
       upsert: jest.fn(),
       update: jest.fn(),
     },
+    caseExternalLink: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+    documentOfficeLink: { count: jest.fn() },
   };
   const mockOAuth = { refreshTokens: jest.fn() };
   const mockGraph = { deleteSubscription: jest.fn() };
@@ -26,6 +28,7 @@ describe('OutlookConnectionsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.caseExternalLink.count.mockResolvedValue(0);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OutlookConnectionsService,
@@ -174,5 +177,40 @@ describe('OutlookConnectionsService', () => {
       expect(call.create.userId).toBe('u1');
       expect(call.update.userId).toBe('u1');
     });
+  });
+
+  describe('caseLinkSummary', () => {
+    it('counts the case links and Office documents that depend on a connection', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValue({ id: 'conn-1', firmId: 'firm-1' });
+      const c1 = { ownRef: 'A-1', title: 'ACME' };
+      mockPrisma.caseExternalLink.findMany.mockResolvedValue([
+        { id: 'l1', caseId: 'c1', kind: 'DRIVE_FOLDER', displayPath: 'Cases/ACME', case: c1 },
+        { id: 'l2', caseId: 'c1', kind: 'OUTLOOK_FOLDER', displayPath: 'Inbox/ACME', case: c1 },
+        { id: 'l3', caseId: 'c2', kind: 'OUTLOOK_FOLDER', displayPath: 'Inbox/Beta', case: { ownRef: 'B-2', title: 'Beta' } },
+      ]);
+      mockPrisma.documentOfficeLink.count.mockResolvedValue(2);
+
+      await expect(service.caseLinkSummary('firm-1', 'conn-1')).resolves.toEqual({
+        caseLinks: 3,
+        caseCount: 2,
+        officeDocuments: 2,
+        driveFolders: [{ linkId: 'l1', caseId: 'c1', ownRef: 'A-1', caseTitle: 'ACME', displayPath: 'Cases/ACME' }],
+      });
+      expect(mockPrisma.caseExternalLink.findMany).toHaveBeenCalledWith({
+        where: { firmId: 'firm-1', connectionId: 'conn-1', case: { deletedAt: null } },
+        select: { id: true, caseId: true, kind: true, displayPath: true, case: { select: { ownRef: true, title: true } } },
+      });
+    });
+
+    it('404s for a connection of another firm', async () => {
+      mockPrisma.mailboxConnection.findFirst.mockResolvedValue(null);
+      await expect(service.caseLinkSummary('firm-1', 'conn-x')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  it('disconnect reports how many case links still point at the connection', async () => {
+    mockPrisma.mailboxConnection.findFirst.mockResolvedValue({ id: 'conn-1', firmId: 'firm-1', graphSubscriptionId: null });
+    mockPrisma.caseExternalLink.count.mockResolvedValue(3);
+    await expect(service.disconnect('firm-1', 'conn-1')).resolves.toEqual({ revoked: true, caseLinks: 3 });
   });
 });

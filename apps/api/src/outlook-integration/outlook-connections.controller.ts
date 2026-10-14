@@ -42,6 +42,13 @@ export class OutlookConnectionsController {
     return rows.find((r) => r.id === id);
   }
 
+  /** Shown before disconnecting — how many case links depend on this mailbox. */
+  @Get(':id/case-links')
+  async caseLinks(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.connections.assertCanManage(user, id);
+    return this.connections.caseLinkSummary(user.firmId, id);
+  }
+
   @Delete(':id')
   async disconnect(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     await this.connections.assertCanManage(user, id);

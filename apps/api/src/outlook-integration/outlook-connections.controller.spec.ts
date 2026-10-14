@@ -7,7 +7,7 @@ import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.ser
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 describe('OutlookConnectionsController settings', () => {
-  const connections = { updateSettings: jest.fn(), recordError: jest.fn().mockResolvedValue(undefined), listForFirm: jest.fn().mockResolvedValue([{ id: 'c1' }]), assertCanManage: jest.fn().mockResolvedValue(undefined), disconnect: jest.fn().mockResolvedValue({ ok: true }) };
+  const connections = { updateSettings: jest.fn(), recordError: jest.fn().mockResolvedValue(undefined), listForFirm: jest.fn().mockResolvedValue([{ id: 'c1' }]), assertCanManage: jest.fn().mockResolvedValue(undefined), disconnect: jest.fn().mockResolvedValue({ ok: true }), caseLinkSummary: jest.fn().mockResolvedValue({ caseLinks: 1 }) };
   const calendarSync = { removeAllForConnection: jest.fn().mockResolvedValue(undefined) };
   const subscriptions = { ensureSubscription: jest.fn(), removeSubscription: jest.fn() };
   let controller: OutlookConnectionsController;
@@ -79,5 +79,11 @@ describe('OutlookConnectionsController settings', () => {
     calendarSync.removeAllForConnection.mockRejectedValue(new Error('graph down'));
     await expect(controller.disconnect(user, 'c1')).resolves.toEqual({ ok: true });
     expect(connections.disconnect).toHaveBeenCalledWith('f1', 'c1');
+  });
+
+  it('case-links checks manage permission before summarising', async () => {
+    await expect(controller.caseLinks(user, 'c1')).resolves.toEqual({ caseLinks: 1 });
+    expect(connections.assertCanManage).toHaveBeenCalledWith(user, 'c1');
+    expect(connections.caseLinkSummary).toHaveBeenCalledWith('f1', 'c1');
   });
 });
