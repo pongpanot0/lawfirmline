@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, Check, FileText, ShieldCheck } from 'lucide-react-native';
 import { groupParticipantsBySide, PARTICIPANT_ROLE_LABELS, PARTY_ROLE_LABELS, type ParticipantRole, type PartyRole } from '@lawfirm/shared';
 import { api } from '@/api/client';
@@ -16,6 +16,7 @@ import {
   useToggleTask,
 } from '@/api/hooks';
 import { ReassignSheet } from '@/components/ReassignSheet';
+import { CaseEmailTab } from '@/components/CaseEmailTab';
 import { Disclosure } from '@/components/Disclosure';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
@@ -30,7 +31,7 @@ import {
 import { formatMoney, thDate, thTime } from '@/format';
 import { colors, radius, spacing, pageContent } from '@/theme';
 
-const TABS = ['ภาพรวม', 'นัดหมาย', 'งาน', 'เอกสาร'] as const;
+const TABS = ['ภาพรวม', 'นัดหมาย', 'งาน', 'เอกสาร', 'อีเมล'] as const;
 type TabName = (typeof TABS)[number];
 
 const INSURANCE_STAGE_LABEL: Record<string, string> = {
@@ -78,8 +79,9 @@ function InfoRow({ label, value, onPress }: { label: string; value: string | nul
 export default function CaseDetailScreen() {
   const { id, section } = useLocalSearchParams<{ id: string; section?: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
-  const [tab, setTab] = useState<TabName>(section === 'documents' ? 'เอกสาร' : 'ภาพรวม');
+  const [tab, setTab] = useState<TabName>(section === 'documents' ? 'เอกสาร' : section === 'email' ? 'อีเมล' : 'ภาพรวม');
   const [reassigning, setReassigning] = useState<TaskItem | null>(null);
   const [openingDoc, setOpeningDoc] = useState<string | null>(null);
 
@@ -121,7 +123,7 @@ export default function CaseDetailScreen() {
         refreshControl={
           <RefreshControl
             refreshing={caseQuery.isRefetching}
-            onRefresh={() => caseQuery.refetch()}
+            onRefresh={() => { caseQuery.refetch(); if (tab === 'อีเมล') queryClient.invalidateQueries({ queryKey: ['case-email-threads', id] }); }}
           />
         }
       >
@@ -408,6 +410,7 @@ export default function CaseDetailScreen() {
             </Card>
           </>
         ) : null}
+        {tab === 'อีเมล' ? <CaseEmailTab caseId={id} /> : null}
       </ScrollView>
       <ReassignSheet caseId={id} task={reassigning} onClose={() => setReassigning(null)} />
     </>

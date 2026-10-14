@@ -1,3 +1,4 @@
+import { EmailReplyReminderService } from './email-reply-reminder.service';
 import { forwardRef, Module } from '@nestjs/common';
 import { OutlookOAuthController } from './outlook-oauth.controller';
 import { OutlookWebhookController } from './outlook-webhook.controller';
@@ -42,6 +43,7 @@ import { OutlookSendService } from './outlook-send.service';
     OutlookSendService,
     GraphDriveClient,
     CaseEmailNotifier,
+    EmailReplyReminderService,
   ],
   exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService, GraphDriveClient],
 })

@@ -5,6 +5,7 @@ import { CaseAccessService } from '../common/services/case-access.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 import { DocumentsService } from '../documents/documents.service';
 import { EmailThreadStatus, Prisma } from '../generated/prisma';
+import { awaitingMessage, loadInternalAddresses, loadLatestMessages } from './awaiting-reply';
 import { MATCHABLE_CASE_SELECT, suggestCaseMatches, toMatchableCase } from '../outlook-integration/case-matching';
 
 export type ThreadMatchReason = 'CONTACT_EMAIL' | 'OWN_REF' | 'CASE_NUMBER';
@@ -40,7 +41,7 @@ export class CaseEmailService {
     return { AND: [await this.caseAccess.getEmailThreadFilterForUser(user), extra] };
   }
 
-  private audit(user: AuthUser, action: 'EMAIL_THREAD_LINKED' | 'EMAIL_THREAD_UNLINKED', metadata: Record<string, string>) {
+  private audit(user: AuthUser, action: 'EMAIL_THREAD_LINKED' | 'EMAIL_THREAD_UNLINKED' | 'EMAIL_REPLY_DISMISSED' | 'EMAIL_REPLY_UNDISMISSED', metadata: Record<string, string>) {
     return this.prisma.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action, metadata } });
   }
 
@@ -161,13 +162,19 @@ export class CaseEmailService {
         fromName: true,
         fromAddress: true,
         lastMessageAt: true,
+        replyDismissedAt: true,
         messages: { select: { _count: { select: { attachments: true } } } },
       },
       orderBy: { lastMessageAt: 'desc' },
       take: MAX_CASE_THREADS,
     });
+    const [internal, latest] = await Promise.all([
+      loadInternalAddresses(this.prisma, user.firmId),
+      loadLatestMessages(this.prisma, threads.map((t) => t.id)),
+    ]);
     return threads.map((thread) => ({
       id: thread.id,
+      awaitingReplySince: awaitingMessage(thread, latest.get(thread.id), internal)?.receivedAt.toISOString() ?? null,
       subject: thread.subject,
       fromName: thread.fromName,
       fromAddress: thread.fromAddress,
@@ -175,6 +182,18 @@ export class CaseEmailService {
       messageCount: thread.messages.length,
       attachmentCount: thread.messages.reduce((sum, m) => sum + m._count.attachments, 0),
     }));
+  }
+
+  /** "ไม่ต้องตอบ" (dismiss=true) or undo it. */
+  async setReplyDismissed(user: AuthUser, caseId: string, threadId: string, dismiss: boolean) {
+    const thread = await this.prisma.emailThread.findFirst({
+      where: await this.threadWhere(user, { id: threadId, caseId }),
+      select: { id: true },
+    });
+    if (!thread) throw new NotFoundException('ไม่พบอีเมลนี้ในคดี');
+    await this.prisma.emailThread.update({ where: { id: thread.id }, data: { replyDismissedAt: dismiss ? new Date() : null } });
+    await this.audit(user, dismiss ? 'EMAIL_REPLY_DISMISSED' : 'EMAIL_REPLY_UNDISMISSED', { threadId: thread.id, caseId });
+    return { dismissed: dismiss };
   }
 
   async getCaseThread(user: AuthUser, caseId: string, threadId: string) {

@@ -68,6 +68,7 @@ export class CaseEmailNotifier {
         category: NotificationCategory.EMAIL,
         summaryText: [`📧 อีเมลใหม่ ${items.length} ฉบับ · ${legalCase.ownRef}`, ...lines].join('\n'),
         entityPath: `/cases/${caseId}?tab=email`,
+        appPath: `/case/${caseId}?section=email`,
       });
     } catch (error) {
       this.logger.warn(`New-email alert for case ${caseId} failed: ${error}`);

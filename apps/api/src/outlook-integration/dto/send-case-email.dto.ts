@@ -50,6 +50,11 @@ export class SendCaseEmailDto {
   @IsBoolean()
   replyAll?: boolean;
 
+  /** Append the sender's saved email signature (default true). */
+  @IsOptional()
+  @IsBoolean()
+  includeSignature?: boolean;
+
   /** One per compose window — a retried request with the same key is refused instead of sent twice. */
   @IsOptional()
   @IsUUID()

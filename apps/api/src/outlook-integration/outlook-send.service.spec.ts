@@ -13,6 +13,7 @@ describe('OutlookSendService', () => {
   let service: OutlookSendService;
   const mockPrisma = {
     case: { findFirst: jest.fn() },
+    user: { findUnique: jest.fn() },
     document: { findMany: jest.fn() },
     emailMessage: { findFirst: jest.fn() },
     auditLog: { findFirst: jest.fn(), create: jest.fn() },
@@ -374,6 +375,35 @@ describe('OutlookSendService', () => {
     });
   });
 
+  describe('signature', () => {
+    const sig = 'สมชาย <b>ใจดี</b>\nทนายความ';
+    const sigHtml = '<br><div style="color:#444">-- <br>สมชาย &lt;b&gt;ใจดี&lt;/b&gt;<br>ทนายความ</div>';
+    const sentHtml = () => mockGraph.createDraftMessage.mock.calls[0][1].body.content;
+
+    it('appends the escaped signature after the body', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ emailSignature: sig });
+      await service.send(user, 'case-1', baseDto);
+      expect(sentHtml()).toBe('<div>เรียนคุณลูกความ<br>ขอนัดประชุม</div>' + sigHtml);
+    });
+
+    it('skips it when includeSignature is false or the user has none', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ emailSignature: sig });
+      await service.send(user, 'case-1', { ...baseDto, includeSignature: false });
+      expect(sentHtml()).not.toContain('--');
+      mockGraph.createDraftMessage.mockClear();
+      mockPrisma.auditLog.findFirst.mockResolvedValue(null);
+      mockPrisma.user.findUnique.mockResolvedValue({ emailSignature: null });
+      await service.send(user, 'case-1', baseDto);
+      expect(sentHtml()).not.toContain('--');
+    });
+
+    it('compose options expose the signature', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ emailSignature: sig });
+      mockPrisma.case.findFirst.mockResolvedValue({ ownRef: 'TSB-1', client: null, additionalClients: [], customers: [], participants: [] });
+      await expect(service.composeOptions(user, 'case-1')).resolves.toEqual(expect.objectContaining({ signature: sig }));
+    });
+  });
+
   describe('compose options', () => {
     it('returns the sender mailbox (or null), ownRef and case recipients', async () => {
       mockConnections.findActiveForUser.mockResolvedValue(null);
@@ -388,6 +418,7 @@ describe('OutlookSendService', () => {
       await expect(service.composeOptions(user, 'case-1')).resolves.toEqual({
         mailboxAddress: null,
         ownRef: 'TSB-1',
+        signature: null,
         recipients: [{ name: 'คุณเอ', email: 'a@client.com', source: 'CLIENT_CONTACT', group: 'บริษัท ก' }],
       });
     });

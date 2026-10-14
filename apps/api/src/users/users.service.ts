@@ -109,18 +109,21 @@ export class UsersService {
   async getPreferences(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { dailyDigestEnabled: true, lineUserId: true, email: true },
+      select: { dailyDigestEnabled: true, lineUserId: true, email: true, emailSignature: true },
     });
     if (!user) throw new NotFoundException('User not found');
     return {
       dailyDigestEnabled: user.dailyDigestEnabled,
       digestChannel: user.lineUserId ? 'line' : 'email',
       digestEmail: user.email,
+      emailSignature: user.emailSignature,
     };
   }
 
-  async updatePreferences(userId: string, dto: { dailyDigestEnabled?: boolean }) {
-    await this.prisma.user.update({ where: { id: userId }, data: { ...dto } });
+  async updatePreferences(userId: string, dto: { dailyDigestEnabled?: boolean; emailSignature?: string }) {
+    const { emailSignature, ...rest } = dto;
+    const data = emailSignature === undefined ? rest : { ...rest, emailSignature: emailSignature.trim() || null };
+    await this.prisma.user.update({ where: { id: userId }, data });
     return this.getPreferences(userId);
   }
 

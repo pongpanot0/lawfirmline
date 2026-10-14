@@ -19,6 +19,7 @@ import { EmailHtmlFrame } from '@/components/email/EmailHtmlFrame';
 import { CaseEmailComposer, type CaseEmailComposerMode } from './CaseEmailComposer';
 import { MATCH_REASON_LABELS } from '@/lib/case-email';
 import { formatDateTime } from '@/lib/utils';
+import { awaitingReplyLabel } from '@/lib/email-awaiting';
 
 type Notice = { type: 'success' | 'error'; text: string } | null;
 
@@ -33,6 +34,7 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
   const [folders, setFolders] = useState<OutlookFolderRow[] | null>(null);
   const [pickedFolderId, setPickedFolderId] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [undoId, setUndoId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [threadsFailed, setThreadsFailed] = useState(false);
   const [linksFailed, setLinksFailed] = useState(false);
@@ -126,6 +128,31 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
     });
   };
 
+  const refreshThreads = async () => {
+    if (!token) return;
+    try {
+      setThreads(await api.getCaseEmailThreads(token, caseId));
+    } catch {
+      /* รีเฟรชเงียบ ๆ — รายการเดิมยังใช้ได้ */
+    }
+  };
+
+  const dismissReply = (threadId: string) =>
+    run(`dismiss-${threadId}`, async (t) => {
+      await api.dismissEmailReply(t, caseId, threadId);
+      await refreshThreads();
+      setUndoId(threadId);
+      return { type: 'success', text: 'ทำเครื่องหมายว่าไม่ต้องตอบแล้ว' };
+    });
+
+  const undoDismiss = (threadId: string) =>
+    run(`undo-${threadId}`, async (t) => {
+      await api.undoDismissEmailReply(t, caseId, threadId);
+      await refreshThreads();
+      setUndoId(null);
+      return { type: 'success', text: 'ยกเลิกแล้ว — อีเมลนี้กลับมาอยู่ในรายการรอตอบ' };
+    });
+
   const unlinkThread = (threadId: string) => {
     if (!window.confirm('นำอีเมลนี้ออกจากคดี? อีเมลจะกลับไปอยู่ในคิวอีเมล')) return;
     run(`thread-${threadId}`, async (t) => {
@@ -159,6 +186,9 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
       };
     });
 
+  const awaiting = !!threads?.find((x) => x.id === selectedId)?.awaitingReplySince;
+  const lastInbound = detail?.messages.filter((m) => m.direction === 'INBOUND').at(-1);
+
   if (threads === null) return <PageLoading title="กำลังโหลดอีเมลของคดี" lines={3} />;
 
   const retryLoad = () => {
@@ -174,6 +204,11 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
           className={`rounded-lg p-3 text-sm ${notice.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-destructive/10 text-destructive'}`}
         >
           {notice.text}
+          {undoId && notice.type === 'success' && notice.text.startsWith('ทำเครื่องหมาย') && (
+            <button type="button" className="ml-2 underline" disabled={busy !== null} onClick={() => undoDismiss(undoId)}>
+              เลิกทำ
+            </button>
+          )}
         </p>
       )}
 
@@ -299,6 +334,11 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
                   <p className="truncate text-xs text-muted-foreground">
                     {thread.fromName ?? thread.fromAddress ?? '—'} · {formatDateTime(thread.lastMessageAt)}
                   </p>
+                  {thread.awaitingReplySince && (
+                    <span className="mb-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                      {awaitingReplyLabel(thread.awaitingReplySince)}
+                    </span>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {thread.messageCount} ข้อความ
                     {thread.attachmentCount > 0 && ` · ไฟล์แนบ ${thread.attachmentCount}`}
@@ -335,6 +375,23 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
                       <Unlink className="h-4 w-4" /> นำออกจากคดี
                     </Button>
                   </div>
+                  {awaiting && lastInbound && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                      <span>อีเมลนี้ยังไม่ได้ตอบ</span>
+                      <span className="flex gap-2">
+                        <Button
+                          size="sm"
+                          disabled={busy !== null}
+                          onClick={() => setComposer({ kind: 'reply', replyAll: false, threadSubject: detail.subject, message: lastInbound })}
+                        >
+                          ตอบกลับ
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => dismissReply(detail.id)}>
+                          ไม่ต้องตอบ
+                        </Button>
+                      </span>
+                    </div>
+                  )}
                   {detail.messages.map((message) => (
                     <article key={message.id} className="space-y-2 rounded-lg border p-3">
                       <div className="text-xs text-muted-foreground">

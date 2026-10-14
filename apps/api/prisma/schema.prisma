@@ -631,6 +631,8 @@ model User {
   /// Email one-time-code MFA. Off by default — never flip without the owner
   /// of this account confirming a code first (see MfaService.confirmEnable).
   mfaEnabled            Boolean   @default(false)
+  /// Personal email signature appended to case emails sent from the system.
+  emailSignature        String?   @db.Text
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -2545,6 +2547,10 @@ model EmailThread {
   caseId              String?
   /// Set when a person manually unlinks the thread from a case; sync must not re-link it.
   caseUnlinkedAt      DateTime?
+  /// Someone marked "no reply needed"; only counts if after the latest inbound message.
+  replyDismissedAt    DateTime?
+  /// Inbound EmailMessage.id we last sent a reply reminder for (one reminder per inbound message).
+  replyReminderMessageId String?
 
   firm              Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
   intake            Intake?            @relation(fields: [intakeId], references: [id], onDelete: SetNull)
@@ -2557,6 +2563,7 @@ model EmailThread {
   @@index([intakeId])
   @@index([mailboxConnectionId])
   @@index([caseId])
+  @@index([caseId, lastMessageAt])
 }
 
 model EmailMessage {

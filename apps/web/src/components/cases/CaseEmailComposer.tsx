@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Paperclip } from 'lucide-react';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,7 @@ export function CaseEmailComposer({
   const [pendingTemplate, setPendingTemplate] = useState<{ subject: string; body: string } | null>(null);
   const [templateMissing, setTemplateMissing] = useState<string[]>([]);
   const [templateLoading, setTemplateLoading] = useState(false);
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -154,6 +156,7 @@ export function CaseEmailComposer({
         subject: subject.trim(),
         body,
         documentIds,
+        includeSignature: !!options?.signature && includeSignature,
         ...(mode.kind === 'reply' ? { replyToMessageId: mode.message.id, replyAll: mode.replyAll } : {}),
         clientRequestId: requestKey.current,
       });
@@ -221,6 +224,10 @@ export function CaseEmailComposer({
             <div>
               <dt className="text-muted-foreground">หัวเรื่อง</dt>
               <dd>{subject}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">ลายเซ็น</dt>
+              <dd>{options.signature && includeSignature ? 'แนบ' : 'ไม่แนบ'}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">ไฟล์แนบ ({attached.length})</dt>
@@ -323,6 +330,18 @@ export function CaseEmailComposer({
             <span className="font-medium">ข้อความ</span>
             <Textarea rows={10} maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} />
           </label>
+
+          {options.signature ? (
+            <div className="space-y-1 text-sm">
+              <label className="flex items-center gap-2 font-medium">
+                <input type="checkbox" checked={includeSignature} onChange={(e) => setIncludeSignature(e.target.checked)} />
+                แนบลายเซ็น
+              </label>
+              <p className={`whitespace-pre-wrap text-xs text-muted-foreground ${includeSignature ? '' : 'opacity-50'}`}>-- {'\n'}{options.signature}</p>
+            </div>
+          ) : (
+            <Link href="/settings" className="text-sm text-primary underline">ตั้งลายเซ็นอีเมล</Link>
+          )}
 
           {documents.length > 0 && (
             <fieldset className="space-y-1">

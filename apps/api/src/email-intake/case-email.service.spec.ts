@@ -12,6 +12,9 @@ describe('CaseEmailService', () => {
   const mockPrisma = {
     emailThread: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     case: { findMany: jest.fn() },
+    emailMessage: { findMany: jest.fn() },
+    firmMember: { findMany: jest.fn() },
+    mailboxConnection: { findMany: jest.fn() },
     emailAttachment: { findFirst: jest.fn() },
     document: { findFirst: jest.fn() },
     auditLog: { create: jest.fn() },
@@ -29,6 +32,9 @@ describe('CaseEmailService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockCaseAccess.getEmailThreadFilterForUser.mockResolvedValue(threadFilter);
+    mockPrisma.emailMessage.findMany.mockResolvedValue([]);
+    mockPrisma.firmMember.findMany.mockResolvedValue([]);
+    mockPrisma.mailboxConnection.findMany.mockResolvedValue([]);
     mockCaseAccess.getCaseFilterForUser.mockReturnValue({ firmId: 'firm-1' });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -241,6 +247,38 @@ describe('CaseEmailService', () => {
 
       await expect(service.saveAttachmentToCase(user, 'case-1', 'att-1')).rejects.toThrow('s3 down');
       await expect(service.saveAttachmentToCase(user, 'case-1', 'att-1')).resolves.toMatchObject({ alreadySaved: false });
+    });
+  });
+
+  describe('awaiting reply', () => {
+    it('listCaseThreads exposes awaitingReplySince for an undismissed client email only', async () => {
+      const at = new Date('2026-10-13T01:00:00Z');
+      mockPrisma.emailThread.findMany.mockResolvedValue([
+        { id: 't1', subject: 'a', fromName: null, fromAddress: 'c@x.com', lastMessageAt: at, replyDismissedAt: null, messages: [] },
+        { id: 't2', subject: 'b', fromName: null, fromAddress: 'c@x.com', lastMessageAt: at, replyDismissedAt: new Date('2026-10-13T02:00:00Z'), messages: [] },
+        { id: 't3', subject: 'c', fromName: null, fromAddress: 'me@firm.com', lastMessageAt: at, replyDismissedAt: null, messages: [] },
+      ]);
+      mockPrisma.firmMember.findMany.mockResolvedValue([{ user: { email: 'me@firm.com' } }]);
+      mockPrisma.mailboxConnection.findMany.mockResolvedValue([]);
+      mockPrisma.emailMessage.findMany.mockResolvedValue([
+        { id: 'm1', threadId: 't1', direction: 'INBOUND', fromAddress: 'c@x.com', receivedAt: at },
+        { id: 'm2', threadId: 't2', direction: 'INBOUND', fromAddress: 'c@x.com', receivedAt: at },
+        { id: 'm3', threadId: 't3', direction: 'INBOUND', fromAddress: 'ME@firm.com', receivedAt: at },
+      ]);
+      const result = await service.listCaseThreads(user, 'case-1');
+      expect(result.map((t: any) => t.awaitingReplySince)).toEqual([at.toISOString(), null, null]);
+    });
+
+    it('setReplyDismissed sets/clears the flag and audits; 404 when not visible', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 't1' });
+      await service.setReplyDismissed(user, 'case-1', 't1', true);
+      expect(mockPrisma.emailThread.update).toHaveBeenCalledWith({ where: { id: 't1' }, data: { replyDismissedAt: expect.any(Date) } });
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: 'EMAIL_REPLY_DISMISSED' }) });
+      await service.setReplyDismissed(user, 'case-1', 't1', false);
+      expect(mockPrisma.emailThread.update).toHaveBeenLastCalledWith({ where: { id: 't1' }, data: { replyDismissedAt: null } });
+      expect(mockPrisma.auditLog.create).toHaveBeenLastCalledWith({ data: expect.objectContaining({ action: 'EMAIL_REPLY_UNDISMISSED' }) });
+      mockPrisma.emailThread.findFirst.mockResolvedValue(null);
+      await expect(service.setReplyDismissed(user, 'case-1', 'x', true)).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -288,3 +288,19 @@ export interface NotificationPreference {
   push: boolean;
   line: boolean;
 }
+
+export interface EmailThreadItem {
+  id: string; subject: string; fromName: string | null; fromAddress: string | null;
+  lastMessageAt: string; messageCount: number; attachmentCount: number; awaitingReplySince: string | null;
+}
+export interface EmailMessageItem {
+  id: string; direction: 'INBOUND' | 'OUTBOUND'; fromName: string | null; fromAddress: string | null;
+  toAddresses: string[]; ccAddresses: string[]; bodyText: string | null; bodyHtml: string | null; receivedAt: string;
+  attachments: Array<{ id: string; filename: string; mimeType: string; createdAt: string }>;
+}
+export interface EmailThreadDetail { id: string; subject: string; caseId: string; lastMessageAt: string; messages: EmailMessageItem[] }
+export interface EmailComposeOptions {
+  mailboxAddress: string | null; ownRef: string;
+  recipients: Array<{ name: string; email: string; source: string; group: string }>; signature: string | null;
+}
+export interface EmailTemplateItem { id: string; name: string; subject: string; body: string; builtIn: boolean }

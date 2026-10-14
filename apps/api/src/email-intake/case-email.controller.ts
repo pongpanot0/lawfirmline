@@ -38,6 +38,18 @@ export class CaseEmailController {
     return this.service.getCaseThread(user, caseId, threadId);
   }
 
+  @Post('cases/:caseId/email/threads/:threadId/reply-dismiss')
+  @UseGuards(CaseAccessGuard)
+  dismissReply(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('threadId') threadId: string) {
+    return this.service.setReplyDismissed(user, caseId, threadId, true);
+  }
+
+  @Delete('cases/:caseId/email/threads/:threadId/reply-dismiss')
+  @UseGuards(CaseAccessGuard)
+  undismissReply(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('threadId') threadId: string) {
+    return this.service.setReplyDismissed(user, caseId, threadId, false);
+  }
+
   @Post('cases/:caseId/email/attachments/:attachmentId/save-to-documents')
   @UseGuards(CaseAccessGuard)
   saveAttachment(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('attachmentId') attachmentId: string) {

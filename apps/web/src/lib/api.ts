@@ -204,6 +204,7 @@ export interface SlaConfig {
   caseUpdateDays: number;
   stuckStatusDays: number;
   reviewDays: number;
+  emailReplyHours: number;
 }
 
 export interface TeamPerformanceRow {
@@ -867,6 +868,7 @@ export interface NotificationPreferences {
   dailyDigestEnabled: boolean;
   digestChannel: 'line' | 'email';
   digestEmail: string;
+  emailSignature: string | null;
 }
 export type DeadlineRuleItem = import('@lawfirm/shared').DeadlineRuleItem;
 
@@ -1218,6 +1220,7 @@ export interface CaseEmailThreadItem {
   lastMessageAt: string;
   messageCount: number;
   attachmentCount: number;
+  awaitingReplySince: string | null;
 }
 
 export interface CaseEmailMessageItem {
@@ -1277,6 +1280,7 @@ export interface CaseEmailComposeOptions {
   /** null = this user has not connected their own Microsoft 365 mailbox */
   mailboxAddress: string | null;
   ownRef: string;
+  signature: string | null;
   recipients: CaseEmailRecipientOption[];
 }
 
@@ -1288,6 +1292,7 @@ export interface SendCaseEmailInput {
   documentIds?: string[];
   replyToMessageId?: string;
   replyAll?: boolean;
+  includeSignature?: boolean;
   clientRequestId?: string;
 }
 
@@ -2133,7 +2138,7 @@ export const api = {
   getMyPreferences: (token: string) =>
     request<NotificationPreferences>('/users/me/preferences', { token }),
 
-  updateMyPreferences: (token: string, data: { dailyDigestEnabled?: boolean }) =>
+  updateMyPreferences: (token: string, data: { dailyDigestEnabled?: boolean; emailSignature?: string }) =>
     request<NotificationPreferences>('/users/me/preferences', {
       method: 'PATCH',
       token,
@@ -3256,6 +3261,12 @@ export const api = {
 
   getCaseEmailThreads: (token: string, caseId: string) =>
     request<CaseEmailThreadItem[]>(`/cases/${caseId}/email/threads`, { token }),
+
+  dismissEmailReply: (token: string, caseId: string, threadId: string) =>
+    request<{ dismissed: boolean }>(`/cases/${caseId}/email/threads/${threadId}/reply-dismiss`, { method: 'POST', token }),
+
+  undoDismissEmailReply: (token: string, caseId: string, threadId: string) =>
+    request<{ dismissed: boolean }>(`/cases/${caseId}/email/threads/${threadId}/reply-dismiss`, { method: 'DELETE', token }),
 
   getCaseEmailThread: (token: string, caseId: string, threadId: string) =>
     request<CaseEmailThreadDetail>(`/cases/${caseId}/email/threads/${threadId}`, { token }),

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, type EmailTemplate, type EmailTemplateVariable } from '@/lib/api';
+import { api, ApiError, type EmailTemplate, type EmailTemplateVariable } from '@/lib/api';
 import { insertAtCursor, previewTemplate } from '@/lib/case-email-compose';
 import { SideDrawer } from '@/components/ui/SideDrawer';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,62 @@ import { PageLoading } from '@/components/ui/misc';
 
 type Draft = { id: string | null; name: string; subject: string; body: string };
 type Field = 'subject' | 'body';
+
+/** การ์ดตั้งเวลาเตือนอีเมลลูกความที่ยังไม่ได้ตอบ — ซ่อนถ้าไม่มีสิทธิ์ (403) */
+function ReplyReminderCard() {
+  const { token } = useAuth();
+  const [hours, setHours] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    api
+      .getSlaConfig(token)
+      .then((c) => setHours(String(c.emailReplyHours)))
+      .catch(() => setHidden(true));
+  }, [token]);
+
+  if (hidden || hours === null) return null;
+
+  const save = async () => {
+    const n = Number(hours);
+    if (!Number.isInteger(n) || n < 1 || n > 168) {
+      setMsg({ ok: false, text: 'กรอกเป็นจำนวนเต็ม 1–168 ชั่วโมง' });
+      return;
+    }
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api.updateSlaConfig(token!, { emailReplyHours: n });
+      setMsg({ ok: true, text: 'บันทึกแล้ว' });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 403) setHidden(true);
+      setMsg({ ok: false, text: e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="flex flex-wrap items-center gap-2 p-4 text-sm">
+        <label htmlFor="email-reply-hours">เตือนเมื่ออีเมลลูกความไม่ได้ตอบภายใน</label>
+        <Input id="email-reply-hours" type="number" min={1} max={168} className="w-20" value={hours} onChange={(e) => setHours(e.target.value)} />
+        <span>ชั่วโมง</span>
+        <Button size="sm" disabled={saving} onClick={() => void save()}>
+          {saving ? 'กำลังบันทึก…' : 'บันทึก'}
+        </Button>
+        {msg && (
+          <span role={msg.ok ? 'status' : 'alert'} className={msg.ok ? 'text-green-700' : 'text-destructive'}>
+            {msg.text}
+          </span>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 /** ตั้งค่า → เทมเพลตอีเมล: ตัวอย่างของระบบแก้ไม่ได้ ("คัดลอกไปแก้" ก่อน) */
 export default function EmailTemplatesPage() {
@@ -113,6 +169,7 @@ export default function EmailTemplatesPage() {
       <Link href="/settings" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> ตั้งค่า
       </Link>
+      <ReplyReminderCard />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold">เทมเพลตอีเมล</h1>

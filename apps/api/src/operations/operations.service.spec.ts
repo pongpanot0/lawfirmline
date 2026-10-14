@@ -176,3 +176,27 @@ describe('OperationsService.getOwnerKpis', () => {
     expect(result.month).toMatch(/^\d{4}-\d{2}$/);
   });
 });
+
+describe('OperationsService.updateSlaConfig', () => {
+  const user = { id: 'u1', firmId: 'f1' } as any;
+  const mockPrisma: any = { firm: { findUniqueOrThrow: jest.fn(), update: jest.fn() } };
+  const service = new OperationsService(mockPrisma);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrisma.firm.findUniqueOrThrow.mockResolvedValue({ slaConfig: { caseUpdateDays: 7, reviewDays: 5 } });
+  });
+
+  it('merges one key into the stored config instead of wiping the others, and drops unknown keys', async () => {
+    await service.updateSlaConfig(user, { emailReplyHours: 8, junk: 1 } as any);
+    expect(mockPrisma.firm.update).toHaveBeenCalledWith({
+      where: { id: 'f1' },
+      data: { slaConfig: { caseUpdateDays: 7, stuckStatusDays: 30, reviewDays: 5, emailReplyHours: 8 } },
+    });
+  });
+
+  it.each([0, 169, 1.5])('refuses emailReplyHours %p', async (hours) => {
+    await expect(service.updateSlaConfig(user, { emailReplyHours: hours })).rejects.toThrow('1–168');
+    expect(mockPrisma.firm.update).not.toHaveBeenCalled();
+  });
+});

@@ -53,6 +53,7 @@ test('snapMinutes rounds down to 30 and stays in working hours', () => {
 test('minutesToTime / nextWorkingDays / closestDuration', () => {
   assert.equal(minutesToTime(545), '09:05');
   assert.deepEqual(nextWorkingDays('2026-10-16', 3), ['2026-10-19', '2026-10-20', '2026-10-21']);
+  assert.deepEqual(nextWorkingDays('2026-10-16', 3, new Set(['2026-10-19', '2026-10-21'])), ['2026-10-20', '2026-10-22', '2026-10-23']);
   assert.equal(closestDuration('2026-10-14T02:00:00Z', '2026-10-14T03:40:00Z'), 90);
   assert.equal(closestDuration('2026-10-14T02:00:00Z', null), 60);
   assert.equal(closestDuration('2026-10-14T02:00:00Z', '2026-10-14T08:00:00Z'), 240);
