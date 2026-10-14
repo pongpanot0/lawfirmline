@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { MailboxConnectionStatus } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
@@ -25,6 +25,8 @@ export const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
  * (ponytail: in-memory buffers on a 2 GB box; stream from storage to the upload session if bigger sends are needed).
  */
 export const MAX_SEND_TOTAL_BYTES = 100 * 1024 * 1024;
+/** All concurrent sends together. */
+export const MAX_HELD_BYTES = 250 * 1024 * 1024;
 export const CASE_EMAIL_SENT = 'CASE_EMAIL_SENT';
 
 export type SendMode = 'NEW' | 'REPLY' | 'REPLY_AS_NEW';
@@ -118,6 +120,8 @@ interface LinkedSource {
 }
 
 interface SharedLink {
+  driveId: string;
+  itemId: string;
   documentId: string;
   filename: string;
   size: number;
@@ -144,6 +148,8 @@ export class OutlookSendService {
   private readonly logger = new Logger(OutlookSendService.name);
   // ponytail: per-process guard for a double-click racing the audit-log check; a second API instance would need a DB unique key.
   private readonly inFlight = new Set<string>();
+  // ponytail: per-process cap on file bytes held in memory across concurrent sends (2 GB box); stream uploads to lift it.
+  private heldBytes = 0;
 
   constructor(
     private prisma: PrismaService,
@@ -180,6 +186,7 @@ export class OutlookSendService {
 
   async send(user: AuthUser, caseId: string, dto: SendCaseEmailDto): Promise<SendCaseEmailResult> {
     const key = dto.clientRequestId ? `${user.id}:${dto.clientRequestId}` : null;
+    const held = { bytes: 0 };
     if (key) {
       if (this.inFlight.has(key)) throw new ConflictException('อีเมลนี้ส่งไปแล้ว');
       this.inFlight.add(key);
@@ -188,8 +195,9 @@ export class OutlookSendService {
       if (dto.clientRequestId && (await this.alreadySent(user, dto.clientRequestId))) {
         throw new ConflictException('อีเมลนี้ส่งไปแล้ว');
       }
-      return await this.sendOnce(user, caseId, dto);
+      return await this.sendOnce(user, caseId, dto, held);
     } finally {
+      this.heldBytes -= held.bytes;
       if (key) this.inFlight.delete(key);
     }
   }
@@ -207,7 +215,7 @@ export class OutlookSendService {
     return !!row;
   }
 
-  private async sendOnce(user: AuthUser, caseId: string, dto: SendCaseEmailDto): Promise<SendCaseEmailResult> {
+  private async sendOnce(user: AuthUser, caseId: string, dto: SendCaseEmailDto, held = { bytes: 0 }): Promise<SendCaseEmailResult> {
     const to = uniqueAddresses(dto.to);
     const cc = uniqueAddresses(dto.cc ?? []).filter((address) => !to.some((t) => t.toLowerCase() === address.toLowerCase()));
     const subject = dto.subject.trim();
@@ -228,7 +236,7 @@ export class OutlookSendService {
 
     // Load and size-check every file BEFORE any Graph call, so a refused file never leaves a half-built draft in Outlook.
     const source = dto.replyToMessageId ? await this.loadReplySource(caseId, dto.replyToMessageId) : null;
-    const { inline: attachments, linked } = await this.loadAttachments(caseId, dto.documentIds ?? []);
+    const { inline: attachments, linked } = await this.loadAttachments(caseId, dto.documentIds ?? [], held);
     const accessToken = await this.connections.getValidAccessToken(connection.id);
     // Uploads and links come BEFORE the draft: a refused link must never leave a half-built draft in Outlook.
     const links = await this.shareLinkedFiles(accessToken, user.firmId, caseId, linked, [...to, ...cc]);
@@ -236,13 +244,17 @@ export class OutlookSendService {
 
     let draft: GraphMessage;
     let mode: SendMode;
+    let sendAttempted = false;
     try {
       ({ draft, mode } = await this.createDraft(accessToken, mail, connection.id, source, dto.replyAll ?? false));
       for (const { file } of attachments) {
         await this.graph.addFileAttachment(accessToken, draft.id, file);
       }
+      sendAttempted = true;
       await this.graph.sendDraft(accessToken, draft.id);
     } catch (error) {
+      // Once send was called Microsoft may have delivered it (ambiguous failure) — the links must keep working.
+      if (!sendAttempted) await this.removeUploads(accessToken, links);
       if (error instanceof GraphApiError && error.status === 401) {
         try {
           await this.connections.markError(connection.id, MailboxConnectionStatus.EXPIRED, 'Graph rejected the token while sending');
@@ -364,6 +376,17 @@ export class OutlookSendService {
     return source;
   }
 
+  /** Best effort: a shared copy of a mail that never went out must not stay shared. */
+  private async removeUploads(token: string, items: { driveId: string; itemId: string }[]) {
+    for (const item of items) {
+      try {
+        await this.drive.deleteItem(token, item.driveId, item.itemId);
+      } catch (error) {
+        this.logger.warn(`Could not remove unsent OneDrive copy ${item.itemId}: ${error}`);
+      }
+    }
+  }
+
   /** Uploads each oversized file to the sender's own OneDrive and makes a link only the recipients can open. */
   private async shareLinkedFiles(
     token: string,
@@ -383,13 +406,15 @@ export class OutlookSendService {
         item = await this.drive.upload(token, 'me', folder.id, file.filename, file.buffer, file.mimeType);
       } catch (error) {
         this.logger.warn(`Case ${caseId}: uploading "${file.filename}" to OneDrive failed: ${error}`);
+        await this.removeUploads(token, links);
         throw new BadRequestException(`อัปโหลดไฟล์ "${file.filename}" ไป OneDrive ไม่สำเร็จ — ลองใหม่อีกครั้ง`);
       }
       try {
         const { webUrl } = await this.drive.createSharingLink(token, item.parentReference?.driveId ?? 'me', item.id, recipientAddresses);
-        links.push({ documentId: file.documentId, filename: file.filename, size: file.buffer.length, webUrl });
+        links.push({ driveId: item.parentReference?.driveId ?? 'me', itemId: item.id, documentId: file.documentId, filename: file.filename, size: file.buffer.length, webUrl });
       } catch (error) {
         this.logger.warn(`Case ${caseId}: creating a share link for "${file.filename}" failed: ${error}`);
+        await this.removeUploads(token, [...links, { driveId: item.parentReference?.driveId ?? 'me', itemId: item.id }]);
         if (error instanceof GraphApiError && (error.status === 400 || error.status === 403)) {
           throw new BadRequestException('องค์กรของคุณไม่อนุญาตให้แชร์ไฟล์ OneDrive ให้ผู้รับนี้ — ลดขนาดไฟล์หรือส่งทางช่องทางอื่น');
         }
@@ -400,7 +425,7 @@ export class OutlookSendService {
   }
 
   /** ≤ 3 MB each and ≤ 15 MB together go inline; the rest become OneDrive links (all files together ≤ 100 MB). */
-  private async loadAttachments(caseId: string, documentIds: string[]): Promise<{ inline: LoadedAttachment[]; linked: LinkedSource[] }> {
+  private async loadAttachments(caseId: string, documentIds: string[], held = { bytes: 0 }): Promise<{ inline: LoadedAttachment[]; linked: LinkedSource[] }> {
     const ids = [...new Set(documentIds)];
     if (ids.length === 0) return { inline: [], linked: [] };
     const documents = await this.prisma.document.findMany({
@@ -419,6 +444,11 @@ export class OutlookSendService {
         .catch(() => {
           throw new NotFoundException(`อ่านไฟล์ "${document.filename}" ไม่ได้ — ไฟล์อาจถูกลบหรือเสียหาย`);
         });
+      if (this.heldBytes + buffer.length > MAX_HELD_BYTES) {
+        throw new ServiceUnavailableException('ระบบกำลังส่งไฟล์ขนาดใหญ่หลายรายการพร้อมกัน — ลองใหม่อีกครั้งในอีกสักครู่');
+      }
+      this.heldBytes += buffer.length;
+      held.bytes += buffer.length;
       selected += buffer.length;
       if (selected > MAX_SEND_TOTAL_BYTES) {
         throw new BadRequestException('ไฟล์ที่เลือกรวมกันเกิน 100 MB — ส่งทีละน้อยลง หรือแชร์จาก OneDrive โดยตรง');

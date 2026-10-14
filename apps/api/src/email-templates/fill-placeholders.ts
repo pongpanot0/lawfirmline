@@ -2,7 +2,7 @@
 export function fillPlaceholders(text: string, vars: Record<string, string>): { text: string; missing: string[] } {
   const missing = new Set<string>();
   const filled = text.replace(/\{\{([^{}]+)\}\}/g, (whole, key: string) => {
-    const value = vars[key];
+    const value = Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : undefined;
     if (value) return value;
     missing.add(key);
     return whole;

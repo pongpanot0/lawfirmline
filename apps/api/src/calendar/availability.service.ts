@@ -36,7 +36,8 @@ export class AvailabilityService {
     const events = await this.prisma.calendarEvent.findMany({
       where: {
         case: { firmId: user.firmId },
-        startAt: { gte: dayStart, lt: dayEnd },
+        // Started up to a day earlier: an overnight event still blocks this morning.
+        startAt: { gte: new Date(dayStart.getTime() - 24 * 60 * 60 * 1000), lt: dayEnd },
         ...(dto.excludeEventId ? { id: { not: dto.excludeEventId } } : {}),
         OR: userIds.map(eventForUserWhere),
       },
@@ -50,6 +51,7 @@ export class AvailabilityService {
 
     const system = new Map<string, BusyBlock[]>(userIds.map((id) => [id, []]));
     for (const e of events) {
+      if (effectiveEnd(e) <= dayStart) continue;
       const people = e.assignees.length ? e.assignees.map((a) => a.userId) : e.case?.leadLawyerId ? [e.case.leadLawyerId] : [];
       const block = { start: e.startAt.toISOString(), end: effectiveEnd(e).toISOString(), label: accessible.get(e.caseId) ? e.title : HIDDEN_LABEL };
       for (const id of people) system.get(id)?.push(block);

@@ -13,4 +13,8 @@ describe('fillPlaceholders', () => {
   it('does not treat $ in values as a replacement pattern', () => {
     expect(fillPlaceholders('{{a}}', { a: '$& 100' }).text).toBe('$& 100');
   });
+
+  it('never resolves inherited object members like {{constructor}}', () => {
+    expect(fillPlaceholders('{{constructor}} {{toString}}', {})).toEqual({ text: '{{constructor}} {{toString}}', missing: ['constructor', 'toString'] });
+  });
 });

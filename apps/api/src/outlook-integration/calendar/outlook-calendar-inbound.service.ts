@@ -106,7 +106,12 @@ export class OutlookCalendarInboundService {
 
     const organizerId = event.onlineMeeting ? event.meetingOrganizerId : null;
     const responsible = eventPeopleIds(event).includes(copy.userId) || organizerId === copy.userId;
-    const movable = event.type === EventType.CLIENT_MEETING || event.type === EventType.OTHER;
+    // Graph data is the owner's to edit: an implausible time (end before start, > 24 h, years away) is only ever a proposal.
+    const plausible =
+      change.end > change.start &&
+      change.end.getTime() - change.start.getTime() <= 24 * 60 * 60 * 1000 &&
+      Math.abs(change.start.getTime() - Date.now()) <= 2 * 365 * 24 * 60 * 60 * 1000;
+    const movable = plausible && (event.type === EventType.CLIENT_MEETING || event.type === EventType.OTHER);
     const owner = await this.prisma.user.findUnique({ where: { id: copy.userId }, select: { firstName: true, lastName: true } });
     const ownerName = owner ? `${owner.firstName} ${owner.lastName}`.trim() : 'ผู้ใช้';
     const { ownRef, firmId, leadLawyerId } = event.case;

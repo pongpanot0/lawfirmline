@@ -153,6 +153,10 @@ export class GraphDriveClient {
   }
 
   /** Overwrite an existing file — same item id, so the Office-online link keeps working. */
+  async deleteItem(token: string, driveId: string, itemId: string): Promise<void> {
+    await this.http.request(token, itemPath(driveId, itemId), { method: 'DELETE' });
+  }
+
   async replaceContent(token: string, driveId: string, itemId: string, body: Buffer, contentType: string): Promise<DriveItem> {
     if (body.length <= SMALL_UPLOAD_MAX_BYTES) {
       return this.http.putBuffer<DriveItem>(token, `${itemPath(driveId, itemId)}/content`, body, contentType);

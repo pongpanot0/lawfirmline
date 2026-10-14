@@ -141,6 +141,17 @@ describe('OutlookCalendarInboundService', () => {
     expect(notifier.notifyAssigned).not.toHaveBeenCalled();
   });
 
+  it('an implausible Outlook time (end before start) is only a proposal even for a meeting', async () => {
+    prisma.calendarEventOutlookChange.findFirst.mockResolvedValue(null);
+    calendar.calendarViewDelta.mockResolvedValue({
+      events: [{ ...moved(), start: new Date('2026-11-01T06:00:00Z'), end: new Date('2026-11-01T05:00:00Z') }],
+      deltaLink: 'DL2',
+    });
+    await svc.pollAll();
+    expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
+    expect(prisma.calendarEventOutlookChange.create).toHaveBeenCalled();
+  });
+
   it('a move by someone who is not responsible is a proposal even for a meeting', async () => {
     prisma.calendarEvent.findUnique.mockResolvedValue(event({ assignees: [{ userId: 'u2' }] }));
     prisma.calendarEventOutlookChange.findFirst.mockResolvedValue(null);

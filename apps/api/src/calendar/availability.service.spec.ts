@@ -56,7 +56,7 @@ describe('AvailabilityService', () => {
     ] }]);
     const r = await svc.get(user, dto);
     expect(graph.getSchedule).toHaveBeenCalledWith('tok', ['a@x.com'], '2026-11-02T07:00:00', '2026-11-02T21:00:00');
-    expect(prisma.calendarEvent.findMany.mock.calls[0][0].where.startAt).toEqual({ gte: new Date('2026-11-01T17:00:00Z'), lt: new Date('2026-11-02T17:00:00Z') });
+    expect(prisma.calendarEvent.findMany.mock.calls[0][0].where.startAt).toEqual({ gte: new Date('2026-10-31T17:00:00Z'), lt: new Date('2026-11-02T17:00:00Z') });
     const a = r.people.find((p) => p.userId === A)!;
     expect(a.source).toBe('OUTLOOK');
     expect(a.busy).toEqual([

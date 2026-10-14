@@ -25,7 +25,7 @@ describe('OutlookSendService', () => {
     addFileAttachment: jest.fn(),
     sendDraft: jest.fn(),
   };
-  const mockDrive = { ensureFolderPath: jest.fn(), upload: jest.fn(), createSharingLink: jest.fn() };
+  const mockDrive = { ensureFolderPath: jest.fn(), upload: jest.fn(), createSharingLink: jest.fn(), deleteItem: jest.fn().mockResolvedValue(undefined) };
   const mockSync = { upsertGraphMessage: jest.fn() };
   const mockStorage = { getBuffer: jest.fn() };
 
@@ -247,6 +247,36 @@ describe('OutlookSendService', () => {
 
         expect(mockGraph.addFileAttachment).toHaveBeenCalledTimes(5);
         expect(result.linkedFiles).toEqual([{ documentId: 'doc-f', filename: 'f.pdf' }]);
+      });
+
+      it('removes the uploaded copy when the link is refused', async () => {
+        mockPrisma.document.findMany.mockResolvedValue(docs('big'));
+        sizes({ big: 4 * MB });
+        mockDrive.createSharingLink.mockRejectedValue(new GraphApiError(403, 'accessDenied'));
+
+        await expect(service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-big'] })).rejects.toThrow();
+        expect(mockDrive.deleteItem).toHaveBeenCalledWith('token-1', 'drive-1', 'item-big.pdf');
+      });
+
+      it('removes shared copies when the draft fails, but keeps them once send was attempted', async () => {
+        mockPrisma.document.findMany.mockResolvedValue(docs('big'));
+        sizes({ big: 4 * MB });
+        mockGraph.createDraftMessage.mockRejectedValueOnce(new GraphApiError(500, 'boom'));
+        await expect(service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-big'] })).rejects.toThrow();
+        expect(mockDrive.deleteItem).toHaveBeenCalledTimes(1);
+
+        mockDrive.deleteItem.mockClear();
+        mockGraph.sendDraft.mockRejectedValueOnce(new GraphApiError(504, 'timeout'));
+        await expect(service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-big'] })).rejects.toThrow();
+        expect(mockDrive.deleteItem).not.toHaveBeenCalled();
+      });
+
+      it('refuses (503) when concurrent sends would hold too many bytes in memory', async () => {
+        mockPrisma.document.findMany.mockResolvedValue(docs('big'));
+        sizes({ big: 4 * MB });
+        (service as unknown as { heldBytes: number }).heldBytes = 249 * MB;
+        await expect(service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-big'] })).rejects.toThrow('ลองใหม่อีกครั้งในอีกสักครู่');
+        expect((service as unknown as { heldBytes: number }).heldBytes).toBe(249 * MB);
       });
 
       it('refuses with a Thai message and creates no draft when the tenant refuses the link', async () => {
