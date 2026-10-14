@@ -11,10 +11,13 @@ import { GraphHttp } from './graph/graph-http';
 import { GraphCalendarClient } from './graph/graph-calendar.client';
 import { OutlookSubscriptionService } from './outlook-subscription.service';
 import { CaseFolderSyncService } from './case-folder-sync.service';
+import { CaseFolderLinksController } from './case-folder-links.controller';
+import { CaseFolderLinksService } from './case-folder-links.service';
+import { GraphMailFoldersClient } from './graph/graph-mail-folders.client';
 import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
 
 @Module({
-  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController],
+  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController, CaseFolderLinksController],
   providers: [
     GraphHttp,
     GraphCalendarClient,
@@ -24,7 +27,9 @@ import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.ser
     OutlookSyncService,
     OutlookSubscriptionService,
     OutlookCalendarSyncService,
+    GraphMailFoldersClient,
     CaseFolderSyncService,
+    CaseFolderLinksService,
     FirmLinkService,
   ],
   exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService],
