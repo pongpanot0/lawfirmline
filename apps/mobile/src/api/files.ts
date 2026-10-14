@@ -80,6 +80,12 @@ export async function openTaskAttachment(taskId: string, attachmentId: string, f
   if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
 }
 
+export async function openEmailAttachment(attachmentId: string, filename: string) {
+  const safeName = filename.replace(/[^\w.\-ก-๙ ]+/g, '_') || 'attachment';
+  const result = await downloadFile(`/email-intake/attachments/${attachmentId}/download`, `${FileSystem.cacheDirectory}${attachmentId}-${safeName}`);
+  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
+}
+
 export interface NewExpense {
   amount: number;
   description: string;

@@ -1,0 +1,216 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, X } from 'lucide-react-native';
+import { api, ApiError } from '@/api/client';
+import type { EmailComposeOptions, EmailTemplateItem, EmailThreadDetail } from '@/api/types';
+import { Dropdown } from '@/components/Dropdown';
+import { FormField, FormPage, FormSection } from '@/components/Form';
+import { Button, EmptyNote, ErrorNote, Loading, SectionLabel } from '@/components/ui';
+import { composeError, mergeTemplateBody, newSubject, parseAddressList, replyRecipients, replySubject } from '@/lib/case-email-compose';
+import { colors, radius, spacing } from '@/theme';
+
+interface DocItem { id: string; filename?: string; name?: string; fileName?: string }
+const docName = (d: DocItem) => d.filename ?? d.name ?? d.fileName ?? 'เอกสาร';
+
+function uuidV4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16);
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+function AddressField({ label, items, onChange, suggestions }: {
+  label: string; items: string[]; onChange: (items: string[]) => void; suggestions: EmailComposeOptions['recipients'];
+}) {
+  const [text, setText] = useState('');
+  const add = (raw: string) => {
+    const merged = [...items];
+    for (const a of parseAddressList(raw)) if (!merged.some((x) => x.toLowerCase() === a.toLowerCase())) merged.push(a);
+    onChange(merged);
+    setText('');
+  };
+  const free = suggestions.filter((s) => !items.some((x) => x.toLowerCase() === s.email.toLowerCase()));
+  return <View style={{ gap: spacing.sm }}>
+    <SectionLabel>{label}</SectionLabel>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+      {items.map((a) => <Pressable key={a} accessibilityRole="button" accessibilityLabel={`ลบ ${a}`} onPress={() => onChange(items.filter((x) => x !== a))}
+        style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, borderRadius: radius.button, backgroundColor: colors.soft }}>
+        <Text style={{ color: colors.ink, fontSize: 14 }}>{a}</Text><X size={14} color={colors.muted} />
+      </Pressable>)}
+    </View>
+    <TextInput accessibilityLabel={label} value={text} onChangeText={(v) => (/[,;\s]$/.test(v) ? add(v) : setText(v))}
+      onSubmitEditing={() => add(text)} onBlur={() => add(text)} autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
+      placeholder="พิมพ์อีเมลแล้วกด เพิ่ม" placeholderTextColor={colors.faint}
+      style={{ minHeight: 48, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.button, backgroundColor: colors.surface, color: colors.text, fontSize: 16 }} />
+    {free.length > 0 && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+      {free.slice(0, 12).map((s) => <Pressable key={s.email} accessibilityRole="button" accessibilityLabel={`เพิ่ม ${s.name} ${s.email}`} onPress={() => add(s.email)}
+        style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.button, borderWidth: 1, borderColor: colors.line }}>
+        <Text style={{ color: colors.info, fontSize: 13 }}>+ {s.name || s.email}</Text>
+      </Pressable>)}
+    </View>}
+  </View>;
+}
+
+function DocPicker({ caseId, selected, onChange }: { caseId: string; selected: string[]; onChange: (ids: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const docs = useQuery({ queryKey: ['case-documents', caseId], queryFn: () => api<DocItem[]>(`/cases/${caseId}/documents`), enabled: open || selected.length > 0 });
+  const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : selected.length >= 10 ? selected : [...selected, id]);
+  return <>
+    <Button title={selected.length ? `แนบเอกสารคดี (${selected.length})` : 'แนบเอกสารคดี'} ghost onPress={() => setOpen(true)} />
+    <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
+      <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+        <View style={{ padding: spacing.lg, gap: spacing.xs }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: colors.ink }}>แนบเอกสารคดี</Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>เลือกได้ไม่เกิน 10 ไฟล์ · ไฟล์ใหญ่กว่า 3 MB จะส่งเป็นลิงก์ OneDrive</Text>
+        </View>
+        <ScrollView>
+          {docs.isLoading ? <EmptyNote>กำลังโหลด…</EmptyNote> : docs.isError ? <View style={{ padding: spacing.lg }}><ErrorNote message="โหลดเอกสารไม่สำเร็จ" onRetry={() => docs.refetch()} /></View>
+            : (docs.data?.length ?? 0) === 0 ? <EmptyNote>ไม่มีเอกสารในคดี</EmptyNote>
+            : docs.data!.map((d) => {
+              const on = selected.includes(d.id);
+              return <Pressable key={d.id} accessibilityRole="checkbox" accessibilityState={{ checked: on }} onPress={() => toggle(d.id)}
+                style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderBottomWidth: 1, borderColor: colors.line }}>
+                <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: on ? colors.good : colors.muted, backgroundColor: on ? colors.good : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                  {on && <Check size={15} color={colors.surface} strokeWidth={3} />}
+                </View>
+                <Text style={{ flex: 1, color: colors.text }} numberOfLines={2}>{docName(d)}</Text>
+              </Pressable>;
+            })}
+        </ScrollView>
+        <View style={{ padding: spacing.lg }}><Button title="เสร็จ" onPress={() => setOpen(false)} /></View>
+      </SafeAreaView></SafeAreaProvider>
+    </Modal>
+  </>;
+}
+
+export default function EmailComposeScreen() {
+  const { id, threadId, replyTo, replyAll } = useLocalSearchParams<{ id: string; threadId?: string; replyTo?: string; replyAll?: string }>();
+  const router = useRouter();
+  const navigation = useNavigation();
+  const queryClient = useQueryClient();
+  const isReply = !!replyTo && !!threadId;
+  const [to, setTo] = useState<string[]>([]);
+  const [cc, setCc] = useState<string[]>([]);
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [docIds, setDocIds] = useState<string[]>([]);
+  const [signature, setSignature] = useState(true);
+  const [review, setReview] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
+  const [templateId, setTemplateId] = useState('');
+  const requestId = useRef(uuidV4());
+  const sent = useRef(false);
+  const prefilled = useRef(false);
+
+  const options = useQuery({ queryKey: ['email-compose-options', id], queryFn: () => api<EmailComposeOptions>(`/cases/${id}/outbound-email/compose-options`), enabled: !!id });
+  const templates = useQuery({ queryKey: ['email-templates'], queryFn: () => api<EmailTemplateItem[]>('/email-templates') });
+  const source = useQuery({ queryKey: ['case-email-thread', id, threadId], queryFn: () => api<EmailThreadDetail>(`/cases/${id}/email/threads/${threadId}`), enabled: isReply });
+
+  useEffect(() => {
+    if (prefilled.current || !options.data || (isReply && !source.data)) return;
+    prefilled.current = true;
+    const msg = source.data?.messages.find((m) => m.id === replyTo);
+    if (isReply && msg && source.data) {
+      const r = replyRecipients(msg, replyAll === '1', options.data.mailboxAddress);
+      setTo(r.to); setCc(r.cc); setSubject(replySubject(source.data.subject));
+    } else setSubject(newSubject(options.data.ownRef));
+  }, [options.data, source.data, isReply, replyTo, replyAll]);
+
+  const dirty = body.trim().length > 0 || docIds.length > 0;
+  useEffect(() => navigation.addListener('beforeRemove', (e) => {
+    if (sent.current || !dirty) return;
+    e.preventDefault();
+    Alert.alert('ทิ้งข้อความที่เขียน?', undefined, [
+      { text: 'เขียนต่อ', style: 'cancel' },
+      { text: 'ทิ้ง', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) },
+    ]);
+  }), [navigation, dirty]);
+
+  const applyTemplate = async (tid: string) => {
+    setTemplateId(tid);
+    try {
+      const r = await api<{ subject: string; body: string; missing: Array<{ key: string; label: string }> }>(`/cases/${id}/email-templates/${tid}/render`);
+      const fill = (how: 'replace' | 'append') => { setBody(mergeTemplateBody(body, r.body, how)); setSubject(r.subject); setMissing(r.missing.map((m) => m.label)); };
+      if (body.trim()) Alert.alert('มีข้อความอยู่แล้ว', undefined, [
+        { text: 'ยกเลิก', style: 'cancel' }, { text: 'ต่อท้าย', onPress: () => fill('append') }, { text: 'แทนที่', onPress: () => fill('replace') }]);
+      else fill('replace');
+    } catch (e) { setError(e instanceof Error ? e.message : 'ใช้แม่แบบไม่สำเร็จ'); }
+  };
+
+  const send = useMutation({
+    mutationFn: () => api<{ mode: string; recorded: boolean; linkedFiles: Array<{ filename: string }> }>(`/cases/${id}/outbound-email/send`, {
+      method: 'POST',
+      body: { to, cc, subject, body, ...(docIds.length ? { documentIds: docIds } : {}), ...(isReply ? { replyToMessageId: replyTo, replyAll: replyAll === '1' } : {}),
+        clientRequestId: requestId.current, includeSignature: signature && !!options.data?.signature },
+    }),
+    onSuccess: (r) => {
+      sent.current = true;
+      queryClient.invalidateQueries({ queryKey: ['case-email-threads', id] });
+      queryClient.invalidateQueries({ queryKey: ['case-email-thread', id] });
+      const notes = [r.mode === 'REPLY_AS_NEW' ? 'ส่งเป็นอีเมลใหม่ (ไม่สามารถตอบในเธรดเดิมได้)' : null,
+        r.linkedFiles.length ? `ส่งเป็นลิงก์ OneDrive: ${r.linkedFiles.map((f) => f.filename).join(', ')}` : null].filter(Boolean).join('\n');
+      Alert.alert('ส่งอีเมลแล้ว', notes || undefined);
+      router.back();
+    },
+    onError: (e) => setError(e instanceof ApiError || e instanceof Error ? e.message : 'ส่งอีเมลไม่สำเร็จ'),
+  });
+
+  const problem = useMemo(() => composeError({ to, cc, subject, body }), [to, cc, subject, body]);
+  const hasTemplates = (templates.data?.length ?? 0) > 0;
+
+  if (options.isLoading || (isReply && source.isLoading)) return <Loading />;
+  if (options.isError || !options.data) return <View style={{ padding: spacing.lg }}><ErrorNote message="โหลดข้อมูลเขียนอีเมลไม่สำเร็จ" onRetry={() => options.refetch()} /></View>;
+  if (isReply && source.isError) return <View style={{ padding: spacing.lg }}><ErrorNote message="โหลดอีเมลต้นฉบับไม่สำเร็จ" onRetry={() => source.refetch()} /></View>;
+  if (!options.data.mailboxAddress) return <View style={{ padding: spacing.lg }}><EmptyNote>เชื่อมต่อ Microsoft 365 ที่หน้าเว็บ (ตั้งค่า) ก่อน</EmptyNote></View>;
+  const opts = options.data;
+
+  if (review) return <>
+    <Stack.Screen options={{ title: 'ตรวจทานก่อนส่ง' }} />
+    <FormPage>
+      <FormSection title="ตรวจทานก่อนส่ง">
+        <Text>จาก: {opts.mailboxAddress}</Text>
+        <Text>ถึง: {to.join(', ')}</Text>
+        {cc.length > 0 && <Text>สำเนา: {cc.join(', ')}</Text>}
+        <Text style={{ fontWeight: '700' }}>{subject}</Text>
+        <Text style={{ color: colors.muted }}>ไฟล์แนบ: {docIds.length} ไฟล์ · ลายเซ็น: {signature && opts.signature ? 'มี' : 'ไม่มี'}</Text>
+        <Text style={{ lineHeight: 22 }}>{body}</Text>
+      </FormSection>
+      {error && <ErrorNote message={error} />}
+      <Button title="ส่งอีเมล" busy={send.isPending} disabled={send.isPending} onPress={() => { setError(null); send.mutate(); }} />
+      <Button title="กลับไปแก้ไข" ghost disabled={send.isPending} onPress={() => setReview(false)} />
+    </FormPage>
+  </>;
+
+  return <>
+    <Stack.Screen options={{ title: isReply ? 'ตอบกลับอีเมล' : 'เขียนอีเมล' }} />
+    <FormPage>
+      <AddressField label="ถึง" items={to} onChange={setTo} suggestions={opts.recipients} />
+      <AddressField label="สำเนา (CC)" items={cc} onChange={setCc} suggestions={opts.recipients} />
+      <FormField label="หัวเรื่อง" value={subject} onChange={setSubject} />
+      {hasTemplates && <View style={{ gap: spacing.sm }}>
+        <SectionLabel>แม่แบบอีเมล</SectionLabel>
+        <Dropdown label="เลือกแม่แบบ" value={templateId} options={templates.data!.map((t) => ({ value: t.id, label: t.name }))} onChange={applyTemplate} />
+        {missing.length > 0 && <Text style={{ color: colors.warn, fontSize: 13 }}>ยังไม่มีข้อมูล: {missing.join(', ')} — กรอกเองในข้อความ</Text>}
+      </View>}
+      <FormField label="ข้อความ" value={body} onChange={setBody} multiline />
+      <DocPicker caseId={id} selected={docIds} onChange={setDocIds} />
+      {opts.signature ? <View style={{ gap: spacing.sm }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 }}>
+          <Text style={{ fontWeight: '600', color: colors.ink }}>แนบลายเซ็น</Text>
+          <Switch accessibilityLabel="แนบลายเซ็น" value={signature} onValueChange={setSignature} />
+        </View>
+        {signature && <Text style={{ color: colors.muted, fontSize: 13 }}>{opts.signature}</Text>}
+      </View> : null}
+      {error && <ErrorNote message={error} />}
+      <Button title="ตรวจทานก่อนส่ง" onPress={() => {
+        if (problem) { setError(problem); return; }
+        setError(null); setReview(true);
+      }} />
+    </FormPage>
+  </>;
+}
