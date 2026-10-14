@@ -62,7 +62,7 @@ export class OutlookSyncService {
     data.sentDeltaLink = sent.deltaLink;
 
     await this.prisma.mailboxConnection.update({ where: { id: connectionId }, data });
-    if (fresh.size) await this.emailNotifier.notifyBatch(fresh, connection.connectedByUserId);
+    if (fresh.size) await this.emailNotifier.notifyBatch(fresh, connection.userId ?? connection.connectedByUserId);
     return { messagesSynced };
   }
 

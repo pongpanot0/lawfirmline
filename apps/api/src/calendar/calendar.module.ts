@@ -11,7 +11,7 @@ import { DeadlinesModule } from '../deadlines/deadlines.module';
 import { OutlookIntegrationModule } from '../outlook-integration/outlook-integration.module';
 
 @Module({
-  imports: [TravelModule, forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule), OutlookIntegrationModule],
+  imports: [TravelModule, forwardRef(() => NotificationsModule), forwardRef(() => DeadlinesModule), forwardRef(() => OutlookIntegrationModule)],
   controllers: [CalendarController, CourtDayController, EventResponsibilityController],
   providers: [CalendarService, CourtDayService, EventResponsibilityService],
   exports: [CalendarService, EventResponsibilityService],

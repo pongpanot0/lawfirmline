@@ -55,7 +55,7 @@ export class CaseFolderSyncService {
   private async runLink(linkId: string): Promise<{ messagesSynced: number }> {
     const link = await this.prisma.caseExternalLink.findUniqueOrThrow({
       where: { id: linkId },
-      include: { connection: { select: { mailboxAddress: true, status: true, connectedByUserId: true } }, case: { select: { deletedAt: true } } },
+      include: { connection: { select: { mailboxAddress: true, status: true, userId: true, connectedByUserId: true } }, case: { select: { deletedAt: true } } },
     });
     if (link.case.deletedAt) return { messagesSynced: 0 };
     let messagesSynced = 0;
@@ -130,7 +130,7 @@ export class CaseFolderSyncService {
           lastError: failed ? `ข้ามอีเมล ${failed} ฉบับที่บันทึกไม่ได้: ${firstFailure}`.slice(0, 2000) : null,
         },
       });
-      if (fresh.size) await this.emailNotifier.notifyBatch(fresh, link.connection.connectedByUserId);
+      if (fresh.size) await this.emailNotifier.notifyBatch(fresh, link.connection.userId ?? link.connection.connectedByUserId);
       return { messagesSynced };
     } catch (error) {
       if (isUnlinked(error)) return { messagesSynced }; // unlinked mid-sync — nothing left to record
