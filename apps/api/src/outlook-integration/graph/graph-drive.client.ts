@@ -160,6 +160,20 @@ export class GraphDriveClient {
     return this.uploadChunks(await this.createUploadSession(token, driveId, { itemId }), body);
   }
 
+  /** "Specific people" view link (never anonymous): only the listed recipients can open it. */
+  async createSharingLink(token: string, driveId: string, itemId: string, recipients: string[]): Promise<{ webUrl: string }> {
+    const res = await this.http.request<{ link: { webUrl: string } }>(token, `${itemPath(driveId, itemId)}/createLink`, {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'view',
+        scope: 'users',
+        recipients: recipients.map((email) => ({ email })),
+        retainInheritedPermissions: false,
+      }),
+    });
+    return { webUrl: res.link.webUrl };
+  }
+
   /** `['Samnuan', ownRef]` → `/me/drive/root:/Samnuan/{ownRef}`, creating each missing level. */
   async ensureFolderPath(token: string, segments: string[]): Promise<DriveItem> {
     let parentId = 'root';

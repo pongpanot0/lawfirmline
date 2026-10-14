@@ -23,6 +23,8 @@ export type CaseEmailComposerMode =
   | { kind: 'new' }
   | { kind: 'reply'; replyAll: boolean; threadSubject: string; message: ReplySourceMessage };
 
+const LINK_NOTE = 'ไฟล์เกิน 3 MB ระบบจะส่งเป็นลิงก์ OneDrive ให้อัตโนมัติ (เปิดได้เฉพาะผู้รับ)';
+
 /**
  * เขียน/ตอบอีเมลจากกล่อง Microsoft 365 ของผู้ใช้เอง — เปิดจากแท็บอีเมลคดี และหน้า thread ที่ผูกคดีแล้ว
  * `mode === null` = ปิด. ส่งจริงหลังกดยืนยันในกล่องสรุปเท่านั้น
@@ -128,7 +130,8 @@ export function CaseEmailComposer({
       publishActionFeedback(
         'success',
         (result.recorded ? 'ส่งอีเมลแล้ว' : 'ส่งอีเมลแล้ว แต่บันทึกเข้าแท็บอีเมลไม่สำเร็จ — ดูได้ใน Sent Items ของ Outlook') +
-          (result.mode === 'REPLY_AS_NEW' ? ' (ส่งเป็นอีเมลใหม่ ไม่อยู่ใน conversation เดิม)' : ''),
+          (result.mode === 'REPLY_AS_NEW' ? ' (ส่งเป็นอีเมลใหม่ ไม่อยู่ใน conversation เดิม)' : '') +
+          (result.linkedFiles.length ? ` · ส่งเป็นลิงก์ ${result.linkedFiles.length} ไฟล์` : ''),
       );
       setConfirming(false);
       onSent?.(result);
@@ -191,6 +194,7 @@ export function CaseEmailComposer({
             <div>
               <dt className="text-muted-foreground">ไฟล์แนบ ({attached.length})</dt>
               <dd>{attached.length ? attached.map((d) => d.filename).join(', ') : 'ไม่มี'}</dd>
+              {attached.length > 0 && <dd className="text-xs text-muted-foreground">{LINK_NOTE}</dd>}
             </div>
           </dl>
           <div className="mt-5 flex justify-end gap-2">
@@ -252,7 +256,7 @@ export function CaseEmailComposer({
           {documents.length > 0 && (
             <fieldset className="space-y-1">
               <legend className="text-sm font-medium">แนบเอกสารคดี</legend>
-              <p className="text-xs text-muted-foreground">ไฟล์ละไม่เกิน 3 MB — ไฟล์ใหญ่กว่านั้นให้ส่งเป็นลิงก์ OneDrive</p>
+              <p className="text-xs text-muted-foreground">{LINK_NOTE}</p>
               <div className="max-h-48 space-y-1 overflow-y-auto">
                 {documents.map((d) => (
                   <label key={d.id} className="flex items-center gap-2 text-sm">

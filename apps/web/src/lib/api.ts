@@ -1277,6 +1277,8 @@ export interface SendCaseEmailResult {
   threadId: string | null;
   /** false = sent by Microsoft but not yet in the case email tab */
   recorded: boolean;
+  /** Files too big to attach, sent as a OneDrive link instead */
+  linkedFiles: { documentId: string; filename: string }[];
 }
 
 export interface ReviewDecisionItem {

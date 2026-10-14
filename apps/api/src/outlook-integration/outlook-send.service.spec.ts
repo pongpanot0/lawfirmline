@@ -6,6 +6,7 @@ import { FileStorageService } from '../common/services/file-storage.service';
 import { GraphApiError, OutlookGraphClient } from './outlook-graph.client';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
+import { GraphDriveClient } from './graph/graph-drive.client';
 import { OutlookSendService, buildRecipientOptions, prependToHtml } from './outlook-send.service';
 
 describe('OutlookSendService', () => {
@@ -24,6 +25,7 @@ describe('OutlookSendService', () => {
     addFileAttachment: jest.fn(),
     sendDraft: jest.fn(),
   };
+  const mockDrive = { ensureFolderPath: jest.fn(), upload: jest.fn(), createSharingLink: jest.fn() };
   const mockSync = { upsertGraphMessage: jest.fn() };
   const mockStorage = { getBuffer: jest.fn() };
 
@@ -57,6 +59,13 @@ describe('OutlookSendService', () => {
     mockPrisma.auditLog.findFirst.mockResolvedValue(null);
     mockPrisma.auditLog.create.mockResolvedValue({ id: 'audit-1' });
     mockPrisma.document.findMany.mockResolvedValue([]);
+    mockPrisma.case.findFirst.mockResolvedValue({ ownRef: 'TSB-1' });
+    mockDrive.ensureFolderPath.mockResolvedValue({ id: 'folder-1' });
+    mockDrive.upload.mockImplementation(async (_t: string, _d: string, _p: string, name: string) => ({
+      id: `item-${name}`,
+      parentReference: { driveId: 'drive-1' },
+    }));
+    mockDrive.createSharingLink.mockImplementation(async (_t: string, _d: string, itemId: string) => ({ webUrl: `https://1drv.test/${itemId}` }));
 
     const module = await Test.createTestingModule({
       providers: [
@@ -66,6 +75,7 @@ describe('OutlookSendService', () => {
         { provide: OutlookGraphClient, useValue: mockGraph },
         { provide: OutlookSyncService, useValue: mockSync },
         { provide: FileStorageService, useValue: mockStorage },
+        { provide: GraphDriveClient, useValue: mockDrive },
       ],
     }).compile();
     service = module.get(OutlookSendService);
@@ -75,7 +85,7 @@ describe('OutlookSendService', () => {
     it('drafts, sends, records the message on the case and writes the audit log', async () => {
       const result = await service.send(user, 'case-1', baseDto);
 
-      expect(result).toEqual({ mode: 'NEW', threadId: 'thread-1', recorded: true });
+      expect(result).toEqual({ mode: 'NEW', threadId: 'thread-1', recorded: true, linkedFiles: [] });
       expect(mockGraph.createDraftMessage).toHaveBeenCalledWith('token-1', {
         subject: '[TSB-1] นัดประชุม',
         body: { contentType: 'HTML', content: '<div>เรียนคุณลูกความ<br>ขอนัดประชุม</div>' },
@@ -177,17 +187,82 @@ describe('OutlookSendService', () => {
       expect(mockPrisma.auditLog.create.mock.calls[0][0].data.metadata.documentIds).toEqual(['doc-1']);
     });
 
-    it('rejects a document over 3 MB before touching Graph', async () => {
-      mockPrisma.document.findMany.mockResolvedValue([
-        { id: 'doc-1', filename: 'คำฟ้อง.pdf', mimeType: 'application/pdf', storagePath: 'cases/doc-1.pdf' },
-      ]);
-      mockStorage.getBuffer.mockResolvedValue(Buffer.alloc(3 * 1024 * 1024 + 1));
+    describe('large files as OneDrive links', () => {
+      const MB = 1024 * 1024;
+      const docs = (...names: string[]) =>
+        names.map((n) => ({ id: `doc-${n}`, filename: `${n}.pdf`, mimeType: 'application/pdf', storagePath: `cases/${n}.pdf` }));
+      const sizes = (m: Record<string, number>) =>
+        mockStorage.getBuffer.mockImplementation(async (path: string) => Buffer.alloc(m[path.replace('cases/', '').replace('.pdf', '')]));
 
-      await expect(service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-1'] })).rejects.toThrow(
-        'ไฟล์ "คำฟ้อง.pdf" ใหญ่เกิน 3 MB แนบตรงไม่ได้ — ใช้ลิงก์ OneDrive แทน',
-      );
-      expect(mockConnections.getValidAccessToken).not.toHaveBeenCalled();
-      expect(mockGraph.createDraftMessage).not.toHaveBeenCalled();
+      it('attaches a file of exactly 3 MB inline and creates no link', async () => {
+        mockPrisma.document.findMany.mockResolvedValue(docs('a'));
+        sizes({ a: 3 * MB });
+
+        const result = await service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-a'] });
+
+        expect(mockGraph.addFileAttachment).toHaveBeenCalledTimes(1);
+        expect(mockDrive.upload).not.toHaveBeenCalled();
+        expect(result.linkedFiles).toEqual([]);
+      });
+
+      it('sends a 4 MB file as a link to to+cc (de-duplicated), placed in the body', async () => {
+        mockPrisma.document.findMany.mockResolvedValue(docs('big'));
+        sizes({ big: 4 * MB });
+
+        const result = await service.send(user, 'case-1', {
+          ...baseDto,
+          to: ['A@x.com'],
+          cc: ['a@x.com', 'b@x.com'],
+          documentIds: ['doc-big'],
+        });
+
+        expect(mockDrive.ensureFolderPath).toHaveBeenCalledWith('token-1', ['Samnuan', 'TSB-1', 'ส่งออก']);
+        expect(mockDrive.upload).toHaveBeenCalledWith('token-1', 'me', 'folder-1', 'big.pdf', expect.any(Buffer), 'application/pdf');
+        expect(mockDrive.createSharingLink).toHaveBeenCalledWith('token-1', 'drive-1', 'item-big.pdf', ['A@x.com', 'b@x.com']);
+        const html = mockGraph.createDraftMessage.mock.calls[0][1].body.content;
+        expect(html).toContain('<a href="https://1drv.test/item-big.pdf">big.pdf</a> (4.0 MB)');
+        expect(html.indexOf('เรียนคุณลูกความ')).toBeLessThan(html.indexOf('ลิงก์ OneDrive'));
+        expect(mockGraph.addFileAttachment).not.toHaveBeenCalled();
+        expect(result.linkedFiles).toEqual([{ documentId: 'doc-big', filename: 'big.pdf' }]);
+        expect(mockPrisma.auditLog.create.mock.calls[0][0].data.metadata.linkedDocumentIds).toEqual(['doc-big']);
+      });
+
+      it('puts the link block above the quoted original when replying', () => {
+        expect(prependToHtml('<html><body>quoted</body></html>', '<div>hi</div><p>links</p>')).toBe(
+          '<html><body><div>hi</div><p>links</p><br>quoted</body></html>',
+        );
+      });
+
+      it('links the files that overflow the 15 MB inline total', async () => {
+        mockPrisma.document.findMany.mockResolvedValue(docs('a', 'b', 'c', 'd', 'e', 'f'));
+        sizes({ a: 3 * MB, b: 3 * MB, c: 3 * MB, d: 3 * MB, e: 3 * MB, f: 2 * MB });
+
+        const result = await service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-a', 'doc-b', 'doc-c', 'doc-d', 'doc-e', 'doc-f'] });
+
+        expect(mockGraph.addFileAttachment).toHaveBeenCalledTimes(5);
+        expect(result.linkedFiles).toEqual([{ documentId: 'doc-f', filename: 'f.pdf' }]);
+      });
+
+      it('refuses with a Thai message and creates no draft when the tenant refuses the link', async () => {
+        mockPrisma.document.findMany.mockResolvedValue(docs('big'));
+        sizes({ big: 4 * MB });
+        mockDrive.createSharingLink.mockRejectedValue(new GraphApiError(403, 'accessDenied'));
+
+        await expect(service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-big'] })).rejects.toThrow(
+          'องค์กรของคุณไม่อนุญาตให้แชร์ไฟล์ OneDrive ให้ผู้รับนี้ — ลดขนาดไฟล์หรือส่งทางช่องทางอื่น',
+        );
+        expect(mockGraph.createDraftMessage).not.toHaveBeenCalled();
+        expect(mockGraph.sendDraft).not.toHaveBeenCalled();
+      });
+
+      it('rejects a file over 250 MB before any Graph call', async () => {
+        mockPrisma.document.findMany.mockResolvedValue(docs('huge'));
+        sizes({ huge: 250 * MB + 1 });
+
+        await expect(service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-huge'] })).rejects.toThrow('250 MB');
+        expect(mockConnections.getValidAccessToken).not.toHaveBeenCalled();
+        expect(mockDrive.upload).not.toHaveBeenCalled();
+      });
     });
 
     it('rejects a document that is not in this case', async () => {
@@ -227,7 +302,7 @@ describe('OutlookSendService', () => {
       mockSync.upsertGraphMessage.mockRejectedValue(new Error('db down'));
       mockPrisma.auditLog.create.mockRejectedValueOnce(new Error('db down'));
 
-      await expect(service.send(user, 'case-1', baseDto)).resolves.toEqual({ mode: 'NEW', threadId: null, recorded: false });
+      await expect(service.send(user, 'case-1', baseDto)).resolves.toEqual({ mode: 'NEW', threadId: null, recorded: false, linkedFiles: [] });
       expect(mockGraph.sendDraft).toHaveBeenCalledTimes(1);
     });
   });

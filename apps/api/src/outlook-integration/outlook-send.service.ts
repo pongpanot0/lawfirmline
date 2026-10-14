@@ -13,12 +13,15 @@ import {
 } from './outlook-graph.client';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
+import { GraphDriveClient } from './graph/graph-drive.client';
 import { SendCaseEmailDto } from './dto/send-case-email.dto';
 
 export const MAX_RECIPIENTS = 50;
 export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 /** base64 inflates ~33% and Exchange caps a message near 35 MB. */
 export const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+/** Bigger than this can't even go as a OneDrive link. */
+export const MAX_LINKED_FILE_BYTES = 250 * 1024 * 1024;
 export const CASE_EMAIL_SENT = 'CASE_EMAIL_SENT';
 
 export type SendMode = 'NEW' | 'REPLY' | 'REPLY_AS_NEW';
@@ -28,6 +31,8 @@ export interface SendCaseEmailResult {
   threadId: string | null;
   /** false = Microsoft sent it, but writing it into the case's email tab failed. */
   recorded: boolean;
+  /** Files too big to attach, sent as a OneDrive link instead. */
+  linkedFiles: { documentId: string; filename: string }[];
 }
 
 export interface RecipientOption {
@@ -102,6 +107,30 @@ interface LoadedAttachment {
   file: GraphFileAttachmentInput;
 }
 
+interface LinkedSource {
+  documentId: string;
+  filename: string;
+  mimeType: string;
+  buffer: Buffer;
+}
+
+interface SharedLink {
+  documentId: string;
+  filename: string;
+  size: number;
+  webUrl: string;
+}
+
+const formatSize = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+function linksHtml(links: SharedLink[]): string {
+  if (links.length === 0) return '';
+  const items = links
+    .map((l) => `<li><a href="${escapeHtml(l.webUrl)}">${escapeHtml(l.filename)}</a> (${formatSize(l.size)})</li>`)
+    .join('');
+  return `<p>ไฟล์แนบ (ลิงก์ OneDrive — เปิดได้เฉพาะผู้รับอีเมลนี้):</p><ul>${items}</ul>`;
+}
+
 /**
  * Sends case email from the signed-in user's OWN Microsoft mailbox — never a
  * colleague's — and files the sent message under the case right away
@@ -119,6 +148,7 @@ export class OutlookSendService {
     private graph: OutlookGraphClient,
     private sync: OutlookSyncService,
     private fileStorage: FileStorageService,
+    private drive: GraphDriveClient,
   ) {}
 
   async composeOptions(user: AuthUser, caseId: string) {
@@ -192,9 +222,11 @@ export class OutlookSendService {
 
     // Load and size-check every file BEFORE any Graph call, so a refused file never leaves a half-built draft in Outlook.
     const source = dto.replyToMessageId ? await this.loadReplySource(caseId, dto.replyToMessageId) : null;
-    const attachments = await this.loadAttachments(caseId, dto.documentIds ?? []);
+    const { inline: attachments, linked } = await this.loadAttachments(caseId, dto.documentIds ?? []);
     const accessToken = await this.connections.getValidAccessToken(connection.id);
-    const mail: OutgoingMail = { to, cc, subject, html: textToHtml(body) };
+    // Uploads and links come BEFORE the draft: a refused link must never leave a half-built draft in Outlook.
+    const links = await this.shareLinkedFiles(accessToken, user.firmId, caseId, linked, [...to, ...cc]);
+    const mail: OutgoingMail = { to, cc, subject, html: textToHtml(body) + linksHtml(links) };
 
     let draft: GraphMessage;
     let mode: SendMode;
@@ -261,6 +293,7 @@ export class OutlookSendService {
             cc,
             subject,
             documentIds: attachments.map((a) => a.documentId),
+            linkedDocumentIds: links.map((l) => l.documentId),
             replyToMessageId: dto.replyToMessageId ?? null,
             clientRequestId: dto.clientRequestId ?? null,
           },
@@ -270,7 +303,12 @@ export class OutlookSendService {
       this.logger.error(`Case ${caseId}: email sent but audit log write failed: ${error}`);
     }
 
-    return { mode, threadId, recorded: threadId !== null };
+    return {
+      mode,
+      threadId,
+      recorded: threadId !== null,
+      linkedFiles: links.map((l) => ({ documentId: l.documentId, filename: l.filename })),
+    };
   }
 
   /**
@@ -320,16 +358,53 @@ export class OutlookSendService {
     return source;
   }
 
-  private async loadAttachments(caseId: string, documentIds: string[]): Promise<LoadedAttachment[]> {
+  /** Uploads each oversized file to the sender's own OneDrive and makes a link only the recipients can open. */
+  private async shareLinkedFiles(
+    token: string,
+    firmId: string,
+    caseId: string,
+    linked: LinkedSource[],
+    recipientAddresses: string[],
+  ): Promise<SharedLink[]> {
+    if (linked.length === 0) return [];
+    const legalCase = await this.prisma.case.findFirst({ where: { id: caseId, firmId }, select: { ownRef: true } });
+    if (!legalCase) throw new NotFoundException('ไม่พบคดีนี้');
+    const links: SharedLink[] = [];
+    for (const file of linked) {
+      let item;
+      try {
+        const folder = await this.drive.ensureFolderPath(token, ['Samnuan', legalCase.ownRef, 'ส่งออก']);
+        item = await this.drive.upload(token, 'me', folder.id, file.filename, file.buffer, file.mimeType);
+      } catch (error) {
+        this.logger.warn(`Case ${caseId}: uploading "${file.filename}" to OneDrive failed: ${error}`);
+        throw new BadRequestException(`อัปโหลดไฟล์ "${file.filename}" ไป OneDrive ไม่สำเร็จ — ลองใหม่อีกครั้ง`);
+      }
+      try {
+        const { webUrl } = await this.drive.createSharingLink(token, item.parentReference?.driveId ?? 'me', item.id, recipientAddresses);
+        links.push({ documentId: file.documentId, filename: file.filename, size: file.buffer.length, webUrl });
+      } catch (error) {
+        this.logger.warn(`Case ${caseId}: creating a share link for "${file.filename}" failed: ${error}`);
+        if (error instanceof GraphApiError && (error.status === 400 || error.status === 403)) {
+          throw new BadRequestException('องค์กรของคุณไม่อนุญาตให้แชร์ไฟล์ OneDrive ให้ผู้รับนี้ — ลดขนาดไฟล์หรือส่งทางช่องทางอื่น');
+        }
+        throw new BadRequestException(`สร้างลิงก์ไฟล์ "${file.filename}" ไม่สำเร็จ — ลองใหม่อีกครั้ง`);
+      }
+    }
+    return links;
+  }
+
+  /** ≤ 3 MB each and ≤ 15 MB together go inline; the rest become OneDrive links (≤ 250 MB each). */
+  private async loadAttachments(caseId: string, documentIds: string[]): Promise<{ inline: LoadedAttachment[]; linked: LinkedSource[] }> {
     const ids = [...new Set(documentIds)];
-    if (ids.length === 0) return [];
+    if (ids.length === 0) return { inline: [], linked: [] };
     const documents = await this.prisma.document.findMany({
       where: { id: { in: ids }, caseId, storagePath: { not: '' } },
       select: { id: true, filename: true, mimeType: true, storagePath: true },
     });
     if (documents.length !== ids.length) throw new NotFoundException('ไม่พบเอกสารบางรายการในคดีนี้');
 
-    const loaded: LoadedAttachment[] = [];
+    const inline: LoadedAttachment[] = [];
+    const linked: LinkedSource[] = [];
     let total = 0;
     for (const document of documents) {
       const buffer = await this.fileStorage
@@ -337,18 +412,19 @@ export class OutlookSendService {
         .catch(() => {
           throw new NotFoundException(`อ่านไฟล์ "${document.filename}" ไม่ได้ — ไฟล์อาจถูกลบหรือเสียหาย`);
         });
-      if (buffer.length > MAX_ATTACHMENT_BYTES) {
-        throw new BadRequestException(`ไฟล์ "${document.filename}" ใหญ่เกิน 3 MB แนบตรงไม่ได้ — ใช้ลิงก์ OneDrive แทน`);
+      if (buffer.length > MAX_LINKED_FILE_BYTES) {
+        throw new BadRequestException(`ไฟล์ "${document.filename}" ใหญ่เกิน 250 MB — ส่งทางอีเมลไม่ได้`);
+      }
+      if (buffer.length > MAX_ATTACHMENT_BYTES || total + buffer.length > MAX_TOTAL_ATTACHMENT_BYTES) {
+        linked.push({ documentId: document.id, filename: document.filename, mimeType: document.mimeType, buffer });
+        continue;
       }
       total += buffer.length;
-      if (total > MAX_TOTAL_ATTACHMENT_BYTES) {
-        throw new BadRequestException('ไฟล์แนบรวมเกิน 15 MB — ส่งบางไฟล์เป็นลิงก์ OneDrive แทน');
-      }
-      loaded.push({
+      inline.push({
         documentId: document.id,
         file: { name: document.filename, contentType: document.mimeType, contentBytes: buffer.toString('base64') },
       });
     }
-    return loaded;
+    return { inline, linked };
   }
 }
