@@ -16,6 +16,7 @@ import { CaseFolderLinksService } from './case-folder-links.service';
 import { GraphMailFoldersClient } from './graph/graph-mail-folders.client';
 import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
 import { CaseEmailSendController } from './case-email-send.controller';
+import { GraphDriveClient } from './graph/graph-drive.client';
 import { OutlookSendService } from './outlook-send.service';
 
 @Module({
@@ -34,7 +35,8 @@ import { OutlookSendService } from './outlook-send.service';
     CaseFolderLinksService,
     FirmLinkService,
     OutlookSendService,
+    GraphDriveClient,
   ],
-  exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService],
+  exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService, GraphDriveClient],
 })
 export class OutlookIntegrationModule {}
