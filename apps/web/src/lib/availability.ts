@@ -69,14 +69,15 @@ export function minutesToTime(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
-/** The next `count` Monday-Friday days after `date` (YYYY-MM-DD). Holidays are not known here. */
-export function nextWorkingDays(date: string, count: number): string[] {
+/** The next `count` Monday-Friday days after `date` (YYYY-MM-DD), skipping any YYYY-MM-DD in `holidays`. */
+export function nextWorkingDays(date: string, count: number, holidays: ReadonlySet<string> = new Set()): string[] {
   const days: string[] = [];
   const d = new Date(`${date}T00:00:00Z`);
   while (days.length < count) {
     d.setUTCDate(d.getUTCDate() + 1);
     const dow = d.getUTCDay();
-    if (dow !== 0 && dow !== 6) days.push(d.toISOString().slice(0, 10));
+    const iso = d.toISOString().slice(0, 10);
+    if (dow !== 0 && dow !== 6 && !holidays.has(iso)) days.push(iso);
   }
   return days;
 }

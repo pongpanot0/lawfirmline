@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, AvailabilityResult } from '@/lib/api';
 import { bangkokInputValue } from '@/lib/bangkok';
 import {
@@ -44,7 +44,33 @@ export function AvailabilityPanel({
   const [retry, setRetry] = useState(0);
   const [finding, setFinding] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [holidays, setHolidays] = useState<Record<string, string>>({});
+  const loadedYears = useRef(new Set<number>());
   const idsKey = userIds.join(',');
+
+  /** Public holidays (date -> name) for the year of `date`, plus next year near New Year. Failure falls back to weekends only. */
+  const loadHolidays = useCallback(async (): Promise<Record<string, string>> => {
+    const year = Number(date.slice(0, 4));
+    const years = date.slice(5, 7) === '12' ? [year, year + 1] : [year];
+    const fresh = years.filter((y) => !loadedYears.current.has(y));
+    if (fresh.length === 0) return holidaysRef.current;
+    const found: Record<string, string> = {};
+    await Promise.all(fresh.map((y) =>
+      api.getPublicHolidays(token, y)
+        .then((items) => {
+          loadedYears.current.add(y);
+          items.forEach((h) => { found[h.date.slice(0, 10)] = h.name; });
+        })
+        .catch(() => undefined)));
+    holidaysRef.current = { ...holidaysRef.current, ...found };
+    setHolidays(holidaysRef.current);
+    return holidaysRef.current;
+  }, [token, date]);
+  const holidaysRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    void loadHolidays();
+  }, [loadHolidays]);
 
   const fetchDay = useCallback(
     (day: string) => api.getAvailability(token, { userIds: idsKey.split(','), date: day, excludeEventId: excludeEventId ?? undefined }),
@@ -72,7 +98,10 @@ export function AvailabilityPanel({
       const now = bangkokInputValue(new Date());
       const today = now.slice(0, 10);
       const nowMin = inputMinutes(now);
-      for (const day of [date, ...nextWorkingDays(date, SEARCH_DAYS)]) {
+      const known = await loadHolidays();
+      const skip = new Set(Object.keys(known));
+      const days = nextWorkingDays(date, SEARCH_DAYS, skip);
+      for (const day of skip.has(date) ? days : [date, ...days]) {
         const r = day === date && data ? data : await fetchDay(day);
         const busy = r.people.map((p) => p.busy.flatMap((b) => toMinuteRange(b, day) ?? []));
         const slot = findFirstFreeSlot(busy, durationMin, day === today ? nowMin : WORK_START);
@@ -104,6 +133,7 @@ export function AvailabilityPanel({
         {notFound && <span className="text-amber-700 dark:text-amber-400">ไม่พบช่วงที่ทุกคนว่างใน {SEARCH_DAYS} วันทำการ</span>}
         {canPick && !notFound && <span className="text-muted-foreground">หรือแตะบนแถบเวลาเพื่อเลือกเวลาเริ่ม</span>}
       </div>
+      {holidays[date] && <p className="mb-2 text-amber-700 dark:text-amber-400">วันหยุด: {holidays[date]}</p>}
       {data?.hint && <p className="mb-2 text-muted-foreground">{data.hint}</p>}
       {error ? (
         <p role="alert" className="text-destructive">
