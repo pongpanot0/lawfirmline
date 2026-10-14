@@ -355,6 +355,19 @@ export interface AdditionalClientItem {
   client: { id: string; name: string };
 }
 
+export interface AvailabilityPerson {
+  userId: string;
+  name: string;
+  source: 'OUTLOOK' | 'SYSTEM_ONLY';
+  busy: { start: string; end: string; label?: string }[];
+  error?: string;
+}
+export interface AvailabilityResult {
+  date: string;
+  hint?: string;
+  people: AvailabilityPerson[];
+}
+
 export interface CaseItem {
   id: string;
   ownRef: string;
@@ -383,6 +396,7 @@ export interface CaseItem {
   closingSummary?: string | null;
   closedAt?: string | null;
   updatedAt?: string;
+  leadLawyerId?: string;
   leadLawyer: { firstName: string; lastName: string };
   caseType?: { id: string; name: string; fieldSchema?: unknown } | null;
   client?: { id: string; name: string } | null;
@@ -1922,6 +1936,9 @@ export const api = {
     }),
 
   getLawyers: (token: string) => request<UserItem[]>('/users/lawyers', { token }),
+
+  getAvailability: (token: string, data: { userIds: string[]; date: string; excludeEventId?: string }) =>
+    request<AvailabilityResult>('/calendar/availability', { token, method: 'POST', body: JSON.stringify(data) }),
 
   getDailyWorkboard: (token: string, date: string) =>
     request<import('@lawfirm/shared').DailyWorkboard>(`/operations/daily?date=${encodeURIComponent(date)}`, { token }),

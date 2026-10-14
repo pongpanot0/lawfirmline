@@ -3,6 +3,8 @@
 import { COURT_EVENT_KIND_LABELS, CourtEventKind } from '@lawfirm/shared';
 import { EventResponsibility } from './EventResponsibility';
 import { OutlookChangesPanel } from './OutlookChangesPanel';
+import { AvailabilityPanel } from './AvailabilityPanel';
+import { DURATION_OPTIONS, DEFAULT_DURATION, closestDuration } from '@/lib/availability';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -85,6 +87,15 @@ export function CalendarEventDialog({
   const eventDate = form.startAt.slice(0, 10);
   const leaveFlags = useLeaveFlags(token, eventDate);
 
+  const [availOpen, setAvailOpen] = useState(form.type === 'CLIENT_MEETING');
+  useEffect(() => {
+    if (form.type === 'CLIENT_MEETING') setAvailOpen(true);
+  }, [form.type]);
+  const hasDuration = form.type !== 'DEADLINE';
+  // Whoever is named, else the case's lead lawyer, plus me.
+  const leadId = cases?.find((c) => c.id === form.caseId)?.leadLawyerId ?? event?.case?.leadLawyer?.id;
+  const availIds = [...new Set([...(form.assigneeIds.length ? form.assigneeIds : leadId ? [leadId] : []), ...(user?.id ? [user.id] : [])])];
+
   const toggleAssignee = (userId: string) => {
     setForm((prev) => ({
       ...prev,
@@ -145,6 +156,9 @@ export function CalendarEventDialog({
       description: form.description || undefined,
       courtName: form.type === 'COURT_DATE' ? form.courtName || undefined : undefined,
       startAt: bangkokInputToIso(form.startAt),
+      endAt: hasDuration
+        ? new Date(new Date(bangkokInputToIso(form.startAt)).getTime() + form.durationMin * 60000).toISOString()
+        : undefined,
       type: form.type,
       courtEventKind: form.type === 'COURT_DATE' ? form.courtEventKind || null : null,
       // An empty list means "nobody named", which the API reads as the lead lawyer.
@@ -406,6 +420,47 @@ export function CalendarEventDialog({
             />
           </label>
 
+          {hasDuration && (
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted-foreground">ระยะเวลา</span>
+              <select
+                value={form.durationMin}
+                onChange={(e) => setForm({ ...form, durationMin: Number(e.target.value) })}
+                className={SELECT_CLASS}
+              >
+                {DURATION_OPTIONS.map((o) => (
+                  <option key={o.minutes} value={o.minutes}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {token && availIds.length > 0 && (
+            <div className="text-sm">
+              <button
+                type="button"
+                className="mb-1 flex w-full items-center justify-between text-muted-foreground"
+                aria-expanded={availOpen}
+                onClick={() => setAvailOpen((o) => !o)}
+              >
+                <span>เวลาว่างของทีม</span>
+                <span>{availOpen ? '▲' : '▼'}</span>
+              </button>
+              {availOpen && (
+                <AvailabilityPanel
+                  token={token}
+                  date={eventDate}
+                  startAt={form.startAt}
+                  durationMin={form.durationMin}
+                  userIds={availIds}
+                  excludeEventId={savedId}
+                  canPick={!savedId}
+                  onPick={(day, time) => setForm((f) => ({ ...f, startAt: `${day}T${time}` }))}
+                />
+              )}
+            </div>
+          )}
+
           <div className="block text-sm">
             <span className="mb-1 block text-muted-foreground">{d.calendar.assignee}</span>
             <div className="space-y-1 rounded-lg border border-input bg-card p-2">
@@ -594,6 +649,7 @@ function initialForm(
       description: event.description ?? '',
       courtName: event.courtName ?? event.case?.courtName ?? '',
       startAt: bangkokInputValue(event.startAt),
+      durationMin: closestDuration(event.startAt, event.endAt),
       type: event.type,
       courtEventKind: (event.courtEventKind ?? '') as CourtEventKind | '',
       assigneeIds,
@@ -610,6 +666,7 @@ function initialForm(
     description: '',
     courtName: caseCourtName ?? '',
     startAt: `${day}T09:00`,
+    durationMin: DEFAULT_DURATION,
     type: 'COURT_DATE',
     courtEventKind: '' as CourtEventKind | '',
     // คนสร้างนัดมักสร้างให้ตัวเอง — ตั้งตัวเองเป็นผู้รับผิดชอบไว้ก่อน เปลี่ยนได้
