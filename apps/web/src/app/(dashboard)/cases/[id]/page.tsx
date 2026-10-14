@@ -36,6 +36,7 @@ import {
   Pencil,
   Sparkles,
   Trash2,
+  Mail,
 } from 'lucide-react';
 import {
   ActivityType,
@@ -57,6 +58,7 @@ import {
   parseCaseTab,
   type CaseTabId,
 } from '@/lib/case-tabs';
+import { emailTimelineItems, type EmailTimelineItem } from '@/lib/case-email';
 import { buildCasePrioritySummary } from '@/lib/case-workbench';
 import './tokens.css';
 import styles from './case-detail.module.css';
@@ -102,6 +104,11 @@ const CaseClosingReportPanel = dynamic(
 
 const CaseCommentsPanel = dynamic(
   () => import('@/components/cases/CaseCommentsPanel').then((m) => m.CaseCommentsPanel),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
+);
+
+const CaseEmailPanel = dynamic(
+  () => import('@/components/cases/CaseEmailPanel').then((m) => m.CaseEmailPanel),
   { ssr: false, loading: () => <p className="text-sm text-muted-foreground">กำลังโหลด…</p> },
 );
 import { useAuth } from '@/lib/auth';
@@ -154,6 +161,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   DEADLINE: 'กำหนดส่ง',
   NOTE: 'บันทึก',
   OTHER: 'อื่นๆ',
+  EMAIL: 'อีเมล',
 };
 
 const ACTIVITY_ICONS: Record<string, typeof Gavel> = {
@@ -163,6 +171,7 @@ const ACTIVITY_ICONS: Record<string, typeof Gavel> = {
   DEADLINE: CalendarDays,
   NOTE: StickyNote,
   OTHER: FileText,
+  EMAIL: Mail,
 };
 
 export default function CaseDetailPage() {
@@ -177,6 +186,7 @@ export default function CaseDetailPage() {
   };
   const [legalCase, setCase] = useState<CaseDetail | null>(null);
   const [activities, setActivities] = useState<CaseActivityItem[]>([]);
+  const [emailTimeline, setEmailTimeline] = useState<EmailTimelineItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [checklistStatusFilter, setChecklistStatusFilter] = useState('ALL');
   const [checklistOwnerFilter, setChecklistOwnerFilter] = useState('ALL');
@@ -267,6 +277,7 @@ export default function CaseDetailPage() {
       .then(setPrecedentAnalyses)
       .catch(() => setPrecedentAnalyses([]));
     api.getRequiredDocuments(token, id).then(setRequiredDocs).catch(() => setRequiredDocs({ required: [], missing: [] }));
+    api.getCaseEmailThreads(token, id).then((t) => setEmailTimeline(emailTimelineItems(t))).catch(() => setEmailTimeline([]));
     setupRequest<PlaybookRelease[]>(token, '/playbooks').then(items => setPlaybooks(latestPlaybookReleases(items))).catch(() => setPlaybooks([]));
     Promise.all([
       api.getCase(token, id),
@@ -379,6 +390,7 @@ export default function CaseDetailPage() {
       date: string;
       type: string;
       createdBy?: CaseActivityItem['createdBy'];
+      from?: string;
       isOpened?: boolean;
     }> = [
       ...(activities.some((activity) => activity.title === 'เปิดคดี') ? [] : [{
@@ -395,6 +407,7 @@ export default function CaseDetailPage() {
         type: a.type,
         createdBy: a.createdBy,
       })),
+      ...emailTimeline,
       ...(legalCase?.status === CaseStatus.CLOSED && legalCase.closedAt
         ? [{
             id: 'closed',
@@ -408,7 +421,7 @@ export default function CaseDetailPage() {
     return items.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
-  }, [legalCase?.openedAt, legalCase?.status, legalCase?.closedAt, activities]);
+  }, [legalCase?.openedAt, legalCase?.status, legalCase?.closedAt, activities, emailTimeline]);
 
   const openActivityForm = () => {
     const now = new Date();
@@ -1188,6 +1201,17 @@ export default function CaseDetailPage() {
         </div>
       )}
 
+      {activeTab === 'email' && (
+        <div
+          role="tabpanel"
+          id="case-tabpanel-email"
+          aria-labelledby="case-tab-email"
+          className="min-w-0"
+        >
+          <CaseEmailPanel caseId={id} />
+        </div>
+      )}
+
       {activeTab === 'comments' && (
         <div
           role="tabpanel"
@@ -1653,7 +1677,9 @@ export default function CaseDetailPage() {
                           {!item.isOpened && ` — ${ACTIVITY_LABELS[item.type] ?? item.type}`}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          โดย: {item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}`.trim() : 'ไม่ปรากฏข้อมูล'}
+                          {item.from
+                            ? `จาก: ${item.from}`
+                            : `โดย: ${item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}`.trim() : 'ไม่ปรากฏข้อมูล'}`}
                         </p>
                       </div>
                     </div>
