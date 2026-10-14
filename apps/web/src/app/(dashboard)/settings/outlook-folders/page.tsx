@@ -74,13 +74,16 @@ export default function OutlookFolderMatchPage() {
   };
 
   const unlink = async (linkId: string) => {
-    if (!token || !window.confirm('ยกเลิกการผูก folder นี้? อีเมลที่ดึงเข้าคดีแล้วจะยังอยู่ในคดี')) return;
+    if (!token || saving || !window.confirm('ยกเลิกการผูก folder นี้? อีเมลที่ดึงเข้าคดีแล้วจะยังอยู่ในคดี')) return;
+    setSaving(true);
     setNotice(null);
     try {
       await api.unlinkOutlookFolder(token, linkId);
       await load();
     } catch (e) {
       setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ยกเลิกการผูกไม่สำเร็จ' });
+    } finally {
+      setSaving(false);
     }
   };
 

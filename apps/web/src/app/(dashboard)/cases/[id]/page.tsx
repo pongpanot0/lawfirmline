@@ -1213,7 +1213,7 @@ export default function CaseDetailPage() {
           aria-labelledby="case-tab-email"
           className="min-w-0"
         >
-          <CaseEmailPanel caseId={id} />
+          <CaseEmailPanel key={id} caseId={id} />
         </div>
       )}
 

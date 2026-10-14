@@ -71,7 +71,12 @@ export function FolderMatchTable({
         <input type="checkbox" checked={onlySuggested} onChange={(e) => setOnlySuggested(e.target.checked)} />
         แสดงเฉพาะ folder ที่มีคดีแนะนำหรือผูกแล้ว ({visible.length}/{rows.length})
       </label>
-      <div className="overflow-x-auto">
+      {visible.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          {rows.length === 0 ? 'ไม่พบ folder' : 'ไม่มี folder ที่ระบบแนะนำ — ติ๊กช่องด้านบนออกเพื่อแสดงทั้งหมด'}
+        </p>
+      )}
+      <div className="overflow-x-auto" hidden={visible.length === 0}>
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="text-left text-xs text-muted-foreground">

@@ -172,6 +172,16 @@ export default function EmailThreadDetailPage() {
     load();
   }, [load]);
 
+  // Refetch without the skeleton: keeps unsaved edits, and a failure leaves the current data in place.
+  const refresh = useCallback(async () => {
+    if (!token || !threadId) return;
+    try {
+      setData(await api.getEmailThread(token, threadId));
+    } catch {
+      setError('รีเฟรชข้อมูลไม่สำเร็จ — แสดงข้อมูลล่าสุดที่โหลดได้');
+    }
+  }, [token, threadId]);
+
   const handleCreateIntake = async () => {
     if (!token) return;
     setLinking(true);
@@ -270,7 +280,7 @@ export default function EmailThreadDetailPage() {
 
       {error && <p className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
-      <LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={load} />
+      <LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={refresh} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Source email */}
@@ -385,7 +395,7 @@ export default function EmailThreadDetailPage() {
         </Card>
       </div>
       {thread.caseId && (
-        <CaseEmailComposer caseId={thread.caseId} mode={composer} onClose={() => setComposer(null)} onSent={() => void load()} />
+        <CaseEmailComposer caseId={thread.caseId} mode={composer} onClose={() => setComposer(null)} onSent={() => void refresh()} />
       )}
     </div>
   );

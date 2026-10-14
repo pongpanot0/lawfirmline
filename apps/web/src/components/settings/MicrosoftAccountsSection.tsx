@@ -158,7 +158,11 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
             {OUTLOOK_STATUS_LABEL[c.status] ?? c.status}
             {c.lastSyncedAt && ` · ซิงก์ล่าสุด ${formatDateTime(c.lastSyncedAt)}`}
           </p>
-          {c.lastError && c.status !== 'ACTIVE' && <p className="mt-0.5 text-xs text-destructive">{c.lastError}</p>}
+          {c.lastError && (
+            <p className={`mt-0.5 text-xs ${c.status === 'ACTIVE' ? 'text-amber-700 dark:text-amber-300' : 'text-destructive'}`}>
+              {c.lastError}
+            </p>
+          )}
         </div>
         {canManage && c.status !== 'REVOKED' && (
           <div className="flex shrink-0 gap-2">
@@ -228,9 +232,11 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
 
       {disconnectCheck && (
         <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-          <p className="font-semibold">
-            บัญชีนี้ผูก folder กับ {disconnectCheck.summary.caseCount} คดี — เมื่อตัดการเชื่อมต่อ รายการไฟล์และการซิงก์อีเมลของคดีเหล่านั้นจะหยุด
-          </p>
+          {disconnectCheck.summary.caseCount > 0 && (
+            <p className="font-semibold">
+              บัญชีนี้ผูก folder กับ {disconnectCheck.summary.caseCount} คดี — เมื่อตัดการเชื่อมต่อ รายการไฟล์และการซิงก์อีเมลของคดีเหล่านั้นจะหยุด
+            </p>
+          )}
           {disconnectCheck.summary.officeDocuments > 0 && (
             <p className="mt-1">
               มีเอกสาร {disconnectCheck.summary.officeDocuments} ไฟล์ที่เปิดแก้ใน Office ออนไลน์ด้วยบัญชีนี้ — กด &quot;ดึงเวอร์ชันล่าสุดกลับ&quot; ในคดีก่อน

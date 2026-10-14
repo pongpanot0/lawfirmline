@@ -59,7 +59,7 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
   }, [load]);
 
   useEffect(() => {
-    setDetail(null);
+    setDetail((d) => (d && d.id === selectedId ? d : null));
     setDetailFailed(false);
     if (!token || !selectedId) return;
     let active = true;
@@ -263,7 +263,15 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
         </CardContent>
       </Card>
 
-      {threadsFailed ? (
+      {threadsFailed && threads.length > 0 && (
+        <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+          รีเฟรชอีเมลไม่สำเร็จ — แสดงข้อมูลล่าสุดที่โหลดได้
+          <Button size="sm" variant="outline" onClick={retryLoad}>
+            ลองใหม่
+          </Button>
+        </p>
+      )}
+      {threadsFailed && threads.length === 0 ? (
         <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
           โหลดอีเมลไม่สำเร็จ
           <Button size="sm" variant="outline" onClick={retryLoad}>
@@ -302,9 +310,9 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
 
           <div className="min-w-0">
             {!selectedId && <p className="text-sm text-muted-foreground">เลือกอีเมลทางซ้ายเพื่ออ่าน</p>}
-            {selectedId && !detail && detailFailed && (
+            {selectedId && detailFailed && (
               <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
-                เปิดอีเมลไม่สำเร็จ
+                {detail ? 'รีเฟรชอีเมลไม่สำเร็จ — แสดงข้อมูลล่าสุด' : 'เปิดอีเมลไม่สำเร็จ'}
                 <Button
                   size="sm"
                   variant="outline"

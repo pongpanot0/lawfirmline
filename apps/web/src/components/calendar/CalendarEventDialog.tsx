@@ -17,7 +17,8 @@ import { Modal } from '@/components/ui/misc';
 import { TravelPreviewCard } from '@/components/TravelPreviewCard';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
-const SELECT_CLASS = 'w-full h-9 rounded-lg border border-input bg-card px-3 text-sm';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SELECT_CLASS ='w-full h-9 rounded-lg border border-input bg-card px-3 text-sm';
 
 interface CalendarEventDialogProps {
   /** Fixed case for a dialog opened from inside a case — no picker is shown. */
@@ -124,6 +125,17 @@ export function CalendarEventDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || saving) return;
+    // A typed-but-not-added invitee is added on submit rather than silently dropped.
+    const pendingInvite = inviteDraft.trim().toLowerCase();
+    let inviteeEmails = form.inviteeEmails;
+    if (form.type === 'CLIENT_MEETING' && form.onlineMeeting && pendingInvite) {
+      if (!EMAIL_PATTERN.test(pendingInvite)) {
+        setError('อีเมลผู้รับเชิญไม่ถูกต้อง — แก้ไขหรือลบก่อนบันทึก');
+        return;
+      }
+      if (!inviteeEmails.includes(pendingInvite)) inviteeEmails = [...inviteeEmails, pendingInvite];
+      setInviteDraft('');
+    }
     setSaving(true);
     setError('');
 
@@ -137,7 +149,7 @@ export function CalendarEventDialog({
       // An empty list means "nobody named", which the API reads as the lead lawyer.
       assigneeIds: form.assigneeIds,
       onlineMeeting: form.type === 'CLIENT_MEETING' ? form.onlineMeeting : false,
-      inviteeEmails: form.type === 'CLIENT_MEETING' && form.onlineMeeting ? form.inviteeEmails : [],
+      inviteeEmails: form.type === 'CLIENT_MEETING' && form.onlineMeeting ? inviteeEmails : [],
     };
 
     try {
@@ -241,7 +253,7 @@ export function CalendarEventDialog({
       <Modal open onClose={onClose}>
         <h2 className="mb-1 text-lg font-semibold">{event.title}</h2>
         <p className="mb-4 text-xs text-muted-foreground">{d.calendar.eventDetails}</p>
-        {event.onlineMeetingUrl && (
+        {event.onlineMeetingUrl?.startsWith('https://') && (
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <a
               href={event.onlineMeetingUrl}
@@ -261,7 +273,7 @@ export function CalendarEventDialog({
             </Button>
           </div>
         )}
-        {event.onlineMeeting && !event.onlineMeetingUrl && (
+        {event.onlineMeeting && !event.onlineMeetingUrl?.startsWith('https://') && (
           <p className="mb-3 text-xs text-muted-foreground">กำลังสร้างลิงก์ Teams… (ภายใน 2 นาที)</p>
         )}
         <dl className="space-y-2 text-sm">
@@ -300,8 +312,11 @@ export function CalendarEventDialog({
                 disabled={!!savedId}
                 onChange={(e) => {
                   const next = cases?.find((c) => c.id === e.target.value);
+                  // Contact invitees belong to the previous case; typed ones stay.
+                  setContactEmails([]);
                   setForm({
                     ...form,
+                    inviteeEmails: form.inviteeEmails.filter((x) => !contactEmails.includes(x)),
                     caseId: e.target.value,
                     // Fill the court from the case only while it is still blank,
                     // so a hand-typed venue is never silently replaced.
@@ -473,7 +488,7 @@ export function CalendarEventDialog({
                       if (e.key !== 'Enter') return;
                       e.preventDefault();
                       const email = inviteDraft.trim().toLowerCase();
-                      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !form.inviteeEmails.includes(email)) {
+                      if (EMAIL_PATTERN.test(email) && !form.inviteeEmails.includes(email)) {
                         setForm((f) => ({ ...f, inviteeEmails: [...f.inviteeEmails, email] }));
                         setInviteDraft('');
                       }
