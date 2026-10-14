@@ -31,7 +31,7 @@ const BUILT_INS: Omit<EmailTemplateView, 'builtIn'>[] = [
     id: 'builtin:court-hearing',
     name: 'แจ้งนัดศาล',
     subject: '[{{ownRef}}] แจ้งนัดพิจารณาคดี วันที่ {{nextHearingDate}}',
-    body: `เรียน คุณ{{clientName}}
+    body: `เรียน {{clientName}}
 
 สำนักงานขอแจ้งกำหนดนัดพิจารณาคดี {{title}} ดังนี้
 
@@ -39,7 +39,6 @@ const BUILT_INS: Omit<EmailTemplateView, 'builtIn'>[] = [
 เวลา: {{nextHearingTime}} น.
 ศาล: {{nextHearingCourt}}
 เลขคดีดำ: {{blackCaseNumber}}
-เลขคดีแดง: {{redCaseNumber}}
 
 กรุณาเตรียมตัวและแจ้งให้สำนักงานทราบหากไม่สะดวกในวันดังกล่าว หากมีข้อสงสัยสามารถติดต่อสอบถามได้ตลอดเวลา
 
@@ -50,7 +49,7 @@ const BUILT_INS: Omit<EmailTemplateView, 'builtIn'>[] = [
     id: 'builtin:send-documents',
     name: 'ส่งเอกสาร',
     subject: '[{{ownRef}}] ส่งเอกสารคดี {{title}}',
-    body: `เรียน คุณ{{clientName}}
+    body: `เรียน {{clientName}}
 
 สำนักงานขอส่งเอกสารที่เกี่ยวข้องกับคดี {{title}} (เลขที่คดี {{ownRef}}) มาพร้อมอีเมลฉบับนี้ กรุณาตรวจสอบความถูกต้อง และแจ้งกลับหากมีข้อสงสัยหรือต้องการแก้ไข
 
@@ -61,7 +60,7 @@ const BUILT_INS: Omit<EmailTemplateView, 'builtIn'>[] = [
     id: 'builtin:request-documents',
     name: 'ขอเอกสารเพิ่มเติม',
     subject: '[{{ownRef}}] ขอเอกสารเพิ่มเติม',
-    body: `เรียน คุณ{{clientName}}
+    body: `เรียน {{clientName}}
 
 เพื่อให้การดำเนินคดี {{title}} (เลขที่คดี {{ownRef}}) เป็นไปอย่างราบรื่น สำนักงานขอความอนุเคราะห์ท่านจัดส่งเอกสารเพิ่มเติมดังต่อไปนี้
 
