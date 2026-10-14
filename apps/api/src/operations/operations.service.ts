@@ -68,9 +68,13 @@ export class OperationsService {
     if (hours !== undefined && !(Number.isInteger(hours) && hours >= 1 && hours <= 168)) {
       throw new BadRequestException('เวลาเตือนอีเมลที่ไม่ได้ตอบต้องเป็นจำนวนเต็ม 1–168 ชั่วโมง');
     }
+    // Merge, don't replace: one screen saving one key must not wipe the firm's other SLA settings.
+    const current = await this.getSlaConfig(user);
+    const known = Object.keys(current) as (keyof typeof current)[];
+    const patch = Object.fromEntries(known.filter((k) => typeof dto[k] === 'number' && Number.isFinite(dto[k])).map((k) => [k, dto[k]]));
     await this.prisma.firm.update({
       where: { id: user.firmId },
-      data: { slaConfig: dto },
+      data: { slaConfig: { ...current, ...patch } },
     });
     return this.getSlaConfig(user);
   }
