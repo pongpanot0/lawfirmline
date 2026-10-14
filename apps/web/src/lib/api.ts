@@ -1245,6 +1245,38 @@ export interface MailboxConnectionItem {
   createdAt: string;
 }
 
+export interface CaseEmailRecipientOption {
+  name: string;
+  email: string;
+  source: 'CLIENT_CONTACT' | 'PARTICIPANT';
+  group: string;
+}
+
+export interface CaseEmailComposeOptions {
+  /** null = this user has not connected their own Microsoft 365 mailbox */
+  mailboxAddress: string | null;
+  ownRef: string;
+  recipients: CaseEmailRecipientOption[];
+}
+
+export interface SendCaseEmailInput {
+  to: string[];
+  cc?: string[];
+  subject: string;
+  body: string;
+  documentIds?: string[];
+  replyToMessageId?: string;
+  replyAll?: boolean;
+  clientRequestId?: string;
+}
+
+export interface SendCaseEmailResult {
+  mode: 'NEW' | 'REPLY' | 'REPLY_AS_NEW';
+  threadId: string | null;
+  /** false = sent by Microsoft but not yet in the case email tab */
+  recorded: boolean;
+}
+
 export interface ReviewDecisionItem {
   reviewerId: string;
   decision: 'APPROVED' | 'RETURNED';
@@ -2920,6 +2952,18 @@ export const api = {
 
   syncOutlookNow: (token: string, id: string) =>
     request<{ messagesSynced: number }>(`/outlook/connections/${id}/sync`, { method: 'POST', token }),
+
+  getCaseEmailComposeOptions: (token: string, caseId: string) =>
+    request<CaseEmailComposeOptions>(`/cases/${caseId}/outbound-email/compose-options`, { token }),
+
+  // silent: the composer shows its own success/error text (the generic "บันทึกรายการแล้ว" would be wrong here).
+  sendCaseEmail: (token: string, caseId: string, data: SendCaseEmailInput) =>
+    request<SendCaseEmailResult>(`/cases/${caseId}/outbound-email/send`, {
+      method: 'POST',
+      token,
+      silent: true,
+      body: JSON.stringify(data),
+    }),
 
   getLineStatus: (token: string) =>
     request<LineIntegrationStatus>('/integrations/line/status', { token }),
