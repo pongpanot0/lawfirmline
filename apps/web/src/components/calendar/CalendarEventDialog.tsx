@@ -88,6 +88,8 @@ export function CalendarEventDialog({
   const leaveFlags = useLeaveFlags(token, eventDate);
 
   const [availOpen, setAvailOpen] = useState(form.type === 'CLIENT_MEETING');
+  // An existing event keeps its own end unless the user picks a new duration (no silent snapping).
+  const [durationTouched, setDurationTouched] = useState(false);
   useEffect(() => {
     if (form.type === 'CLIENT_MEETING') setAvailOpen(true);
   }, [form.type]);
@@ -156,7 +158,7 @@ export function CalendarEventDialog({
       description: form.description || undefined,
       courtName: form.type === 'COURT_DATE' ? form.courtName || undefined : undefined,
       startAt: bangkokInputToIso(form.startAt),
-      endAt: hasDuration
+      endAt: hasDuration && (!savedId || durationTouched)
         ? new Date(new Date(bangkokInputToIso(form.startAt)).getTime() + form.durationMin * 60000).toISOString()
         : undefined,
       type: form.type,
@@ -425,7 +427,7 @@ export function CalendarEventDialog({
               <span className="mb-1 block text-muted-foreground">ระยะเวลา</span>
               <select
                 value={form.durationMin}
-                onChange={(e) => setForm({ ...form, durationMin: Number(e.target.value) })}
+                onChange={(e) => { setDurationTouched(true); setForm({ ...form, durationMin: Number(e.target.value) }); }}
                 className={SELECT_CLASS}
               >
                 {DURATION_OPTIONS.map((o) => (
