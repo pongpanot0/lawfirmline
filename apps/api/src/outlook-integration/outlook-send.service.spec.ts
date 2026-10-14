@@ -6,7 +6,7 @@ import { FileStorageService } from '../common/services/file-storage.service';
 import { GraphApiError, OutlookGraphClient } from './outlook-graph.client';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
-import { OutlookSendService, buildRecipientOptions } from './outlook-send.service';
+import { OutlookSendService, buildRecipientOptions, prependToHtml } from './outlook-send.service';
 
 describe('OutlookSendService', () => {
   let service: OutlookSendService;
@@ -294,6 +294,106 @@ describe('OutlookSendService', () => {
         { name: 'คุณบี', email: 'b@client.com', source: 'CLIENT_CONTACT', group: 'บริษัท ข' },
         { name: 'นายจำเลย', email: 'def@x.com', source: 'PARTICIPANT', group: 'คู่ความ' },
       ]);
+    });
+  });
+
+  describe('reply', () => {
+    const sourceId = '0b7f6d1e-8a7c-4c1d-9a0f-4e2a1b3c5d6e';
+    const replyDto = { ...baseDto, subject: 'Re: ขอเอกสารเพิ่ม', replyToMessageId: sourceId };
+    const ownSource = {
+      id: sourceId,
+      graphMessageId: 'graph-src-1',
+      thread: { mailboxConnectionId: 'conn-1' },
+    };
+    const replyDraft = {
+      ...draft,
+      id: 'reply-draft-1',
+      conversationId: 'conv-original',
+      body: { contentType: 'html', content: '<html><body class="x"><p>ข้อความเดิม</p></body></html>' },
+    };
+
+    beforeEach(() => {
+      mockGraph.createReplyDraft.mockResolvedValue(replyDraft);
+      mockGraph.updateDraft.mockImplementation(async (_t: string, _id: string, patch: { body: unknown }) => ({ ...replyDraft, body: patch.body }));
+    });
+
+    it('replies inside the Outlook conversation when the source is in my own mailbox', async () => {
+      mockPrisma.emailMessage.findFirst.mockResolvedValue(ownSource);
+
+      const result = await service.send(user, 'case-1', replyDto);
+
+      expect(mockPrisma.emailMessage.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: sourceId, thread: { caseId: 'case-1' } } }),
+      );
+      expect(mockGraph.createReplyDraft).toHaveBeenCalledWith('token-1', 'graph-src-1', false);
+      expect(mockGraph.updateDraft).toHaveBeenCalledWith('token-1', 'reply-draft-1', {
+        subject: 'Re: ขอเอกสารเพิ่ม',
+        body: {
+          contentType: 'HTML',
+          content: '<html><body class="x"><div>เรียนคุณลูกความ<br>ขอนัดประชุม</div><br><p>ข้อความเดิม</p></body></html>',
+        },
+        toRecipients: [{ emailAddress: { address: 'client@example.com' } }],
+        ccRecipients: [],
+      });
+      expect(mockGraph.createDraftMessage).not.toHaveBeenCalled();
+      expect(mockGraph.sendDraft).toHaveBeenCalledWith('token-1', 'reply-draft-1');
+      expect(mockSync.upsertGraphMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ caseId: 'case-1', message: expect.objectContaining({ conversationId: 'conv-original' }) }),
+      );
+      expect(result.mode).toBe('REPLY');
+      expect(mockPrisma.auditLog.create.mock.calls[0][0].data.metadata).toMatchObject({ mode: 'REPLY', replyToMessageId: sourceId });
+    });
+
+    it('uses createReplyAll for reply-all', async () => {
+      mockPrisma.emailMessage.findFirst.mockResolvedValue(ownSource);
+
+      await service.send(user, 'case-1', { ...replyDto, replyAll: true });
+
+      expect(mockGraph.createReplyDraft).toHaveBeenCalledWith('token-1', 'graph-src-1', true);
+    });
+
+    it("sends a new message from my mailbox when the source is in a colleague's mailbox", async () => {
+      mockPrisma.emailMessage.findFirst.mockResolvedValue({ ...ownSource, thread: { mailboxConnectionId: 'conn-of-colleague' } });
+
+      const result = await service.send(user, 'case-1', replyDto);
+
+      expect(mockGraph.createReplyDraft).not.toHaveBeenCalled();
+      expect(mockGraph.createDraftMessage).toHaveBeenCalledWith('token-1', expect.objectContaining({ subject: 'Re: ขอเอกสารเพิ่ม' }));
+      expect(mockConnections.getValidAccessToken).toHaveBeenCalledWith('conn-1');
+      expect(mockSync.upsertGraphMessage).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'conn-1', caseId: 'case-1' }));
+      expect(result.mode).toBe('REPLY_AS_NEW');
+    });
+
+    it('sends a new message when the source has no Graph id (mock or legacy row)', async () => {
+      mockPrisma.emailMessage.findFirst.mockResolvedValue({ ...ownSource, graphMessageId: null });
+
+      await expect(service.send(user, 'case-1', replyDto)).resolves.toMatchObject({ mode: 'REPLY_AS_NEW' });
+      expect(mockGraph.createReplyDraft).not.toHaveBeenCalled();
+    });
+
+    it('falls back to a new message when Graph no longer has the source (404)', async () => {
+      mockPrisma.emailMessage.findFirst.mockResolvedValue(ownSource);
+      mockGraph.createReplyDraft.mockRejectedValue(new GraphApiError(404, 'ErrorItemNotFound'));
+
+      await expect(service.send(user, 'case-1', replyDto)).resolves.toMatchObject({ mode: 'REPLY_AS_NEW' });
+      expect(mockGraph.createDraftMessage).toHaveBeenCalledTimes(1);
+      expect(mockGraph.sendDraft).toHaveBeenCalledWith('token-1', 'draft-1');
+    });
+
+    it('refuses a source message that is not in this case', async () => {
+      mockPrisma.emailMessage.findFirst.mockResolvedValue(null);
+
+      await expect(service.send(user, 'case-1', replyDto)).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockGraph.createReplyDraft).not.toHaveBeenCalled();
+      expect(mockGraph.createDraftMessage).not.toHaveBeenCalled();
+    });
+
+    it('prependToHtml puts the new text right after <body>, or in front when there is no body tag', () => {
+      expect(prependToHtml('<html><body dir="ltr"><p>old</p></body></html>', '<div>new</div>')).toBe(
+        '<html><body dir="ltr"><div>new</div><br><p>old</p></body></html>',
+      );
+      expect(prependToHtml('<p>old</p>', '<div>new</div>')).toBe('<div>new</div><br><p>old</p>');
+      expect(prependToHtml(undefined, '<div>new</div>')).toBe('<div>new</div>');
     });
   });
 });

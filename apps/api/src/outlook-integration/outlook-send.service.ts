@@ -77,6 +77,19 @@ function uniqueAddresses(list: string[]): string[] {
 const recipients = (addresses: string[]): GraphRecipient[] => addresses.map((address) => ({ emailAddress: { address } }));
 const textToHtml = (text: string) => `<div>${escapeHtml(text).replace(/\r?\n/g, '<br>')}</div>`;
 
+/** Our text goes above Outlook's quoted original — inside <body> when the draft is a full HTML document. */
+export function prependToHtml(original: string | undefined, html: string): string {
+  if (!original) return html;
+  const merged = original.replace(/<body[^>]*>/i, (tag) => `${tag}${html}<br>`);
+  return merged === original ? `${html}<br>${original}` : merged;
+}
+
+interface ReplySource {
+  id: string;
+  graphMessageId: string | null;
+  thread: { mailboxConnectionId: string | null };
+}
+
 interface OutgoingMail {
   to: string[];
   cc: string[];
@@ -178,6 +191,7 @@ export class OutlookSendService {
     }
 
     // Load and size-check every file BEFORE any Graph call, so a refused file never leaves a half-built draft in Outlook.
+    const source = dto.replyToMessageId ? await this.loadReplySource(caseId, dto.replyToMessageId) : null;
     const attachments = await this.loadAttachments(caseId, dto.documentIds ?? []);
     const accessToken = await this.connections.getValidAccessToken(connection.id);
     const mail: OutgoingMail = { to, cc, subject, html: textToHtml(body) };
@@ -185,7 +199,7 @@ export class OutlookSendService {
     let draft: GraphMessage;
     let mode: SendMode;
     try {
-      ({ draft, mode } = await this.createDraft(accessToken, mail));
+      ({ draft, mode } = await this.createDraft(accessToken, mail, connection.id, source, dto.replyAll ?? false));
       for (const { file } of attachments) {
         await this.graph.addFileAttachment(accessToken, draft.id, file);
       }
@@ -259,14 +273,51 @@ export class OutlookSendService {
     return { mode, threadId, recorded: threadId !== null };
   }
 
-  private async createDraft(accessToken: string, mail: OutgoingMail): Promise<{ draft: GraphMessage; mode: SendMode }> {
+  /**
+   * Real Outlook reply only when the source sits in THIS connection's mailbox
+   * (`/me` is that mailbox) — otherwise, or when Graph lost the message, a new
+   * message from my own mailbox that the caller files under the same case.
+   */
+  private async createDraft(
+    accessToken: string,
+    mail: OutgoingMail,
+    connectionId: string,
+    source: ReplySource | null,
+    replyAll: boolean,
+  ): Promise<{ draft: GraphMessage; mode: SendMode }> {
+    if (source?.graphMessageId && source.thread.mailboxConnectionId === connectionId) {
+      try {
+        const reply = await this.graph.createReplyDraft(accessToken, source.graphMessageId, replyAll);
+        const draft = await this.graph.updateDraft(accessToken, reply.id, {
+          subject: mail.subject,
+          body: { contentType: 'HTML', content: prependToHtml(reply.body?.content, mail.html) },
+          toRecipients: recipients(mail.to),
+          ccRecipients: recipients(mail.cc),
+        });
+        return { draft, mode: 'REPLY' };
+      } catch (error) {
+        if (!(error instanceof GraphApiError && error.status === 404)) throw error;
+        this.logger.warn(`Reply source ${source.id} is gone from the mailbox — sending as a new message`);
+      }
+    }
+
     const draft = await this.graph.createDraftMessage(accessToken, {
       subject: mail.subject,
       body: { contentType: 'HTML', content: mail.html },
       toRecipients: recipients(mail.to),
       ccRecipients: recipients(mail.cc),
     });
-    return { draft, mode: 'NEW' };
+    return { draft, mode: source ? 'REPLY_AS_NEW' : 'NEW' };
+  }
+
+  /** The source must be in a thread filed under THIS case — the route's CaseAccessGuard is what authorises it. */
+  private async loadReplySource(caseId: string, messageId: string): Promise<ReplySource> {
+    const source = await this.prisma.emailMessage.findFirst({
+      where: { id: messageId, thread: { caseId } },
+      select: { id: true, graphMessageId: true, thread: { select: { mailboxConnectionId: true } } },
+    });
+    if (!source) throw new NotFoundException('ไม่พบอีเมลต้นทางในคดีนี้');
+    return source;
   }
 
   private async loadAttachments(caseId: string, documentIds: string[]): Promise<LoadedAttachment[]> {
