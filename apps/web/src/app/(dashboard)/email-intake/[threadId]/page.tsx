@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, EmailThreadDetail, IntakeFieldProposalItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { CaseEmailComposer, type CaseEmailComposerMode } from '@/components/cases/CaseEmailComposer';
 import { LinkThreadToCaseCard } from '@/components/email/LinkThreadToCaseCard';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageLoading } from '@/components/ui/misc';
@@ -152,6 +153,7 @@ export default function EmailThreadDetailPage() {
   const [error, setError] = useState('');
   const [replyBody, setReplyBody] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [composer, setComposer] = useState<CaseEmailComposerMode | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !threadId) return;
@@ -308,6 +310,24 @@ export default function EmailThreadDetailPage() {
                       ))}
                     </div>
                   )}
+                  {thread.caseId && (
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setComposer({ kind: 'reply', replyAll: false, threadSubject: thread.subject, message })}
+                      >
+                        ตอบกลับ
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setComposer({ kind: 'reply', replyAll: true, threadSubject: thread.subject, message })}
+                      >
+                        ตอบทั้งหมด
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -364,6 +384,9 @@ export default function EmailThreadDetailPage() {
           </CardContent>
         </Card>
       </div>
+      {thread.caseId && (
+        <CaseEmailComposer caseId={thread.caseId} mode={composer} onClose={() => setComposer(null)} onSent={() => void load()} />
+      )}
     </div>
   );
 }

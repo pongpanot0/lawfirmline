@@ -1149,6 +1149,8 @@ export interface EmailMessageItem {
   direction: 'INBOUND' | 'OUTBOUND';
   fromName: string | null;
   fromAddress: string | null;
+  toAddresses?: string[];
+  ccAddresses?: string[];
   bodyText: string | null;
   receivedAt: string;
   attachments: EmailAttachmentItem[];

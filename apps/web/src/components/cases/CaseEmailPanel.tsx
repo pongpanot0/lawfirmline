@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { InlineEmptyState, PageLoading } from '@/components/ui/misc';
 import { EmailHtmlFrame } from '@/components/email/EmailHtmlFrame';
+import { CaseEmailComposer, type CaseEmailComposerMode } from './CaseEmailComposer';
 import { MATCH_REASON_LABELS } from '@/lib/case-email';
 import { formatDateTime } from '@/lib/utils';
 
@@ -37,6 +38,7 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
   const [linksFailed, setLinksFailed] = useState(false);
   const [detailFailed, setDetailFailed] = useState(false);
   const [detailTick, setDetailTick] = useState(0);
+  const [composer, setComposer] = useState<CaseEmailComposerMode | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -182,6 +184,9 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
               <FolderOpen className="h-4 w-4" /> folder Outlook ที่ผูกกับคดี
             </h2>
             <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={busy !== null} onClick={() => setComposer({ kind: 'new' })}>
+                เขียนอีเมล
+              </Button>
               <Button size="sm" variant="outline" disabled={busy !== null || links.length === 0} onClick={syncNow}>
                 <RefreshCw className="h-4 w-4" /> {busy === 'sync' ? 'กำลังซิงก์…' : 'ซิงก์ตอนนี้'}
               </Button>
@@ -354,6 +359,22 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
                           ))}
                         </ul>
                       )}
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setComposer({ kind: 'reply', replyAll: false, threadSubject: detail.subject, message })}
+                        >
+                          ตอบกลับ
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setComposer({ kind: 'reply', replyAll: true, threadSubject: detail.subject, message })}
+                        >
+                          ตอบทั้งหมด
+                        </Button>
+                      </div>
                     </article>
                   ))}
                   <p className="text-xs text-muted-foreground">รูปภาพจากภายนอกในอีเมลถูกบล็อกเพื่อความปลอดภัย</p>
@@ -363,6 +384,16 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
           </div>
         </div>
       )}
+      <CaseEmailComposer
+        caseId={caseId}
+        mode={composer}
+        onClose={() => setComposer(null)}
+        onSent={(result) => {
+          void load();
+          if (result.threadId) setSelectedId(result.threadId);
+          setDetailTick((n) => n + 1);
+        }}
+      />
     </div>
   );
 }
