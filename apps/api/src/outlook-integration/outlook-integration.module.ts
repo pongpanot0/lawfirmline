@@ -10,6 +10,7 @@ import { OutlookSyncService } from './outlook-sync.service';
 import { GraphHttp } from './graph/graph-http';
 import { GraphCalendarClient } from './graph/graph-calendar.client';
 import { OutlookSubscriptionService } from './outlook-subscription.service';
+import { CaseFolderSyncService } from './case-folder-sync.service';
 import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
 
 @Module({
@@ -23,6 +24,7 @@ import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.ser
     OutlookSyncService,
     OutlookSubscriptionService,
     OutlookCalendarSyncService,
+    CaseFolderSyncService,
     FirmLinkService,
   ],
   exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService],

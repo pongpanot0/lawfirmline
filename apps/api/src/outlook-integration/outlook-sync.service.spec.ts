@@ -203,7 +203,7 @@ describe('OutlookSyncService', () => {
   });
 
   it('survives a concurrent thread create (P2002) by re-reading the winner', async () => {
-    mockPrisma.emailThread.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 't-win', caseId: null });
+    mockPrisma.emailThread.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 't-win', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
     mockPrisma.emailThread.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }),
     );
@@ -214,6 +214,24 @@ describe('OutlookSyncService', () => {
       direction: 'INBOUND', createThreadIfMissing: true,
     });
     expect(out).toEqual({ threadId: 't-win', messageId: 'm1' });
+  });
+
+  it('after a thread-create race (P2002) the re-read winner still gets the case link', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 't-win', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
+    mockPrisma.emailThread.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }),
+    );
+    mockPrisma.emailThread.update.mockResolvedValue({ id: 't-win', caseId: 'case-1' });
+    mockPrisma.emailMessage.findFirst.mockResolvedValue(null);
+    mockPrisma.emailMessage.create.mockResolvedValue({ id: 'm1' });
+    await service.upsertGraphMessage({
+      firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
+      direction: 'INBOUND', caseId: 'case-1', createThreadIfMissing: true,
+    });
+    expect(mockPrisma.emailThread.update).toHaveBeenCalledWith({
+      where: { id: 't-win' },
+      data: expect.objectContaining({ caseId: 'case-1', status: 'LINKED' }),
+    });
   });
 
   it('survives a concurrent message create (P2002) by returning the existing row', async () => {

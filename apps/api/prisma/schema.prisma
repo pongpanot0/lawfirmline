@@ -986,6 +986,7 @@ model Case {
   proceedings            CaseProceeding[]
   conflictChecks         ConflictCheck[]
   emailThreads           EmailThread[]    @relation("CaseEmailThreads")
+  externalLinks          CaseExternalLink[]
 
   @@unique([firmId, ownRef])
   @@unique([firmId, folderId])
@@ -2641,6 +2642,7 @@ model MailboxConnection {
   syncCalendar          Boolean                 @default(true)
   sentDeltaLink         String?                 @db.Text
 
+  caseExternalLinks CaseExternalLink[]
   firm    Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
   user    User?         @relation("MailboxConnectionOwner", fields: [userId], references: [id], onDelete: SetNull)
   threads EmailThread[]
@@ -2649,6 +2651,35 @@ model MailboxConnection {
   @@index([firmId])
   @@index([graphSubscriptionId])
   @@index([userId])
+}
+
+enum CaseExternalLinkKind {
+  OUTLOOK_FOLDER
+  DRIVE_FOLDER
+}
+
+/// folder ภายนอก (Outlook mail folder / OneDrive-SharePoint folder) ที่ผูกกับคดี — ซิงก์ด้วย token ของ connection ที่ผูก
+model CaseExternalLink {
+  id           String               @id @default(uuid())
+  firmId       String
+  caseId       String
+  connectionId String
+  kind         CaseExternalLinkKind
+  /// mailFolder id | driveItem id
+  externalId   String
+  driveId      String?
+  displayPath  String
+  deltaLink    String?              @db.Text
+  linkedById   String
+  lastSyncedAt DateTime?
+  lastError    String?              @db.Text
+  createdAt    DateTime             @default(now())
+
+  case       Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  connection MailboxConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, kind, externalId])
+  @@index([caseId])
 }
 
 /// Shared preparation and a single, retry-safe outcome for one court appointment.

@@ -95,6 +95,7 @@ export class OutlookSyncService {
     const subject = message.subject ?? '(ไม่มีหัวข้อ)';
 
     let thread = await this.prisma.emailThread.findUnique({ where: key });
+    let created = false;
     if (!thread) {
       if (!p.createThreadIfMissing) return null;
       try {
@@ -112,13 +113,15 @@ export class OutlookSyncService {
             ...(p.caseId ? { status: EmailThreadStatus.LINKED } : {}),
           },
         });
+        created = true;
       } catch (error) {
-        // A concurrent sync (webhook + poll) created it first — carry on with that row.
+        // A concurrent sync (webhook + poll) created it first — carry on with that row, applying the usual link/refresh below.
         if (!isUniqueViolation(error)) throw error;
         thread = await this.prisma.emailThread.findUnique({ where: key });
         if (!thread) throw error;
       }
-    } else {
+    }
+    if (!created) {
       const data = {
         ...(thread.subject === subject ? {} : { subject }),
         ...(thread.lastMessageAt && at <= thread.lastMessageAt ? {} : { lastMessageAt: at }),
