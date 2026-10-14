@@ -33,15 +33,23 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
   const [pickedFolderId, setPickedFolderId] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [threadsFailed, setThreadsFailed] = useState(false);
+  const [linksFailed, setLinksFailed] = useState(false);
+  const [detailFailed, setDetailFailed] = useState(false);
+  const [detailTick, setDetailTick] = useState(0);
 
   const load = useCallback(async () => {
     if (!token) return;
-    const [nextThreads, nextLinks] = await Promise.all([
-      api.getCaseEmailThreads(token, caseId).catch(() => [] as CaseEmailThreadItem[]),
-      api.getCaseFolderLinks(token, caseId).catch(() => [] as CaseFolderLinkItem[]),
+    const [threadsResult, linksResult] = await Promise.allSettled([
+      api.getCaseEmailThreads(token, caseId),
+      api.getCaseFolderLinks(token, caseId),
     ]);
-    setThreads(nextThreads);
-    setLinks(nextLinks);
+    // Keep the last good data on a failed refresh; flag the failure instead of faking an empty list.
+    if (threadsResult.status === 'fulfilled') setThreads(threadsResult.value);
+    else setThreads((prev) => prev ?? []);
+    setThreadsFailed(threadsResult.status === 'rejected');
+    if (linksResult.status === 'fulfilled') setLinks(linksResult.value);
+    setLinksFailed(linksResult.status === 'rejected');
   }, [token, caseId]);
 
   useEffect(() => {
@@ -50,16 +58,22 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
 
   useEffect(() => {
     setDetail(null);
+    setDetailFailed(false);
     if (!token || !selectedId) return;
     let active = true;
     api
       .getCaseEmailThread(token, caseId, selectedId)
       .then((d) => active && setDetail(d))
-      .catch((e) => active && setNotice({ type: 'error', text: errorText(e, 'เปิดอีเมลไม่สำเร็จ') }));
+      .catch(() => active && setDetailFailed(true));
     return () => {
       active = false;
     };
-  }, [token, caseId, selectedId]);
+  }, [token, caseId, selectedId, detailTick]);
+
+  const selectThread = (threadId: string) => {
+    setNotice(null);
+    setSelectedId(threadId);
+  };
 
   const run = async (key: string, action: (t: string) => Promise<Notice>) => {
     if (!token) return;
@@ -145,6 +159,11 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
 
   if (threads === null) return <PageLoading title="กำลังโหลดอีเมลของคดี" lines={3} />;
 
+  const retryLoad = () => {
+    setNotice(null);
+    load();
+  };
+
   return (
     <div className="space-y-4">
       {notice && (
@@ -172,7 +191,15 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
             </div>
           </div>
 
-          {links.length === 0 && (
+          {linksFailed && (
+            <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+              โหลดรายการ folder ไม่สำเร็จ
+              <Button size="sm" variant="outline" onClick={retryLoad}>
+                ลองใหม่
+              </Button>
+            </p>
+          )}
+          {!linksFailed && links.length === 0 && (
             <p className="text-sm text-muted-foreground">
               ยังไม่ได้ผูก folder — อีเมลที่ผูกทีละฉบับจากคิวอีเมลจะแสดงด้านล่าง
             </p>
@@ -231,7 +258,14 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
         </CardContent>
       </Card>
 
-      {threads.length === 0 ? (
+      {threadsFailed ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
+          โหลดอีเมลไม่สำเร็จ
+          <Button size="sm" variant="outline" onClick={retryLoad}>
+            ลองใหม่
+          </Button>
+        </div>
+      ) : threads.length === 0 ? (
         <InlineEmptyState
           icon={Mail}
           title="ยังไม่มีอีเมลในคดีนี้"
@@ -244,7 +278,7 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
               <li key={thread.id}>
                 <button
                   type="button"
-                  onClick={() => setSelectedId(thread.id)}
+                  onClick={() => selectThread(thread.id)}
                   aria-current={selectedId === thread.id ? 'true' : undefined}
                   className={`w-full rounded-lg border p-3 text-left ${selectedId === thread.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
                 >
@@ -263,7 +297,22 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
 
           <div className="min-w-0">
             {!selectedId && <p className="text-sm text-muted-foreground">เลือกอีเมลทางซ้ายเพื่ออ่าน</p>}
-            {selectedId && !detail && <PageLoading title="กำลังเปิดอีเมล" lines={3} />}
+            {selectedId && !detail && detailFailed && (
+              <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+                เปิดอีเมลไม่สำเร็จ
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setDetailFailed(false);
+                    setDetailTick((n) => n + 1);
+                  }}
+                >
+                  ลองใหม่
+                </Button>
+              </p>
+            )}
+            {selectedId && !detail && !detailFailed && <PageLoading title="กำลังเปิดอีเมล" lines={3} />}
             {detail && (
               <Card>
                 <CardContent className="space-y-4 p-4">
@@ -285,7 +334,7 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
                         {message.ccAddresses.length > 0 && <p>สำเนา: {message.ccAddresses.join(', ')}</p>}
                       </div>
                       {message.bodyHtml ? (
-                        <EmailHtmlFrame html={message.bodyHtml} title={`เนื้อหาอีเมล: ${detail.subject}`} />
+                        <EmailHtmlFrame html={message.bodyHtml} title={`เนื้อหาอีเมล: ${detail.subject} — ${message.fromName ?? message.fromAddress ?? 'ไม่ทราบผู้ส่ง'} ${formatDateTime(message.receivedAt)}`} />
                       ) : (
                         <p className="whitespace-pre-wrap text-sm">{message.bodyText ?? ''}</p>
                       )}

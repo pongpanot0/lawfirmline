@@ -269,6 +269,11 @@ export default function CaseDetailPage() {
     type: ActivityType.OTHER as string,
   });
 
+  // Drop the previous case's email rows immediately when navigating to another case.
+  useEffect(() => {
+    setEmailTimeline([]);
+  }, [id]);
+
   const loadCase = () => {
     if (!token || !id) return;
     // Non-blocking: a failure here must not break the rest of the case page.
