@@ -6,13 +6,15 @@ import { DocumentsService } from '../../documents/documents.service';
 import { OutlookConnectionsService } from '../outlook-connections.service';
 import { GraphDriveClient } from '../graph/graph-drive.client';
 import { GraphApiError } from '../graph/graph-http';
+import { CaseAccessService } from '../../common/services/case-access.service';
 import { CaseDriveService, DRIVE_IMPORT_MAX_BYTES, driveDisplayPath, toPickerItem } from './case-drive.service';
 
 describe('CaseDriveService', () => {
   let service: CaseDriveService;
   const mockPrisma: any = {
-    caseExternalLink: { findFirst: jest.fn(), findUnique: jest.fn(), deleteMany: jest.fn(), create: jest.fn() },
+    caseExternalLink: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), deleteMany: jest.fn(), create: jest.fn() },
     mailboxConnection: { findUnique: jest.fn() },
+    case: { findMany: jest.fn() },
     user: { findUnique: jest.fn() },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb(mockPrisma)),
@@ -48,6 +50,7 @@ describe('CaseDriveService', () => {
         { provide: OutlookConnectionsService, useValue: mockConnections },
         { provide: GraphDriveClient, useValue: mockDrive },
         { provide: DocumentsService, useValue: mockDocuments },
+        { provide: CaseAccessService, useValue: { getCaseFilterForUser: jest.fn(() => ({ firmId: 'f1' })) } },
       ],
     }).compile();
     service = module.get(CaseDriveService);
@@ -255,6 +258,30 @@ describe('CaseDriveService', () => {
     ]);
     await expect(service.pickerShared(user)).resolves.toEqual([{ id: 'R1', driveId: 'b!other', name: 'คดีแชร์', webUrl: 'rw' }]);
   });
+  describe('folderSuggestions', () => {
+    it('suggests a case for a folder named after its ownRef and reports already-linked folders', async () => {
+      mockConnections.findActiveForUser.mockResolvedValue({ id: 'conn-me' });
+      mockConnections.getValidAccessToken.mockResolvedValue('tok-me');
+      mockDrive.listChildren.mockResolvedValue([
+        { id: 'F1', name: 'ACME 2569/0012', webUrl: 'w1', folder: {}, parentReference: { driveId: 'b!d' } },
+        { id: 'F2', name: 'ACME 2569/0099', webUrl: 'w2', folder: {}, parentReference: { driveId: 'b!d' } },
+      ]);
+      mockPrisma.case.findMany.mockResolvedValue([
+        { id: 'c1', ownRef: 'ACME 2569/0012', title: 'A', clientName: null, blackCaseNumber: null, redCaseNumber: null, proceedings: [], client: { name: 'ACME' } },
+        { id: 'c2', ownRef: 'ACME 2569/0099', title: 'B', clientName: null, blackCaseNumber: null, redCaseNumber: null, proceedings: [], client: { name: 'ACME' } },
+      ]);
+      mockPrisma.caseExternalLink.findMany.mockResolvedValue([
+        { id: 'l2', externalId: 'F2', caseId: 'c2', case: { ownRef: 'ACME 2569/0099', title: 'B' } },
+      ]);
+
+      const rows = await service.folderSuggestions(user, 'b!d', 'ROOT');
+
+      expect(rows[0].link).toBeNull();
+      expect(rows[0].suggestions[0].caseId).toBe('c1');
+      expect(rows[1].link).toEqual({ id: 'l2', caseId: 'c2', ownRef: 'ACME 2569/0099', title: 'B' });
+      expect(rows[1].suggestions).toEqual([]);
+    });
+  });
 });
 
 describe('drive view helpers', () => {
@@ -266,5 +293,4 @@ describe('drive view helpers', () => {
 
   it('drops items without a drive id', () => {
     expect(toPickerItem({ id: 'x', name: 'x', webUrl: 'w', folder: {} } as any)).toBeNull();
-  });
-});
+  });});

@@ -9,6 +9,7 @@ import { defaultFolderCaseId } from '@/lib/case-email';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLoading } from '@/components/ui/misc';
+import { DriveFolderMatchingTab } from '@/components/settings/DriveFolderMatchingTab';
 import { FolderMatchTable, type FolderMatchRow } from '@/components/settings/FolderMatchTable';
 
 type Notice = { type: 'success' | 'error'; text: string } | null;
@@ -21,6 +22,7 @@ export default function OutlookFolderMatchPage() {
   const [loadError, setLoadError] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
   const [saving, setSaving] = useState(false);
+  const [matchTab, setMatchTab] = useState<'outlook' | 'drive'>('outlook');
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -88,14 +90,36 @@ export default function OutlookFolderMatchPage() {
         <ArrowLeft className="h-4 w-4" /> กลับไปหน้าตั้งค่า
       </Link>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">จับคู่ folder Outlook กับคดี</h1>
+        <h1 className="text-2xl font-bold tracking-tight">จับคู่ folder กับคดี</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          ระบบแนะนำคดีจากเลขอ้างอิง เลขคดีดำ/แดง และชื่อลูกความในชื่อ folder — ไม่มีการผูกจนกว่าคุณจะกด &quot;ยืนยัน&quot;.
+          ระบบแนะนำคดีจากเลขอ้างอิง เลขคดีดำ/แดง และชื่อลูกความในชื่อ folder (Outlook หรือ OneDrive / SharePoint) — ไม่มีการผูกจนกว่าคุณจะกด &quot;ยืนยัน&quot;.
           อีเมลใน folder ที่ผูกจะเข้าแท็บอีเมลของคดี และทุกคนที่มีสิทธิ์ในคดีจะเห็น
         </p>
       </div>
 
-      {loadError && (
+      <div className="flex gap-1.5">
+        {(
+          [
+            ['outlook', 'Outlook'],
+            ['drive', 'OneDrive / SharePoint'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setMatchTab(value)}
+            className={`min-h-9 rounded-lg px-3 py-1 text-xs ${
+              matchTab === value ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {matchTab === 'drive' && <DriveFolderMatchingTab />}
+
+      {matchTab === 'outlook' && loadError && (
         <div role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
           <p>{loadError}</p>
           <div className="mt-2 flex items-center gap-3">
@@ -108,7 +132,7 @@ export default function OutlookFolderMatchPage() {
           </div>
         </div>
       )}
-      {notice && (
+      {matchTab === 'outlook' && notice && (
         <p
           role="status"
           className={`rounded-lg p-3 text-sm ${notice.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-destructive/10 text-destructive'}`}
@@ -117,9 +141,9 @@ export default function OutlookFolderMatchPage() {
         </p>
       )}
 
-      {!rows && !loadError && <PageLoading title="กำลังดึงรายชื่อ folder จาก Outlook" lines={4} />}
+      {matchTab === 'outlook' && !rows && !loadError && <PageLoading title="กำลังดึงรายชื่อ folder จาก Outlook" lines={4} />}
 
-      {rows && (
+      {matchTab === 'outlook' && rows && (
         <Card>
           <CardContent className="p-4">
             <FolderMatchTable rows={rows} cases={cases} saving={saving} onConfirm={confirm} onUnlink={unlink} />

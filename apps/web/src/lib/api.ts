@@ -2999,6 +2999,18 @@ export const api = {
       { token },
     ),
 
+  getDriveFolderSuggestions: (token: string, driveId: string, itemId: string) =>
+    request<
+      Array<{
+        folder: DrivePickerItem;
+        link: { id: string; caseId: string; ownRef: string; title: string } | null;
+        suggestions: CaseMatchSuggestionItem[];
+      }>
+    >(
+      `/outlook/drive/folder-suggestions?driveId=${encodeURIComponent(driveId)}&itemId=${encodeURIComponent(itemId)}`,
+      { token },
+    ),
+
   getDriveShared: (token: string) => request<DrivePickerItem[]>('/outlook/drive/shared', { token }),
 
   searchDriveSites: (token: string, q: string) =>

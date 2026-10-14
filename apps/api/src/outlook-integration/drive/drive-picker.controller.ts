@@ -16,6 +16,12 @@ export class DrivePickerController {
     return this.caseDrive.pickerChildren(user, query.driveId ?? 'me', query.itemId ?? 'root');
   }
 
+  /** Child folders with case suggestions; linking still needs a per-row confirm (PUT /cases/:id/drive-link). */
+  @Get('folder-suggestions')
+  folderSuggestions(@CurrentUser() user: AuthUser, @Query() query: DriveChildrenQueryDto) {
+    return this.caseDrive.folderSuggestions(user, query.driveId ?? 'me', query.itemId ?? 'root');
+  }
+
   @Get('shared')
   shared(@CurrentUser() user: AuthUser) {
     return this.caseDrive.pickerShared(user);

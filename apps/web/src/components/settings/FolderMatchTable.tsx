@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import type { CaseListItem, CaseMatchReason } from '@/lib/api';
 import { MATCH_REASON_LABELS, OTHER_CASE } from '@/lib/case-email';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ export function FolderMatchTable({
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [otherRefs, setOtherRefs] = useState<Record<string, string>>({});
   const [onlySuggested, setOnlySuggested] = useState(true);
+  const datalistId = useId();
 
   // A fresh `rows` array means the parent reloaded — restart from the defaults.
   useEffect(() => {
@@ -111,7 +112,7 @@ export function FolderMatchTable({
                       </select>
                       {selection[row.id] === OTHER_CASE && (
                         <input
-                          list="folder-case-refs"
+                          list={datalistId}
                           value={otherRefs[row.id] ?? ''}
                           onChange={(e) => setOtherRefs((r) => ({ ...r, [row.id]: e.target.value }))}
                           placeholder="พิมพ์เลขอ้างอิงคดี"
@@ -127,7 +128,7 @@ export function FolderMatchTable({
             ))}
           </tbody>
         </table>
-        <datalist id="folder-case-refs">
+        <datalist id={datalistId}>
           {cases.map((c) => (
             <option key={c.id} value={c.ownRef}>
               {c.title}

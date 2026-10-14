@@ -3,6 +3,8 @@ import { AuthUser, hasFirmCapability } from '@lawfirm/shared';
 import { PrismaService } from '../../prisma/prisma.module';
 import { CaseExternalLinkKind, MailboxConnectionStatus } from '../../generated/prisma';
 import { DocumentsService } from '../../documents/documents.service';
+import { CaseAccessService } from '../../common/services/case-access.service';
+import { MATCHABLE_CASE_SELECT, suggestCaseMatches, toMatchableCase } from '../case-matching';
 import { OutlookConnectionsService } from '../outlook-connections.service';
 import { DriveItem, GraphDrive, GraphDriveClient, GraphSite } from '../graph/graph-drive.client';
 import { DRIVE_DISCONNECTED_MESSAGE, driveErrorMessage, rethrowDriveError } from './drive-errors';
@@ -83,6 +85,7 @@ export class CaseDriveService {
     private connections: OutlookConnectionsService,
     private drive: GraphDriveClient,
     private documents: DocumentsService,
+    private caseAccess: CaseAccessService,
   ) {}
 
   /** "ใครเปิด/ดาวน์โหลดไฟล์คดีนี้" must be answerable for OneDrive files too. */
@@ -267,6 +270,29 @@ export class CaseDriveService {
     const { token } = await this.ownToken(user);
     const items = await this.drive.listChildren(token, driveId, itemId).catch(rethrowDriveError);
     return items.map(toPickerItem).filter((item): item is DrivePickerItem => item !== null);
+  }
+
+  /** Child folders of a parent, each with case suggestions (same matcher as Outlook) or its existing link. Creates nothing. */
+  async folderSuggestions(user: AuthUser, driveId: string, itemId: string) {
+    const folders = await this.pickerChildren(user, driveId, itemId);
+    const { connectionId } = await this.ownToken(user);
+    const [caseRows, links] = await Promise.all([
+      this.prisma.case.findMany({ where: this.caseAccess.getCaseFilterForUser(user), select: MATCHABLE_CASE_SELECT }),
+      this.prisma.caseExternalLink.findMany({
+        where: { connectionId, kind: DRIVE_FOLDER, externalId: { in: folders.map((f) => f.id) } },
+        select: { id: true, externalId: true, caseId: true, case: { select: { ownRef: true, title: true } } },
+      }),
+    ]);
+    const cases = caseRows.map(toMatchableCase);
+    const linkByFolder = new Map(links.map((l) => [l.externalId, l]));
+    return folders.map((folder) => {
+      const l = linkByFolder.get(folder.id);
+      return {
+        folder,
+        link: l ? { id: l.id, caseId: l.caseId, ownRef: l.case.ownRef, title: l.case.title } : null,
+        suggestions: l ? [] : suggestCaseMatches(folder.name, cases).slice(0, 5),
+      };
+    });
   }
 
   async pickerShared(user: AuthUser): Promise<DrivePickerItem[]> {
