@@ -204,6 +204,7 @@ export interface SlaConfig {
   caseUpdateDays: number;
   stuckStatusDays: number;
   reviewDays: number;
+  emailReplyHours: number;
 }
 
 export interface TeamPerformanceRow {
@@ -1218,6 +1219,7 @@ export interface CaseEmailThreadItem {
   lastMessageAt: string;
   messageCount: number;
   attachmentCount: number;
+  awaitingReplySince: string | null;
 }
 
 export interface CaseEmailMessageItem {
@@ -3256,6 +3258,12 @@ export const api = {
 
   getCaseEmailThreads: (token: string, caseId: string) =>
     request<CaseEmailThreadItem[]>(`/cases/${caseId}/email/threads`, { token }),
+
+  dismissEmailReply: (token: string, caseId: string, threadId: string) =>
+    request<{ dismissed: boolean }>(`/cases/${caseId}/email/threads/${threadId}/reply-dismiss`, { method: 'POST', token }),
+
+  undoDismissEmailReply: (token: string, caseId: string, threadId: string) =>
+    request<{ dismissed: boolean }>(`/cases/${caseId}/email/threads/${threadId}/reply-dismiss`, { method: 'DELETE', token }),
 
   getCaseEmailThread: (token: string, caseId: string, threadId: string) =>
     request<CaseEmailThreadDetail>(`/cases/${caseId}/email/threads/${threadId}`, { token }),
