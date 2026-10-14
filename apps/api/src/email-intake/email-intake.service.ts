@@ -31,6 +31,9 @@ const threadInclude = {
   intake: {
     select: { id: true, status: true, title: true, clientName: true },
   },
+  case: {
+    select: { id: true, ownRef: true, title: true },
+  },
   messages: {
     orderBy: { receivedAt: 'desc' as const },
     include: {

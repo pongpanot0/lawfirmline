@@ -39,3 +39,9 @@ export class SeedMockReplyDto {
   @IsString()
   fromAddress?: string;
 }
+
+export class LinkThreadToCaseDto {
+  @IsNotEmpty()
+  @IsString()
+  caseId: string;
+}
