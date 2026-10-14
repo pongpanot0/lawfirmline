@@ -2,6 +2,7 @@
 
 import { COURT_EVENT_KIND_LABELS, CourtEventKind } from '@lawfirm/shared';
 import { EventResponsibility } from './EventResponsibility';
+import { OutlookChangesPanel } from './OutlookChangesPanel';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -231,7 +232,16 @@ export function CalendarEventDialog({
     const rows: { label: string; value: React.ReactNode }[] = [
       { label: d.calendar.eventType, value: typeLabels[event.type] ?? event.type },
       ...(event.type === 'COURT_DATE' && event.courtEventKind ? [{ label: d.calendar.courtEventKind, value: COURT_EVENT_KIND_LABELS[event.courtEventKind] }] : []),
-      { label: d.calendar.timeHint, value: formatDateTime(event.startAt) },
+      {
+        label: d.calendar.timeHint,
+        value: (
+          <>
+            {formatDateTime(event.startAt)}
+            {(event.type === 'CLIENT_MEETING' || event.type === 'OTHER') && <p className="text-xs text-muted-foreground">ย้ายเวลาใน Outlook ได้ ระบบจะอัปเดตตาม</p>}
+            {(event.type === 'COURT_DATE' || event.type === 'DEADLINE') && <p className="text-xs text-muted-foreground">ถ้าย้ายใน Outlook ระบบจะถามยืนยันก่อน</p>}
+          </>
+        ),
+      },
       ...(courtName ? [{ label: d.calendar.courtName, value: courtName }] : []),
       ...(event.case
         ? [{
@@ -276,6 +286,7 @@ export function CalendarEventDialog({
         {event.onlineMeeting && !event.onlineMeetingUrl?.startsWith('https://') && (
           <p className="mb-3 text-xs text-muted-foreground">กำลังสร้างลิงก์ Teams… (ภายใน 2 นาที)</p>
         )}
+        <OutlookChangesPanel eventId={event.id} onChanged={onSaved} />
         <dl className="space-y-2 text-sm">
           {rows.map((row) => (
             <div key={row.label} className="flex gap-3">

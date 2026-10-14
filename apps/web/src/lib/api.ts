@@ -54,6 +54,11 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
+export interface OutlookChanges {
+  changes: { id: string; userId: string; userName: string; proposedStartAt: string; proposedEndAt: string | null; detectedAt: string }[];
+  myCopyRemovedInOutlook: boolean;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -2321,6 +2326,10 @@ export const api = {
   acknowledgeEvent: (token: string, id: string, eventUpdatedAt: string, complete = false) => request(`/calendar/events/${id}/${complete ? 'complete-work' : 'acknowledge'}`, { token, method: 'POST', body: JSON.stringify({ eventUpdatedAt }) }),
   previewEventReschedule: (token: string, id: string, startAt: string) => request<import('@/components/calendar/EventResponsibility').ReschedulePreview>(`/calendar/events/${id}/reschedule-preview`, { token, method: 'POST', body: JSON.stringify({ startAt }) }),
   rescheduleEvent: (token: string, id: string, data: { startAt: string; fingerprint: string; reason: string }) => request(`/calendar/events/${id}/reschedule`, { token, method: 'POST', body: JSON.stringify(data) }),
+  getOutlookChanges: (token: string, id: string) => request<OutlookChanges>(`/calendar/events/${id}/outlook-changes`, { token }),
+  applyOutlookChange: (token: string, id: string, changeId: string, data: { fingerprint: string; reason: string }) => request<{ ok: true }>(`/calendar/events/${id}/outlook-changes/${changeId}/apply`, { token, method: 'POST', body: JSON.stringify(data) }),
+  keepOutlookChange: (token: string, id: string, changeId: string) => request<{ ok: true }>(`/calendar/events/${id}/outlook-changes/${changeId}/keep`, { token, method: 'POST' }),
+  restoreOutlookCopy: (token: string, id: string) => request<{ ok: true }>(`/calendar/events/${id}/outlook-copies/restore`, { token, method: 'POST' }),
   getCalendarEvent: (token: string, id: string) =>
     request<CalendarEventItem>(`/calendar/events/${id}`, { token }),
 
