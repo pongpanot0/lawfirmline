@@ -462,4 +462,26 @@ describe('OutlookCalendarSyncService', () => {
     await svc.reconcileAll();
     expect(prisma.mailboxConnection.findMany).toHaveBeenCalledTimes(4); // two lookups per completed run
   });
+
+  describe('copies the owner deleted in Outlook', () => {
+    const removed = { id: 'cp1', eventId: 'e1', userId: 'u1', connectionId: 'conn-u1', graphEventId: 'g1', syncedAt: new Date('2026-10-01'), removedInOutlookAt: new Date() };
+
+    it('doSync never recreates or patches them, even though the event changed', async () => {
+      prisma.calendarEvent.findUnique.mockResolvedValue(event());
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([removed]);
+      activeFor(() => [conn('u1')]);
+      await svc.syncEvent('e1');
+      expect(calendar.createEvent).not.toHaveBeenCalled();
+      expect(calendar.updateEvent).not.toHaveBeenCalled();
+    });
+
+    it('reconcileAll does not queue them', async () => {
+      reconcileConns([conn('u1')], [{ id: 'conn-u1' }]);
+      prisma.calendarEvent.findMany.mockResolvedValueOnce([{ id: 'e1', updatedAt: new Date() }]).mockResolvedValue([]);
+      prisma.calendarEventOutlookCopy.findMany.mockResolvedValueOnce([removed]);
+      const spy = jest.spyOn(svc, 'syncEvent').mockResolvedValue(undefined);
+      await svc.reconcileAll();
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -14,6 +14,7 @@ import { CaseFolderSyncService } from './case-folder-sync.service';
 import { CaseFolderLinksController } from './case-folder-links.controller';
 import { CaseFolderLinksService } from './case-folder-links.service';
 import { GraphMailFoldersClient } from './graph/graph-mail-folders.client';
+import { OutlookCalendarInboundService } from './calendar/outlook-calendar-inbound.service';
 import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
 import { CaseEmailSendController } from './case-email-send.controller';
 import { GraphDriveClient } from './graph/graph-drive.client';
@@ -33,6 +34,7 @@ import { OutlookSendService } from './outlook-send.service';
     OutlookSyncService,
     OutlookSubscriptionService,
     OutlookCalendarSyncService,
+    OutlookCalendarInboundService,
     GraphMailFoldersClient,
     CaseFolderSyncService,
     CaseFolderLinksService,
