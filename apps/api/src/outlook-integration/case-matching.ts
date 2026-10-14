@@ -29,9 +29,16 @@ const NOT_WORD_BEFORE = '(?<![\\p{L}\\p{N}])';
 const NOT_WORD_AFTER = '(?![\\p{L}\\p{N}])';
 /** "ผบ.1234/2567" → 1234 / 2567. Thai numerals are not handled (case numbers are stored with ASCII digits). */
 const CASE_NUMBER_CORE = /(\d+)\s*\/\s*(\d{2,4})/;
-/** Longest alternatives first (นางสาว before นาง, (มหาชน) before มหาชน). */
-const NAME_AFFIXES =
-  /บริษัท|บจก\.?|บมจ\.?|ห้างหุ้นส่วนจำกัด|ห้างหุ้นส่วนสามัญ|หจก\.?|\(มหาชน\)|มหาชน|จำกัด|นางสาว|นาง|นาย|co\.?,?\s*ltd\.?|company|limited|ltd\.?|inc\.?/giu;
+/**
+ * Longest alternatives first (นางสาว before นาง, (มหาชน) before มหาชน). Latin affixes need a word
+ * boundary so "Zinc" / "Princeton" keep their letters. Stripped only at the start/end of a name.
+ */
+const AFFIX_SRC =
+  '(?:บริษัท|บจก\\.?|บมจ\\.?|ห้างหุ้นส่วนจำกัด|ห้างหุ้นส่วนสามัญ|หจก\\.?|\\(มหาชน\\)|มหาชน|จำกัด|นางสาว|นาง|นาย|' +
+  '(?<![a-z])(?:co\\.?,?\\s*ltd\\.?|company|limited|ltd\\.?|inc\\.?)(?![a-z]))';
+const LEADING_AFFIX = new RegExp(`^\\s*${AFFIX_SRC}\\s*`, 'iu');
+const TRAILING_AFFIX = new RegExp(`\\s*${AFFIX_SRC}\\s*$`, 'iu');
+const MIN_NON_ASCII_NAME = 4;
 
 export const MATCHABLE_CASE_SELECT = {
   id: true,
@@ -76,18 +83,35 @@ function hasOwnRef(name: string, ownRef: string): boolean {
 function hasCaseNumber(name: string, caseNumber: string): boolean {
   const core = CASE_NUMBER_CORE.exec(caseNumber);
   if (!core) return false;
-  return new RegExp(`(?<!\\d)${core[1]}(?:\\s*[-/_.]\\s*|\\s+)${core[2]}(?!\\d)`).test(name);
+  // "/" only. Not glued to a letter ("Q5/2568"), not the tail of a date ("15/5/2568"),
+  // not followed by more digits or a further "/n" ("5/2568/1").
+  return new RegExp(
+    `(?<![\\p{L}\\d])(?<!\\d+[/.\\-])${core[1]}/${core[2]}(?!\\d)(?!/\\d)`,
+    'u',
+  ).test(name);
 }
 
-function nameCore(value: string): string {
-  return value.normalize('NFC').replace(NAME_AFFIXES, '').replace(/\s+/g, '').toLowerCase();
+function stripAffixes(value: string): string {
+  let current = value.normalize('NFC').trim();
+  for (;;) {
+    const next = current.replace(LEADING_AFFIX, '').replace(TRAILING_AFFIX, '').trim();
+    if (next === current) return current;
+    current = next;
+  }
 }
 
 function hasClientName(name: string, clientName: string | null): boolean {
   if (!clientName) return false;
-  const core = nameCore(clientName);
-  // Thai names have no word breaks, so this is a plain substring test — the weakest signal, ranked last.
-  return [...core].length >= MIN_TOKEN && nameCore(name).includes(core);
+  const core = stripAffixes(clientName).replace(/\s+/g, ' ').toLowerCase();
+  const folder = name.replace(/\s+/g, ' ').toLowerCase();
+  if (/^[\x00-\x7f]*$/.test(core)) {
+    // ASCII names have word breaks: require a non-alphanumeric boundary ("ABC" must not hit "Fabcdef").
+    if ([...core].length < MIN_TOKEN) return false;
+    return new RegExp(`(?<![a-z0-9])${escapeRegex(core)}(?![a-z0-9])`).test(folder);
+  }
+  // Thai names have no word breaks: whitespace-stripped substring test, the weakest signal, ranked last.
+  const visible = [...core.replace(/\s+/g, '')].filter((c) => !/\p{M}/u.test(c));
+  return visible.length >= MIN_NON_ASCII_NAME && folder.replace(/\s+/g, '').includes(core.replace(/\s+/g, ''));
 }
 
 export function suggestCaseMatches(folderName: string, cases: MatchableCase[]): CaseMatchSuggestion[] {
