@@ -1,6 +1,7 @@
 'use client';
 
 import { CaseKnowledgePanel } from '@/components/documents/CaseKnowledgePanel';
+import { CaseDriveSection } from '@/components/cases/CaseDriveSection';
 import { CaseEvidenceSection } from '@/components/cases/CaseEvidenceSection';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -314,6 +315,7 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
         />
       )}
 
+      <CaseDriveSection caseId={id} onImported={load} />
       <div className="rounded-xl border bg-card p-6 shadow-soft">
         <h2 className="mb-4 font-semibold text-foreground">{fmt(d.caseDocuments.filesCount, { count: documents.length })}</h2>
         <p className="mb-3 text-sm text-muted-foreground">อัปโหลดก่อน แล้วให้ Jev เสนอหมวดเอกสารพร้อมข้อความอ้างอิงเพื่อให้ทนายตรวจ</p>

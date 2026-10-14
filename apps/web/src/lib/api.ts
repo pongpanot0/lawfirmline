@@ -2950,10 +2950,74 @@ export const api = {
     request<MailboxConnectionItem>(`/outlook/connections/${id}`, { method: 'PATCH', token, body: JSON.stringify(body) }),
 
   disconnectOutlook: (token: string, id: string) =>
-    request<{ revoked: boolean }>(`/outlook/connections/${id}`, { method: 'DELETE', token }),
+    request<{ revoked: boolean; caseLinks: number }>(`/outlook/connections/${id}`, { method: 'DELETE', token }),
 
   syncOutlookNow: (token: string, id: string) =>
     request<{ messagesSynced: number }>(`/outlook/connections/${id}/sync`, { method: 'POST', token }),
+
+  getOutlookConnectionCaseLinks: (token: string, id: string) =>
+    request<ConnectionCaseLinkSummary>(`/outlook/connections/${id}/case-links`, { token }),
+
+  // --- OneDrive / SharePoint (M365 ส่วน D) ---
+  getCaseDrive: (token: string, caseId: string) =>
+    request<CaseDriveListing>(`/cases/${caseId}/drive`, { token }),
+
+  linkCaseDriveFolder: (token: string, caseId: string, driveId: string, itemId: string) =>
+    request<{ id: string }>(`/cases/${caseId}/drive-link`, {
+      method: 'PUT',
+      token,
+      body: JSON.stringify({ driveId, itemId }),
+    }),
+
+  unlinkCaseDriveFolder: (token: string, caseId: string) =>
+    request<{ unlinked: boolean }>(`/cases/${caseId}/drive-link`, { method: 'DELETE', token }),
+
+  openCaseDriveItem: (token: string, caseId: string, itemId: string) =>
+    request<{ webUrl: string }>(`/cases/${caseId}/drive/items/${encodeURIComponent(itemId)}/open`, {
+      method: 'POST',
+      token,
+      silent: true,
+    }),
+
+  importCaseDriveItem: (token: string, caseId: string, itemId: string) =>
+    request<DocumentItem>(`/cases/${caseId}/drive/items/${encodeURIComponent(itemId)}/import`, {
+      method: 'POST',
+      token,
+      silent: true,
+    }),
+
+  importCaseDriveFolder: (token: string, caseId: string) =>
+    request<{ imported: number; skipped: string[] }>(`/cases/${caseId}/drive/import-all`, {
+      method: 'POST',
+      token,
+      silent: true,
+    }),
+
+  getDriveChildren: (token: string, driveId = 'me', itemId = 'root') =>
+    request<DrivePickerItem[]>(
+      `/outlook/drive/children?driveId=${encodeURIComponent(driveId)}&itemId=${encodeURIComponent(itemId)}`,
+      { token },
+    ),
+
+  getDriveShared: (token: string) => request<DrivePickerItem[]>('/outlook/drive/shared', { token }),
+
+  searchDriveSites: (token: string, q: string) =>
+    request<DriveSiteItem[]>(`/outlook/drive/sites?q=${encodeURIComponent(q)}`, { token }),
+
+  getSiteLibraries: (token: string, siteId: string) =>
+    request<DriveLibraryItem[]>(`/outlook/drive/sites/${encodeURIComponent(siteId)}/drives`, { token }),
+
+  getOfficeLinks: (token: string, caseId: string) =>
+    request<DocumentOfficeLinkView[]>(`/cases/${caseId}/office-links`, { token }),
+
+  openDocumentInOffice: (token: string, caseId: string, documentId: string) =>
+    request<{ webUrl: string }>(`/cases/${caseId}/office-links/${documentId}/open`, { method: 'POST', token, silent: true }),
+
+  pullDocumentFromOffice: (token: string, caseId: string, documentId: string) =>
+    request<{ updated: boolean; version: number }>(`/cases/${caseId}/office-links/${documentId}/pull`, {
+      method: 'POST',
+      token,
+    }),
 
   getCaseEmailComposeOptions: (token: string, caseId: string) =>
     request<CaseEmailComposeOptions>(`/cases/${caseId}/outbound-email/compose-options`, { token }),
@@ -3622,6 +3686,60 @@ export interface DocumentItem {
   uploadedBy?: { firstName: string; lastName: string } | null;
   uploadedByContact?: { name: string } | null;
   versions?: DocumentVersionItem[];
+}
+
+export interface DriveItemView {
+  id: string;
+  name: string;
+  isFolder: boolean;
+  size: number | null;
+  webUrl: string;
+  lastModifiedDateTime: string;
+  lastModifiedBy: string | null;
+  mimeType: string | null;
+}
+
+export interface CaseDriveListing {
+  state: 'NO_LINK' | 'OK' | 'DISCONNECTED' | 'ERROR';
+  message: string | null;
+  link: { id: string; displayPath: string; linkedBy: string | null; isMine: boolean } | null;
+  items: DriveItemView[];
+}
+
+export interface DrivePickerItem {
+  id: string;
+  driveId: string;
+  name: string;
+  webUrl: string;
+}
+
+export interface DriveSiteItem {
+  id: string;
+  displayName: string;
+  webUrl: string;
+}
+
+export interface DriveLibraryItem {
+  id: string;
+  name: string;
+  driveType: string;
+  webUrl: string;
+}
+
+export interface DocumentOfficeLinkView {
+  documentId: string;
+  webUrl: string;
+  uploadedVersion: number;
+  lastModifiedDateTime: string | null;
+  hasNewerEdits: boolean;
+  error: string | null;
+}
+
+export interface ConnectionCaseLinkSummary {
+  caseLinks: number;
+  caseCount: number;
+  officeDocuments: number;
+  driveFolders: Array<{ linkId: string; caseId: string; ownRef: string; caseTitle: string; displayPath: string }>;
 }
 
 /** AI suggestion that an intake file matches an expected-document checklist label. */
