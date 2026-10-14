@@ -73,7 +73,8 @@ export function CaseEmailComposer({
     setDocumentIds([]);
     setConfirming(false);
     requestKey.current = '';
-    Promise.all([api.getCaseEmailComposeOptions(token, caseId), api.getDocuments(token, caseId)])
+    // A failed document list only hides the attach section; it must not block writing the email.
+    Promise.all([api.getCaseEmailComposeOptions(token, caseId), api.getDocuments(token, caseId).catch(() => [] as DocumentItem[])])
       .then(([loaded, docs]) => {
         if (cancelled) return;
         setOptions(loaded);
