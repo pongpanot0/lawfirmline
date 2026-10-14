@@ -10,6 +10,7 @@ import {
   Contact,
   FilePlus2,
   LogOut,
+  Mail,
   PauseCircle,
   Receipt,
   CalendarOff,
@@ -28,6 +29,7 @@ const ITEMS = [
   { route: '/document-waiting', Icon: FilePlus2, title: 'รอเอกสารจากภายนอก', detail: 'ขาดอะไร รอจากใคร ติดตามวันไหน และได้รับแล้วหรือยัง' },
   { route: '/settings', Icon: Settings, title: 'ตั้งค่า', detail: 'การแจ้งเตือน (แอป / LINE) และขนาดตัวอักษร' },
   { route: '/search', Icon: Search, title: 'ค้นหาไฟล์', detail: 'ค้นชื่อไฟล์ในทุกคดีที่เข้าถึงได้' },
+  { route: '/email-search', Icon: Mail, title: 'ค้นหาอีเมล', detail: 'ค้นอีเมลจากชื่อลูกความ หัวเรื่อง หรือข้อความ ในทุกคดี' },
   { route: '/leaves', Icon: CalendarOff, title: 'ขอลา', detail: 'เลือกประเภทและวันที่ ดูสถานะคำขอ' },
   { route: '/expenses/claims', Icon: Receipt, title: 'ชุดเบิก', detail: 'รายการที่ส่งเป็นชุด และสถานะการจ่าย' },
   {
@@ -74,7 +76,7 @@ export default function MoreScreen() {
   const groups = [
     { title: 'บัญชีและการตั้งค่า', routes: ['/account', '/delete-account', '/settings'] },
     { title: 'งานสำนักงาน', routes: ['/case/new', '/clients', '/leaves', '/expenses', '/expenses/claims', '/operations'] },
-    { title: 'เอกสารและข้อมูล', routes: ['/search', '/document-waiting', '/reports', '/knowledge'] },
+    { title: 'เอกสารและข้อมูล', routes: ['/search', '/email-search', '/document-waiting', '/reports', '/knowledge'] },
   ];
 
   return (

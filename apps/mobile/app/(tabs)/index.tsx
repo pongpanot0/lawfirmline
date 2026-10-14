@@ -14,6 +14,7 @@ import {
   Receipt,
   CalendarOff,
   Search,
+  Mail,
 } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { listTaskDrafts, taskDraftScope } from '@/api/drafts';
@@ -39,6 +40,7 @@ import { colors, fonts, spacing, pageContent } from '@/theme';
 // The most-used destinations from the "อื่นๆ" menu, surfaced one tap away.
 const SHORTCUTS = [
   { route: '/search', Icon: Search, label: 'ค้นไฟล์' },
+  { route: '/email-search', Icon: Mail, label: 'ค้นอีเมล' },
   { route: '/leaves', Icon: CalendarOff, label: 'ขอลา' },
   { route: '/case/new', Icon: FilePlus2, label: 'รับเคส' },
   { route: '/expenses', Icon: Receipt, label: 'ค่าใช้จ่าย' },
