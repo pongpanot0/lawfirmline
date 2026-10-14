@@ -119,10 +119,12 @@ export class CaseEmailService {
       throw new NotFoundException('ไม่พบคดี หรือคุณไม่มีสิทธิ์ในคดีนี้');
     }
 
-    await this.prisma.emailThread.update({
-      where: { id: thread.id },
-      data: { caseId, status: EmailThreadStatus.LINKED },
+    // Guarded write: a concurrent link to another case loses instead of silently overwriting.
+    const { count } = await this.prisma.emailThread.updateMany({
+      where: { id: thread.id, caseId: null },
+      data: { caseId, status: EmailThreadStatus.LINKED, caseUnlinkedAt: null },
     });
+    if (count === 0) throw new ConflictException('อีเมลนี้ผูกกับคดีอื่นอยู่แล้ว — ยกเลิกการผูกเดิมก่อน');
     await this.audit(user, 'EMAIL_THREAD_LINKED', { threadId: thread.id, caseId });
     return { threadId: thread.id, caseId };
   }
@@ -140,7 +142,11 @@ export class CaseEmailService {
 
     await this.prisma.emailThread.update({
       where: { id: thread.id },
-      data: { caseId: null, status: thread.intakeId ? EmailThreadStatus.LINKED : EmailThreadStatus.PENDING_INTAKE },
+      data: {
+        caseId: null,
+        caseUnlinkedAt: new Date(),
+        status: thread.intakeId ? EmailThreadStatus.LINKED : EmailThreadStatus.PENDING_INTAKE,
+      },
     });
     await this.audit(user, 'EMAIL_THREAD_UNLINKED', { threadId: thread.id, caseId: thread.caseId });
     return { unlinked: true };
@@ -203,8 +209,20 @@ export class CaseEmailService {
     return thread;
   }
 
+  // ponytail: per-process guard — use an advisory lock if the api runs multiple instances
+  private readonly saving = new Map<string, Promise<{ document: { id: string; filename: string }; alreadySaved: boolean }>>();
+
   /** "บันทึกไฟล์แนบเข้าเอกสารคดี" — idempotent per attachment via a tag, so a double click saves once. */
-  async saveAttachmentToCase(user: AuthUser, caseId: string, attachmentId: string) {
+  saveAttachmentToCase(user: AuthUser, caseId: string, attachmentId: string) {
+    const key = `${caseId}:${attachmentId}`;
+    const inFlight = this.saving.get(key);
+    if (inFlight) return inFlight;
+    const run = this.doSaveAttachment(user, caseId, attachmentId).finally(() => this.saving.delete(key));
+    this.saving.set(key, run);
+    return run;
+  }
+
+  private async doSaveAttachment(user: AuthUser, caseId: string, attachmentId: string) {
     const attachment = await this.prisma.emailAttachment.findFirst({
       where: { id: attachmentId, message: { thread: await this.threadWhere(user, { caseId }) } },
       select: { id: true, filename: true, mimeType: true, storagePath: true },
@@ -213,7 +231,8 @@ export class CaseEmailService {
 
     const tag = `email-attachment:${attachment.id}`;
     const existing = await this.prisma.document.findFirst({
-      where: { caseId, tags: { has: tag } },
+      // storagePath '' = a half-created row from a failed upload — not a real document, save again
+      where: { caseId, tags: { has: tag }, storagePath: { not: '' } },
       select: { id: true, filename: true },
     });
     if (existing) return { document: existing, alreadySaved: true };

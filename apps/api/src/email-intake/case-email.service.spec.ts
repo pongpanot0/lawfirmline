@@ -10,7 +10,7 @@ import { FileStorageService } from '../common/services/file-storage.service';
 describe('CaseEmailService', () => {
   let service: CaseEmailService;
   const mockPrisma = {
-    emailThread: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    emailThread: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     case: { findMany: jest.fn() },
     emailAttachment: { findFirst: jest.fn() },
     document: { findFirst: jest.fn() },
@@ -46,15 +46,16 @@ describe('CaseEmailService', () => {
     it('links a visible thread to a case the user can open, marks it LINKED and audits', async () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 'thread-1', caseId: null, intakeId: null });
       mockCaseAccess.canAccessCase.mockResolvedValue(true);
+      mockPrisma.emailThread.updateMany.mockResolvedValue({ count: 1 });
 
       await expect(service.linkThread(user, 'thread-1', 'case-1')).resolves.toEqual({ threadId: 'thread-1', caseId: 'case-1' });
 
       expect(mockPrisma.emailThread.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({ where: { AND: [threadFilter, { id: 'thread-1' }] } }),
       );
-      expect(mockPrisma.emailThread.update).toHaveBeenCalledWith({
-        where: { id: 'thread-1' },
-        data: { caseId: 'case-1', status: 'LINKED' },
+      expect(mockPrisma.emailThread.updateMany).toHaveBeenCalledWith({
+        where: { id: 'thread-1', caseId: null },
+        data: { caseId: 'case-1', status: 'LINKED', caseUnlinkedAt: null },
       });
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ action: 'EMAIL_THREAD_LINKED' }),
@@ -75,6 +76,14 @@ describe('CaseEmailService', () => {
       expect(mockPrisma.emailThread.update).not.toHaveBeenCalled();
     });
 
+    it('conflicts when a concurrent link won the race (guarded update matches nothing)', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({ id: 'thread-1', caseId: null, intakeId: null });
+      mockCaseAccess.canAccessCase.mockResolvedValue(true);
+      mockPrisma.emailThread.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.linkThread(user, 'thread-1', 'case-1')).rejects.toBeInstanceOf(ConflictException);
+      expect(mockPrisma.auditLog.create).not.toHaveBeenCalled();
+    });
+
     it('404s a thread the user cannot see', async () => {
       mockPrisma.emailThread.findFirst.mockResolvedValue(null);
       await expect(service.linkThread(user, 'thread-x', 'case-1')).rejects.toBeInstanceOf(NotFoundException);
@@ -88,7 +97,7 @@ describe('CaseEmailService', () => {
       await expect(service.unlinkThread(user, 'thread-1')).resolves.toEqual({ unlinked: true });
       expect(mockPrisma.emailThread.update).toHaveBeenCalledWith({
         where: { id: 'thread-1' },
-        data: { caseId: null, status: 'PENDING_INTAKE' },
+        data: { caseId: null, caseUnlinkedAt: expect.any(Date), status: 'PENDING_INTAKE' },
       });
     });
 
@@ -98,7 +107,7 @@ describe('CaseEmailService', () => {
       await service.unlinkThread(user, 'thread-1');
       expect(mockPrisma.emailThread.update).toHaveBeenCalledWith({
         where: { id: 'thread-1' },
-        data: { caseId: null, status: 'LINKED' },
+        data: { caseId: null, caseUnlinkedAt: expect.any(Date), status: 'LINKED' },
       });
     });
 
@@ -182,7 +191,7 @@ describe('CaseEmailService', () => {
         alreadySaved: true,
       });
       expect(mockPrisma.document.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { caseId: 'case-1', tags: { has: 'email-attachment:att-1' } } }),
+        expect.objectContaining({ where: { caseId: 'case-1', tags: { has: 'email-attachment:att-1' }, storagePath: { not: '' } } }),
       );
       expect(mockDocuments.createFromBuffer).not.toHaveBeenCalled();
     });
@@ -204,6 +213,34 @@ describe('CaseEmailService', () => {
         tags: ['อีเมล', 'email-attachment:att-1'],
       });
       expect(result).toEqual({ document: { id: 'doc-2', filename: 'สัญญา.pdf' }, alreadySaved: false });
+    });
+
+    it('concurrent saves of the same attachment create one document', async () => {
+      mockPrisma.emailAttachment.findFirst.mockResolvedValue(attachment);
+      mockPrisma.document.findFirst.mockResolvedValue(null);
+      mockFileStorage.getBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockDocuments.createFromBuffer.mockResolvedValue({ id: 'doc-2', filename: 'สัญญา.pdf' });
+
+      const [a, b] = await Promise.all([
+        service.saveAttachmentToCase(user, 'case-1', 'att-1'),
+        service.saveAttachmentToCase(user, 'case-1', 'att-1'),
+      ]);
+
+      expect(mockDocuments.createFromBuffer).toHaveBeenCalledTimes(1);
+      expect(a).toBe(b);
+      expect(a.document.id).toBe('doc-2');
+    });
+
+    it('releases the in-flight guard after a failure so a retry saves again', async () => {
+      mockPrisma.emailAttachment.findFirst.mockResolvedValue(attachment);
+      mockPrisma.document.findFirst.mockResolvedValue(null);
+      mockFileStorage.getBuffer.mockResolvedValue(Buffer.from('pdf'));
+      mockDocuments.createFromBuffer
+        .mockRejectedValueOnce(new Error('s3 down'))
+        .mockResolvedValueOnce({ id: 'doc-3', filename: 'สัญญา.pdf' });
+
+      await expect(service.saveAttachmentToCase(user, 'case-1', 'att-1')).rejects.toThrow('s3 down');
+      await expect(service.saveAttachmentToCase(user, 'case-1', 'att-1')).resolves.toMatchObject({ alreadySaved: false });
     });
   });
 });

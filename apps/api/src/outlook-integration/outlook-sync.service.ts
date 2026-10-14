@@ -125,7 +125,7 @@ export class OutlookSyncService {
       const data = {
         ...(thread.subject === subject ? {} : { subject }),
         ...(thread.lastMessageAt && at <= thread.lastMessageAt ? {} : { lastMessageAt: at }),
-        ...(p.caseId && !thread.caseId ? { caseId: p.caseId, status: EmailThreadStatus.LINKED } : {}),
+        ...(p.caseId && !thread.caseId && !thread.caseUnlinkedAt ? { caseId: p.caseId, status: EmailThreadStatus.LINKED } : {}),
       };
       if (Object.keys(data).length) thread = await this.prisma.emailThread.update({ where: { id: thread.id }, data });
     }

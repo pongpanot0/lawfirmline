@@ -2481,6 +2481,8 @@ model EmailThread {
 
   mailboxConnectionId String?
   caseId              String?
+  /// Set when a person manually unlinks the thread from a case; sync must not re-link it.
+  caseUnlinkedAt      DateTime?
 
   firm              Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
   intake            Intake?            @relation(fields: [intakeId], references: [id], onDelete: SetNull)

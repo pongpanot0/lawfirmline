@@ -203,6 +203,17 @@ describe('OutlookSyncService', () => {
     });
   });
 
+  it('does not re-link a thread a person manually unlinked', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: null, caseUnlinkedAt: new Date('2026-10-14') });
+    mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'm-existing' });
+    await service.upsertGraphMessage({
+      firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
+      direction: 'INBOUND', caseId: 'case-1', createThreadIfMissing: true,
+    });
+    const data = mockPrisma.emailThread.update.mock.calls[0]?.[0].data ?? {};
+    expect(data.caseId).toBeUndefined();
+  });
+
   it('survives a concurrent thread create (P2002) by re-reading the winner', async () => {
     mockPrisma.emailThread.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 't-win', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
     mockPrisma.emailThread.create.mockRejectedValue(
