@@ -3,11 +3,12 @@
 import { CaseKnowledgePanel } from '@/components/documents/CaseKnowledgePanel';
 import { CaseDriveSection } from '@/components/cases/CaseDriveSection';
 import { CaseEvidenceSection } from '@/components/cases/CaseEvidenceSection';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Eye, Download, Sparkles, CalendarSearch, ClipboardCheck } from 'lucide-react';
+import { Eye, Download, Sparkles, CalendarSearch, ClipboardCheck, PenLine, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry } from '@/lib/api';
+import { api, ApiError, DocumentItem, DocumentTemplateItem, DocumentPublicationEntry, DocumentOfficeLinkView } from '@/lib/api';
+import { isOfficeEditable, officeAppName, officeEditedHint, openInNewTab } from '@/lib/drive-view';
 import { PublishDocumentDialog } from '@/components/documents/PublishDocumentDialog';
 import { TemplateGenerateDrawer } from '@/components/cases/TemplateGenerateDrawer';
 import { PleadingDraftDrawer } from '@/components/cases/PleadingDraftDrawer';
@@ -41,6 +42,8 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
   const [suggestionsKey, setSuggestionsKey] = useState(0);
   const [preview, setPreview] = useState<{ filename: string; mimeType: string; url: string } | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [officeLinks, setOfficeLinks] = useState<Record<string, DocumentOfficeLinkView>>({});
+  const [officeBusyId, setOfficeBusyId] = useState<string | null>(null);
   const [publications, setPublications] = useState<Record<string, DocumentPublicationEntry[]>>({});
   const [publishingId, setPublishingId] = useState<string | null>(null);
   // Publishing reaches the client portal, so the recipients are reviewed first
@@ -119,6 +122,43 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
       URL.revokeObjectURL(url);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : d.caseDocuments.downloadFailed);
+    }
+  };
+
+  const loadOfficeLinks = useCallback(() => {
+    if (!token || !id) return;
+    api
+      .getOfficeLinks(token, id)
+      .then((links) => setOfficeLinks(Object.fromEntries(links.map((link) => [link.documentId, link]))))
+      .catch(() => setOfficeLinks({}));
+  }, [token, id]);
+
+  useEffect(() => { loadOfficeLinks(); }, [loadOfficeLinks]);
+
+  const handleOpenInOffice = async (doc: DocumentItem) => {
+    if (!token || !id) return;
+    setError('');
+    try {
+      await openInNewTab(async () => (await api.openDocumentInOffice(token, id, doc.id)).webUrl);
+      loadOfficeLinks();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'เปิดใน Office ออนไลน์ไม่สำเร็จ');
+    }
+  };
+
+  const handlePullFromOffice = async (doc: DocumentItem) => {
+    if (!token || !id) return;
+    setOfficeBusyId(doc.id);
+    setError('');
+    try {
+      const result = await api.pullDocumentFromOffice(token, id, doc.id);
+      if (!result.updated) setError(`ยังไม่มีการแก้ใหม่ใน ${officeAppName(doc.filename)} ออนไลน์`);
+      load();
+      loadOfficeLinks();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'ดึงเวอร์ชันล่าสุดไม่สำเร็จ');
+    } finally {
+      setOfficeBusyId(null);
     }
   };
 
@@ -352,6 +392,12 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                     </span>
                   )}
                 </p>
+                {officeEditedHint(doc.filename, officeLinks[doc.id]) && (
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                    {officeEditedHint(doc.filename, officeLinks[doc.id])}
+                  </p>
+                )}
+                {officeLinks[doc.id]?.error && <p className="text-xs text-muted-foreground">{officeLinks[doc.id].error}</p>}
               </button>
               <div className="flex flex-wrap items-center gap-2">
                 <select
@@ -380,6 +426,29 @@ export function CaseDocumentsPanel({ caseId, onChanged }: { caseId: string; onCh
                   <ClipboardCheck className="h-3.5 w-3.5" />
                   ส่งตรวจ/ผลตรวจ
                 </Link>
+                {isOfficeEditable(doc.filename) && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenInOffice(doc)}
+                    className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                  >
+                    <PenLine className="h-3.5 w-3.5" />
+                    เปิดแก้ใน {officeAppName(doc.filename)} ออนไลน์
+                  </button>
+                )}
+                {officeLinks[doc.id] && (
+                  <button
+                    type="button"
+                    onClick={() => handlePullFromOffice(doc)}
+                    disabled={officeBusyId === doc.id}
+                    className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium disabled:opacity-50 ${
+                      officeLinks[doc.id].hasNewerEdits ? 'border-amber-400 bg-amber-50 text-amber-800' : 'hover:bg-accent'
+                    }`}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    {officeBusyId === doc.id ? 'กำลังดึง…' : 'ดึงเวอร์ชันล่าสุดกลับ'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleAnalyzeDocument(doc)}

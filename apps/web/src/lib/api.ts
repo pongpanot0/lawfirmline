@@ -3017,6 +3017,7 @@ export const api = {
     request<{ updated: boolean; version: number }>(`/cases/${caseId}/office-links/${documentId}/pull`, {
       method: 'POST',
       token,
+      silent: true,
     }),
 
   getCaseEmailComposeOptions: (token: string, caseId: string) =>

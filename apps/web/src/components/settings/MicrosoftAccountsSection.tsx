@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Mail } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth, getStoredToken } from '@/lib/auth';
-import { api, ApiError, MailboxConnectionItem } from '@/lib/api';
+import { api, ApiError, ConnectionCaseLinkSummary, MailboxConnectionItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils';
 
@@ -22,6 +22,8 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
   const { user } = useAuth();
   const isOwner = user?.firmRole === 'OWNER';
   const searchParams = useSearchParams();
+  const [disconnectCheck, setDisconnectCheck] = useState<{ id: string; summary: ConnectionCaseLinkSummary } | null>(null);
+  const [importingCaseId, setImportingCaseId] = useState<string | null>(null);
   const [connections, setConnections] = useState<MailboxConnectionItem[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -64,17 +66,51 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
     }
   };
 
-  const handleDisconnect = async (id: string) => {
+  const disconnectNow = async (id: string) => {
     const token = getStoredToken();
     if (!token) return;
     setBusyId(id);
     try {
       await api.disconnectOutlook(token, id);
+      setDisconnectCheck(null);
       await loadConnections();
     } catch (e) {
       setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'ยกเลิกการเชื่อมต่อไม่สำเร็จ' });
     } finally {
       setBusyId(null);
+    }
+  };
+
+  /** Warn first when cases still depend on this mailbox (live OneDrive lists, folder sync, Office copies). */
+  const handleDisconnect = async (id: string) => {
+    const token = getStoredToken();
+    if (!token) return;
+    setBusyId(id);
+    try {
+      const summary = await api.getOutlookConnectionCaseLinks(token, id);
+      if (summary.caseLinks > 0 || summary.officeDocuments > 0) {
+        setDisconnectCheck({ id, summary });
+        return;
+      }
+    } catch {
+      // Summary is advisory; fall through to the plain confirmation.
+    } finally {
+      setBusyId(null);
+    }
+    if (window.confirm('ยกเลิกการเชื่อมต่อบัญชี Microsoft นี้?')) await disconnectNow(id);
+  };
+
+  const importFolderBeforeDisconnect = async (caseId: string) => {
+    const token = getStoredToken();
+    if (!token) return;
+    setImportingCaseId(caseId);
+    try {
+      const result = await api.importCaseDriveFolder(token, caseId);
+      setNotice({ type: 'success', text: `นำเข้าแล้ว ${result.imported} ไฟล์` });
+    } catch (e) {
+      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'นำเข้าไม่สำเร็จ' });
+    } finally {
+      setImportingCaseId(null);
     }
   };
 
@@ -188,6 +224,51 @@ export function MicrosoftAccountsSection({ children }: { children?: React.ReactN
         <p className={`mt-3 rounded-lg p-2 text-xs ${notice.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-destructive/10 text-destructive'}`}>
           {notice.text}
         </p>
+      )}
+
+      {disconnectCheck && (
+        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+          <p className="font-semibold">
+            บัญชีนี้ผูก folder กับ {disconnectCheck.summary.caseCount} คดี — เมื่อตัดการเชื่อมต่อ รายการไฟล์และการซิงก์อีเมลของคดีเหล่านั้นจะหยุด
+          </p>
+          {disconnectCheck.summary.officeDocuments > 0 && (
+            <p className="mt-1">
+              มีเอกสาร {disconnectCheck.summary.officeDocuments} ไฟล์ที่เปิดแก้ใน Office ออนไลน์ด้วยบัญชีนี้ — กด &quot;ดึงเวอร์ชันล่าสุดกลับ&quot; ในคดีก่อน
+            </p>
+          )}
+          {disconnectCheck.summary.driveFolders.length > 0 && (
+            <ul className="mt-2 space-y-1.5">
+              {disconnectCheck.summary.driveFolders.map((folder) => (
+                <li key={folder.linkId} className="flex flex-wrap items-center gap-2">
+                  <span className="min-w-0 flex-1 break-all">
+                    {folder.ownRef} {folder.caseTitle} — {folder.displayPath}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => importFolderBeforeDisconnect(folder.caseId)}
+                    disabled={importingCaseId === folder.caseId}
+                    className="rounded-lg border border-amber-400 bg-white px-2.5 py-1 text-xs font-medium disabled:opacity-50 dark:bg-transparent"
+                  >
+                    {importingCaseId === folder.caseId ? 'กำลังนำเข้า…' : 'นำเข้าไฟล์ทั้ง folder'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => disconnectNow(disconnectCheck.id)}
+              disabled={busyId === disconnectCheck.id}
+              className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground disabled:opacity-50"
+            >
+              ตัดการเชื่อมต่อเลย
+            </button>
+            <button type="button" onClick={() => setDisconnectCheck(null)} className="rounded-lg border px-3 py-1.5 text-xs">
+              ยกเลิก
+            </button>
+          </div>
+        </div>
       )}
 
       <p className="mt-3 text-xs font-medium text-muted-foreground">บัญชีของฉัน</p>
