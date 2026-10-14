@@ -44,6 +44,7 @@ import { EmailIntakeModule } from './email-intake/email-intake.module';
 import { ConflictCheckModule } from './conflict-check/conflict-check.module';
 import { DocumentReviewModule } from './document-review/document-review.module';
 import { OutlookIntegrationModule } from './outlook-integration/outlook-integration.module';
+import { CaseDriveModule } from './outlook-integration/drive/case-drive.module';
 import { CargoClaimsModule } from './cargo-claims/cargo-claims.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 
@@ -92,6 +93,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     EmailIntakeModule,
     DocumentReviewModule,
     OutlookIntegrationModule,
+    CaseDriveModule,
     ConflictCheckModule,
     CargoClaimsModule,
     WorkflowsModule,
