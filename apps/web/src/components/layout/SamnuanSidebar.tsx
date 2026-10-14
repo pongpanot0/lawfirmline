@@ -20,6 +20,7 @@ import {
   X,
   ListTodo,
   Mail,
+  Search,
   CalendarOff,
   GitFork,
   type LucideIcon,
@@ -55,6 +56,7 @@ const NAV_ITEMS = [
     group: 'work',
     children: [
       { href: '/email-intake', labelKey: 'emailIntake' as const, icon: Mail },
+      { href: '/email-search', labelKey: 'emailSearch' as const, icon: Search },
     ],
   },
   { href: '/clients', labelKey: 'clients' as const, icon: Users, group: 'work', children: [] as const },

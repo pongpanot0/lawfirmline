@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Download, FilePlus2, FolderOpen, Mail, Paperclip, RefreshCw, Unlink } from 'lucide-react';
+import { CheckCircle2, Download, FilePlus2, FolderOpen, Mail, Paperclip, RefreshCw, Unlink } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import {
   api,
@@ -25,11 +25,11 @@ type Notice = { type: 'success' | 'error'; text: string } | null;
 
 const errorText = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback);
 
-export function CaseEmailPanel({ caseId }: { caseId: string }) {
+export function CaseEmailPanel({ caseId, initialThreadId }: { caseId: string; initialThreadId?: string | null }) {
   const { token } = useAuth();
   const [threads, setThreads] = useState<CaseEmailThreadItem[] | null>(null);
   const [links, setLinks] = useState<CaseFolderLinkItem[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialThreadId ?? null);
   const [detail, setDetail] = useState<CaseEmailThreadDetail | null>(null);
   const [folders, setFolders] = useState<OutlookFolderRow[] | null>(null);
   const [pickedFolderId, setPickedFolderId] = useState('');
@@ -178,12 +178,30 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
   const saveToDocuments = (attachment: EmailAttachmentItem) =>
     run(`save-${attachment.id}`, async (t) => {
       const result = await api.saveEmailAttachmentToCase(t, caseId, attachment.id);
+      setDetailTick((n) => n + 1);
       return {
         type: 'success',
         text: result.alreadySaved
           ? `"${result.document.filename}" อยู่ในเอกสารคดีแล้ว`
           : `บันทึก "${result.document.filename}" เข้าเอกสารคดีแล้ว`,
       };
+    });
+
+  // One at a time on purpose: each save copies the file; a failure stops and reports how far it got.
+  const saveAllToDocuments = (attachments: EmailAttachmentItem[]) =>
+    run('save-all', async (t) => {
+      let saved = 0;
+      try {
+        for (const attachment of attachments) {
+          await api.saveEmailAttachmentToCase(t, caseId, attachment.id);
+          saved += 1;
+        }
+      } catch (e) {
+        return { type: 'error', text: `บันทึกได้ ${saved} จาก ${attachments.length} ไฟล์ — ${errorText(e, 'ไฟล์ถัดไปบันทึกไม่สำเร็จ')}` };
+      } finally {
+        setDetailTick((n) => n + 1);
+      }
+      return { type: 'success', text: `บันทึกไฟล์แนบ ${saved} ไฟล์เข้าเอกสารคดีแล้ว` };
     });
 
   const awaiting = !!threads?.find((x) => x.id === selectedId)?.awaitingReplySince;
@@ -417,13 +435,28 @@ export function CaseEmailPanel({ caseId }: { caseId: string }) {
                               <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => download(attachment)}>
                                 <Download className="h-4 w-4" /> ดาวน์โหลด
                               </Button>
-                              <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => saveToDocuments(attachment)}>
-                                <FilePlus2 className="h-4 w-4" /> บันทึกไฟล์แนบเข้าเอกสารคดี
-                              </Button>
+                              {attachment.savedDocumentId ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-green-700">
+                                  <CheckCircle2 className="h-4 w-4" /> อยู่ในเอกสารคดีแล้ว
+                                </span>
+                              ) : (
+                                <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => saveToDocuments(attachment)}>
+                                  <FilePlus2 className="h-4 w-4" /> บันทึกเข้าเอกสารคดี
+                                </Button>
+                              )}
                             </li>
                           ))}
                         </ul>
                       )}
+                      {(() => {
+                        const unsaved = message.attachments.filter((a) => !a.savedDocumentId);
+                        return unsaved.length > 1 ? (
+                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => saveAllToDocuments(unsaved)}>
+                            <FilePlus2 className="h-4 w-4" />
+                            {busy === 'save-all' ? 'กำลังบันทึก…' : `บันทึกไฟล์แนบทั้งหมดเข้าเอกสารคดี (${unsaved.length})`}
+                          </Button>
+                        ) : null;
+                      })()}
                       <div className="mt-2 flex gap-2">
                         <Button
                           size="sm"

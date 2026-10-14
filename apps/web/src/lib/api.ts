@@ -1163,6 +1163,22 @@ export interface EmailAttachmentItem {
   filename: string;
   mimeType: string;
   createdAt: string;
+  /** Case thread view only: the case document this attachment was saved as, or null. */
+  savedDocumentId?: string | null;
+}
+
+export interface EmailSearchResult {
+  id: string;
+  subject: string;
+  fromName: string | null;
+  fromAddress: string | null;
+  lastMessageAt: string;
+  status: string;
+  intakeId: string | null;
+  case: { id: string; ownRef: string; title: string } | null;
+  messageCount: number;
+  attachmentCount: number;
+  excerpt: string;
 }
 
 export interface EmailMessageItem {
@@ -3278,6 +3294,9 @@ export const api = {
 
   syncCaseEmail: (token: string, caseId: string) =>
     request<{ messagesSynced: number; errors: string[] }>(`/cases/${caseId}/email/sync`, { method: 'POST', token }),
+
+  searchEmails: (token: string, q: string) =>
+    request<EmailSearchResult[]>(`/email/search?q=${encodeURIComponent(q)}`, { token }),
 
   getCaseEmailThreads: (token: string, caseId: string) =>
     request<CaseEmailThreadItem[]>(`/cases/${caseId}/email/threads`, { token }),

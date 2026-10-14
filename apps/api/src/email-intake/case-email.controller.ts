@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthUser } from '@lawfirm/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CaseAccessGuard } from '../common/guards/case-access.guard';
@@ -24,6 +24,11 @@ export class CaseEmailController {
   @Delete('email-intake/threads/:threadId/case-link')
   unlink(@CurrentUser() user: AuthUser, @Param('threadId') threadId: string) {
     return this.service.unlinkThread(user, threadId);
+  }
+
+  @Get('email/search')
+  search(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.service.searchThreads(user, q);
   }
 
   @Get('cases/:caseId/email/threads')
