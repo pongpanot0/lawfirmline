@@ -7,6 +7,8 @@ import { buildDocx } from './docx-builder';
 const PLAINTIFF_ROLES = ['PLAINTIFF', 'JOINT_PLAINTIFF', 'PETITIONER'];
 const DEFENDANT_ROLES = ['DEFENDANT', 'JOINT_DEFENDANT', 'RESPONDENT'];
 
+const VAR_INCLUDE = { caseType: true, leadLawyer: true, participants: true, client: true, proceedings: true } as const;
+
 export interface TemplateInput {
   name: string;
   description?: string;
@@ -54,18 +56,11 @@ export class TemplatesService {
     return { deleted: true };
   }
 
-  async render(firmId: string, templateId: string, caseId: string) {
-    const template = await this.prisma.documentTemplate.findFirst({
-      where: { id: templateId, OR: [{ firmId }, { firmId: null }] },
-    });
-    if (!template) return null;
+  private loadCase(where: { id: string; firmId?: string }) {
+    return this.prisma.case.findFirst({ where, include: VAR_INCLUDE });
+  }
 
-    const legalCase = await this.prisma.case.findUnique({
-      where: { id: caseId },
-      include: { caseType: true, leadLawyer: true, participants: true, client: true, proceedings: true },
-    });
-    if (!legalCase) return null;
-
+  private buildVars(legalCase: NonNullable<Awaited<ReturnType<TemplatesService['loadCase']>>>): Record<string, string> {
     const plaintiffNames = legalCase.participants
       .filter((p) => PLAINTIFF_ROLES.includes(p.role))
       .map((p) => p.name)
@@ -80,7 +75,7 @@ export class TemplatesService {
     const appeal = atLevel('APPEAL');
     const supreme = atLevel('SUPREME');
 
-    const vars: Record<string, string> = {
+    return {
       ownRef: legalCase.ownRef,
       caseNumber: legalCase.ownRef,
       customerRef: legalCase.customerRef ?? '',
@@ -105,6 +100,39 @@ export class TemplatesService {
       // ponytail: no license-number field exists on User/FirmMember yet — leave
       // {{lawyerLicenseNo}} unfilled (reported missing) until one is added.
     };
+  }
+
+  /** Case variables for any template engine, plus the next future COURT_DATE (Bangkok time). */
+  async caseVariables(firmId: string, caseId: string): Promise<Record<string, string>> {
+    const legalCase = await this.loadCase({ id: caseId, firmId });
+    if (!legalCase) throw new NotFoundException('ไม่พบคดีนี้');
+    const hearing = await this.prisma.calendarEvent.findFirst({
+      where: { caseId, type: 'COURT_DATE', startAt: { gte: new Date() } },
+      orderBy: { startAt: 'asc' },
+      select: { startAt: true, courtName: true },
+    });
+    const tz = 'Asia/Bangkok';
+    return {
+      ...this.buildVars(legalCase),
+      nextHearingDate: hearing ? hearing.startAt.toLocaleDateString('th-TH', { timeZone: tz, day: 'numeric', month: 'long', year: 'numeric' }) : '',
+      nextHearingTime: hearing ? hearing.startAt.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+      nextHearingCourt: hearing ? (hearing.courtName ?? legalCase.courtName ?? '') : '',
+    };
+  }
+
+  async render(firmId: string, templateId: string, caseId: string) {
+    const template = await this.prisma.documentTemplate.findFirst({
+      where: { id: templateId, OR: [{ firmId }, { firmId: null }] },
+    });
+    if (!template) return null;
+
+    const legalCase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      include: VAR_INCLUDE,
+    });
+    if (!legalCase) return null;
+
+    const vars = this.buildVars(legalCase);
 
     const usedKeys = [...template.templateBody.matchAll(/\{\{([^{}]+)\}\}/g)].map((m) => m[1]);
     const missingFields = [

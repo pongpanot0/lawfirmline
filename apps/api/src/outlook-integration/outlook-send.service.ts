@@ -217,6 +217,9 @@ export class OutlookSendService {
       throw new BadRequestException(`ผู้รับรวม (ถึง + สำเนา) ได้ไม่เกิน ${MAX_RECIPIENTS} คน`);
     }
     if (!subject || !body) throw new BadRequestException('กรุณาใส่หัวเรื่องและเนื้อหา');
+    if (subject.includes('{{') || body.includes('{{')) {
+      throw new BadRequestException('ยังมีช่องข้อมูลที่ไม่ได้กรอก {{...}} ในหัวเรื่องหรือเนื้อหา — กรอกให้ครบก่อนส่ง');
+    }
 
     const connection = await this.connections.findActiveForUser(user.id);
     if (!connection) {

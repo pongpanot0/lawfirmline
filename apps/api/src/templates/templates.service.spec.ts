@@ -32,7 +32,8 @@ describe('TemplatesService', () => {
   let service: TemplatesService;
   const mockPrisma = {
     documentTemplate: { findFirst: jest.fn() },
-    case: { findUnique: jest.fn() },
+    case: { findUnique: jest.fn(), findFirst: jest.fn() },
+    calendarEvent: { findFirst: jest.fn() },
   };
   const mockDocumentsService = { createFromBuffer: jest.fn() };
 
@@ -46,6 +47,27 @@ describe('TemplatesService', () => {
       ],
     }).compile();
     service = module.get(TemplatesService);
+  });
+
+  describe('caseVariables', () => {
+    it('adds the next future court date (Bangkok time) and its court to the case variables', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue({ ...legalCase, courtName: 'ศาลแพ่ง' });
+      mockPrisma.calendarEvent.findFirst.mockResolvedValue({ startAt: new Date('2026-12-01T02:30:00Z'), courtName: null });
+      const vars = await service.caseVariables('firm-1', 'case-1');
+      expect(mockPrisma.calendarEvent.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ caseId: 'case-1', type: 'COURT_DATE', startAt: { gte: expect.any(Date) } }) }),
+      );
+      expect(vars.nextHearingTime).toBe('09:30');
+      expect(vars.nextHearingDate).toContain('2569');
+      expect(vars.nextHearingCourt).toBe('ศาลแพ่ง');
+      expect(vars.ownRef).toBe(legalCase.ownRef);
+    });
+    it('leaves them empty when no hearing is scheduled', async () => {
+      mockPrisma.case.findFirst.mockResolvedValue(legalCase);
+      mockPrisma.calendarEvent.findFirst.mockResolvedValue(null);
+      const vars = await service.caseVariables('firm-1', 'case-1');
+      expect([vars.nextHearingDate, vars.nextHearingTime, vars.nextHearingCourt]).toEqual(['', '', '']);
+    });
   });
 
   describe('render', () => {

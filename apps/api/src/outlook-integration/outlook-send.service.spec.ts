@@ -165,6 +165,12 @@ describe('OutlookSendService', () => {
       await expect(service.send(user, 'case-1', { ...baseDto, body: '\n ' })).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('refuses a subject or body that still has an unfilled {{placeholder}}', async () => {
+      await expect(service.send(user, 'case-1', { ...baseDto, subject: '[{{ownRef}}] x' })).rejects.toThrow('{{');
+      await expect(service.send(user, 'case-1', { ...baseDto, body: 'วันที่ {{nextHearingDate}}' })).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockGraph.createDraftMessage).not.toHaveBeenCalled();
+    });
+
     it('attaches case documents as base64 file attachments', async () => {
       mockPrisma.document.findMany.mockResolvedValue([
         { id: 'doc-1', filename: 'สัญญา.pdf', mimeType: 'application/pdf', storagePath: 'cases/doc-1.pdf' },
