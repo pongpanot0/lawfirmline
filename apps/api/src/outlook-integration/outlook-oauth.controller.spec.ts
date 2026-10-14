@@ -16,7 +16,9 @@ describe('OutlookOAuthController browser binding', () => {
   const connections = { upsertFromOAuth: jest.fn() };
   const subscriptions = { ensureSubscription: jest.fn() };
   const firmLink = { rootOrigin: jest.fn(), originForFirm: jest.fn() };
-  const res = { cookie: jest.fn(), clearCookie: jest.fn(), redirect: jest.fn() };
+  const res: any = { cookie: jest.fn(), clearCookie: jest.fn(), redirect: jest.fn(), send: jest.fn() };
+  res.status = jest.fn(() => res);
+  res.type = jest.fn(() => res);
   const reqWith = (cookie?: string, secure = true) => ({ secure, headers: cookie ? { cookie } : {} }) as any;
 
   beforeEach(async () => {
@@ -92,5 +94,21 @@ describe('OutlookOAuthController browser binding', () => {
     await cb('bad', reqWith('m365_oauth_nonce=n1'));
     expect(res.clearCookie).toHaveBeenCalledTimes(2);
     expect(res.redirect.mock.calls[1][0]).toContain('outlook=error');
+  });
+
+  it('admin consent (no state) shows a success page and never touches tokens or redirects to our login', async () => {
+    await controller.callback(undefined as any, undefined as any, undefined as any, reqWith(), res, 'True');
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send.mock.calls[0][0]).toContain('อนุมัติสิทธิ์เรียบร้อยแล้ว');
+    expect(res.redirect).not.toHaveBeenCalled();
+    expect(oauth.exchangeCodeForTokens).not.toHaveBeenCalled();
+  });
+
+  it('admin consent declined shows the escaped Microsoft reason', async () => {
+    await controller.callback(undefined as any, undefined as any, '<b>denied</b>', reqWith(), res, undefined);
+    const html = res.send.mock.calls[0][0];
+    expect(html).toContain('ยังไม่ได้อนุมัติสิทธิ์');
+    expect(html).toContain('&lt;b&gt;denied&lt;/b&gt;');
+    expect(res.redirect).not.toHaveBeenCalled();
   });
 });

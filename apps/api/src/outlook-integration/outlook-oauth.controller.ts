@@ -64,7 +64,21 @@ export class OutlookOAuthController {
    */
   @Get('callback')
   @SkipSubscription()
-  async callback(@Query('code') code: string, @Query('state') state: string, @Query('error_description') errorDescription: string, @Req() req: Request, @Res() res: Response) {
+  async callback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('error_description') errorDescription: string,
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('admin_consent') adminConsent?: string,
+  ) {
+    // Tenant-wide admin consent (the link we hand to a client's IT admin) comes back without a
+    // `state`: that admin is not a Samnuan user, so show a plain result page instead of our login.
+    if (!state) {
+      const granted = !errorDescription && adminConsent?.toLowerCase() === 'true';
+      return res.status(200).type('html').send(adminConsentPage(granted, errorDescription));
+    }
+
     // The firm is only known once `state` verifies, so start at the root origin
     // and narrow to the firm's own subdomain as soon as we have it — otherwise
     // the user lands on a page with no tenant.
@@ -111,4 +125,22 @@ export class OutlookOAuthController {
       return redirectTo('error', error instanceof Error ? error.message : 'เชื่อมต่อไม่สำเร็จ');
     }
   }
+}
+
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/** Shown to a client's IT admin after the Microsoft admin-consent screen. */
+export function adminConsentPage(granted: boolean, errorDescription?: string): string {
+  const body = granted
+    ? `<h1>✅ อนุมัติสิทธิ์เรียบร้อยแล้ว</h1>
+       <p>องค์กรของคุณอนุมัติแอป <b>Samnuan Outlook</b> แล้ว พนักงานเชื่อมต่อ Microsoft 365 ในระบบสำนวนได้ทันที (ตั้งค่า → Microsoft 365 → เชื่อม Microsoft 365)</p>
+       <p>ปิดหน้านี้ได้เลย</p>`
+    : `<h1>❌ ยังไม่ได้อนุมัติสิทธิ์</h1>
+       <p>Microsoft แจ้งว่า: ${escapeHtml((errorDescription || 'ไม่ได้รับการอนุมัติ').slice(0, 500))}</p>
+       <p>ตรวจว่าล็อกอินด้วยบัญชีผู้ดูแลระบบ (Global Administrator หรือ Cloud Application Administrator) แล้วเปิดลิงก์อนุมัติอีกครั้ง หรือติดต่อ hello@samnuan.com</p>`;
+  return `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Samnuan · Microsoft 365</title>
+<style>body{font-family:system-ui,-apple-system,"Sukhumvit Set",sans-serif;max-width:560px;margin:12vh auto;padding:0 20px;color:#1a1a1a;line-height:1.6}h1{font-size:1.5rem}</style>
+</head><body>${body}</body></html>`;
 }
