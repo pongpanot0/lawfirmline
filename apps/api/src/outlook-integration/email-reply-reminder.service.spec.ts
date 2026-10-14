@@ -9,7 +9,7 @@ describe('EmailReplyReminderService', () => {
   const prisma: any = {
     publicHoliday: { findUnique: jest.fn() },
     firm: { findMany: jest.fn() },
-    emailThread: { findMany: jest.fn(), update: jest.fn() },
+    emailThread: { findMany: jest.fn(), updateMany: jest.fn() },
     emailMessage: { findMany: jest.fn() },
     firmMember: { findMany: jest.fn() },
     mailboxConnection: { findMany: jest.fn() },
@@ -34,6 +34,7 @@ describe('EmailReplyReminderService', () => {
     prisma.case.findUnique.mockResolvedValue({ ownRef: 'C-1' });
     lineLink.getCaseTeamUserIds.mockResolvedValue(['u1']);
     notifier.notifyAssigned.mockResolvedValue({});
+    prisma.emailThread.updateMany.mockResolvedValue({ count: 1 });
   });
 
   const setup = (threads: any[], messages: any[]) => {
@@ -49,7 +50,10 @@ describe('EmailReplyReminderService', () => {
     expect(arg).toMatchObject({ userIds: ['u1'], actorUserId: '', entityPath: '/cases/c1?tab=email', appPath: '/case/c1?section=email' });
     expect(arg.summaryText).toContain('⏰ อีเมลลูกความรอตอบ · C-1');
     expect(arg.summaryText).toContain('(รอ 30 ชม.)');
-    expect(prisma.emailThread.update).toHaveBeenCalledWith({ where: { id: 't1' }, data: { replyReminderMessageId: 'm1' } });
+    expect(prisma.emailThread.updateMany).toHaveBeenCalledWith({
+      where: { id: 't1', OR: [{ replyReminderMessageId: null }, { replyReminderMessageId: { not: 'm1' } }] },
+      data: { replyReminderMessageId: 'm1' },
+    });
   });
 
   it('respects the threshold (default 24, firm override)', async () => {
@@ -100,6 +104,13 @@ describe('EmailReplyReminderService', () => {
     await service.run(NOW);
     expect(notifier.notifyAssigned).toHaveBeenCalledTimes(1);
     expect(notifier.notifyAssigned.mock.calls[0][0].summaryText).toContain('และอีก 2 ฉบับ');
-    expect(prisma.emailThread.update).toHaveBeenCalledTimes(5);
+    expect(prisma.emailThread.updateMany).toHaveBeenCalledTimes(5);
+  });
+
+  it('does not alert when another run already claimed the message', async () => {
+    setup([thread('t1', 'c1')], [msg('m1', 't1', 'INBOUND', 'c@x.com', ago(30))]);
+    prisma.emailThread.updateMany.mockResolvedValue({ count: 0 });
+    await service.run(NOW);
+    expect(notifier.notifyAssigned).not.toHaveBeenCalled();
   });
 });
