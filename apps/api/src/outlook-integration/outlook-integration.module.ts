@@ -21,11 +21,13 @@ import { CaseEmailSendController } from './case-email-send.controller';
 import { GraphDriveClient } from './graph/graph-drive.client';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CaseEmailNotifier } from './case-email-notifier.service';
+import { OutlookAdminController } from './outlook-admin.controller';
+import { OutlookAdminStatusService } from './outlook-admin-status.service';
 import { OutlookSendService } from './outlook-send.service';
 
 @Module({
   imports: [forwardRef(() => NotificationsModule)],
-  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController, CaseFolderLinksController, CaseEmailSendController],
+  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController, CaseFolderLinksController, CaseEmailSendController, OutlookAdminController],
   providers: [
     GraphHttp,
     GraphCalendarClient,
@@ -44,6 +46,7 @@ import { OutlookSendService } from './outlook-send.service';
     GraphDriveClient,
     CaseEmailNotifier,
     EmailReplyReminderService,
+    OutlookAdminStatusService,
   ],
   exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService, GraphDriveClient],
 })

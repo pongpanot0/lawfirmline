@@ -4,7 +4,8 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import * as crypto from 'crypto';
 import { AuthUser } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
-import { MailboxConnectionStatus } from '../generated/prisma';
+import { MailboxConnectionStatus, NotificationCategory } from '../generated/prisma';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { decryptToken, encryptToken } from '../common/utils/token-encryption.util';
 import { GraphApiError, GraphTokens, OutlookGraphClient } from './outlook-graph.client';
 import { OutlookOAuthService } from './outlook-oauth.service';
@@ -41,6 +42,7 @@ export class OutlookConnectionsService {
     private prisma: PrismaService,
     private oauth: OutlookOAuthService,
     private graph: OutlookGraphClient,
+    private notifier: AssignmentNotifierService,
   ) {}
 
   async listForFirm(user: AuthUser) {
@@ -155,10 +157,40 @@ export class OutlookConnectionsService {
 
   async markError(connectionId: string, status: MailboxConnectionStatus, message: string) {
     this.logger.warn(`MailboxConnection ${connectionId}: ${message}`);
-    await this.prisma.mailboxConnection.update({
-      where: { id: connectionId },
-      data: { status, lastError: message.slice(0, 2000) },
+    const data = { status, lastError: message.slice(0, 2000) };
+    // updateMany with the ACTIVE guard detects the ACTIVE → broken transition atomically.
+    const transitioned = await this.prisma.mailboxConnection.updateMany({
+      where: { id: connectionId, status: MailboxConnectionStatus.ACTIVE },
+      data,
     });
+    if (transitioned.count === 0) {
+      await this.prisma.mailboxConnection.update({ where: { id: connectionId }, data });
+      return;
+    }
+    const connection = await this.prisma.mailboxConnection
+      .findUnique({ where: { id: connectionId }, select: { firmId: true, mailboxAddress: true, userId: true, connectedByUserId: true } })
+      .catch(() => null);
+    if (connection) await this.notifyReconnectNeeded(connection, '');
+  }
+
+  /** Tells a connection's owner to reconnect. Never throws. */
+  async notifyReconnectNeeded(
+    connection: { firmId: string; mailboxAddress: string; userId: string | null; connectedByUserId: string },
+    actorUserId: string,
+  ) {
+    try {
+      await this.notifier.notifyAssigned({
+        firmId: connection.firmId,
+        userIds: [connection.userId ?? connection.connectedByUserId],
+        actorUserId,
+        category: NotificationCategory.EMAIL,
+        summaryText: `🔌 กรุณาเชื่อมต่อ Microsoft 365 ใหม่\nบัญชี ${connection.mailboxAddress} หลุดการเชื่อมต่อ — เข้า ตั้งค่า → Microsoft 365 แล้วกด "เชื่อมต่อ"`,
+        entityPath: '/settings',
+        appPath: '/settings',
+      });
+    } catch (error) {
+      this.logger.warn(`Reconnect alert for ${connection.mailboxAddress} failed: ${error}`);
+    }
   }
 
   /** Records a non-fatal problem without changing the connection's status. */

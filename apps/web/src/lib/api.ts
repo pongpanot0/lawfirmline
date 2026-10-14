@@ -1253,6 +1253,23 @@ export interface ThreadCaseSuggestion {
   reasons: ThreadMatchReason[];
 }
 
+export interface M365AdminStatus {
+  generatedAt: string;
+  summary: { members: number; connected: number; problems: number; notConnected: number };
+  connections: Array<{
+    id: string; mailboxAddress: string; user: { id: string; name: string } | null;
+    status: 'ACTIVE' | 'EXPIRED' | 'ERROR' | 'REVOKED'; health: 'OK' | 'WARN' | 'BROKEN'; healthReason: string | null;
+    lastSyncedAt: string | null; lastError: string | null; lastErrorThai: string | null;
+    syncInboxToIntake: boolean; syncCalendar: boolean; subscriptionExpiresAt: string | null;
+    folderLinks: { total: number; failing: number }; driveLinks: number; calendarCopyErrors: number;
+  }>;
+  failingLinks: Array<{
+    linkId: string; kind: 'OUTLOOK_FOLDER' | 'DRIVE_FOLDER'; caseId: string; ownRef: string | null; caseTitle: string;
+    displayPath: string | null; mailboxAddress: string; lastSyncedAt: string | null; lastError: string | null; lastErrorThai: string | null;
+  }>;
+  notConnected: Array<{ userId: string; name: string; email: string }>;
+}
+
 export interface MailboxConnectionItem {
   id: string;
   mailboxAddress: string;
@@ -2973,6 +2990,9 @@ export const api = {
   },
 
   // --- Outlook / Microsoft Graph (self-service mailbox connect) ---
+  getM365AdminStatus: (token: string) => request<M365AdminStatus>('/outlook/admin/status', { token }),
+  remindM365Reconnect: (token: string, id: string) =>
+    request<{ notified: true }>(`/outlook/admin/connections/${id}/remind`, { token, method: 'POST' }),
   getOutlookConnections: (token: string) =>
     request<MailboxConnectionItem[]>('/outlook/connections', { token }),
 

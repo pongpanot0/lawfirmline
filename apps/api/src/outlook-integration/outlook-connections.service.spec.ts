@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { OutlookOAuthService } from './outlook-oauth.service';
+import { AssignmentNotifierService } from '../notifications/assignment-notifier.service';
 import { OutlookGraphClient } from './outlook-graph.client';
 import { encryptToken } from '../common/utils/token-encryption.util';
 
@@ -15,12 +16,15 @@ describe('OutlookConnectionsService', () => {
       findUniqueOrThrow: jest.fn(),
       upsert: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
+      findUnique: jest.fn(),
     },
     caseExternalLink: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(0) },
     documentOfficeLink: { count: jest.fn() },
   };
   const mockOAuth = { refreshTokens: jest.fn() };
   const mockGraph = { deleteSubscription: jest.fn() };
+  const mockNotifier = { notifyAssigned: jest.fn().mockResolvedValue({}) };
 
   beforeAll(() => {
     process.env.MAILBOX_TOKEN_ENCRYPTION_KEY = 'b'.repeat(64);
@@ -35,6 +39,7 @@ describe('OutlookConnectionsService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: OutlookOAuthService, useValue: mockOAuth },
         { provide: OutlookGraphClient, useValue: mockGraph },
+        { provide: AssignmentNotifierService, useValue: mockNotifier },
       ],
     }).compile();
     service = module.get(OutlookConnectionsService);
@@ -86,6 +91,7 @@ describe('OutlookConnectionsService', () => {
         tokenExpiresAt: new Date(Date.now() + 60_000),
       });
       mockOAuth.refreshTokens.mockRejectedValue(new Error('invalid_grant'));
+      mockPrisma.mailboxConnection.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(service.getValidAccessToken('conn-1')).rejects.toThrow(BadRequestException);
       expect(mockPrisma.mailboxConnection.update).toHaveBeenCalledWith(
@@ -212,5 +218,27 @@ describe('OutlookConnectionsService', () => {
     mockPrisma.mailboxConnection.findFirst.mockResolvedValue({ id: 'conn-1', firmId: 'firm-1', graphSubscriptionId: null });
     mockPrisma.caseExternalLink.count.mockResolvedValue(3);
     await expect(service.disconnect('firm-1', 'conn-1')).resolves.toEqual({ revoked: true, caseLinks: 3 });
+  });
+
+  describe('markError', () => {
+    const conn = { firmId: 'f1', mailboxAddress: 'a@x.com', userId: 'u1', connectedByUserId: 'u2' };
+    it('notifies the owner once on ACTIVE -> EXPIRED', async () => {
+      mockPrisma.mailboxConnection.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.mailboxConnection.findUnique.mockResolvedValue(conn);
+      await service.markError('c1', 'EXPIRED' as never, 'boom');
+      expect(mockPrisma.mailboxConnection.update).not.toHaveBeenCalled();
+      expect(mockNotifier.notifyAssigned).toHaveBeenCalledTimes(1);
+      expect(mockNotifier.notifyAssigned).toHaveBeenCalledWith(expect.objectContaining({ firmId: 'f1', userIds: ['u1'], actorUserId: '', entityPath: '/settings' }));
+    });
+    it('does not notify when it was not ACTIVE, and never throws if notify fails', async () => {
+      mockPrisma.mailboxConnection.updateMany.mockResolvedValue({ count: 0 });
+      await service.markError('c1', 'ERROR' as never, 'boom');
+      expect(mockPrisma.mailboxConnection.update).toHaveBeenCalledTimes(1);
+      expect(mockNotifier.notifyAssigned).not.toHaveBeenCalled();
+      mockPrisma.mailboxConnection.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.mailboxConnection.findUnique.mockResolvedValue(conn);
+      mockNotifier.notifyAssigned.mockRejectedValueOnce(new Error('x'));
+      await expect(service.markError('c1', 'ERROR' as never, 'boom')).resolves.toBeUndefined();
+    });
   });
 });

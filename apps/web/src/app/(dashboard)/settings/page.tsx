@@ -22,7 +22,7 @@ import { fmt } from '@/lib/i18n/dashboard';
 import { formatDate } from '@/lib/utils';
 
 /** Office-wide master data; each link is capability-gated, so it sits under Settings instead of the sidebar. */
-const OFFICE_LINKS: Array<{ href: string; icon: typeof Shield; labelKey: 'reimbursements' | 'caseTypes' | 'deadlineRules' | 'holidays' | 'courts' | 'auditLog' | 'emailTemplates'; capability: FirmCapability }> = [
+const OFFICE_LINKS: Array<{ href: string; icon: typeof Shield; labelKey: 'reimbursements' | 'caseTypes' | 'deadlineRules' | 'holidays' | 'courts' | 'auditLog' | 'emailTemplates' | 'microsoftStatus'; capability: FirmCapability }> = [
   { href: '/admin/reimbursements', icon: Shield, labelKey: 'reimbursements', capability: 'approveExpenses' },
   { href: '/admin/case-types', icon: Tags, labelKey: 'caseTypes', capability: 'manageFirmContent' },
   { href: '/admin/deadline-rules', icon: Timer, labelKey: 'deadlineRules', capability: 'manageFirmContent' },
@@ -30,6 +30,7 @@ const OFFICE_LINKS: Array<{ href: string; icon: typeof Shield; labelKey: 'reimbu
   { href: '/admin/holidays', icon: CalendarOff, labelKey: 'holidays', capability: 'manageSubscription' },
   { href: '/admin/courts', icon: Scale, labelKey: 'courts', capability: 'manageSubscription' },
   { href: '/settings/email-templates', icon: Mail, labelKey: 'emailTemplates', capability: 'manageFirmContent' },
+  { href: '/settings/microsoft-status', icon: Mail, labelKey: 'microsoftStatus', capability: 'runOperations' },
   { href: '/admin/audit-log', icon: History, labelKey: 'auditLog', capability: 'viewFirmReports' },
 ];
 
