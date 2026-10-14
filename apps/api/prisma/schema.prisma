@@ -1553,6 +1553,7 @@ model Document {
   knowledgeCitations KnowledgeCitation[]
   dateSuggestions    DocumentDateSuggestion[]
   publications       DocumentPublication[]
+  officeLink         DocumentOfficeLink?
   chunks             DocumentChunk[]
   intakeRequests     IntakeDocumentRequest[]
   cargoRequirements  CargoDocumentRequirement[]
@@ -1632,6 +1633,26 @@ model CargoDocumentRequirement {
   @@unique([cargoClaimId, code])
   @@index([cargoClaimId, status])
   @@index([documentId])
+}
+
+/// A system Document copied to OneDrive for editing in Word/Excel/PowerPoint online (M365 ส่วน D).
+model DocumentOfficeLink {
+  id              String   @id @default(uuid())
+  documentId      String   @unique
+  /// MailboxConnection whose token uploaded the copy and reads it back (no FK: connections are never deleted, only revoked).
+  connectionId    String
+  driveId         String
+  itemId          String
+  webUrl          String   @db.Text
+  /// Document.version last uploaded to or pulled from OneDrive.
+  uploadedVersion Int
+  createdAt       DateTime @default(now())
+  /// Last upload/pull; an item lastModifiedDateTime after this = Office edits not pulled back yet.
+  updatedAt       DateTime @updatedAt
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId])
 }
 
 model DocumentVersion {

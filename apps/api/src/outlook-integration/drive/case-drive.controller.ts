@@ -6,13 +6,14 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CaseDriveService } from './case-drive.service';
+import { DocumentOfficeService } from './document-office.service';
 import { LinkDriveFolderDto } from './drive.dto';
 
 /** OneDrive/SharePoint folder of a case. CaseAccessGuard (params.caseId) decides who may see it. */
 @Controller('cases/:caseId')
 @UseGuards(JwtAuthGuard, CaseAccessGuard)
 export class CaseDriveController {
-  constructor(private caseDrive: CaseDriveService) {}
+  constructor(private caseDrive: CaseDriveService, private office: DocumentOfficeService) {}
 
   @Get('drive')
   list(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
@@ -50,5 +51,24 @@ export class CaseDriveController {
   @Roles(Role.ADMIN, Role.LAWYER)
   importAll(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string) {
     return this.caseDrive.importAll(user, caseId);
+  }
+
+  @Get('office-links')
+  officeLinks(@Param('caseId') caseId: string) {
+    return this.office.listForCase(caseId);
+  }
+
+  @Post('office-links/:documentId/open')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  openInOffice(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('documentId') documentId: string) {
+    return this.office.open(user, caseId, documentId);
+  }
+
+  @Post('office-links/:documentId/pull')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.LAWYER)
+  pullFromOffice(@CurrentUser() user: AuthUser, @Param('caseId') caseId: string, @Param('documentId') documentId: string) {
+    return this.office.pull(user, caseId, documentId);
   }
 }

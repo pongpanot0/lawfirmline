@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { OutlookIntegrationModule } from '../outlook-integration.module';
 import { DocumentsModule } from '../../documents/documents.module';
 import { CaseDriveService } from './case-drive.service';
+import { DocumentOfficeService } from './document-office.service';
 import { CaseDriveController } from './case-drive.controller';
 import { DrivePickerController } from './drive-picker.controller';
 
@@ -9,6 +10,6 @@ import { DrivePickerController } from './drive-picker.controller';
 @Module({
   imports: [OutlookIntegrationModule, DocumentsModule],
   controllers: [CaseDriveController, DrivePickerController],
-  providers: [CaseDriveService],
+  providers: [CaseDriveService, DocumentOfficeService],
 })
 export class CaseDriveModule {}
