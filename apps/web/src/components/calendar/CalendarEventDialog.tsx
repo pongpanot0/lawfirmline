@@ -10,7 +10,7 @@ import { api, CalendarEventItem, CaseListItem, TravelResult, UserItem } from '@/
 import { bangkokInputToIso, bangkokInputValue } from '@/lib/bangkok';
 import { useLeaveFlags } from '@/lib/use-leave-flags';
 import { leaveWarning } from '@/lib/leave-flags';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ThaiDateTimeInput } from '@/components/ui/ThaiDateTimeInput';
 import { Modal } from '@/components/ui/misc';
@@ -63,6 +63,8 @@ export function CalendarEventDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [inviteDraft, setInviteDraft] = useState('');
+  const [contactEmails, setContactEmails] = useState<string[]>([]);
   const [travelPreview, setTravelPreview] = useState<TravelResult | null>(null);
   /**
    * Set once the event exists. A retry after a partial failure then edits that
@@ -90,6 +92,27 @@ export function CalendarEventDialog({
     }));
   };
 
+  // Offer the client's contact emails as one-tap invitees once Teams is ticked.
+  useEffect(() => {
+    if (!token || !form.onlineMeeting || !form.caseId) return;
+    let cancelled = false;
+    api
+      .getCase(token, form.caseId)
+      .then((c) => {
+        if (cancelled) return;
+        const emails = (c.client?.contacts ?? [])
+          .map((x) => x.email?.trim().toLowerCase())
+          .filter((x): x is string => !!x);
+        setContactEmails([...new Set(emails)]);
+      })
+      .catch(() => {
+        if (!cancelled) setContactEmails([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, form.onlineMeeting, form.caseId]);
+
   useEffect(() => {
     setForm(initialForm(event, caseId, caseCourtName, defaultDate));
     setSavedId(event?.id ?? null);
@@ -113,6 +136,8 @@ export function CalendarEventDialog({
       courtEventKind: form.type === 'COURT_DATE' ? form.courtEventKind || null : null,
       // An empty list means "nobody named", which the API reads as the lead lawyer.
       assigneeIds: form.assigneeIds,
+      onlineMeeting: form.type === 'CLIENT_MEETING' ? form.onlineMeeting : false,
+      inviteeEmails: form.type === 'CLIENT_MEETING' && form.onlineMeeting ? form.inviteeEmails : [],
     };
 
     try {
@@ -216,6 +241,29 @@ export function CalendarEventDialog({
       <Modal open onClose={onClose}>
         <h2 className="mb-1 text-lg font-semibold">{event.title}</h2>
         <p className="mb-4 text-xs text-muted-foreground">{d.calendar.eventDetails}</p>
+        {event.onlineMeetingUrl && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <a
+              href={event.onlineMeetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonVariants({ size: 'sm' })}
+            >
+              เข้าร่วม Teams
+            </a>
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              onClick={() => navigator.clipboard.writeText(event.onlineMeetingUrl!)}
+            >
+              คัดลอกลิงก์
+            </Button>
+          </div>
+        )}
+        {event.onlineMeeting && !event.onlineMeetingUrl && (
+          <p className="mb-3 text-xs text-muted-foreground">กำลังสร้างลิงก์ Teams… (ภายใน 2 นาที)</p>
+        )}
         <dl className="space-y-2 text-sm">
           {rows.map((row) => (
             <div key={row.label} className="flex gap-3">
@@ -383,6 +431,78 @@ export function CalendarEventDialog({
               })}
           </div>
 
+          {form.type === 'CLIENT_MEETING' && (
+            <>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.onlineMeeting}
+                  onChange={(e) => setForm((f) => ({ ...f, onlineMeeting: e.target.checked }))}
+                />
+                ประชุมออนไลน์ (Microsoft Teams)
+              </label>
+              {form.onlineMeeting && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    ระบบสร้างลิงก์ Teams ในปฏิทิน Outlook ของผู้จัด และ Outlook จะส่งคำเชิญถึงอีเมลด้านล่าง
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {contactEmails.map((email) => (
+                      <button
+                        key={email}
+                        type="button"
+                        className={`rounded-full border px-2 py-0.5 text-xs ${form.inviteeEmails.includes(email) ? 'bg-primary text-primary-foreground' : ''}`}
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            inviteeEmails: f.inviteeEmails.includes(email)
+                              ? f.inviteeEmails.filter((x) => x !== email)
+                              : [...f.inviteeEmails, email],
+                          }))
+                        }
+                      >
+                        {email}
+                      </button>
+                    ))}
+                  </div>
+                  <Input
+                    placeholder="เพิ่มอีเมลผู้รับเชิญ แล้วกด Enter"
+                    value={inviteDraft}
+                    onChange={(e) => setInviteDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter') return;
+                      e.preventDefault();
+                      const email = inviteDraft.trim().toLowerCase();
+                      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !form.inviteeEmails.includes(email)) {
+                        setForm((f) => ({ ...f, inviteeEmails: [...f.inviteeEmails, email] }));
+                        setInviteDraft('');
+                      }
+                    }}
+                  />
+                  {form.inviteeEmails
+                    .filter((x) => !contactEmails.includes(x))
+                    .map((email) => (
+                      <span
+                        key={email}
+                        className="mr-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+                      >
+                        {email}
+                        <button
+                          type="button"
+                          aria-label={`ลบ ${email}`}
+                          onClick={() =>
+                            setForm((f) => ({ ...f, inviteeEmails: f.inviteeEmails.filter((x) => x !== email) }))
+                          }
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                </div>
+              )}
+            </>
+          )}
+
           <label className="block text-sm">
             <span className="mb-1 block text-muted-foreground">{d.calendar.eventDescription}</span>
             <Input
@@ -451,6 +571,8 @@ function initialForm(
       type: event.type,
       courtEventKind: (event.courtEventKind ?? '') as CourtEventKind | '',
       assigneeIds,
+      onlineMeeting: event.onlineMeeting ?? false,
+      inviteeEmails: event.inviteeEmails ?? [],
     };
   }
 
@@ -466,5 +588,7 @@ function initialForm(
     courtEventKind: '' as CourtEventKind | '',
     // คนสร้างนัดมักสร้างให้ตัวเอง — ตั้งตัวเองเป็นผู้รับผิดชอบไว้ก่อน เปลี่ยนได้
     assigneeIds: currentUserId ? [currentUserId] : [],
+    onlineMeeting: false,
+    inviteeEmails: [] as string[],
   };
 }

@@ -303,6 +303,9 @@ export interface CalendarEventItem {
   leaveOwnerId?: string;
   leaveStartDate?: string;
   leaveEndDate?: string;
+  onlineMeeting?: boolean;
+  onlineMeetingUrl?: string | null;
+  inviteeEmails?: string[];
   case?: { id: string; ownRef: string; title: string; courtName?: string | null; leadLawyer?: { id: string; firstName: string; lastName: string } };
 }
 
