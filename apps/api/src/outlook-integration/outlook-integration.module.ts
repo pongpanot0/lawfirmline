@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { OutlookOAuthController } from './outlook-oauth.controller';
 import { OutlookWebhookController } from './outlook-webhook.controller';
 import { OutlookConnectionsController } from './outlook-connections.controller';
@@ -14,12 +14,16 @@ import { CaseFolderSyncService } from './case-folder-sync.service';
 import { CaseFolderLinksController } from './case-folder-links.controller';
 import { CaseFolderLinksService } from './case-folder-links.service';
 import { GraphMailFoldersClient } from './graph/graph-mail-folders.client';
+import { OutlookCalendarInboundService } from './calendar/outlook-calendar-inbound.service';
 import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
 import { CaseEmailSendController } from './case-email-send.controller';
 import { GraphDriveClient } from './graph/graph-drive.client';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { CaseEmailNotifier } from './case-email-notifier.service';
 import { OutlookSendService } from './outlook-send.service';
 
 @Module({
+  imports: [forwardRef(() => NotificationsModule)],
   controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController, CaseFolderLinksController, CaseEmailSendController],
   providers: [
     GraphHttp,
@@ -30,12 +34,14 @@ import { OutlookSendService } from './outlook-send.service';
     OutlookSyncService,
     OutlookSubscriptionService,
     OutlookCalendarSyncService,
+    OutlookCalendarInboundService,
     GraphMailFoldersClient,
     CaseFolderSyncService,
     CaseFolderLinksService,
     FirmLinkService,
     OutlookSendService,
     GraphDriveClient,
+    CaseEmailNotifier,
   ],
   exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService, GraphDriveClient],
 })

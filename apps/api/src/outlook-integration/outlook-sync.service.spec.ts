@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookGraphClient } from './outlook-graph.client';
 import { Prisma } from '../generated/prisma';
+import { CaseEmailNotifier } from './case-email-notifier.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 
 describe('OutlookSyncService', () => {
@@ -17,6 +18,7 @@ describe('OutlookSyncService', () => {
   };
   const mockConnections = { getValidAccessToken: jest.fn() };
   const mockGraph = { getInboxDelta: jest.fn(), getFolderDelta: jest.fn(), getAttachments: jest.fn() };
+  const mockNotifier = { notifyBatch: jest.fn() };
   const mockConfig = { get: jest.fn().mockReturnValue('./test-uploads') };
   const mockFileStorage = { put: jest.fn().mockResolvedValue('outlook/test-uploads/attachment.bin') };
 
@@ -30,6 +32,7 @@ describe('OutlookSyncService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: OutlookConnectionsService, useValue: mockConnections },
         { provide: OutlookGraphClient, useValue: mockGraph },
+        { provide: CaseEmailNotifier, useValue: mockNotifier },
         { provide: ConfigService, useValue: mockConfig },
         { provide: FileStorageService, useValue: mockFileStorage },
       ],
@@ -171,12 +174,58 @@ describe('OutlookSyncService', () => {
       firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
       direction: 'INBOUND', createThreadIfMissing: true,
     });
-    expect(out).toEqual({ threadId: 't1', messageId: 'm1' });
+    expect(out).toEqual({ threadId: 't1', messageId: 'm1', created: true, caseId: null });
     expect(mockPrisma.emailThread.create.mock.calls[0][0].data).toMatchObject({ mailboxConnectionId: 'c1', provider: 'microsoft', threadKey: 'conv-1' });
     expect(mockPrisma.emailMessage.create.mock.calls[0][0].data).toMatchObject({
       graphMessageId: 'g1', bodyHtml: '<p>เนื้อหาเต็ม</p>', bodyText: 'เนื้อหาเต็ม',
       toAddresses: ['lawyer@firm.com'], ccAddresses: ['cc@x.com'], direction: 'INBOUND',
     });
+  });
+
+  describe('new-mail alerts from the inbox drain', () => {
+    const arrange = (deltaLink: string | null, receivedDateTime: string) => {
+      mockPrisma.mailboxConnection.findUniqueOrThrow.mockResolvedValue({
+        id: 'c1', firmId: 'f1', connectedByUserId: 'owner', deltaLink, syncInboxToIntake: true, sentDeltaLink: 'sd',
+      });
+      mockConnections.getValidAccessToken.mockResolvedValue('tok');
+      mockGraph.getFolderDelta
+        .mockResolvedValueOnce({ messages: [{ ...htmlMessage, receivedDateTime }], nextDeltaLink: 'n', nextSkipLink: null })
+        .mockResolvedValueOnce({ messages: [], nextDeltaLink: 'n2', nextSkipLink: null });
+      mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: 'case-1', subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2099-01-01') });
+      mockPrisma.emailMessage.findFirst.mockResolvedValue(null);
+      mockPrisma.emailMessage.create.mockResolvedValue({ id: 'm1' });
+    };
+
+    it('notifies once per case for fresh new mail after the first sync', async () => {
+      arrange('prev', new Date().toISOString());
+      await service.syncConnection('c1');
+      expect(mockNotifier.notifyBatch).toHaveBeenCalledTimes(1);
+      const [batch, owner] = mockNotifier.notifyBatch.mock.calls[0];
+      expect([...batch.keys()]).toEqual(['case-1']);
+      expect(owner).toBe('owner');
+    });
+
+    it('stays silent on the first sync (no deltaLink)', async () => {
+      arrange(null, new Date().toISOString());
+      await service.syncConnection('c1');
+      expect(mockNotifier.notifyBatch).not.toHaveBeenCalled();
+    });
+
+    it('stays silent for mail older than 24 hours', async () => {
+      arrange('prev', new Date(Date.now() - 25 * 3600_000).toISOString());
+      await service.syncConnection('c1');
+      expect(mockNotifier.notifyBatch).not.toHaveBeenCalled();
+    });
+  });
+
+  it('reports created:false and the thread case for a message that already exists', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: 'case-9', subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
+    mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'm-old' });
+    const out = await service.upsertGraphMessage({
+      firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
+      direction: 'INBOUND', createThreadIfMissing: true,
+    });
+    expect(out).toEqual({ threadId: 't1', messageId: 'm-old', created: false, caseId: 'case-9' });
   });
 
   it('Sent Items never create a thread', async () => {
@@ -225,7 +274,7 @@ describe('OutlookSyncService', () => {
       firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
       direction: 'INBOUND', createThreadIfMissing: true,
     });
-    expect(out).toEqual({ threadId: 't-win', messageId: 'm1' });
+    expect(out).toEqual({ threadId: 't-win', messageId: 'm1', created: true, caseId: null });
   });
 
   it('after a thread-create race (P2002) the re-read winner still gets the case link', async () => {
@@ -297,7 +346,7 @@ describe('OutlookSyncService', () => {
       firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: htmlMessage as any,
       direction: 'INBOUND', createThreadIfMissing: true,
     });
-    expect(out).toEqual({ threadId: 't1', messageId: 'm-win' });
+    expect(out).toEqual({ threadId: 't1', messageId: 'm-win', created: false, caseId: null });
     expect(mockPrisma.emailThread.update).not.toHaveBeenCalled(); // nothing changed on the thread
   });
 

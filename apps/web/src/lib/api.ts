@@ -54,6 +54,11 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
+export interface OutlookChanges {
+  changes: { id: string; userId: string; userName: string; proposedStartAt: string; proposedEndAt: string | null; detectedAt: string }[];
+  myCopyRemovedInOutlook: boolean;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -350,6 +355,19 @@ export interface AdditionalClientItem {
   client: { id: string; name: string };
 }
 
+export interface AvailabilityPerson {
+  userId: string;
+  name: string;
+  source: 'OUTLOOK' | 'SYSTEM_ONLY';
+  busy: { start: string; end: string; label?: string }[];
+  error?: string;
+}
+export interface AvailabilityResult {
+  date: string;
+  hint?: string;
+  people: AvailabilityPerson[];
+}
+
 export interface CaseItem {
   id: string;
   ownRef: string;
@@ -378,6 +396,7 @@ export interface CaseItem {
   closingSummary?: string | null;
   closedAt?: string | null;
   updatedAt?: string;
+  leadLawyerId?: string;
   leadLawyer: { firstName: string; lastName: string };
   caseType?: { id: string; name: string; fieldSchema?: unknown } | null;
   client?: { id: string; name: string } | null;
@@ -1277,6 +1296,8 @@ export interface SendCaseEmailResult {
   threadId: string | null;
   /** false = sent by Microsoft but not yet in the case email tab */
   recorded: boolean;
+  /** Files too big to attach, sent as a OneDrive link instead */
+  linkedFiles: { documentId: string; filename: string }[];
 }
 
 export interface ReviewDecisionItem {
@@ -1916,6 +1937,9 @@ export const api = {
 
   getLawyers: (token: string) => request<UserItem[]>('/users/lawyers', { token }),
 
+  getAvailability: (token: string, data: { userIds: string[]; date: string; excludeEventId?: string }) =>
+    request<AvailabilityResult>('/calendar/availability', { token, method: 'POST', body: JSON.stringify(data) }),
+
   getDailyWorkboard: (token: string, date: string) =>
     request<import('@lawfirm/shared').DailyWorkboard>(`/operations/daily?date=${encodeURIComponent(date)}`, { token }),
   createDailyTask: (token: string, data: Record<string, unknown>) =>
@@ -2319,6 +2343,10 @@ export const api = {
   acknowledgeEvent: (token: string, id: string, eventUpdatedAt: string, complete = false) => request(`/calendar/events/${id}/${complete ? 'complete-work' : 'acknowledge'}`, { token, method: 'POST', body: JSON.stringify({ eventUpdatedAt }) }),
   previewEventReschedule: (token: string, id: string, startAt: string) => request<import('@/components/calendar/EventResponsibility').ReschedulePreview>(`/calendar/events/${id}/reschedule-preview`, { token, method: 'POST', body: JSON.stringify({ startAt }) }),
   rescheduleEvent: (token: string, id: string, data: { startAt: string; fingerprint: string; reason: string }) => request(`/calendar/events/${id}/reschedule`, { token, method: 'POST', body: JSON.stringify(data) }),
+  getOutlookChanges: (token: string, id: string) => request<OutlookChanges>(`/calendar/events/${id}/outlook-changes`, { token }),
+  applyOutlookChange: (token: string, id: string, changeId: string, data: { fingerprint: string; reason: string }) => request<{ ok: true }>(`/calendar/events/${id}/outlook-changes/${changeId}/apply`, { token, method: 'POST', body: JSON.stringify(data) }),
+  keepOutlookChange: (token: string, id: string, changeId: string) => request<{ ok: true }>(`/calendar/events/${id}/outlook-changes/${changeId}/keep`, { token, method: 'POST' }),
+  restoreOutlookCopy: (token: string, id: string) => request<{ ok: true }>(`/calendar/events/${id}/outlook-copies/restore`, { token, method: 'POST' }),
   getCalendarEvent: (token: string, id: string) =>
     request<CalendarEventItem>(`/calendar/events/${id}`, { token }),
 
@@ -3044,6 +3072,17 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getEmailTemplates: (token: string) => request<EmailTemplate[]>('/email-templates', { token }),
+  getEmailTemplateVariables: (token: string) => request<EmailTemplateVariable[]>('/email-templates/variables', { token }),
+  createEmailTemplate: (token: string, data: EmailTemplateInput) =>
+    request<EmailTemplate>('/email-templates', { method: 'POST', token, body: JSON.stringify(data) }),
+  updateEmailTemplate: (token: string, id: string, data: Partial<EmailTemplateInput>) =>
+    request<EmailTemplate>(`/email-templates/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+  deleteEmailTemplate: (token: string, id: string) =>
+    request<{ deleted: boolean }>(`/email-templates/${id}`, { method: 'DELETE', token }),
+  renderEmailTemplate: (token: string, caseId: string, id: string) =>
+    request<RenderedEmailTemplate>(`/cases/${caseId}/email-templates/${encodeURIComponent(id)}/render`, { token }),
+
   getLineStatus: (token: string) =>
     request<LineIntegrationStatus>('/integrations/line/status', { token }),
 
@@ -3683,6 +3722,26 @@ export interface DocumentVersionItem {
   notes: string | null;
   createdById: string | null;
   createdAt: string;
+}
+
+export interface EmailTemplateInput {
+  name: string;
+  subject: string;
+  body: string;
+}
+export interface EmailTemplate extends EmailTemplateInput {
+  id: string;
+  builtIn: boolean;
+}
+export interface EmailTemplateVariable {
+  key: string;
+  label: string;
+  example: string;
+}
+export interface RenderedEmailTemplate {
+  subject: string;
+  body: string;
+  missing: Array<{ key: string; label: string }>;
 }
 
 export interface DocumentItem {

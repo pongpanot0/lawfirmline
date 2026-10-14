@@ -9,7 +9,7 @@ import { eventForUserWhere, eventPeopleIds } from '../../calendar/event-people';
 import { buildOutlookEvent } from './outlook-event-payload';
 
 const DAY = 86_400_000;
-type Copy = { id: string; eventId: string; userId: string; connectionId: string; graphEventId: string; syncedAt: Date };
+type Copy = { id: string; eventId: string; userId: string; connectionId: string; graphEventId: string; syncedAt: Date; removedInOutlookAt?: Date | null };
 
 /**
  * Mirrors our calendar events into each responsible person's Outlook calendar
@@ -99,7 +99,7 @@ export class OutlookCalendarSyncService {
     const origin = await this.firmLink.originForFirm(event.case.firmId);
     for (const [userId, connection] of desired) {
       const copy = copies.find((c) => c.userId === userId && c.connectionId === connection.id);
-      if (copy && copy.syncedAt >= event.updatedAt) continue;
+      if (copy?.removedInOutlookAt || (copy && copy.syncedAt >= event.updatedAt)) continue; // owner deleted it in Outlook: never recreate
       try {
         const token = await this.connections.getValidAccessToken(connection.id);
         const payload = this.payloadFor(event, userId, organizerId, origin);
@@ -235,7 +235,7 @@ export class OutlookCalendarSyncService {
       const byEvent = new Map(copies.map((c) => [c.eventId, c]));
       for (const event of events) {
         const copy = byEvent.get(event.id);
-        if (!copy || copy.syncedAt < event.updatedAt) ids.add(event.id);
+        if (!copy?.removedInOutlookAt && (!copy || copy.syncedAt < event.updatedAt)) ids.add(event.id);
         byEvent.delete(event.id);
       }
       byEvent.forEach((c) => leftovers.add(c.eventId));
@@ -262,7 +262,7 @@ export class OutlookCalendarSyncService {
       for (const m of meetings) {
         if (!activeUserIds.has(m.meetingOrganizerId)) continue;
         const copy = meetingCopies.find((c) => c.eventId === m.id && c.userId === m.meetingOrganizerId);
-        if (!copy || copy.syncedAt < m.updatedAt) ids.add(m.id);
+        if (!copy?.removedInOutlookAt && (!copy || copy.syncedAt < m.updatedAt)) ids.add(m.id);
       }
     }
 

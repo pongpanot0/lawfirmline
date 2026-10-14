@@ -445,6 +445,7 @@ model Firm {
   intakes            Intake[]
   emailThreads       EmailThread[]
   mailboxConnections MailboxConnection[]
+  emailTemplates     EmailTemplate[]
   playbookReleases   PlaybookRelease[]
   automationLogs     AutomationLog[]
   sops               Sop[]
@@ -703,6 +704,7 @@ model User {
   notifications              Notification[]
   notificationPreferences    UserNotificationPreference[]
   mailboxConnections         MailboxConnection[]          @relation("MailboxConnectionOwner")
+  emailTemplates             EmailTemplate[]              @relation("EmailTemplateCreator")
 }
 
 /// What a staff notification is about — the unit a user mutes per channel.
@@ -714,6 +716,7 @@ enum NotificationCategory {
   CLIENT
   BILLING
   LEAVE
+  EMAIL
 }
 
 /// One staff notification, kept as the in-app inbox. Written for every
@@ -1740,6 +1743,7 @@ model CalendarEvent {
   responsibility     EventResponsibility?
   courtDay           CourtDay?
   assignees          CalendarEventAssignee[]
+  outlookChanges     CalendarEventOutlookChange[]
 
   @@index([startAt])
   @@index([assigneeId])
@@ -1768,10 +1772,47 @@ model CalendarEventOutlookCopy {
   graphEventId String
   syncedAt     DateTime
   lastError    String?  @db.Text
+  /// Deleted/cancelled by the owner in Outlook — sync must never recreate it.
+  removedInOutlookAt DateTime?
 
   @@unique([eventId, userId])
   @@index([connectionId])
   @@index([userId])
+}
+
+/// A move made in Outlook that is waiting for someone to apply or keep it.
+model CalendarEventOutlookChange {
+  id              String    @id @default(uuid())
+  eventId         String
+  userId          String
+  copyId          String
+  proposedStartAt DateTime
+  proposedEndAt   DateTime?
+  detectedAt      DateTime  @default(now())
+  resolvedAt      DateTime?
+  resolvedById    String?
+  /// APPLIED | KEPT
+  resolution      String?
+
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, resolvedAt])
+}
+
+model EmailTemplate {
+  id          String   @id @default(uuid())
+  firmId      String
+  name        String
+  subject     String
+  body        String   @db.Text
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  firm      Firm  @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("EmailTemplateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([firmId])
 }
 
 model LeaveRequest {
@@ -2664,6 +2705,8 @@ model MailboxConnection {
   syncInboxToIntake     Boolean                 @default(false)
   syncCalendar          Boolean                 @default(true)
   sentDeltaLink         String?                 @db.Text
+  calendarDeltaLink      String?                 @db.Text
+  calendarDeltaStartedAt DateTime?
 
   caseExternalLinks CaseExternalLink[]
   firm    Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)

@@ -33,6 +33,7 @@ import { AiTrayModule } from './ai-tray/ai-tray.module';
 import { RagModule } from './rag/rag.module';
 import { LegalModule } from './legal/legal.module';
 import { TemplatesModule } from './templates/templates.module';
+import { EmailTemplatesModule } from './email-templates/email-templates.module';
 import { HealthModule } from './health/health.module';
 import { OperationsModule } from './operations/operations.module';
 import { SopsModule } from './sops/sops.module';
@@ -83,6 +84,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     RagModule,
     LegalModule,
     TemplatesModule,
+    EmailTemplatesModule,
     OperationsModule,
     SopsModule,
     PracticeSetupModule,

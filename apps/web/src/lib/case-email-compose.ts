@@ -37,6 +37,7 @@ export function composeError(input: { to: string[]; cc: string[]; subject: strin
   if (input.to.length + input.cc.length > MAX_EMAIL_RECIPIENTS) {
     return `ผู้รับรวม (ถึง + สำเนา) ได้ไม่เกิน ${MAX_EMAIL_RECIPIENTS} คน`;
   }
+  if (input.subject.includes('{{') || input.body.includes('{{')) return 'ยังมีช่องข้อมูลที่ไม่ได้กรอก {{...}}';
   if (!input.subject.trim()) return 'กรุณาใส่หัวเรื่อง';
   if (!input.body.trim()) return 'กรุณาใส่เนื้อหา';
   return null;
@@ -72,4 +73,19 @@ export function replyRecipients(
     return true;
   });
   return { to, cc };
+}
+
+/** "แทนที่" swaps the whole body for the template; "ต่อท้าย" keeps what was typed and adds the template below it. */
+export function mergeTemplateBody(existing: string, templateBody: string, how: 'replace' | 'append'): string {
+  return how === 'append' && existing.trim() ? `${existing.trimEnd()}\n\n${templateBody}` : templateBody;
+}
+
+export function insertAtCursor(text: string, start: number, end: number, insert: string): { text: string; caret: number } {
+  return { text: text.slice(0, start) + insert + text.slice(end), caret: start + insert.length };
+}
+
+/** Fill {{key}} with example values for the settings preview; unknown keys stay visible. */
+export function previewTemplate(text: string, variables: Array<{ key: string; example: string }>): string {
+  const byKey = new Map(variables.map((v) => [v.key, v.example]));
+  return text.replace(/\{\{(\w+)\}\}/g, (whole, key: string) => byKey.get(key) ?? whole);
 }

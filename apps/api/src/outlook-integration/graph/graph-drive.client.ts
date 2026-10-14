@@ -153,11 +153,29 @@ export class GraphDriveClient {
   }
 
   /** Overwrite an existing file — same item id, so the Office-online link keeps working. */
+  async deleteItem(token: string, driveId: string, itemId: string): Promise<void> {
+    await this.http.request(token, itemPath(driveId, itemId), { method: 'DELETE' });
+  }
+
   async replaceContent(token: string, driveId: string, itemId: string, body: Buffer, contentType: string): Promise<DriveItem> {
     if (body.length <= SMALL_UPLOAD_MAX_BYTES) {
       return this.http.putBuffer<DriveItem>(token, `${itemPath(driveId, itemId)}/content`, body, contentType);
     }
     return this.uploadChunks(await this.createUploadSession(token, driveId, { itemId }), body);
+  }
+
+  /** "Specific people" view link (never anonymous): only the listed recipients can open it. */
+  async createSharingLink(token: string, driveId: string, itemId: string, recipients: string[]): Promise<{ webUrl: string }> {
+    const res = await this.http.request<{ link: { webUrl: string } }>(token, `${itemPath(driveId, itemId)}/createLink`, {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'view',
+        scope: 'users',
+        recipients: recipients.map((email) => ({ email })),
+        retainInheritedPermissions: false,
+      }),
+    });
+    return { webUrl: res.link.webUrl };
   }
 
   /** `['Samnuan', ownRef]` → `/me/drive/root:/Samnuan/{ownRef}`, creating each missing level. */

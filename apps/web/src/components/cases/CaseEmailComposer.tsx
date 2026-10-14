@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/lib/auth';
 import { publishActionFeedback } from '@/lib/action-feedback';
-import { api, type CaseEmailComposeOptions, type DocumentItem, type SendCaseEmailResult } from '@/lib/api';
+import { api, type CaseEmailComposeOptions, type DocumentItem, type EmailTemplate, type SendCaseEmailResult } from '@/lib/api';
 import {
   appendAddress,
   composeError,
+  mergeTemplateBody,
   newSubject,
   parseAddressList,
   replyRecipients,
@@ -22,6 +23,8 @@ import {
 export type CaseEmailComposerMode =
   | { kind: 'new' }
   | { kind: 'reply'; replyAll: boolean; threadSubject: string; message: ReplySourceMessage };
+
+const LINK_NOTE = 'ไฟล์เกิน 3 MB ระบบจะส่งเป็นลิงก์ OneDrive ให้อัตโนมัติ (เปิดได้เฉพาะผู้รับ)';
 
 /**
  * เขียน/ตอบอีเมลจากกล่อง Microsoft 365 ของผู้ใช้เอง — เปิดจากแท็บอีเมลคดี และหน้า thread ที่ผูกคดีแล้ว
@@ -46,6 +49,10 @@ export function CaseEmailComposer({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [documentIds, setDocumentIds] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [pendingTemplate, setPendingTemplate] = useState<{ subject: string; body: string } | null>(null);
+  const [templateMissing, setTemplateMissing] = useState<string[]>([]);
+  const [templateLoading, setTemplateLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -72,11 +79,14 @@ export function CaseEmailComposer({
     setBody('');
     setDocumentIds([]);
     setConfirming(false);
+    setPendingTemplate(null);
+    setTemplateMissing([]);
     requestKey.current = '';
     // A failed document list only hides the attach section; it must not block writing the email.
-    Promise.all([api.getCaseEmailComposeOptions(token, caseId), api.getDocuments(token, caseId).catch(() => [] as DocumentItem[])])
-      .then(([loaded, docs]) => {
+    Promise.all([api.getCaseEmailComposeOptions(token, caseId), api.getDocuments(token, caseId).catch(() => [] as DocumentItem[]), api.getEmailTemplates(token).catch(() => [] as EmailTemplate[])])
+      .then(([loaded, docs, tpls]) => {
         if (cancelled) return;
+        setTemplates(tpls);
         setOptions(loaded);
         setDocuments(docs);
         if (mode.kind === 'reply') {
@@ -101,6 +111,29 @@ export function CaseEmailComposer({
   const to = parseAddressList(toText);
   const cc = parseAddressList(ccText);
   const attached = documents.filter((d) => documentIds.includes(d.id));
+
+  const applyTemplate = (rendered: { subject: string; body: string }, how: 'replace' | 'append') => {
+    setBody((prev) => mergeTemplateBody(prev, rendered.body, how));
+    if (mode?.kind === 'new') setSubject(rendered.subject);
+    setPendingTemplate(null);
+  };
+
+  const chooseTemplate = async (id: string) => {
+    if (!token || !id) return;
+    setTemplateLoading(true);
+    setError('');
+    setPendingTemplate(null);
+    try {
+      const rendered = await api.renderEmailTemplate(token, caseId, id);
+      setTemplateMissing(rendered.missing.map((m) => m.label));
+      if (body.trim()) setPendingTemplate(rendered);
+      else applyTemplate(rendered, 'replace');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ใช้เทมเพลตไม่สำเร็จ');
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
 
   const review = () => {
     const problem = composeError({ to, cc, subject, body });
@@ -128,7 +161,8 @@ export function CaseEmailComposer({
       publishActionFeedback(
         'success',
         (result.recorded ? 'ส่งอีเมลแล้ว' : 'ส่งอีเมลแล้ว แต่บันทึกเข้าแท็บอีเมลไม่สำเร็จ — ดูได้ใน Sent Items ของ Outlook') +
-          (result.mode === 'REPLY_AS_NEW' ? ' (ส่งเป็นอีเมลใหม่ ไม่อยู่ใน conversation เดิม)' : ''),
+          (result.mode === 'REPLY_AS_NEW' ? ' (ส่งเป็นอีเมลใหม่ ไม่อยู่ใน conversation เดิม)' : '') +
+          (result.linkedFiles.length ? ` · ส่งเป็นลิงก์ ${result.linkedFiles.length} ไฟล์` : ''),
       );
       setConfirming(false);
       onSent?.(result);
@@ -191,6 +225,7 @@ export function CaseEmailComposer({
             <div>
               <dt className="text-muted-foreground">ไฟล์แนบ ({attached.length})</dt>
               <dd>{attached.length ? attached.map((d) => d.filename).join(', ') : 'ไม่มี'}</dd>
+              {attached.length > 0 && <dd className="text-xs text-muted-foreground">{LINK_NOTE}</dd>}
             </div>
           </dl>
           <div className="mt-5 flex justify-end gap-2">
@@ -207,6 +242,46 @@ export function CaseEmailComposer({
       {options?.mailboxAddress && !confirming && (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">ส่งจาก: {options.mailboxAddress}</p>
+
+          {templates.length > 0 && (
+            <div className="space-y-2 text-sm">
+              <label className="block space-y-1">
+                <span className="font-medium">ใช้เทมเพลต</span>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value=""
+                  disabled={templateLoading}
+                  onChange={(e) => void chooseTemplate(e.target.value)}
+                >
+                  <option value="">{templateLoading ? 'กำลังโหลด…' : 'เลือกเทมเพลต (ไม่บังคับ)'}</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {pendingTemplate && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-2">
+                  <span>แทนที่ข้อความเดิม?</span>
+                  <Button type="button" size="sm" onClick={() => applyTemplate(pendingTemplate, 'replace')}>
+                    แทนที่
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => applyTemplate(pendingTemplate, 'append')}>
+                    ต่อท้าย
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setPendingTemplate(null)}>
+                    ยกเลิก
+                  </Button>
+                </div>
+              )}
+              {templateMissing.length > 0 && (
+                <p className="rounded-lg bg-amber-50 p-2 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  ยังไม่มีข้อมูล: {templateMissing.join(', ')} — กรอกแทน {'{{…}}'} ในข้อความก่อนส่ง
+                </p>
+              )}
+            </div>
+          )}
 
           <label className="block space-y-1 text-sm">
             <span className="font-medium">ถึง</span>
@@ -252,7 +327,7 @@ export function CaseEmailComposer({
           {documents.length > 0 && (
             <fieldset className="space-y-1">
               <legend className="text-sm font-medium">แนบเอกสารคดี</legend>
-              <p className="text-xs text-muted-foreground">ไฟล์ละไม่เกิน 3 MB — ไฟล์ใหญ่กว่านั้นให้ส่งเป็นลิงก์ OneDrive</p>
+              <p className="text-xs text-muted-foreground">{LINK_NOTE}</p>
               <div className="max-h-48 space-y-1 overflow-y-auto">
                 {documents.map((d) => (
                   <label key={d.id} className="flex items-center gap-2 text-sm">

@@ -15,8 +15,12 @@ const DEFAULT_MINUTES: Record<string, number> = { DEADLINE: 30 };
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const utc = (d: Date) => ({ dateTime: d.toISOString().replace('Z', ''), timeZone: 'UTC' as const });
 
+/** End shown in Outlook: the stored end, else a per-type default length. */
+export const effectiveEnd = (e: { startAt: Date; endAt: Date | null; type: string }): Date =>
+  e.endAt ?? new Date(e.startAt.getTime() + (DEFAULT_MINUTES[e.type] ?? 60) * 60_000);
+
 export function buildOutlookEvent(e: PayloadEvent, opts: { caseUrl: string; transactionId: string; asOrganizer?: boolean }): GraphEventInput {
-  const end = e.endAt ?? new Date(e.startAt.getTime() + (DEFAULT_MINUTES[e.type] ?? 60) * 60_000);
+  const end = effectiveEnd(e);
   const refs = [e.case.ownRef, e.case.blackCaseNumber && `คดีดำ ${e.case.blackCaseNumber}`, e.case.redCaseNumber && `คดีแดง ${e.case.redCaseNumber}`]
     .filter(Boolean)
     .join(' · ');
