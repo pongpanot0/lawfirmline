@@ -255,11 +255,11 @@ describe('OutlookSendService', () => {
         expect(mockGraph.sendDraft).not.toHaveBeenCalled();
       });
 
-      it('rejects a file over 250 MB before any Graph call', async () => {
+      it('rejects a selection over 100 MB in total before any Graph call', async () => {
         mockPrisma.document.findMany.mockResolvedValue(docs('huge'));
-        sizes({ huge: 250 * MB + 1 });
+        sizes({ huge: 100 * MB + 1 });
 
-        await expect(service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-huge'] })).rejects.toThrow('250 MB');
+        await expect(service.send(user, 'case-1', { ...baseDto, documentIds: ['doc-huge'] })).rejects.toThrow('100 MB');
         expect(mockConnections.getValidAccessToken).not.toHaveBeenCalled();
         expect(mockDrive.upload).not.toHaveBeenCalled();
       });

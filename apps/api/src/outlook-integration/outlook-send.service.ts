@@ -20,8 +20,11 @@ export const MAX_RECIPIENTS = 50;
 export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 /** base64 inflates ~33% and Exchange caps a message near 35 MB. */
 export const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
-/** Bigger than this can't even go as a OneDrive link. */
-export const MAX_LINKED_FILE_BYTES = 250 * 1024 * 1024;
+/**
+ * Everything selected is read into memory before sending, so the whole selection is capped
+ * (ponytail: in-memory buffers on a 2 GB box; stream from storage to the upload session if bigger sends are needed).
+ */
+export const MAX_SEND_TOTAL_BYTES = 100 * 1024 * 1024;
 export const CASE_EMAIL_SENT = 'CASE_EMAIL_SENT';
 
 export type SendMode = 'NEW' | 'REPLY' | 'REPLY_AS_NEW';
@@ -393,7 +396,7 @@ export class OutlookSendService {
     return links;
   }
 
-  /** ≤ 3 MB each and ≤ 15 MB together go inline; the rest become OneDrive links (≤ 250 MB each). */
+  /** ≤ 3 MB each and ≤ 15 MB together go inline; the rest become OneDrive links (all files together ≤ 100 MB). */
   private async loadAttachments(caseId: string, documentIds: string[]): Promise<{ inline: LoadedAttachment[]; linked: LinkedSource[] }> {
     const ids = [...new Set(documentIds)];
     if (ids.length === 0) return { inline: [], linked: [] };
@@ -406,14 +409,16 @@ export class OutlookSendService {
     const inline: LoadedAttachment[] = [];
     const linked: LinkedSource[] = [];
     let total = 0;
+    let selected = 0;
     for (const document of documents) {
       const buffer = await this.fileStorage
         .getBuffer(document.storagePath)
         .catch(() => {
           throw new NotFoundException(`อ่านไฟล์ "${document.filename}" ไม่ได้ — ไฟล์อาจถูกลบหรือเสียหาย`);
         });
-      if (buffer.length > MAX_LINKED_FILE_BYTES) {
-        throw new BadRequestException(`ไฟล์ "${document.filename}" ใหญ่เกิน 250 MB — ส่งทางอีเมลไม่ได้`);
+      selected += buffer.length;
+      if (selected > MAX_SEND_TOTAL_BYTES) {
+        throw new BadRequestException('ไฟล์ที่เลือกรวมกันเกิน 100 MB — ส่งทีละน้อยลง หรือแชร์จาก OneDrive โดยตรง');
       }
       if (buffer.length > MAX_ATTACHMENT_BYTES || total + buffer.length > MAX_TOTAL_ATTACHMENT_BYTES) {
         linked.push({ documentId: document.id, filename: document.filename, mimeType: document.mimeType, buffer });
