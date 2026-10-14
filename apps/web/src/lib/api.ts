@@ -868,6 +868,7 @@ export interface NotificationPreferences {
   dailyDigestEnabled: boolean;
   digestChannel: 'line' | 'email';
   digestEmail: string;
+  emailSignature: string | null;
 }
 export type DeadlineRuleItem = import('@lawfirm/shared').DeadlineRuleItem;
 
@@ -1279,6 +1280,7 @@ export interface CaseEmailComposeOptions {
   /** null = this user has not connected their own Microsoft 365 mailbox */
   mailboxAddress: string | null;
   ownRef: string;
+  signature: string | null;
   recipients: CaseEmailRecipientOption[];
 }
 
@@ -1290,6 +1292,7 @@ export interface SendCaseEmailInput {
   documentIds?: string[];
   replyToMessageId?: string;
   replyAll?: boolean;
+  includeSignature?: boolean;
   clientRequestId?: string;
 }
 
@@ -2135,7 +2138,7 @@ export const api = {
   getMyPreferences: (token: string) =>
     request<NotificationPreferences>('/users/me/preferences', { token }),
 
-  updateMyPreferences: (token: string, data: { dailyDigestEnabled?: boolean }) =>
+  updateMyPreferences: (token: string, data: { dailyDigestEnabled?: boolean; emailSignature?: string }) =>
     request<NotificationPreferences>('/users/me/preferences', {
       method: 'PATCH',
       token,

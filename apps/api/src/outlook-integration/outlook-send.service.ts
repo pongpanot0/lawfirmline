@@ -163,8 +163,9 @@ export class OutlookSendService {
   async composeOptions(user: AuthUser, caseId: string) {
     const contacts = { select: { name: true, email: true } } as const;
     const clientSelect = { select: { name: true, contacts } } as const;
-    const [connection, legalCase] = await Promise.all([
+    const [connection, signature, legalCase] = await Promise.all([
       this.connections.findActiveForUser(user.id),
+      this.signatureOf(user.id),
       this.prisma.case.findFirst({
         where: { id: caseId, firmId: user.firmId },
         select: {
@@ -180,8 +181,14 @@ export class OutlookSendService {
     return {
       mailboxAddress: connection?.mailboxAddress ?? null,
       ownRef: legalCase.ownRef,
+      signature,
       recipients: buildRecipientOptions(legalCase),
     };
+  }
+
+  private async signatureOf(userId: string): Promise<string | null> {
+    const row = await this.prisma.user.findUnique({ where: { id: userId }, select: { emailSignature: true } });
+    return row?.emailSignature ?? null;
   }
 
   async send(user: AuthUser, caseId: string, dto: SendCaseEmailDto): Promise<SendCaseEmailResult> {
@@ -240,7 +247,9 @@ export class OutlookSendService {
     const accessToken = await this.connections.getValidAccessToken(connection.id);
     // Uploads and links come BEFORE the draft: a refused link must never leave a half-built draft in Outlook.
     const links = await this.shareLinkedFiles(accessToken, user.firmId, caseId, linked, [...to, ...cc]);
-    const mail: OutgoingMail = { to, cc, subject, html: textToHtml(body) + linksHtml(links) };
+    const signature = dto.includeSignature === false ? null : await this.signatureOf(user.id);
+    const signatureHtml = signature ? `<br><div style="color:#444">-- <br>${escapeHtml(signature).replace(/\r?\n/g, '<br>')}</div>` : '';
+    const mail: OutgoingMail = { to, cc, subject, html: textToHtml(body) + linksHtml(links) + signatureHtml };
 
     let draft: GraphMessage;
     let mode: SendMode;

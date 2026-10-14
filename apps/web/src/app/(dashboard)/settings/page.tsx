@@ -15,6 +15,7 @@ import { hasFirmCapability, type FirmCapability } from '@lawfirm/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/misc';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 import { fmt } from '@/lib/i18n/dashboard';
@@ -50,6 +51,8 @@ export default function SettingsPage() {
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [prefsSaving, setPrefsSaving] = useState(false);
   const [prefsError, setPrefsError] = useState('');
+  const [signature, setSignature] = useState('');
+  const [sigState, setSigState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const loadLineData = useCallback(async () => {
     const token = getStoredToken();
     if (!token) return;
@@ -75,7 +78,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const token = getStoredToken();
     if (!token) return;
-    api.getMyPreferences(token).then(setPrefs).catch(() => setPrefs(null));
+    api.getMyPreferences(token).then((p) => { setPrefs(p); setSignature(p.emailSignature ?? ''); }).catch(() => setPrefs(null));
   }, []);
 
   const handleDigestToggle = async () => {
@@ -89,6 +92,19 @@ export default function SettingsPage() {
       setPrefsError(d.digest.saveFailed);
     } finally {
       setPrefsSaving(false);
+    }
+  };
+
+  const saveSignature = async () => {
+    const token = getStoredToken();
+    if (!token) return;
+    setSigState('saving');
+    try {
+      const p = await api.updateMyPreferences(token, { emailSignature: signature });
+      setSignature(p.emailSignature ?? '');
+      setSigState('saved');
+    } catch {
+      setSigState('error');
     }
   };
 
@@ -203,6 +219,29 @@ export default function SettingsPage() {
             <div>
               <label className="text-sm font-medium">{d.settings.email}</label>
               <Input defaultValue={user?.email} className="mt-1" disabled />
+            </div>
+            <div>
+              <label className="text-sm font-medium" htmlFor="email-signature">ลายเซ็นอีเมล</label>
+              <p className="text-xs text-muted-foreground">ใส่ท้ายอีเมลที่ส่งจากคดี (เลือกไม่แนบได้ทุกครั้ง)</p>
+              <Textarea
+                id="email-signature"
+                rows={5}
+                maxLength={2000}
+                className="mt-1"
+                placeholder={'สมชาย ใจดี\nทนายความ\nสำนักงานกฎหมาย ตัวอย่าง จำกัด\nโทร 02-123-4567'}
+                value={signature}
+                onChange={(e) => { setSignature(e.target.value); setSigState('idle'); }}
+              />
+              {signature.trim() && (
+                <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-2 text-xs text-muted-foreground">-- {'\n'}{signature.trim()}</p>
+              )}
+              <div className="mt-2 flex items-center gap-3">
+                <Button size="sm" onClick={() => void saveSignature()} disabled={sigState === 'saving'}>
+                  {sigState === 'saving' ? 'กำลังบันทึก…' : 'บันทึก'}
+                </Button>
+                {sigState === 'saved' && <span className="text-sm text-green-600">บันทึกแล้ว</span>}
+                {sigState === 'error' && <span className="text-sm text-destructive">บันทึกไม่สำเร็จ ลองอีกครั้ง</span>}
+              </div>
             </div>
           </CardContent>
         </Card>
