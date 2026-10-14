@@ -135,7 +135,7 @@ export default function EmailComposeScreen() {
     setTemplateId(tid);
     try {
       const r = await api<{ subject: string; body: string; missing: Array<{ key: string; label: string }> }>(`/cases/${id}/email-templates/${tid}/render`);
-      const fill = (how: 'replace' | 'append') => { setBody(mergeTemplateBody(body, r.body, how)); setSubject(r.subject); setMissing(r.missing.map((m) => m.label)); };
+      const fill = (how: 'replace' | 'append') => { setBody(mergeTemplateBody(body, r.body, how)); if (!isReply) setSubject(r.subject); setMissing(r.missing.map((m) => m.label)); };
       if (body.trim()) Alert.alert('มีข้อความอยู่แล้ว', undefined, [
         { text: 'ยกเลิก', style: 'cancel' }, { text: 'ต่อท้าย', onPress: () => fill('append') }, { text: 'แทนที่', onPress: () => fill('replace') }]);
       else fill('replace');
