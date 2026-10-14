@@ -131,7 +131,13 @@ export class OutlookSyncService {
     }
 
     const existing = await this.prisma.emailMessage.findFirst({ where: { threadId: thread.id, messageKey: message.internetMessageId } });
-    if (existing) return { threadId: thread.id, messageId: existing.id };
+    if (existing) {
+      // A previous run may have stored the message but failed on its attachments (Graph never redelivers it) — retry once if none were saved.
+      if (message.hasAttachments && (await this.prisma.emailAttachment.count({ where: { messageId: existing.id } })) === 0) {
+        await this.syncAttachments(p.firmId, p.accessToken, message.id, existing.id);
+      }
+      return { threadId: thread.id, messageId: existing.id };
+    }
 
     const html = message.body?.contentType?.toLowerCase() === 'html' ? message.body.content : null;
     const bodyText = html ? htmlToText(html) : (message.body?.content ?? message.bodyPreview ?? null);

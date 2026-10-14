@@ -13,7 +13,7 @@ describe('OutlookSyncService', () => {
     mailboxConnection: { findUniqueOrThrow: jest.fn(), update: jest.fn() },
     emailThread: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     emailMessage: { findFirst: jest.fn(), create: jest.fn() },
-    emailAttachment: { create: jest.fn() },
+    emailAttachment: { create: jest.fn(), count: jest.fn() },
   };
   const mockConnections = { getValidAccessToken: jest.fn() };
   const mockGraph = { getInboxDelta: jest.fn(), getFolderDelta: jest.fn(), getAttachments: jest.fn() };
@@ -23,6 +23,7 @@ describe('OutlookSyncService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockConfig.get.mockReturnValue('./test-uploads');
+    mockPrisma.emailAttachment.count.mockResolvedValue(0);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OutlookSyncService,
@@ -232,6 +233,31 @@ describe('OutlookSyncService', () => {
       where: { id: 't-win' },
       data: expect.objectContaining({ caseId: 'case-1', status: 'LINKED' }),
     });
+  });
+
+  it('re-syncs attachments of an already stored message that has none saved', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
+    mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'm-existing' });
+    mockPrisma.emailAttachment.count.mockResolvedValue(0);
+    mockGraph.getAttachments.mockResolvedValue([{ name: 'a.pdf', contentType: 'application/pdf', contentBytes: Buffer.from('x').toString('base64') }]);
+    await service.upsertGraphMessage({
+      firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: { ...htmlMessage, hasAttachments: true } as any,
+      direction: 'INBOUND', createThreadIfMissing: true,
+    });
+    expect(mockPrisma.emailAttachment.count).toHaveBeenCalledWith({ where: { messageId: 'm-existing' } });
+    expect(mockGraph.getAttachments).toHaveBeenCalledWith('tok', 'g1');
+    expect(mockPrisma.emailAttachment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ messageId: 'm-existing', filename: 'a.pdf' }) });
+  });
+
+  it('does not re-fetch attachments of a stored message that already has them', async () => {
+    mockPrisma.emailThread.findUnique.mockResolvedValue({ id: 't1', caseId: null, subject: 'ขอคำปรึกษา', lastMessageAt: new Date('2026-10-14') });
+    mockPrisma.emailMessage.findFirst.mockResolvedValue({ id: 'm-existing' });
+    mockPrisma.emailAttachment.count.mockResolvedValue(2);
+    await service.upsertGraphMessage({
+      firmId: 'f1', connectionId: 'c1', accessToken: 'tok', message: { ...htmlMessage, hasAttachments: true } as any,
+      direction: 'INBOUND', createThreadIfMissing: true,
+    });
+    expect(mockGraph.getAttachments).not.toHaveBeenCalled();
   });
 
   it('survives a concurrent message create (P2002) by returning the existing row', async () => {

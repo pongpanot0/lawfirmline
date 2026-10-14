@@ -1,3 +1,4 @@
+import { Prisma } from '../generated/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CaseFolderSyncService } from './case-folder-sync.service';
 import { PrismaService } from '../prisma/prisma.module';
@@ -32,7 +33,8 @@ describe('CaseFolderSyncService', () => {
     externalId: 'folder-1',
     displayPath: 'Inbox/คดี A',
     deltaLink: null as string | null,
-    connection: { mailboxAddress: 'Lawyer@Firm.co.th' },
+    connection: { mailboxAddress: 'Lawyer@Firm.co.th', status: 'ACTIVE' },
+    case: { deletedAt: null as Date | null },
   };
 
   beforeEach(async () => {
@@ -103,6 +105,57 @@ describe('CaseFolderSyncService', () => {
     expect(mockMailSync.upsertGraphMessage).toHaveBeenCalledTimes(1);
     expect(mockMailSync.upsertGraphMessage).toHaveBeenCalledWith(expect.objectContaining({ direction: 'OUTBOUND' }));
     expect(result.messagesSynced).toBe(1);
+  });
+
+  it('skips a message that fails to store, keeps the rest, saves the cursor and notes it in lastError', async () => {
+    mockGraph.getFolderDelta.mockResolvedValue({
+      messages: [message('a'), message('b'), message('c')],
+      nextDeltaLink: 'delta-2',
+      nextSkipLink: null,
+    });
+    mockMailSync.upsertGraphMessage
+      .mockResolvedValueOnce({ threadId: 't', messageId: 'm' })
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ threadId: 't', messageId: 'm' });
+
+    const result = await service.syncLink('link-1');
+
+    expect(result).toEqual({ messagesSynced: 2 });
+    expect(mockMailSync.upsertGraphMessage).toHaveBeenCalledTimes(3);
+    expect(mockPrisma.caseExternalLink.update).toHaveBeenCalledWith({ where: { id: 'link-1' }, data: { deltaLink: 'delta-2' } });
+    expect(mockPrisma.caseExternalLink.update).toHaveBeenLastCalledWith({
+      where: { id: 'link-1' },
+      data: { lastSyncedAt: expect.any(Date), lastError: 'ข้ามอีเมล 1 ฉบับที่บันทึกไม่ได้: boom' },
+    });
+  });
+
+  it('does nothing for a soft-deleted case', async () => {
+    mockPrisma.caseExternalLink.findUniqueOrThrow.mockResolvedValue({ ...link, case: { deletedAt: new Date() } });
+
+    expect(await service.syncLink('link-1')).toEqual({ messagesSynced: 0 });
+    expect(mockGraph.getFolderDelta).not.toHaveBeenCalled();
+    expect(mockPrisma.caseExternalLink.update).not.toHaveBeenCalled();
+  });
+
+  it('records a Thai lastError and skips Graph when the linking connection is not ACTIVE', async () => {
+    mockPrisma.caseExternalLink.findUniqueOrThrow.mockResolvedValue({ ...link, connection: { ...link.connection, status: 'REVOKED' } });
+
+    expect(await service.syncLink('link-1')).toEqual({ messagesSynced: 0 });
+    expect(mockGraph.getFolderDelta).not.toHaveBeenCalled();
+    expect(mockPrisma.caseExternalLink.update).toHaveBeenCalledWith({
+      where: { id: 'link-1' },
+      data: { lastError: 'การเชื่อมต่อ Microsoft ของผู้ผูก folder ใช้งานไม่ได้' },
+    });
+  });
+
+  it('stops quietly when the link is unlinked mid-sync (P2025 on update)', async () => {
+    mockGraph.getFolderDelta.mockResolvedValue({ messages: [message('a')], nextDeltaLink: 'd', nextSkipLink: null });
+    mockPrisma.caseExternalLink.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('gone', { code: 'P2025', clientVersion: 'x' }),
+    );
+
+    await expect(service.syncLink('link-1')).resolves.toEqual({ messagesSynced: 1 });
+    expect(mockPrisma.caseExternalLink.update).toHaveBeenCalledTimes(1); // no lastError write attempted
   });
 
   it('restarts from scratch once when Graph says the delta token expired (410)', async () => {

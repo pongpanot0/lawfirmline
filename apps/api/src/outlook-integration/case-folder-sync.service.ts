@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.module';
-import { CaseExternalLinkKind, MailboxConnectionStatus } from '../generated/prisma';
+import { CaseExternalLinkKind, MailboxConnectionStatus, Prisma } from '../generated/prisma';
 import { GraphApiError, GraphDeltaResult, GraphMessage, OutlookGraphClient } from './outlook-graph.client';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { OutlookSyncService } from './outlook-sync.service';
@@ -15,6 +15,10 @@ export function describeFolderSyncError(error: unknown): string {
   }
   return `ซิงก์ไม่สำเร็จ: ${error instanceof Error ? error.message : String(error)}`;
 }
+
+/** Prisma P2025 on update = the link row is gone (unlinked while a sync was running). */
+const isUnlinked = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
 
 /**
  * Pulls mail from Outlook folders linked to a case (CaseExternalLink kind
@@ -49,14 +53,24 @@ export class CaseFolderSyncService {
   private async runLink(linkId: string): Promise<{ messagesSynced: number }> {
     const link = await this.prisma.caseExternalLink.findUniqueOrThrow({
       where: { id: linkId },
-      include: { connection: { select: { mailboxAddress: true } } },
+      include: { connection: { select: { mailboxAddress: true, status: true } }, case: { select: { deletedAt: true } } },
     });
+    if (link.case.deletedAt) return { messagesSynced: 0 };
+    let messagesSynced = 0;
     try {
+      if (link.connection.status !== MailboxConnectionStatus.ACTIVE) {
+        await this.prisma.caseExternalLink.update({
+          where: { id: linkId },
+          data: { lastError: 'การเชื่อมต่อ Microsoft ของผู้ผูก folder ใช้งานไม่ได้' },
+        });
+        return { messagesSynced: 0 };
+      }
       const accessToken = await this.connections.getValidAccessToken(link.connectionId);
       const ownMailbox = link.connection.mailboxAddress.toLowerCase();
       let cursor = link.deltaLink;
       let resetDone = false;
-      let messagesSynced = 0;
+      let failed = 0;
+      let firstFailure = '';
 
       for (;;) {
         let page: GraphDeltaResult;
@@ -75,16 +89,23 @@ export class CaseFolderSyncService {
         for (const message of page.messages) {
           if (isRemoved(message)) continue;
           const sender = message.from?.emailAddress?.address?.toLowerCase();
-          const result = await this.mailSync.upsertGraphMessage({
-            firmId: link.firmId,
-            connectionId: link.connectionId,
-            accessToken,
-            message,
-            direction: sender === ownMailbox ? 'OUTBOUND' : 'INBOUND',
-            caseId: link.caseId,
-            createThreadIfMissing: true,
-          });
-          if (result) messagesSynced += 1;
+          try {
+            const result = await this.mailSync.upsertGraphMessage({
+              firmId: link.firmId,
+              connectionId: link.connectionId,
+              accessToken,
+              message,
+              direction: sender === ownMailbox ? 'OUTBOUND' : 'INBOUND',
+              caseId: link.caseId,
+              createThreadIfMissing: true,
+            });
+            if (result) messagesSynced += 1;
+          } catch (error) {
+            // One bad message must not block the page cursor (Graph never redelivers it) — skip, record, keep going.
+            failed += 1;
+            firstFailure ||= error instanceof Error ? error.message : String(error);
+            this.logger.warn(`Link ${linkId}: skipped message ${message.id}: ${error}`);
+          }
         }
 
         const next = page.nextDeltaLink ?? page.nextSkipLink;
@@ -98,13 +119,17 @@ export class CaseFolderSyncService {
 
       await this.prisma.caseExternalLink.update({
         where: { id: linkId },
-        data: { lastSyncedAt: new Date(), lastError: null },
+        data: {
+          lastSyncedAt: new Date(),
+          lastError: failed ? `ข้ามอีเมล ${failed} ฉบับที่บันทึกไม่ได้: ${firstFailure}`.slice(0, 2000) : null,
+        },
       });
       return { messagesSynced };
     } catch (error) {
+      if (isUnlinked(error)) return { messagesSynced }; // unlinked mid-sync — nothing left to record
       await this.prisma.caseExternalLink
         .update({ where: { id: linkId }, data: { lastError: describeFolderSyncError(error).slice(0, 2000) } })
-        .catch(() => undefined); // link may have been unlinked mid-sync
+        .catch(() => undefined);
       throw error;
     }
   }
