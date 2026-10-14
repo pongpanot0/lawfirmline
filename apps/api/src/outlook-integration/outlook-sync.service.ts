@@ -5,6 +5,7 @@ import { EmailDirection, EmailThreadStatus } from '../generated/prisma';
 import { GraphMessage, GraphRecipient, OutlookGraphClient } from './outlook-graph.client';
 import { htmlToText } from './mail/html-to-text';
 import { OutlookConnectionsService } from './outlook-connections.service';
+import { CaseEmailNotifier, NewInboundBatch, trackNewInbound } from './case-email-notifier.service';
 import { FileStorageService } from '../common/services/file-storage.service';
 
 type Direction = 'INBOUND' | 'OUTBOUND';
@@ -30,6 +31,7 @@ export class OutlookSyncService {
     private connections: OutlookConnectionsService,
     private graph: OutlookGraphClient,
     private fileStorage: FileStorageService,
+    private emailNotifier: CaseEmailNotifier,
   ) {}
 
   async syncConnection(connectionId: string): Promise<{ messagesSynced: number }> {
@@ -38,10 +40,15 @@ export class OutlookSyncService {
     let messagesSynced = 0;
     const data: { deltaLink?: string | null; sentDeltaLink?: string | null; lastSyncedAt: Date } = { lastSyncedAt: new Date() };
 
+    const fresh: NewInboundBatch = new Map();
+
     if (connection.syncInboxToIntake) {
-      const inbox = await this.drainFolder(accessToken, 'inbox', connection.deltaLink, (message) =>
-        this.upsertGraphMessage({ firmId: connection.firmId, connectionId, accessToken, message, direction: 'INBOUND', createThreadIfMissing: true }),
-      );
+      const inbox = await this.drainFolder(accessToken, 'inbox', connection.deltaLink, async (message) => {
+        const result = await this.upsertGraphMessage({ firmId: connection.firmId, connectionId, accessToken, message, direction: 'INBOUND', createThreadIfMissing: true });
+        // The first inbox sync is a backfill — never alert for it.
+        if (connection.deltaLink) trackNewInbound(fresh, result, 'INBOUND', message);
+        return result;
+      });
       messagesSynced += inbox.count;
       data.deltaLink = inbox.deltaLink;
     }
@@ -55,6 +62,7 @@ export class OutlookSyncService {
     data.sentDeltaLink = sent.deltaLink;
 
     await this.prisma.mailboxConnection.update({ where: { id: connectionId }, data });
+    if (fresh.size) await this.emailNotifier.notifyBatch(fresh, connection.connectedByUserId);
     return { messagesSynced };
   }
 
@@ -88,7 +96,7 @@ export class OutlookSyncService {
     direction: Direction;
     caseId?: string | null;
     createThreadIfMissing: boolean;
-  }): Promise<{ threadId: string; messageId: string } | null> {
+  }): Promise<{ threadId: string; messageId: string; created: boolean; caseId: string | null } | null> {
     const { message } = p;
     const key = { firmId_provider_threadKey: { firmId: p.firmId, provider: 'microsoft', threadKey: message.conversationId } };
     const at = new Date(message.receivedDateTime ?? message.sentDateTime ?? Date.now());
@@ -136,7 +144,7 @@ export class OutlookSyncService {
       if (message.hasAttachments && (await this.prisma.emailAttachment.count({ where: { messageId: existing.id } })) === 0) {
         await this.syncAttachments(p.firmId, p.accessToken, message.id, existing.id);
       }
-      return { threadId: thread.id, messageId: existing.id };
+      return { threadId: thread.id, messageId: existing.id, created: false, caseId: thread.caseId };
     }
 
     const html = message.body?.contentType?.toLowerCase() === 'html' ? message.body.content : null;
@@ -164,10 +172,10 @@ export class OutlookSyncService {
       if (!isUniqueViolation(error)) throw error;
       const dup = await this.prisma.emailMessage.findFirst({ where: { threadId: thread.id, messageKey: message.internetMessageId } });
       if (!dup) throw error;
-      return { threadId: thread.id, messageId: dup.id };
+      return { threadId: thread.id, messageId: dup.id, created: false, caseId: thread.caseId };
     }
     if (message.hasAttachments) await this.syncAttachments(p.firmId, p.accessToken, message.id, emailMessage.id);
-    return { threadId: thread.id, messageId: emailMessage.id };
+    return { threadId: thread.id, messageId: emailMessage.id, created: true, caseId: thread.caseId };
   }
 
   private async syncAttachments(firmId: string, accessToken: string, graphMessageId: string, emailMessageId: string) {

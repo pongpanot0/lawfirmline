@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { CaseExternalLinkKind, MailboxConnectionStatus, Prisma } from '../generated/prisma';
 import { GraphApiError, GraphDeltaResult, GraphMessage, OutlookGraphClient } from './outlook-graph.client';
 import { OutlookConnectionsService } from './outlook-connections.service';
+import { CaseEmailNotifier, NewInboundBatch, trackNewInbound } from './case-email-notifier.service';
 import { OutlookSyncService } from './outlook-sync.service';
 
 /** Delta reports deletions/moves-out as `{ id, '@removed': {...} }` — email already filed in the case stays there. */
@@ -38,6 +39,7 @@ export class CaseFolderSyncService {
     private connections: OutlookConnectionsService,
     private graph: OutlookGraphClient,
     private mailSync: OutlookSyncService,
+    private emailNotifier: CaseEmailNotifier,
   ) {}
 
   async syncLink(linkId: string): Promise<{ messagesSynced: number }> {
@@ -53,7 +55,7 @@ export class CaseFolderSyncService {
   private async runLink(linkId: string): Promise<{ messagesSynced: number }> {
     const link = await this.prisma.caseExternalLink.findUniqueOrThrow({
       where: { id: linkId },
-      include: { connection: { select: { mailboxAddress: true, status: true } }, case: { select: { deletedAt: true } } },
+      include: { connection: { select: { mailboxAddress: true, status: true, connectedByUserId: true } }, case: { select: { deletedAt: true } } },
     });
     if (link.case.deletedAt) return { messagesSynced: 0 };
     let messagesSynced = 0;
@@ -68,6 +70,8 @@ export class CaseFolderSyncService {
       const accessToken = await this.connections.getValidAccessToken(link.connectionId);
       const ownMailbox = link.connection.mailboxAddress.toLowerCase();
       let cursor = link.deltaLink;
+      const firstSync = !link.deltaLink; // backfill — never alert for it
+      const fresh: NewInboundBatch = new Map();
       let resetDone = false;
       let failed = 0;
       let firstFailure = '';
@@ -90,16 +94,18 @@ export class CaseFolderSyncService {
           if (isRemoved(message)) continue;
           const sender = message.from?.emailAddress?.address?.toLowerCase();
           try {
+            const direction = sender === ownMailbox ? 'OUTBOUND' : 'INBOUND';
             const result = await this.mailSync.upsertGraphMessage({
               firmId: link.firmId,
               connectionId: link.connectionId,
               accessToken,
               message,
-              direction: sender === ownMailbox ? 'OUTBOUND' : 'INBOUND',
+              direction,
               caseId: link.caseId,
               createThreadIfMissing: true,
             });
             if (result) messagesSynced += 1;
+            if (!firstSync) trackNewInbound(fresh, result, direction, message);
           } catch (error) {
             // One bad message must not block the page cursor (Graph never redelivers it) — skip, record, keep going.
             failed += 1;
@@ -124,6 +130,7 @@ export class CaseFolderSyncService {
           lastError: failed ? `ข้ามอีเมล ${failed} ฉบับที่บันทึกไม่ได้: ${firstFailure}`.slice(0, 2000) : null,
         },
       });
+      if (fresh.size) await this.emailNotifier.notifyBatch(fresh, link.connection.connectedByUserId);
       return { messagesSynced };
     } catch (error) {
       if (isUnlinked(error)) return { messagesSynced }; // unlinked mid-sync — nothing left to record

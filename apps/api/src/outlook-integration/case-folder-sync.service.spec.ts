@@ -4,6 +4,7 @@ import { CaseFolderSyncService } from './case-folder-sync.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { OutlookConnectionsService } from './outlook-connections.service';
 import { GraphApiError, OutlookGraphClient } from './outlook-graph.client';
+import { CaseEmailNotifier } from './case-email-notifier.service';
 import { OutlookSyncService } from './outlook-sync.service';
 
 const message = (id: string, from = 'client@example.com') => ({
@@ -24,6 +25,7 @@ describe('CaseFolderSyncService', () => {
   };
   const mockConnections = { getValidAccessToken: jest.fn() };
   const mockGraph = { getFolderDelta: jest.fn() };
+  const mockNotifier = { notifyBatch: jest.fn() };
   const mockMailSync = { upsertGraphMessage: jest.fn() };
   const link = {
     id: 'link-1',
@@ -33,7 +35,7 @@ describe('CaseFolderSyncService', () => {
     externalId: 'folder-1',
     displayPath: 'Inbox/คดี A',
     deltaLink: null as string | null,
-    connection: { mailboxAddress: 'Lawyer@Firm.co.th', status: 'ACTIVE' },
+    connection: { mailboxAddress: 'Lawyer@Firm.co.th', status: 'ACTIVE', connectedByUserId: 'owner' },
     case: { deletedAt: null as Date | null },
   };
 
@@ -50,6 +52,7 @@ describe('CaseFolderSyncService', () => {
         { provide: OutlookConnectionsService, useValue: mockConnections },
         { provide: OutlookGraphClient, useValue: mockGraph },
         { provide: OutlookSyncService, useValue: mockMailSync },
+        { provide: CaseEmailNotifier, useValue: mockNotifier },
       ],
     }).compile();
     service = module.get(CaseFolderSyncService);
@@ -75,6 +78,39 @@ describe('CaseFolderSyncService', () => {
     expect(mockPrisma.caseExternalLink.update).toHaveBeenLastCalledWith({
       where: { id: 'link-1' },
       data: { lastSyncedAt: expect.any(Date), lastError: null },
+    });
+  });
+
+  describe('new-mail alerts', () => {
+    const fresh = () => ({ ...message('n'), receivedDateTime: new Date().toISOString() });
+    const arrange = (deltaLink: string | null, msg: object) => {
+      mockPrisma.caseExternalLink.findUniqueOrThrow.mockResolvedValue({ ...link, deltaLink });
+      mockGraph.getFolderDelta.mockResolvedValue({ messages: [msg], nextDeltaLink: 'd', nextSkipLink: null });
+      mockMailSync.upsertGraphMessage.mockResolvedValue({ threadId: 't', messageId: 'm', created: true, caseId: 'case-1' });
+    };
+
+    it('notifies once for fresh new inbound mail on a link that already had a cursor', async () => {
+      arrange('prev', fresh());
+      await service.syncLink('link-1');
+      expect(mockNotifier.notifyBatch).toHaveBeenCalledTimes(1);
+      const [batch, owner] = mockNotifier.notifyBatch.mock.calls[0];
+      expect(batch.get('case-1')).toHaveLength(1);
+      expect(owner).toBe('owner');
+    });
+
+    it('is silent on the first sync of a link', async () => {
+      arrange(null, fresh());
+      await service.syncLink('link-1');
+      expect(mockNotifier.notifyBatch).not.toHaveBeenCalled();
+    });
+
+    it('ignores mail older than 24 hours and mail that already existed', async () => {
+      arrange('prev', message('old')); // 2026-10-13 fixture date
+      await service.syncLink('link-1');
+      arrange('prev', fresh());
+      mockMailSync.upsertGraphMessage.mockResolvedValue({ threadId: 't', messageId: 'm', created: false, caseId: 'case-1' });
+      await service.syncLink('link-1');
+      for (const [batch] of mockNotifier.notifyBatch.mock.calls) expect(batch.size).toBe(0);
     });
   });
 
