@@ -376,7 +376,11 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <MicrosoftAccountsSection />
+              <MicrosoftAccountsSection>
+                <Link href="/settings/outlook-folders" className="mt-3 inline-flex text-sm text-primary hover:underline">
+                  จับคู่ folder Outlook กับคดี
+                </Link>
+              </MicrosoftAccountsSection>
 
               <Separator className="mt-4" />
             </div>

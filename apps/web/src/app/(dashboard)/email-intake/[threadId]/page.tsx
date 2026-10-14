@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, EmailThreadDetail, IntakeFieldProposalItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { LinkThreadToCaseCard } from '@/components/email/LinkThreadToCaseCard';
 import { LoadFailed } from '@/components/ui/LoadFailed';
 import { PageLoading } from '@/components/ui/misc';
 
@@ -266,6 +267,8 @@ export default function EmailThreadDetailPage() {
       <h1 className="mt-2 mb-6 text-2xl font-bold tracking-tight">{thread.subject}</h1>
 
       {error && <p className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+
+      <LinkThreadToCaseCard threadId={threadId} linkedCase={thread.case ?? null} onChanged={load} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Source email */}
