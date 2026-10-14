@@ -15,9 +15,11 @@ import { CaseFolderLinksController } from './case-folder-links.controller';
 import { CaseFolderLinksService } from './case-folder-links.service';
 import { GraphMailFoldersClient } from './graph/graph-mail-folders.client';
 import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.service';
+import { CaseEmailSendController } from './case-email-send.controller';
+import { OutlookSendService } from './outlook-send.service';
 
 @Module({
-  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController, CaseFolderLinksController],
+  controllers: [OutlookOAuthController, OutlookWebhookController, OutlookConnectionsController, CaseFolderLinksController, CaseEmailSendController],
   providers: [
     GraphHttp,
     GraphCalendarClient,
@@ -31,6 +33,7 @@ import { OutlookCalendarSyncService } from './calendar/outlook-calendar-sync.ser
     CaseFolderSyncService,
     CaseFolderLinksService,
     FirmLinkService,
+    OutlookSendService,
   ],
   exports: [GraphHttp, GraphCalendarClient, OutlookGraphClient, OutlookConnectionsService, OutlookCalendarSyncService],
 })
