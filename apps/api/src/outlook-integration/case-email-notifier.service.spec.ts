@@ -55,6 +55,7 @@ describe('CaseEmailNotifier', () => {
       firmId: 'f1', userIds: ['u2'], actorUserId: '', category: 'EMAIL',
       summaryText: '📧 อีเมลใหม่ 5 ฉบับ · REF-1\np1@x.com: S1\nP2: S2\nP3: S3\nและอีก 2 ฉบับ',
       entityPath: '/cases/c1?tab=email',
+      appPath: '/case/c1?section=email',
     });
   });
 

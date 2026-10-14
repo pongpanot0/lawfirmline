@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser, AssignmentType, CaseStatus, Role, TaskStatus } from '@lawfirm/shared';
 import { ExpenseStatus, InvoiceStatus, Prisma } from '../generated/prisma';
 import { PrismaService } from '../prisma/prisma.module';
@@ -58,11 +58,16 @@ export class OperationsService {
       caseUpdateDays: 14,
       stuckStatusDays: 30,
       reviewDays: 3,
+      emailReplyHours: 24,
       ...((firm.slaConfig as Record<string, number> | null) ?? {}),
     };
   }
 
   async updateSlaConfig(user: AuthUser, dto: Record<string, number>) {
+    const hours = dto.emailReplyHours;
+    if (hours !== undefined && !(Number.isInteger(hours) && hours >= 1 && hours <= 168)) {
+      throw new BadRequestException('เวลาเตือนอีเมลที่ไม่ได้ตอบต้องเป็นจำนวนเต็ม 1–168 ชั่วโมง');
+    }
     await this.prisma.firm.update({
       where: { id: user.firmId },
       data: { slaConfig: dto },
