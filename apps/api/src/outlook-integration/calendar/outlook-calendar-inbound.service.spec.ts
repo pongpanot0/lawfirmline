@@ -29,6 +29,8 @@ describe('OutlookCalendarInboundService', () => {
     calendarEvent: { findUnique: jest.fn(), update: jest.fn() },
     calendarEventOutlookChange: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     user: { findUnique: jest.fn() },
+    reminderLog: { deleteMany: jest.fn() },
+    $transaction: jest.fn(),
     auditLog: { create: jest.fn() },
   };
   const connections = { getValidAccessToken: jest.fn() };
@@ -36,9 +38,10 @@ describe('OutlookCalendarInboundService', () => {
   const notifier = { notifyAssigned: jest.fn() };
 
   beforeEach(async () => {
-    Object.values(prisma).forEach((m) => Object.values(m).forEach((f) => f.mockReset()));
+    Object.values(prisma).forEach((m) => (typeof m === 'function' ? m.mockReset() : Object.values(m).forEach((f) => f.mockReset())));
     jest.clearAllMocks();
     connections.getValidAccessToken.mockResolvedValue('tok');
+    prisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
     prisma.mailboxConnection.findMany.mockResolvedValue([connection()]);
     prisma.calendarEventOutlookCopy.findMany.mockResolvedValue([copy()]);
     prisma.calendarEvent.findUnique.mockResolvedValue(event());
@@ -108,6 +111,8 @@ describe('OutlookCalendarInboundService', () => {
     expect(n).toEqual(expect.objectContaining({ actorUserId: 'u1', category: 'CALENDAR', firmId: 'f1' }));
     expect(n.userIds.sort()).toEqual(['lead', 'u1', 'u2']);
     expect(n.summaryText).toContain('สมชาย ใจดี ย้ายนัดใน Outlook · R1');
+    expect(n.entityPath).toBe('/court-day/e1');
+    expect(prisma.reminderLog.deleteMany).toHaveBeenCalledWith({ where: { eventId: 'e1' } });
     expect(prisma.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: 'CALENDAR_EVENT_MOVED_FROM_OUTLOOK', firmId: 'f1', userId: 'u1' }) });
   });
 

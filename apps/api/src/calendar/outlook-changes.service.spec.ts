@@ -1,11 +1,13 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { OutlookChangesService } from './outlook-changes.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CalendarService } from './calendar.service';
+import { EventResponsibilityService } from './event-responsibility.service';
 import { OutlookCalendarSyncService } from '../outlook-integration/calendar/outlook-calendar-sync.service';
 
 const user = { id: 'me', firmId: 'f1' } as any;
+const dto = { fingerprint: 'f'.repeat(64), reason: 'ลูกความขอ' };
 const change = { id: 'ch1', eventId: 'e1', userId: 'u1', proposedStartAt: new Date('2026-11-01T05:00:00Z'), proposedEndAt: new Date('2026-11-01T06:00:00Z'), detectedAt: new Date() };
 
 describe('OutlookChangesService', () => {
@@ -18,6 +20,7 @@ describe('OutlookChangesService', () => {
     auditLog: { create: jest.fn() },
   };
   const calendar = { findOne: jest.fn() };
+  const responsibility = { reschedule: jest.fn() };
   const outlook = { syncEventSoon: jest.fn() };
 
   beforeEach(async () => {
@@ -29,6 +32,7 @@ describe('OutlookChangesService', () => {
         OutlookChangesService,
         { provide: PrismaService, useValue: prisma },
         { provide: CalendarService, useValue: calendar },
+        { provide: EventResponsibilityService, useValue: responsibility },
         { provide: OutlookCalendarSyncService, useValue: outlook },
       ],
     }).compile();
@@ -48,24 +52,37 @@ describe('OutlookChangesService', () => {
   it('every endpoint is gated by the calendar event access check', async () => {
     calendar.findOne.mockRejectedValue(new ForbiddenException());
     await expect(svc.list(user, 'e1')).rejects.toThrow(ForbiddenException);
-    await expect(svc.apply(user, 'e1', 'ch1')).rejects.toThrow(ForbiddenException);
+    await expect(svc.apply(user, 'e1', 'ch1', dto)).rejects.toThrow(ForbiddenException);
     await expect(svc.keep(user, 'e1', 'ch1')).rejects.toThrow(ForbiddenException);
     await expect(svc.restoreMyCopy(user, 'e1')).rejects.toThrow(ForbiddenException);
     expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
   });
 
-  it('apply sets the event times, resolves APPLIED and the rest KEPT, audits', async () => {
+  it('apply goes through the reschedule flow, then resolves APPLIED and the rest KEPT', async () => {
     prisma.calendarEventOutlookChange.findFirst.mockResolvedValue(change);
-    await svc.apply(user, 'e1', 'ch1');
-    expect(prisma.calendarEvent.update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: { startAt: change.proposedStartAt, endAt: change.proposedEndAt } });
+    await svc.apply(user, 'e1', 'ch1', dto);
+    expect(responsibility.reschedule).toHaveBeenCalledWith(user, 'e1', { startAt: '2026-11-01T05:00:00.000Z', ...dto });
+    expect(prisma.calendarEvent.update).not.toHaveBeenCalled();
     expect(prisma.calendarEventOutlookChange.update).toHaveBeenCalledWith({ where: { id: 'ch1' }, data: expect.objectContaining({ resolution: 'APPLIED', resolvedById: 'me' }) });
     expect(prisma.calendarEventOutlookChange.updateMany).toHaveBeenCalledWith({ where: { eventId: 'e1', resolvedAt: null }, data: expect.objectContaining({ resolution: 'KEPT' }) });
-    expect(prisma.auditLog.create).toHaveBeenCalled();
+  });
+
+  it('a failed reschedule (stale fingerprint) leaves the proposal open', async () => {
+    prisma.calendarEventOutlookChange.findFirst.mockResolvedValue(change);
+    responsibility.reschedule.mockRejectedValue(new ConflictException());
+    await expect(svc.apply(user, 'e1', 'ch1', dto)).rejects.toThrow(ConflictException);
+    expect(prisma.calendarEventOutlookChange.update).not.toHaveBeenCalled();
+  });
+
+  it('an already resolved change is 409', async () => {
+    prisma.calendarEventOutlookChange.findFirst.mockResolvedValue({ ...change, resolvedAt: new Date() });
+    await expect(svc.apply(user, 'e1', 'ch1', dto)).rejects.toThrow(ConflictException);
+    expect(responsibility.reschedule).not.toHaveBeenCalled();
   });
 
   it('apply/keep on an unknown or already resolved change is 404', async () => {
     prisma.calendarEventOutlookChange.findFirst.mockResolvedValue(null);
-    await expect(svc.apply(user, 'e1', 'x')).rejects.toThrow(NotFoundException);
+    await expect(svc.apply(user, 'e1', 'x', dto)).rejects.toThrow(NotFoundException);
     await expect(svc.keep(user, 'e1', 'x')).rejects.toThrow(NotFoundException);
   });
 

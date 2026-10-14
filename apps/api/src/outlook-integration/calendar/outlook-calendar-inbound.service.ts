@@ -112,7 +112,11 @@ export class OutlookCalendarInboundService {
     const { ownRef, firmId, leadLawyerId } = event.case;
 
     if (movable && responsible) {
-      await this.prisma.calendarEvent.update({ where: { id: event.id }, data: { startAt: change.start, endAt: change.end } });
+      // Like a reschedule: the old reminders were for the old time, so they must fire again.
+      await this.prisma.$transaction([
+        this.prisma.calendarEvent.update({ where: { id: event.id }, data: { startAt: change.start, endAt: change.end } }),
+        this.prisma.reminderLog.deleteMany({ where: { eventId: event.id } }),
+      ]);
       await this.prisma.auditLog.create({
         data: {
           firmId, userId: copy.userId, action: 'CALENDAR_EVENT_MOVED_FROM_OUTLOOK',
@@ -123,7 +127,7 @@ export class OutlookCalendarInboundService {
         firmId, userIds: [...eventPeopleIds(event), ...(organizerId ? [organizerId] : []), ...(leadLawyerId ? [leadLawyerId] : [])],
         actorUserId: copy.userId, category: NotificationCategory.CALENDAR,
         summaryText: `🗓️ ${ownerName} ย้ายนัดใน Outlook · ${ownRef}\n${event.title}: ${when(event.startAt)} → ${when(change.start)}`,
-        entityPath: `/cases/${event.caseId}`,
+        entityPath: `/court-day/${event.id}`,
       });
       return;
     }
@@ -140,7 +144,7 @@ export class OutlookCalendarInboundService {
     await this.notifier.notifyAssigned({
       firmId, userIds: [copy.userId, ...(leadLawyerId ? [leadLawyerId] : [])], actorUserId: '', category: NotificationCategory.CALENDAR,
       summaryText: `⚠️ นัดศาล/วันครบกำหนดถูกย้ายใน Outlook · ${ownRef} — เปิดระบบเพื่อยืนยัน\n${event.title}: ${when(event.startAt)} → ${when(change.start)}`,
-      entityPath: `/cases/${event.caseId}`,
+      entityPath: `/court-day/${event.id}`,
     });
   }
 }
