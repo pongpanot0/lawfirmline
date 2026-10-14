@@ -21,6 +21,19 @@ const THREAD_REASON_RANK: Record<ThreadMatchReason, number> = { OWN_REF: 0, CASE
 const MAX_SUGGESTIONS = 10;
 const MAX_ADDRESSES = 20;
 const MAX_CASE_THREADS = 200;
+const MAX_SEARCH_RESULTS = 50;
+const MAX_SEARCH_QUERY = 100;
+const EXCERPT_CONTEXT = 70;
+
+/** A short one-line snippet of `text` around the first case-insensitive hit of `q`; '' when it does not occur. */
+export function excerptAround(text: string, q: string): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  const at = flat.toLowerCase().indexOf(q.toLowerCase());
+  if (at < 0) return '';
+  const start = Math.max(0, at - EXCERPT_CONTEXT);
+  const end = Math.min(flat.length, at + q.length + EXCERPT_CONTEXT);
+  return `${start > 0 ? '…' : ''}${flat.slice(start, end)}${end < flat.length ? '…' : ''}`;
+}
 
 /**
  * Email ↔ case: manual thread linking (with exact-rule suggestions — no AI,
@@ -225,7 +238,88 @@ export class CaseEmailService {
       },
     });
     if (!thread) throw new NotFoundException('ไม่พบอีเมลนี้ในคดี');
-    return thread;
+    const tags = thread.messages.flatMap((m) => m.attachments.map((a) => `email-attachment:${a.id}`));
+    const saved = tags.length
+      ? await this.prisma.document.findMany({
+          where: { caseId, tags: { hasSome: tags }, storagePath: { not: '' } },
+          select: { id: true, tags: true },
+        })
+      : [];
+    const savedByTag = new Map(saved.flatMap((d) => d.tags.map((tag) => [tag, d.id] as const)));
+    return {
+      ...thread,
+      messages: thread.messages.map((m) => ({
+        ...m,
+        attachments: m.attachments.map((a) => ({ ...a, savedDocumentId: savedByTag.get(`email-attachment:${a.id}`) ?? null })),
+      })),
+    };
+  }
+
+  /** "ค้นหาอีเมล" across every thread the user may see (cases, intake, own unlinked mail). */
+  // ponytail: ILIKE scan of bodyText — add a pg_trgm / tsvector index when a firm's mail volume makes this slow
+  async searchThreads(user: AuthUser, rawQuery: unknown) {
+    // ?q=a&q=b arrives as an array — treat anything but a string as empty
+    const q = (typeof rawQuery === 'string' ? rawQuery : '').trim().slice(0, MAX_SEARCH_QUERY);
+    if (q.length < 2) return [];
+    const contains = { contains: q, mode: 'insensitive' as const };
+    const threads = await this.prisma.emailThread.findMany({
+      where: await this.threadWhere(user, {
+        OR: [
+          { subject: contains },
+          { fromName: contains },
+          { fromAddress: contains },
+          { case: { OR: [{ ownRef: contains }, { title: contains }, { clientName: contains }, { client: { name: contains } }] } },
+          {
+            messages: {
+              some: {
+                OR: [
+                  { bodyText: contains },
+                  { fromName: contains },
+                  { fromAddress: contains },
+                  { toAddresses: { hasSome: [q, q.toLowerCase()] } },
+                  { attachments: { some: { filename: contains } } },
+                ],
+              },
+            },
+          },
+        ],
+      }),
+      select: {
+        id: true,
+        subject: true,
+        fromName: true,
+        fromAddress: true,
+        lastMessageAt: true,
+        status: true,
+        intakeId: true,
+        case: { select: { id: true, ownRef: true, title: true } },
+        messages: { select: { _count: { select: { attachments: true } } } },
+      },
+      orderBy: { lastMessageAt: 'desc' },
+      take: MAX_SEARCH_RESULTS,
+    });
+    const bodies = threads.length
+      ? await this.prisma.emailMessage.findMany({
+          where: { threadId: { in: threads.map((t) => t.id) }, bodyText: contains },
+          select: { threadId: true, bodyText: true },
+          orderBy: { receivedAt: 'desc' },
+          distinct: ['threadId'],
+        })
+      : [];
+    const bodyByThread = new Map(bodies.map((b) => [b.threadId, b.bodyText ?? '']));
+    return threads.map((t) => ({
+      id: t.id,
+      subject: t.subject,
+      fromName: t.fromName,
+      fromAddress: t.fromAddress,
+      lastMessageAt: t.lastMessageAt,
+      status: t.status,
+      intakeId: t.intakeId,
+      case: t.case,
+      messageCount: t.messages.length,
+      attachmentCount: t.messages.reduce((sum, m) => sum + m._count.attachments, 0),
+      excerpt: excerptAround(bodyByThread.get(t.id) ?? '', q),
+    }));
   }
 
   // ponytail: per-process guard — use an advisory lock if the api runs multiple instances

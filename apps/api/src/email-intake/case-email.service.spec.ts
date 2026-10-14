@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FirmRole } from '@lawfirm/shared';
-import { CaseEmailService } from './case-email.service';
+import { CaseEmailService, excerptAround } from './case-email.service';
 import { PrismaService } from '../prisma/prisma.module';
 import { CaseAccessService } from '../common/services/case-access.service';
 import { DocumentsService } from '../documents/documents.service';
@@ -16,7 +16,7 @@ describe('CaseEmailService', () => {
     firmMember: { findMany: jest.fn() },
     mailboxConnection: { findMany: jest.fn() },
     emailAttachment: { findFirst: jest.fn() },
-    document: { findFirst: jest.fn() },
+    document: { findFirst: jest.fn(), findMany: jest.fn() },
     auditLog: { create: jest.fn() },
   };
   const threadFilter = { firmId: 'firm-1' };
@@ -172,6 +172,69 @@ describe('CaseEmailService', () => {
         expect.objectContaining({ where: { AND: [threadFilter, { caseId: 'case-1' }] } }),
       );
       expect(rows[0]).toMatchObject({ id: 'thread-1', messageCount: 2, attachmentCount: 3 });
+    });
+  });
+
+  describe('getCaseThread', () => {
+    it('marks attachments already saved to the case documents', async () => {
+      mockPrisma.emailThread.findFirst.mockResolvedValue({
+        id: 'thread-1', subject: 's', caseId: 'case-1', lastMessageAt: new Date(),
+        messages: [{ id: 'm1', attachments: [{ id: 'att-1', filename: 'a.pdf' }, { id: 'att-2', filename: 'b.pdf' }] }],
+      });
+      mockPrisma.document.findMany.mockResolvedValue([{ id: 'doc-9', tags: ['อีเมล', 'email-attachment:att-2'] }]);
+
+      const thread = await service.getCaseThread(user, 'case-1', 'thread-1');
+
+      expect(mockPrisma.document.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { caseId: 'case-1', tags: { hasSome: ['email-attachment:att-1', 'email-attachment:att-2'] }, storagePath: { not: '' } },
+        }),
+      );
+      expect(thread.messages[0].attachments.map((a) => a.savedDocumentId)).toEqual([null, 'doc-9']);
+    });
+  });
+
+  describe('searchThreads', () => {
+    it('ignores queries shorter than 2 chars or not a string, without touching the DB', async () => {
+      await expect(service.searchThreads(user, ' a ')).resolves.toEqual([]);
+      await expect(service.searchThreads(user, ['ab', 'cd'])).resolves.toEqual([]);
+      expect(mockPrisma.emailThread.findMany).not.toHaveBeenCalled();
+    });
+
+    it('searches only visible threads and returns case, counts and a body excerpt', async () => {
+      mockPrisma.emailThread.findMany.mockResolvedValue([
+        {
+          id: 'thread-1', subject: 'สัญญาเช่า', fromName: 'สมชาย', fromAddress: 's@x.com', lastMessageAt: new Date(),
+          status: 'LINKED', intakeId: null, case: { id: 'case-1', ownRef: 'C-1', title: 'คดีเช่า' },
+          messages: [{ _count: { attachments: 1 } }, { _count: { attachments: 0 } }],
+        },
+      ]);
+      mockPrisma.emailMessage.findMany.mockResolvedValue([{ threadId: 'thread-1', bodyText: 'เรียนท่าน\nแนบสัญญาเช่ามาให้ครับ' }]);
+
+      const rows = await service.searchThreads(user, '  สัญญา ');
+
+      const where = mockPrisma.emailThread.findMany.mock.calls[0][0].where;
+      expect(where.AND[0]).toBe(threadFilter);
+      expect(where.AND[1].OR[0]).toEqual({ subject: { contains: 'สัญญา', mode: 'insensitive' } });
+      expect(mockPrisma.emailThread.findMany.mock.calls[0][0].take).toBe(50);
+      expect(rows).toEqual([
+        expect.objectContaining({
+          id: 'thread-1', case: { id: 'case-1', ownRef: 'C-1', title: 'คดีเช่า' },
+          messageCount: 2, attachmentCount: 1, excerpt: 'เรียนท่าน แนบสัญญาเช่ามาให้ครับ',
+        }),
+      ]);
+    });
+  });
+
+  describe('excerptAround', () => {
+    it('cuts around the first hit, case-insensitively, with ellipses', () => {
+      const text = `${'ก'.repeat(100)} Contract ${'ข'.repeat(100)}`;
+      const out = excerptAround(text, 'contract');
+      expect(out.startsWith('…')).toBe(true);
+      expect(out.endsWith('…')).toBe(true);
+      expect(out).toContain('Contract');
+      expect(out.length).toBeLessThan(170);
+      expect(excerptAround('hello', 'zz')).toBe('');
     });
   });
 

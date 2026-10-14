@@ -296,7 +296,7 @@ export interface EmailThreadItem {
 export interface EmailMessageItem {
   id: string; direction: 'INBOUND' | 'OUTBOUND'; fromName: string | null; fromAddress: string | null;
   toAddresses: string[]; ccAddresses: string[]; bodyText: string | null; bodyHtml: string | null; receivedAt: string;
-  attachments: Array<{ id: string; filename: string; mimeType: string; createdAt: string }>;
+  attachments: Array<{ id: string; filename: string; mimeType: string; createdAt: string; savedDocumentId: string | null }>;
 }
 export interface EmailThreadDetail { id: string; subject: string; caseId: string; lastMessageAt: string; messages: EmailMessageItem[] }
 export interface EmailComposeOptions {

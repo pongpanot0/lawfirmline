@@ -17,6 +17,7 @@ export default function EmailThreadScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [opening, setOpening] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
   const [showRecipients, setShowRecipients] = useState<Record<string, boolean>>({});
   const key = ['case-email-thread', id, threadId];
   const thread = useQuery({ queryKey: key, queryFn: () => api<EmailThreadDetail>(`/cases/${id}/email/threads/${threadId}`), enabled: !!id && !!threadId });
@@ -28,6 +29,24 @@ export default function EmailThreadScreen() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: emailThreadsKey(id) }),
     onError: (e) => Alert.alert('บันทึกไม่สำเร็จ', e instanceof Error ? e.message : 'ลองใหม่อีกครั้ง'),
   });
+
+  // One file at a time: each save copies the file; stop at the first failure and say how far it got.
+  const saveToCase = async (savingKey: string, ids: string[]) => {
+    setSaving(savingKey);
+    let saved = 0;
+    try {
+      for (const attachmentId of ids) {
+        await api(`/cases/${id}/email/attachments/${attachmentId}/save-to-documents`, { method: 'POST' });
+        saved += 1;
+      }
+      Alert.alert('บันทึกแล้ว', `บันทึกไฟล์แนบ ${saved} ไฟล์เข้าเอกสารคดีแล้ว`);
+    } catch (e) {
+      Alert.alert('บันทึกไม่สำเร็จ', `${ids.length > 1 ? `บันทึกได้ ${saved} จาก ${ids.length} ไฟล์\n` : ''}${e instanceof Error ? e.message : 'ลองใหม่อีกครั้ง'}`);
+    } finally {
+      setSaving(null);
+      thread.refetch();
+    }
+  };
 
   if (thread.isLoading) return <Loading />;
   if (thread.isError || !thread.data) return <View style={{ padding: spacing.lg }}><ErrorNote message="โหลดอีเมลไม่สำเร็จ" onRetry={() => thread.refetch()} /></View>;
@@ -72,7 +91,19 @@ export default function EmailThreadScreen() {
             style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48 }}>
             <FileText size={16} color={colors.muted} />
             <Text style={{ flex: 1, color: colors.info }} numberOfLines={2}>{opening === a.id ? 'กำลังดาวน์โหลด…' : a.filename}</Text>
+            {a.savedDocumentId
+              ? <Tag tone="ok">ในเอกสารคดีแล้ว</Tag>
+              : <Pressable accessibilityRole="button" accessibilityLabel={`บันทึก ${a.filename} เข้าเอกสารคดี`} disabled={saving !== null}
+                  onPress={() => saveToCase(a.id, [a.id])} hitSlop={8}
+                  style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm, opacity: saving !== null ? 0.5 : 1 }}>
+                  <Text style={{ color: colors.info, fontWeight: '600', fontSize: 13 }}>{saving === a.id ? 'กำลังบันทึก…' : 'บันทึกเข้าคดี'}</Text>
+                </Pressable>}
           </Pressable>)}
+          {(() => {
+            const unsaved = m.attachments.filter((a) => !a.savedDocumentId);
+            return unsaved.length > 1 ? <Button title={`บันทึกไฟล์แนบทั้งหมดเข้าคดี (${unsaved.length})`} ghost busy={saving === `all-${m.id}`}
+              disabled={saving !== null} onPress={() => saveToCase(`all-${m.id}`, unsaved.map((a) => a.id))} /> : null;
+          })()}
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <View style={{ flex: 1 }}><Button title="ตอบกลับ" ghost onPress={() => compose(m.id, false)} /></View>
             {m.toAddresses.length + m.ccAddresses.length > 1 && <View style={{ flex: 1 }}><Button title="ตอบทั้งหมด" ghost onPress={() => compose(m.id, true)} /></View>}
