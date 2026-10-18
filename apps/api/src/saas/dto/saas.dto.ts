@@ -58,23 +58,6 @@ export class CheckoutDto {
   @IsOptional()
   @IsEnum(BillingPeriod)
   billingPeriod?: BillingPeriod;
-
-  @IsOptional()
-  @IsString()
-  omiseToken?: string;
-
-  @IsOptional()
-  @IsString()
-  omiseSource?: string;
-}
-
-export class PromptPayCheckoutDto {
-  @IsEnum(SubscriptionPlan)
-  plan!: SubscriptionPlan;
-
-  @IsOptional()
-  @IsEnum(BillingPeriod)
-  billingPeriod?: BillingPeriod;
 }
 
 export class UpdateFirmSettingsDto {

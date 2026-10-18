@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
 import {
   AuthUser,
   BillingPeriod,
@@ -12,7 +12,8 @@ import {
 } from '@lawfirm/shared';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from './tenant.service';
-import { OmiseService } from './omise.service';
+import { StripeService } from './stripe.service';
+import { EmailService } from '../notifications/email.service';
 
 @Injectable()
 export class SubscriptionService {
@@ -21,8 +22,8 @@ export class SubscriptionService {
   constructor(
     private prisma: PrismaService,
     private tenant: TenantService,
-    private omise: OmiseService,
-    private config: ConfigService,
+    private stripe: StripeService,
+    private email: EmailService,
   ) {}
 
   async getSummary(user: AuthUser): Promise<SubscriptionSummary> {
@@ -68,330 +69,63 @@ export class SubscriptionService {
     }));
   }
 
-  private async createPendingInvoice(
-    user: AuthUser,
-    plan: SubscriptionPlan,
-    billingPeriod: BillingPeriod,
-  ) {
-    const planConfig = PLAN_CONFIG[plan];
-    const amount = planPriceThb(plan, billingPeriod);
-    const invoiceNumber = `LF-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-    const invoice = await this.prisma.billingInvoice.create({
-      data: {
-        firmId: user.firmId,
-        invoiceNumber,
-        plan,
-        billingPeriod,
-        amount,
-        status: 'PENDING',
-      },
-    });
-    return { invoice, planConfig, amount };
-  }
-
-  async createCheckout(
-    user: AuthUser,
-    plan: SubscriptionPlan,
-    payment: { omiseToken?: string; omiseSource?: string },
-    billingPeriod: BillingPeriod = BillingPeriod.MONTHLY,
-  ) {
-    if (!this.tenant.isOwner(user)) {
-      throw new ForbiddenException('Only owners can manage billing');
+  /**
+   * Stripe Checkout in subscription mode: Stripe renews monthly/yearly, emails
+   * receipts and hosts the invoices. Prices come from PLAN_CONFIG (price_data),
+   * so there is no second price list to keep in sync in the Stripe dashboard.
+   */
+  async createCheckout(user: AuthUser, plan: SubscriptionPlan, billingPeriod: BillingPeriod = BillingPeriod.MONTHLY) {
+    if (!this.tenant.isOwner(user)) throw new ForbiddenException('Only owners can manage billing');
+    const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId } });
+    if (!firm) throw new BadRequestException('Firm not found');
+    if (firm.stripeSubscriptionId && firm.subscriptionStatus !== SubscriptionStatus.CANCELED) {
+      throw new BadRequestException('สำนักงานมีแพ็กเกจอยู่แล้ว เปลี่ยนแพ็กเกจหรือบัตรได้ที่ "จัดการการชำระเงิน"');
     }
 
-    if (!payment.omiseToken && !payment.omiseSource) {
-      throw new BadRequestException('Payment token or source required');
-    }
-
-    const { invoice, planConfig, amount } = await this.createPendingInvoice(
-      user,
-      plan,
-      billingPeriod,
-    );
-    const metadata = { firmId: user.firmId, invoiceId: invoice.id, plan, billingPeriod };
-    const chargeParams = {
-      amount: amount * 100,
-      currency: 'thb',
-      description: `LexFlow ${planConfig.name} Plan (${billingPeriod === BillingPeriod.YEARLY ? 'Yearly' : 'Monthly'})`,
+    const customer = await this.ensureCustomer(firm.id, firm.name, firm.stripeCustomerId, user.email);
+    const metadata = { firmId: firm.id, plan, billingPeriod };
+    const appUrl = this.email.getAppUrl();
+    const session = await this.stripe.client.checkout.sessions.create({
+      mode: 'subscription',
+      customer,
+      client_reference_id: firm.id,
+      locale: 'th',
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: 'thb',
+          unit_amount: planPriceThb(plan, billingPeriod) * 100,
+          recurring: { interval: billingPeriod === BillingPeriod.YEARLY ? 'year' : 'month' },
+          product_data: { name: `Samnuan ${PLAN_CONFIG[plan].name}` },
+        },
+      }],
       metadata,
-    };
-
-    const charge = payment.omiseToken
-      ? await this.omise.createCharge({ ...chargeParams, card: payment.omiseToken })
-      : await this.omise.createChargeWithSource({ ...chargeParams, source: payment.omiseSource! });
-
-    if (!charge.paid) {
-      if (payment.omiseSource && charge.id !== 'unknown') {
-        await this.prisma.billingInvoice.update({
-          where: { id: invoice.id },
-          data: { omiseChargeId: charge.id },
-        });
-        await this.prisma.payment.create({
-          data: {
-            billingInvoiceId: invoice.id,
-            amount,
-            status: 'PENDING',
-            omiseChargeId: charge.id,
-          },
-        });
-
-        return { success: false, plan, invoiceId: invoice.id };
-      }
-
-      await this.prisma.billingInvoice.update({
-        where: { id: invoice.id },
-        data: { status: 'FAILED', omiseChargeId: charge.id !== 'unknown' ? charge.id : undefined },
-      });
-      await this.prisma.payment.create({
-        data: {
-          billingInvoiceId: invoice.id,
-          amount,
-          status: 'FAILED',
-          omiseChargeId: charge.id,
-          failureCode: charge.failure_code,
-          failureMessage: charge.failure_message,
-        },
-      });
-      throw new BadRequestException(charge.failure_message ?? 'Payment failed');
-    }
-
-    return this.activateSubscription(user.firmId, plan, invoice.id, charge.id, amount);
+      subscription_data: { metadata },
+      success_url: `${appUrl}/account/billing?success=1`,
+      cancel_url: `${appUrl}/account/billing`,
+    });
+    return { url: session.url };
   }
 
-  async createPromptPayCheckout(
-    user: AuthUser,
-    plan: SubscriptionPlan,
-    billingPeriod: BillingPeriod = BillingPeriod.MONTHLY,
-  ) {
-    if (!this.tenant.isOwner(user)) {
-      throw new ForbiddenException('Only owners can manage billing');
-    }
-
-    const { invoice, planConfig, amount } = await this.createPendingInvoice(
-      user,
-      plan,
-      billingPeriod,
-    );
-    const metadata = { firmId: user.firmId, invoiceId: invoice.id, plan, billingPeriod };
-
-    let result;
-    try {
-      result = await this.omise.createPromptPayCharge({
-        amount: amount * 100,
-        currency: 'thb',
-        description: `LexFlow ${planConfig.name} Plan (${billingPeriod === BillingPeriod.YEARLY ? 'Yearly' : 'Monthly'}, PromptPay)`,
-        metadata,
-      });
-    } catch (err) {
-      this.logger.error('PromptPay checkout failed', err);
-      throw new BadRequestException(
-        err instanceof Error ? err.message : 'Unable to create PromptPay payment',
-      );
-    }
-
-    await this.prisma.billingInvoice.update({
-      where: { id: invoice.id },
-      data: { omiseChargeId: result.chargeId },
+  /** Stripe Customer Portal: change card, switch plan, cancel, download invoices. */
+  async createPortalSession(user: AuthUser) {
+    if (!this.tenant.isOwner(user)) throw new ForbiddenException('Only owners can manage billing');
+    const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId }, select: { stripeCustomerId: true } });
+    if (!firm?.stripeCustomerId) throw new BadRequestException('ยังไม่มีข้อมูลการชำระเงินกับ Stripe');
+    const session = await this.stripe.client.billingPortal.sessions.create({
+      customer: firm.stripeCustomerId,
+      return_url: `${this.email.getAppUrl()}/account/billing`,
     });
-
-    await this.prisma.payment.create({
-      data: {
-        billingInvoiceId: invoice.id,
-        amount,
-        status: 'PENDING',
-        omiseChargeId: result.chargeId,
-      },
-    });
-
-    if (result.paid) {
-      await this.activateSubscription(user.firmId, plan, invoice.id, result.chargeId, amount);
-    }
-
-    return {
-      invoiceId: invoice.id,
-      chargeId: result.chargeId,
-      amount,
-      expiresAt: result.expiresAt,
-      paid: result.paid,
-    };
+    return { url: session.url };
   }
 
-  async getInvoiceQrImage(user: AuthUser, invoiceId: string) {
-    if (!this.tenant.isOwner(user)) {
-      throw new ForbiddenException('Only owners can view payment QR');
-    }
-
-    const invoice = await this.prisma.billingInvoice.findFirst({
-      where: { id: invoiceId, firmId: user.firmId },
-    });
-    if (!invoice) throw new BadRequestException('Invoice not found');
-    if (invoice.status === 'PAID') throw new BadRequestException('Invoice already paid');
-
-    if (this.omise.isMockMode()) {
-      const qrData = encodeURIComponent(`mock-promptpay:${invoice.id}:${invoice.amount}`);
-      const mockUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${qrData}`;
-      const res = await fetch(mockUrl);
-      if (!res.ok) throw new BadRequestException('Unable to load mock QR');
-      const data = Buffer.from(await res.arrayBuffer());
-      return { data, contentType: 'image/png' };
-    }
-
-    if (!invoice.omiseChargeId) {
-      throw new BadRequestException('QR code not available for this invoice');
-    }
-
-    try {
-      return await this.omise.getQrImageFromCharge(invoice.omiseChargeId);
-    } catch (err) {
-      this.logger.error('Failed to load PromptPay QR', err);
-      throw new BadRequestException('Unable to load PromptPay QR code');
-    }
-  }
-
-  async getInvoicePaymentStatus(user: AuthUser, invoiceId: string) {
-    if (!this.tenant.isOwner(user)) {
-      throw new ForbiddenException('Only owners can view payment status');
-    }
-
-    const invoice = await this.prisma.billingInvoice.findFirst({
-      where: { id: invoiceId, firmId: user.firmId },
-    });
-    if (!invoice) throw new BadRequestException('Invoice not found');
-
-    if (invoice.status === 'PAID') {
-      return { status: 'PAID' as const, plan: invoice.plan };
-    }
-
-    if (invoice.omiseChargeId) {
-      const charge = await this.omise.getCharge(invoice.omiseChargeId);
-
-      if (this.omise.isMockMode() && invoice.status === 'PENDING') {
-        const ageMs = Date.now() - invoice.createdAt.getTime();
-        if (ageMs > 3000) {
-          await this.activateSubscription(
-            user.firmId,
-            invoice.plan as SubscriptionPlan,
-            invoice.id,
-            invoice.omiseChargeId,
-            invoice.amount,
-          );
-          return { status: 'PAID' as const, plan: invoice.plan };
-        }
-      }
-
-      if (charge.paid || charge.status === 'successful') {
-        await this.activateSubscription(
-          user.firmId,
-          invoice.plan as SubscriptionPlan,
-          invoice.id,
-          invoice.omiseChargeId,
-          invoice.amount,
-        );
-        return { status: 'PAID' as const, plan: invoice.plan };
-      }
-
-      if (charge.status === 'failed') {
-        await this.prisma.billingInvoice.update({
-          where: { id: invoice.id },
-          data: { status: 'FAILED' },
-        });
-        return { status: 'FAILED' as const, plan: invoice.plan };
-      }
-    }
-
-    return { status: 'PENDING' as const, plan: invoice.plan };
-  }
-
-  async activateSubscription(
-    firmId: string,
-    plan: SubscriptionPlan,
-    invoiceId: string,
-    chargeId: string,
-    amount: number,
-  ) {
-    const existing = await this.prisma.billingInvoice.findUnique({ where: { id: invoiceId } });
-    if (!existing || existing.status === 'PAID') {
-      return { success: true, plan, periodEnd: existing?.periodEnd?.toISOString() ?? null };
-    }
-
-    const billingPeriod = (existing.billingPeriod as BillingPeriod) ?? BillingPeriod.MONTHLY;
-    const now = new Date();
-    const periodEnd = new Date(now);
-    periodEnd.setMonth(periodEnd.getMonth() + (billingPeriod === BillingPeriod.YEARLY ? 12 : 1));
-    const planConfig = PLAN_CONFIG[plan];
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.billingInvoice.update({
-        where: { id: invoiceId },
-        data: {
-          status: 'PAID',
-          omiseChargeId: chargeId,
-          paidAt: now,
-          periodStart: now,
-          periodEnd,
-        },
-      });
-
-      await tx.payment.create({
-        data: {
-          billingInvoiceId: invoiceId,
-          amount,
-          status: 'PAID',
-          omiseChargeId: chargeId,
-        },
-      });
-
-      await tx.firm.update({
-        where: { id: firmId },
-        data: {
-          subscriptionStatus: SubscriptionStatus.ACTIVE,
-          subscriptionPlan: plan,
-          maxUsers: planConfig.maxUsers,
-          currentPeriodEnd: periodEnd,
-        },
-      });
-
-      await tx.subscription.create({
-        data: {
-          firmId,
-          plan,
-          billingPeriod,
-          status: SubscriptionStatus.ACTIVE,
-          currentPeriodStart: now,
-          currentPeriodEnd: periodEnd,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          firmId,
-          action: 'SUBSCRIPTION_ACTIVATED',
-          metadata: { plan, billingPeriod, chargeId },
-        },
-      });
-    });
-
-    return { success: true, plan, periodEnd };
-  }
-
+  /** Cancels at period end: the firm keeps writing until the paid period runs out, then the webhook marks it CANCELED. */
   async cancel(user: AuthUser) {
-    if (!this.tenant.isOwner(user)) {
-      throw new ForbiddenException('Only owners can cancel subscription');
-    }
-
-    await this.prisma.firm.update({
-      where: { id: user.firmId },
-      data: { subscriptionStatus: SubscriptionStatus.CANCELED },
-    });
-
-    await this.prisma.auditLog.create({
-      data: {
-        firmId: user.firmId,
-        userId: user.id,
-        action: 'SUBSCRIPTION_CANCELED',
-      },
-    });
-
+    if (!this.tenant.isOwner(user)) throw new ForbiddenException('Only owners can cancel subscription');
+    const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId }, select: { stripeSubscriptionId: true } });
+    if (!firm?.stripeSubscriptionId) throw new BadRequestException('สำนักงานนี้ไม่มีแพ็กเกจที่ชำระผ่าน Stripe');
+    await this.stripe.client.subscriptions.update(firm.stripeSubscriptionId, { cancel_at_period_end: true });
+    await this.prisma.auditLog.create({ data: { firmId: user.firmId, userId: user.id, action: 'SUBSCRIPTION_CANCEL_REQUESTED' } });
     return { success: true };
   }
 
@@ -407,25 +141,149 @@ export class SubscriptionService {
   }
 
   /**
-   * The webhook body is unauthenticated, so it is only a hint about which
-   * charge changed. Whether it is paid comes from Omise itself, and which
-   * firm/plan/amount it pays for comes from our own invoice — never from the
-   * posted metadata, or anyone could POST a "paid" charge for free.
+   * Signed Stripe events only. Each event is just a hint about which
+   * subscription changed: the state written is re-read from Stripe, so
+   * retries and out-of-order delivery converge on the same result.
    */
-  async handleWebhook(payload: Record<string, unknown>) {
-    const eventKey = typeof payload.key === 'string' ? payload.key : 'unknown';
-    const posted = payload.data as Record<string, unknown> | undefined;
-    const chargeId = typeof posted?.id === 'string' && /^chrg_[A-Za-z0-9_]+$/.test(posted.id) ? posted.id : null;
-    this.logger.log(`Omise webhook [${eventKey}] charge=${chargeId ?? 'none'}`);
-    if (!chargeId) return { received: true };
+  async handleWebhook(rawBody: Buffer | undefined, signature: string | undefined) {
+    if (!rawBody || !signature) throw new BadRequestException('Missing Stripe signature');
+    let event: Stripe.Event;
+    try {
+      event = this.stripe.constructEvent(rawBody, signature);
+    } catch (err) {
+      if (err instanceof Stripe.errors.StripeSignatureVerificationError) throw new BadRequestException('Invalid Stripe signature');
+      throw err;
+    }
+    this.logger.log(`Stripe webhook [${event.type}] ${event.id}`);
 
-    const invoice = await this.prisma.billingInvoice.findFirst({ where: { omiseChargeId: chargeId } });
-    if (!invoice || invoice.status === 'PAID') return { received: true };
-
-    const charge = await this.omise.getCharge(chargeId);
-    if (!(charge.paid === true || charge.status === 'successful')) return { received: true };
-
-    await this.activateSubscription(invoice.firmId, invoice.plan as SubscriptionPlan, invoice.id, charge.id, invoice.amount);
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        if (session.mode !== 'subscription' || !session.subscription) break;
+        await this.syncSubscription(typeof session.subscription === 'string' ? session.subscription : session.subscription.id);
+        break;
+      }
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted':
+        await this.syncSubscription(event.data.object.id);
+        break;
+      case 'invoice.paid':
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        if (event.type === 'invoice.paid') await this.recordInvoice(invoice);
+        const sub = invoice.parent?.subscription_details?.subscription;
+        if (sub) await this.syncSubscription(typeof sub === 'string' ? sub : sub.id);
+        break;
+      }
+    }
     return { received: true };
+  }
+
+  private async ensureCustomer(firmId: string, firmName: string, existing: string | null, email: string): Promise<string> {
+    if (existing) return existing;
+    const customer = await this.stripe.client.customers.create({ name: firmName, email, metadata: { firmId } });
+    await this.prisma.firm.update({ where: { id: firmId }, data: { stripeCustomerId: customer.id } });
+    return customer.id;
+  }
+
+  /** Copies a Stripe subscription's current state onto the firm (status, plan, seats, period end). */
+  async syncSubscription(subscriptionId: string) {
+    const sub = await this.stripe.client.subscriptions.retrieve(subscriptionId);
+    const status = stripeStatus(sub.status);
+    if (!status) return; // incomplete: first payment not done yet, nothing to grant
+    const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+    const firm = await this.prisma.firm.findFirst({
+      where: { OR: [{ stripeSubscriptionId: sub.id }, { stripeCustomerId: customerId }] },
+    });
+    if (!firm) {
+      this.logger.warn(`Stripe subscription ${sub.id} matches no firm (customer ${customerId})`);
+      return;
+    }
+
+    const plan = isPlan(sub.metadata.plan) ? sub.metadata.plan : (firm.subscriptionPlan as SubscriptionPlan | null);
+    const billingPeriod = sub.metadata.billingPeriod === BillingPeriod.YEARLY ? BillingPeriod.YEARLY : BillingPeriod.MONTHLY;
+    const item = sub.items.data[0];
+    const periodStart = item ? new Date(item.current_period_start * 1000) : new Date();
+    const periodEnd = item ? new Date(item.current_period_end * 1000) : null;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.firm.update({
+        where: { id: firm.id },
+        data: {
+          subscriptionStatus: status,
+          stripeSubscriptionId: sub.id,
+          stripeCustomerId: customerId,
+          currentPeriodEnd: periodEnd,
+          ...(plan ? { subscriptionPlan: plan, maxUsers: PLAN_CONFIG[plan].maxUsers } : {}),
+        },
+      });
+      if (plan) {
+        const row = { plan, billingPeriod, status, currentPeriodStart: periodStart, currentPeriodEnd: periodEnd ?? periodStart, canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000) : null };
+        await tx.subscription.upsert({
+          where: { stripeSubscriptionId: sub.id },
+          create: { firmId: firm.id, stripeSubscriptionId: sub.id, ...row },
+          update: row,
+        });
+      }
+      if (firm.subscriptionStatus !== status) {
+        await tx.auditLog.create({ data: { firmId: firm.id, action: `SUBSCRIPTION_${status}`, metadata: { plan, billingPeriod, stripeSubscriptionId: sub.id } } });
+      }
+    });
+  }
+
+  /** One BillingInvoice row per paid Stripe invoice (the receipt list on the billing page). */
+  private async recordInvoice(invoice: Stripe.Invoice) {
+    const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+    if (!customerId || !invoice.id) return;
+    const firm = await this.prisma.firm.findUnique({ where: { stripeCustomerId: customerId }, select: { id: true, subscriptionPlan: true } });
+    if (!firm) return;
+    const meta = invoice.parent?.subscription_details?.metadata ?? {};
+    const plan = isPlan(meta.plan) ? meta.plan : (firm.subscriptionPlan as SubscriptionPlan | null);
+    if (!plan) return;
+    const line = invoice.lines.data[0]?.period;
+    const data = {
+      status: 'PAID' as const,
+      amount: Math.round(invoice.amount_paid / 100),
+      hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
+      paidAt: invoice.status_transitions.paid_at ? new Date(invoice.status_transitions.paid_at * 1000) : new Date(),
+      periodStart: line ? new Date(line.start * 1000) : null,
+      periodEnd: line ? new Date(line.end * 1000) : null,
+    };
+    await this.prisma.billingInvoice.upsert({
+      where: { stripeInvoiceId: invoice.id },
+      create: {
+        firmId: firm.id,
+        stripeInvoiceId: invoice.id,
+        invoiceNumber: invoice.number ?? invoice.id,
+        plan,
+        billingPeriod: meta.billingPeriod === BillingPeriod.YEARLY ? BillingPeriod.YEARLY : BillingPeriod.MONTHLY,
+        currency: invoice.currency.toUpperCase(),
+        ...data,
+      },
+      update: data,
+    });
+  }
+}
+
+function isPlan(value: unknown): value is SubscriptionPlan {
+  return typeof value === 'string' && value in PLAN_CONFIG;
+}
+
+/** Stripe → our status. null = leave the firm as it is (checkout not finished). */
+export function stripeStatus(status: Stripe.Subscription.Status): SubscriptionStatus | null {
+  switch (status) {
+    case 'active':
+    case 'trialing':
+      return SubscriptionStatus.ACTIVE;
+    case 'past_due':
+    case 'unpaid':
+      return SubscriptionStatus.PAST_DUE;
+    case 'canceled':
+    case 'incomplete_expired':
+    case 'paused':
+      return SubscriptionStatus.CANCELED;
+    default:
+      return null;
   }
 }

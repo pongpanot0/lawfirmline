@@ -111,7 +111,7 @@ export default function LoginScreen() {
         {!mfaToken && <>
           <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/register')} disabled={busy}
             style={{ minHeight: TOUCH, justifyContent: 'center' }}>
-            <Text style={{ color: colors.info, textAlign: 'center' }}>ยังไม่มีบัญชี · สมัครใช้งาน</Text>
+            <Text style={{ color: colors.info, textAlign: 'center' }}>เจ้าของสำนักงาน · สร้างสำนักงานใหม่</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/forgot-password')} disabled={busy}
             style={{ minHeight: TOUCH, justifyContent: 'center' }}>

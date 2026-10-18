@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { AppShell } from '@/components/layout/AppShell';
+import { TrialBanner } from '@/components/saas/TrialBanner';
 import { useDashboardT } from '@/components/landing/LocaleProvider';
 
 function DashboardLoading() {
@@ -60,6 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           user={user}
           onLogout={signOut}
         >
+          <TrialBanner />
           {children}
         </AppShell>
       )}

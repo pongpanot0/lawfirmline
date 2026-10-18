@@ -4,6 +4,7 @@
  * trimmed to the fields the screens use.
  */
 export type { AgendaItem, AgendaDay, MyDayResponse } from '@lawfirm/shared';
+import type { SubscriptionStatus } from '@lawfirm/shared';
 
 export interface AuthUserInfo {
   id: string;
@@ -14,6 +15,7 @@ export interface AuthUserInfo {
   firmRole?: string | null;
   firmId?: string;
   firmName?: string;
+  subscriptionStatus?: SubscriptionStatus;
 }
 
 export interface LoginResponse {

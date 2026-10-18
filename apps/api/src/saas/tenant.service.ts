@@ -9,6 +9,7 @@ import {
   DEFAULT_ROOT_DOMAIN,
   FirmRole,
   hasFirmCapability,
+  subscriptionAllowsWrites,
   SubscriptionPlan,
   SubscriptionStatus,
   TRIAL_DAYS,
@@ -86,11 +87,7 @@ export class TenantService {
   }
 
   canAccessApp(user: AuthUser): boolean {
-    return (
-      user.subscriptionStatus === SubscriptionStatus.TRIAL ||
-      user.subscriptionStatus === SubscriptionStatus.ACTIVE ||
-      user.subscriptionStatus === SubscriptionStatus.PAST_DUE
-    );
+    return subscriptionAllowsWrites(user.subscriptionStatus);
   }
 
   isOwner(user: AuthUser): boolean {
