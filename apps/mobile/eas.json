@@ -41,7 +41,7 @@
     "closed": {
       "android": {
         "track": "alpha",
-        "releaseStatus": "completed"
+        "releaseStatus": "draft"
       }
     }
   }
