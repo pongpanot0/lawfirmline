@@ -97,8 +97,7 @@ export function LandingPage() {
       <section className="lf-section lf-section--dark lf-snap">
         <div className="lf-shell">
         <div className="lf-section-head lf-section-head--center">
-          <span className="lf-kicker">The Product</span>
-          <h2 className="lf-display-s mt-3" style={{ fontSize: 'var(--text-display-s)' }}>{t.tour.title}</h2>
+          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{t.tour.title}</h2>
           <p className="lf-lede mt-3">{t.tour.subtitle}</p>
         </div>
         <div className="lf-tour-stage" data-motion="tour-stage">
@@ -155,7 +154,7 @@ export function LandingPage() {
                       {feature.highlights.map((item) => (
                         <li
                           key={item}
-                          className="flex items-center gap-3 rounded-xl border p-3 text-sm font-medium"
+                          className="flex items-center gap-3 rounded-lg border p-3 text-sm font-medium"
                           style={{ borderColor: 'var(--color-accent-line)', background: 'var(--color-paper-3)', color: 'var(--color-ink)' }}
                         >
                           <Check className="h-4 w-4 shrink-0" style={{ color: 'var(--color-success)' }} />
@@ -168,7 +167,7 @@ export function LandingPage() {
                       {feature.highlights.map((item) => (
                         <li
                           key={item}
-                          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+                          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium"
                           style={{ background: 'var(--color-paper-2)', color: 'var(--color-ink-2)' }}
                         >
                           <Check className="h-3 w-3" style={{ color: 'var(--color-success)' }} />
@@ -238,9 +237,9 @@ export function LandingPage() {
           <p className="text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
             {t.footer}
           </p>
-          <nav className="flex flex-wrap justify-center gap-4 text-xs" aria-label="ข้อมูลบัญชี">
-            <Link href="/privacy" className="underline underline-offset-4">ความเป็นส่วนตัว</Link>
-            <Link href="/delete-account" className="underline underline-offset-4">ขอลบบัญชี</Link>
+          <nav className="flex flex-wrap justify-center gap-4 text-xs" aria-label={t.legal.label}>
+            <Link href="/privacy" className="lf-link">{t.legal.privacy}</Link>
+            <Link href="/delete-account" className="lf-link">{t.legal.deleteAccount}</Link>
           </nav>
         </div>
       </footer>

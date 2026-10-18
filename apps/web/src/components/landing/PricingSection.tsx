@@ -64,18 +64,18 @@ export function PricingSection() {
     <section id="pricing" className="lf-section">
       <div className="lf-shell">
         <div className="lf-section-head lf-section-head--center">
-          <span className="lf-kicker">Pricing</span>
-          <h2 className="lf-display-s mt-3" style={{ fontSize: 'var(--text-display-s)' }}>{p.title}</h2>
+          <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{p.title}</h2>
           <p className="lf-lede mt-3">{p.subtitle}</p>
         </div>
 
         {/* Billing period toggle */}
         <div className="mt-6 flex items-center justify-center sm:mt-8">
-          <div className="inline-flex items-center rounded-full border p-1" style={{ borderColor: 'var(--color-rule)' }}>
+          <div className="inline-flex items-center rounded-lg border p-1" style={{ borderColor: 'var(--color-rule)' }}>
             <button
               type="button"
               onClick={() => setYearly(false)}
-              className="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+              aria-pressed={!yearly}
+              className="lf-toggle min-h-11 rounded-md px-4 text-sm font-medium transition-colors"
               style={
                 !yearly
                   ? { background: 'var(--color-paper-3)', color: 'var(--color-ink)' }
@@ -87,7 +87,8 @@ export function PricingSection() {
             <button
               type="button"
               onClick={() => setYearly(true)}
-              className="flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+              aria-pressed={yearly}
+              className="lf-toggle flex min-h-11 items-center gap-2 rounded-md px-4 text-sm font-medium transition-colors"
               style={
                 yearly
                   ? { background: 'var(--color-paper-3)', color: 'var(--color-ink)' }
@@ -96,7 +97,7 @@ export function PricingSection() {
             >
               {p.billingYearly}
               <span
-                className="rounded-full px-2 py-0.5 text-xs font-medium"
+                className="rounded px-2 py-0.5 text-xs font-medium"
                 style={{ background: 'color-mix(in oklab, var(--color-success) 15%, transparent)', color: 'var(--color-success)' }}
               >
                 {p.yearlySave}
@@ -110,17 +111,18 @@ export function PricingSection() {
           {plans.map((plan) => (
             <div
               key={plan.key}
-              className="relative flex flex-col rounded-2xl border p-5 sm:p-6"
+              className="relative flex flex-col rounded-lg border p-5 sm:p-6"
               data-motion="price-card"
               style={{
                 borderColor: plan.popular ? 'var(--color-accent)' : 'var(--color-rule)',
                 background: 'var(--color-paper-3)',
-                boxShadow: plan.popular ? '0 0 0 3px var(--color-accent-soft)' : 'none',
+                // Inset ring doubles the hairline without shifting layout against sibling cards.
+                boxShadow: plan.popular ? 'inset 0 0 0 1px var(--color-accent)' : 'none',
               }}
             >
               {plan.popular && (
                 <span
-                  className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-0.5 text-xs font-semibold"
+                  className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md px-3 py-0.5 text-xs font-semibold"
                   style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
                 >
                   {p.recommended}
