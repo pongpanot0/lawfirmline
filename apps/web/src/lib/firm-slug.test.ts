@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   buildFirmHandoffUrl,
+  isHandoffPath,
   shouldRedirectAfterLogin,
 } from './firm-slug.ts';
 
@@ -38,5 +39,14 @@ describe('post-login firm redirect', () => {
       false,
     );
     assert.equal(shouldRedirectAfterLogin('samnuan.com', 'thesiambarristers'), true);
+  });
+});
+
+describe('handoff session bootstrap', () => {
+  it('lets only the handoff page skip validating a stored token', () => {
+    assert.equal(isHandoffPath('/handoff'), true);
+    assert.equal(isHandoffPath('/handoff/'), true);
+    assert.equal(isHandoffPath('/dashboard'), false);
+    assert.equal(isHandoffPath('/login'), false);
   });
 });
