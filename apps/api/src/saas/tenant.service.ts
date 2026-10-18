@@ -25,6 +25,7 @@ type FirmRecord = {
   subscriptionPlan: string | null;
   trialEndAt: Date;
   currentPeriodEnd: Date | null;
+  stripeSubscriptionId: string | null;
   maxUsers: number;
 };
 
@@ -76,7 +77,12 @@ export class TenantService {
     }
 
     const status = firm.subscriptionStatus as SubscriptionStatus;
-    if (status === SubscriptionStatus.TRIAL && firm.trialEndAt < new Date()) {
+    const now = new Date();
+    // Trial over, or a prepaid (PromptPay) period over. Stripe-subscription firms
+    // are moved by the webhook instead; a firm with no period end (thesiambarristers) never lapses.
+    const trialOver = status === SubscriptionStatus.TRIAL && firm.trialEndAt < now;
+    const prepaidOver = status === SubscriptionStatus.ACTIVE && !firm.stripeSubscriptionId && !!firm.currentPeriodEnd && firm.currentPeriodEnd < now;
+    if (trialOver || prepaidOver) {
       await this.prisma.firm.update({
         where: { id: firm.id },
         data: { subscriptionStatus: SubscriptionStatus.EXPIRED },

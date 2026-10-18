@@ -147,19 +147,20 @@ export class EmailService {
   }
 
   /** Trial ending/ended notice to a firm owner. Payment lives on the web, so this email (not the app) carries the billing link. */
-  async sendTrialReminderEmail(p: { to: string; firmName: string; daysLeft: number; billingUrl: string }): Promise<void> {
+  async sendTrialReminderEmail(p: { to: string; firmName: string; daysLeft: number; billingUrl: string; prepaid?: boolean }): Promise<void> {
     if (!this.isConfigured()) return;
+    const what = p.prepaid ? 'แพ็กเกจที่ชำระด้วย PromptPay' : 'ช่วงทดลองใช้';
     const when = p.daysLeft <= 0 ? 'หมดอายุแล้ววันนี้' : `จะหมดอายุในอีก ${p.daysLeft} วัน`;
     const after = p.daysLeft <= 0
       ? 'ตอนนี้สำนักงานอยู่ในโหมดดูอย่างเดียว: ยังเปิดดูคดีและเอกสารได้ แต่สร้างหรือแก้ไขข้อมูลไม่ได้จนกว่าจะชำระเงิน'
       : 'เมื่อหมดอายุ สำนักงานจะอยู่ในโหมดดูอย่างเดียว: ยังเปิดดูคดีและเอกสารได้ แต่สร้างหรือแก้ไขข้อมูลไม่ได้';
-    const subject = `ช่วงทดลองใช้ของ ${p.firmName} ${when} — Samnuan`;
+    const subject = `${what}ของ ${p.firmName} ${when} — Samnuan`;
     const safeUrl = escapeHtml(p.billingUrl);
     await this.send({
       to: p.to,
       subject,
-      text: `ช่วงทดลองใช้ของ ${p.firmName} ${when}\n\n${after}\n\nเลือกแพ็กเกจและชำระเงิน: ${p.billingUrl}`,
-      html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:auto;line-height:1.7"><h1>Samnuan</h1><h2>ช่วงทดลองใช้ของ ${escapeHtml(p.firmName)} ${when}</h2><p>${after}</p><p><a href="${safeUrl}">เลือกแพ็กเกจและชำระเงิน</a></p></div>`,
+      text: `${what}ของ ${p.firmName} ${when}\n\n${after}\n\n${p.prepaid ? 'ต่ออายุ' : 'เลือกแพ็กเกจและชำระเงิน'}: ${p.billingUrl}`,
+      html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:auto;line-height:1.7"><h1>Samnuan</h1><h2>${what}ของ ${escapeHtml(p.firmName)} ${when}</h2><p>${after}</p><p><a href="${safeUrl}">${p.prepaid ? 'ต่ออายุ' : 'เลือกแพ็กเกจและชำระเงิน'}</a></p></div>`,
     });
     this.logger.log(`Trial reminder (${p.daysLeft}d) sent to ${maskEmail(p.to)}`);
   }

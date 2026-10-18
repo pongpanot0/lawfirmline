@@ -1637,11 +1637,11 @@ export const api = {
     request<BillingInvoiceItem[]>('/saas/billing/history', { token }),
 
   /** Returns a Stripe Checkout URL; the browser goes there to pay. */
-  checkout: (token: string, plan: string, billingPeriod?: 'MONTHLY' | 'YEARLY') =>
+  checkout: (token: string, plan: string, billingPeriod?: 'MONTHLY' | 'YEARLY', paymentMethod: 'card' | 'promptpay' = 'card') =>
     request<{ url: string }>('/saas/billing/checkout', {
       method: 'POST',
       token,
-      body: JSON.stringify({ plan, billingPeriod }),
+      body: JSON.stringify({ plan, billingPeriod, paymentMethod }),
     }),
 
   /** Stripe Customer Portal URL: card, plan change, cancel, invoices. */

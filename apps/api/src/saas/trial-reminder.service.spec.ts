@@ -27,6 +27,7 @@ describe('TrialReminderService.run', () => {
     id: 'f1',
     name: 'Firm',
     trialEndAt: new Date(now.getTime() + daysLeft * DAY),
+    currentPeriodEnd: null as Date | null,
     trialReminderSentDays: sent,
   });
 
@@ -40,7 +41,7 @@ describe('TrialReminderService.run', () => {
     prisma.firm.findMany.mockResolvedValue([firm(7, null)]);
     await service.run(now);
     expect(prisma.firm.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { trialReminderSentDays: 7 } }));
-    expect(email.sendTrialReminderEmail).toHaveBeenCalledWith({ to: 'owner@x.com', firmName: 'Firm', daysLeft: 7, billingUrl: 'https://samnuan.com/account/billing' });
+    expect(email.sendTrialReminderEmail).toHaveBeenCalledWith({ to: 'owner@x.com', firmName: 'Firm', daysLeft: 7, billingUrl: 'https://samnuan.com/account/billing', prepaid: false });
   });
 
   it('skips a reminder already sent', async () => {
@@ -54,6 +55,18 @@ describe('TrialReminderService.run', () => {
     prisma.firm.findMany.mockResolvedValue([firm(0, 1)]);
     await service.run(now);
     expect(email.sendTrialReminderEmail).toHaveBeenCalledWith(expect.objectContaining({ daysLeft: 0 }));
+  });
+
+  it('a prepaid (PromptPay) period ending gets the renewal wording, timed off its period end', async () => {
+    prisma.firm.findMany.mockResolvedValue([{ ...firm(30, null), currentPeriodEnd: new Date(now.getTime() + 1 * DAY) }]);
+    await service.run(now);
+    expect(email.sendTrialReminderEmail).toHaveBeenCalledWith(expect.objectContaining({ daysLeft: 1, prepaid: true }));
+  });
+
+  it('only queries firms without a card subscription', async () => {
+    prisma.firm.findMany.mockResolvedValue([]);
+    await service.run(now);
+    expect(prisma.firm.findMany.mock.calls[0][0].where.stripeSubscriptionId).toBeNull();
   });
 
   it('does not email when another run already claimed it', async () => {

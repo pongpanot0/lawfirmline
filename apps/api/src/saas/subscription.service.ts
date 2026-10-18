@@ -73,8 +73,16 @@ export class SubscriptionService {
    * Stripe Checkout in subscription mode: Stripe renews monthly/yearly, emails
    * receipts and hosts the invoices. Prices come from PLAN_CONFIG (price_data),
    * so there is no second price list to keep in sync in the Stripe dashboard.
+   *
+   * PromptPay can't back a Stripe subscription, so it is a one-time payment
+   * for one period (no auto-renew); the firm expires when that period ends.
    */
-  async createCheckout(user: AuthUser, plan: SubscriptionPlan, billingPeriod: BillingPeriod = BillingPeriod.MONTHLY) {
+  async createCheckout(
+    user: AuthUser,
+    plan: SubscriptionPlan,
+    billingPeriod: BillingPeriod = BillingPeriod.MONTHLY,
+    paymentMethod: CheckoutPaymentMethod = 'card',
+  ) {
     if (!this.tenant.isOwner(user)) throw new ForbiddenException('Only owners can manage billing');
     const firm = await this.prisma.firm.findUnique({ where: { id: user.firmId } });
     if (!firm) throw new BadRequestException('Firm not found');
@@ -85,25 +93,38 @@ export class SubscriptionService {
     const customer = await this.ensureCustomer(firm.id, firm.name, firm.stripeCustomerId, user.email);
     const metadata = { firmId: firm.id, plan, billingPeriod };
     const appUrl = this.email.getAppUrl();
-    const session = await this.stripe.client.checkout.sessions.create({
-      mode: 'subscription',
+    const product = { name: `Samnuan ${PLAN_CONFIG[plan].name}` };
+    const unitAmount = planPriceThb(plan, billingPeriod) * 100;
+    const common = {
       customer,
       client_reference_id: firm.id,
-      locale: 'th',
-      line_items: [{
-        quantity: 1,
-        price_data: {
-          currency: 'thb',
-          unit_amount: planPriceThb(plan, billingPeriod) * 100,
-          recurring: { interval: billingPeriod === BillingPeriod.YEARLY ? 'year' : 'month' },
-          product_data: { name: `Samnuan ${PLAN_CONFIG[plan].name}` },
-        },
-      }],
+      locale: 'th' as const,
       metadata,
-      subscription_data: { metadata },
       success_url: `${appUrl}/account/billing?success=1`,
       cancel_url: `${appUrl}/account/billing`,
-    });
+    };
+    const session = paymentMethod === 'promptpay'
+      ? await this.stripe.client.checkout.sessions.create({
+        ...common,
+        mode: 'payment',
+        payment_method_types: ['promptpay'],
+        line_items: [{ quantity: 1, price_data: { currency: 'thb', unit_amount: unitAmount, product_data: product } }],
+        payment_intent_data: { metadata },
+      })
+      : await this.stripe.client.checkout.sessions.create({
+        ...common,
+        mode: 'subscription',
+        line_items: [{
+          quantity: 1,
+          price_data: {
+            currency: 'thb',
+            unit_amount: unitAmount,
+            recurring: { interval: billingPeriod === BillingPeriod.YEARLY ? 'year' : 'month' },
+            product_data: product,
+          },
+        }],
+        subscription_data: { metadata },
+      });
     return { url: session.url };
   }
 
@@ -157,8 +178,13 @@ export class SubscriptionService {
     this.logger.log(`Stripe webhook [${event.type}] ${event.id}`);
 
     switch (event.type) {
-      case 'checkout.session.completed': {
+      case 'checkout.session.completed':
+      case 'checkout.session.async_payment_succeeded': {
         const session = event.data.object;
+        if (session.mode === 'payment') {
+          if (session.payment_status === 'paid') await this.activatePrepaid(session);
+          break;
+        }
         if (session.mode !== 'subscription' || !session.subscription) break;
         await this.syncSubscription(typeof session.subscription === 'string' ? session.subscription : session.subscription.id);
         break;
@@ -232,6 +258,56 @@ export class SubscriptionService {
     });
   }
 
+  /**
+   * One-time (PromptPay) payment for one period. Paying again before the period
+   * ends extends from the current end, so an early renewal loses no days.
+   * Keyed by the Checkout Session id, so a retried webhook changes nothing.
+   */
+  async activatePrepaid(session: Stripe.Checkout.Session) {
+    const firmId = session.client_reference_id;
+    const plan = session.metadata?.plan;
+    if (!firmId || !isPlan(plan)) return;
+    const billingPeriod = session.metadata?.billingPeriod === BillingPeriod.YEARLY ? BillingPeriod.YEARLY : BillingPeriod.MONTHLY;
+    if (session.amount_total !== planPriceThb(plan, billingPeriod) * 100) {
+      this.logger.error(`Prepaid session ${session.id} amount ${session.amount_total} does not match ${plan}/${billingPeriod}`);
+      return;
+    }
+    if (await this.prisma.billingInvoice.findUnique({ where: { stripeInvoiceId: session.id }, select: { id: true } })) return;
+    const firm = await this.prisma.firm.findUnique({ where: { id: firmId } });
+    if (!firm) return;
+
+    const now = new Date();
+    const stillPaid = firm.subscriptionStatus === SubscriptionStatus.ACTIVE && firm.currentPeriodEnd && firm.currentPeriodEnd > now;
+    const periodStart = stillPaid ? firm.currentPeriodEnd! : now;
+    const periodEnd = new Date(periodStart);
+    periodEnd.setMonth(periodEnd.getMonth() + (billingPeriod === BillingPeriod.YEARLY ? 12 : 1));
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.billingInvoice.create({
+        data: {
+          firmId,
+          stripeInvoiceId: session.id,
+          invoiceNumber: session.id,
+          plan,
+          billingPeriod,
+          amount: Math.round(session.amount_total! / 100),
+          currency: 'THB',
+          status: 'PAID',
+          paidAt: now,
+          periodStart,
+          periodEnd,
+        },
+      });
+      await tx.firm.update({
+        where: { id: firmId },
+        // New prepaid period: reminders start over, and any old (canceled) card
+        // subscription stops counting, so expiry and reminders apply to this period.
+        data: { subscriptionStatus: SubscriptionStatus.ACTIVE, subscriptionPlan: plan, maxUsers: PLAN_CONFIG[plan].maxUsers, currentPeriodEnd: periodEnd, trialReminderSentDays: null, stripeSubscriptionId: null },
+      });
+      await tx.auditLog.create({ data: { firmId, action: 'SUBSCRIPTION_PREPAID', metadata: { plan, billingPeriod, stripeSessionId: session.id } } });
+    });
+  }
+
   /** One BillingInvoice row per paid Stripe invoice (the receipt list on the billing page). */
   private async recordInvoice(invoice: Stripe.Invoice) {
     const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
@@ -265,6 +341,8 @@ export class SubscriptionService {
     });
   }
 }
+
+export type CheckoutPaymentMethod = 'card' | 'promptpay';
 
 function isPlan(value: unknown): value is SubscriptionPlan {
   return typeof value === 'string' && value in PLAN_CONFIG;

@@ -120,6 +120,22 @@ describe('billing over HTTP', () => {
     expect(params.line_items![0].price_data!.unit_amount).toBeGreaterThan(0);
   });
 
+  it('PromptPay checkout is a one-time payment (no subscription)', async () => {
+    const res = await call('/saas/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: 'SOLO', billingPeriod: 'MONTHLY', paymentMethod: 'promptpay' }) });
+    expect(res.status).toBe(201);
+    const params = createSession.mock.calls[0][0] as Stripe.Checkout.SessionCreateParams;
+    expect(params).toMatchObject({ mode: 'payment', payment_method_types: ['promptpay'], client_reference_id: 'firm-1', metadata: { plan: 'SOLO', billingPeriod: 'MONTHLY' } });
+    expect(params.line_items![0].price_data).toMatchObject({ currency: 'thb', unit_amount: 990 * 100 });
+    expect(params.line_items![0].price_data!.recurring).toBeUndefined();
+    expect(params.subscription_data).toBeUndefined();
+  });
+
+  it('rejects an unknown payment method', async () => {
+    const res = await call('/saas/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: 'SOLO', paymentMethod: 'bitcoin' }) });
+    expect(res.status).toBe(400);
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
   it('rejects an unknown plan before touching Stripe', async () => {
     const res = await call('/saas/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: 'FREE' }) });
     expect(res.status).toBe(400);

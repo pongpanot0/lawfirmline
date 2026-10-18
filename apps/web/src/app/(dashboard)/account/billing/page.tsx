@@ -262,6 +262,16 @@ function BillingPageContent() {
                   >
                     {plan.isCurrent ? d.billing.currentPlan : redirecting ? d.billing.redirecting : d.billing.subscribe}
                   </Button>
+                  {!plan.isCurrent && (
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      disabled={redirecting}
+                      onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod, 'promptpay'))}
+                    >
+                      {d.billing.payPromptPay}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
               );

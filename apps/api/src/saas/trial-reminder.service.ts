@@ -16,8 +16,10 @@ export function dueReminder(daysLeft: number): number | null {
 }
 
 /**
- * Emails firm owners 7 days, 1 day and on the day their trial ends. The app
- * can't mention payment (App Store anti-steering), so email is the only nudge.
+ * Emails firm owners 7 days, 1 day and on the day their trial, or a prepaid
+ * (PromptPay, no auto-renew) period, ends. The app can't mention payment
+ * (App Store anti-steering), so email is the only nudge. Card subscriptions
+ * renew on their own and are skipped; so is a firm with no end date.
  */
 @Injectable()
 export class TrialReminderService {
@@ -30,17 +32,23 @@ export class TrialReminderService {
 
   @Cron('0 9 * * *', { timeZone: 'Asia/Bangkok' })
   async run(now = new Date()) {
+    const window = { lte: new Date(now.getTime() + REMIND_AT[REMIND_AT.length - 1] * DAY_MS), gte: new Date(now.getTime() - EXPIRED_GRACE_MS) };
     const firms = await this.prisma.firm.findMany({
       where: {
-        subscriptionStatus: { in: [SubscriptionStatus.TRIAL, SubscriptionStatus.EXPIRED] },
-        trialEndAt: { lte: new Date(now.getTime() + REMIND_AT[REMIND_AT.length - 1] * DAY_MS), gte: new Date(now.getTime() - EXPIRED_GRACE_MS) },
+        stripeSubscriptionId: null,
+        OR: [
+          { subscriptionStatus: { in: [SubscriptionStatus.TRIAL, SubscriptionStatus.EXPIRED] }, currentPeriodEnd: null, trialEndAt: window },
+          { subscriptionStatus: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.EXPIRED] }, currentPeriodEnd: window },
+        ],
       },
-      select: { id: true, name: true, trialEndAt: true, trialReminderSentDays: true },
+      select: { id: true, name: true, trialEndAt: true, currentPeriodEnd: true, trialReminderSentDays: true },
     });
     const billingUrl = `${this.email.getAppUrl()}/account/billing`;
 
     for (const firm of firms) {
-      const daysLeft = Math.max(0, Math.ceil((firm.trialEndAt.getTime() - now.getTime()) / DAY_MS));
+      const prepaid = firm.currentPeriodEnd !== null;
+      const endAt = firm.currentPeriodEnd ?? firm.trialEndAt;
+      const daysLeft = Math.max(0, Math.ceil((endAt.getTime() - now.getTime()) / DAY_MS));
       const due = dueReminder(daysLeft);
       if (due === null || (firm.trialReminderSentDays !== null && firm.trialReminderSentDays <= due)) continue;
       // Claim first so a second instance (or a retry) never sends the same reminder twice.
@@ -56,7 +64,7 @@ export class TrialReminderService {
       });
       for (const owner of owners) {
         await this.email
-          .sendTrialReminderEmail({ to: owner.user.email, firmName: firm.name, daysLeft, billingUrl })
+          .sendTrialReminderEmail({ to: owner.user.email, firmName: firm.name, daysLeft, billingUrl, prepaid })
           .catch((err) => this.logger.error(`Trial reminder for firm ${firm.id} failed: ${err}`));
       }
     }

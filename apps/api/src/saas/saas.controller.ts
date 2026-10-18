@@ -71,6 +71,7 @@ export class SaasController {
       user,
       dto.plan as SubscriptionPlan,
       (dto.billingPeriod as BillingPeriod | undefined) ?? BillingPeriod.MONTHLY,
+      dto.paymentMethod ?? 'card',
     );
   }
 

@@ -9,4 +9,5 @@ Decisions (grilled with owner):
 - Stripe Billing: Checkout (subscription mode, `price_data` from PLAN_CONFIG), Customer Portal, cancel at period end. The webhook `POST /saas/webhooks/stripe` is signature-verified and re-reads the subscription from Stripe.
 
 Deploy needs: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` on the API host. Configure the Stripe webhook endpoint and enable the Customer Portal in the Stripe dashboard.
-Not done: PromptPay (Stripe Checkout subscriptions take cards only), disabling create buttons app-wide (the app shows a banner plus the 402 message instead).
+PromptPay = one-time Checkout payment per period (no auto-renew; expires via syncTrialExpiry, reminded by TrialReminderService). Release checklist: docs/release/billing-stripe-2026-10-18.md.
+Mobile create screens (…/new, scan, document-template) bounce with an alert when read-only (useReadOnlyCreateGuard in app/_layout.tsx); other writes rely on the 402 message.
