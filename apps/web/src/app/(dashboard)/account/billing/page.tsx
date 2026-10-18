@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check } from 'lucide-react';
-import { OmiseEmbeddedCheckout } from '@/components/billing/OmiseEmbeddedCheckout';
 import { BillingPeriodToggle } from '@/components/billing/BillingPeriodToggle';
 import { useDashboardT, useLocale } from '@/components/landing/LocaleProvider';
 import { dateLocale, fmt } from '@/lib/i18n/dashboard';
@@ -39,7 +38,7 @@ function BillingPageContent() {
   const [plans, setPlans] = useState<Awaited<ReturnType<typeof api.getPlans>>>([]);
   const [history, setHistory] = useState<BillingInvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [autoOpenPlan, setAutoOpenPlan] = useState<SubscriptionPlan | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [cancelling, setCancelling] = useState(false);
@@ -72,8 +71,8 @@ function BillingPageContent() {
     if (planParam && !loading) {
       const selected = plans.find((p) => p.plan === planParam && !p.isCurrent);
       if (selected) {
-        setAutoOpenPlan(planParam);
         router.replace('/account/billing');
+        void goToStripe(() => api.checkout(token ?? getStoredToken() ?? '', planParam, billingPeriod));
       }
     }
   }, [searchParams, plans, loading, router]);
@@ -96,9 +95,19 @@ function BillingPageContent() {
     }
   };
 
-  const handlePaymentSuccess = () => {
-    window.location.href = '/account/billing?success=1';
-  };
+  // Payment happens on Stripe's hosted pages; we only fetch the URL and leave.
+  async function goToStripe(open: () => Promise<{ url: string }>) {
+    if (redirecting) return;
+    setRedirecting(true);
+    setPaymentError('');
+    try {
+      window.location.assign((await open()).url);
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : d.billing.loadFailed);
+      setRedirecting(false);
+    }
+  }
+  const authToken = () => token ?? getStoredToken() ?? '';
 
   if (!user || !hasFirmCapability(user.firmRole, 'manageSubscription')) return null;
 
@@ -180,6 +189,16 @@ function BillingPageContent() {
         <Card>
           <CardHeader><CardTitle className="text-sm">{d.billing.actions}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
+            {(user.subscriptionStatus === SubscriptionStatus.ACTIVE || user.subscriptionStatus === SubscriptionStatus.PAST_DUE) && (
+              <Button
+                size="sm"
+                className="w-full"
+                disabled={redirecting}
+                onClick={() => goToStripe(() => api.billingPortal(authToken()))}
+              >
+                {d.billing.manageBilling}
+              </Button>
+            )}
             {user.subscriptionStatus === SubscriptionStatus.ACTIVE && (
               <Button
                 variant="outline"
@@ -235,22 +254,24 @@ function BillingPageContent() {
                       </li>
                     ))}
                   </ul>
-                  <OmiseEmbeddedCheckout
-                    plan={{
-                      plan: plan.plan as SubscriptionPlan,
-                      name: plan.name,
-                      priceThb: plan.priceThb,
-                      billingPeriod,
-                    }}
+                  <Button
                     className="w-full"
                     variant={plan.isCurrent ? 'outline' : 'default'}
-                    disabled={plan.isCurrent}
-                    autoOpen={autoOpenPlan === plan.plan}
-                    onSuccess={handlePaymentSuccess}
-                    onError={setPaymentError}
+                    disabled={plan.isCurrent || redirecting}
+                    onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod))}
                   >
-                    {plan.isCurrent ? d.billing.currentPlan : d.billing.subscribe}
-                  </OmiseEmbeddedCheckout>
+                    {plan.isCurrent ? d.billing.currentPlan : redirecting ? d.billing.redirecting : d.billing.subscribe}
+                  </Button>
+                  {!plan.isCurrent && (
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      disabled={redirecting}
+                      onClick={() => goToStripe(() => api.checkout(authToken(), plan.plan, billingPeriod, 'promptpay'))}
+                    >
+                      {d.billing.payPromptPay}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
               );
@@ -276,7 +297,11 @@ function BillingPageContent() {
             <tbody>
               {history.map((inv) => (
                 <tr key={inv.id} className="border-b">
-                  <td className="px-4 py-3 font-medium">{inv.invoiceNumber}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {inv.hostedInvoiceUrl ? (
+                      <a href={inv.hostedInvoiceUrl} target="_blank" rel="noopener noreferrer" className="underline" title={d.billing.receipt}>{inv.invoiceNumber}</a>
+                    ) : inv.invoiceNumber}
+                  </td>
                   <td className="px-4 py-3">{PLAN_CONFIG[inv.plan as SubscriptionPlan]?.name ?? inv.plan}</td>
                   <td className="px-4 py-3 text-right">{inv.amount.toLocaleString(loc)} THB</td>
                   <td className="px-4 py-3"><Badge variant={inv.status === 'PAID' ? 'default' : 'muted'}>{INVOICE_STATUS_LABELS[inv.status] ?? inv.status}</Badge></td>

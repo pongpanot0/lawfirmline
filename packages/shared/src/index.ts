@@ -143,6 +143,14 @@ export enum SubscriptionStatus {
   EXPIRED = 'EXPIRED',
 }
 
+/** Error `code` on the 402 an inactive firm gets for writes; clients show read-only state. */
+export const SUBSCRIPTION_INACTIVE = 'SUBSCRIPTION_INACTIVE';
+
+/** Firm may create/edit data. EXPIRED/CANCELED firms stay readable (read-only mode). */
+export function subscriptionAllowsWrites(status: SubscriptionStatus): boolean {
+  return status === SubscriptionStatus.TRIAL || status === SubscriptionStatus.ACTIVE || status === SubscriptionStatus.PAST_DUE;
+}
+
 export enum BillingPaymentStatus {
   PENDING = 'PENDING',
   PAID = 'PAID',

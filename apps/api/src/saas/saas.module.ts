@@ -4,10 +4,9 @@ import { TenantService } from './tenant.service';
 import { SaasAuthService } from './saas-auth.service';
 import { InvitationService } from './invitation.service';
 import { SubscriptionService } from './subscription.service';
-import { OmiseService } from './omise.service';
+import { StripeService } from './stripe.service';
+import { TrialReminderService } from './trial-reminder.service';
 import { FirmRoleGuard } from './guards/firm-role.guard';
-import { SubscriptionGuard } from './guards/subscription.guard';
-import { TenantMatchGuard } from './guards/tenant-match.guard';
 import { TenantResolveMiddleware } from './middleware/tenant-resolve.middleware';
 import { AuthModule } from '../auth/auth.module';
 import { CaseTypesModule } from '../case-types/case-types.module';
@@ -22,18 +21,15 @@ import { NotificationsModule } from '../notifications/notifications.module';
     SaasAuthService,
     InvitationService,
     SubscriptionService,
-    OmiseService,
+    StripeService,
+    TrialReminderService,
     FirmRoleGuard,
-    SubscriptionGuard,
-    TenantMatchGuard,
     TenantResolveMiddleware,
   ],
   exports: [
     TenantService,
     SaasAuthService,
-    SubscriptionGuard,
     FirmRoleGuard,
-    TenantMatchGuard,
     TenantResolveMiddleware,
   ],
 })

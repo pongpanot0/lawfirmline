@@ -45,7 +45,7 @@ async function main() {
     data: {
       name: 'The Siam Barrister',
       slug: 'thesiambarristers',
-      subscriptionStatus: 'TRIAL',
+      subscriptionStatus: 'ACTIVE', // paying customer, never expires (currentPeriodEnd stays null)
       trialStartAt: new Date(),
       trialEndAt: trialEnd,
       maxUsers: 20,

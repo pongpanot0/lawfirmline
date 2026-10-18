@@ -423,7 +423,10 @@ model Firm {
   trialStartAt       DateTime           @default(now())
   trialEndAt         DateTime
   currentPeriodEnd   DateTime?
-  omiseCustomerId    String?
+  /// Smallest "days before trial end" reminder already emailed (7, 1, 0); null = none yet.
+  trialReminderSentDays Int?
+  stripeSubscriptionId String?          @unique
+  stripeCustomerId   String?            @unique
   maxUsers           Int                @default(2)
   officeAddress      String             @default("Bangkok, Thailand")
   /// Prefix for auto Own Ref, e.g. TSBREF → TSBREF20260001
@@ -502,7 +505,7 @@ model Subscription {
   plan                SubscriptionPlan
   billingPeriod       BillingPeriod      @default(MONTHLY)
   status              SubscriptionStatus
-  omiseSubscriptionId String?
+  stripeSubscriptionId String?       @unique
   currentPeriodStart  DateTime
   currentPeriodEnd    DateTime
   canceledAt          DateTime?
@@ -523,7 +526,8 @@ model BillingInvoice {
   amount        Int
   currency      String               @default("THB")
   status        BillingPaymentStatus @default(PENDING)
-  omiseChargeId String?
+  stripeInvoiceId  String?              @unique
+  hostedInvoiceUrl String?
   paidAt        DateTime?
   periodStart   DateTime?
   periodEnd     DateTime?
@@ -538,7 +542,7 @@ model Payment {
   billingInvoiceId String
   amount           Int
   status           BillingPaymentStatus
-  omiseChargeId    String?
+  stripeChargeId   String?
   failureCode      String?
   failureMessage   String?
   createdAt        DateTime             @default(now())

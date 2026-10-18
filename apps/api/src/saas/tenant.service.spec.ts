@@ -179,3 +179,37 @@ describe('TenantService office manager permissions', () => {
     await expect(service.removeMember(manager, 't')).rejects.toThrow(ForbiddenException);
   });
 });
+
+describe('TenantService.syncTrialExpiry', () => {
+  const prisma = { firm: { update: jest.fn() } };
+  const service = new TenantService(prisma as any);
+  const day = 24 * 60 * 60 * 1000;
+  const firm = (over: Record<string, unknown>) =>
+    ({ id: 'f1', subscriptionStatus: 'ACTIVE', trialEndAt: new Date(Date.now() + day), currentPeriodEnd: null, stripeSubscriptionId: null, ...over }) as any;
+
+  beforeEach(() => prisma.firm.update.mockReset());
+
+  it('a trial past its end expires', async () => {
+    await expect(service.syncTrialExpiry(firm({ subscriptionStatus: 'TRIAL', trialEndAt: new Date(Date.now() - day) }))).resolves.toBe('EXPIRED');
+    expect(prisma.firm.update).toHaveBeenCalledWith({ where: { id: 'f1' }, data: { subscriptionStatus: 'EXPIRED' } });
+  });
+
+  it('a prepaid (PromptPay) period past its end expires', async () => {
+    await expect(service.syncTrialExpiry(firm({ currentPeriodEnd: new Date(Date.now() - day) }))).resolves.toBe('EXPIRED');
+  });
+
+  it('a prepaid period still running stays ACTIVE', async () => {
+    await expect(service.syncTrialExpiry(firm({ currentPeriodEnd: new Date(Date.now() + day) }))).resolves.toBe('ACTIVE');
+    expect(prisma.firm.update).not.toHaveBeenCalled();
+  });
+
+  it('ACTIVE with no period end (thesiambarristers) never expires', async () => {
+    await expect(service.syncTrialExpiry(firm({ currentPeriodEnd: null }))).resolves.toBe('ACTIVE');
+    expect(prisma.firm.update).not.toHaveBeenCalled();
+  });
+
+  it('a Stripe-subscription firm is left to the webhook even past its period end', async () => {
+    await expect(service.syncTrialExpiry(firm({ stripeSubscriptionId: 'sub_1', currentPeriodEnd: new Date(Date.now() - day) }))).resolves.toBe('ACTIVE');
+    expect(prisma.firm.update).not.toHaveBeenCalled();
+  });
+});

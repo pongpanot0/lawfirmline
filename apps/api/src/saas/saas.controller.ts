@@ -6,23 +6,25 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Headers,
   NotFoundException,
   Param,
   Patch,
   Post,
   Query,
-  StreamableFile,
+  RawBodyRequest,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser, hasFirmCapability } from '@lawfirm/shared';
 import { InvitationService } from './invitation.service';
 import { SubscriptionService } from './subscription.service';
-import { OmiseService } from './omise.service';
 import { TenantService } from './tenant.service';
 import { AuthService } from '../auth/auth.service';
-import { AcceptInviteDto, CheckoutDto, InviteUserDto, OpenJoinDto, PromptPayCheckoutDto, UpdateMemberRoleDto, UpdateFirmSettingsDto } from './dto/saas.dto';
+import { AcceptInviteDto, CheckoutDto, InviteUserDto, OpenJoinDto, UpdateMemberRoleDto, UpdateFirmSettingsDto } from './dto/saas.dto';
 import { FirmRoleGuard } from './guards/firm-role.guard';
 import { RequireCapability, SkipSubscription } from './decorators/saas.decorators';
 import { BillingPeriod, SubscriptionPlan } from '@lawfirm/shared';
@@ -33,7 +35,6 @@ export class SaasController {
   constructor(
     private invitations: InvitationService,
     private subscriptions: SubscriptionService,
-    private omise: OmiseService,
     private tenant: TenantService,
     private auth: AuthService,
     private prisma: PrismaService,
@@ -69,44 +70,17 @@ export class SaasController {
     return this.subscriptions.createCheckout(
       user,
       dto.plan as SubscriptionPlan,
-      {
-        omiseToken: dto.omiseToken,
-        omiseSource: dto.omiseSource,
-      },
       (dto.billingPeriod as BillingPeriod | undefined) ?? BillingPeriod.MONTHLY,
+      dto.paymentMethod ?? 'card',
     );
   }
 
-  @Post('billing/checkout/promptpay')
+  @Post('billing/portal')
   @UseGuards(JwtAuthGuard, FirmRoleGuard)
   @RequireCapability('manageSubscription')
   @SkipSubscription()
-  promptPayCheckout(@CurrentUser() user: AuthUser, @Body() dto: PromptPayCheckoutDto) {
-    return this.subscriptions.createPromptPayCheckout(
-      user,
-      dto.plan as SubscriptionPlan,
-      (dto.billingPeriod as BillingPeriod | undefined) ?? BillingPeriod.MONTHLY,
-    );
-  }
-
-  @Get('billing/invoices/:invoiceId/qr')
-  @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @RequireCapability('manageSubscription')
-  @SkipSubscription()
-  async getInvoiceQr(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
-    const { data, contentType } = await this.subscriptions.getInvoiceQrImage(user, invoiceId);
-    return new StreamableFile(data, {
-      type: contentType,
-      disposition: 'inline',
-    });
-  }
-
-  @Get('billing/invoices/:invoiceId/status')
-  @UseGuards(JwtAuthGuard, FirmRoleGuard)
-  @RequireCapability('manageSubscription')
-  @SkipSubscription()
-  invoiceStatus(@CurrentUser() user: AuthUser, @Param('invoiceId') invoiceId: string) {
-    return this.subscriptions.getInvoicePaymentStatus(user, invoiceId);
+  portal(@CurrentUser() user: AuthUser) {
+    return this.subscriptions.createPortalSession(user);
   }
 
   @Post('billing/cancel')
@@ -115,12 +89,6 @@ export class SaasController {
   @SkipSubscription()
   cancel(@CurrentUser() user: AuthUser) {
     return this.subscriptions.cancel(user);
-  }
-
-  @Get('omise/public-key')
-  @SkipSubscription()
-  getOmiseKey() {
-    return { publicKey: this.omise.getPublicKey(), mockMode: this.omise.isMockMode() };
   }
 
   @Post('invitations')
@@ -241,11 +209,11 @@ export class SaasController {
     return this.auth.loginFromAuthUser(joined.authUser!);
   }
 
-  @Post('webhooks/omise')
+  @Post('webhooks/stripe')
   @SkipThrottle()
   @SkipSubscription()
-  omiseWebhook(@Body() body: Record<string, unknown>) {
-    return this.subscriptions.handleWebhook(body);
+  stripeWebhook(@Req() req: RawBodyRequest<Request>, @Headers('stripe-signature') signature?: string) {
+    return this.subscriptions.handleWebhook(req.rawBody, signature);
   }
 
   /**

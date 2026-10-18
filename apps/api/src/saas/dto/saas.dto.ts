@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength, Matches, Length } from 'class-validator';
+import { IsEmail, IsEnum, IsIn, IsOptional, IsString, MinLength, Matches, Length } from 'class-validator';
 import { FirmRole } from '@lawfirm/shared';
 import { BillingPeriod, SubscriptionPlan } from '../../generated/prisma';
 import { Transform } from 'class-transformer';
@@ -60,21 +60,8 @@ export class CheckoutDto {
   billingPeriod?: BillingPeriod;
 
   @IsOptional()
-  @IsString()
-  omiseToken?: string;
-
-  @IsOptional()
-  @IsString()
-  omiseSource?: string;
-}
-
-export class PromptPayCheckoutDto {
-  @IsEnum(SubscriptionPlan)
-  plan!: SubscriptionPlan;
-
-  @IsOptional()
-  @IsEnum(BillingPeriod)
-  billingPeriod?: BillingPeriod;
+  @IsIn(['card', 'promptpay'])
+  paymentMethod?: 'card' | 'promptpay';
 }
 
 export class UpdateFirmSettingsDto {
