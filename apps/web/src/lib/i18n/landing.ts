@@ -114,6 +114,7 @@ export const landingCopy = {
       demoSubject: 'ขอนัด Demo Samnuan',
     },
     footer: '© 2026 Samnuan — ระบบจัดการสำนักงานกฎหมาย',
+    legal: { label: 'ข้อมูลบัญชี', privacy: 'ความเป็นส่วนตัว', deleteAccount: 'ขอลบบัญชี' },
   },
   en: {
     nav: {
@@ -228,6 +229,7 @@ export const landingCopy = {
       demoSubject: 'Samnuan Demo Request',
     },
     footer: '© 2026 Samnuan — Legal practice management',
+    legal: { label: 'Account information', privacy: 'Privacy', deleteAccount: 'Delete account' },
   },
 } as const;
 

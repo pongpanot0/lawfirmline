@@ -49,7 +49,6 @@
   --text-2xl: 2rem;
   --text-display-s: clamp(2.125rem, 4vw + 1rem, 3.25rem);
   --text-display: clamp(2.125rem, 3.5vw + 1rem, 3.5rem);
-  --text-giant: clamp(4.5rem, 14vw, 13rem);
 
   --radius-tile: var(--radius);
   --radius-card: var(--radius);
@@ -94,9 +93,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lf-landing {
-    scroll-snap-type: y proximity;
     scroll-behavior: auto;
   }
+}
+
+.lf-landing ::selection {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 
 /* ---------- layout shell ---------- */
@@ -111,10 +114,6 @@
   padding-block: clamp(var(--space-xl), 6vw, var(--space-3xl));
 }
 
-.lf-section--tight {
-  padding-block: clamp(var(--space-lg), 5vw, var(--space-2xl));
-}
-
 .lf-section--paper2 {
   background: var(--color-paper-2);
   border-block: 1px solid var(--color-rule);
@@ -127,16 +126,6 @@
 .lf-section-head--center {
   margin-inline: auto;
   text-align: center;
-}
-
-.lf-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2xs);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--color-accent);
 }
 
 /* ---------- type ---------- */
@@ -164,16 +153,6 @@
   line-height: 1.6;
 }
 
-/* era-DNA micro-label: tiny, tracked-out, uppercase (Latin) */
-.lf-kicker {
-  display: block;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--color-accent);
-}
-
 /* Masked line reveal — outer clips, inner slides up via GSAP */
 .lf-mask {
   display: block;
@@ -182,19 +161,6 @@
 
 .lf-mask > span {
   display: block;
-}
-
-/* Oversized display word strip (era's ARCHITECTURE moment) */
-.lf-giant {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: var(--text-giant);
-  line-height: 1;
-  letter-spacing: -0.02em;
-  color: var(--color-accent-soft);
-  white-space: nowrap;
-  user-select: none;
-  pointer-events: none;
 }
 
 /* ---------- dark act ---------- */
@@ -208,17 +174,9 @@
   color: var(--color-band-ink-2);
 }
 
-.lf-section--dark .lf-kicker {
-  color: var(--color-band-ink-2);
-}
-
 .lf-section--dark .lf-tour-frame {
   border-color: var(--color-band-rule);
   box-shadow: 0 32px 64px -24px oklch(10% 0.03 264 / 0.6);
-}
-
-.lf-section--dark .lf-tour-caption {
-  color: var(--color-band-ink-2);
 }
 
 /* ---------- buttons ---------- */
@@ -280,14 +238,9 @@
   background: var(--color-accent-ink);
 }
 
-.lf-btn--ghost-on-accent {
-  background: transparent;
-  color: var(--color-accent-ink);
-  border: 1px solid oklch(99% 0 0 / 0.4);
-}
-
-.lf-btn--ghost-on-accent:hover {
-  background: oklch(99% 0 0 / 0.12);
+.lf-toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .lf-link {
@@ -346,44 +299,10 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  transition: border-color var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out);
-}
-
-.lf-tile:hover {
-  border-color: var(--color-rule-2);
-  transform: translateY(-2px);
-}
-
-/* Accent stays corner-only: the 2x2 anchor tile carries the accent wash;
-   every other feature tile is plain paper with a hairline. */
-.lf-tile--feature {
-  background: var(--color-paper-3);
-  border-color: var(--color-rule);
-}
-
-.lf-tile--feature:hover {
-  border-color: var(--color-accent);
-}
-
-.lf-tile--anchor {
-  grid-column: span 1;
-}
-
-.lf-tile--anchor.lf-tile--feature {
-  background: var(--color-paper-3);
-  border-color: var(--color-rule);
-}
-
-.lf-tile--wide {
-  grid-column: span 1;
 }
 
 .lf-tile--full {
   grid-column: span 2;
-}
-
-.lf-tile--sm {
-  grid-column: span 1;
 }
 
 .lf-tile-icon {
@@ -403,28 +322,11 @@
   color: var(--color-accent-ink);
 }
 
-@media (max-width: 60rem) {
-  .lf-bento {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .lf-tile--anchor,
-  .lf-tile--wide,
-  .lf-tile--full {
-    grid-column: span 2;
-  }
-  .lf-tile--anchor {
-    grid-row: span 1;
-  }
-}
-
 @media (max-width: 40rem) {
   .lf-bento {
     grid-template-columns: minmax(0, 1fr);
   }
-  .lf-tile--anchor,
-  .lf-tile--wide,
-  .lf-tile--full,
-  .lf-tile--sm {
+  .lf-tile--full {
     grid-column: span 1;
   }
 }
@@ -474,23 +376,8 @@
   box-shadow: 0 16px 32px -20px oklch(23% 0.02 40 / 0.3);
 }
 
-.lf-tour-frame--aux-a {
-  /* Fixed rem offsets, not percentages — a percentage here is relative to
-     the stage's own padding-box height, so it can grow arbitrarily large
-     (and reach above the heading) as the stage itself grows. */
-  transform: none;
-}
-
 .lf-tour-frame--aux-b {
   z-index: 2;
-  transform: none;
-}
-
-.lf-tour-caption {
-  margin-top: var(--space-sm);
-  text-align: center;
-  font-size: var(--text-xs);
-  color: var(--color-ink-2);
 }
 
 @media (max-width: 40rem) {
@@ -502,25 +389,7 @@
   }
 }
 
-/* ---------- reveal ---------- */
-
-.lf-reveal {
-  opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
-}
-
-.lf-reveal.is-in {
-  opacity: 1;
-  transform: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .lf-reveal {
-    transition: opacity 0.15s linear;
-    transform: none;
-  }
-  .lf-tile:hover,
   .lf-btn:active {
     transform: none;
   }

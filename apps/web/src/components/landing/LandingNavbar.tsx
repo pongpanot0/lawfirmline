@@ -23,10 +23,6 @@ export function LandingNavbar() {
     <div className="sticky top-0 z-50 border-b px-4" style={{ background: 'var(--color-paper)', borderColor: 'var(--color-rule)' }}>
       <header
         className="mx-auto flex min-h-16 max-w-6xl items-center justify-between gap-4 py-2"
-        style={{
-          borderColor: 'var(--color-rule)',
-          background: 'var(--color-paper)',
-        }}
       >
         <Link href="/" aria-label="Samnuan" className="flex shrink-0 items-center gap-2 pl-1.5" onClick={close}>
           <SamnuanLogo
