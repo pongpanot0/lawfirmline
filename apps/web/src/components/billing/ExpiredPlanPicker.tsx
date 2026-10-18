@@ -63,7 +63,7 @@ export function ExpiredPlanPicker() {
       ) : (
         <>
         <BillingPeriodToggle value={billingPeriod} onChange={setBillingPeriod} />
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {plans.map((plan) => {
             const yearly = billingPeriod === BillingPeriod.YEARLY;
             const total = planPriceThb(plan.plan as SubscriptionPlan, billingPeriod);

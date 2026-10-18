@@ -148,7 +148,7 @@ function BillingPageContent() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader><CardTitle className="text-sm">{d.billing.currentStatus}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
@@ -202,7 +202,7 @@ function BillingPageContent() {
         ) : (
           <>
           <BillingPeriodToggle value={billingPeriod} onChange={setBillingPeriod} className="mb-4 justify-start" />
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {plans.map((plan) => {
               const yearly = billingPeriod === BillingPeriod.YEARLY;
               const total = planPriceThb(plan.plan as SubscriptionPlan, billingPeriod);

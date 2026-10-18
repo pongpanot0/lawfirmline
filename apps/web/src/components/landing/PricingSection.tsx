@@ -2,52 +2,63 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Check, Sparkle } from 'lucide-react';
+import { Check } from 'lucide-react';
+import { PLAN_CONFIG, SubscriptionPlan, YEARLY_BILLED_MONTHS } from '@lawfirm/shared';
 import { fbTrack } from '@/components/FacebookPixel';
 import { useLocale } from './LocaleProvider';
 import { demoHref } from './contact';
 
-const PLAN_KEYS = ['solo', 'firm', 'professional', 'enterprise'] as const;
-const PLAN_PRICES = {
-  solo: { price: 990, priceLabel: '990', perUser: 990, popular: false },
-  firm: { price: 2999, priceLabel: '2,999', perUser: 600, popular: true },
-  professional: { price: 6999, priceLabel: '6,999', perUser: 350, popular: false },
-  enterprise: { price: null, priceLabel: 'Custom', perUser: null, popular: false },
-};
-
-const PLAN_NAMES: Record<(typeof PLAN_KEYS)[number], string> = {
-  solo: 'Solo',
-  firm: 'Firm',
-  professional: 'Professional',
-  enterprise: 'Enterprise',
-};
+// Prices and seats come from PLAN_CONFIG — the same numbers checkout charges.
+const PAID_PLANS = [
+  ['solo', SubscriptionPlan.SOLO],
+  ['team', SubscriptionPlan.TEAM],
+  ['firm', SubscriptionPlan.FIRM],
+  ['professional', SubscriptionPlan.PROFESSIONAL],
+] as const;
+const POPULAR = 'team';
 
 export function PricingSection() {
   const { locale, t } = useLocale();
   const p = t.pricing;
   const [yearly, setYearly] = useState(false);
+  const num = (n: number) => n.toLocaleString(locale === 'th' ? 'th-TH' : 'en-US');
 
-  const plans = PLAN_KEYS.map((key) => {
-    const base = PLAN_PRICES[key].price;
+  const paid = PAID_PLANS.map(([key, plan]) => {
+    const cfg = PLAN_CONFIG[plan];
     // Yearly = pay 10 months (2 months free); card shows the monthly-equivalent price
-    const shown = base !== null && yearly ? Math.round((base * 10) / 12) : base;
+    const shown = yearly ? Math.round((cfg.priceThb * YEARLY_BILLED_MONTHS) / 12) : cfg.priceThb;
     return {
       key,
-      name: PLAN_NAMES[key],
-      users: p.plans[key].users,
-      features: p.plans[key].features,
-      price: shown,
-      yearlyTotal: base !== null ? base * 10 : null,
-      priceLabel:
-        key === 'enterprise'
-          ? p.plans.enterprise.priceLabel
-          : (shown as number).toLocaleString(locale === 'th' ? 'th-TH' : 'en-US'),
-      perUser: PLAN_PRICES[key].perUser,
-      popular: PLAN_PRICES[key].popular,
-      href: key === 'enterprise' ? demoHref : '/register',
-      cta: key === 'enterprise' ? p.contactSales : p.tryFree,
+      name: cfg.name,
+      tagline: p.plans[key].tagline,
+      users: (cfg.maxUsers === 1 ? p.users : p.upToUsers).replace('{count}', num(cfg.maxUsers)),
+      features: p.plans[key].features as readonly string[],
+      price: shown as number | null,
+      yearlyTotal: (cfg.priceThb * YEARLY_BILLED_MONTHS) as number | null,
+      priceLabel: num(shown),
+      perUser: cfg.maxUsers > 1 ? Math.round(cfg.priceThb / cfg.maxUsers) : null,
+      popular: key === POPULAR,
+      href: '/register',
+      cta: p.tryFree,
     };
   });
+  const plans = [
+    ...paid,
+    {
+      key: 'enterprise' as const,
+      name: 'Enterprise',
+      tagline: p.plans.enterprise.tagline,
+      users: p.plans.enterprise.users,
+      features: p.plans.enterprise.features as readonly string[],
+      price: null,
+      yearlyTotal: null,
+      priceLabel: p.plans.enterprise.priceLabel,
+      perUser: null,
+      popular: false,
+      href: demoHref,
+      cta: p.contactSales,
+    },
+  ];
 
   return (
     <section id="pricing" className="lf-section">
@@ -56,15 +67,6 @@ export function PricingSection() {
           <span className="lf-kicker">Pricing</span>
           <h2 className="lf-display-s mt-3" style={{ fontSize: 'var(--text-display-s)' }}>{p.title}</h2>
           <p className="lf-lede mt-3">{p.subtitle}</p>
-        </div>
-
-        {/* Early Access offer — the commercial hook; list prices below stay as the anchor */}
-        <div
-          className="mx-auto mt-6 flex max-w-2xl items-start gap-3 rounded-2xl border px-4 py-3 text-sm sm:items-center"
-          style={{ borderColor: 'var(--color-accent-line)', background: 'var(--color-accent-soft)', color: 'var(--color-ink)' }}
-        >
-          <Sparkle className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" style={{ color: 'var(--color-accent)' }} />
-          <p className="font-medium">{p.earlyAccess}</p>
         </div>
 
         {/* Billing period toggle */}
@@ -104,7 +106,7 @@ export function PricingSection() {
         </div>
 
         {/* Pricing cards */}
-        <div className="mt-8 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4">
+        <div className="mt-8 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-5">
           {plans.map((plan) => (
             <div
               key={plan.key}
@@ -128,7 +130,7 @@ export function PricingSection() {
                 {plan.name}
               </h3>
               <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-2)' }}>
-                {plan.users}
+                {plan.tagline} · {plan.users}
               </p>
               <div className="mt-4 sm:mt-5">
                 <span className="lf-display-s text-2xl sm:text-3xl">{plan.priceLabel}</span>
@@ -144,16 +146,13 @@ export function PricingSection() {
                 )}
                 {yearly && plan.yearlyTotal !== null && (
                   <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-2)' }}>
-                    {p.yearlyNote.replace(
-                      '{amount}',
-                      plan.yearlyTotal.toLocaleString(locale === 'th' ? 'th-TH' : 'en-US'),
-                    )}
+                    {p.yearlyNote.replace('{amount}', num(plan.yearlyTotal))}
                   </p>
                 )}
               </div>
               {plan.perUser !== null && (
                 <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-2)' }}>
-                  {p.perUser.replace('{amount}', plan.perUser.toLocaleString(locale === 'th' ? 'th-TH' : 'en-US'))}
+                  {p.perUser.replace('{amount}', num(plan.perUser))}
                 </p>
               )}
               <ul className="mt-5 flex-1 space-y-2 text-sm sm:mt-6">
@@ -181,55 +180,17 @@ export function PricingSection() {
           ))}
         </div>
 
-        {/* Comparison table — mobile scroll */}
-        <div className="-mx-4 mt-8 overflow-x-auto px-4 sm:mx-0 sm:mt-12 sm:px-0">
-          <div className="min-w-[320px] overflow-hidden rounded-xl border" style={{ borderColor: 'var(--color-rule)' }}>
-            <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              <thead>
-                <tr className="border-b" style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-2)' }}>
-                  <th className="px-4 py-3 text-left font-semibold sm:px-6 sm:py-4" style={{ color: 'var(--color-ink)' }}>
-                    {p.tablePackage}
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold sm:px-6 sm:py-4" style={{ color: 'var(--color-ink)' }}>
-                    {p.tableUsers}
-                  </th>
-                  <th className="px-4 py-3 text-right font-semibold sm:px-6 sm:py-4" style={{ color: 'var(--color-ink)' }}>
-                    {p.tablePrice}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {plans.map((plan) => (
-                  <tr
-                    key={plan.key}
-                    className="border-b last:border-0"
-                    style={{
-                      borderColor: 'var(--color-rule)',
-                      background: plan.popular ? 'var(--color-accent-soft)' : 'transparent',
-                    }}
-                  >
-                    <td className="px-4 py-3 font-medium sm:px-6 sm:py-4" style={{ color: 'var(--color-ink)' }}>
-                      <span className="block sm:inline">{plan.name}</span>
-                      {plan.popular && (
-                        <span
-                          className="mt-1 inline-block rounded-full px-2 py-0.5 text-xs sm:ml-2 sm:mt-0"
-                          style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
-                        >
-                          {p.recommended}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 sm:px-6 sm:py-4" style={{ color: 'var(--color-ink-2)' }}>
-                      {plan.users}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-medium sm:px-6 sm:py-4" style={{ color: 'var(--color-ink)' }}>
-                      {plan.price !== null ? `${plan.priceLabel} ${p.perMonth}` : plan.priceLabel}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="mx-auto mt-8 max-w-3xl text-sm sm:mt-10" style={{ color: 'var(--color-ink-2)' }}>
+          <h3 className="font-semibold" style={{ color: 'var(--color-ink)' }}>{p.finePrintTitle}</h3>
+          <ul className="mt-3 space-y-2">
+            {p.finePrint.map((line) => (
+              <li key={line} className="flex items-start gap-2">
+                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-success)' }} />
+                {line}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-xs">{p.grandfather}</p>
         </div>
       </div>
     </section>
