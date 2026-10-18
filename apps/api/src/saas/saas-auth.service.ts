@@ -51,7 +51,8 @@ export class SaasAuthService {
           subscriptionStatus: SubscriptionStatus.TRIAL,
           trialStartAt: new Date(),
           trialEndAt,
-          maxUsers: PLAN_CONFIG[SubscriptionPlan.SOLO].maxUsers,
+          // Trial = Team seats so new firms can try working as a team
+          maxUsers: PLAN_CONFIG[SubscriptionPlan.TEAM].maxUsers,
         },
       });
 
