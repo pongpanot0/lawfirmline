@@ -28,6 +28,16 @@ export function shouldRedirectAfterLogin(currentHost: string, firmSlug: string):
   return needsFirmHostRedirect(currentHost, firmSlug, rootDomain());
 }
 
+const HANDOFF_PATH = '/handoff';
+
+/**
+ * The handoff page establishes the session itself; validating a stale stored
+ * token there would 401, fail to refresh and clear the tokens the handoff just saved.
+ */
+export function isHandoffPath(pathname: string): boolean {
+  return pathname.replace(/\/+$/, '') === HANDOFF_PATH;
+}
+
 export function buildFirmHandoffUrl(opts: {
   firmSlug: string;
   currentHost: string;
@@ -49,7 +59,7 @@ export function buildFirmHandoffUrl(opts: {
     next: opts.nextPath ?? '/dashboard',
   });
   if (opts.locale === 'th' || opts.locale === 'en') params.set('locale', opts.locale);
-  return `${origin}/handoff#${params.toString()}`;
+  return `${origin}${HANDOFF_PATH}#${params.toString()}`;
 }
 
 /**

@@ -12,6 +12,7 @@ import { AuthUser, LoginResult } from '@lawfirm/shared';
 import { api } from './api';
 import { clearCourtOffline } from './court-offline';
 import { clearCourtDayDrafts } from './court-day-draft';
+import { isHandoffPath } from './firm-slug';
 
 export const TOKEN_KEY = 'lawfirm_access_token';
 export const REFRESH_KEY = 'lawfirm_refresh_token';
@@ -33,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem(TOKEN_KEY);
+    const stored = isHandoffPath(window.location.pathname) ? null : localStorage.getItem(TOKEN_KEY);
     if (stored) {
       api
         .getMe(stored)
