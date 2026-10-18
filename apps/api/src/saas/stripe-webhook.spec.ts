@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { BadRequestException } from '@nestjs/common';
-import { SubscriptionStatus } from '@lawfirm/shared';
+import { BillingPeriod, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { StripeService } from './stripe.service';
 import { stripeStatus, SubscriptionService } from './subscription.service';
 
@@ -110,7 +110,7 @@ describe('Stripe webhook', () => {
   });
 
   describe('PromptPay (one-time payment)', () => {
-    const FIRM_MONTHLY = 2999 * 100;
+    const FIRM_MONTHLY = planPriceThb(SubscriptionPlan.FIRM, BillingPeriod.MONTHLY) * 100;
     const paid = (over: Record<string, unknown> = {}) => signed({
       id: 'evt_pp',
       type: 'checkout.session.completed',
@@ -125,7 +125,7 @@ describe('Stripe webhook', () => {
     it('activates the firm for one period and records the payment', async () => {
       const { body, header } = paid();
       await service.handleWebhook(body, header);
-      expect(tx.billingInvoice.create).toHaveBeenCalledWith({ data: expect.objectContaining({ stripeInvoiceId: 'cs_pp_1', amount: 2999, plan: 'FIRM', status: 'PAID' }) });
+      expect(tx.billingInvoice.create).toHaveBeenCalledWith({ data: expect.objectContaining({ stripeInvoiceId: 'cs_pp_1', amount: FIRM_MONTHLY / 100, plan: 'FIRM', status: 'PAID' }) });
       const data = tx.firm.update.mock.calls[0][0].data;
       expect(data).toMatchObject({ subscriptionStatus: SubscriptionStatus.ACTIVE, subscriptionPlan: 'FIRM', trialReminderSentDays: null, stripeSubscriptionId: null });
       const days = (data.currentPeriodEnd.getTime() - Date.now()) / 86_400_000;
