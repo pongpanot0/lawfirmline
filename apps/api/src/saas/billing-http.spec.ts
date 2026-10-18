@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
 import Stripe from 'stripe';
-import { FirmRole, SubscriptionStatus } from '@lawfirm/shared';
+import { BillingPeriod, FirmRole, planPriceThb, SubscriptionPlan, SubscriptionStatus } from '@lawfirm/shared';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -125,7 +125,7 @@ describe('billing over HTTP', () => {
     expect(res.status).toBe(201);
     const params = createSession.mock.calls[0][0] as Stripe.Checkout.SessionCreateParams;
     expect(params).toMatchObject({ mode: 'payment', payment_method_types: ['promptpay'], client_reference_id: 'firm-1', metadata: { plan: 'SOLO', billingPeriod: 'MONTHLY' } });
-    expect(params.line_items![0].price_data).toMatchObject({ currency: 'thb', unit_amount: 990 * 100 });
+    expect(params.line_items![0].price_data).toMatchObject({ currency: 'thb', unit_amount: planPriceThb(SubscriptionPlan.SOLO, BillingPeriod.MONTHLY) * 100 });
     expect(params.line_items![0].price_data!.recurring).toBeUndefined();
     expect(params.subscription_data).toBeUndefined();
   });

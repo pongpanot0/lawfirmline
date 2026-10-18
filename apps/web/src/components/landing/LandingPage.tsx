@@ -5,19 +5,8 @@ import Image from 'next/image';
 import dashboardScreenshot from '../../../public/marketing/dashboard.png';
 import casesScreenshot from '../../../public/marketing/cases-list.png';
 import scheduleScreenshot from '../../../public/marketing/court-schedule.png';
-import {
-  PhoneOff,
-  FolderOpen,
-  CalendarX,
-  UserX,
-  MessageCircle,
-  Briefcase,
-  Calendar,
-  Users,
-  Bell,
-  Check,
-  ArrowRight,
-} from 'lucide-react';
+import { Briefcase, Calendar, Users, Bell, Check, ArrowRight } from 'lucide-react';
+import { PLAN_CONFIG, SubscriptionPlan, TRIAL_DAYS } from '@lawfirm/shared';
 import { fbTrack } from '@/components/FacebookPixel';
 import { SamnuanLogo } from '@/components/brand/SamnuanLogo';
 import { useLocale } from './LocaleProvider';
@@ -27,9 +16,7 @@ import { PricingSection } from './PricingSection';
 import { useLandingMotion } from './useLandingMotion';
 import './landing-tokens.css';
 
-const problemIcons = [PhoneOff, FolderOpen, CalendarX, UserX, MessageCircle];
 const featureIcons = [Briefcase, Calendar, Users, Bell];
-const featureSpans = ['lf-tile--sm', 'lf-tile--sm', 'lf-tile--sm', 'lf-tile--sm'];
 
 export function LandingPage() {
   const { t } = useLocale();
@@ -39,73 +26,69 @@ export function LandingPage() {
     <div className="samnuan-paper lf-landing" ref={scope}>
       <LandingNavbar />
 
-      {/* Hero — H2 split diptych: title/CTA left, illustrative notification stack right */}
-      <section className="lf-shell lf-section lf-snap">
-        <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-8">
-          <div className="lg:col-span-7">
-            <span className="lf-eyebrow" data-motion="hero-eyebrow">
-              {t.hero.badge}
-            </span>
-            <h1 className="lf-display mt-4" style={{ fontSize: 'var(--text-display)' }}>
-              <span className="lf-mask">
-                <span data-motion="hero-line">{t.hero.title}</span>
-              </span>
-              <span className="lf-mask" style={{ color: 'var(--color-accent)' }}>
-                <span data-motion="hero-line">{t.hero.titleHighlight}</span>
-              </span>
-            </h1>
-            <p className="lf-lede mt-5 max-w-lg text-base sm:text-lg" data-motion="hero-subtitle">
-              {t.hero.subtitle}
-            </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center" data-motion="hero-cta">
-              <Link href="/register" className="lf-btn lf-btn--primary w-full sm:w-auto">
-                {t.hero.ctaPrimary}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <a href={demoHref} onClick={() => fbTrack('Lead')} className="lf-btn lf-btn--outline w-full sm:w-auto">
-                {t.hero.ctaSecondary}
-              </a>
-            </div>
-            <p className="mt-4 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }} data-motion="hero-note">
-              {t.hero.note}
-            </p>
-          </div>
+      {/* Hero — centered statement, then the price anchor: price is the first filter for solo/small firms */}
+      <section className="lf-shell lf-section text-center">
+        <span className="lf-pill" data-motion="hero-eyebrow">
+          <span className="lf-pill-dot" />
+          {t.hero.badge}
+        </span>
+        <h1 className="lf-display mx-auto mt-6 max-w-3xl" style={{ fontSize: 'var(--text-display)' }}>
+          <span className="lf-mask">
+            <span data-motion="hero-line">{t.hero.title}</span>
+          </span>
+          <span className="lf-mask" style={{ color: 'var(--color-accent)' }}>
+            <span data-motion="hero-line">{t.hero.titleHighlight}</span>
+          </span>
+        </h1>
+        <p className="lf-lede mx-auto mt-5 max-w-2xl text-base sm:text-lg" data-motion="hero-subtitle">
+          {t.hero.subtitle}
+        </p>
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center" data-motion="hero-cta">
+          <Link href="/register" className="lf-btn lf-btn--primary w-full sm:w-auto">
+            {t.hero.ctaPrimary}
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+          <a href={demoHref} onClick={() => fbTrack('Lead')} className="lf-btn lf-btn--outline w-full sm:w-auto">
+            {t.hero.ctaSecondary}
+          </a>
+        </div>
+        <p className="mt-4 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }} data-motion="hero-note">
+          {t.hero.note}
+        </p>
 
-          <div className="lg:col-span-5">
-            <div className="relative mx-auto max-w-sm" data-motion="hero-card">
-              <div
-                className="relative rounded-lg border p-6"
-                style={{ borderColor: 'var(--color-rule)', background: 'var(--color-paper-3)' }}
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
-                  {t.hero.cardTitle}
+        <dl className="lf-facts mx-auto mt-12 max-w-3xl" data-motion="hero-facts">
+          {[
+            { value: PLAN_CONFIG[SubscriptionPlan.SOLO].priceThb, unit: t.hero.currency, label: t.hero.facts.solo },
+            { value: PLAN_CONFIG[SubscriptionPlan.TEAM].priceThb, unit: t.hero.currency, label: t.hero.facts.team },
+            { value: TRIAL_DAYS, unit: t.hero.trialUnit, label: t.hero.facts.trial },
+          ].map((fact) => (
+            <a key={fact.label} href="#pricing" className="lf-fact">
+              <dt className="lf-display-s whitespace-nowrap text-2xl sm:text-3xl" style={{ color: 'var(--color-ink)' }}>
+                {fact.value}
+                <span className="ml-1 text-sm font-medium sm:text-base">{fact.unit}</span>
+              </dt>
+              <dd className="mt-1 text-xs sm:text-sm" style={{ color: 'var(--color-ink-2)' }}>
+                {fact.label}
+              </dd>
+            </a>
+          ))}
+        </dl>
+      </section>
+
+      {/* Problems — numbered editorial row, the "why" before the product */}
+      <section className="lf-section lf-section--tight lf-section--paper2">
+        <div className="lf-shell">
+          <h2 className="lf-display-s text-center text-xl sm:text-2xl">{t.problems.title}</h2>
+          <ol className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {t.problems.items.map((text, i) => (
+              <li key={text} className="lf-tile !p-5" data-motion="bento-tile">
+                <span className="lf-kicker">{String(i + 1).padStart(2, '0')}</span>
+                <p className="mt-2 text-sm font-medium leading-snug" style={{ color: 'var(--color-ink)' }}>
+                  {text}
                 </p>
-                <ul className="mt-4 space-y-3">
-                  {[
-                    { icon: Calendar, label: t.features.items[1].highlights[0] },
-                    { icon: MessageCircle, label: t.features.items[2].highlights[0] },
-                    { icon: Bell, label: t.features.items[3].highlights[0] },
-                  ].map(({ icon: Icon, label }) => (
-                    <li
-                      key={label}
-                      className="flex items-center gap-3 border-t py-4"
-                      style={{ borderColor: 'var(--color-rule)' }}
-                    >
-                      <span
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                        style={{ background: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <span className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-                        {label}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
 
@@ -140,7 +123,7 @@ export function LandingPage() {
       </section>
 
       {/* Problems + features — one Bento block: pain points as small tiles, product tiles as the anchors */}
-      <section id="features" className="lf-section lf-section--paper2">
+      <section id="features" className="lf-section">
         <div className="lf-shell">
           <div className="lf-section-head lf-section-head--center">
             <h2 className="lf-display-s" style={{ fontSize: 'var(--text-display-s)' }}>{t.features.title}</h2>
@@ -153,7 +136,7 @@ export function LandingPage() {
               return (
                 <article
                   key={feature.title}
-                  className={`lf-tile lf-tile--feature ${featureSpans[i]}`}
+                  className="lf-tile lf-tile--feature"
                   data-motion="bento-tile"
                 >
                   <div className="flex items-center gap-3">
@@ -198,26 +181,6 @@ export function LandingPage() {
               );
             })}
 
-            <div className="lf-tile--full">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
-                {t.problems.title}
-              </p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {t.problems.items.map((text, i) => {
-                  const Icon = problemIcons[i];
-                  return (
-                    <div key={text} className="lf-tile !p-4" data-motion="bento-tile">
-                      <span className="lf-tile-icon !h-8 !w-8">
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <p className="mt-3 text-sm font-medium leading-snug" style={{ color: 'var(--color-ink)' }}>
-                        {text}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         </div>
       </section>

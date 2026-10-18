@@ -139,6 +139,52 @@
   color: var(--color-accent);
 }
 
+/* Hero pill + price anchor strip */
+.lf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  border: 1px solid var(--color-accent-line);
+  background: var(--color-paper-3);
+  border-radius: 999px;
+  padding: 0.375rem 0.875rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.lf-pill-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: #8b6d32;
+}
+
+.lf-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-block: 1px solid var(--color-rule);
+}
+
+.lf-fact {
+  display: block;
+  padding: var(--space-md) var(--space-xs);
+  transition: background-color var(--dur-short) var(--ease-out);
+}
+
+.lf-fact + .lf-fact {
+  border-left: 1px solid var(--color-rule);
+}
+
+.lf-fact:hover {
+  background: var(--color-paper-2);
+}
+
+.lf-fact:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
 /* ---------- type ---------- */
 
 .lf-display {
