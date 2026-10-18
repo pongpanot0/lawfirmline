@@ -8,8 +8,11 @@
     "orientation": "default",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.samnuan.app"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.samnuan.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.samnuan.app",
@@ -26,14 +29,20 @@
       "expo-status-bar",
       "expo-font",
       "expo-sharing",
-      ["expo-image-picker", {
-        "cameraPermission": "Samnuan ใช้กล้องเพื่อถ่ายใบเสร็จและเอกสารคดีที่คุณเลือกแนบ",
-        "photosPermission": "Samnuan ใช้รูปภาพเพื่อแนบใบเสร็จและเอกสารคดีที่คุณเลือก",
-        "microphonePermission": false
-      }],
-      ["expo-local-authentication", {
-        "faceIDPermission": "Samnuan ใช้ Face ID เพื่อปลดล็อกข้อมูลคดีของคุณ"
-      }]
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Samnuan ใช้กล้องเพื่อถ่ายใบเสร็จและเอกสารคดีที่คุณเลือกแนบ",
+          "photosPermission": "Samnuan ใช้รูปภาพเพื่อแนบใบเสร็จและเอกสารคดีที่คุณเลือก",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Samnuan ใช้ Face ID เพื่อปลดล็อกข้อมูลคดีของคุณ"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
