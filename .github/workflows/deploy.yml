@@ -54,10 +54,15 @@ jobs:
 
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          # Passed as env, not interpolated into the script text.
+          envs: STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET
           script: |
             set -euo pipefail
             cd "${{ secrets.EC2_APP_DIR }}"
@@ -78,6 +83,13 @@ jobs:
               sed -i '/^PLATFORM_ADMIN_EMAILS=/d' .env
               echo "PLATFORM_ADMIN_EMAILS=${PLATFORM_ADMIN_EMAILS}" >> .env
             fi
+            # Stripe keys come from repo secrets when set; otherwise whatever .env already has stays.
+            for key in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET; do
+              if [ -n "${!key:-}" ]; then
+                sed -i "/^${key}=/d" .env
+                printf '%s=%s\n' "$key" "${!key}" >> .env
+              fi
+            done
             # The api refuses to boot without these (production-secrets.ts). Check the
             # values compose will actually pass, before touching the running containers.
             resolved="$(docker compose -f docker-compose.prod.yml config)"
@@ -91,6 +103,10 @@ jobs:
               || echo "::warning::PLATFORM_ADMIN_EMAILS not reaching the api; courts/holidays/deadline-rule admin pages stay locked"
             grep -qE "^ +MS_CLIENT_ID: [\"']?[^\"' ]" <<<"$resolved" \
               || echo "::warning::MS_CLIENT_ID not set in .env; Outlook connect stays disabled"
+            grep -qE "^ +STRIPE_SECRET_KEY: [\"']?[^\"' ]" <<<"$resolved" \
+              || echo "::warning::STRIPE_SECRET_KEY not set; billing checkout returns 503"
+            grep -qE "^ +STRIPE_WEBHOOK_SECRET: [\"']?[^\"' ]" <<<"$resolved" \
+              || echo "::warning::STRIPE_WEBHOOK_SECRET not set; Stripe webhooks are rejected and paid firms won't activate"
             unset resolved
             # Free disk before pulling — old tagged images accumulate and the
             # t4g volume fills up (deploys were failing with ENOSPC). -a removes
