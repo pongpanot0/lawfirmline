@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Alert, Platform, Pressable, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { LockGate } from '@/components/LockGate';
 import { Loading, Button } from '@/components/ui';
 import { Text } from '@/components/AppText';
 import { colors, fonts, spacing } from '@/theme';
+import { subscriptionAllowsWrites } from '@lawfirm/shared';
 import { DisplayPreferences, useDisplayPreferences } from '@/components/AppText';
 
 // Cache-first everywhere: render what we have instantly, refetch behind it.
@@ -146,9 +147,26 @@ function SessionRoot() {
   return <SessionLayout key={`${user?.firmId}:${user?.id}:${user?.firmRole}`} />;
 }
 
+/** Create-only screens (…/new, scan, document-template): no point filling a form the API will 402. */
+function useReadOnlyCreateGuard() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const segments = useSegments() as string[];
+  const readOnly = !!user?.subscriptionStatus && !subscriptionAllowsWrites(user.subscriptionStatus);
+  const createScreen = segments[segments.length - 1] === 'new' || segments[0] === 'scan' || segments[0] === 'document-template';
+  useEffect(() => {
+    if (!readOnly || !createScreen) return;
+    // No price or "renew on the web" here: App Store anti-steering.
+    Alert.alert('โหมดดูอย่างเดียว', 'การใช้งานของสำนักงานหมดอายุแล้ว ยังเปิดดูคดีและเอกสารได้ แต่สร้างหรือแก้ไขข้อมูลไม่ได้');
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  }, [readOnly, createScreen, router]);
+}
+
 function AppStack() {
   const { scale } = useDisplayPreferences();
   const insets = useSafeAreaInsets();
+  useReadOnlyCreateGuard();
   return (
           <LockGate>
             <StatusBar style="dark" />

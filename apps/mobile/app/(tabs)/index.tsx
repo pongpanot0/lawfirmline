@@ -19,7 +19,7 @@ import {
 import { useAuth } from '@/api/auth';
 import { listTaskDrafts, taskDraftScope } from '@/api/drafts';
 import { useActions, useDashboardStats, useMyDay, useWorkload, useExpenseClaims, useLeaves, useCalendarRange, useTodos, useDailyWorkboard, usePendingLeaves, useOwnerFinance, useUnreadNotifications } from '@/api/hooks';
-import { AgendaItemKind, AgendaUrgency, followUpReason, ownerDecisionTasks, assignmentCandidates, assignmentWarnings, canAssignFirmRole, FirmRole, hasFirmCapability, TaskWorkType } from '@lawfirm/shared';
+import { AgendaItemKind, AgendaUrgency, followUpReason, ownerDecisionTasks, assignmentCandidates, assignmentWarnings, canAssignFirmRole, FirmRole, hasFirmCapability, subscriptionAllowsWrites, TaskWorkType } from '@lawfirm/shared';
 import { Disclosure } from '@/components/Disclosure';
 import { OwnerFinanceSummary } from '@/components/OwnerFinanceSummary';
 import type { AgendaItem } from '@/api/types';
@@ -188,6 +188,10 @@ export default function MyDayScreen() {
         />
       }
     >
+      {/* No price, link or "renew on the web" here: App Store anti-steering. Owners get the billing link by email. */}
+      {user?.subscriptionStatus && !subscriptionAllowsWrites(user.subscriptionStatus) ? (
+        <ErrorNote message="สำนักงานอยู่ในโหมดดูอย่างเดียว · การใช้งานหมดอายุแล้ว ยังเปิดดูคดีและเอกสารได้ แต่สร้างหรือแก้ไขข้อมูลไม่ได้" />
+      ) : null}
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.hello}>สวัสดี คุณ{user?.firstName ?? ''}</Text>

@@ -1636,40 +1636,17 @@ export const api = {
   getBillingHistory: (token: string) =>
     request<BillingInvoiceItem[]>('/saas/billing/history', { token }),
 
-  checkout: (
-    token: string,
-    plan: string,
-    omiseToken?: string,
-    omiseSource?: string,
-    billingPeriod?: 'MONTHLY' | 'YEARLY',
-  ) =>
-    request<{ success: boolean; plan: string; invoiceId?: string }>('/saas/billing/checkout', {
+  /** Returns a Stripe Checkout URL; the browser goes there to pay. */
+  checkout: (token: string, plan: string, billingPeriod?: 'MONTHLY' | 'YEARLY', paymentMethod: 'card' | 'promptpay' = 'card') =>
+    request<{ url: string }>('/saas/billing/checkout', {
       method: 'POST',
       token,
-      body: JSON.stringify({ plan, omiseToken, omiseSource, billingPeriod }),
+      body: JSON.stringify({ plan, billingPeriod, paymentMethod }),
     }),
 
-  checkoutPromptPay: (token: string, plan: string, billingPeriod?: 'MONTHLY' | 'YEARLY') =>
-    request<{
-      invoiceId: string;
-      chargeId: string;
-      amount: number;
-      expiresAt: string;
-      paid: boolean;
-    }>('/saas/billing/checkout/promptpay', {
-      method: 'POST',
-      token,
-      body: JSON.stringify({ plan, billingPeriod }),
-    }),
-
-  getInvoiceQrBlob: (token: string, invoiceId: string) =>
-    fetchBlob(`/saas/billing/invoices/${invoiceId}/qr`, { token }),
-
-  getInvoicePaymentStatus: (token: string, invoiceId: string) =>
-    request<{ status: 'PENDING' | 'PAID' | 'FAILED'; plan: string }>(
-      `/saas/billing/invoices/${invoiceId}/status`,
-      { token },
-    ),
+  /** Stripe Customer Portal URL: card, plan change, cancel, invoices. */
+  billingPortal: (token: string) =>
+    request<{ url: string }>('/saas/billing/portal', { method: 'POST', token }),
 
   cancelSubscription: (token: string) =>
     request<{ success: boolean }>('/saas/billing/cancel', { method: 'POST', token }),
@@ -1737,9 +1714,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-
-  getOmiseConfig: () =>
-    request<{ publicKey: string | null; mockMode: boolean }>('/saas/omise/public-key'),
 
   getFirmSettings: (token: string) =>
     request<{ ownRefPrefix: string }>('/saas/firm/settings', { token }),
@@ -3611,6 +3585,7 @@ export interface BillingInvoiceItem {
   amount: number;
   status: string;
   paidAt?: string | null;
+  hostedInvoiceUrl?: string | null;
   createdAt: string;
   payments: Array<{ id: string; status: string; amount: number }>;
 }

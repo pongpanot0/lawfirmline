@@ -21,7 +21,6 @@ describe('SaasController - Firm Settings', () => {
     controller = new SaasController(
       {} as any, // invitations
       {} as any, // subscriptions
-      {} as any, // omise
       {} as any, // tenant
       {} as any, // auth
       mockPrisma, // prisma
