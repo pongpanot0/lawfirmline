@@ -7,7 +7,6 @@ import { SubscriptionService } from './subscription.service';
 import { StripeService } from './stripe.service';
 import { TrialReminderService } from './trial-reminder.service';
 import { FirmRoleGuard } from './guards/firm-role.guard';
-import { TenantMatchGuard } from './guards/tenant-match.guard';
 import { TenantResolveMiddleware } from './middleware/tenant-resolve.middleware';
 import { AuthModule } from '../auth/auth.module';
 import { CaseTypesModule } from '../case-types/case-types.module';
@@ -25,14 +24,12 @@ import { NotificationsModule } from '../notifications/notifications.module';
     StripeService,
     TrialReminderService,
     FirmRoleGuard,
-    TenantMatchGuard,
     TenantResolveMiddleware,
   ],
   exports: [
     TenantService,
     SaasAuthService,
     FirmRoleGuard,
-    TenantMatchGuard,
     TenantResolveMiddleware,
   ],
 })

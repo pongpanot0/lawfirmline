@@ -9,7 +9,6 @@ import { PrismaModule } from './prisma/prisma.module';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { SaasModule } from './saas/saas.module';
-import { TenantMatchGuard } from './saas/guards/tenant-match.guard';
 import { TenantResolveMiddleware } from './saas/middleware/tenant-resolve.middleware';
 import { UsersModule } from './users/users.module';
 import { CasesModule } from './cases/cases.module';
@@ -101,10 +100,6 @@ import { WorkflowsModule } from './workflows/workflows.module';
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
-    {
-      provide: APP_GUARD,
-      useClass: TenantMatchGuard,
-    },
   ],
 })
 export class AppModule implements NestModule {

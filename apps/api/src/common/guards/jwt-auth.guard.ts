@@ -4,13 +4,15 @@ import { Reflector } from '@nestjs/core';
 import { FirmRole, SUBSCRIPTION_INACTIVE, subscriptionAllowsWrites } from '@lawfirm/shared';
 import { ALLOW_EXTERNAL_KEY } from '../decorators/allow-external.decorator';
 import { SKIP_SUBSCRIPTION_KEY } from '../../saas/decorators/saas.decorators';
+import { assertTenantMatch } from '../../saas/tenant-match';
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
  * Staff JWT guard. A freelancer (FirmRole.EXTERNAL) is a staff-token holder
  * too, so deny-by-default lives here: once the token is verified, an EXTERNAL
- * user only passes routes marked @AllowExternal().
+ * user only passes routes marked @AllowExternal(). On a firm subdomain the
+ * user's firm must also match it.
  *
  * Subscription gate lives here too (global guards run before req.user exists):
  * an EXPIRED/CANCELED firm is read-only — writes get 402 unless the route is
@@ -25,6 +27,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const authenticated = (await super.canActivate(context)) as boolean;
     const req = context.switchToHttp().getRequest();
+    if (authenticated) assertTenantMatch(req);
     const user = req.user;
     if (authenticated && user?.firmRole === FirmRole.EXTERNAL) {
       const allowed = this.reflector.getAllAndOverride<boolean>(ALLOW_EXTERNAL_KEY, [context.getHandler(), context.getClass()]);

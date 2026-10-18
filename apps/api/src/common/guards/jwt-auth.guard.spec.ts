@@ -6,8 +6,8 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 /** Runs the real canActivate with passport's own check stubbed to "token valid". */
 describe('JwtAuthGuard', () => {
   const passport = jest.spyOn(AuthGuard('jwt').prototype, 'canActivate');
-  const context = (user: unknown, method = 'GET') => {
-    const req = { user, method };
+  const context = (user: unknown, method = 'GET', resolvedFirmId: string | null = null) => {
+    const req = { user, method, resolvedFirmId };
     return { switchToHttp: () => ({ getRequest: () => req }), getHandler: () => 'handler', getClass: () => 'class' } as any;
   };
   const reflector = { getAllAndOverride: jest.fn() } as any;
@@ -67,8 +67,18 @@ describe('JwtAuthGuard', () => {
     });
   });
 
+  it("a firm-A user is refused on firm B's subdomain", async () => {
+    await expect(guard.canActivate(context({ firmId: 'A', firmRole: FirmRole.LAWYER }, 'GET', 'B'))).rejects.toThrow(ForbiddenException);
+  });
+
+  it('a user on their own subdomain, or on the apex, passes', async () => {
+    await expect(guard.canActivate(context({ firmId: 'A', firmRole: FirmRole.LAWYER }, 'GET', 'A'))).resolves.toBe(true);
+    await expect(guard.canActivate(context({ firmId: 'A', firmRole: FirmRole.LAWYER }, 'GET', null))).resolves.toBe(true);
+  });
+
   it('an invalid token still fails as before', async () => {
     passport.mockRejectedValue(new Error('Unauthorized'));
     await expect(guard.canActivate(context(undefined))).rejects.toThrow('Unauthorized');
   });
 });
+
