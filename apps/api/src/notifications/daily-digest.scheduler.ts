@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.module';
 import { AgendaService } from '../agenda/agenda.service';
 import { LineMessagingService } from './line-messaging.service';
 import { EmailService } from './email.service';
+import { PushService } from './push.service';
 import {
   addBangkokDays,
   bangkokDateOnly,
@@ -13,7 +14,11 @@ import {
   formatBangkokTime,
 } from '../common/utils/bangkok-time';
 
-type Channel = 'line' | 'email';
+type TextChannel = 'line' | 'email';
+type PushChannel = 'push-evening' | 'push-morning';
+
+/** Where a tapped digest push lands in the mobile app. */
+const DIGEST_APP_ROUTE = '/(tabs)/calendar';
 
 const KIND_LABEL: Record<AgendaItemKind, string> = {
   [AgendaItemKind.COURT_DATE]: 'นัดศาล',
@@ -23,9 +28,25 @@ const KIND_LABEL: Record<AgendaItemKind, string> = {
   [AgendaItemKind.OTHER]: 'นัดหมาย',
 };
 
+type DigestMember = {
+  firmId: string;
+  // Prisma generates its enums as string-literal unions, which are not
+  // assignable to the shared TS enum; narrow it once, below.
+  role: string;
+  firm: { id: string; name: string };
+  user: {
+    id: string;
+    email: string;
+    lineUserId: string | null;
+    firstName: string;
+    lastName: string;
+  };
+};
+
 /**
  * Sends each member a single message the evening before, so tomorrow's work is
- * known without opening the app.
+ * known without opening the app, plus a short push at 18:00 (tomorrow) and
+ * 08:00 (today) that opens the app's calendar. `dailyDigestEnabled` mutes all of it.
  *
  * This is deliberately separate from `ReminderScheduler`: that one counts down
  * to one event and notifies everyone staffed on the case, whereas this answers
@@ -40,12 +61,22 @@ export class DailyDigestScheduler {
     private agenda: AgendaService,
     private line: LineMessagingService,
     private email: EmailService,
+    private push: PushService,
   ) {}
 
   /** 18:00 Asia/Bangkok — pinned, because the server may run anywhere. */
   @Cron('0 18 * * *', { timeZone: 'Asia/Bangkok' })
   async sendDigests(): Promise<void> {
-    const target = addBangkokDays(bangkokDayStart(new Date()), 1);
+    await this.run(addBangkokDays(bangkokDayStart(new Date()), 1), 'push-evening', true);
+  }
+
+  /** 08:00 Asia/Bangkok — push only; the full list went out over LINE/email last night. */
+  @Cron('0 8 * * *', { timeZone: 'Asia/Bangkok' })
+  async sendMorningPush(): Promise<void> {
+    await this.run(bangkokDayStart(new Date()), 'push-morning', false);
+  }
+
+  private async run(target: Date, pushChannel: PushChannel, withText: boolean): Promise<void> {
     const digestDate = bangkokDateOnly(target);
 
     const members = await this.prisma.firmMember.findMany({
@@ -67,18 +98,21 @@ export class DailyDigestScheduler {
     });
     if (members.length === 0) return;
 
-    // Deliberately not filtered by channel: a member who already got the day's
-    // digest over LINE must not get it again by email if they unlink.
-    const alreadySent = await this.prisma.dailyDigestLog.findMany({
+    const logs = await this.prisma.dailyDigestLog.findMany({
       where: { digestDate, userId: { in: members.map((m) => m.user.id) } },
-      select: { userId: true },
+      select: { userId: true, channel: true },
     });
-    const sentUserIds = new Set(alreadySent.map((log) => log.userId));
+    // Text is deliberately not split by channel: a member who already got the
+    // day's digest over LINE must not get it again by email if they unlink.
+    const textSent = new Set(logs.filter((l) => !l.channel?.startsWith('push')).map((l) => l.userId));
+    const pushSent = new Set(logs.filter((l) => l.channel === pushChannel).map((l) => l.userId));
 
     for (const member of members) {
-      if (sentUserIds.has(member.user.id)) continue;
+      const text = withText && !textSent.has(member.user.id);
+      const push = !pushSent.has(member.user.id);
+      if (!text && !push) continue;
       try {
-        await this.sendForMember(member, target, digestDate);
+        await this.sendForMember(member, target, digestDate, text, push ? pushChannel : null);
       } catch (err) {
         // One member's bad data must not silence the whole firm's digest.
         this.logger.error(
@@ -89,22 +123,11 @@ export class DailyDigestScheduler {
   }
 
   private async sendForMember(
-    member: {
-      firmId: string;
-      // Prisma generates its enums as string-literal unions, which are not
-      // assignable to the shared TS enum; narrow it once, below.
-      role: string;
-      firm: { id: string; name: string };
-      user: {
-        id: string;
-        email: string;
-        lineUserId: string | null;
-        firstName: string;
-        lastName: string;
-      };
-    },
+    member: DigestMember,
     target: Date,
     digestDate: Date,
+    text: boolean,
+    pushChannel: PushChannel | null,
   ): Promise<void> {
     const authUser = {
       id: member.user.id,
@@ -119,8 +142,20 @@ export class DailyDigestScheduler {
     if (brief.items.length === 0) return;
 
     const lines = this.buildLines(brief.items);
-    const warnings = brief.warnings.map((w) => w.message);
-    const channel: Channel = member.user.lineUserId ? 'line' : 'email';
+    if (text) {
+      await this.sendText(member, target, digestDate, lines, brief.warnings.map((w) => w.message));
+    }
+    if (pushChannel) await this.sendPush(member.user.id, digestDate, lines, pushChannel);
+  }
+
+  private async sendText(
+    member: DigestMember,
+    target: Date,
+    digestDate: Date,
+    lines: string[],
+    warnings: string[],
+  ): Promise<void> {
+    const channel: TextChannel = member.user.lineUserId ? 'line' : 'email';
 
     const sent =
       channel === 'line'
@@ -140,18 +175,34 @@ export class DailyDigestScheduler {
       this.logger.warn(`Digest not delivered to user ${member.user.id} over ${channel}`);
       return;
     }
+    await this.log(member.user.id, digestDate, channel, lines.length);
+  }
 
-    await this.prisma.dailyDigestLog.create({
-      data: {
-        userId: member.user.id,
-        digestDate,
-        channel,
-        itemCount: brief.items.length,
-      },
+  /** Just the count and the first item; the tap opens the calendar for the rest. */
+  private async sendPush(
+    userId: string,
+    digestDate: Date,
+    lines: string[],
+    channel: PushChannel,
+  ): Promise<void> {
+    const day = channel === 'push-morning' ? 'วันนี้' : 'พรุ่งนี้';
+    const more = lines.length > 1 ? ` และอีก ${lines.length - 1} รายการ` : '';
+    const sent = await this.push.sendToUsers([userId], {
+      title: `📋 ${day}มี ${lines.length} รายการ`,
+      body: `${lines[0]}${more}`,
+      data: { url: DIGEST_APP_ROUTE },
+    });
+    // No device or no accepted ticket: leave it unlogged, nothing reached them.
+    if (sent) await this.log(userId, digestDate, channel, lines.length);
+  }
+
+  private log(userId: string, digestDate: Date, channel: TextChannel | PushChannel, itemCount: number) {
+    return this.prisma.dailyDigestLog.create({
+      data: { userId, digestDate, channel, itemCount },
     });
   }
 
-  /** One line per item, shared by both channels so they never drift apart. */
+  /** One line per item, shared by every channel so they never drift apart. */
   private buildLines(items: AgendaItem[]): string[] {
     const lines: string[] = [];
     for (const item of items) {
