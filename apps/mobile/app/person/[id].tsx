@@ -23,7 +23,8 @@ export default function PersonScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={pageContent}
       refreshControl={<RefreshControl refreshing={person.isRefetching} tintColor={colors.ink} onRefresh={() => person.refetch()} />}>
       <Stack.Screen options={{ title: 'รายละเอียดสมาชิก' }} />
-      {!id ? <EmptyNote>ไม่พบสมาชิก · กลับไปเลือกรายชื่อในหน้าทีม</EmptyNote> : person.isLoading ? <Loading /> : null}
+      {!id ? <EmptyNote action={{ title: 'ไปหน้าทีม', onPress: () => router.replace('/(tabs)/team') }}>ไม่พบสมาชิก · เลือกรายชื่อจากหน้าทีม</EmptyNote>
+        : person.isLoading ? <Loading label="กำลังโหลดรายละเอียดสมาชิก…" /> : null}
       {person.isError && <ErrorNote message="โหลดรายละเอียดสมาชิกไม่ได้ ตรวจการเชื่อมต่อแล้วลองใหม่ หรือกลับไปเลือกรายชื่อในหน้าทีม" onRetry={() => person.refetch()} />}
       {data && <PersonWorkloadView person={data} from={start} viewerId={user?.id ?? ''} owner={manager}
         onTask={taskId => router.push({ pathname: '/task/new', params: { id: taskId } })}

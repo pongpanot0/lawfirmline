@@ -1,8 +1,9 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
-import { CalendarDays, Scale, SquareCheckBig, Sun, Users } from 'lucide-react-native';
-import { colors, fonts } from '@/theme';
-import { useDisplayPreferences } from '@/components/AppText';
+import { Pressable } from 'react-native';
+import { router, Tabs } from 'expo-router';
+import { CalendarDays, Plus, Scale, SquareCheckBig, Sun, Users } from 'lucide-react-native';
+import { CHROME_MAX_SCALE, colors, fonts, spacing, TOUCH } from '@/theme';
+import { Text, useDisplayPreferences } from '@/components/AppText';
 
 export default function TabsLayout() {
   const { scale } = useDisplayPreferences();
@@ -12,8 +13,11 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: colors.surface },
         headerShadowVisible: true,
         headerTintColor: colors.ink,
-        headerTitleStyle: { fontFamily: fonts.semibold, fontSize: 18 * scale },
-        tabBarLabelStyle: { fontSize: 11 * scale, fontWeight: '600' },
+        // Same header face as the stack screens.
+        headerTitleStyle: { fontFamily: fonts.bold, fontSize: 18 * scale },
+        // Tab labels are fixed chrome: cap the combined scale so five Thai labels never truncate at 320pt.
+        tabBarAllowFontScaling: false,
+        tabBarLabelStyle: { fontSize: 11 * Math.min(scale, CHROME_MAX_SCALE), fontWeight: '600' },
         tabBarActiveTintColor: colors.ink,
         tabBarActiveBackgroundColor: colors.soft,
         tabBarInactiveTintColor: colors.faint,
@@ -33,6 +37,15 @@ export default function TabsLayout() {
         options={{
           title: 'คดี',
           tabBarIcon: ({ color, size }) => <Scale color={color} size={size} />,
+          // The list's only create action lives in the header, so search sits directly above the cases.
+          headerRight: () => (
+            <Pressable accessibilityRole="button" accessibilityLabel="รับเคสใหม่" onPress={() => router.push('/case/new')}
+              style={({ pressed }) => [{ minHeight: TOUCH, minWidth: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+                paddingHorizontal: spacing.lg }, pressed && { opacity: 0.6 }]}>
+              <Plus size={18} color={colors.ink} />
+              <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={{ color: colors.ink, fontWeight: '600' }}>รับเคส</Text>
+            </Pressable>
+          ),
         }}
       />
       <Tabs.Screen

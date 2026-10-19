@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, Switch, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useAuth } from '@/api/auth';
 import { useLeaves, useRequestLeave } from '@/api/hooks';
 import type { LeaveItem } from '@/api/types';
 import { DatePicker } from '@/components/DatePicker';
 import { Dropdown } from '@/components/Dropdown';
-import { FormSection } from '@/components/Form';
-import { Button, Card, EmptyNote, ErrorNote, PageIntro, SectionLabel, Tag } from '@/components/ui';
+import { FieldError, FormSection, SwitchRow } from '@/components/Form';
+import { Button, Card, EmptyNote, ErrorNote, Loading, PageIntro, SectionLabel, Tag } from '@/components/ui';
 import { bangkokDay, thDate } from '@/format';
 import { colors, spacing, pageContent } from '@/theme';
 
@@ -17,6 +17,8 @@ const TYPES = [
   { value: 'VACATION', label: 'ลาพักร้อน' },
 ];
 
+const dateRange = (start: string, end: string) => start === end ? thDate(start) : `${thDate(start)} – ${thDate(end)}`;
+
 export default function LeavesScreen() {
   const { user } = useAuth();
   const today = bangkokDay(new Date().toISOString());
@@ -24,41 +26,54 @@ export default function LeavesScreen() {
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
   const [multiple, setMultiple] = useState(false);
+  const [sent, setSent] = useState('');
   const history = useLeaves(today, bangkokDay(new Date(Date.now() + 180 * 86400000).toISOString()));
   const request = useRequestLeave();
+  const endDate = multiple ? end : start;
+  // The pickers already block past days; these checks only catch a stale value (e.g. a form left open past midnight).
+  const startError = start < today ? 'วันเริ่มลาต้องไม่ย้อนหลัง' : undefined;
+  const endError = endDate < start ? 'วันสิ้นสุดต้องไม่ก่อนวันเริ่ม' : undefined;
+  // Sending a leave request keeps its confirm (it notifies the owner); the result shows inline, not in a second alert.
   const submit = () => {
-    const endDate = multiple ? end : start;
-    if (start < today || endDate < start) return Alert.alert('ตรวจสอบวันที่', 'วันเริ่มต้องไม่ย้อนหลัง และวันสิ้นสุดต้องไม่ก่อนวันเริ่ม');
-    Alert.alert('ยืนยันขอลา', `${TYPES.find((item) => item.value === type)?.label} · ${thDate(start)}${endDate !== start ? ` ถึง ${thDate(endDate)}` : ''}`, [
+    if (startError || endError) return;
+    const label = `${TYPES.find((item) => item.value === type)?.label} · ${dateRange(start, endDate)}`;
+    Alert.alert('ยืนยันขอลา', label, [
       { text: 'ยกเลิก', style: 'cancel' },
-      { text: 'ส่งคำขอ', onPress: () => request.mutate({ type, startDate: start, endDate }, {
-        onSuccess: (data) => Alert.alert('ส่งคำขอแล้ว', data.status === 'APPROVED' ? 'บันทึกการลาแล้ว' : 'รอเจ้าของสำนักงานอนุมัติ'),
-        onError: (error) => Alert.alert('ส่งไม่สำเร็จ', error.message),
-      }) },
+      { text: 'ส่งคำขอ', onPress: () => {
+        setSent('');
+        request.mutate({ type, startDate: start, endDate }, {
+          onSuccess: (data) => setSent(`${label} · ${data.status === 'APPROVED' ? 'บันทึกการลาแล้ว' : 'ส่งคำขอแล้ว รอเจ้าของสำนักงานอนุมัติ'}`),
+        });
+      } },
     ]);
   };
-  return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={pageContent}>
-    <PageIntro title="คำขอลาของฉัน" detail="ระบุประเภทและวันที่ ตรวจข้อมูลแล้วส่งคำขอ" />
+  const mine = history.data?.filter((item) => item.userId === user?.id) ?? [];
+  return <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={pageContent} keyboardShouldPersistTaps="handled">
+    <PageIntro detailOnly title="ขอลา" detail="เลือกประเภทและวันที่ แล้วส่งคำขอ" />
     <FormSection title="วันและประเภทการลา">
-    <SectionLabel>ประเภทการลา</SectionLabel>
-    <Dropdown label="ประเภทการลา" value={type} options={TYPES} onChange={(value) => setType(value as LeaveItem['type'])} disabled={request.isPending} />
-    <SectionLabel>วันที่ลา</SectionLabel>
-    <DatePicker value={start} onChange={(value) => { setStart(value); if (end < value) setEnd(value); }} />
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: spacing.md }}>
-      <Text style={{ flex: 1, color: colors.text }}>ลาหลายวัน</Text><Switch accessibilityLabel="ลาหลายวัน" trackColor={{ false: colors.line, true: colors.ink }} thumbColor={colors.surface} value={multiple} onValueChange={setMultiple} />
-    </View>
-    {multiple && <><SectionLabel>ถึงวันที่</SectionLabel><DatePicker value={end} onChange={setEnd} /></>}
-    <View style={{ marginTop: spacing.lg }}><Button title="ส่งคำขอลา" onPress={submit} busy={request.isPending} /></View>
+      <Dropdown inline label="ประเภทการลา" fieldLabel="ประเภทการลา" value={type} options={TYPES}
+        onChange={(value) => setType(value as LeaveItem['type'])} disabled={request.isPending} />
+      <DatePicker label={multiple ? 'วันเริ่มลา' : 'วันที่ลา'} required value={start} minDate={today} error={startError} disabled={request.isPending}
+        onChange={(value) => { setStart(value); if (end < value) setEnd(value); }} />
+      <SwitchRow label="ลาหลายวัน" value={multiple} onValueChange={setMultiple} disabled={request.isPending} />
+      {multiple && <DatePicker label="ถึงวันที่" required value={end} minDate={start} error={endError} onChange={setEnd} disabled={request.isPending} />}
+      <FieldError message={request.isError ? `ส่งไม่สำเร็จ · ${request.error.message}` : undefined} />
+      {!!sent && <Text accessibilityLiveRegion="polite" style={{ color: colors.good, fontWeight: '600' }}>{sent}</Text>}
+      <View style={{ marginTop: spacing.sm }}><Button title="ส่งคำขอลา" onPress={submit} busy={request.isPending} disabled={!!startError || !!endError} /></View>
     </FormSection>
     <SectionLabel>คำขอของฉัน · วันนี้เป็นต้นไป</SectionLabel>
-    {history.isError && <ErrorNote message="โหลดคำขอไม่สำเร็จ" onRetry={() => history.refetch()} />}
-    {history.isLoading ? <Text>กำลังโหลด…</Text> : !history.data?.some((item) => item.userId === user?.id) && <EmptyNote>ยังไม่มีคำขอ</EmptyNote>}
-    {history.data?.filter((item) => item.userId === user?.id).map((item) => <Card key={item.id} style={{ marginBottom: spacing.md }}>
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>{TYPES.find((option) => option.value === item.type)?.label}</Text>
-      <Text style={{ color: colors.muted, marginVertical: spacing.sm }}>{thDate(item.startDate)} – {thDate(item.endDate)}</Text>
-      <Tag tone={item.status === 'APPROVED' ? 'ok' : item.status === 'REJECTED' ? 'due' : 'info'}>
-        {item.status === 'APPROVED' ? 'อนุมัติแล้ว' : item.status === 'REJECTED' ? 'ไม่อนุมัติ' : 'รออนุมัติ'}
-      </Tag>
+    {history.isLoading ? <Loading label="กำลังโหลดคำขอ…" />
+      : history.isError && !history.data ? <ErrorNote message="โหลดคำขอไม่สำเร็จ" onRetry={() => history.refetch()} />
+        : !mine.length ? <EmptyNote>ยังไม่มีคำขอ</EmptyNote> : null}
+    {history.isError && !!history.data && <ErrorNote message="รายการอาจยังไม่ล่าสุด" onRetry={() => history.refetch()} />}
+    {mine.map((item) => <Card key={item.id} style={{ marginBottom: spacing.md, gap: spacing.sm }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <Text style={{ flex: 1, color: colors.ink, fontWeight: '600' }}>{TYPES.find((option) => option.value === item.type)?.label ?? 'ลา'}</Text>
+        <Tag tone={item.status === 'APPROVED' ? 'ok' : item.status === 'REJECTED' ? 'due' : 'info'}>
+          {item.status === 'APPROVED' ? 'อนุมัติแล้ว' : item.status === 'REJECTED' ? 'ไม่อนุมัติ' : 'รออนุมัติ'}
+        </Tag>
+      </View>
+      <Text style={{ color: colors.muted }}>{dateRange(item.startDate, item.endDate)}</Text>
     </Card>)}
   </ScrollView>;
 }
