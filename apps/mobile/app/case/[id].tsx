@@ -3,9 +3,9 @@ import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from '
 import { Text } from '@/components/AppText';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, Check, FileText, ShieldCheck } from 'lucide-react-native';
+import { Camera, Check, ChevronRight, FileText, ShieldCheck } from 'lucide-react-native';
 import { groupParticipantsBySide, PARTICIPANT_ROLE_LABELS, PARTY_ROLE_LABELS, type ParticipantRole, type PartyRole } from '@lawfirm/shared';
-import { api } from '@/api/client';
+import { api, ApiError } from '@/api/client';
 import { useAuth } from '@/api/auth';
 import { canToggleTask } from '@/workflow';
 import { openCaseDocument } from '@/api/files';
@@ -17,7 +17,6 @@ import {
 } from '@/api/hooks';
 import { ReassignSheet } from '@/components/ReassignSheet';
 import { CaseEmailTab } from '@/components/CaseEmailTab';
-import { Disclosure } from '@/components/Disclosure';
 import type { CalendarEventItem, TaskItem } from '@/api/types';
 import {
   Card,
@@ -27,9 +26,10 @@ import {
   Button,
   Tag,
   TagTone,
+  TASK_STATUS_LABEL,
 } from '@/components/ui';
 import { formatMoney, thDate, thTime } from '@/format';
-import { colors, radius, spacing, pageContent } from '@/theme';
+import { CHROME_MAX_SCALE, colors, fonts, radius, spacing, pageContent, TOUCH } from '@/theme';
 
 const TABS = ['ภาพรวม', 'นัดหมาย', 'งาน', 'เอกสาร', 'อีเมล'] as const;
 type TabName = (typeof TABS)[number];
@@ -63,9 +63,12 @@ interface DocumentItem {
 }
 
 function InfoRow({ label, value, onPress }: { label: string; value: string | null | undefined; onPress?: () => void }) {
-  if (onPress) return <Pressable accessibilityRole="button" accessibilityLabel={`ดูรายละเอียด ${value}`} onPress={onPress}
-    style={[styles.infoRow, { minHeight: 44 }]}><Text style={styles.infoLabel}>{label}</Text>
-    <Text style={[styles.infoValue, { color: colors.info }]}>{value || '—'} ›</Text></Pressable>;
+  if (onPress && value) return <Pressable accessibilityRole="button" accessibilityLabel={`${label} ${value}`} accessibilityHint="เปิดรายละเอียด" onPress={onPress}
+    style={({ pressed }) => [styles.infoRow, { minHeight: TOUCH, alignItems: 'center' }, pressed && { opacity: 0.6 }]}>
+    <Text style={styles.infoLabel}>{label}</Text>
+    <Text style={[styles.infoValue, { color: colors.info }]}>{value}</Text>
+    <ChevronRight size={16} color={colors.info} />
+  </Pressable>;
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -89,6 +92,7 @@ export default function CaseDetailScreen() {
   const tasks = useCaseTasks(id);
   const toggle = useToggleTask();
   const insurance = useInsuranceClaim(id);
+  // The calendar API has no case filter yet, so the case's events are picked out here.
   const events = useQuery({
     queryKey: ['case-events', id],
     queryFn: () =>
@@ -103,20 +107,31 @@ export default function CaseDetailScreen() {
     enabled: !!id && tab === 'เอกสาร',
   });
 
-  if (caseQuery.isLoading) return <Loading />;
+  if (caseQuery.isLoading) return <Loading label="กำลังโหลดคดี…" />;
   if (caseQuery.isError || !caseQuery.data)
     return (
-      <View style={{ padding: spacing.lg }}>
+      <View style={[styles.screen, { padding: spacing.lg }]}>
         <ErrorNote message="โหลดข้อมูลคดีไม่สำเร็จ" onRetry={() => caseQuery.refetch()} />
       </View>
     );
 
   const detail = caseQuery.data;
   const status = STATUS_LABEL[detail.status] ?? { label: detail.status, tone: 'plain' as TagTone };
+  const manager = user?.firmRole === 'OWNER' || user?.role === 'ADMIN' || user?.role === 'LAWYER';
+  const closed = detail.status === 'CLOSED' || detail.status === 'ARCHIVED';
+  const buddies = (detail.assignments ?? []).filter(item => item.assignmentType === 'BUDDY');
+  const clientId = detail.client?.id;
+  const caseRef = { id, ownRef: detail.ownRef, title: detail.title, leadLawyerId: detail.leadLawyer?.id };
 
   return (
     <>
-      <Stack.Screen options={{ title: detail.ownRef }} />
+      <Stack.Screen options={{
+        title: 'คดี',
+        headerRight: () => <Pressable accessibilityRole="button" accessibilityLabel="แก้ไขคดี" accessibilityHint="แก้รายละเอียดและจัดคนหลักคนรอง"
+          onPress={() => router.push(`/case/new?id=${id}`)} style={({ pressed }) => [styles.headerAction, pressed && { opacity: 0.6 }]}>
+          <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={styles.headerActionText}>แก้ไข</Text>
+        </Pressable>,
+      }} />
       <ScrollView
         style={styles.screen}
         contentContainerStyle={pageContent}
@@ -127,27 +142,21 @@ export default function CaseDetailScreen() {
           />
         }
       >
-        <Text style={styles.caseTitle}>{detail.title}</Text>
-        <Disclosure title="จัดการคดีและผู้รับผิดชอบ" summary="แก้รายละเอียด เปลี่ยนทีม หรือจัดการสถานะคดี">
-        <Button title="แก้ไขคดี / จัดคนหลักและคนรอง" ghost onPress={() => router.push(`/case/new?id=${id}`)} />
-        {(user?.firmRole === 'OWNER' || user?.role === 'ADMIN' || user?.role === 'LAWYER') && <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-          {detail.status === 'CLOSED' || detail.status === 'ARCHIVED'
-            ? <Button title="เปิดคดีอีกครั้ง" ghost onPress={() => router.push(`/case/${id}/close?action=reopen`)} />
-            : <Button title="ปิดคดี · ตรวจรายการค้าง" ghost onPress={() => router.push(`/case/${id}/close`)} />}
-          {detail.status === 'CLOSED' && <Button title="เก็บคดีเข้าคลัง" ghost onPress={() => router.push(`/case/${id}/close?action=archive`)} />}
-        </View>}
-
-        </Disclosure>
-        <View style={styles.segment}>
+        <Text accessibilityRole="header" style={styles.caseTitle}>{detail.title}</Text>
+        <View style={styles.meta}>
+          <Text style={styles.metaText}>{detail.ownRef}</Text>
+          <Tag tone={status.tone}>{status.label}</Tag>
+        </View>
+        <View accessibilityRole="tablist" style={styles.segment}>
           {TABS.map((name) => (
             <Pressable
               key={name}
-              accessibilityRole="button"
+              accessibilityRole="tab"
               accessibilityState={{ selected: tab === name }}
               style={[styles.segmentItem, tab === name && styles.segmentItemOn]}
               onPress={() => setTab(name)}
             >
-              <Text style={[styles.segmentText, tab === name && styles.segmentTextOn]}>
+              <Text maxFontSizeMultiplier={CHROME_MAX_SCALE} style={[styles.segmentText, tab === name && styles.segmentTextOn]}>
                 {name}
               </Text>
             </Pressable>
@@ -157,11 +166,6 @@ export default function CaseDetailScreen() {
         {tab === 'ภาพรวม' ? (
           <>
           <Card>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={styles.infoLabel}>สถานะ</Text>
-              <Tag tone={status.tone}>{status.label}</Tag>
-            </View>
-            <View style={styles.divider} />
             <InfoRow
               label="คนหลัก"
               onPress={detail.leadLawyer?.id ? () => router.push({ pathname: '/person/[id]', params: { id: detail.leadLawyer!.id } }) : undefined}
@@ -171,11 +175,12 @@ export default function CaseDetailScreen() {
                   : null
               }
             />
-            {(detail.assignments ?? []).filter(item => item.assignmentType === 'BUDDY').length ?
-              (detail.assignments ?? []).filter(item => item.assignmentType === 'BUDDY').map(item => <InfoRow key={item.userId} label="คนรอง"
+            {buddies.length ?
+              buddies.map(item => <InfoRow key={item.userId} label="คนรอง"
                 value={`${item.user.firstName} ${item.user.lastName}`} onPress={() => router.push({ pathname: '/person/[id]', params: { id: item.userId } })} />)
               : <InfoRow label="คนรอง" value={null} />}
-            <InfoRow label="ลูกความ" value={detail.clientName ?? detail.client?.name} />
+            <InfoRow label="ลูกความ" value={detail.clientName ?? detail.client?.name}
+              onPress={clientId ? () => router.push({ pathname: '/clients/[id]', params: { id: clientId } }) : undefined} />
             <InfoRow label="เราเป็น" value={detail.partyRole ? PARTY_ROLE_LABELS[detail.partyRole as PartyRole] : null} />
             <InfoRow label="ศาล" value={detail.courtName} />
             <InfoRow
@@ -196,7 +201,7 @@ export default function CaseDetailScreen() {
             {detail.description ? (
               <>
                 <View style={styles.divider} />
-                <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>
+                <Text style={{ color: colors.text, fontSize: 14, lineHeight: 22 }}>
                   {detail.description}
                 </Text>
               </>
@@ -204,22 +209,33 @@ export default function CaseDetailScreen() {
           </Card>
           <Card style={{ marginTop: spacing.md }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.infoLabel}>คู่ความ</Text>
-              <Button title="เพิ่ม" ghost onPress={() => router.push(`/case/${id}/party`)} />
+              <Text accessibilityRole="header" style={styles.cardTitle}>คู่ความ</Text>
+              <Button title="เพิ่มคู่ความ" variant="link" onPress={() => router.push(`/case/${id}/party`)} />
             </View>
             {(detail.participants ?? []).length === 0
               ? <EmptyNote>ยังไม่มีคู่ความ</EmptyNote>
               : groupParticipantsBySide(detail.participants ?? []).map(group => <View key={group.side} style={{ marginTop: spacing.sm }}>
                   <Text style={{ color: colors.muted, fontSize: 13 }}>{group.label}</Text>
-                  {group.items.map(p => <Pressable key={p.id} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}
-                    onPress={() => router.push(`/case/${id}/party?participantId=${p.id}`)}>
-                    <Text>{p.name} · {PARTICIPANT_ROLE_LABELS[p.role as ParticipantRole] ?? p.role}</Text>
-                  </Pressable>)}
+                  {group.items.map(p => {
+                    const role = PARTICIPANT_ROLE_LABELS[p.role as ParticipantRole] ?? p.role;
+                    return <Pressable key={p.id} accessibilityRole="button" accessibilityLabel={`${p.name} · ${role}`} accessibilityHint="แก้ไขคู่ความ"
+                      style={({ pressed }) => [styles.partyRow, pressed && { backgroundColor: colors.soft }]}
+                      onPress={() => router.push(`/case/${id}/party?participantId=${p.id}`)}>
+                      <Text style={{ flex: 1, color: colors.text, fontSize: 15 }}>{p.name} · {role}</Text>
+                      <ChevronRight size={16} color={colors.faint} />
+                    </Pressable>;
+                  })}
                 </View>)}
           </Card>
           </>
         ) : null}
 
+        {/* 404 means the case has no insurance claim; only a real failure is shown. */}
+        {tab === 'ภาพรวม' && insurance.isError && !(insurance.error instanceof ApiError && insurance.error.status === 404) ? (
+          <View style={{ marginTop: spacing.md }}>
+            <ErrorNote message="โหลดข้อมูลสินไหมประกันภัยไม่ได้" onRetry={() => insurance.refetch()} />
+          </View>
+        ) : null}
         {tab === 'ภาพรวม' && insurance.data ? (
           <Card style={{ marginTop: spacing.md }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -242,105 +258,128 @@ export default function CaseDetailScreen() {
           </Card>
         ) : null}
 
+        {tab === 'ภาพรวม' && manager ? (
+          <View style={styles.lifecycle}>
+            {closed
+              ? <Button title="เปิดคดีอีกครั้ง" variant="secondary" onPress={() => router.push(`/case/${id}/close?action=reopen`)} />
+              : <Button title="ปิดคดี · ตรวจรายการค้าง" variant="secondary" onPress={() => router.push(`/case/${id}/close`)} />}
+            {detail.status === 'CLOSED' && <Button title="เก็บคดีเข้าคลัง" variant="link" onPress={() => router.push(`/case/${id}/close?action=archive`)} />}
+          </View>
+        ) : null}
+
         {tab === 'นัดหมาย' ? (
-          <Card>
-            <Button title="เพิ่มนัดหมาย · เลือกคนที่ไปด้วย" onPress={() => router.push(`/event/new?caseId=${id}`)} />
+          <>
+            <Button title="เพิ่มนัดหมาย" onPress={() => router.push(`/event/new?caseId=${id}`)} />
             {events.isLoading ? (
-              <EmptyNote>กำลังโหลด…</EmptyNote>
+              <Loading label="กำลังโหลดนัดหมาย…" />
+            ) : events.isError ? (
+              <View style={{ marginTop: spacing.md }}>
+                <ErrorNote message="โหลดนัดหมายของคดีไม่ได้" onRetry={() => events.refetch()} />
+              </View>
             ) : (events.data?.length ?? 0) === 0 ? (
-              <EmptyNote>ไม่มีนัดหมาย</EmptyNote>
+              <EmptyNote>คดีนี้ยังไม่มีนัดหมาย</EmptyNote>
             ) : (
-              events.data!.map((event, index) => (
-                <View key={event.id}>
-                  {index > 0 && <View style={styles.divider} />}
-                  <Pressable
-                    style={({ pressed }) => [styles.listRow, pressed && { opacity: 0.7 }]}
-                    onPress={() =>
-                      event.type === 'COURT_DATE' && router.push(`/court-day/${event.id}`)
-                    }
-                  >
+              <Card style={{ marginTop: spacing.md }}>
+                {events.data!.map((event, index) => {
+                  const court = event.type === 'COURT_DATE';
+                  const others = event.assignees?.filter((person) => person.userId !== event.assigneeId).length ?? 0;
+                  const body = <>
                     <View style={{ width: 74 }}>
                       <Text style={styles.rowStrong}>{thDate(event.startAt)}</Text>
                       <Text style={styles.rowFaint}>{thTime(event.startAt)}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowStrong} numberOfLines={2}>
-                        {event.title}
+                    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                      <Text style={styles.rowStrong} numberOfLines={2}>{event.title}</Text>
+                      {event.courtName ? <Text style={styles.rowFaint}>{event.courtName}</Text> : null}
+                      <Text style={styles.rowFaint}>
+                        {event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : 'ยังไม่ระบุคนหลัก'}{others ? ` และอีก ${others} คน` : ''}
                       </Text>
-                      {event.courtName ? (
-                        <Text style={styles.rowFaint}>{event.courtName}</Text>
-                      ) : null}
-                      <Text style={styles.rowFaint}>หลัก: {event.assignee ? `${event.assignee.firstName} ${event.assignee.lastName}` : 'ยังไม่ระบุ'}</Text>
-                      <Text style={styles.rowFaint}>ร่วม: {event.assignees?.filter((person) => person.userId !== event.assigneeId).map((person) => `${person.user.firstName} ${person.user.lastName}`).join(', ') || 'ไม่มี'}</Text>
+                      {court ? <Text style={[styles.rowFaint, { color: colors.info, fontWeight: '600' }]}>เปิด Court Day</Text> : null}
                     </View>
-                    {event.type === 'COURT_DATE' ? <Tag tone="court">ศาล</Tag> : null}
-                  </Pressable>
-                  <Pressable accessibilityRole="button" onPress={() => router.push(`/event/${event.id}/team`)} style={{ minHeight: 44, justifyContent: 'center', paddingLeft: 86 }}>
-                    <Text style={{ color: colors.info }}>ดู / จัดทีมที่ไปด้วย</Text>
-                  </Pressable>
-                </View>
-              ))
+                    {court ? <ChevronRight size={18} color={colors.faint} /> : null}
+                  </>;
+                  return (
+                    <View key={event.id}>
+                      {index > 0 && <View style={styles.divider} />}
+                      {court
+                        ? <Pressable accessibilityRole="button" accessibilityLabel={`${event.title} ${thDate(event.startAt)} ${thTime(event.startAt)}`}
+                            accessibilityHint="เปิด Court Day" style={({ pressed }) => [styles.listRow, pressed && { opacity: 0.7 }]}
+                            onPress={() => router.push(`/court-day/${event.id}`)}>{body}</Pressable>
+                        : <View style={styles.listRow}>{body}</View>}
+                      <Pressable accessibilityRole="button" accessibilityLabel={`ทีมที่ไปด้วย ${event.title}`}
+                        onPress={() => router.push(`/event/${event.id}/team`)} style={{ minHeight: 44, justifyContent: 'center', paddingLeft: 86 }}>
+                        <Text style={{ color: colors.info }}>ทีมที่ไปด้วย ›</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </Card>
             )}
-          </Card>
+          </>
         ) : null}
 
         {tab === 'งาน' ? (
-          <Card>
-            <View style={{ marginBottom: spacing.sm }}>
-              <Button title="เพิ่มงาน · เลือกผู้รับผิดชอบและแนบไฟล์" onPress={() => router.push(`/task/new?caseId=${id}`)} />
-            </View>
+          <>
+            <Button title="เพิ่มงาน" onPress={() => router.push(`/task/new?caseId=${id}`)} />
             {tasks.isLoading ? (
-              <EmptyNote>กำลังโหลด…</EmptyNote>
+              <Loading label="กำลังโหลดงาน…" />
+            ) : tasks.isError ? (
+              <View style={{ marginTop: spacing.md }}>
+                <ErrorNote message="โหลดงานของคดีไม่ได้" onRetry={() => tasks.refetch()} />
+              </View>
             ) : (tasks.data?.length ?? 0) === 0 ? (
-              <EmptyNote>ไม่มีงานในคดีนี้</EmptyNote>
+              <EmptyNote>คดีนี้ยังไม่มีงาน</EmptyNote>
             ) : (
-              tasks.data!.map((task, index) => {
-                const done = task.status === 'DONE';
-                return (
-                  <View key={task.id}>
-                    {index > 0 && <View style={styles.divider} />}
-                    <Pressable
-                      style={styles.listRow}
-                      onPress={() => router.push(`/task/new?id=${task.id}`)}
-                      onLongPress={() => !done && setReassigning({ ...task, caseId: id })}
-                      delayLongPress={350}
-                    >
-                      <Pressable
-                        accessibilityRole="checkbox"
-                        accessibilityLabel={`ทำงาน ${task.title} เสร็จแล้ว`}
-                        accessibilityState={{ checked: done, disabled: !user || !canToggleTask({ ...task, caseId: id, case: { id, ownRef: detail.ownRef, title: detail.title, leadLawyerId: detail.leadLawyer?.id } }, user) }}
-                        disabled={!user || !canToggleTask({ ...task, caseId: id, case: { id, ownRef: detail.ownRef, title: detail.title, leadLawyerId: detail.leadLawyer?.id } }, user) || toggle.isPending}
-                        hitSlop={10}
-                        onPress={() => toggle.mutate({ task: { ...task, caseId: id }, done: !done })}
-                        style={[styles.checkbox, done && styles.checkboxDone]}
-                      >
-                        {done ? <Check size={13} color={colors.surface} strokeWidth={3} /> : null}
-                      </Pressable>
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={[styles.rowStrong, done && styles.doneText]}
-                          numberOfLines={2}
+              <Card style={{ marginTop: spacing.md }}>
+                {tasks.data!.map((task, index) => {
+                  const done = task.status === 'DONE';
+                  const canToggle = user ? canToggleTask({ ...task, caseId: id, case: caseRef }, user) : false;
+                  const assignee = task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : 'ยังไม่มีผู้รับผิดชอบ';
+                  return (
+                    <View key={task.id}>
+                      {index > 0 && <View style={styles.divider} />}
+                      <View style={styles.taskRow}>
+                        <Pressable
+                          accessibilityRole="checkbox"
+                          accessibilityLabel={`ทำงาน ${task.title} เสร็จแล้ว`}
+                          accessibilityState={{ checked: done, disabled: !canToggle }}
+                          disabled={!canToggle || toggle.isPending}
+                          onPress={() => toggle.mutate({ task: { ...task, caseId: id }, done: !done })}
+                          style={styles.checkboxHit}
                         >
-                          {task.title}
-                        </Text>
-                        <Text style={styles.rowFaint}>
-                          {task.assignee
-                            ? `${task.assignee.firstName} ${task.assignee.lastName}`
-                            : 'ยังไม่มีผู้รับผิดชอบ'}
-                          {' · แตะดูรายละเอียด / แก้ไข'}
-                        </Text>
+                          <View style={[styles.checkbox, done && styles.checkboxDone, !canToggle && { opacity: 0.4 }]}>
+                            {done ? <Check size={13} color={colors.surface} strokeWidth={3} /> : null}
+                          </View>
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${task.title} · ${assignee}`}
+                          accessibilityHint="เปิดงาน"
+                          accessibilityActions={done ? undefined : [{ name: 'reassign', label: 'ย้ายผู้รับผิดชอบ' }]}
+                          onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'reassign') setReassigning({ ...task, caseId: id }); }}
+                          style={({ pressed }) => [styles.taskBody, pressed && { opacity: 0.7 }]}
+                          onPress={() => router.push(`/task/new?id=${task.id}`)}
+                          onLongPress={() => !done && setReassigning({ ...task, caseId: id })}
+                          delayLongPress={350}
+                        >
+                          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                            <Text style={[styles.rowStrong, done && styles.doneText]} numberOfLines={2}>{task.title}</Text>
+                            <Text style={styles.rowFaint}>{assignee}{!done && TASK_STATUS_LABEL[task.status] ? ` · ${TASK_STATUS_LABEL[task.status]}` : ''}</Text>
+                          </View>
+                          {task.dueDate && !done ? (
+                            <Tag tone={new Date(task.dueDate) < new Date() ? 'due' : 'plain'}>
+                              {thDate(task.dueDate)}
+                            </Tag>
+                          ) : null}
+                          <ChevronRight size={18} color={colors.faint} />
+                        </Pressable>
                       </View>
-                      {task.dueDate && !done ? (
-                        <Tag tone={new Date(task.dueDate) < new Date() ? 'due' : 'plain'}>
-                          {thDate(task.dueDate)}
-                        </Tag>
-                      ) : null}
-                    </Pressable>
-                  </View>
-                );
-              })
+                    </View>
+                  );
+                })}
+              </Card>
             )}
-          </Card>
+          </>
         ) : null}
 
         {tab === 'เอกสาร' ? (
@@ -356,23 +395,23 @@ export default function CaseDetailScreen() {
               <Text style={styles.scanText}>แนบเอกสาร · ถ่ายรูปหรือเลือกไฟล์</Text>
             </Pressable>
             <View style={styles.docLinks}>
-              <Pressable accessibilityRole="button" style={styles.docLink}
+              <Pressable accessibilityRole="link" style={styles.docLink}
                 onPress={() => router.push({ pathname: '/document-template', params: { caseId: id } })}>
                 <Text style={styles.docLinkText}>สร้างจากแบบสำเร็จ ›</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" style={styles.docLink}
+              <Pressable accessibilityRole="link" style={styles.docLink}
                 onPress={() => router.push({ pathname: '/document-waiting', params: { caseId: id } })}>
                 <Text style={styles.docLinkText}>รอเอกสารจากภายนอก ›</Text>
               </Pressable>
             </View>
             {documents.isError && <ErrorNote message="โหลดรายการเอกสารล่าสุดไม่ได้ ลองโหลดอีกครั้ง" onRetry={() => documents.refetch()} />}
-            <Card>
-              {documents.isLoading ? (
-                <EmptyNote>กำลังโหลด…</EmptyNote>
-              ) : documents.isError && !documents.data ? null : (documents.data?.length ?? 0) === 0 ? (
-                <EmptyNote>ยังไม่มีเอกสารในคดีนี้ · กด “แนบเอกสาร” ด้านบนเพื่อเพิ่ม</EmptyNote>
-              ) : (
-                documents.data!.map((doc, index) => {
+            {documents.isLoading ? (
+              <Loading label="กำลังโหลดเอกสาร…" />
+            ) : documents.isError && !documents.data ? null : (documents.data?.length ?? 0) === 0 ? (
+              <EmptyNote>ยังไม่มีเอกสารในคดีนี้ · กด “แนบเอกสาร” ด้านบนเพื่อเพิ่ม</EmptyNote>
+            ) : (
+              <Card>
+                {documents.data!.map((doc, index) => {
                   const filename = doc.filename ?? doc.name ?? doc.fileName ?? 'เอกสาร';
                   return (
                     <View key={doc.id}>
@@ -381,6 +420,7 @@ export default function CaseDetailScreen() {
                         style={({ pressed }) => [styles.listRow, pressed && { opacity: 0.7 }]}
                         accessibilityRole="button"
                         accessibilityLabel={`เปิด ${filename}`}
+                        accessibilityState={{ busy: openingDoc === doc.id }}
                         disabled={openingDoc === doc.id}
                         onPress={async () => {
                           setOpeningDoc(doc.id);
@@ -405,19 +445,20 @@ export default function CaseDetailScreen() {
                             {openingDoc === doc.id
                               ? 'กำลังดาวน์โหลด…'
                               : [
-                                  doc.version ? `v${doc.version}` : null,
+                                  doc.version ? `ฉบับ ${doc.version}` : null,
                                   doc.updatedAt ? thDate(doc.updatedAt) : null,
                                 ]
                                   .filter(Boolean)
                                   .join(' · ') || 'แตะเพื่อเปิด'}
                           </Text>
                         </View>
+                        <ChevronRight size={18} color={colors.faint} />
                       </Pressable>
                     </View>
                   );
-                })
-              )}
-            </Card>
+                })}
+              </Card>
+            )}
           </>
         ) : null}
         {tab === 'อีเมล' ? <CaseEmailTab caseId={id} /> : null}
@@ -429,7 +470,11 @@ export default function CaseDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  caseTitle: { fontSize: 18, fontWeight: '700', color: colors.ink, marginBottom: spacing.md },
+  headerAction: { minWidth: TOUCH, minHeight: TOUCH, justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: spacing.xs },
+  headerActionText: { color: colors.ink, fontWeight: '600', fontSize: 16 },
+  caseTitle: { fontSize: 22, lineHeight: 32, fontFamily: fonts.bold, color: colors.ink },
+  meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  metaText: { color: colors.muted, fontSize: 14 },
   segment: {
     flexDirection: 'row',
     backgroundColor: colors.soft,
@@ -448,14 +493,12 @@ const styles = StyleSheet.create({
   },
   segmentItemOn: {
     backgroundColor: colors.surface,
-    shadowColor: colors.ink,
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.line,
   },
   segmentText: { fontSize: 13, fontWeight: '600', color: colors.muted },
   segmentTextOn: { color: colors.ink },
+  cardTitle: { fontSize: 15, fontFamily: fonts.semibold, color: colors.ink },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -465,19 +508,25 @@ const styles = StyleSheet.create({
   infoLabel: { color: colors.faint, fontSize: 12, fontWeight: '600', maxWidth: '35%' },
   infoValue: { color: colors.text, fontSize: 14, flex: 1, textAlign: 'right' },
   divider: { height: 1, backgroundColor: colors.soft, marginVertical: 6 },
+  partyRow: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  lifecycle: { marginTop: spacing.xl, gap: spacing.xs },
   listRow: {
     flexDirection: 'row',
     gap: spacing.md,
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingVertical: spacing.sm,
+    minHeight: TOUCH,
   },
+  taskRow: { flexDirection: 'row', alignItems: 'center' },
+  taskBody: { flex: 1, minWidth: 0, minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   rowStrong: { color: colors.text, fontWeight: '600', fontSize: 14 },
   rowFaint: { color: colors.faint, fontSize: 12, marginTop: 2 },
   doneText: { color: colors.faint, textDecorationLine: 'line-through' },
+  checkboxHit: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center', marginLeft: -spacing.sm },
   checkbox: {
     width: 22,
     height: 22,
-    borderRadius: 6,
+    borderRadius: radius.pill,
     borderWidth: 1.5,
     borderColor: colors.muted,
     alignItems: 'center',

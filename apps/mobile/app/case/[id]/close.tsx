@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
@@ -7,10 +7,10 @@ import { useAuth } from '@/api/auth';
 import { useCase } from '@/api/hooks';
 import { Text } from '@/components/AppText';
 import { Dropdown } from '@/components/Dropdown';
-import { FormField, FormPage, FormSection } from '@/components/Form';
-import { Button, Card, ErrorNote, Loading, PageIntro } from '@/components/ui';
+import { CheckRow, FormField, FormPage, FormSection, MissingSummary } from '@/components/Form';
+import { ActionRow, Button, Card, ErrorNote, Loading, PageIntro } from '@/components/ui';
 import { thDate } from '@/format';
-import { colors, spacing } from '@/theme';
+import { colors, fonts, spacing } from '@/theme';
 
 interface Outstanding {
   total: number;
@@ -19,10 +19,11 @@ interface Outstanding {
   unapprovedDocuments: Array<{ id: string; filename: string }>;
 }
 const outcomes = [
-  { value: '', label: 'เลือกผลคดี' }, { value: 'WON', label: 'ชนะคดี' },
+  { value: 'WON', label: 'ชนะคดี' },
   { value: 'SETTLED', label: 'ตกลงกันได้' }, { value: 'MEDIATED', label: 'ไกล่เกลี่ยสำเร็จ' },
   { value: 'LOST', label: 'แพ้คดี' }, { value: 'WITHDRAWN', label: 'ถอนฟ้อง / ยุติ' },
 ];
+const SUMMARY_MIN = 10;
 
 export default function CaseCloseScreen() {
   const { id, action: requested } = useLocalSearchParams<{ id: string; action?: string }>();
@@ -38,13 +39,27 @@ export default function CaseCloseScreen() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [triedSave, setTriedSave] = useState(false);
   const outstanding = useQuery({ queryKey: ['case-outstanding', id], staleTime: 0,
     enabled: !!id && action === 'close' && allowed,
     queryFn: () => api<Outstanding>(`/cases/${id}/outstanding`) });
   useEffect(() => { setAcknowledged(false); }, [JSON.stringify(outstanding.data)]);
-  if (legalCase.isLoading) return <Loading />;
-  if (!allowed) return <FormPage><Text>คุณไม่มีสิทธิ์ทำรายการนี้</Text></FormPage>;
+  if (legalCase.isLoading) return <Loading label="กำลังโหลดคดี…" />;
+  if (!allowed) return <FormPage>
+    <Stack.Screen options={{ title }} />
+    <Text style={{ color: colors.text }}>คุณไม่มีสิทธิ์ทำรายการนี้ · ให้ทนายผู้รับผิดชอบหรือเจ้าของสำนักงานทำแทน</Text>
+    <Button title="กลับ" variant="secondary" onPress={() => router.back()} />
+  </FormPage>;
   if (!legalCase.data) return <FormPage><ErrorNote message="โหลดคดีไม่สำเร็จ" onRetry={() => legalCase.refetch()} /></FormPage>;
+
+  const shortBy = Math.max(0, SUMMARY_MIN - summary.trim().length);
+  const needsAck = !!outstanding.data && outstanding.data.total > 0 && !acknowledged;
+  const missing = action === 'close' ? [
+    !outcome ? 'ผลคดี' : '',
+    shortBy ? (summary.trim() ? `สรุปผลคดี (อีก ${shortBy} ตัวอักษร)` : 'สรุปผลคดี') : '',
+    needsAck ? 'ยืนยันว่าตรวจรายการค้างแล้ว' : '',
+  ].filter(Boolean) : [];
+  const outstandingReady = !!outstanding.data && !outstanding.isError && !outstanding.isFetching;
 
   const submit = async () => {
     if (busy) return;
@@ -60,33 +75,48 @@ export default function CaseCloseScreen() {
       if (action === 'close') { setAcknowledged(false); void outstanding.refetch(); }
     } finally { setBusy(false); }
   };
+  const confirm = () => {
+    if (action === 'close') {
+      setTriedSave(true);
+      // Missing fields show inline; once complete, closing still gets the same final confirm as before.
+      if (missing.length) return;
+    }
+    Alert.alert(title, `${title} ${legalCase.data!.ownRef}?`, [
+      { text: 'ยกเลิก', style: 'cancel' }, { text: 'ยืนยัน', onPress: submit },
+    ]);
+  };
+  const data = outstanding.data;
   return <FormPage>
     <Stack.Screen options={{ title }} />
     <PageIntro title={legalCase.data.ownRef} detail={legalCase.data.title} />
     {action === 'close' ? <>
-      {outstanding.isLoading && <Text>กำลังตรวจรายการค้าง…</Text>}
-      {outstanding.isError && <ErrorNote message="ตรวจรายการค้างไม่สำเร็จ" onRetry={() => outstanding.refetch()} />}
-      {outstanding.data && <Card>
-        <Text style={{ color: colors.ink, fontWeight: '700' }}>รายการค้าง {outstanding.data.total} รายการ</Text>
-        {outstanding.data.openTasks.map(item => <Text key={item.id} style={{ marginTop: spacing.sm }}>งาน: {item.title}</Text>)}
-        {outstanding.data.upcomingEvents.map(item => <Text key={item.id} style={{ marginTop: spacing.sm }}>นัดหมาย: {item.title} · {thDate(item.startAt)}</Text>)}
-        {outstanding.data.unapprovedDocuments.map(item => <Text key={item.id} style={{ marginTop: spacing.sm }}>เอกสารรออนุมัติ: {item.filename}</Text>)}
-        {outstanding.data.total > 0 && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acknowledged }}
-          onPress={() => setAcknowledged(!acknowledged)} style={{ minHeight: 48, paddingVertical: spacing.md }}>
-          <Text style={{ color: colors.warn }}>{acknowledged ? '☑' : '☐'} ตรวจรายการค้างแล้ว และยืนยันจะปิดคดี</Text>
-        </Pressable>}
+      {outstanding.isLoading && <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>กำลังตรวจรายการค้าง…</Text>}
+      {outstanding.isError && <ErrorNote message="ตรวจรายการค้างไม่สำเร็จ · ต้องตรวจได้ก่อนปิดคดี" onRetry={() => outstanding.refetch()} />}
+      {data && <Card style={{ gap: spacing.xs }}>
+        <Text accessibilityRole="header" style={{ color: colors.ink, fontSize: 17, fontFamily: fonts.bold }}>
+          {data.total > 0 ? `รายการค้าง ${data.total} รายการ` : 'ไม่มีรายการค้าง'}
+        </Text>
+        {data.total > 0 && <Text style={{ color: colors.muted, fontSize: 14 }}>แตะเพื่อเปิดและจัดการก่อนปิดคดี</Text>}
+        {data.openTasks.map(item => <ActionRow key={item.id} title={item.title} detail="งานที่ยังไม่เสร็จ"
+          onPress={() => router.push(`/task/new?id=${item.id}`)} />)}
+        {data.upcomingEvents.map(item => <ActionRow key={item.id} title={item.title} detail={`นัดหมาย · ${thDate(item.startAt)}`}
+          onPress={() => router.push(`/event/new?id=${item.id}`)} />)}
+        {data.unapprovedDocuments.map(item => <ActionRow key={item.id} title={item.filename} detail="เอกสารรออนุมัติ"
+          onPress={() => router.push(`/case/${id}?section=documents`)} />)}
+        {data.total > 0 && <CheckRow label="ตรวจรายการค้างแล้ว และยืนยันจะปิดคดี" checked={acknowledged} onChange={setAcknowledged} disabled={busy} />}
       </Card>}
       <FormSection title="ผลและสรุปก่อนปิดคดี">
-      <Dropdown label="ผลคดี" value={outcome} options={outcomes} onChange={setOutcome} disabled={busy} />
-      <FormField label="สรุปผลคดี (อย่างน้อย 10 ตัวอักษร)" value={summary} onChange={setSummary} multiline disabled={busy} placeholder="ผลคดี ข้อตกลง หรือบันทึกสำคัญก่อนปิดคดี" />
+        <Dropdown label="ผลคดี" fieldLabel="ผลคดี" required placeholder="เลือกผลคดี" value={outcome} options={outcomes} onChange={setOutcome} disabled={busy}
+          error={triedSave && !outcome ? 'เลือกผลคดี' : undefined} />
+        <FormField label="สรุปผลคดี" required hint={`อย่างน้อย ${SUMMARY_MIN} ตัวอักษร${summary.trim() && shortBy ? ` · อีก ${shortBy} ตัวอักษร` : ''}`}
+          value={summary} onChange={setSummary} multiline disabled={busy} placeholder="ผลคดี ข้อตกลง หรือบันทึกสำคัญก่อนปิดคดี"
+          error={triedSave && shortBy ? `เขียนสรุปอย่างน้อย ${SUMMARY_MIN} ตัวอักษร` : undefined} />
       </FormSection>
     </> : <Text style={{ color: colors.muted }}>{action === 'reopen'
       ? 'คดีจะกลับเป็นสถานะดำเนินการ' : 'เก็บคดีที่ปิดแล้วเข้าคลัง โดยยังเปิดคดีอีกครั้งได้'}</Text>}
-    {!!error && <Text accessibilityRole="alert" style={{ color: colors.warn }}>{error}</Text>}
+    {!!error && <ErrorNote message={error} />}
+    {triedSave && <MissingSummary items={missing} />}
     <View style={{ marginTop: spacing.md }}><Button title={`ยืนยัน${title}`} busy={busy}
-      disabled={action === 'close' && (!outcome || summary.trim().length < 10 || !outstanding.data || outstanding.isError || outstanding.isFetching || (outstanding.data.total > 0 && !acknowledged))}
-      onPress={() => Alert.alert(title, `${title} ${legalCase.data!.ownRef}?`, [
-        { text: 'ยกเลิก', style: 'cancel' }, { text: 'ยืนยัน', onPress: submit },
-      ])} /></View>
+      disabled={action === 'close' && !outstandingReady} onPress={confirm} /></View>
   </FormPage>;
 }

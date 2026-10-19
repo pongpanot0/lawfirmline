@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, TextInput as NativeTextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text, TextInput } from '@/components/AppText';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/api/auth';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { ApiError } from '@/api/client';
-import { Button, Card, SectionLabel } from '@/components/ui';
-import { colors, radius, spacing, TOUCH } from '@/theme';
+import { Button, Card } from '@/components/ui';
+import { FieldLabel } from '@/components/Form';
+import { colors, fonts, radius, spacing, TOUCH } from '@/theme';
 
 export default function LoginScreen() {
   const { login, verifyMfa } = useAuth();
@@ -20,6 +21,7 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const keyboardHeight = useKeyboardHeight();
   const [error, setError] = useState<string | null>(null);
+  const passwordRef = useRef<NativeTextInput>(null);
 
   const submit = async () => {
     if (busy) return;
@@ -55,72 +57,85 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <Card style={styles.form}>
-        <Text style={styles.brand}>Samnuan</Text>
-        <Text style={styles.subtitle}>ระบบบริหารสำนักงานกฎหมาย</Text>
+        <Text accessibilityRole="header" style={styles.brand}>Samnuan</Text>
+        {/* One subtitle per step: the MFA step replaces the product line with its instruction. */}
+        <Text style={styles.subtitle}>{mfaToken ? 'กรอกรหัสยืนยันที่ส่งไปยังอีเมลของคุณ' : 'ระบบบริหารสำนักงานกฎหมาย'}</Text>
 
-        {mfaToken ? <>
-          <Text style={styles.subtitle}>กรอกรหัสยืนยันที่ส่งไปยังอีเมลของคุณ</Text>
-          <TextInput style={styles.input} accessibilityLabel="รหัสยืนยัน" placeholder="รหัสยืนยัน 6 หลัก"
-            keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} value={code}
+        {mfaToken ? <View style={styles.field}>
+          <FieldLabel>รหัสยืนยัน 6 หลัก</FieldLabel>
+          <TextInput style={styles.input} accessibilityLabel="รหัสยืนยัน 6 หลัก" placeholder="000000" placeholderTextColor={colors.faint}
+            keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={6} value={code} autoFocus
             onChangeText={(value) => setCode(value.replace(/\D/g, ''))} onSubmitEditing={submit} />
-          <Button ghost title="กลับไปเข้าสู่ระบบ" onPress={() => { setMfaToken(null); setCode(''); setError(null); }} disabled={busy} />
-        </> : <>
-        <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>อีเมล</SectionLabel>
-        <TextInput
-          accessibilityLabel="อีเมล"
-          style={styles.input}
-          placeholder="อีเมล"
-          placeholderTextColor={colors.faint}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <SectionLabel style={{ marginTop: 0, marginBottom: 0 }}>รหัสผ่าน</SectionLabel>
-        <View style={styles.passwordRow}>
+        </View> : <>
+        <View style={styles.field}>
+          <FieldLabel>อีเมล</FieldLabel>
           <TextInput
-            accessibilityLabel="รหัสผ่าน"
-            style={[styles.input, styles.passwordInput]}
-            placeholder="รหัสผ่าน"
+            accessibilityLabel="อีเมล"
+            style={styles.input}
+            placeholder="name@firm.co.th"
             placeholderTextColor={colors.faint}
-            secureTextEntry={!showPassword}
             autoCapitalize="none"
-            autoComplete="password"
-            value={password}
-            onChangeText={setPassword}
-            onSubmitEditing={submit}
+            keyboardType="email-address"
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            value={email}
+            onChangeText={setEmail}
           />
-          <Pressable
-            accessibilityRole="button" accessibilityLabel={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-            style={styles.eyeButton}
-            hitSlop={8}
-            onPress={() => setShowPassword((visible) => !visible)}
-          >
-            {showPassword ? (
-              <EyeOff size={20} color={colors.faint} />
-            ) : (
-              <Eye size={20} color={colors.faint} />
-            )}
-          </Pressable>
+        </View>
+        <View style={styles.field}>
+          <FieldLabel>รหัสผ่าน</FieldLabel>
+          <View style={styles.passwordRow}>
+            <TextInput
+              ref={passwordRef}
+              accessibilityLabel="รหัสผ่าน"
+              style={[styles.input, styles.passwordInput]}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoComplete="password"
+              textContentType="password"
+              returnKeyType="go"
+              value={password}
+              onChangeText={setPassword}
+              onSubmitEditing={submit}
+            />
+            <Pressable
+              accessibilityRole="button" accessibilityLabel={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+              style={styles.eyeButton}
+              onPress={() => setShowPassword((visible) => !visible)}
+            >
+              {showPassword ? (
+                <EyeOff size={20} color={colors.muted} />
+              ) : (
+                <Eye size={20} color={colors.muted} />
+              )}
+            </Pressable>
+          </View>
         </View>
         </>}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
         <Button title={mfaToken ? 'ยืนยันรหัส' : 'เข้าสู่ระบบ'} onPress={submit} busy={busy}
           disabled={mfaToken ? code.length !== 6 : !email || !password} />
-        {!mfaToken && <>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/register')} disabled={busy}
-            style={{ minHeight: TOUCH, justifyContent: 'center' }}>
-            <Text style={{ color: colors.info, textAlign: 'center' }}>เจ้าของสำนักงาน · สร้างสำนักงานใหม่</Text>
+        {mfaToken ? <View style={{ alignItems: 'center' }}>
+          <Button variant="link" title="กลับไปเข้าสู่ระบบ" onPress={() => { setMfaToken(null); setCode(''); setError(null); }} disabled={busy} />
+        </View> : <>
+          <Pressable accessibilityRole="button" disabled={busy}
+            onPress={() => router.push({ pathname: '/(auth)/forgot-password', params: email.trim() ? { email: email.trim() } : {} })}
+            style={({ pressed }) => [styles.link, pressed && { opacity: 0.6 }]}>
+            <Text style={{ color: colors.info, textAlign: 'center' }}>ลืมรหัสผ่าน</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/forgot-password')} disabled={busy}
-            style={{ minHeight: TOUCH, justifyContent: 'center' }}>
-            <Text style={{ color: colors.muted, textAlign: 'center' }}>ลืมรหัสผ่าน</Text>
-          </Pressable>
-          <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://samnuan.com/privacy')}
-            style={{ minHeight: TOUCH, justifyContent: 'center' }}>
-            <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 12 }}>นโยบายความเป็นส่วนตัว</Text>
-          </Pressable>
+          <View style={styles.footer}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/register')} disabled={busy}
+              style={({ pressed }) => [styles.link, pressed && { opacity: 0.6 }]}>
+              <Text style={{ color: colors.info, textAlign: 'center' }}>เจ้าของสำนักงาน · สร้างสำนักงานใหม่</Text>
+            </Pressable>
+            <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://samnuan.com/privacy')}
+              style={({ pressed }) => [styles.link, pressed && { opacity: 0.6 }]}>
+              <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 13 }}>นโยบายความเป็นส่วนตัว</Text>
+            </Pressable>
+          </View>
         </>}
       </Card>
       </ScrollView>
@@ -142,15 +157,17 @@ const styles = StyleSheet.create({
   brand: {
     color: colors.ink,
     fontSize: 36,
-    fontWeight: '700',
+    lineHeight: 48,
+    fontFamily: fonts.bold,
     textAlign: 'center',
   },
   subtitle: {
     color: colors.muted,
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
     fontSize: 14,
   },
+  field: { gap: spacing.sm },
   input: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -172,5 +189,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  error: { color: colors.warn, fontSize: 13, textAlign: 'center' },
+  link: { minHeight: TOUCH, justifyContent: 'center' },
+  footer: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: spacing.sm, paddingTop: spacing.xs },
+  error: { color: colors.warn, fontSize: 14, textAlign: 'center' },
 });
