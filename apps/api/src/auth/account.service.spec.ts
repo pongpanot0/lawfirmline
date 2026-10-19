@@ -7,6 +7,7 @@ import { AccountController } from './account.controller';
 import { ChangeAccountPasswordDto, UpdateAccountProfileDto } from './dto/account.dto';
 import { PrismaService } from '../prisma/prisma.module';
 import { TenantService } from '../saas/tenant.service';
+import { EmailService } from '../notifications/email.service';
 import type { AuthUser } from '@lawfirm/shared';
 
 describe('Account self-service', () => {
@@ -17,7 +18,8 @@ describe('Account self-service', () => {
     $transaction: jest.fn(),
   };
   const tenant = { buildAuthUser: jest.fn() };
-  const service = new AccountService(prisma as unknown as PrismaService, tenant as unknown as TenantService);
+  const email = { sendAccountDeletionRequestEmail: jest.fn() };
+  const service = new AccountService(prisma as unknown as PrismaService, tenant as unknown as TenantService, email as unknown as EmailService);
   const controller = new AccountController(service);
   const user = { id: 'self', firmId: 'firm-a' } as AuthUser;
   let hash: string;
@@ -79,6 +81,37 @@ describe('Account self-service', () => {
     expect((await service.requestDeletion('self', 'firm-b', 'current-secret')).id).toBe('existing');
     expect(prisma.auditLog.findFirst.mock.calls[0][0].where).toEqual({ userId: 'self', action: 'ACCOUNT_DELETION_REQUESTED' });
     expect(prisma.auditLog.create).not.toHaveBeenCalled();
+    expect(email.sendAccountDeletionRequestEmail).not.toHaveBeenCalled();
+  });
+
+  describe('operator notice', () => {
+    const saved = process.env.PLATFORM_ADMIN_EMAILS;
+    const createdAt = new Date('2026-10-04T00:00:00Z');
+    afterEach(() => { process.env.PLATFORM_ADMIN_EMAILS = saved; });
+    beforeEach(() => {
+      prisma.auditLog.create.mockResolvedValue({ id: 'receipt', createdAt });
+      prisma.user.findUnique.mockResolvedValue({ passwordHash: hash, email: 'self@firm.test' });
+    });
+
+    it('emails every platform admin with the 30-day due window', async () => {
+      process.env.PLATFORM_ADMIN_EMAILS = 'ops@samnuan.com, cto@samnuan.com';
+      await service.requestDeletion('self', 'firm-a', 'current-secret');
+      expect(email.sendAccountDeletionRequestEmail.mock.calls.map(c => c[0].to)).toEqual(['ops@samnuan.com', 'cto@samnuan.com']);
+      expect(email.sendAccountDeletionRequestEmail).toHaveBeenCalledWith({
+        to: 'ops@samnuan.com', requestId: 'receipt', accountEmail: 'self@firm.test', requestedAt: createdAt, dueDays: 30,
+      });
+    });
+
+    it('falls back to the support inbox when no platform admin is configured', async () => {
+      delete process.env.PLATFORM_ADMIN_EMAILS;
+      await service.requestDeletion('self', 'firm-a', 'current-secret');
+      expect(email.sendAccountDeletionRequestEmail.mock.calls.map(c => c[0].to)).toEqual(['hello@samnuan.com']);
+    });
+
+    it('still returns the receipt when the notice fails', async () => {
+      email.sendAccountDeletionRequestEmail.mockRejectedValue(new Error('resend down'));
+      expect((await service.requestDeletion('self', 'firm-a', 'current-secret')).id).toBe('receipt');
+    });
   });
 
   it('validates character minimum and UTF-8 bcrypt byte limit', async () => {

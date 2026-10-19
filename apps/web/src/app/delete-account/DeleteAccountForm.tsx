@@ -54,7 +54,7 @@ export function DeleteAccountForm() {
       <h2 className="text-xl font-semibold">รับคำขอแล้ว / Request received</h2>
       <p className="mt-3 break-all">เลขคำขอ: {receipt.id}</p>
       <p className="mt-2">สถานะ: รอตรวจสอบ · Pending review</p>
-      <p className="mt-3 leading-7">บัญชียังไม่ถูกลบในทันที เก็บเลขคำขอไว้ติดต่อทีมดูแลที่ hello@samnuan.com เพื่อสอบถามการดำเนินการและข้อมูลที่ต้องเก็บต่อ</p>
+      <p className="mt-3 leading-7">บัญชียังไม่ถูกลบในทันที ทีมดูแลจะดำเนินการให้เสร็จภายใน 30 วันนับจากวันที่ส่งคำขอ (We complete deletion within 30 days.) เก็บเลขคำขอไว้ติดต่อทีมดูแลที่ hello@samnuan.com เพื่อสอบถามการดำเนินการและข้อมูลที่ต้องเก็บต่อ</p>
     </section>
   );
 

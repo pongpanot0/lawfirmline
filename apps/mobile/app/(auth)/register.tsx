@@ -46,7 +46,7 @@ export default function RegisterScreen() {
   return <FormPage>
     <View style={{ gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.lg }}>
       <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 28 }}>สมัคร Samnuan</Text>
-      <Text style={{ color: colors.muted }}>สร้างสำนักงานใหม่ (สำหรับเจ้าของสำนักงาน) · ทดลองใช้งาน 30 วัน</Text>
+      <Text style={{ color: colors.muted }}>สร้างสำนักงานใหม่ (สำหรับเจ้าของสำนักงาน)</Text>
       <Text style={{ color: colors.ink, fontWeight: '600' }}>ถ้าเป็นพนักงาน ไม่ต้องสมัคร ขอคำเชิญจากสำนักงานของคุณ แล้วกดลิงก์ในอีเมลเชิญ เพื่อเข้าไปเห็นคดีของสำนักงาน</Text>
     </View>
     <FormSection title="สำนักงานและชื่อของคุณ">
